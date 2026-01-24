@@ -1,0 +1,457 @@
+---
+title: "Request Hooks"
+description: "Customize access control for protected routes with request hooks"
+---
+
+Request hooks allow you to intercept requests to protected routes before payment processing. This enables custom access control logic such as API key authentication, free trials, geo-blocking, or granting access based on external authentication systems like Sign-In with X (SIWX).
+
+## Overview
+
+The `onProtectedRequest` hook runs on every request to a protected route, before any payment verification occurs. Based on your custom logic, you can:
+
+- **Grant access** without requiring payment
+- **Deny the request** with a custom error message
+- **Continue** to normal payment processing
+
+## Basic Usage
+
+### TypeScript (Express, Hono, Next.js)
+
+To use request hooks, you need to work with the `x402HTTPResourceServer` directly instead of using the simplified middleware functions:
+
+<Tabs>
+  <Tab title="Express">
+    ```typescript
+    import express from "express";
+    import { 
+      paymentMiddlewareFromHTTPServer,
+      x402ResourceServer,
+      x402HTTPResourceServer,
+      HTTPFacilitatorClient 
+    } from "@x402/express";
+    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+    const app = express();
+
+    // Create facilitator client
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+
+    // Create resource server and register schemes
+    const resourceServer = new x402ResourceServer(facilitatorClient);
+    registerExactEvmScheme(resourceServer);
+
+    // Define routes
+    const routes = {
+      "GET /api/data": {
+        accepts: [{
+          scheme: "exact",
+          price: "$0.01",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
+        }],
+        description: "Access to data API",
+      },
+    };
+
+    // Create HTTP server with hook
+    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+      .onProtectedRequest(async (context, routeConfig) => {
+        // Your custom logic here
+        const apiKey = context.adapter.getHeader("x-api-key");
+        
+        if (apiKey === process.env.ADMIN_API_KEY) {
+          return { grantAccess: true };
+        }
+        
+        // Continue to payment processing
+      });
+
+    // Use the HTTP server with middleware
+    app.use(paymentMiddlewareFromHTTPServer(httpServer));
+
+    app.get("/api/data", (req, res) => {
+      res.json({ data: "Protected content" });
+    });
+
+    app.listen(3000);
+    ```
+  </Tab>
+  <Tab title="Hono">
+    ```typescript
+    import { Hono } from "hono";
+    import { 
+      paymentMiddlewareFromHTTPServer,
+      x402ResourceServer,
+      x402HTTPResourceServer,
+      HTTPFacilitatorClient 
+    } from "@x402/hono";
+    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+    const app = new Hono();
+
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+
+    const resourceServer = new x402ResourceServer(facilitatorClient);
+    registerExactEvmScheme(resourceServer);
+
+    const routes = {
+      "/api/data": {
+        accepts: [{
+          scheme: "exact",
+          price: "$0.01",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
+        }],
+      },
+    };
+
+    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+      .onProtectedRequest(async (context, routeConfig) => {
+        const apiKey = context.adapter.getHeader("x-api-key");
+        
+        if (apiKey === process.env.ADMIN_API_KEY) {
+          return { grantAccess: true };
+        }
+      });
+
+    app.use(paymentMiddlewareFromHTTPServer(httpServer));
+
+    app.get("/api/data", (c) => c.json({ data: "Protected content" }));
+
+    export default app;
+    ```
+  </Tab>
+  <Tab title="Next.js">
+    ```typescript
+    // middleware.ts
+    import { 
+      paymentProxyFromHTTPServer,
+      x402ResourceServer,
+      x402HTTPResourceServer,
+      HTTPFacilitatorClient 
+    } from "@x402/next";
+    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+
+    const resourceServer = new x402ResourceServer(facilitatorClient);
+    registerExactEvmScheme(resourceServer);
+
+    const routes = {
+      "/api/data": {
+        accepts: [{
+          scheme: "exact",
+          price: "$0.01",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
+        }],
+      },
+    };
+
+    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+      .onProtectedRequest(async (context, routeConfig) => {
+        const apiKey = context.adapter.getHeader("x-api-key");
+        
+        if (apiKey === process.env.ADMIN_API_KEY) {
+          return { grantAccess: true };
+        }
+      });
+
+    export const middleware = paymentProxyFromHTTPServer(httpServer);
+
+    export const config = {
+      matcher: ["/api/:path*"],
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Hook Return Values
+
+The hook function can return three different values:
+
+### 1. Continue to Payment Processing (default)
+
+Return `void` or `undefined` to continue with normal payment verification:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  // Perform logging or analytics
+  console.log(`Request to ${context.path}`);
+  
+  // Return nothing - continue to payment processing
+})
+```
+
+### 2. Grant Access Without Payment
+
+Return `{ grantAccess: true }` to bypass payment requirements:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const apiKey = context.adapter.getHeader("x-api-key");
+  
+  if (apiKey === process.env.ADMIN_API_KEY) {
+    return { grantAccess: true };
+  }
+})
+```
+
+### 3. Deny the Request
+
+Return `{ abort: true, reason: string }` to reject the request with a 403 status:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const country = context.adapter.getHeader("cf-ipcountry");
+  
+  if (country === "XX") {
+    return { abort: true, reason: "Service not available in your region" };
+  }
+})
+```
+
+## Use Cases
+
+### API Key Authentication
+
+Grant access to users with valid API keys:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const apiKey = context.adapter.getHeader("x-api-key");
+  
+  if (!apiKey) {
+    return; // Continue to payment
+  }
+  
+  // Validate API key against your database
+  const isValid = await validateApiKey(apiKey);
+  
+  if (isValid) {
+    return { grantAccess: true };
+  }
+  
+  return { abort: true, reason: "Invalid API key" };
+})
+```
+
+### Free Trial Period
+
+Allow free access for new users:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const userId = context.adapter.getHeader("x-user-id");
+  
+  if (userId) {
+    const user = await getUser(userId);
+    const trialEndsAt = new Date(user.trialEndsAt);
+    
+    if (trialEndsAt > new Date()) {
+      return { grantAccess: true };
+    }
+  }
+})
+```
+
+### Geo-Blocking
+
+Block requests from specific regions:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const country = context.adapter.getHeader("cf-ipcountry");
+  const blockedCountries = ["XX", "YY"];
+  
+  if (blockedCountries.includes(country)) {
+    return { 
+      abort: true, 
+      reason: "Service not available in your region" 
+    };
+  }
+})
+```
+
+### Wallet Address Blocking
+
+Block specific wallet addresses:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const paymentHeader = context.adapter.getHeader("payment-signature");
+  
+  if (paymentHeader) {
+    const payload = decodePaymentSignatureHeader(paymentHeader);
+    const blockedAddresses = ["0xBlockedAddress1", "0xBlockedAddress2"];
+    
+    if (blockedAddresses.includes(payload.payer.toLowerCase())) {
+      return { 
+        abort: true, 
+        reason: "Access denied" 
+      };
+    }
+  }
+})
+```
+
+### Sign-In with X (SIWX) Integration
+
+Grant access based on external authentication:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  const authToken = context.adapter.getHeader("authorization");
+  
+  if (authToken) {
+    try {
+      const session = await verifySIWXToken(authToken);
+      
+      if (session.valid) {
+        return { grantAccess: true };
+      }
+    } catch (error) {
+      return { 
+        abort: true, 
+        reason: "Invalid authentication token" 
+      };
+    }
+  }
+})
+```
+
+## Multiple Hooks
+
+You can register multiple hooks, and they will be executed in order of registration. The first hook to return a non-void result wins:
+
+```typescript
+const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(async (context) => {
+    // First hook: Check API key
+    const apiKey = context.adapter.getHeader("x-api-key");
+    if (apiKey === process.env.ADMIN_API_KEY) {
+      return { grantAccess: true };
+    }
+  })
+  .onProtectedRequest(async (context) => {
+    // Second hook: Check geo-blocking
+    const country = context.adapter.getHeader("cf-ipcountry");
+    if (country === "XX") {
+      return { abort: true, reason: "Region blocked" };
+    }
+  })
+  .onProtectedRequest(async (context) => {
+    // Third hook: Log all requests
+    console.log(`Request from ${context.adapter.getHeader("user-agent")}`);
+    // Continue to payment
+  });
+```
+
+## Hook Context
+
+The hook receives two parameters:
+
+### HTTPRequestContext
+
+```typescript
+interface HTTPRequestContext {
+  adapter: HTTPAdapter;  // Framework-specific adapter
+  path: string;          // Request path
+  method: string;        // HTTP method
+  paymentHeader?: string; // Payment signature header if present
+}
+```
+
+Access request data through the adapter:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  // Get headers
+  const userAgent = context.adapter.getHeader("user-agent");
+  const apiKey = context.adapter.getHeader("x-api-key");
+  
+  // Get request details
+  const path = context.path;
+  const method = context.method;
+  
+  // Get query parameters (if supported by adapter)
+  const queryParams = context.adapter.getQueryParams?.();
+  
+  // Get request body (if supported by adapter)
+  const body = context.adapter.getBody?.();
+})
+```
+
+### RouteConfig
+
+The route configuration for the matched route:
+
+```typescript
+interface RouteConfig {
+  accepts: PaymentOption[];
+  description?: string;
+  mimeType?: string;
+  extensions?: Record<string, unknown>;
+}
+```
+
+Use this to make decisions based on route configuration:
+
+```typescript
+.onProtectedRequest(async (context, routeConfig) => {
+  // Check if route has specific extensions
+  if (routeConfig.extensions?.premium) {
+    // Apply premium-only logic
+  }
+  
+  // Check price
+  const price = routeConfig.accepts[0].price;
+  if (price === "$0.00") {
+    return { grantAccess: true };
+  }
+})
+```
+
+## Best Practices
+
+1. **Keep hooks fast**: Hooks run on every request to protected routes. Avoid slow operations like database queries when possible.
+
+2. **Use caching**: Cache validation results (API keys, user sessions) to improve performance.
+
+3. **Log decisions**: Log when hooks grant or deny access for debugging and auditing.
+
+4. **Handle errors gracefully**: Wrap async operations in try-catch blocks to prevent hook failures from breaking your API.
+
+5. **Order matters**: Register hooks in order of specificity - most specific checks first, general checks last.
+
+6. **Security**: Never expose sensitive information in abort reasons that will be sent to clients.
+
+## Migration from Simple Middleware
+
+If you're currently using the simple middleware functions (`paymentMiddleware`, `paymentProxy`, etc.), you can migrate to use hooks:
+
+**Before:**
+```typescript
+app.use(paymentMiddleware(routes, server));
+```
+
+**After:**
+```typescript
+const httpServer = new x402HTTPResourceServer(server, routes)
+  .onProtectedRequest(yourHookFunction);
+
+app.use(paymentMiddlewareFromHTTPServer(httpServer));
+```
+
+The behavior is identical except you now have the ability to add custom hooks.
+
+## Related
+
+- [Quickstart for Sellers](/getting-started/quickstart-for-sellers) - Basic setup guide
+- [Bazaar Discovery Layer](/core-concepts/bazaar-discovery-layer) - Make your API discoverable
