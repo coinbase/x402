@@ -19,23 +19,18 @@ export interface HttpServerInstance {
 }
 
 /**
- * Creates and configures the x402 HTTP server with initialization logic
+ * Prepares an existing x402HTTPResourceServer with initialization logic
  *
- * @param routes - The route configuration for the server
- * @param server - The x402 resource server instance
+ * @param httpServer - Pre-configured x402HTTPResourceServer instance
  * @param paywall - Optional paywall provider for custom payment UI
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on start (defaults to true)
  * @returns The HTTP server instance with initialization function
  */
-export function createHttpServer(
-  routes: RoutesConfig,
-  server: x402ResourceServer,
+export function prepareHttpServer(
+  httpServer: x402HTTPResourceServer,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
 ): HttpServerInstance {
-  // Create the x402 HTTP server instance with the resource server
-  const httpServer = new x402HTTPResourceServer(server, routes);
-
   // Register custom paywall provider if provided
   if (paywall) {
     httpServer.registerPaywallProvider(paywall);
@@ -55,6 +50,27 @@ export function createHttpServer(
       }
     },
   };
+}
+
+/**
+ * Creates and configures the x402 HTTP server with initialization logic
+ *
+ * @param routes - The route configuration for the server
+ * @param server - The x402 resource server instance
+ * @param paywall - Optional paywall provider for custom payment UI
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on start (defaults to true)
+ * @returns The HTTP server instance with initialization function
+ */
+export function createHttpServer(
+  routes: RoutesConfig,
+  server: x402ResourceServer,
+  paywall?: PaywallProvider,
+  syncFacilitatorOnStart: boolean = true,
+): HttpServerInstance {
+  // Create the x402 HTTP server instance with the resource server
+  const httpServer = new x402HTTPResourceServer(server, routes);
+
+  return prepareHttpServer(httpServer, paywall, syncFacilitatorOnStart);
 }
 
 /**
