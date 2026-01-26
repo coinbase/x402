@@ -813,6 +813,7 @@ describe("SIWX Hooks", () => {
           payload: { authorization: { from: "0xABC123" } },
           resource: { url: "http://example.com/weather" },
         },
+        result: { success: true },
       });
 
       expect(storage.hasPaid("/weather", "0xABC123")).toBe(true);
@@ -827,6 +828,7 @@ describe("SIWX Hooks", () => {
           payload: { payer: "SolanaAddress123" },
           resource: { url: "http://example.com/data" },
         },
+        result: { success: true },
       });
 
       expect(storage.hasPaid("/data", "SolanaAddress123")).toBe(true);
@@ -845,6 +847,7 @@ describe("SIWX Hooks", () => {
           payload: { authorization: { from: "0x123" } },
           resource: { url: "http://example.com/test" },
         },
+        result: { success: true },
       });
 
       expect(events).toHaveLength(1);
@@ -864,10 +867,27 @@ describe("SIWX Hooks", () => {
           payload: { unknown: "format" },
           resource: { url: "http://example.com/test" },
         },
+        result: { success: true },
       });
 
       // No exception, just silently skips
       expect(storage.hasPaid("/test", "anything")).toBe(false);
+    });
+
+    it("should NOT record payment if settlement failed", async () => {
+      const storage = new InMemorySIWxStorage();
+      const hook = createSIWxSettleHook({ storage });
+
+      await hook({
+        paymentPayload: {
+          payload: { authorization: { from: "0xABC123" } },
+          resource: { url: "http://example.com/weather" },
+        },
+        result: { success: false },
+      });
+
+      // Payment should NOT be recorded when settlement fails
+      expect(storage.hasPaid("/weather", "0xABC123")).toBe(false);
     });
   });
 
