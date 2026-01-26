@@ -405,3 +405,221 @@ describe("Permit2 Approval Helpers", () => {
     });
   });
 });
+
+/**
+ * Tests for the Permit2 approval flow pattern.
+ * These tests demonstrate how apps should check allowance and handle approval.
+ */
+describe("Permit2 Approval Flow", () => {
+  /**
+   * Helper to simulate checking allowance and determining if approval is needed.
+   * This mirrors what an app would do with a real publicClient.
+   */
+  function checkNeedsApproval(currentAllowance: bigint, requiredAmount: bigint): boolean {
+    return currentAllowance < requiredAmount;
+  }
+
+  describe("Allowance Check Logic", () => {
+    it("should detect when approval is needed (zero allowance)", () => {
+      const currentAllowance = BigInt(0);
+      const requiredAmount = BigInt("1000000"); // 1 USDC
+
+      expect(checkNeedsApproval(currentAllowance, requiredAmount)).toBe(true);
+    });
+
+    it("should detect when approval is needed (insufficient allowance)", () => {
+      const currentAllowance = BigInt("500000"); // 0.5 USDC
+      const requiredAmount = BigInt("1000000"); // 1 USDC
+
+      expect(checkNeedsApproval(currentAllowance, requiredAmount)).toBe(true);
+    });
+
+    it("should detect when approval is NOT needed (exact allowance)", () => {
+      const currentAllowance = BigInt("1000000"); // 1 USDC
+      const requiredAmount = BigInt("1000000"); // 1 USDC
+
+      expect(checkNeedsApproval(currentAllowance, requiredAmount)).toBe(false);
+    });
+
+    it("should detect when approval is NOT needed (excess allowance)", () => {
+      const currentAllowance = BigInt("10000000"); // 10 USDC
+      const requiredAmount = BigInt("1000000"); // 1 USDC
+
+      expect(checkNeedsApproval(currentAllowance, requiredAmount)).toBe(false);
+    });
+
+    it("should detect when approval is NOT needed (max uint256 allowance)", () => {
+      const maxUint256 = BigInt(
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      );
+      const requiredAmount = BigInt("1000000000000"); // Large amount
+
+      expect(checkNeedsApproval(maxUint256, requiredAmount)).toBe(false);
+    });
+  });
+
+  describe("Full Approval Flow Simulation", () => {
+    const tokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+    const ownerAddress = "0x1234567890123456789012345678901234567890" as `0x${string}`;
+    const requiredAmount = BigInt("1000000");
+
+    /**
+     * Simulates the full approval flow an app would implement.
+     * Returns the steps taken and whether approval was triggered.
+     */
+    async function simulateApprovalFlow(
+      mockAllowance: bigint,
+      mockSendTransaction: () => Promise<`0x${string}`>,
+    ): Promise<{
+      checkedAllowance: boolean;
+      approvalSent: boolean;
+      approvalTxHash?: `0x${string}`;
+    }> {
+      const result = {
+        checkedAllowance: false,
+        approvalSent: false,
+        approvalTxHash: undefined as `0x${string}` | undefined,
+      };
+
+      // Step 1: Get read params for allowance check
+      const readParams = getPermit2AllowanceReadParams({
+        tokenAddress,
+        ownerAddress,
+      });
+      expect(readParams).toBeDefined();
+
+      // Step 2: Simulate reading allowance (would be publicClient.readContract in real app)
+      const currentAllowance = mockAllowance;
+      result.checkedAllowance = true;
+
+      // Step 3: Check if approval needed
+      if (checkNeedsApproval(currentAllowance, requiredAmount)) {
+        // Step 4: Create approval transaction
+        const tx = createPermit2ApprovalTx(tokenAddress);
+        expect(tx.to).toBeDefined();
+        expect(tx.data).toBeDefined();
+
+        // Step 5: Send transaction (would be walletClient.sendTransaction in real app)
+        result.approvalTxHash = await mockSendTransaction();
+        result.approvalSent = true;
+      }
+
+      return result;
+    }
+
+    it("should trigger approval when allowance is zero", async () => {
+      const mockTxHash = "0xabc123" as `0x${string}`;
+      const result = await simulateApprovalFlow(BigInt(0), async () => mockTxHash);
+
+      expect(result.checkedAllowance).toBe(true);
+      expect(result.approvalSent).toBe(true);
+      expect(result.approvalTxHash).toBe(mockTxHash);
+    });
+
+    it("should trigger approval when allowance is insufficient", async () => {
+      const mockTxHash = "0xdef456" as `0x${string}`;
+      const result = await simulateApprovalFlow(BigInt("500000"), async () => mockTxHash);
+
+      expect(result.checkedAllowance).toBe(true);
+      expect(result.approvalSent).toBe(true);
+      expect(result.approvalTxHash).toBe(mockTxHash);
+    });
+
+    it("should skip approval when allowance is sufficient", async () => {
+      const result = await simulateApprovalFlow(BigInt("10000000"), async () => {
+        throw new Error("Should not send transaction");
+      });
+
+      expect(result.checkedAllowance).toBe(true);
+      expect(result.approvalSent).toBe(false);
+      expect(result.approvalTxHash).toBeUndefined();
+    });
+
+    it("should skip approval when allowance is max uint256", async () => {
+      const maxUint256 = BigInt(
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      );
+      const result = await simulateApprovalFlow(maxUint256, async () => {
+        throw new Error("Should not send transaction");
+      });
+
+      expect(result.checkedAllowance).toBe(true);
+      expect(result.approvalSent).toBe(false);
+    });
+  });
+
+  describe("Approval + Permit2 Payload Creation Flow", () => {
+    let mockSigner: ClientEvmSigner;
+    let client: ExactEvmScheme;
+
+    beforeEach(() => {
+      mockSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksignature123456789"),
+      };
+      client = new ExactEvmScheme(mockSigner);
+    });
+
+    it("should complete full flow: check allowance -> approve -> create payload", async () => {
+      const tokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: tokenAddress,
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      // Step 1: Check allowance (simulated as zero)
+      const readParams = getPermit2AllowanceReadParams({
+        tokenAddress,
+        ownerAddress: mockSigner.address,
+      });
+      expect(readParams.functionName).toBe("allowance");
+
+      const mockAllowance = BigInt(0);
+      const needsApproval = mockAllowance < BigInt(requirements.amount);
+      expect(needsApproval).toBe(true);
+
+      // Step 2: Create and "send" approval tx
+      const approvalTx = createPermit2ApprovalTx(tokenAddress);
+      expect(approvalTx.to.toLowerCase()).toBe(tokenAddress.toLowerCase());
+      // In real app: await walletClient.sendTransaction(approvalTx)
+
+      // Step 3: Create Permit2 payload (after approval)
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isPermit2Payload(result.payload)).toBe(true);
+      expect(result.payload.permit2Authorization).toBeDefined();
+      expect(result.payload.signature).toBeDefined();
+    });
+
+    it("should skip approval and directly create payload when already approved", async () => {
+      const tokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: tokenAddress,
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      // Step 1: Check allowance (simulated as max uint256 - already approved)
+      const maxUint256 = BigInt(
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      );
+      const needsApproval = maxUint256 < BigInt(requirements.amount);
+      expect(needsApproval).toBe(false);
+
+      // Step 2: Skip approval, directly create payload
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isPermit2Payload(result.payload)).toBe(true);
+      expect(result.payload.permit2Authorization).toBeDefined();
+    });
+  });
+});
