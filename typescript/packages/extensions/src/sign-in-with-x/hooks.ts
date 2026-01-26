@@ -77,7 +77,11 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
 
   return async (ctx: {
     paymentPayload: { payload: unknown; resource: { url: string } };
+    result: { success: boolean };
   }): Promise<void> => {
+    // Only record payment if settlement succeeded
+    if (!ctx.result.success) return;
+
     const address = extractPayerAddress(ctx.paymentPayload.payload);
     if (!address) return;
 
