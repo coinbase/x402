@@ -1823,7 +1823,7 @@ wheels = [
 [[package]]
 name = "x402"
 version = "1.0.0"
-source = { editable = "../../../../../python/x402" }
+source = { editable = "../../../../../python/legacy" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },
@@ -1870,7 +1870,7 @@ dependencies = [
 requires-dist = [
     { name = "eth-account", specifier = ">=0.8.0" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "x402", editable = "../../../../../python/x402" },
+    { name = "x402", editable = "../../../../../python/legacy" },
 ]
 
 [[package]]

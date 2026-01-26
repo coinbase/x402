@@ -1,217 +1,263 @@
-# x402 Python
+# x402 Python SDK
 
-Python package for the x402 payments protocol.
+Core implementation of the x402 payment protocol. Provides transport-agnostic client, server, and facilitator components with both async and sync variants.
 
 ## Installation
 
+Install the core package with your preferred framework/client:
+
 ```bash
-pip install x402
+# HTTP clients (pick one)
+uv add x402[httpx]      # httpx client
+uv add x402[requests]   # requests client
+
+# Server frameworks (pick one)
+uv add x402[fastapi]    # FastAPI middleware
+uv add x402[flask]      # Flask middleware
+
+# Blockchain mechanisms (pick one or both)
+uv add x402[evm]        # EVM/Ethereum
+uv add x402[svm]        # Solana
+
+# Multiple extras
+uv add x402[fastapi,httpx,evm]
+
+# Everything
+uv add x402[all]
 ```
 
-## Overview
+## Quick Start
 
-The x402 package provides the core building blocks for implementing the x402 Payment Protocol in Python. It's designed to be used by:
+### Client (Async)
 
-- FastAPI middleware for accepting payments
-- Flask middleware for accepting payments
-- httpx client for paying resources
-- requests client for paying resources
+```python
+from x402 import x402Client
+from x402.mechanisms.evm.exact import ExactEvmScheme
 
-## FastAPI Integration
+client = x402Client()
+client.register("eip155:*", ExactEvmScheme(signer=my_signer))
 
-The simplest way to add x402 payment protection to your FastAPI application:
-
-```py
-from fastapi import FastAPI
-from x402.fastapi.middleware import require_payment
-
-app = FastAPI()
-app.middleware("http")(
-    require_payment(price="0.01", pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
-)
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+# Create payment from 402 response
+payload = await client.create_payment_payload(payment_required)
 ```
 
-To protect specific routes:
+### Client (Sync)
 
-```py
-app.middleware("http")(
-    require_payment(price="0.01",
-    pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C"),
-    path="/foo"  # <-- this can also be a list ex: ["/foo", "/bar"]
-)
+```python
+from x402 import x402ClientSync
+from x402.mechanisms.evm.exact import ExactEvmScheme
+
+client = x402ClientSync()
+client.register("eip155:*", ExactEvmScheme(signer=my_signer))
+
+payload = client.create_payment_payload(payment_required)
 ```
 
-## Flask Integration
+### Server (Async)
 
-The simplest way to add x402 payment protection to your Flask application:
+```python
+from x402 import x402ResourceServer, ResourceConfig
+from x402.http import HTTPFacilitatorClient
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
 
-```py
-from flask import Flask
-from x402.flask.middleware import PaymentMiddleware
+facilitator = HTTPFacilitatorClient(url="https://x402.org/facilitator")
+server = x402ResourceServer(facilitator)
+server.register("eip155:*", ExactEvmServerScheme())
+server.initialize()
 
-app = Flask(__name__)
-
-# Initialize payment middleware
-payment_middleware = PaymentMiddleware(app)
-
-# Add payment protection for all routes
-payment_middleware.add(
+# Build requirements
+config = ResourceConfig(
+    scheme="exact",
+    network="eip155:8453",
+    pay_to="0x...",
     price="$0.01",
-    pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+)
+requirements = server.build_payment_requirements(config)
+
+# Verify payment
+result = await server.verify_payment(payload, requirements[0])
+```
+
+### Server (Sync)
+
+```python
+from x402 import x402ResourceServerSync, ResourceConfig
+from x402.http import HTTPFacilitatorClientSync
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+
+facilitator = HTTPFacilitatorClientSync(url="https://x402.org/facilitator")
+server = x402ResourceServerSync(facilitator)
+server.register("eip155:*", ExactEvmServerScheme())
+server.initialize()
+
+result = server.verify_payment(payload, requirements[0])
+```
+
+### Facilitator (Async)
+
+```python
+from x402 import x402Facilitator
+from x402.mechanisms.evm.exact import ExactEvmFacilitatorScheme
+
+facilitator = x402Facilitator()
+facilitator.register(
+    ["eip155:8453", "eip155:84532"],
+    ExactEvmFacilitatorScheme(wallet=wallet),
 )
 
-@app.route("/")
-def root():
-    return {"message": "Hello World"}
+result = await facilitator.verify(payload, requirements)
+if result.is_valid:
+    settle_result = await facilitator.settle(payload, requirements)
 ```
 
-To protect specific routes:
+### Facilitator (Sync)
 
-```py
-# Protect specific endpoint
-payment_middleware.add(
-    path="/foo",
-    price="$0.001",
-    pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+```python
+from x402 import x402FacilitatorSync
+from x402.mechanisms.evm.exact import ExactEvmFacilitatorScheme
+
+facilitator = x402FacilitatorSync()
+facilitator.register(
+    ["eip155:8453", "eip155:84532"],
+    ExactEvmFacilitatorScheme(wallet=wallet),
 )
+
+result = facilitator.verify(payload, requirements)
 ```
 
-## Client Integration
+## Async vs Sync
 
-### Simple Usage
+Each component has both async and sync variants:
 
-#### Httpx Client
-```py
-from eth_account import Account
-from x402.clients.httpx import x402HttpxClient
+| Async (default) | Sync |
+|-----------------|------|
+| `x402Client` | `x402ClientSync` |
+| `x402ResourceServer` | `x402ResourceServerSync` |
+| `x402Facilitator` | `x402FacilitatorSync` |
+| `HTTPFacilitatorClient` | `HTTPFacilitatorClientSync` |
 
-# Initialize account
-account = Account.from_key("your_private_key")
+Async variants support both sync and async hooks (auto-detected). Sync variants only support sync hooks and raise `TypeError` if async hooks are registered.
 
-# Create client and make request
-async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
+### Framework Pairing
+
+| Framework | HTTP Client | Server | Facilitator Client |
+|-----------|-------------|--------|-------------------|
+| FastAPI | httpx | `x402ResourceServer` | `HTTPFacilitatorClient` |
+| Flask | requests | `x402ResourceServerSync` | `HTTPFacilitatorClientSync` |
+
+Mismatched variants raise `TypeError` at runtime.
+
+## Client Configuration
+
+Use `from_config()` for declarative setup:
+
+```python
+from x402 import x402Client, x402ClientConfig, SchemeRegistration
+
+config = x402ClientConfig(
+    schemes=[
+        SchemeRegistration(network="eip155:*", client=ExactEvmScheme(signer)),
+        SchemeRegistration(network="solana:*", client=ExactSvmScheme(signer)),
+    ],
+    policies=[prefer_network("eip155:8453")],
+)
+client = x402Client.from_config(config)
 ```
 
-#### Requests Session Client
-```py
-from eth_account import Account
-from x402.clients.requests import x402_requests
+## Policies
 
-# Initialize account
-account = Account.from_key("your_private_key")
+Filter or prioritize payment requirements:
 
-# Create session and make request
-session = x402_requests(account)
-response = session.get("https://api.example.com/protected-endpoint")
-print(response.content)
+```python
+from x402 import prefer_network, prefer_scheme, max_amount
+
+client.register_policy(prefer_network("eip155:8453"))
+client.register_policy(prefer_scheme("exact"))
+client.register_policy(max_amount(1_000_000))  # 1 USDC max
 ```
 
-### Advanced Usage
+## Lifecycle Hooks
 
-#### Httpx Extensible Example
-```py
-import httpx
-from eth_account import Account
-from x402.clients.httpx import x402_payment_hooks
+### Client Hooks
 
-# Initialize account
-account = Account.from_key("your_private_key")
+```python
+from x402 import AbortResult, RecoveredPayloadResult
 
-# Create httpx client with x402 payment hooks
-async with httpx.AsyncClient(base_url="https://api.example.com") as client:
-    # Add payment hooks directly to client
-    client.event_hooks = x402_payment_hooks(account)
-    
-    # Make request - payment handling is automatic
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
+def before_payment(ctx):
+    print(f"Creating payment for: {ctx.selected_requirements.network}")
+    # Return AbortResult(reason="...") to cancel
+
+def after_payment(ctx):
+    print(f"Payment created: {ctx.payment_payload}")
+
+def on_failure(ctx):
+    print(f"Payment failed: {ctx.error}")
+    # Return RecoveredPayloadResult(payload=...) to recover
+
+client.on_before_payment_creation(before_payment)
+client.on_after_payment_creation(after_payment)
+client.on_payment_creation_failure(on_failure)
 ```
 
-#### Requests Session Extensible Example
-```py
-import requests
-from eth_account import Account
-from x402.clients.requests import x402_http_adapter
+### Server Hooks
 
-# Initialize account
-account = Account.from_key("your_private_key")
+```python
+server.on_before_verify(lambda ctx: print(f"Verifying: {ctx.payload}"))
+server.on_after_verify(lambda ctx: print(f"Result: {ctx.result.is_valid}"))
+server.on_verify_failure(lambda ctx: print(f"Failed: {ctx.error}"))
 
-# Create session and mount the x402 adapter
-session = requests.Session()
-adapter = x402_http_adapter(account)
-
-# Mount the adapter for both HTTP and HTTPS
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
-# Make request - payment handling is automatic
-response = session.get("https://api.example.com/protected-endpoint")
-print(response.content)
+server.on_before_settle(lambda ctx: ...)
+server.on_after_settle(lambda ctx: ...)
+server.on_settle_failure(lambda ctx: ...)
 ```
 
-## Manual Server Integration
+### Facilitator Hooks
 
-If you're not using the FastAPI middleware, you can implement the x402 protocol manually. Here's what you'll need to handle:
-
-1. Return 402 error responses with the appropriate response body
-2. Use the facilitator to validate payments
-3. Use the facilitator to settle payments
-4. Return the appropriate response header to the caller
-
-Here's an example of manual integration:
-
-```py
-from typing import Annotated
-from fastapi import FastAPI, Request
-from x402.types import PaymentRequiredResponse, PaymentRequirements
-from x402.encoding import safe_base64_decode
-
-payment_requirements = PaymentRequirements(...)
-facilitator = FacilitatorClient(facilitator_url)
-
-@app.get("/foo")
-async def foo(req: request: Request):
-    payment_required = PaymentRequiredResponse(
-        x402_version: 1,
-        accepts=[payment_requirements],
-        error="",
-    )
-    payment_header = req.headers.get("X-PAYMENT", "")
-
-    if payment_header == "":
-        payment_required.error = "X-PAYMENT header not set"
-        return JSONResponse(
-            content=payment_required.model_dump(by_alias=True),
-            status_code=402,
-        )
-    
-    payment = PaymentPayload(**json.loads(safe_base64_decode(payment_header)))
-
-    verify_response = await facilitator.verify(payment, payment_requirements)
-    if not verify_response.is_valid:
-        payment_required.error = "Invalid payment"
-        return JSONResponse(
-            content=payment_required.model_dump(by_alias=True),
-            status_code=402,
-        )
-
-    settle_response = await facilitator.settle(payment, payment_requirements)
-    if settle_response.success:
-        response.headers["X-PAYMENT-RESPONSE"] = base64.b64encode(
-            settle_response.model_dump_json().encode("utf-8")
-        ).decode("utf-8")
-    else:
-        payment_required.error = "Settle failed: " + settle_response.error
-        return JSONResponse(
-            content=payment_required.model_dump(by_alias=True),
-            status_code=402,
-        )
+```python
+facilitator.on_before_verify(...)
+facilitator.on_after_verify(...)
+facilitator.on_verify_failure(...)
+facilitator.on_before_settle(...)
+facilitator.on_after_settle(...)
+facilitator.on_settle_failure(...)
 ```
 
-For more examples and advanced usage patterns, check out our [examples directory](https://github.com/coinbase/x402/tree/main/examples/python).
+## Network Pattern Matching
+
+Register handlers for network families using wildcards:
+
+```python
+# All EVM networks
+client.register("eip155:*", ExactEvmScheme(signer))
+
+# Specific network (takes precedence)
+client.register("eip155:8453", CustomScheme())
+```
+
+## HTTP Headers
+
+### V2 Protocol (Current)
+
+| Header | Description |
+|--------|-------------|
+| `PAYMENT-SIGNATURE` | Base64-encoded payment payload |
+| `PAYMENT-REQUIRED` | Base64-encoded payment requirements |
+| `PAYMENT-RESPONSE` | Base64-encoded settlement response |
+
+### V1 Protocol (Legacy)
+
+| Header | Description |
+|--------|-------------|
+| `X-PAYMENT` | Base64-encoded payment payload |
+| `X-PAYMENT-RESPONSE` | Base64-encoded settlement response |
+
+## Related Modules
+
+- `x402.http` - HTTP clients, middleware, and facilitator client
+- `x402.mechanisms.evm` - EVM/Ethereum implementation
+- `x402.mechanisms.svm` - Solana implementation
+- `x402.extensions` - Protocol extensions (Bazaar discovery)
+
+## Examples
+
+See [examples/python](https://github.com/coinbase/x402/tree/main/examples/python).

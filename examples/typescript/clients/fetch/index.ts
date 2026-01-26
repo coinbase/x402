@@ -43,7 +43,7 @@ async function main(): Promise<void> {
     const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
       response.headers.get(name),
     );
-    console.log("\nPayment response:", paymentResponse);
+    console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
   } else {
     console.log(`\nNo payment settled (response status: ${response.status})`);
   }
