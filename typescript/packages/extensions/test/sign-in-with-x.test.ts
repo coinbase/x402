@@ -26,6 +26,7 @@ import {
   createSIWxSettleHook,
   createSIWxRequestHook,
   createSIWxClientHook,
+  type SIWxHookEvent,
   type SolanaSigner,
   type EVMSigner,
   type EVMMessageVerifier,
@@ -839,7 +840,7 @@ describe("SIWX Hooks", () => {
       const events: unknown[] = [];
       const hook = createSIWxSettleHook({
         storage,
-        onEvent: (e) => events.push(e),
+        onEvent: e => events.push(e),
       });
 
       await hook({
@@ -953,8 +954,7 @@ describe("SIWX Hooks", () => {
       const hook = createSIWxRequestHook({ storage });
       const result = await hook({
         adapter: {
-          getHeader: (name: string) =>
-            name === "sign-in-with-x" ? header : undefined,
+          getHeader: (name: string) => (name === "sign-in-with-x" ? header : undefined),
           getUrl: () => "http://example.com/resource",
         },
         path: "/resource",
@@ -968,7 +968,7 @@ describe("SIWX Hooks", () => {
       const events: unknown[] = [];
       const hook = createSIWxRequestHook({
         storage,
-        onEvent: (e) => events.push(e),
+        onEvent: e => events.push(e),
       });
 
       // Create invalid header (valid base64/json but bad signature)
@@ -987,14 +987,13 @@ describe("SIWX Hooks", () => {
 
       await hook({
         adapter: {
-          getHeader: (name: string) =>
-            name === "sign-in-with-x" ? header : undefined,
+          getHeader: (name: string) => (name === "sign-in-with-x" ? header : undefined),
           getUrl: () => "http://example.com/resource",
         },
         path: "/resource",
       });
 
-      expect(events.some((e: any) => e.type === "validation_failed")).toBe(true);
+      expect(events.some((e: SIWxHookEvent) => e.type === "validation_failed")).toBe(true);
     });
   });
 
