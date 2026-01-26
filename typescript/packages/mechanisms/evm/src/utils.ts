@@ -1,5 +1,5 @@
 import { toHex } from "viem";
-import { Network } from "@x402/core/types";
+import { EVM_NETWORK_CHAIN_ID_MAP, EvmNetworkV1 } from "./v1";
 
 /**
  * Extract chain ID from network string (e.g., "base-sepolia" -> 84532)
@@ -7,17 +7,14 @@ import { Network } from "@x402/core/types";
  *
  * @param network - The network identifier
  * @returns The numeric chain ID
+ * @throws Error if the network is not supported
  */
-export function getEvmChainId(network: Network): number {
-  const networkMap: Record<string, number> = {
-    base: 8453,
-    "base-sepolia": 84532,
-    ethereum: 1,
-    sepolia: 11155111,
-    polygon: 137,
-    "polygon-amoy": 80002,
-  };
-  return networkMap[network] || 1;
+export function getEvmChainId(network: EvmNetworkV1): number {
+  const chainId = EVM_NETWORK_CHAIN_ID_MAP[network];
+  if (!chainId) {
+    throw new Error(`Unsupported network: ${network}`);
+  }
+  return chainId;
 }
 
 /**

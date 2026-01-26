@@ -184,5 +184,26 @@ describe("ExactEvmSchemeV1", () => {
       expect(callArgs.domain.chainId).toBe(84532); // Base Sepolia
       expect(callArgs.primaryType).toBe("TransferWithAuthorization");
     });
+
+    it("should throw for unsupported network", async () => {
+      const client = new ExactEvmSchemeV1(mockSigner);
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "unknown-network",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      };
+
+      await expect(client.createPaymentPayload(1, requirements as never)).rejects.toThrow(
+        "Unsupported network: unknown-network",
+      );
+    });
   });
 });
