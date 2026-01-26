@@ -7,3 +7,11 @@ export {
   createIdempotencyKeyGenerator,
   defaultIdempotencyKeyGenerator,
 } from "./idempotency";
+
+// Error Classification
+export type { ErrorClassifier } from "./classifier";
+export {
+  ErrorCategory,
+  DefaultErrorClassifier,
+  createErrorClassifier,
+} from "./classifier";
