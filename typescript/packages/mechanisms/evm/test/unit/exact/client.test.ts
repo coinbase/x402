@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ExactEvmScheme } from "../../../src/exact/client/scheme";
+import {
+  createPermit2ApprovalTx,
+  getPermit2AllowanceReadParams,
+} from "../../../src/exact/client/permit2";
 import type { ClientEvmSigner } from "../../../src/signer";
 import { PaymentRequirements } from "@x402/core/types";
+import { PERMIT2_ADDRESS, x402ExactPermit2ProxyAddress } from "../../../src/constants";
+import { isPermit2Payload, isEIP3009Payload } from "../../../src/types";
 
 describe("ExactEvmScheme (Client)", () => {
   let client: ExactEvmScheme;
@@ -213,6 +219,189 @@ describe("ExactEvmScheme (Client)", () => {
       expect(callArgs.domain.name).toBe("USD Coin");
       expect(callArgs.domain.version).toBe("2");
       expect(callArgs.domain.chainId).toBe(8453);
+    });
+
+    describe("with assetTransferMethod", () => {
+      it("should default to EIP-3009 when assetTransferMethod is not set", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:8453",
+          amount: "1000000",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USD Coin", version: "2" },
+        };
+
+        const result = await client.createPaymentPayload(2, requirements);
+
+        expect(isEIP3009Payload(result.payload)).toBe(true);
+        expect(isPermit2Payload(result.payload)).toBe(false);
+        expect(result.payload.authorization).toBeDefined();
+      });
+
+      it("should use EIP-3009 when assetTransferMethod is eip3009", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:8453",
+          amount: "1000000",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USD Coin", version: "2", assetTransferMethod: "eip3009" },
+        };
+
+        const result = await client.createPaymentPayload(2, requirements);
+
+        expect(isEIP3009Payload(result.payload)).toBe(true);
+        expect(result.payload.authorization).toBeDefined();
+      });
+
+      it("should use Permit2 when assetTransferMethod is permit2", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:8453",
+          amount: "1000000",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USD Coin", version: "2", assetTransferMethod: "permit2" },
+        };
+
+        const result = await client.createPaymentPayload(2, requirements);
+
+        expect(isPermit2Payload(result.payload)).toBe(true);
+        expect(isEIP3009Payload(result.payload)).toBe(false);
+        expect(result.payload.permit2Authorization).toBeDefined();
+      });
+    });
+  });
+
+  describe("createPaymentPayload with Permit2", () => {
+    it("should create Permit2 payload with correct structure", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+      const payload = result.payload;
+
+      expect(isPermit2Payload(payload)).toBe(true);
+      expect(payload.signature).toBeDefined();
+      expect(payload.permit2Authorization).toBeDefined();
+      expect(payload.permit2Authorization.permitted).toBeDefined();
+      expect(payload.permit2Authorization.witness).toBeDefined();
+    });
+
+    it("should set spender to x402ExactPermit2ProxyAddress", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isPermit2Payload(result.payload)).toBe(true);
+      expect(result.payload.permit2Authorization.spender).toBe(x402ExactPermit2ProxyAddress);
+    });
+
+    it("should set witness.to to payTo address", async () => {
+      const payToAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: payToAddress,
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isPermit2Payload(result.payload)).toBe(true);
+      expect(result.payload.permit2Authorization.witness.to.toLowerCase()).toBe(
+        payToAddress.toLowerCase(),
+      );
+    });
+
+    it("should use Permit2 EIP-712 domain for signing", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      await client.createPaymentPayload(2, requirements);
+
+      const callArgs = (mockSigner.signTypedData as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(callArgs.domain.name).toBe("Permit2");
+      expect(callArgs.domain.verifyingContract).toBe(PERMIT2_ADDRESS);
+      expect(callArgs.primaryType).toBe("PermitWitnessTransferFrom");
+    });
+  });
+});
+
+describe("Permit2 Approval Helpers", () => {
+  describe("createPermit2ApprovalTx", () => {
+    it("should create approval transaction data", () => {
+      const tokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+      const tx = createPermit2ApprovalTx(tokenAddress);
+
+      expect(tx.to.toLowerCase()).toBe(tokenAddress.toLowerCase());
+      expect(tx.data).toBeDefined();
+      expect(tx.data).toMatch(/^0x/);
+    });
+
+    it("should encode approve function call", () => {
+      const tokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+      const tx = createPermit2ApprovalTx(tokenAddress);
+
+      // approve(address,uint256) selector is 0x095ea7b3
+      expect(tx.data.startsWith("0x095ea7b3")).toBe(true);
+    });
+  });
+
+  describe("getPermit2AllowanceReadParams", () => {
+    it("should return correct read parameters", () => {
+      const params = getPermit2AllowanceReadParams({
+        tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        ownerAddress: "0x1234567890123456789012345678901234567890",
+      });
+
+      expect(params.address.toLowerCase()).toBe(
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase(),
+      );
+      expect(params.functionName).toBe("allowance");
+      expect(params.args[0].toLowerCase()).toBe(
+        "0x1234567890123456789012345678901234567890".toLowerCase(),
+      );
+      expect(params.args[1]).toBe(PERMIT2_ADDRESS);
+    });
+
+    it("should include allowance ABI", () => {
+      const params = getPermit2AllowanceReadParams({
+        tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        ownerAddress: "0x1234567890123456789012345678901234567890",
+      });
+
+      expect(params.abi).toBeDefined();
+      expect(params.abi[0].name).toBe("allowance");
     });
   });
 });
