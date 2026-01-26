@@ -1,10 +1,18 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import {
+  paymentMiddlewareFromHTTPServer,
+  x402ResourceServer,
+  x402HTTPResourceServer,
+} from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { declareSIWxExtension } from "@x402/extensions/sign-in-with-x";
-import { createSIWxMiddleware, recordPayment } from "./siwx-middleware";
+import {
+  declareSIWxExtension,
+  createSIWxSettleHook,
+  createSIWxRequestHook,
+  InMemorySIWxStorage,
+} from "@x402/extensions/sign-in-with-x";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -23,23 +31,16 @@ const PORT = 4021;
 const HOST = `localhost:${PORT}`;
 const NETWORK = "eip155:84532" as const;
 
-const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+// Shared storage for tracking paid addresses
+const storage = new InMemorySIWxStorage();
 
+// Configure resource server with SIWX settle hook
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, new ExactEvmScheme())
-  .onAfterSettle(async ctx => {
-    const payload = ctx.paymentPayload.payload as { authorization: { from: string } };
-    const address = payload.authorization.from;
-    const resource = new URL(ctx.paymentPayload.resource.url).pathname;
-    recordPayment(resource, address);
-  });
+  .onAfterSettle(createSIWxSettleHook({ storage }));
 
-/**
- * Creates route config with SIWX extension.
- *
- * @param path - The route path
- * @returns Route configuration object
- */
+// Route configuration with SIWX extension
 function routeConfig(path: string) {
   return {
     accepts: [{ scheme: "exact", price: "$0.001", network: NETWORK, payTo: evmAddress }],
@@ -58,26 +59,19 @@ const routes = {
   "GET /joke": routeConfig("/joke"),
 };
 
+// Configure HTTP server with SIWX request hook
+const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(createSIWxRequestHook({ storage }));
+
 const app = express();
-app.use(createSIWxMiddleware(HOST));
+app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
-// Payment middleware - skipped for SIWX-authenticated users
-const payment = paymentMiddleware(routes, resourceServer);
-app.use((req, res, next) => (res.locals.siwxAuthenticated ? next() : payment(req, res, next)));
-
-app.get("/weather", (req, res) => res.json({ weather: "sunny", temperature: 72 }));
-app.get("/joke", (req, res) =>
+app.get("/weather", (_req, res) => res.json({ weather: "sunny", temperature: 72 }));
+app.get("/joke", (_req, res) =>
   res.json({ joke: "Why do programmers prefer dark mode? Because light attracts bugs." }),
 );
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`Routes: GET /weather, GET /joke`);
-
-  // For testing: pre-seed a payment if TEST_ADDRESS is set
-  const testAddress = process.env.TEST_ADDRESS;
-  if (testAddress) {
-    recordPayment("/weather", testAddress);
-    console.log(`Test mode: Pre-seeded payment for ${testAddress} on /weather`);
-  }
 });
