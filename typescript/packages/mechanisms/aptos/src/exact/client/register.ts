@@ -1,4 +1,4 @@
-import { x402Client } from "@x402/core/client";
+import { x402Client, PaymentPolicy } from "@x402/core/client";
 import { Network } from "@x402/core/types";
 import type { ClientAptosSigner, ClientAptosConfig } from "../../signer";
 import { ExactAptosScheme } from "./scheme";
@@ -21,7 +21,12 @@ export interface AptosClientConfig {
    * Optional specific networks to register.
    * If not provided, registers for all Aptos networks (aptos:*)
    */
-  networks?: Network | Network[];
+  networks?: Network[];
+
+  /**
+   * Optional policies to apply to the client
+   */
+  policies?: PaymentPolicy[];
 }
 
 /**
@@ -51,16 +56,20 @@ export function registerExactAptosScheme(
 ): x402Client {
   const scheme = new ExactAptosScheme(aptosConfig.signer, aptosConfig.config);
 
-  if (aptosConfig.networks) {
-    const networks = Array.isArray(aptosConfig.networks)
-      ? aptosConfig.networks
-      : [aptosConfig.networks];
-    for (const network of networks) {
+  if (aptosConfig.networks && aptosConfig.networks.length > 0) {
+    for (const network of aptosConfig.networks) {
       client.register(network, scheme);
     }
   } else {
     // Register for all Aptos networks
     client.register("aptos:*", scheme);
+  }
+
+  // Register optional policies
+  if (aptosConfig.policies) {
+    aptosConfig.policies.forEach(policy => {
+      client.registerPolicy(policy);
+    });
   }
 
   return client;

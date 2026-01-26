@@ -10,15 +10,15 @@ import type {
 import { APTOS_ADDRESS_REGEX } from "../../constants";
 
 /**
- * Default APT fungible asset metadata address on mainnet.
- * This is the wrapped APT (wAPT) for use with the fungible asset framework.
+ * Default USDC fungible asset metadata address on mainnet.
+ * This follows EVM/SVM conventions of using stablecoins for default money parsing.
  */
-const APT_MAINNET_FA = "0x000000000000000000000000000000000000000000000000000000000000000a";
+const USDC_MAINNET_FA = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
 
 /**
- * Default APT fungible asset metadata address on testnet.
+ * Default USDC fungible asset metadata address on testnet.
  */
-const APT_TESTNET_FA = "0x000000000000000000000000000000000000000000000000000000000000000a";
+const USDC_TESTNET_FA = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832";
 
 /**
  * Aptos server implementation for the Exact payment scheme.
@@ -88,16 +88,16 @@ export class ExactAptosScheme implements SchemeNetworkServer {
 
   /**
    * Build payment requirements for this scheme/network combination.
-   * For Aptos, adds the sponsored flag from the facilitator's extra data.
+   * For Aptos, adds the feePayer from the facilitator's extra data.
    *
    * @param paymentRequirements - The base payment requirements
    * @param supportedKind - The supported kind configuration from facilitator
    * @param supportedKind.x402Version - The x402 protocol version
    * @param supportedKind.scheme - The payment scheme
    * @param supportedKind.network - The network identifier
-   * @param supportedKind.extra - Extra metadata including sponsored flag
+   * @param supportedKind.extra - Extra metadata including feePayer address
    * @param extensionKeys - Extension keys supported by the facilitator
-   * @returns Enhanced payment requirements with sponsored flag in extra
+   * @returns Enhanced payment requirements with feePayer in extra (if sponsored)
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -112,14 +112,16 @@ export class ExactAptosScheme implements SchemeNetworkServer {
     // Mark unused parameters to satisfy linter
     void extensionKeys;
 
-    // Add sponsored flag from supportedKind.extra to payment requirements
-    // The facilitator indicates whether it supports sponsored transactions
+    // Add feePayer from supportedKind.extra to payment requirements
+    // The facilitator indicates which address will sponsor transactions
+    const extra: Record<string, unknown> = { ...paymentRequirements.extra };
+    if (typeof supportedKind.extra?.feePayer === "string") {
+      extra.feePayer = supportedKind.extra.feePayer;
+    }
+
     return Promise.resolve({
       ...paymentRequirements,
-      extra: {
-        ...paymentRequirements.extra,
-        sponsored: supportedKind.extra?.sponsored ?? false,
-      },
+      extra,
     });
   }
 
@@ -148,20 +150,20 @@ export class ExactAptosScheme implements SchemeNetworkServer {
 
   /**
    * Default money conversion implementation.
-   * Converts decimal amount to APT on the specified network.
-   * APT has 8 decimals.
+   * Converts decimal amount to USDC on the specified network.
+   * USDC has 6 decimals, consistent with EVM/SVM conventions.
    *
-   * @param amount - The decimal amount (e.g., 1.50)
+   * @param amount - The decimal amount (e.g., 1.50 for $1.50)
    * @param network - The network to use
-   * @returns The parsed asset amount in APT
+   * @returns The parsed asset amount in USDC
    */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    // APT has 8 decimals
-    const decimals = 8;
+    // USDC has 6 decimals
+    const decimals = 6;
     const tokenAmount = this.convertToTokenAmount(amount.toString(), decimals);
 
-    // Get APT fungible asset address for the network
-    const asset = network === "aptos:2" ? APT_TESTNET_FA : APT_MAINNET_FA;
+    // Get USDC fungible asset address for the network
+    const asset = network === "aptos:2" ? USDC_TESTNET_FA : USDC_MAINNET_FA;
 
     return {
       amount: tokenAmount,

@@ -1,4 +1,4 @@
-import { Aptos, AptosConfig } from "@aptos-labs/ts-sdk";
+import { AccountAddress, Aptos, AptosConfig, SimpleTransaction } from "@aptos-labs/ts-sdk";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
 import { APTOS_ADDRESS_REGEX, getAptosNetwork, getAptosRpcUrl } from "../../constants";
 import type { ClientAptosSigner, ClientAptosConfig } from "../../signer";
@@ -65,11 +65,14 @@ export class ExactAptosScheme implements SchemeNetworkClient {
     });
     const aptos = new Aptos(aptosConfig);
 
-    // Check if sponsorship is enabled
-    const sponsored = paymentRequirements.extra?.sponsored === true;
+    // Facilitator must provide feePayer to cover transaction fees
+    const feePayer = paymentRequirements.extra?.feePayer;
+    if (typeof feePayer !== "string") {
+      throw new Error("feePayer is required in paymentRequirements.extra for Aptos transactions");
+    }
 
-    // Build the transfer transaction
-    const transaction = await aptos.transaction.build.simple({
+    // Build the transfer transaction with fee payer mode enabled
+    const builtTransaction = await aptos.transaction.build.simple({
       sender: this.signer.accountAddress,
       data: {
         function: "0x1::primary_fungible_store::transfer",
@@ -80,9 +83,14 @@ export class ExactAptosScheme implements SchemeNetworkClient {
           paymentRequirements.amount,
         ],
       },
-      // If sponsored, set fee payer to 0x0 (placeholder - facilitator will fill in)
-      withFeePayer: sponsored,
+      withFeePayer: true,
     });
+
+    // Set the actual fee payer address (SDK builds with 0x0 placeholder by default)
+    const transaction = new SimpleTransaction(
+      builtTransaction.rawTransaction,
+      AccountAddress.from(feePayer),
+    );
 
     // Sign the transaction
     const senderAuthenticator = this.signer.signTransactionWithAuthenticator(transaction);

@@ -18,29 +18,23 @@ export interface AptosServerConfig {
  *
  * @param server - The x402ResourceServer instance to register schemes to
  * @param config - Configuration for Aptos server registration
- * @returns The ExactAptosScheme instance for further configuration (e.g., registerMoneyParser)
+ * @returns The server instance for chaining
  *
  * @example
  * ```typescript
  * // Register for all Aptos networks
- * const scheme = registerExactAptosScheme(server);
+ * registerExactAptosScheme(server);
  *
  * // Register for specific networks
- * const scheme = registerExactAptosScheme(server, {
+ * registerExactAptosScheme(server, {
  *   networks: ["aptos:1"]  // Mainnet only
- * });
- *
- * // Optionally add custom money parsers
- * scheme.registerMoneyParser(async (amount, network) => {
- *   // Custom conversion logic
- *   return { amount: "...", asset: "..." };
  * });
  * ```
  */
 export function registerExactAptosScheme(
   server: x402ResourceServer,
   config: AptosServerConfig = {},
-): ExactAptosScheme {
+): x402ResourceServer {
   const scheme = new ExactAptosScheme();
 
   if (config.networks && config.networks.length > 0) {
@@ -51,5 +45,5 @@ export function registerExactAptosScheme(
     server.register("aptos:*", scheme);
   }
 
-  return scheme;
+  return server;
 }

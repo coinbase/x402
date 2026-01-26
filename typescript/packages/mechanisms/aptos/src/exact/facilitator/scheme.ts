@@ -26,25 +26,31 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For Aptos, this indicates sponsorship is available.
+   * For Aptos, this includes the fee payer address for sponsored transactions.
+   * Random selection distributes load across multiple signers.
    *
    * @param _ - The network identifier (unused)
-   * @returns Extra data with sponsored flag
+   * @returns Extra data with fee payer address (presence indicates sponsorship is available)
    */
   getExtra(_: string): Record<string, unknown> | undefined {
+    // Randomly select from available signers to distribute load
+    const addresses = this.signer.getAddresses();
+    const randomIndex = Math.floor(Math.random() * addresses.length);
+
     return {
-      sponsored: true,
+      feePayer: addresses[randomIndex],
     };
   }
 
   /**
    * Get signer addresses used by this facilitator.
+   * Returns all addresses this facilitator can use for signing/settling transactions.
    *
    * @param _ - The network identifier (unused)
-   * @returns Array containing the fee payer address
+   * @returns Array of fee payer addresses
    */
   getSigners(_: string): string[] {
-    return [this.signer.getAddress()];
+    return [...this.signer.getAddresses()];
   }
 
   /**
@@ -61,7 +67,16 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
     try {
       const aptosPayload = payload.payload as ExactAptosPayload;
 
-      // Step 1: Validate Payment Requirements
+      // Step 1: Verify x402Version is 2
+      if (payload.x402Version !== 2) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_aptos_payload_unsupported_version",
+          payer: "",
+        };
+      }
+
+      // Step 2: Validate Payment Requirements (use generic error codes like EVM/SVM)
       if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
         return {
           isValid: false,
@@ -78,55 +93,104 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
         };
       }
 
-      // Step 2: Deserialize and validate transaction
+      // Verify feePayer is specified and managed by this facilitator
+      if (!requirements.extra?.feePayer || typeof requirements.extra.feePayer !== "string") {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_aptos_payload_missing_fee_payer",
+          payer: "",
+        };
+      }
+
+      const signerAddresses = this.signer.getAddresses();
+      if (!signerAddresses.includes(requirements.extra.feePayer)) {
+        return {
+          isValid: false,
+          invalidReason: "fee_payer_not_managed_by_facilitator",
+          payer: "",
+        };
+      }
+
+      // Step 3: Deserialize and validate transaction
       const { transaction, senderAuthenticator, entryFunction } = deserializeAptosPayment(
         aptosPayload.transaction,
       );
 
       const senderAddress = transaction.rawTransaction.sender.toString();
 
+      // Verify the fee payer address in the transaction matches the expected one
+      const expectedFeePayer = AccountAddress.from(requirements.extra.feePayer);
+      if (
+        !transaction.feePayerAddress ||
+        !expectedFeePayer.equals(transaction.feePayerAddress)
+      ) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_aptos_payload_fee_payer_mismatch",
+          payer: senderAddress,
+        };
+      }
+
+      // SECURITY: Prevent facilitator from signing away their own tokens
+      if (signerAddresses.includes(senderAddress)) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_aptos_payload_fee_payer_transferring_funds",
+          payer: senderAddress,
+        };
+      }
+
       // Check that it's an entry function payload
       if (!entryFunction) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_missing_entry_function",
+          invalidReason: "invalid_exact_aptos_payload_missing_entry_function",
           payer: senderAddress,
         };
       }
 
-      // Step 3: Verify the function is the correct transfer function
+      // Step 4: Verify the function is a valid transfer function
+      // Spec allows: 0x1::primary_fungible_store::transfer or 0x1::fungible_asset::transfer
       const moduleAddress = entryFunction.module_name.address;
       const moduleName = entryFunction.module_name.name.identifier;
       const functionName = entryFunction.function_name.identifier;
 
-      if (
-        !AccountAddress.ONE.equals(moduleAddress) ||
-        moduleName !== "primary_fungible_store" ||
-        functionName !== "transfer"
-      ) {
+      const isPrimaryFungibleStore =
+        AccountAddress.ONE.equals(moduleAddress) &&
+        moduleName === "primary_fungible_store" &&
+        functionName === "transfer";
+
+      const isFungibleAsset =
+        AccountAddress.ONE.equals(moduleAddress) &&
+        moduleName === "fungible_asset" &&
+        functionName === "transfer";
+
+      if (!isPrimaryFungibleStore && !isFungibleAsset) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_wrong_function",
+          invalidReason: "invalid_exact_aptos_payload_wrong_function",
           payer: senderAddress,
         };
       }
 
-      // Step 4: Verify type arguments
+      // Step 5: Verify type arguments
       const typeArgs = entryFunction.type_args;
       if (typeArgs.length !== 1) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_wrong_type_args",
+          invalidReason: "invalid_exact_aptos_payload_wrong_type_args",
           payer: senderAddress,
         };
       }
 
-      // Step 5: Verify function arguments
+      // Step 6: Verify function arguments
+      // primary_fungible_store::transfer takes: (asset: Object<T>, recipient: address, amount: u64)
+      // fungible_asset::transfer takes: (from: Object<T>, to: Object<T>, amount: u64)
       const args = entryFunction.args;
       if (args.length !== 3) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_wrong_args",
+          invalidReason: "invalid_exact_aptos_payload_wrong_args",
           payer: senderAddress,
         };
       }
@@ -139,7 +203,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       if (!faAddress.equals(expectedAsset)) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_asset_mismatch",
+          invalidReason: "invalid_exact_aptos_payload_asset_mismatch",
           payer: senderAddress,
         };
       }
@@ -150,7 +214,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       if (!recipientAddress.equals(expectedPayTo)) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_recipient_mismatch",
+          invalidReason: "invalid_exact_aptos_payload_recipient_mismatch",
           payer: senderAddress,
         };
       }
@@ -160,12 +224,50 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       if (amount !== requirements.amount) {
         return {
           isValid: false,
-          invalidReason: "invalid_payment_amount_mismatch",
+          invalidReason: "invalid_exact_aptos_payload_amount_mismatch",
           payer: senderAddress,
         };
       }
 
-      // Step 6: Simulate the transaction
+      // Step 7: Check balance before simulation for clearer error messages
+      const aptos = createAptosClient(requirements.network);
+      try {
+        const balance = await aptos.getCurrentFungibleAssetBalances({
+          options: {
+            where: {
+              owner_address: { _eq: senderAddress },
+              asset_type: { _eq: requirements.asset },
+            },
+          },
+        });
+        const currentBalance = BigInt(balance[0]?.amount ?? 0);
+        const requiredAmount = BigInt(requirements.amount);
+        if (currentBalance < requiredAmount) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_aptos_payload_insufficient_balance",
+            payer: senderAddress,
+          };
+        }
+      } catch {
+        // Balance check is optional - simulation will catch this too
+        // Continue to simulation for final validation
+      }
+
+      // Step 8: Check expiration timestamp
+      // Add buffer time to account for network propagation delays
+      const EXPIRATION_BUFFER_SECONDS = 30;
+      const expirationTimestamp = Number(transaction.rawTransaction.expiration_timestamp_secs);
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      if (expirationTimestamp < currentTimestamp + EXPIRATION_BUFFER_SECONDS) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_aptos_payload_transaction_expired",
+          payer: senderAddress,
+        };
+      }
+
+      // Step 9: Simulate the transaction
       try {
         let publicKey: PublicKey | undefined;
         if (senderAuthenticator.isEd25519()) {
@@ -176,7 +278,6 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
           publicKey = senderAuthenticator.public_keys;
         }
 
-        const aptos = createAptosClient(requirements.network);
         const simulationResult = (
           await aptos.transaction.simulate.simple({
             signerPublicKey: publicKey,
@@ -187,7 +288,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
         if (!simulationResult.success) {
           return {
             isValid: false,
-            invalidReason: `simulation_failed: ${simulationResult.vm_status}`,
+            invalidReason: `invalid_exact_aptos_payload_simulation_failed: ${simulationResult.vm_status}`,
             payer: senderAddress,
           };
         }
@@ -195,7 +296,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
         const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           isValid: false,
-          invalidReason: `simulation_error: ${errorMessage}`,
+          invalidReason: `invalid_exact_aptos_payload_simulation_error: ${errorMessage}`,
           payer: senderAddress,
         };
       }
@@ -210,7 +311,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       console.error("Verify error:", error);
       return {
         isValid: false,
-        invalidReason: "unexpected_verify_error",
+        invalidReason: "invalid_exact_aptos_payload_unexpected_error",
         payer: "",
       };
     }
@@ -248,10 +349,12 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       );
 
       const senderAddress = transaction.rawTransaction.sender.toStringLong();
-      const sponsored = requirements.extra?.sponsored === true;
+
+      // Check if sponsored (presence of feePayer indicates sponsorship)
+      const isSponsored = typeof requirements.extra?.feePayer === "string";
 
       let pendingTxn;
-      if (sponsored) {
+      if (isSponsored) {
         // Sponsored: facilitator signs as fee payer and submits
         pendingTxn = await this.signer.signAndSubmitAsFeePayer(
           transaction,

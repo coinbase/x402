@@ -28,14 +28,16 @@ export type ClientAptosConfig = {
 /**
  * Minimal facilitator signer interface for Aptos operations.
  * Supports sponsored transactions where the facilitator pays gas fees.
+ * Supports multiple addresses for load balancing (like EVM/SVM).
  */
 export type FacilitatorAptosSigner = {
   /**
-   * Get the address that will act as fee payer for sponsored transactions
+   * Get all addresses this facilitator can use for signing.
+   * Enables dynamic address selection for load balancing.
    *
-   * @returns The fee payer address
+   * @returns Array of fee payer addresses
    */
-  getAddress(): string;
+  getAddresses(): readonly string[];
 
   /**
    * Sign a transaction as the fee payer and submit it
@@ -94,11 +96,13 @@ export async function createClientSigner(privateKey: string): Promise<ClientApto
 }
 
 /**
- * Create a facilitator signer from an Aptos Account
+ * Create a facilitator signer from an Aptos Account.
+ * Wraps the single account in a getAddresses() function for compatibility
+ * with the multi-address interface (like EVM/SVM).
  *
  * @param account - The Aptos Account that will act as fee payer
  * @param rpcConfig - Optional RPC configuration (per-network or default URL)
- * @returns A FacilitatorAptosSigner
+ * @returns FacilitatorAptosSigner with getAddresses() support
  */
 export function toFacilitatorAptosSigner(
   account: Account,
@@ -127,7 +131,7 @@ export function toFacilitatorAptosSigner(
   };
 
   return {
-    getAddress: () => account.accountAddress.toStringLong(),
+    getAddresses: () => [account.accountAddress.toStringLong()],
 
     signAndSubmitAsFeePayer: async (
       transaction: SimpleTransaction,

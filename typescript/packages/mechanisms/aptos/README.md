@@ -51,17 +51,15 @@ const settleResult = await facilitator.settle(payload, requirements);
 ### Server
 
 ```typescript
-import { ExactAptosServer } from "@x402/aptos/exact/server";
+import { x402ResourceServer } from "@x402/core/server";
+import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 
-// Create server with payment address
-const server = new ExactAptosServer("0x...", true); // sponsored = true
+// Create and configure server
+const server = new x402ResourceServer({ facilitatorUrl: "https://..." });
+registerExactAptosScheme(server);
 
-// Create payment requirements
-const requirements = server.createPaymentRequirements(
-  "100000000", // 1 APT in octas
-  "0x1::aptos_coin::AptosCoin",
-  "aptos:1", // mainnet
-);
+// Use parsePrice to convert amounts (e.g., "$1.00" or { amount: "1000000", asset: "0x..." })
+// The scheme handles USDC conversion automatically
 ```
 
 ## Features
