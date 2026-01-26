@@ -19,7 +19,12 @@ jobs:
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
           PROJECT_ID: ${{ secrets.MINTLIFY_PROJECT_ID }}
