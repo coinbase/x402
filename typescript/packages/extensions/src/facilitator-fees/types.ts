@@ -148,3 +148,41 @@ export interface FacilitatorFeesPaymentPayloadExtension {
 export interface FacilitatorFeesSettlementExtension {
   info: FacilitatorFeesSettlementInfo;
 }
+
+// =============================================================================
+// Facilitator Quote API Types (GET /x402/fee-quote)
+// =============================================================================
+
+/**
+ * Query parameters for the facilitator quote API endpoint
+ *
+ * Facilitators SHOULD expose: GET /x402/fee-quote?network=...&asset=...&amount=...
+ */
+export interface FeeQuoteRequest {
+  /** CAIP-2 network identifier (e.g., "eip155:8453") */
+  network: string;
+  /** Token address for fee currency */
+  asset: string;
+  /** Payment amount in atomic units (optional, enables exact BPS calculation) */
+  amount?: string;
+}
+
+/**
+ * Successful response from the facilitator quote API
+ */
+export interface FeeQuoteResponse {
+  facilitatorFeeQuote: FacilitatorFeeQuote;
+}
+
+/**
+ * Standard error codes for the facilitator quote API
+ */
+export type FeeQuoteErrorCode = "UNSUPPORTED_NETWORK" | "UNSUPPORTED_ASSET" | "INVALID_AMOUNT";
+
+/**
+ * Error response from the facilitator quote API
+ */
+export interface FeeQuoteErrorResponse {
+  error: FeeQuoteErrorCode;
+  message: string;
+}

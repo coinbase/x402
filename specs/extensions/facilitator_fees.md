@@ -299,6 +299,74 @@ Servers can preserve privacy by:
 
 ---
 
+## Facilitator Quote API (Recommended)
+
+To enable dynamic quote fetching, facilitators SHOULD expose a quote endpoint:
+
+### Endpoint
+
+```
+GET /x402/fee-quote
+```
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `network` | string | Yes | CAIP-2 network identifier (e.g., `eip155:8453`) |
+| `asset` | string | Yes | Token address for fee currency |
+| `amount` | string | No | Payment amount in atomic units (enables exact BPS calculation) |
+
+### Response
+
+```json
+{
+  "facilitatorFeeQuote": {
+    "quoteId": "quote_abc123",
+    "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "model": "flat",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "flatFee": "1000",
+    "expiry": 1737400000,
+    "signature": "0x...",
+    "signatureScheme": "eip191"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "UNSUPPORTED_NETWORK",
+  "message": "Network eip155:1 is not supported"
+}
+```
+
+### Standard Error Codes
+
+| Code | Description |
+|------|-------------|
+| `UNSUPPORTED_NETWORK` | Facilitator does not support the requested network |
+| `UNSUPPORTED_ASSET` | Facilitator does not support the requested asset |
+| `INVALID_AMOUNT` | Amount parameter is malformed |
+
+### Usage
+
+**Servers** fetch quotes to embed in `PaymentRequired`:
+```
+GET https://facilitator.example.com/x402/fee-quote?network=eip155:8453&asset=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+```
+
+**Clients** fetch quotes via `facilitatorFeeQuoteRef`:
+```
+GET https://facilitator.example.com/x402/fee-quote?network=eip155:8453&asset=0x...&amount=100000
+```
+
+> **Note**: Facilitators MAY implement proprietary APIs. This endpoint is RECOMMENDED for interoperability but not required. Servers can use out-of-band configuration for facilitators that don't expose this endpoint.
+
+---
+
 ## Backwards Compatibility
 
 - All fields are optional extensions

@@ -116,6 +116,43 @@ export const FacilitatorFeesSettlementInfoSchema = z.object({
   model: FeeModelSchema.optional(),
 });
 
+// =============================================================================
+// Facilitator Quote API Schemas (GET /x402/fee-quote)
+// =============================================================================
+
+/**
+ * Fee quote request schema (query parameters)
+ */
+export const FeeQuoteRequestSchema = z.object({
+  network: z.string(),
+  asset: z.string(),
+  amount: z.string().optional(),
+});
+
+/**
+ * Fee quote response schema
+ */
+export const FeeQuoteResponseSchema = z.object({
+  facilitatorFeeQuote: FacilitatorFeeQuoteSchema,
+});
+
+/**
+ * Fee quote error codes
+ */
+export const FeeQuoteErrorCodeSchema = z.enum([
+  "UNSUPPORTED_NETWORK",
+  "UNSUPPORTED_ASSET",
+  "INVALID_AMOUNT",
+]);
+
+/**
+ * Fee quote error response schema
+ */
+export const FeeQuoteErrorResponseSchema = z.object({
+  error: FeeQuoteErrorCodeSchema,
+  message: z.string(),
+});
+
 /**
  * JSON Schema for PaymentRequired extension (for embedding in the extension)
  */

@@ -5,6 +5,9 @@ import {
   FacilitatorFeeBidSchema,
   FacilitatorFeesPaymentRequiredInfoSchema,
   FacilitatorFeesSettlementInfoSchema,
+  FeeQuoteRequestSchema,
+  FeeQuoteResponseSchema,
+  FeeQuoteErrorResponseSchema,
   declareFacilitatorFeesExtension,
   createFacilitatorFeeBid,
   createFacilitatorFeePaid,
@@ -20,6 +23,7 @@ import {
   verifySettlementMatchesSelection,
   canCompareForFeeRouting,
   validateBpsQuoteHasMaxFee,
+  buildFeeQuoteUrl,
   InvalidFeeQuoteError,
 } from "../src/facilitator-fees";
 
@@ -756,6 +760,123 @@ describe("facilitator-fees extension", () => {
       };
 
       expect(canCompareForFeeRouting(option)).toBe(false);
+    });
+  });
+
+  describe("facilitator quote API", () => {
+    describe("schemas", () => {
+      test("FeeQuoteRequestSchema accepts valid request", () => {
+        const request = {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        };
+
+        expect(FeeQuoteRequestSchema.parse(request)).toEqual(request);
+      });
+
+      test("FeeQuoteRequestSchema accepts request with amount", () => {
+        const request = {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          amount: "1000000",
+        };
+
+        expect(FeeQuoteRequestSchema.parse(request)).toEqual(request);
+      });
+
+      test("FeeQuoteRequestSchema rejects missing network", () => {
+        const request = {
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        };
+
+        expect(() => FeeQuoteRequestSchema.parse(request)).toThrow();
+      });
+
+      test("FeeQuoteResponseSchema accepts valid response", () => {
+        const response = {
+          facilitatorFeeQuote: {
+            quoteId: "quote_abc123",
+            facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+            model: "flat",
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            flatFee: "1000",
+            expiry: 1737400000,
+            signature: "0xabcdef",
+            signatureScheme: "eip191",
+          },
+        };
+
+        expect(FeeQuoteResponseSchema.parse(response)).toBeTruthy();
+      });
+
+      test("FeeQuoteErrorResponseSchema accepts valid error", () => {
+        const error = {
+          error: "UNSUPPORTED_NETWORK",
+          message: "Network eip155:1 is not supported",
+        };
+
+        expect(FeeQuoteErrorResponseSchema.parse(error)).toEqual(error);
+      });
+
+      test("FeeQuoteErrorResponseSchema accepts all error codes", () => {
+        const errorCodes = ["UNSUPPORTED_NETWORK", "UNSUPPORTED_ASSET", "INVALID_AMOUNT"];
+
+        for (const code of errorCodes) {
+          const error = { error: code, message: "Test message" };
+          expect(FeeQuoteErrorResponseSchema.parse(error)).toBeTruthy();
+        }
+      });
+
+      test("FeeQuoteErrorResponseSchema rejects invalid error code", () => {
+        const error = {
+          error: "INVALID_CODE",
+          message: "Test message",
+        };
+
+        expect(() => FeeQuoteErrorResponseSchema.parse(error)).toThrow();
+      });
+    });
+
+    describe("buildFeeQuoteUrl", () => {
+      test("builds URL with required params", () => {
+        const url = buildFeeQuoteUrl("https://facilitator.example.com", {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        });
+
+        expect(url).toBe(
+          "https://facilitator.example.com/x402/fee-quote?network=eip155%3A8453&asset=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        );
+      });
+
+      test("builds URL with optional amount", () => {
+        const url = buildFeeQuoteUrl("https://facilitator.example.com", {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          amount: "1000000",
+        });
+
+        expect(url).toContain("amount=1000000");
+      });
+
+      test("builds URL without amount when not provided", () => {
+        const url = buildFeeQuoteUrl("https://facilitator.example.com", {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        });
+
+        expect(url).not.toContain("amount=");
+      });
+
+      test("handles base URL with trailing slash", () => {
+        const url = buildFeeQuoteUrl("https://facilitator.example.com/", {
+          network: "eip155:8453",
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        });
+
+        expect(url).toContain("/x402/fee-quote?");
+        expect(url).not.toContain("//x402");
+      });
     });
   });
 });

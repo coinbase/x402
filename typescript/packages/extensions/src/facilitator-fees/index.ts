@@ -95,6 +95,8 @@ import {
   FacilitatorFeesPaymentPayloadInfoSchema,
   FacilitatorFeesSettlementInfoSchema,
   FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA,
+  FeeQuoteResponseSchema,
+  FeeQuoteErrorResponseSchema,
 } from "./schema";
 
 import type {
@@ -105,6 +107,7 @@ import type {
   FacilitatorFeesSettlementExtension,
   FacilitatorFeesSettlementInfo,
   FacilitatorFeeQuote,
+  FeeQuoteRequest,
 } from "./types";
 
 // Re-export types
@@ -121,6 +124,11 @@ export type {
   FacilitatorFeesPaymentRequiredExtension,
   FacilitatorFeesPaymentPayloadExtension,
   FacilitatorFeesSettlementExtension,
+  // Quote API types
+  FeeQuoteRequest,
+  FeeQuoteResponse,
+  FeeQuoteErrorCode,
+  FeeQuoteErrorResponse,
 } from "./types";
 
 export { FACILITATOR_FEES } from "./types";
@@ -136,6 +144,11 @@ export {
   FacilitatorFeesPaymentPayloadInfoSchema,
   FacilitatorFeesSettlementInfoSchema,
   FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA,
+  // Quote API schemas
+  FeeQuoteRequestSchema,
+  FeeQuoteResponseSchema,
+  FeeQuoteErrorCodeSchema,
+  FeeQuoteErrorResponseSchema,
 } from "./schema";
 
 /**
@@ -559,4 +572,76 @@ export function canCompareForFeeRouting(option: FacilitatorOption): boolean {
   }
 
   return false;
+}
+
+// =============================================================================
+// Facilitator Quote API Helpers
+// =============================================================================
+
+/**
+ * Build the URL for a facilitator fee quote request
+ *
+ * @param baseUrl - Facilitator base URL (e.g., "https://facilitator.example.com")
+ * @param request - Quote request parameters
+ * @returns Full URL for the fee quote endpoint
+ */
+export function buildFeeQuoteUrl(baseUrl: string, request: FeeQuoteRequest): string {
+  const url = new URL("/x402/fee-quote", baseUrl);
+  url.searchParams.set("network", request.network);
+  url.searchParams.set("asset", request.asset);
+  if (request.amount !== undefined) {
+    url.searchParams.set("amount", request.amount);
+  }
+  return url.toString();
+}
+
+/**
+ * Fetch a fee quote from a facilitator
+ *
+ * @param facilitatorUrl - Facilitator base URL or full quote endpoint URL
+ * @param request - Quote request parameters (optional if facilitatorUrl is a full URL)
+ * @returns Fee quote or error response
+ * @throws Error if network request fails
+ */
+export async function fetchFeeQuote(
+  facilitatorUrl: string,
+  request?: FeeQuoteRequest,
+): Promise<
+  { success: true; quote: FacilitatorFeeQuote } | { success: false; error: string; code?: string }
+> {
+  const url = request ? buildFeeQuoteUrl(facilitatorUrl, request) : facilitatorUrl;
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorResult = FeeQuoteErrorResponseSchema.safeParse(data);
+    if (errorResult.success) {
+      return { success: false, error: errorResult.data.message, code: errorResult.data.error };
+    }
+    return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+  }
+
+  const result = FeeQuoteResponseSchema.safeParse(data);
+  if (!result.success) {
+    return { success: false, error: "Invalid quote response format" };
+  }
+
+  return { success: true, quote: result.data.facilitatorFeeQuote };
+}
+
+/**
+ * Fetch a fee quote from a facilitatorFeeQuoteRef URL
+ *
+ * Convenience wrapper for fetching quotes from URLs provided in PaymentRequired.
+ *
+ * @param quoteRef - The facilitatorFeeQuoteRef URL from a FacilitatorOption
+ * @returns Fee quote or error response
+ */
+export async function fetchFeeQuoteFromRef(
+  quoteRef: string,
+): Promise<
+  { success: true; quote: FacilitatorFeeQuote } | { success: false; error: string; code?: string }
+> {
+  return fetchFeeQuote(quoteRef);
 }
