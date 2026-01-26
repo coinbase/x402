@@ -38,11 +38,14 @@ Both artifacts use the same top-level structure, differing only in their payload
 
 Both `offer` and `receipt` objects MUST have the following structure:
 
-| Field       | Type   | Required     | Description                                 |
-| ----------- | ------ | ------------ | ------------------------------------------- |
-| `format`    | string | Yes          | `"eip712"` or `"jws"`                       |
-| `payload`   | object | EIP-712 only | The canonical payload fields (omit for JWS) |
-| `signature` | string | Yes          | The signature (format-specific encoding)    |
+| Field        | Type    | Required     | Description                                              |
+| ------------ | ------- | ------------ | -------------------------------------------------------- |
+| `format`     | string  | Yes          | `"eip712"` or `"jws"`                                    |
+| `payload`    | object  | EIP-712 only | The canonical payload fields (omit for JWS)              |
+| `signature`  | string  | Yes          | The signature (format-specific encoding)                 |
+| `acceptIndex`| integer | No           | Index into `accepts[]` (offers only)                     |
+
+See §4.1.1 for `acceptIndex` usage and verification requirements.
 
 **3.1.1 Format-Specific Rules**
 
@@ -118,6 +121,22 @@ Each offer in the `info.offers` array corresponds to an entry in `accepts[]`. Se
 
 See §6.1 for complete examples.
 
+**4.1.1 acceptIndex Handling**
+
+Servers SHOULD include `acceptIndex` as an unsigned convenience field to help clients match offers to `accepts[]` entries. It is NOT part of the signed payload and MUST NOT be relied upon for integrity or binding.
+
+**Within the x402 session (clients):**
+
+When `acceptIndex` is present, clients SHOULD:
+- Check that `acceptIndex` is in-range for the `accepts[]` array
+- Validate that `accepts[acceptIndex]` terms match the signed payload fields (`network`, `asset`, `payTo`, `amount`, etc.)
+
+Clients MUST NOT treat `acceptIndex` as authoritative — field matching against the signed payload is the source of truth.
+
+**Outside the x402 session (external verifiers):**
+
+When an offer is stored or transmitted outside the x402 negotiation context (e.g., in attestations or reputation systems), `acceptIndex` MAY be omitted without affecting signature verification. External verifiers SHOULD ignore `acceptIndex` since the corresponding `accepts[]` list is not available.
+
 **4.2 Offer Payload Fields**
 
 Each element of the offers[] array contains the following fields:
@@ -171,6 +190,7 @@ For the optional `validUntil` field, implementations MUST set unused fields to `
 ```json
 {
   "format": "eip712",
+  "acceptIndex": 0,
   "payload": {
     "version": 1,
     "resourceUrl": "https://api.example.com/premium-data",
@@ -190,6 +210,7 @@ For the optional `validUntil` field, implementations MUST set unused fields to `
 ```json
 {
   "format": "jws",
+  "acceptIndex": 0,
   "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
 }
 ```
@@ -388,6 +409,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "eip712",
+            "acceptIndex": 0,
             "payload": {
               "version": 1,
               "resourceUrl": "https://api.example.com/premium-data",
@@ -412,6 +434,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "type": "object",
               "properties": {
                 "format": { "type": "string", "const": "eip712" },
+                "acceptIndex": { "type": "integer" },
                 "payload": {
                   "type": "object",
                   "properties": {
@@ -463,6 +486,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "eip712",
+            "acceptIndex": 0,
             "payload": {
               "version": 1,
               "resourceUrl": "https://api.example.com/premium-data",
@@ -487,6 +511,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "type": "object",
               "properties": {
                 "format": { "type": "string", "const": "eip712" },
+                "acceptIndex": { "type": "integer" },
                 "payload": {
                   "type": "object",
                   "properties": {
@@ -540,6 +565,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "jws",
+            "acceptIndex": 0,
             "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
           }
         ]
@@ -554,6 +580,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "type": "object",
               "properties": {
                 "format": { "type": "string", "const": "jws" },
+                "acceptIndex": { "type": "integer" },
                 "signature": { "type": "string", "description": "JWS compact serialization containing the offer payload" }
               },
               "required": ["format", "signature"]
@@ -591,6 +618,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "jws",
+            "acceptIndex": 0,
             "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
           }
         ]
@@ -605,6 +633,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "type": "object",
               "properties": {
                 "format": { "type": "string", "const": "jws" },
+                "acceptIndex": { "type": "integer" },
                 "signature": { "type": "string", "description": "JWS compact serialization containing the offer payload" }
               },
               "required": ["format", "signature"]
@@ -843,8 +872,9 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 **12. Version History**
 
-| Version | Date       | Changes                                                                                                    | Author     |
-| ------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
-| 0.3     | 2026-01-22 | Move version into signed payload. Replace issuedAt + maxTimeoutSeconds with validUntil.                    | Alfred Tom |
-| 0.2     | 2026-01-20 | Move offers and receipt to extensions field. Add version. Add network and optional transaction to receipt. | Alfred Tom |
-| 0.1     | 2025-12-22 | Initial extension draft                                                                                    | Alfred Tom |
+| Version | Date       | Changes                                                        | Author     |
+| ------- | ---------- | -------------------------------------------------------------- | ---------- |
+| 0.4     | 2026-01-26 | Add acceptIndex as unsigned envelope field.                    | Alfred Tom |
+| 0.3     | 2026-01-22 | Add validUntil for offer expiration. Move version to payload.  | Alfred Tom |
+| 0.2     | 2026-01-20 | Move offers/receipt to extensions. Add network to receipt.     | Alfred Tom |
+| 0.1     | 2025-12-22 | Initial extension draft.                                       | Alfred Tom |
