@@ -1,13 +1,20 @@
-import { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
-import { getAddress } from "viem";
-import { authorizationTypes } from "../../constants";
+import {
+  PaymentRequirements,
+  SchemeNetworkClient,
+  PaymentPayloadResult,
+} from "@x402/core/types";
 import { ClientEvmSigner } from "../../signer";
-import { ExactEvmPayloadV2 } from "../../types";
-import { createNonce } from "../../utils";
+import { AssetTransferMethod } from "../../types";
+import { createEIP3009Payload } from "./eip3009";
+import { createPermit2Payload } from "./permit2";
 
 /**
  * EVM client implementation for the Exact payment scheme.
+ * Supports both EIP-3009 (transferWithAuthorization) and Permit2 flows.
  *
+ * Routes to the appropriate authorization method based on
+ * `requirements.extra.assetTransferMethod`. Defaults to EIP-3009
+ * for backward compatibility with older facilitators.
  */
 export class ExactEvmScheme implements SchemeNetworkClient {
   readonly scheme = "exact";
@@ -21,83 +28,23 @@ export class ExactEvmScheme implements SchemeNetworkClient {
 
   /**
    * Creates a payment payload for the Exact scheme.
+   * Routes to EIP-3009 or Permit2 based on requirements.extra.assetTransferMethod.
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
-   * @returns Promise resolving to a payment payload
+   * @returns Promise resolving to a payment payload result
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-  ): Promise<Pick<PaymentPayload, "x402Version" | "payload">> {
-    const nonce = createNonce();
-    const now = Math.floor(Date.now() / 1000);
+  ): Promise<PaymentPayloadResult> {
+    const assetTransferMethod =
+      (paymentRequirements.extra?.assetTransferMethod as AssetTransferMethod) ?? "eip3009";
 
-    const authorization: ExactEvmPayloadV2["authorization"] = {
-      from: this.signer.address,
-      to: getAddress(paymentRequirements.payTo),
-      value: paymentRequirements.amount,
-      validAfter: (now - 600).toString(), // 10 minutes before
-      validBefore: (now + paymentRequirements.maxTimeoutSeconds).toString(),
-      nonce,
-    };
-
-    // Sign the authorization
-    const signature = await this.signAuthorization(authorization, paymentRequirements);
-
-    const payload: ExactEvmPayloadV2 = {
-      authorization,
-      signature,
-    };
-
-    return {
-      x402Version,
-      payload,
-    };
-  }
-
-  /**
-   * Sign the EIP-3009 authorization using EIP-712
-   *
-   * @param authorization - The authorization to sign
-   * @param requirements - The payment requirements
-   * @returns Promise resolving to the signature
-   */
-  private async signAuthorization(
-    authorization: ExactEvmPayloadV2["authorization"],
-    requirements: PaymentRequirements,
-  ): Promise<`0x${string}`> {
-    const chainId = parseInt(requirements.network.split(":")[1]);
-
-    if (!requirements.extra?.name || !requirements.extra?.version) {
-      throw new Error(
-        `EIP-712 domain parameters (name, version) are required in payment requirements for asset ${requirements.asset}`,
-      );
+    if (assetTransferMethod === "permit2") {
+      return createPermit2Payload(this.signer, x402Version, paymentRequirements);
     }
 
-    const { name, version } = requirements.extra;
-
-    const domain = {
-      name,
-      version,
-      chainId,
-      verifyingContract: getAddress(requirements.asset),
-    };
-
-    const message = {
-      from: getAddress(authorization.from),
-      to: getAddress(authorization.to),
-      value: BigInt(authorization.value),
-      validAfter: BigInt(authorization.validAfter),
-      validBefore: BigInt(authorization.validBefore),
-      nonce: authorization.nonce,
-    };
-
-    return await this.signer.signTypedData({
-      domain,
-      types: authorizationTypes,
-      primaryType: "TransferWithAuthorization",
-      message,
-    });
+    return createEIP3009Payload(this.signer, x402Version, paymentRequirements);
   }
 }
