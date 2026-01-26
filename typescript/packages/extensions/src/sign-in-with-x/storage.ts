@@ -32,10 +32,23 @@ export interface SIWxStorage {
 export class InMemorySIWxStorage implements SIWxStorage {
   private paidAddresses = new Map<string, Set<string>>();
 
+  /**
+   * Check if an address has paid for a resource.
+   *
+   * @param resource - The resource path
+   * @param address - The wallet address to check
+   * @returns True if the address has paid
+   */
   hasPaid(resource: string, address: string): boolean {
     return this.paidAddresses.get(resource)?.has(address.toLowerCase()) ?? false;
   }
 
+  /**
+   * Record that an address has paid for a resource.
+   *
+   * @param resource - The resource path
+   * @param address - The wallet address that paid
+   */
   recordPayment(resource: string, address: string): void {
     if (!this.paidAddresses.has(resource)) {
       this.paidAddresses.set(resource, new Set());

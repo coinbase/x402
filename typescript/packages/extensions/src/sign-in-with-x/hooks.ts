@@ -17,6 +17,9 @@ import { encodeSIWxHeader } from "./encode";
 /**
  * Extracts the payer address from a payment payload.
  * Supports multiple payment scheme formats.
+ *
+ * @param payload - The payment payload from settlement
+ * @returns The payer address if found, undefined otherwise
  */
 function extractPayerAddress(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
@@ -107,9 +110,10 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
 export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
   const { storage, verifyOptions, onEvent } = options;
 
-  return async (
-    context: { adapter: { getHeader(name: string): string | undefined; getUrl(): string }; path: string },
-  ): Promise<void | { grantAccess: true }> => {
+  return async (context: {
+    adapter: { getHeader(name: string): string | undefined; getUrl(): string };
+    path: string;
+  }): Promise<void | { grantAccess: true }> => {
     // Try both cases for header (HTTP headers are case-insensitive)
     const header =
       context.adapter.getHeader(SIGN_IN_WITH_X) ||
@@ -134,7 +138,11 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 
       const hasPaid = await storage.hasPaid(context.path, verification.address);
       if (hasPaid) {
-        onEvent?.({ type: "access_granted", resource: context.path, address: verification.address });
+        onEvent?.({
+          type: "access_granted",
+          resource: context.path,
+          address: verification.address,
+        });
         return { grantAccess: true };
       }
     } catch (err) {
