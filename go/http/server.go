@@ -307,8 +307,13 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Create resource info from route config
+	resourceURL := routeConfig.Resource
+	if resourceURL == "" {
+		resourceURL = reqCtx.Adapter.GetURL()
+	}
+
 	resourceInfo := &types.ResourceInfo{
-		URL:         reqCtx.Adapter.GetURL(),
+		URL:         resourceURL,
 		Description: routeConfig.Description,
 		MimeType:    routeConfig.MimeType,
 	}

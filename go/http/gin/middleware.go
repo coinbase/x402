@@ -59,10 +59,6 @@ func (a *GinAdapter) GetURL() string {
 	}
 
 	uri := a.ctx.Request.URL.RequestURI()
-	if prefix := a.ctx.GetHeader("X-Forwarded-Prefix"); prefix != "" {
-		uri = prefix + uri
-	}
-
 	return fmt.Sprintf("%s://%s%s", scheme, host, uri)
 }
 
