@@ -75,7 +75,7 @@ export interface SettleFailureContext extends SettleContext {
 
 export type BeforeVerifyHook = (
   context: VerifyContext,
-) => Promise<void | { abort: true; reason: string }>;
+) => Promise<void | { abort: true; reason: string; message?: string }>;
 
 export type AfterVerifyHook = (context: VerifyResultContext) => Promise<void>;
 
@@ -85,7 +85,7 @@ export type OnVerifyFailureHook = (
 
 export type BeforeSettleHook = (
   context: SettleContext,
-) => Promise<void | { abort: true; reason: string }>;
+) => Promise<void | { abort: true; reason: string; message?: string }>;
 
 export type AfterSettleHook = (context: SettleResultContext) => Promise<void>;
 

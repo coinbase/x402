@@ -9,6 +9,7 @@ export type VerifyRequest = {
 export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string;
+  invalidMessage?: string;
   payer?: string;
   extensions?: Record<string, unknown>;
 };
@@ -21,6 +22,7 @@ export type SettleRequest = {
 export type SettleResponse = {
   success: boolean;
   errorReason?: string;
+  errorMessage?: string;
   payer?: string;
   transaction: string;
   network: Network;
@@ -45,6 +47,7 @@ export type SupportedResponse = {
  */
 export class VerifyError extends Error {
   readonly invalidReason?: string;
+  readonly invalidMessage?: string;
   readonly payer?: string;
   readonly statusCode: number;
 
@@ -59,6 +62,7 @@ export class VerifyError extends Error {
     this.name = "VerifyError";
     this.statusCode = statusCode;
     this.invalidReason = response.invalidReason;
+    this.invalidMessage = response.invalidMessage;
     this.payer = response.payer;
   }
 }
@@ -68,6 +72,7 @@ export class VerifyError extends Error {
  */
 export class SettleError extends Error {
   readonly errorReason?: string;
+  readonly errorMessage?: string;
   readonly payer?: string;
   readonly transaction: string;
   readonly network: Network;
@@ -84,6 +89,7 @@ export class SettleError extends Error {
     this.name = "SettleError";
     this.statusCode = statusCode;
     this.errorReason = response.errorReason;
+    this.errorMessage = response.errorMessage;
     this.payer = response.payer;
     this.transaction = response.transaction;
     this.network = response.network;
