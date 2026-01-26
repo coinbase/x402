@@ -199,6 +199,67 @@ A resource server advertises reputation support by including the `reputation` ex
 
 ---
 
+## Pre-Payment Verification (Recommended)
+
+**Best Practice:** Clients SHOULD verify the payment address before sending payment to prevent fraud from compromised servers.
+
+### Step 1: Choose Payment Option and Find Matching Registration
+
+```
+// Client chooses payment option (based on wallet balance, fees, preference)
+chosenAccept = paymentRequired.accepts[selectedIndex]
+paymentNetwork = chosenAccept.network   // e.g., "eip155:8453" or "solana:5eykt4..."
+payToAddress = chosenAccept.payTo
+
+// Find registration matching the chosen payment network
+// Extract network prefix from CAIP-10 agentRegistry:
+//   "eip155:8453:0x8004A818..." → "eip155:8453"
+//   "solana:5eykt4...:satiRkx..." → "solana:5eykt4..."
+
+registration = registrations.find where:
+  agentRegistry.networkPrefix() == paymentNetwork
+
+if not found:
+  error "Agent not registered on chosen payment network"
+```
+
+### Step 2: Fetch On-Chain Agent Wallet
+
+```
+// registry.getAgentWallet() - ERC-8004 compliant interface (EVM and SATI)
+agentWallet = registry.getAgentWallet(registration.agentId)
+```
+
+### Step 3: Verify Payment Address
+
+```
+// Normalize addresses for comparison:
+// - EVM: case-insensitive (lowercase both)
+// - Solana: case-sensitive (exact match)
+
+if backend == "erc8004":
+  if lowercase(payToAddress) != lowercase(agentWallet):
+    error "Payment address mismatch - potential fraud. ABORTING."
+
+if backend == "sati":
+  if payToAddress != agentWallet:
+    error "Payment address mismatch - potential fraud. ABORTING."
+
+// Verification passed - safe to proceed with payment
+```
+
+### Why This Check Matters
+
+A compromised agent server (or MITM attacker) can change the `payTo` field in the 402 response to steal payments:
+
+1. Client sends payment to attacker's wallet
+2. Blockchain transaction is irreversible
+3. Money is gone (even if signature verification later fails)
+
+This check prevents payment theft and should happen before any blockchain transaction.
+
+---
+
 ## Usage: `PAYMENT-RESPONSE`
 
 After successful payment settlement, agents MUST sign the interaction and include `InteractionData` in the `PAYMENT-RESPONSE` header.
@@ -253,50 +314,53 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 ---
 
-## Client Verification
+## Post-Service Signature Verification
 
-Clients MUST verify agent signatures before trusting the interaction:
+After receiving the service response with `PAYMENT-RESPONSE` header, clients MUST verify the agent signature to prove service delivery:
 
 ### 1. Fetch Registration File
 
-```typescript
-const uri = await registry.tokenURI(agentId); // ERC-8004
-// or: await satiClient.loadAgent(agentId).uri  // SATI
-const registrationFile = await fetch(uri).then(r => r.json());
+```
+// registry.tokenURI() - ERC-8004 compliant interface (EVM and SATI)
+uri = registry.tokenURI(agentId)
+registrationFile = fetch(uri).json()
 ```
 
 ### 2. Find Matching Registration
 
-```typescript
-const reg = registrationFile.registrations.find(
-  r => r.agentRegistry === expectedRegistry && r.agentId === expectedAgentId
-);
-if (!reg) throw new Error('Agent not registered on this network');
+```
+registration = registrationFile.registrations.find where:
+  agentRegistry == expectedRegistry AND agentId == expectedAgentId
+
+if not found:
+  error "Agent not registered on this network"
 ```
 
 ### 3. Get Valid Signers
 
-```typescript
+```
 // signers array is TOP-LEVEL (not per-registration) per ERC-8004 compliance
-const now = Math.floor(Date.now() / 1000);
-const validSigners = registrationFile.signers.filter(s =>
-  s.validFrom <= now && (s.validUntil === null || s.validUntil > now)
-);
-if (validSigners.length === 0) throw new Error('No valid signers found');
+now = currentUnixTimestamp()
+validSigners = registrationFile.signers.filter where:
+  validFrom <= now AND (validUntil == null OR validUntil > now)
+
+if validSigners is empty:
+  error "No valid signers found"
 ```
 
 ### 4. Verify Signature
 
-```typescript
-const isValid = validSigners.some(signer =>
-  verifySignature({
+```
+isValid = validSigners.any where:
+  verifySignature(
     message: interactionData.interactionHash,
     signature: interactionData.agentSignature,
     publicKey: signer.publicKey,
     algorithm: signer.algorithm
-  })
-);
-if (!isValid) throw new Error('Signature verification failed');
+  )
+
+if not isValid:
+  error "Signature verification failed"
 ```
 
 ### 5. Additional Checks
@@ -515,14 +579,19 @@ Per ERC-8004 spec (line 229), when submitting feedback where the client is an ag
 
 ## Security Considerations
 
-### Critical Requirements
+### Critical Requirements (MUST)
 
-- ✅ Always verify signatures cryptographically before trusting data
+- ✅ Always verify signatures cryptographically before trusting interaction data
 - ✅ Fetch registration file from on-chain URI (never trust x402 headers alone)
 - ✅ Check signer validity period (`validFrom` to `validUntil`)
 - ✅ Verify `taskRef` matches actual payment transaction
 - ✅ Use IPFS CID verification or HTTPS for registration file integrity
-- ✅ Verify `payTo` address matches on-chain `agentWallet` (prevents payment fraud)
+
+### Recommended Practices (SHOULD)
+
+- ✅ Verify `payTo` address matches on-chain `agentWallet` BEFORE payment (prevents theft from compromised servers)
+- ✅ See "Pre-Payment Verification" section for implementation details
+- ✅ Blockchain transactions are irreversible - verify before money moves
 
 ### Key Rotation
 
