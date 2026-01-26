@@ -40,7 +40,12 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, new ExactEvmScheme())
   .onAfterSettle(createSIWxSettleHook({ storage }));
 
-// Route configuration with SIWX extension
+/**
+ * Creates route configuration with SIWX extension.
+ *
+ * @param path - The resource path
+ * @returns Route configuration object
+ */
 function routeConfig(path: string) {
   return {
     accepts: [{ scheme: "exact", price: "$0.001", network: NETWORK, payTo: evmAddress }],
@@ -60,8 +65,9 @@ const routes = {
 };
 
 // Configure HTTP server with SIWX request hook
-const httpServer = new x402HTTPResourceServer(resourceServer, routes)
-  .onProtectedRequest(createSIWxRequestHook({ storage }));
+const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtectedRequest(
+  createSIWxRequestHook({ storage }),
+);
 
 const app = express();
 app.use(paymentMiddlewareFromHTTPServer(httpServer));

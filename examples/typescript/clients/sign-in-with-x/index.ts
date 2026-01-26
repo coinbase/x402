@@ -14,11 +14,15 @@ const signer = privateKeyToAccount(evmPrivateKey);
 const client = new x402Client();
 registerExactEvmScheme(client, { signer });
 
-const httpClient = new x402HTTPClient(client)
-  .onPaymentRequired(createSIWxClientHook(signer));
+const httpClient = new x402HTTPClient(client).onPaymentRequired(createSIWxClientHook(signer));
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, httpClient);
 
+/**
+ * Demonstrates the SIWX flow for a given resource path.
+ *
+ * @param path - The resource path to request
+ */
 async function demonstrateResource(path: string): Promise<void> {
   const url = `${baseURL}${path}`;
   console.log(`\n--- ${path} ---`);
@@ -34,6 +38,9 @@ async function demonstrateResource(path: string): Promise<void> {
   console.log("   Response:", await response2.json());
 }
 
+/**
+ * Main entry point - demonstrates SIWX authentication flow.
+ */
 async function main(): Promise<void> {
   console.log(`Client address: ${signer.address}`);
   console.log(`Server: ${baseURL}`);
