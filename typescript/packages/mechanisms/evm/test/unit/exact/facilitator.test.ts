@@ -3,6 +3,7 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
+import { x402ExactPermit2ProxyAddress } from "../../../src/constants";
 
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
@@ -239,6 +240,96 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       const result = await facilitator.verify(fullPayload, requirements);
 
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+  });
+
+  describe("Permit2 payload rejection", () => {
+    it("should reject Permit2 payloads with unsupported_payload_type", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Create a Permit2 payload structure
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              validBefore: "999999999999",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("unsupported_payload_type");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should reject Permit2 payloads in settle with unsupported_payload_type", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Create a Permit2 payload structure
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              validBefore: "999999999999",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("unsupported_payload_type");
       expect(result.payer).toBe(mockClientSigner.address);
     });
   });

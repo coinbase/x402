@@ -1,3 +1,10 @@
+import { PaymentPayload } from "@x402/core/types";
+
+/**
+ * Result of createPaymentPayload - the core payload fields.
+ */
+export type PaymentPayloadResult = Pick<PaymentPayload, "x402Version" | "payload">;
+
 /**
  * Asset transfer methods for the exact EVM scheme.
  * - eip3009: Uses transferWithAuthorization (USDC, etc.) - recommended for compatible tokens

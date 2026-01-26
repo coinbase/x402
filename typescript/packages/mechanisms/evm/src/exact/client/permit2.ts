@@ -1,4 +1,4 @@
-import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
+import { PaymentRequirements } from "@x402/core/types";
 import { encodeFunctionData, getAddress } from "viem";
 import {
   permit2WitnessTypes,
@@ -6,7 +6,7 @@ import {
   x402ExactPermit2ProxyAddress,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { ExactPermit2Payload } from "../../types";
+import { ExactPermit2Payload, PaymentPayloadResult } from "../../types";
 import { createPermit2Nonce } from "../../utils";
 
 /** Maximum uint256 value for unlimited approval. */
