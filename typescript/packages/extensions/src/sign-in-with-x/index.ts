@@ -131,4 +131,5 @@ export {
   createSIWxRequestHook,
   createSIWxClientHook,
   type CreateSIWxHookOptions,
+  type SIWxHookEvent,
 } from "./hooks";

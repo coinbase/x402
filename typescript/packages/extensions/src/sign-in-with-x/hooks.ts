@@ -15,6 +15,30 @@ import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
 
 /**
+ * Extracts the payer address from a payment payload.
+ * Supports multiple payment scheme formats.
+ */
+function extractPayerAddress(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+
+  const p = payload as Record<string, unknown>;
+
+  // EVM exact scheme: payload.authorization.from
+  if (p.authorization && typeof p.authorization === "object") {
+    const auth = p.authorization as Record<string, unknown>;
+    if (typeof auth.from === "string") return auth.from;
+  }
+
+  // Solana exact scheme: payload.payer
+  if (typeof p.payer === "string") return p.payer;
+
+  // Generic: payload.from
+  if (typeof p.from === "string") return p.from;
+
+  return undefined;
+}
+
+/**
  * Options for creating server-side SIWX hooks.
  */
 export interface CreateSIWxHookOptions {
@@ -22,7 +46,18 @@ export interface CreateSIWxHookOptions {
   storage: SIWxStorage;
   /** Options for signature verification (e.g., EVM smart wallet support) */
   verifyOptions?: SIWxVerifyOptions;
+  /** Optional callback for logging/debugging */
+  onEvent?: (event: SIWxHookEvent) => void;
 }
+
+/**
+ * Events emitted by SIWX hooks for logging/debugging.
+ */
+export type SIWxHookEvent =
+  | { type: "payment_recorded"; resource: string; address: string }
+  | { type: "access_granted"; resource: string; address: string }
+  | { type: "validation_failed"; resource: string; error?: string }
+  | { type: "siwx_header_sent"; resource: string };
 
 /**
  * Creates an onAfterSettle hook that records payments for SIWX.
@@ -38,17 +73,17 @@ export interface CreateSIWxHookOptions {
  * ```
  */
 export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
-  const { storage } = options;
+  const { storage, onEvent } = options;
 
   return async (ctx: {
     paymentPayload: { payload: unknown; resource: { url: string } };
   }): Promise<void> => {
-    const payload = ctx.paymentPayload.payload as { authorization?: { from?: string } };
-    const address = payload?.authorization?.from;
+    const address = extractPayerAddress(ctx.paymentPayload.payload);
     if (!address) return;
 
     const resource = new URL(ctx.paymentPayload.resource.url).pathname;
     await storage.recordPayment(resource, address);
+    onEvent?.({ type: "payment_recorded", resource, address });
   };
 }
 
@@ -66,12 +101,15 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
  * ```
  */
 export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
-  const { storage, verifyOptions } = options;
+  const { storage, verifyOptions, onEvent } = options;
 
   return async (
     context: { adapter: { getHeader(name: string): string | undefined; getUrl(): string }; path: string },
   ): Promise<void | { grantAccess: true }> => {
-    const header = context.adapter.getHeader(SIGN_IN_WITH_X.toLowerCase());
+    // Try both cases for header (HTTP headers are case-insensitive)
+    const header =
+      context.adapter.getHeader(SIGN_IN_WITH_X) ||
+      context.adapter.getHeader(SIGN_IN_WITH_X.toLowerCase());
     if (!header) return;
 
     try {
@@ -79,17 +117,28 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
       const resourceUri = context.adapter.getUrl();
 
       const validation = await validateSIWxMessage(payload, resourceUri);
-      if (!validation.valid) return;
+      if (!validation.valid) {
+        onEvent?.({ type: "validation_failed", resource: context.path, error: validation.error });
+        return;
+      }
 
       const verification = await verifySIWxSignature(payload, verifyOptions);
-      if (!verification.valid || !verification.address) return;
+      if (!verification.valid || !verification.address) {
+        onEvent?.({ type: "validation_failed", resource: context.path, error: verification.error });
+        return;
+      }
 
       const hasPaid = await storage.hasPaid(context.path, verification.address);
       if (hasPaid) {
+        onEvent?.({ type: "access_granted", resource: context.path, address: verification.address });
         return { grantAccess: true };
       }
-    } catch {
-      // Invalid SIWX, continue to payment flow
+    } catch (err) {
+      onEvent?.({
+        type: "validation_failed",
+        resource: context.path,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
     }
   };
 }

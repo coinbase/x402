@@ -22,6 +22,10 @@ import {
   getEVMAddress,
   getSolanaAddress,
   signSolanaMessage,
+  InMemorySIWxStorage,
+  createSIWxSettleHook,
+  createSIWxRequestHook,
+  createSIWxClientHook,
   type SolanaSigner,
   type EVMSigner,
   type EVMMessageVerifier,
@@ -759,6 +763,253 @@ describe("Sign-In-With-X Extension", () => {
         const result = await verifySIWxSignature(payload);
         expect(result.valid).toBe(true); // Proves signatureScheme is ignored
       });
+    });
+  });
+});
+
+describe("SIWxStorage", () => {
+  describe("InMemorySIWxStorage", () => {
+    it("should record and check payments", () => {
+      const storage = new InMemorySIWxStorage();
+
+      expect(storage.hasPaid("/resource", "0xABC")).toBe(false);
+
+      storage.recordPayment("/resource", "0xABC");
+      expect(storage.hasPaid("/resource", "0xABC")).toBe(true);
+      expect(storage.hasPaid("/resource", "0xDEF")).toBe(false);
+      expect(storage.hasPaid("/other", "0xABC")).toBe(false);
+    });
+
+    it("should normalize addresses to lowercase", () => {
+      const storage = new InMemorySIWxStorage();
+
+      storage.recordPayment("/resource", "0xABCDEF");
+      expect(storage.hasPaid("/resource", "0xabcdef")).toBe(true);
+      expect(storage.hasPaid("/resource", "0xABCDEF")).toBe(true);
+    });
+
+    it("should handle multiple resources independently", () => {
+      const storage = new InMemorySIWxStorage();
+
+      storage.recordPayment("/a", "0x1");
+      storage.recordPayment("/b", "0x2");
+
+      expect(storage.hasPaid("/a", "0x1")).toBe(true);
+      expect(storage.hasPaid("/a", "0x2")).toBe(false);
+      expect(storage.hasPaid("/b", "0x1")).toBe(false);
+      expect(storage.hasPaid("/b", "0x2")).toBe(true);
+    });
+  });
+});
+
+describe("SIWX Hooks", () => {
+  describe("createSIWxSettleHook", () => {
+    it("should record payment from EVM exact scheme payload", async () => {
+      const storage = new InMemorySIWxStorage();
+      const hook = createSIWxSettleHook({ storage });
+
+      await hook({
+        paymentPayload: {
+          payload: { authorization: { from: "0xABC123" } },
+          resource: { url: "http://example.com/weather" },
+        },
+      });
+
+      expect(storage.hasPaid("/weather", "0xABC123")).toBe(true);
+    });
+
+    it("should record payment from Solana payload with payer field", async () => {
+      const storage = new InMemorySIWxStorage();
+      const hook = createSIWxSettleHook({ storage });
+
+      await hook({
+        paymentPayload: {
+          payload: { payer: "SolanaAddress123" },
+          resource: { url: "http://example.com/data" },
+        },
+      });
+
+      expect(storage.hasPaid("/data", "SolanaAddress123")).toBe(true);
+    });
+
+    it("should call onEvent when payment is recorded", async () => {
+      const storage = new InMemorySIWxStorage();
+      const events: unknown[] = [];
+      const hook = createSIWxSettleHook({
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      await hook({
+        paymentPayload: {
+          payload: { authorization: { from: "0x123" } },
+          resource: { url: "http://example.com/test" },
+        },
+      });
+
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({
+        type: "payment_recorded",
+        resource: "/test",
+        address: "0x123",
+      });
+    });
+
+    it("should not record if no address found", async () => {
+      const storage = new InMemorySIWxStorage();
+      const hook = createSIWxSettleHook({ storage });
+
+      await hook({
+        paymentPayload: {
+          payload: { unknown: "format" },
+          resource: { url: "http://example.com/test" },
+        },
+      });
+
+      // No exception, just silently skips
+      expect(storage.hasPaid("/test", "anything")).toBe(false);
+    });
+  });
+
+  describe("createSIWxRequestHook", () => {
+    it("should return undefined when no SIWX header", async () => {
+      const storage = new InMemorySIWxStorage();
+      const hook = createSIWxRequestHook({ storage });
+
+      const result = await hook({
+        adapter: {
+          getHeader: () => undefined,
+          getUrl: () => "http://example.com/test",
+        },
+        path: "/test",
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should grant access when address has paid", async () => {
+      const storage = new InMemorySIWxStorage();
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      // Pre-record payment
+      storage.recordPayment("/resource", account.address);
+
+      // Create valid SIWX header
+      const extension = declareSIWxExtension({
+        domain: "example.com",
+        resourceUri: "http://example.com/resource",
+        network: "eip155:8453",
+      });
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const header = encodeSIWxHeader(payload);
+
+      const hook = createSIWxRequestHook({ storage });
+      const result = await hook({
+        adapter: {
+          getHeader: (name: string) =>
+            name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+          getUrl: () => "http://example.com/resource",
+        },
+        path: "/resource",
+      });
+
+      expect(result).toEqual({ grantAccess: true });
+    });
+
+    it("should return undefined when address has not paid", async () => {
+      const storage = new InMemorySIWxStorage();
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      // Don't pre-record payment
+
+      const extension = declareSIWxExtension({
+        domain: "example.com",
+        resourceUri: "http://example.com/resource",
+        network: "eip155:8453",
+      });
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const header = encodeSIWxHeader(payload);
+
+      const hook = createSIWxRequestHook({ storage });
+      const result = await hook({
+        adapter: {
+          getHeader: (name: string) =>
+            name === "sign-in-with-x" ? header : undefined,
+          getUrl: () => "http://example.com/resource",
+        },
+        path: "/resource",
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should emit validation_failed event on invalid signature", async () => {
+      const storage = new InMemorySIWxStorage();
+      const events: unknown[] = [];
+      const hook = createSIWxRequestHook({
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      // Create invalid header (valid base64/json but bad signature)
+      const invalidPayload = {
+        domain: "example.com",
+        address: "0x1234567890123456789012345678901234567890",
+        uri: "http://example.com/resource",
+        version: "1",
+        chainId: "eip155:8453",
+        type: "eip191",
+        nonce: "test123",
+        issuedAt: new Date().toISOString(),
+        signature: "0x" + "00".repeat(65),
+      };
+      const header = safeBase64Encode(JSON.stringify(invalidPayload));
+
+      await hook({
+        adapter: {
+          getHeader: (name: string) =>
+            name === "sign-in-with-x" ? header : undefined,
+          getUrl: () => "http://example.com/resource",
+        },
+        path: "/resource",
+      });
+
+      expect(events.some((e: any) => e.type === "validation_failed")).toBe(true);
+    });
+  });
+
+  describe("createSIWxClientHook", () => {
+    it("should return undefined when no SIWX extension", async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+      const hook = createSIWxClientHook(account);
+
+      const result = await hook({
+        paymentRequired: { extensions: {} },
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should return headers when SIWX extension present", async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+      const hook = createSIWxClientHook(account);
+
+      const extension = declareSIWxExtension({
+        domain: "example.com",
+        resourceUri: "http://example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const result = await hook({
+        paymentRequired: { extensions: extension },
+      });
+
+      expect(result).toHaveProperty("headers");
+      expect(result!.headers).toHaveProperty("sign-in-with-x");
+
+      // Verify the header is valid
+      const parsed = parseSIWxHeader(result!.headers["sign-in-with-x"]);
+      expect(parsed.address.toLowerCase()).toBe(account.address.toLowerCase());
     });
   });
 });
