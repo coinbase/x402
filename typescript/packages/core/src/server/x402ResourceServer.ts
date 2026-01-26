@@ -36,6 +36,13 @@ export interface ResourceInfo {
  * Lifecycle Hook Context Interfaces
  */
 
+export interface PaymentRequiredContext {
+  requirements: PaymentRequirements[];
+  resourceInfo: ResourceInfo;
+  error?: string;
+  paymentRequiredResponse: PaymentRequired;
+}
+
 export interface VerifyContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
@@ -166,6 +173,25 @@ export class x402ResourceServer {
   registerExtension(extension: ResourceServerExtension): this {
     this.registeredExtensions.set(extension.key, extension);
     return this;
+  }
+
+  /**
+   * Check if an extension is registered.
+   *
+   * @param key - The extension key
+   * @returns True if the extension is registered
+   */
+  hasExtension(key: string): boolean {
+    return this.registeredExtensions.has(key);
+  }
+
+  /**
+   * Get all registered extensions.
+   *
+   * @returns Array of registered extensions
+   */
+  getExtensions(): ResourceServerExtension[] {
+    return Array.from(this.registeredExtensions.values());
   }
 
   /**
@@ -493,17 +519,17 @@ export class x402ResourceServer {
    * @param requirements - Payment requirements
    * @param resourceInfo - Resource information
    * @param error - Error message
-   * @param extensions - Optional extensions
+   * @param extensions - Optional declared extensions (for per-key enrichment)
    * @returns Payment required response object
    */
-  createPaymentRequiredResponse(
+  async createPaymentRequiredResponse(
     requirements: PaymentRequirements[],
     resourceInfo: ResourceInfo,
     error?: string,
     extensions?: Record<string, unknown>,
-  ): PaymentRequired {
+  ): Promise<PaymentRequired> {
     // V2 response with resource at top level
-    const response: PaymentRequired = {
+    let response: PaymentRequired = {
       x402Version: 2,
       error,
       resource: resourceInfo,
@@ -513,6 +539,38 @@ export class x402ResourceServer {
     // Add extensions if provided
     if (extensions && Object.keys(extensions).length > 0) {
       response.extensions = extensions;
+    }
+
+    // Let declared extensions add data to PaymentRequired response
+    if (extensions) {
+      for (const [key, declaration] of Object.entries(extensions)) {
+        const extension = this.registeredExtensions.get(key);
+        if (extension?.enrichPaymentRequiredResponse) {
+          try {
+            const context: PaymentRequiredContext = {
+              requirements,
+              resourceInfo,
+              error,
+              paymentRequiredResponse: response,
+            };
+            const extensionData = await extension.enrichPaymentRequiredResponse(
+              declaration,
+              context,
+            );
+            if (extensionData !== undefined) {
+              if (!response.extensions) {
+                response.extensions = {};
+              }
+              response.extensions[key] = extensionData;
+            }
+          } catch (error) {
+            console.error(
+              `Error in enrichPaymentRequiredResponse hook for extension ${key}:`,
+              error,
+            );
+          }
+        }
+      }
     }
 
     return response;
@@ -615,11 +673,13 @@ export class x402ResourceServer {
    *
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
+   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    declaredExtensions?: Record<string, unknown>,
   ): Promise<SettleResponse> {
     const context: SettleContext = {
       paymentPayload,
@@ -678,6 +738,29 @@ export class x402ResourceServer {
 
       for (const hook of this.afterSettleHooks) {
         await hook(resultContext);
+      }
+
+      // Let declared extensions add data to settlement response
+      if (declaredExtensions) {
+        for (const [key, declaration] of Object.entries(declaredExtensions)) {
+          const extension = this.registeredExtensions.get(key);
+          if (extension?.enrichSettlementResponse) {
+            try {
+              const extensionData = await extension.enrichSettlementResponse(
+                declaration,
+                resultContext,
+              );
+              if (extensionData !== undefined) {
+                if (!settleResult.extensions) {
+                  settleResult.extensions = {};
+                }
+                settleResult.extensions[key] = extensionData;
+              }
+            } catch (error) {
+              console.error(`Error in enrichSettlementResponse hook for extension ${key}:`, error);
+            }
+          }
+        }
       }
 
       return settleResult;
@@ -756,7 +839,7 @@ export class x402ResourceServer {
     if (!paymentPayload) {
       return {
         success: false,
-        requiresPayment: this.createPaymentRequiredResponse(
+        requiresPayment: await this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "Payment required",
@@ -770,7 +853,7 @@ export class x402ResourceServer {
     if (!matchingRequirements) {
       return {
         success: false,
-        requiresPayment: this.createPaymentRequiredResponse(
+        requiresPayment: await this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements found",

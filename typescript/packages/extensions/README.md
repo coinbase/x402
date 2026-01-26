@@ -297,7 +297,7 @@ import { x402ResourceServer } from "@x402/core/server";
 // The extension helper automatically extracts discovery info
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register("eip155:84532", new ExactEvmScheme())
-  .useExtension(bazaarResourceServerExtension);
+  .registerExtension(bazaarResourceServerExtension);
 ```
 
 ## API Reference
@@ -309,7 +309,7 @@ Creates a discovery extension object for resource servers.
 **Parameters:**
 - `config.input` (optional): Example input values (query params for GET/HEAD/DELETE, body for POST/PUT/PATCH)
 - `config.inputSchema` (optional): JSON Schema for input validation
-- `config.bodyType` (optional): For POST/PUT/PATCH, specify `"json"`, `"form-data"`, or `"text"` (default: `"json"`)
+- `config.bodyType` (required for body methods): For POST/PUT/PATCH, specify `"json"`, `"form-data"`, or `"text"`. This is how TypeScript discriminates between query methods (GET/HEAD/DELETE) and body methods.
 - `config.output` (optional): Output specification
   - `output.example`: Example output data
   - `output.schema`: JSON Schema for output validation
@@ -406,7 +406,7 @@ A server extension that automatically enriches discovery extensions with HTTP me
 import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
 
 const resourceServer = new x402ResourceServer(facilitatorClient)
-  .useExtension(bazaarResourceServerExtension);
+  .registerExtension(bazaarResourceServerExtension);
 ```
 
 ### `BAZAAR`

@@ -104,7 +104,7 @@ const heroCodeSnippet = {
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-black">
-      <NavBar />
+      <NavBar animateLogo />
 
       <HeroSection codeSnippet={heroCodeSnippet} />
 

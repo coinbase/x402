@@ -45,14 +45,11 @@ export interface SchemeRegistration {
 }
 
 /**
- * Hono payment middleware for x402 protocol (direct server instance).
+ * Hono payment middleware for x402 protocol (direct HTTP server instance).
  *
- * Use this when you want to pass a pre-configured x402ResourceServer instance.
- * This provides more flexibility for testing, custom configuration, and reusing
- * server instances across multiple middlewares.
+ * Use this when you need to configure HTTP-level hooks.
  *
- * @param routes - Route configurations for protected endpoints
- * @param server - Pre-configured x402ResourceServer instance
+ * @param httpServer - Pre-configured x402HTTPResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
@@ -60,26 +57,23 @@ export interface SchemeRegistration {
  *
  * @example
  * ```typescript
- * import { paymentMiddleware } from "@x402/hono";
- * import { x402ResourceServer } from "@x402/core/server";
- * import { registerExactEvmScheme } from "@x402/evm/exact/server";
+ * import { paymentMiddlewareFromHTTPServer, x402ResourceServer, x402HTTPResourceServer } from "@x402/hono";
  *
- * const server = new x402ResourceServer(myFacilitatorClient);
- * registerExactEvmScheme(server, {});
+ * const resourceServer = new x402ResourceServer(facilitatorClient)
+ *   .register(NETWORK, new ExactEvmScheme());
  *
- * app.use(paymentMiddleware(routes, server, paywallConfig));
+ * const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+ *   .onProtectedRequest(requestHook);
+ *
+ * app.use(paymentMiddlewareFromHTTPServer(httpServer));
  * ```
  */
-export function paymentMiddleware(
-  routes: RoutesConfig,
-  server: x402ResourceServer,
+export function paymentMiddlewareFromHTTPServer(
+  httpServer: x402HTTPResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
 ): MiddlewareHandler {
-  // Create the x402 HTTP server instance with the resource server
-  const httpServer = new x402HTTPResourceServer(server, routes);
-
   // Register custom paywall provider if provided
   if (paywall) {
     httpServer.registerPaywallProvider(paywall);
@@ -89,12 +83,13 @@ export function paymentMiddleware(
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
 
-  // Dynamically register bazaar extension if routes declare it
+  // Dynamically register bazaar extension if routes declare it and not already registered
+  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(routes)) {
+  if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
     bazaarPromise = import("@x402/extensions/bazaar")
       .then(({ bazaarResourceServerExtension }) => {
-        server.registerExtension(bazaarResourceServerExtension);
+        httpServer.server.registerExtension(bazaarResourceServerExtension);
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);
@@ -151,7 +146,7 @@ export function paymentMiddleware(
 
       case "payment-verified":
         // Payment is valid, need to wrap response for settlement
-        const { paymentPayload, paymentRequirements } = result;
+        const { paymentPayload, paymentRequirements, declaredExtensions } = result;
 
         // Proceed to the next middleware or route handler
         await next();
@@ -171,6 +166,7 @@ export function paymentMiddleware(
           const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
+            declaredExtensions,
           );
 
           if (!settleResult.success) {
@@ -205,6 +201,48 @@ export function paymentMiddleware(
         return;
     }
   };
+}
+
+/**
+ * Hono payment middleware for x402 protocol (direct server instance).
+ *
+ * Use this when you want to pass a pre-configured x402ResourceServer instance.
+ * This provides more flexibility for testing, custom configuration, and reusing
+ * server instances across multiple middlewares.
+ *
+ * @param routes - Route configurations for protected endpoints
+ * @param server - Pre-configured x402ResourceServer instance
+ * @param paywallConfig - Optional configuration for the built-in paywall UI
+ * @param paywall - Optional custom paywall provider (overrides default)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
+ * @returns Hono middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { paymentMiddleware } from "@x402/hono";
+ *
+ * const server = new x402ResourceServer(myFacilitatorClient)
+ *   .register(NETWORK, new ExactEvmScheme());
+ *
+ * app.use(paymentMiddleware(routes, server, paywallConfig));
+ * ```
+ */
+export function paymentMiddleware(
+  routes: RoutesConfig,
+  server: x402ResourceServer,
+  paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
+  syncFacilitatorOnStart: boolean = true,
+): MiddlewareHandler {
+  // Create the x402 HTTP server instance with the resource server
+  const httpServer = new x402HTTPResourceServer(server, routes);
+
+  return paymentMiddlewareFromHTTPServer(
+    httpServer,
+    paywallConfig,
+    paywall,
+    syncFacilitatorOnStart,
+  );
 }
 
 /**
