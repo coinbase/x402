@@ -1,14 +1,16 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { encodeFunctionData, getAddress } from "viem";
-import { permit2WitnessTypes, PERMIT2_ADDRESS, x402ExactPermit2ProxyAddress } from "../../constants";
+import {
+  permit2WitnessTypes,
+  PERMIT2_ADDRESS,
+  x402ExactPermit2ProxyAddress,
+} from "../../constants";
 import { ClientEvmSigner } from "../../signer";
 import { ExactPermit2Payload } from "../../types";
 import { createPermit2Nonce } from "../../utils";
 
 /** Maximum uint256 value for unlimited approval. */
-const MAX_UINT256 = BigInt(
-  "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-);
+const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 /**
  * Creates a Permit2 payload using the x402Permit2Proxy witness pattern.
