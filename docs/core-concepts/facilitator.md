@@ -1,6 +1,7 @@
-# Facilitator
-
-This page explains the role of the **facilitator** in the x402 protocol.
+---
+title: "Facilitator"
+description: "This page explains the role of the **facilitator** in the x402 protocol."
+---
 
 The facilitator is an optional but recommended service that simplifies the process of verifying and settling payments between clients (buyers) and servers (sellers).
 
@@ -33,12 +34,7 @@ While it is possible to implement verification and settlement locally, using a f
 
 ### Live Facilitators
 
-1. Currently, CDP hosts a facilitator live on Base mainnet. For more information about getting started, see the [CDP Docs](https://docs.cdp.coinbase.com/x402/docs/welcome).
-
-* CDP's facilitator offers fee-free USDC settlement on Base mainnet
-
-2. PayAI [hosts a facilitator](https://facilitator.payai.network) on Solana, Base, Polygon, and more. More info & docs at https://docs.payai.network/x402.
-
+Multiple facilitators are live in production, supporting various networks including Base, Solana, Polygon, Avalanche, and more. For a complete and up-to-date list, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
 
 ### Interaction Flow
 
@@ -61,5 +57,5 @@ The facilitator acts as an independent verification and settlement layer within 
 
 Next, explore:
 
-* [Client / Server ](client-server.md)— understand the roles and responsibilities of clients and servers
-* [HTTP 402](http-402.md) — understand how payment requirements are communicated to clients
+* [Client / Server](/core-concepts/client-server) — understand the roles and responsibilities of clients and servers
+* [HTTP 402](/core-concepts/http-402) — understand how payment requirements are communicated to clients

@@ -10,7 +10,7 @@ const OUTPUT_HTML = path.join(DIST_DIR, "evm-paywall.html");
 const OUTPUT_TS = path.join("src/evm/gen", "template.ts");
 
 // Cross-language template output paths (relative to package root where build runs)
-const PYTHON_DIR = path.join("..", "..", "..", "..", "python", "x402", "src", "x402");
+const PYTHON_DIR = path.join("..", "..", "..", "..", "python", "x402", "http", "paywall");
 const GO_DIR = path.join("..", "..", "..", "..", "go", "http");
 const OUTPUT_PY = path.join(PYTHON_DIR, "evm_paywall_template.py");
 const OUTPUT_GO = path.join(GO_DIR, "evm_paywall_template.go");
