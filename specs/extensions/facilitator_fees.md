@@ -4,10 +4,12 @@
 
 The `facilitatorFees` extension standardizes **facilitator fee disclosure** to enable fee-aware multi-facilitator routing. It allows facilitators to disclose their fee structures, clients to express fee constraints, and servers to report actual fees paid after settlement.
 
-This extension introduces three components:
+This extension introduces:
+
+- **Facilitator Quote API** (recommended): Standardized `GET /x402/fee-quote` endpoint for dynamic quote fetching
 - **`facilitatorFeeQuote`**: Facilitator-signed fee disclosure surfaced at `PaymentRequired` time
-- **`facilitatorFeeBid`** (optional): Client fee constraints/preferences surfaced in `PaymentPayload`
-- **`facilitatorFeePaid`** (optional): Actual fee charged, surfaced in `SettlementResponse`
+- **`facilitatorFeeBid`** (optional): Client fee constraints surfaced in `PaymentPayload`
+- **`facilitatorFeePaid`** (optional): Actual fee charged surfaced in `SettlementResponse`
 
 ---
 
@@ -21,6 +23,74 @@ Without standardization:
 - Clients cannot compare total cost across facilitators
 - Multi-facilitator routing cannot become a real market
 - Each facilitator invents bespoke fee disclosure formats
+
+### Connection to x402 v2 Multi-Facilitator Support
+
+x402 v2 introduced first-class multi-facilitator support where "the SDK chooses the best match." However, without standardized fee disclosure, "best match" cannot include cost optimization. This extension provides the missing fee metadata that enables SDKs and servers to make cost-aware routing decisions.
+
+---
+
+## Facilitator Quote API
+
+To enable **server-side multi-facilitator routing**, facilitators SHOULD expose a standardized quote endpoint. This API is the primary mechanism for obtaining `FacilitatorFeeQuote` objects.
+
+### Endpoint
+
+```
+GET /x402/fee-quote?network=<CAIP-2>&asset=<token>&amount=<optional>
+```
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `network` | string | Yes | CAIP-2 network identifier (e.g., `eip155:8453`) |
+| `asset` | string | Yes | Token address for fee currency |
+| `amount` | string | No | Payment amount in atomic units (enables exact BPS calculation) |
+
+### Response
+
+```json
+{
+  "facilitatorFeeQuote": {
+    "quoteId": "quote_abc123",
+    "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "network": "eip155:8453",
+    "model": "flat",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "flatFee": "1000",
+    "expiry": 1737400000,
+    "signature": "0x...",
+    "signatureScheme": "eip191"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "UNSUPPORTED_NETWORK",
+  "message": "Network eip155:1 is not supported"
+}
+```
+
+### Standard Error Codes
+
+| Code | Description |
+|------|-------------|
+| `UNSUPPORTED_NETWORK` | Facilitator does not support the requested network |
+| `UNSUPPORTED_ASSET` | Facilitator does not support the requested asset |
+| `INVALID_AMOUNT` | Amount parameter is malformed |
+
+### Why This Matters
+
+This API enables:
+- **Server-side routing**: Servers fetch quotes from multiple facilitators and pick the cheapest
+- **Dynamic pricing**: Real-time fee discovery instead of hardcoded values
+- **Transparency**: Fee breakdowns visible even when routing is server-controlled
+
+> **Note**: Facilitators MAY implement proprietary APIs. This endpoint is RECOMMENDED for interoperability but not required. Servers can use out-of-band configuration for facilitators that don't expose this endpoint.
 
 ---
 
@@ -54,6 +124,7 @@ The extension follows the standard v2 pattern:
             "facilitatorFeeQuote": {
               "quoteId": "quote_abc123",
               "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
+              "network": "eip155:8453",
               "model": "flat",
               "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
               "flatFee": "1000",
@@ -64,7 +135,7 @@ The extension follows the standard v2 pattern:
           },
           {
             "facilitatorId": "https://thirdweb.io/facilitator",
-            "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/fee-quote?network=eip155:8453"
+            "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/x402/fee-quote?network=eip155:8453"
           },
           {
             "facilitatorId": "https://other.facilitator.io",
@@ -108,6 +179,7 @@ The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 |-------|------|----------|-------------|
 | `quoteId` | string | Yes | Unique identifier for this quote |
 | `facilitatorAddress` | string | Yes | Signing address of the facilitator (required for signature verification) |
+| `network` | string | Yes | CAIP-2 network identifier (e.g., `eip155:8453`). Ensures quote is self-describing and replay-resistant across networks |
 | `model` | string | Yes | Fee model: `flat`, `bps`, `tiered`, `hybrid` |
 | `asset` | string | Yes | Fee currency (token address or identifier) |
 | `flatFee` | string | No | Flat fee amount in atomic units (for `flat` model) |
@@ -116,38 +188,22 @@ The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 | `maxFee` | string | Recommended | Maximum fee in atomic units. **Recommended for `bps` model** to enable fee comparison |
 | `expiry` | number | Yes | Unix timestamp when quote expires. MUST be ≥ payment's `validBefore` |
 | `signature` | string | Yes | Facilitator signature over the quote |
-| `signatureScheme` | string | Yes | Signature scheme used (see below) |
+| `signatureScheme` | string | Yes | Signature scheme used (see Signature Schemes) |
 
-### Fee Model Requirements
-
-#### Flat Fee Model
-For `flat` model quotes, `flatFee` MUST be provided.
-
-#### BPS (Basis Points) Model
-For `bps` model quotes:
-- `bps` MUST be provided (basis points, e.g., 30 = 0.3%)
-- `maxFee` SHOULD be provided to enable fee comparison
-- `minFee` is optional
-- Fee calculation: `fee = max(minFee, min(maxFee, floor((paymentAmount * bps) / 10000)))`
-- Division MUST use **floor rounding** (round down) for deterministic calculation
-
-Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per client—some may prefer flat fees, others may accept uncapped BPS.
-
-#### Tiered / Hybrid Models
-For complex models, `minFee` and `maxFee` bounds SHOULD be provided to enable comparison without exposing full tier structures.
-
----
+See [Fee Model Semantics](#fee-model-semantics) for detailed requirements per model type.
 
 ### Alternative: `facilitatorFeeQuoteRef`
 
-Instead of embedding the quote, servers MAY provide a URL where clients can fetch the quote directly:
+Instead of embedding the quote, servers MAY provide a URL where clients can fetch the quote directly. This URL typically points to the facilitator's `/x402/fee-quote` endpoint (described above):
 
 ```json
 {
   "facilitatorId": "https://thirdweb.io/facilitator",
-  "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/fee-quote?network=eip155:8453&amount=100000"
+  "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/x402/fee-quote?network=eip155:8453&amount=100000"
 }
 ```
+
+When a client fetches this URL, they receive a `FacilitatorFeeQuote` object that they can use to make an informed selection.
 
 ### Alternative: `maxFacilitatorFee`
 
@@ -248,6 +304,46 @@ After settlement, servers MAY include fee receipt information:
 
 ---
 
+## Fee Model Semantics
+
+Different fee models require different calculation approaches:
+
+### Flat Fee Model
+
+```
+fee = flatFee
+```
+
+The fee is constant regardless of payment amount. For `flat` model quotes, `flatFee` MUST be provided.
+
+### BPS (Basis Points) Model
+
+```
+fee = max(minFee, min(maxFee, floor((paymentAmount * bps) / 10000)))
+```
+
+The fee is a percentage of the payment amount, bounded by min/max constraints. Division MUST use **floor rounding** (round down) to ensure deterministic calculation across implementations.
+
+For `bps` model quotes:
+- `bps` MUST be provided (basis points, e.g., 30 = 0.3%)
+- `maxFee` is **RECOMMENDED** to enable fee comparison
+- `minFee` is optional
+
+**Important**: BPS fees depend on the payment amount, which isn't known at quote time.
+
+Clients comparing BPS quotes to flat quotes must:
+1. Use `maxFee` as the upper bound for comparison if payment amount is unknown
+2. Calculate the exact fee once payment amount is determined
+3. Use `minFee` and `maxFee` bounds to filter options that could exceed `maxTotalFee`
+
+Quotes with `bps` model that omit `maxFee` SHOULD be treated as "unknown upper bound" and MAY be excluded from fee-constrained routing.
+
+### Tiered / Hybrid Models
+
+These models combine flat and percentage components. Implementations should provide `minFee` and `maxFee` bounds to enable comparison without exposing full tier structures.
+
+---
+
 ## Signature Schemes
 
 To prevent fragmentation, this extension specifies signature schemes per network family:
@@ -270,6 +366,32 @@ Canonicalization MUST follow [RFC 8785 (JSON Canonicalization Scheme)](https://w
 - Strings use minimal escape sequences per RFC 8785 §3.2.2.2
 
 > **Implementation Note**: For simple quote structures without nested objects or special characters, alphabetical key sorting with compact JSON serialization is sufficient and produces RFC 8785-compliant output.
+
+**Canonical fields (in order):**
+```
+asset, bps, expiry, facilitatorAddress, flatFee, maxFee, minFee, model, network, quoteId
+```
+
+**Example canonical payload:**
+```json
+{"asset":"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913","expiry":1737400000,"facilitatorAddress":"0x1234...","flatFee":"1000","model":"flat","network":"eip155:8453","quoteId":"quote_abc123"}
+```
+
+### Verification
+
+Clients SHOULD verify quote signatures before trusting fee information:
+
+**For EIP-191 (EVM networks):**
+1. Reconstruct the canonical payload from quote fields
+2. Recover the signer address from the signature (ECDSA supports key recovery)
+3. Verify recovered address matches `facilitatorAddress`
+
+**For Ed25519 (Solana):**
+1. Reconstruct the canonical payload from quote fields
+2. Verify the signature directly against the provided `facilitatorAddress` public key
+   (Ed25519 does not support signer recovery—verification requires the known public key)
+
+Reference implementation provided in `@x402/extensions/facilitator-fees`.
 
 ---
 
@@ -299,76 +421,20 @@ Servers can preserve privacy by:
 
 ---
 
-## Facilitator Quote API (Recommended)
-
-To enable dynamic quote fetching, facilitators SHOULD expose a quote endpoint:
-
-### Endpoint
-
-```
-GET /x402/fee-quote
-```
-
-### Query Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `network` | string | Yes | CAIP-2 network identifier (e.g., `eip155:8453`) |
-| `asset` | string | Yes | Token address for fee currency |
-| `amount` | string | No | Payment amount in atomic units (enables exact BPS calculation) |
-
-### Response
-
-```json
-{
-  "facilitatorFeeQuote": {
-    "quoteId": "quote_abc123",
-    "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
-    "model": "flat",
-    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "flatFee": "1000",
-    "expiry": 1737400000,
-    "signature": "0x...",
-    "signatureScheme": "eip191"
-  }
-}
-```
-
-### Error Response
-
-```json
-{
-  "error": "UNSUPPORTED_NETWORK",
-  "message": "Network eip155:1 is not supported"
-}
-```
-
-### Standard Error Codes
-
-| Code | Description |
-|------|-------------|
-| `UNSUPPORTED_NETWORK` | Facilitator does not support the requested network |
-| `UNSUPPORTED_ASSET` | Facilitator does not support the requested asset |
-| `INVALID_AMOUNT` | Amount parameter is malformed |
-
-### Usage
-
-**Servers** fetch quotes to embed in `PaymentRequired`:
-```
-GET https://facilitator.example.com/x402/fee-quote?network=eip155:8453&asset=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-```
-
-**Clients** fetch quotes via `facilitatorFeeQuoteRef`:
-```
-GET https://facilitator.example.com/x402/fee-quote?network=eip155:8453&asset=0x...&amount=100000
-```
-
-> **Note**: Facilitators MAY implement proprietary APIs. This endpoint is RECOMMENDED for interoperability but not required. Servers can use out-of-band configuration for facilitators that don't expose this endpoint.
-
----
-
 ## Backwards Compatibility
 
 - All fields are optional extensions
 - Existing clients/servers ignore unrecognized `extensions` fields
 - Existing facilitators continue to work unchanged
+
+---
+
+## Open Questions
+
+1. **Patient bidding**: Should `facilitatorFeeBid` include a `patient` flag to indicate willingness to wait longer for a lower quote (e.g., batched settlements)?
+
+2. **Quote `for` field**: Should quotes include a `for` field specifying the payment amount? This would make BPS fees deterministic at quote time and enable easier fee comparison.
+
+3. **Error codes**: Should we define standardized error codes for fee-related rejections (e.g., `QUOTE_EXPIRED`, `ASSET_MISMATCH`, `FEE_EXCEEDED`)?
+
+4. **Privacy guidance**: Should we provide more comprehensive privacy guidance? Considerations include: URL parameters in `facilitatorFeeQuoteRef` revealing payment context, quote ID correlation across requests, and timing analysis. Current mitigation is to prefer embedded quotes or use a proxy.

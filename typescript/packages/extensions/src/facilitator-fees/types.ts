@@ -33,6 +33,8 @@ export interface FacilitatorFeeQuote {
   quoteId: string;
   /** Signing address of the facilitator (required for signature verification) */
   facilitatorAddress: string;
+  /** CAIP-2 network identifier (e.g., "eip155:8453") - ensures quote is self-describing and replay-resistant */
+  network: string;
   /** Fee model type */
   model: FeeModel;
   /** Fee currency (token address or identifier) */

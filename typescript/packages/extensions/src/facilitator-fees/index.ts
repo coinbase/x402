@@ -426,6 +426,7 @@ export function getCanonicalQuotePayload(quote: FacilitatorFeeQuote): string {
   if (quote.maxFee !== undefined) payload.maxFee = quote.maxFee;
   if (quote.minFee !== undefined) payload.minFee = quote.minFee;
   payload.model = quote.model;
+  payload.network = quote.network;
   payload.quoteId = quote.quoteId;
 
   return JSON.stringify(payload);

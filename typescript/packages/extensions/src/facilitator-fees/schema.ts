@@ -20,6 +20,7 @@ export const SignatureSchemeSchema = z.enum(["eip191", "ed25519"]);
 const BaseFacilitatorFeeQuoteSchema = z.object({
   quoteId: z.string(),
   facilitatorAddress: z.string(),
+  network: z.string(),
   model: FeeModelSchema,
   asset: z.string(),
   flatFee: z.string().optional(),
@@ -172,6 +173,7 @@ export const FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA = {
             properties: {
               quoteId: { type: "string" },
               facilitatorAddress: { type: "string" },
+              network: { type: "string" },
               model: { type: "string", enum: ["flat", "bps", "tiered", "hybrid"] },
               asset: { type: "string" },
               flatFee: { type: "string" },
@@ -185,6 +187,7 @@ export const FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA = {
             required: [
               "quoteId",
               "facilitatorAddress",
+              "network",
               "model",
               "asset",
               "expiry",

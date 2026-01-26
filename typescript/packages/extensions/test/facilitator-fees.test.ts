@@ -28,6 +28,7 @@ import {
 } from "../src/facilitator-fees";
 
 const TEST_FACILITATOR_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+const TEST_NETWORK = "eip155:8453";
 
 describe("facilitator-fees extension", () => {
   describe("schemas", () => {
@@ -35,6 +36,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -50,6 +52,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_xyz789",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -67,6 +70,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -82,6 +86,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 15000, // 150% - invalid
@@ -98,6 +103,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         // flatFee missing - should fail
@@ -113,6 +119,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         // bps missing - should fail
@@ -129,6 +136,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -145,6 +153,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "tiered",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         // maxFee not required for tiered
@@ -185,6 +194,7 @@ describe("facilitator-fees extension", () => {
             facilitatorFeeQuote: {
               quoteId: "quote_abc123",
               facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+              network: TEST_NETWORK,
               model: "flat",
               asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
               flatFee: "1000",
@@ -234,6 +244,7 @@ describe("facilitator-fees extension", () => {
         facilitatorFeeQuote: {
           quoteId: "quote_abc123",
           facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          network: TEST_NETWORK,
           model: "flat" as const,
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           flatFee: "1000",
@@ -338,6 +349,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -353,6 +365,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -368,6 +381,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -422,6 +436,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30, // 0.3%
@@ -441,6 +456,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -458,6 +474,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -475,6 +492,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_flat",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -492,6 +510,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 100, // 1%
@@ -513,6 +532,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_abc123",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -527,6 +547,7 @@ describe("facilitator-fees extension", () => {
       const parsed = JSON.parse(payload);
       expect(parsed.quoteId).toBe("quote_abc123");
       expect(parsed.facilitatorAddress).toBe(TEST_FACILITATOR_ADDRESS);
+      expect(parsed.network).toBe(TEST_NETWORK);
       expect(parsed.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
       expect(parsed.flatFee).toBe("1000");
       expect(parsed.expiry).toBe(1737400000);
@@ -541,6 +562,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -553,6 +575,7 @@ describe("facilitator-fees extension", () => {
       const parsed = JSON.parse(payload);
 
       expect(parsed.bps).toBe(30);
+      expect(parsed.network).toBe(TEST_NETWORK);
       expect(parsed.flatFee).toBeUndefined();
       expect(parsed.minFee).toBeUndefined();
       expect(parsed.maxFee).toBeUndefined();
@@ -643,6 +666,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -660,6 +684,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_bps",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "bps" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 30,
@@ -676,6 +701,7 @@ describe("facilitator-fees extension", () => {
       const quote = {
         quoteId: "quote_flat",
         facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        network: TEST_NETWORK,
         model: "flat" as const,
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         flatFee: "1000",
@@ -694,6 +720,7 @@ describe("facilitator-fees extension", () => {
         facilitatorFeeQuote: {
           quoteId: "quote_flat",
           facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          network: TEST_NETWORK,
           model: "flat" as const,
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           flatFee: "1000",
@@ -712,6 +739,7 @@ describe("facilitator-fees extension", () => {
         facilitatorFeeQuote: {
           quoteId: "quote_bps",
           facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          network: TEST_NETWORK,
           model: "bps" as const,
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           bps: 30,
@@ -731,6 +759,7 @@ describe("facilitator-fees extension", () => {
         facilitatorFeeQuote: {
           quoteId: "quote_bps",
           facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          network: TEST_NETWORK,
           model: "bps" as const,
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           bps: 30,
@@ -797,6 +826,7 @@ describe("facilitator-fees extension", () => {
           facilitatorFeeQuote: {
             quoteId: "quote_abc123",
             facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+            network: TEST_NETWORK,
             model: "flat",
             asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             flatFee: "1000",
