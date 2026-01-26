@@ -94,6 +94,10 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 
 On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL/token-2022 token, including USDC (SPL). No EIP-712 configuration is required on Solana.
 
+#### Algorand: Algorand Standard Assets (ASA)
+
+On Algorand, x402 supports all Algorand Standard Assets (ASA), which are native assets of the Algorand protocol requiring no smart contracts. When using facilitators that support Algorand, payments can be made in any ASA by specifying the ASA ID (64-bit unsigned integer) in the `asset` field. The `exact` scheme on Algorand uses atomic transaction groups to enable gasless payments where the facilitator can sponsor transaction fees.
+
 #### USDC - The Default Token
 
 * **Status**: Supported by default across all networks
