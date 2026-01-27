@@ -77,16 +77,11 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
         return { isValid: false, invalidReason: "network_mismatch", payer: "" };
       }
 
-      if (!requirements.extra?.feePayer || typeof requirements.extra.feePayer !== "string") {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_aptos_payload_missing_fee_payer",
-          payer: "",
-        };
-      }
-
       const signerAddresses = this.signer.getAddresses();
-      if (!signerAddresses.includes(requirements.extra.feePayer)) {
+      const isSponsored = typeof requirements.extra?.feePayer === "string";
+
+      // If sponsored, verify the fee payer is managed by this facilitator
+      if (isSponsored && !signerAddresses.includes(requirements.extra.feePayer as string)) {
         return { isValid: false, invalidReason: "fee_payer_not_managed_by_facilitator", payer: "" };
       }
 
@@ -96,17 +91,20 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       );
       const senderAddress = transaction.rawTransaction.sender.toString();
 
-      const expectedFeePayer = AccountAddress.from(requirements.extra.feePayer);
-      if (!transaction.feePayerAddress || !expectedFeePayer.equals(transaction.feePayerAddress)) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_aptos_payload_fee_payer_mismatch",
-          payer: senderAddress,
-        };
+      // For sponsored transactions, verify fee payer address matches
+      if (isSponsored) {
+        const expectedFeePayer = AccountAddress.from(requirements.extra.feePayer as string);
+        if (!transaction.feePayerAddress || !expectedFeePayer.equals(transaction.feePayerAddress)) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_aptos_payload_fee_payer_mismatch",
+            payer: senderAddress,
+          };
+        }
       }
 
-      // SECURITY: Prevent facilitator from signing away their own tokens
-      if (signerAddresses.includes(senderAddress)) {
+      // SECURITY (reference implementation): Prevent facilitator from signing away their own tokens
+      if (isSponsored && signerAddresses.includes(senderAddress)) {
         return {
           isValid: false,
           invalidReason: "invalid_exact_aptos_payload_fee_payer_transferring_funds",

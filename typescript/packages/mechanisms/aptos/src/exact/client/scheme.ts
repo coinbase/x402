@@ -64,9 +64,7 @@ export class ExactAptosScheme implements SchemeNetworkClient {
     const aptos = new Aptos(aptosConfig);
 
     const feePayer = paymentRequirements.extra?.feePayer;
-    if (typeof feePayer !== "string") {
-      throw new Error("feePayer is required in paymentRequirements.extra for Aptos transactions");
-    }
+    const isSponsored = typeof feePayer === "string";
 
     const builtTransaction = await aptos.transaction.build.simple({
       sender: this.signer.accountAddress,
@@ -79,14 +77,13 @@ export class ExactAptosScheme implements SchemeNetworkClient {
           paymentRequirements.amount,
         ],
       },
-      withFeePayer: true,
+      withFeePayer: isSponsored,
     });
 
-    // SDK builds with 0x0 placeholder - set actual fee payer address
-    const transaction = new SimpleTransaction(
-      builtTransaction.rawTransaction,
-      AccountAddress.from(feePayer),
-    );
+    // For sponsored transactions, set the actual fee payer address (SDK uses 0x0 placeholder)
+    const transaction = isSponsored
+      ? new SimpleTransaction(builtTransaction.rawTransaction, AccountAddress.from(feePayer))
+      : builtTransaction;
 
     const senderAuthenticator = this.signer.signTransactionWithAuthenticator(transaction);
     const transactionBytes = transaction.bcsToBytes();

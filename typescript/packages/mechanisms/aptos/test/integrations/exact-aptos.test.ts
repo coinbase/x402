@@ -98,13 +98,14 @@ class AptosFacilitatorClient implements FacilitatorClient {
  *
  * @param payTo - The recipient address
  * @param amount - The payment amount in smallest units
+ * @param feePayer - Optional fee payer address (undefined for non-sponsored)
  * @param network - The network identifier (defaults to Aptos Testnet)
  * @returns Payment requirements object
  */
 function buildAptosPaymentRequirements(
   payTo: string,
   amount: string,
-  feePayer: string,
+  feePayer?: string,
   network: Network = "aptos:2",
 ): PaymentRequirements {
   return {
@@ -114,9 +115,7 @@ function buildAptosPaymentRequirements(
     amount,
     payTo,
     maxTimeoutSeconds: 3600,
-    extra: {
-      feePayer,
-    },
+    extra: feePayer ? { feePayer } : {},
   };
 }
 
@@ -193,6 +192,35 @@ describe("Aptos Integration Tests", () => {
 
       expect(verifyResponse.isValid).toBe(true);
       expect(verifyResponse.payer).toBe(clientAddress);
+    });
+
+    it("client should create a non-sponsored payment payload when feePayer is not provided", async () => {
+      // Payment requirements without feePayer (non-sponsored mode)
+      const accepts = [
+        buildAptosPaymentRequirements(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "1000",
+          undefined, // No fee payer - client pays gas
+        ),
+      ];
+      const resource = {
+        url: "https://company.co",
+        description: "Company Co. resource",
+        mimeType: "application/json",
+      };
+      const paymentRequired = server.createPaymentRequiredResponse(accepts, resource);
+
+      // Client should create payload without fee payer
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+      expect(paymentPayload).toBeDefined();
+      expect(paymentPayload.x402Version).toBe(2);
+      expect(paymentPayload.accepted.scheme).toBe("exact");
+      expect(paymentPayload.accepted.network).toBe("aptos:2");
+
+      const aptosPayload = paymentPayload.payload as ExactAptosPayload;
+      expect(aptosPayload.transaction).toBeDefined();
+      expect(typeof aptosPayload.transaction).toBe("string");
     });
   });
 
