@@ -18,8 +18,7 @@ export interface AptosClientConfig {
   config?: ClientAptosConfig;
 
   /**
-   * Optional specific networks to register.
-   * If not provided, registers for all Aptos networks (aptos:*)
+   * Optional specific networks to register
    */
   networks?: Network[];
 
@@ -35,20 +34,6 @@ export interface AptosClientConfig {
  * @param client - The x402Client instance to register schemes to
  * @param aptosConfig - Configuration for Aptos client registration
  * @returns The client instance for chaining
- *
- * @example
- * ```typescript
- * // Register for all Aptos networks
- * registerExactAptosScheme(client, {
- *   signer: aptosAccount,
- * });
- *
- * // Register for specific networks
- * registerExactAptosScheme(client, {
- *   signer: aptosAccount,
- *   networks: "aptos:1"  // Mainnet only
- * });
- * ```
  */
 export function registerExactAptosScheme(
   client: x402Client,
@@ -61,15 +46,11 @@ export function registerExactAptosScheme(
       client.register(network, scheme);
     }
   } else {
-    // Register for all Aptos networks
     client.register("aptos:*", scheme);
   }
 
-  // Register optional policies
   if (aptosConfig.policies) {
-    aptosConfig.policies.forEach(policy => {
-      client.registerPolicy(policy);
-    });
+    aptosConfig.policies.forEach(policy => client.registerPolicy(policy));
   }
 
   return client;

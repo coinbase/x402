@@ -5,13 +5,14 @@ import {
   AptosConfig,
   SimpleTransaction,
   AccountAuthenticator,
+  PrivateKey,
+  PrivateKeyVariants,
   type PendingTransactionResponse,
 } from "@aptos-labs/ts-sdk";
 import { getAptosNetwork, getAptosRpcUrl } from "./constants";
 
 /**
  * Client-side signer for creating and signing Aptos transactions
- * This is the Aptos Account type from @aptos-labs/ts-sdk
  */
 export type ClientAptosSigner = Account;
 
@@ -26,26 +27,16 @@ export type ClientAptosConfig = {
 };
 
 /**
- * Minimal facilitator signer interface for Aptos operations.
- * Supports sponsored transactions where the facilitator pays gas fees.
- * Supports multiple addresses for load balancing (like EVM/SVM).
+ * Minimal facilitator signer interface for Aptos operations
  */
 export type FacilitatorAptosSigner = {
   /**
-   * Get all addresses this facilitator can use for signing.
-   * Enables dynamic address selection for load balancing.
-   *
-   * @returns Array of fee payer addresses
+   * Get all addresses this facilitator can use for signing
    */
   getAddresses(): readonly string[];
 
   /**
    * Sign a transaction as the fee payer and submit it
-   *
-   * @param transaction - The SimpleTransaction to sponsor
-   * @param senderAuthenticator - The sender's authenticator
-   * @param network - CAIP-2 network identifier
-   * @returns The pending transaction response
    */
   signAndSubmitAsFeePayer(
     transaction: SimpleTransaction,
@@ -55,11 +46,6 @@ export type FacilitatorAptosSigner = {
 
   /**
    * Submit a fully-signed transaction (non-sponsored)
-   *
-   * @param transaction - The SimpleTransaction
-   * @param senderAuthenticator - The sender's authenticator
-   * @param network - CAIP-2 network identifier
-   * @returns The pending transaction response
    */
   submitTransaction(
     transaction: SimpleTransaction,
@@ -69,17 +55,11 @@ export type FacilitatorAptosSigner = {
 
   /**
    * Simulate a transaction to verify it would succeed
-   *
-   * @param transaction - The transaction to simulate
-   * @param network - CAIP-2 network identifier
    */
   simulateTransaction(transaction: SimpleTransaction, network: string): Promise<void>;
 
   /**
    * Wait for transaction confirmation
-   *
-   * @param txHash - The transaction hash to wait for
-   * @param network - CAIP-2 network identifier
    */
   waitForTransaction(txHash: string, network: string): Promise<void>;
 };
@@ -87,22 +67,21 @@ export type FacilitatorAptosSigner = {
 /**
  * Creates a client signer from a private key
  *
- * @param privateKey - The private key as a hex string (with or without 0x prefix)
+ * @param privateKey - The private key as a hex string or AIP-80 format
  * @returns An Aptos Account instance
  */
 export async function createClientSigner(privateKey: string): Promise<ClientAptosSigner> {
-  const privateKeyBytes = new Ed25519PrivateKey(privateKey);
+  const formattedKey = PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519);
+  const privateKeyBytes = new Ed25519PrivateKey(formattedKey);
   return Account.fromPrivateKey({ privateKey: privateKeyBytes });
 }
 
 /**
- * Create a facilitator signer from an Aptos Account.
- * Wraps the single account in a getAddresses() function for compatibility
- * with the multi-address interface (like EVM/SVM).
+ * Create a facilitator signer from an Aptos Account
  *
  * @param account - The Aptos Account that will act as fee payer
- * @param rpcConfig - Optional RPC configuration (per-network or default URL)
- * @returns FacilitatorAptosSigner with getAddresses() support
+ * @param rpcConfig - Optional RPC configuration
+ * @returns FacilitatorAptosSigner instance
  */
 export function toFacilitatorAptosSigner(
   account: Account,
@@ -123,11 +102,7 @@ export function toFacilitatorAptosSigner(
   const getAptos = (network: string): Aptos => {
     const aptosNetwork = getAptosNetwork(network);
     const rpcUrl = getRpcUrl(network);
-    const config = new AptosConfig({
-      network: aptosNetwork,
-      fullnode: rpcUrl,
-    });
-    return new Aptos(config);
+    return new Aptos(new AptosConfig({ network: aptosNetwork, fullnode: rpcUrl }));
   };
 
   return {
@@ -139,17 +114,11 @@ export function toFacilitatorAptosSigner(
       network: string,
     ) => {
       const aptos = getAptos(network);
-
-      // Set this account as the fee payer
       transaction.feePayerAddress = account.accountAddress;
-
-      // Sign as fee payer
       const feePayerAuthenticator = aptos.transaction.signAsFeePayer({
         signer: account,
         transaction,
       });
-
-      // Submit with both signatures
       return aptos.transaction.submit.simple({
         transaction,
         senderAuthenticator,
@@ -163,21 +132,14 @@ export function toFacilitatorAptosSigner(
       network: string,
     ) => {
       const aptos = getAptos(network);
-      return aptos.transaction.submit.simple({
-        transaction,
-        senderAuthenticator,
-      });
+      return aptos.transaction.submit.simple({ transaction, senderAuthenticator });
     },
 
     simulateTransaction: async (transaction: SimpleTransaction, network: string) => {
       const aptos = getAptos(network);
-      const results = await aptos.transaction.simulate.simple({
-        transaction,
-      });
-
+      const results = await aptos.transaction.simulate.simple({ transaction });
       if (results.length === 0 || !results[0].success) {
-        const vmStatus = results[0]?.vm_status || "unknown error";
-        throw new Error(`Simulation failed: ${vmStatus}`);
+        throw new Error(`Simulation failed: ${results[0]?.vm_status || "unknown error"}`);
       }
     },
 

@@ -22,6 +22,16 @@ export const APTOS_ADDRESS_REGEX = /^0x[a-fA-F0-9]{64}$/;
 export const TRANSFER_FUNCTION = "0x1::primary_fungible_store::transfer";
 
 /**
+ * Default USDC fungible asset metadata address on mainnet.
+ */
+export const USDC_MAINNET_FA = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
+
+/**
+ * Default USDC fungible asset metadata address on testnet.
+ */
+export const USDC_TESTNET_FA = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832";
+
+/**
  * Maps CAIP-2 network identifiers to Aptos SDK Network enum.
  *
  * @param network - The CAIP-2 network identifier (e.g., "aptos:1")

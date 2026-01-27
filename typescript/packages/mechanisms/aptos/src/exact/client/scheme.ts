@@ -33,7 +33,6 @@ export class ExactAptosScheme implements SchemeNetworkClient {
     x402Version: number,
     paymentRequirements: PaymentRequirements,
   ): Promise<Pick<PaymentPayload, "x402Version" | "payload">> {
-    // Validate inputs
     if (!this.signer.accountAddress) {
       throw new Error("Aptos account address is required");
     }
@@ -56,7 +55,6 @@ export class ExactAptosScheme implements SchemeNetworkClient {
       throw new Error("Amount must be a number");
     }
 
-    // Create Aptos client
     const aptosNetwork = getAptosNetwork(paymentRequirements.network);
     const rpcUrl = this.config?.rpcUrl || getAptosRpcUrl(aptosNetwork);
     const aptosConfig = new AptosConfig({
@@ -65,13 +63,11 @@ export class ExactAptosScheme implements SchemeNetworkClient {
     });
     const aptos = new Aptos(aptosConfig);
 
-    // Facilitator must provide feePayer to cover transaction fees
     const feePayer = paymentRequirements.extra?.feePayer;
     if (typeof feePayer !== "string") {
       throw new Error("feePayer is required in paymentRequirements.extra for Aptos transactions");
     }
 
-    // Build the transfer transaction with fee payer mode enabled
     const builtTransaction = await aptos.transaction.build.simple({
       sender: this.signer.accountAddress,
       data: {
@@ -86,20 +82,15 @@ export class ExactAptosScheme implements SchemeNetworkClient {
       withFeePayer: true,
     });
 
-    // Set the actual fee payer address (SDK builds with 0x0 placeholder by default)
+    // SDK builds with 0x0 placeholder - set actual fee payer address
     const transaction = new SimpleTransaction(
       builtTransaction.rawTransaction,
       AccountAddress.from(feePayer),
     );
 
-    // Sign the transaction
     const senderAuthenticator = this.signer.signTransactionWithAuthenticator(transaction);
-
-    // Serialize transaction and authenticator
     const transactionBytes = transaction.bcsToBytes();
     const authenticatorBytes = senderAuthenticator.bcsToBytes();
-
-    // Encode as base64 payload
     const base64Transaction = encodeAptosPayload(transactionBytes, authenticatorBytes);
 
     const payload: ExactAptosPayload = {

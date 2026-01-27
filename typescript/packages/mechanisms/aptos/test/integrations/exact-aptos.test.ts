@@ -35,8 +35,8 @@ if (!CLIENT_PRIVATE_KEY || !FACILITATOR_PRIVATE_KEY) {
   );
 }
 
-// Aptos testnet USDC address (from spec)
-const USDC_TESTNET = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
+// Aptos testnet USDC address
+const USDC_TESTNET = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832";
 
 /**
  * Aptos Facilitator Client wrapper

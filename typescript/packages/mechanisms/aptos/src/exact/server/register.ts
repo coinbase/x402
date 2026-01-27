@@ -7,8 +7,7 @@ import { ExactAptosScheme } from "./scheme";
  */
 export interface AptosServerConfig {
   /**
-   * Optional specific networks to register.
-   * If not provided, registers for all Aptos networks (aptos:*)
+   * Optional specific networks to register
    */
   networks?: Network[];
 }
@@ -19,17 +18,6 @@ export interface AptosServerConfig {
  * @param server - The x402ResourceServer instance to register schemes to
  * @param config - Configuration for Aptos server registration
  * @returns The server instance for chaining
- *
- * @example
- * ```typescript
- * // Register for all Aptos networks
- * registerExactAptosScheme(server);
- *
- * // Register for specific networks
- * registerExactAptosScheme(server, {
- *   networks: ["aptos:1"]  // Mainnet only
- * });
- * ```
  */
 export function registerExactAptosScheme(
   server: x402ResourceServer,
