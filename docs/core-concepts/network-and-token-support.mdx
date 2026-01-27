@@ -41,18 +41,42 @@ Multiple production-ready facilitators are available supporting various networks
 
 x402 supports tokens on both EVM and Solana networks:
 
-* **EVM**: Any ERC-20 token that implements the EIP-3009 standard
+* **EVM**: Any ERC-20 token (via EIP-3009 or Permit2)
 * **Solana**: Any SPL or token-2022 token
 
-**Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
+**Important**: Facilitators support networks, not specific tokens — any ERC-20 token works on EVM networks (using EIP-3009 or Permit2), and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
 
-#### EVM: EIP-3009 Requirement
+#### EVM: Payment Methods
+
+x402 supports two payment methods on EVM networks:
+
+**EIP-3009 (Default)**
 
 Tokens must implement the `transferWithAuthorization` function from the EIP-3009 standard. This enables:
 
 * **Gasless transfers**: The facilitator sponsors gas fees
 * **Signature-based authorization**: Users sign transfer authorizations off-chain
 * **Secure payments**: Transfers are authorized by cryptographic signatures
+* **No approval required**: Works immediately without prior token approval
+
+**Permit2 (Alternative)**
+
+Uses Uniswap's [Permit2 contract](https://github.com/Uniswap/permit2) for token transfers. This enables:
+
+* **Gasless transfers**: The facilitator sponsors gas fees (after initial approval)
+* **Universal compatibility**: Works with any ERC-20 token
+* **One-time approval**: Users approve Permit2 once, then use signatures for all future payments
+* **Broader token support**: Supports tokens that don't implement EIP-3009
+
+**When to use Permit2:**
+- Your token doesn't implement EIP-3009
+- You want to support any ERC-20 token
+- Users are willing to do a one-time approval transaction (paying gas once)
+
+**When to use EIP-3009:**
+- Your token implements EIP-3009 (like USDC)
+- You want zero-friction payments with no approval step
+- You want the simplest user experience
 
 #### Specifying Payment Amounts
 
