@@ -13,6 +13,7 @@ export const authorizationTypes = {
 /**
  * Permit2 EIP-712 types for signing PermitWitnessTransferFrom.
  * Must match the exact format expected by the Permit2 contract.
+ * Note: Types must be in ALPHABETICAL order after the primary type (TokenPermissions < Witness).
  */
 export const permit2WitnessTypes = {
   PermitWitnessTransferFrom: [
@@ -27,10 +28,9 @@ export const permit2WitnessTypes = {
     { name: "amount", type: "uint256" },
   ],
   Witness: [
-    { name: "extra", type: "bytes" },
     { name: "to", type: "address" },
     { name: "validAfter", type: "uint256" },
-    { name: "validBefore", type: "uint256" },
+    { name: "extra", type: "bytes" },
   ],
 } as const;
 
@@ -172,7 +172,6 @@ export const x402ExactPermit2ProxyABI = [
         components: [
           { name: "to", type: "address", internalType: "address" },
           { name: "validAfter", type: "uint256", internalType: "uint256" },
-          { name: "validBefore", type: "uint256", internalType: "uint256" },
           { name: "extra", type: "bytes", internalType: "bytes" },
         ],
       },

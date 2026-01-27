@@ -1,10 +1,3 @@
-import { PaymentPayload } from "@x402/core/types";
-
-/**
- * Result of createPaymentPayload - the core payload fields.
- */
-export type PaymentPayloadResult = Pick<PaymentPayload, "x402Version" | "payload">;
-
 /**
  * Asset transfer methods for the exact EVM scheme.
  * - eip3009: Uses transferWithAuthorization (USDC, etc.) - recommended for compatible tokens
@@ -30,11 +23,11 @@ export type ExactEIP3009Payload = {
 /**
  * Permit2 witness data structure.
  * Matches the Witness struct in x402Permit2Proxy contract.
+ * Note: Upper time bound is enforced by Permit2's `deadline` field, not a witness field.
  */
 export type Permit2Witness = {
   to: `0x${string}`;
   validAfter: string;
-  validBefore: string;
   extra: `0x${string}`;
 };
 
