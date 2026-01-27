@@ -26,11 +26,13 @@ class VerifyResponse(BaseX402Model):
     Attributes:
         is_valid: Whether the payment is valid.
         invalid_reason: Reason for invalidity (if is_valid is False).
+        invalid_message: Human-readable message for invalidity.
         payer: The payer's address.
     """
 
     is_valid: bool
     invalid_reason: str | None = None
+    invalid_message: str | None = None
     payer: str | None = None
 
 
@@ -52,6 +54,7 @@ class SettleResponse(BaseX402Model):
     Attributes:
         success: Whether settlement was successful.
         error_reason: Reason for failure (if success is False).
+        error_message: Human-readable message for failure.
         payer: The payer's address.
         transaction: Transaction hash/identifier.
         network: Network where settlement occurred.
@@ -59,6 +62,7 @@ class SettleResponse(BaseX402Model):
 
     success: bool
     error_reason: str | None = None
+    error_message: str | None = None
     payer: str | None = None
     transaction: str
     network: Network

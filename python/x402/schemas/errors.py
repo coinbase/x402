@@ -11,21 +11,25 @@ class VerifyError(PaymentError):
     """Error during payment verification.
 
     Attributes:
-        reason: Human-readable reason for the error.
+        invalid_reason: Machine-readable reason for the error.
+        invalid_message: Human-readable message for the error (if available).
         payer: The payer's address (if known).
     """
 
-    def __init__(self, reason: str, payer: str | None = None):
+    def __init__(self, reason: str, message: str | None = None, payer: str | None = None):
+        self.invalid_reason = reason
+        self.invalid_message = message
         self.reason = reason
         self.payer = payer
-        super().__init__(f"Verification failed: {reason}")
+        super().__init__(f"{reason}: {message}" if message else reason)
 
 
 class SettleError(PaymentError):
     """Error during payment settlement.
 
     Attributes:
-        reason: Human-readable reason for the error.
+        error_reason: Machine-readable reason for the error.
+        error_message: Human-readable message for the error (if available).
         transaction: Transaction hash/identifier (if available).
         payer: The payer's address (if known).
     """
@@ -33,13 +37,16 @@ class SettleError(PaymentError):
     def __init__(
         self,
         reason: str,
+        message: str | None = None,
         transaction: str | None = None,
         payer: str | None = None,
     ):
+        self.error_reason = reason
+        self.error_message = message
         self.reason = reason
         self.transaction = transaction
         self.payer = payer
-        super().__init__(f"Settlement failed: {reason}")
+        super().__init__(f"{reason}: {message}" if message else reason)
 
 
 class SchemeNotFoundError(PaymentError):

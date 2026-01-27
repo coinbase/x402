@@ -223,6 +223,7 @@ export type ProcessSettleSuccessResponse = SettleResponse & {
 export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
+  errorMessage?: string;
 };
 
 export type ProcessSettleResultResponse =
@@ -544,6 +545,8 @@ export class x402HTTPResourceServer {
           ...settleResponse,
           success: false,
           errorReason: settleResponse.errorReason || "Settlement failed",
+          errorMessage:
+            settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
         };
       }
 
@@ -558,6 +561,7 @@ export class x402HTTPResourceServer {
         return {
           success: false,
           errorReason: error.errorReason || error.message,
+          errorMessage: error.errorMessage || error.errorReason || error.message,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
@@ -566,6 +570,7 @@ export class x402HTTPResourceServer {
       return {
         success: false,
         errorReason: error instanceof Error ? error.message : "Settlement failed",
+        errorMessage: error instanceof Error ? error.message : "Settlement failed",
         network: requirements.network as Network,
         transaction: "",
       };
