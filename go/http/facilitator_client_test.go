@@ -506,8 +506,8 @@ func TestHTTPFacilitatorClient400WithValidResponse(t *testing.T) {
 	if !errors.As(err, &verifyErr) {
 		t.Fatalf("Expected VerifyError, got: %T (%v)", err, err)
 	}
-	if verifyErr.Reason != "invalid_signature" {
-		t.Errorf("Expected Reason 'invalid_signature', got %s", verifyErr.Reason)
+	if verifyErr.InvalidReason != "invalid_signature" {
+		t.Errorf("Expected Reason 'invalid_signature', got %s", verifyErr.InvalidReason)
 	}
 
 	// Test Settle - should return SettleError with 400 response
@@ -519,8 +519,8 @@ func TestHTTPFacilitatorClient400WithValidResponse(t *testing.T) {
 	if !errors.As(err, &settleErr) {
 		t.Fatalf("Expected SettleError, got: %T (%v)", err, err)
 	}
-	if settleErr.Reason != "insufficient_allowance" {
-		t.Errorf("Expected Reason 'insufficient_allowance', got %s", settleErr.Reason)
+	if settleErr.ErrorReason != "insufficient_allowance" {
+		t.Errorf("Expected Reason 'insufficient_allowance', got %s", settleErr.ErrorReason)
 	}
 }
 
