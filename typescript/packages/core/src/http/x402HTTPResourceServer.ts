@@ -717,10 +717,14 @@ export class x402HTTPResourceServer {
     customHtml?: string,
     unpaidResponse?: UnpaidResponseResult,
   ): HTTPResponseInstructions {
+    // Use 412 Precondition Failed for permit2_allowance_required error
+    // This signals client needs to approve Permit2 before retrying
+    const status = paymentRequired.error === "permit2_allowance_required" ? 412 : 402;
+
     if (isWebBrowser) {
       const html = this.generatePaywallHTML(paymentRequired, paywallConfig, customHtml);
       return {
-        status: 402,
+        status,
         headers: { "Content-Type": "text/html" },
         body: html,
         isHtml: true,
@@ -734,7 +738,7 @@ export class x402HTTPResourceServer {
     const body = unpaidResponse ? unpaidResponse.body : {};
 
     return {
-      status: 402,
+      status,
       headers: {
         "Content-Type": contentType,
         ...response.headers,

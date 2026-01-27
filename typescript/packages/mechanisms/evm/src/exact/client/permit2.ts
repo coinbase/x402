@@ -1,4 +1,4 @@
-import { PaymentRequirements } from "@x402/core/types";
+import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { encodeFunctionData, getAddress } from "viem";
 import {
   permit2WitnessTypes,
@@ -6,7 +6,7 @@ import {
   x402ExactPermit2ProxyAddress,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { ExactPermit2Payload, PaymentPayloadResult } from "../../types";
+import { ExactPermit2Payload } from "../../types";
 import { createPermit2Nonce } from "../../utils";
 
 /** Maximum uint256 value for unlimited approval. */
@@ -30,9 +30,10 @@ export async function createPermit2Payload(
   const now = Math.floor(Date.now() / 1000);
   const nonce = createPermit2Nonce();
 
+  // Lower time bound - allow some clock skew
   const validAfter = (now - 600).toString();
-  const validBefore = (now + paymentRequirements.maxTimeoutSeconds).toString();
-  const deadline = validBefore;
+  // Upper time bound is enforced by Permit2's deadline field
+  const deadline = (now + paymentRequirements.maxTimeoutSeconds).toString();
 
   const permit2Authorization: ExactPermit2Payload["permit2Authorization"] = {
     from: signer.address,
@@ -46,7 +47,6 @@ export async function createPermit2Payload(
     witness: {
       to: getAddress(paymentRequirements.payTo),
       validAfter,
-      validBefore,
       extra: "0x",
     },
   };
@@ -99,10 +99,9 @@ async function signPermit2Authorization(
     nonce: BigInt(permit2Authorization.nonce),
     deadline: BigInt(permit2Authorization.deadline),
     witness: {
-      extra: permit2Authorization.witness.extra,
       to: getAddress(permit2Authorization.witness.to),
       validAfter: BigInt(permit2Authorization.witness.validAfter),
-      validBefore: BigInt(permit2Authorization.witness.validBefore),
+      extra: permit2Authorization.witness.extra,
     },
   };
 

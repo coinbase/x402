@@ -1,8 +1,8 @@
-import { PaymentRequirements } from "@x402/core/types";
+import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { getAddress } from "viem";
 import { authorizationTypes } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { ExactEIP3009Payload, PaymentPayloadResult } from "../../types";
+import { ExactEIP3009Payload } from "../../types";
 import { createNonce } from "../../utils";
 
 /**
