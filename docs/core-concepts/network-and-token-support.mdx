@@ -46,13 +46,29 @@ x402 supports tokens on both EVM and Solana networks:
 
 **Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
 
-#### EVM: EIP-3009 Requirement
+#### EVM: Payment Authorization Methods
 
-Tokens must implement the `transferWithAuthorization` function from the EIP-3009 standard. This enables:
+x402 supports two methods for authorizing EVM token transfers:
+
+**1. EIP-3009 (Recommended for compatible tokens)**
+
+Tokens that implement the `transferWithAuthorization` function from the EIP-3009 standard. This enables:
 
 * **Gasless transfers**: The facilitator sponsors gas fees
 * **Signature-based authorization**: Users sign transfer authorizations off-chain
 * **Secure payments**: Transfers are authorized by cryptographic signatures
+* **One-step flow**: No approval transaction required
+
+**2. Permit2 (Universal fallback for any ERC-20)**
+
+Uses Uniswap's [Permit2](https://github.com/Uniswap/permit2) contract for universal ERC-20 support:
+
+* **Works with any ERC-20**: No special token implementation required
+* **Two-step flow**: Requires one-time approval transaction, then gasless signatures
+* **Secure witness pattern**: Enforces payment destination via smart contract
+* **Canonical deployment**: Same Permit2 address (`0x000000000022D473030F116dDEE9F6B43aC78BA3`) on all chains
+
+The client automatically uses EIP-3009 by default. Facilitators can specify Permit2 via the `assetTransferMethod` field in payment requirements.
 
 #### Specifying Payment Amounts
 
