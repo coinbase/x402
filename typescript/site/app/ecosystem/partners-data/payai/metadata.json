@@ -6,20 +6,83 @@
   "category": "Facilitators",
   "facilitator": {
       "baseUrl": "https://facilitator.payai.network",
-      "networks": ["solana", "solana-devnet", "base", "base-sepolia", "polygon", "polygon-amoy", "avalanche", "avalanche-fuji", "sei", "sei-testnet", "peaq", "iotex"],
+      "networks": [
+        "solana",
+        "solana-devnet",
+        "base",
+        "base-sepolia",
+        "polygon",
+        "polygon-amoy",
+        "avalanche",
+        "avalanche-fuji",
+        "sei",
+        "sei-testnet",
+        "peaq",
+        "iotex",
+        "xlayer",
+        "xlayer-testnet",
+        "skale-base",
+        "skale-base-sepolia"
+      ],
       "addresses": {
         "solana": ["2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4"],
         "solana-devnet": ["2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4"],
-        "base": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "base-sepolia": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "polygon": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "polygon-amoy": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "avalanche": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "avalanche-fuji": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "sei": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "sei-testnet": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "peaq": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"],
-        "iotex": ["0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63"]
+        "base": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "base-sepolia": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "polygon": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "polygon-amoy": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "avalanche": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "avalanche-fuji": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "sei": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "sei-testnet": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "peaq": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "iotex": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "xlayer": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "xlayer-testnet": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "skale-base": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ],
+        "skale-base-sepolia": [
+          "0xc6699d2aadA6c36Dfea5C248DD70f9CB0235cB63",
+          "0xB2Bd29925CBbCEA7628279c91945Ca5B98bf371B"
+        ]
       },
       "schemes": ["exact"],
       "assets": ["EIP-3009", "SPL", "Token-2022"],
