@@ -76,7 +76,8 @@ export async function validateSIWxMessage(
   }
 
   const age = Date.now() - issuedAt.getTime();
-  if (age > maxAge) {
+  // Only enforce maxAge if expirationTime is set (for infinite expiration, skip age check)
+  if (message.expirationTime && age > maxAge) {
     return {
       valid: false,
       error: `Message too old: ${Math.round(age / 1000)}s exceeds ${maxAge / 1000}s limit`,

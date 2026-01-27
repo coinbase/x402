@@ -141,13 +141,21 @@ export interface DeclareSIWxOptions {
   /** CAIP-122 version (default: "1") */
   version?: string;
   /**
-   * CAIP-2 network identifier.
-   * - EVM: "eip155:8453" (Base), "eip155:1" (Ethereum mainnet)
-   * - Solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" (mainnet)
+   * CAIP-2 network identifier(s).
+   * - Single-chain: "eip155:8453" or "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+   * - Multi-chain: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
+   *
+   * Multi-chain generates namespaced extension keys (e.g., "sign-in-with-x:eip155:8453")
    */
-  network: `eip155:${string}` | `solana:${string}` | (string & {});
-  /** Optional explicit expiration time */
-  expirationTime?: string;
+  network: string | string[];
+  /**
+   * Optional expiration duration in seconds.
+   * - Number (e.g., 300): Signature expires after this many seconds
+   * - undefined: Infinite expiration (no expirationTime field in wire format)
+   *
+   * The actual expirationTime timestamp is generated per-request by enrichDeclaration hook.
+   */
+  expirationSeconds?: number;
   /** Signature scheme hint (informational) */
   signatureScheme?: SignatureScheme;
 }

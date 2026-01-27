@@ -59,8 +59,7 @@ export interface CreateSIWxHookOptions {
 export type SIWxHookEvent =
   | { type: "payment_recorded"; resource: string; address: string }
   | { type: "access_granted"; resource: string; address: string }
-  | { type: "validation_failed"; resource: string; error?: string }
-  | { type: "siwx_header_sent"; resource: string };
+  | { type: "validation_failed"; resource: string; error?: string };
 
 /**
  * Creates an onAfterSettle hook that records payments for SIWX.
@@ -124,7 +123,17 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
       const payload = parseSIWxHeader(header);
       const resourceUri = context.adapter.getUrl();
 
-      const validation = await validateSIWxMessage(payload, resourceUri);
+      // Build validation options with nonce checking if storage supports it
+      const validationOptions = storage.hasUsedNonce
+        ? {
+            checkNonce: async (nonce: string) => {
+              const used = await storage.hasUsedNonce!(nonce);
+              return !used; // Return false if nonce was used (validation fails)
+            },
+          }
+        : undefined;
+
+      const validation = await validateSIWxMessage(payload, resourceUri, validationOptions);
       if (!validation.valid) {
         onEvent?.({ type: "validation_failed", resource: context.path, error: validation.error });
         return;
@@ -138,6 +147,11 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 
       const hasPaid = await storage.hasPaid(context.path, verification.address);
       if (hasPaid) {
+        // Record nonce after successful verification to prevent replay
+        if (storage.recordNonce) {
+          await storage.recordNonce(payload.nonce);
+        }
+
         onEvent?.({
           type: "access_granted",
           resource: context.path,
@@ -158,6 +172,10 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 /**
  * Creates an onPaymentRequired hook for client-side SIWX authentication.
  *
+ * Supports both single-chain and multi-chain servers:
+ * - Single-chain: Looks for 'sign-in-with-x' extension
+ * - Multi-chain: Searches for 'sign-in-with-x:*' extensions matching signer's chainId
+ *
  * @param signer - Wallet signer for creating SIWX proofs
  * @returns Hook function for x402HTTPClient.onPaymentRequired()
  *
@@ -171,9 +189,30 @@ export function createSIWxClientHook(signer: SIWxSigner) {
   return async (context: {
     paymentRequired: { extensions?: Record<string, unknown> };
   }): Promise<{ headers: Record<string, string> } | void> => {
-    const siwxExtension = context.paymentRequired.extensions?.[SIGN_IN_WITH_X] as
-      | { info: SIWxExtensionInfo }
-      | undefined;
+    const extensions = context.paymentRequired.extensions ?? {};
+
+    // Support both single-chain and multi-chain servers:
+    // - Single-chain: declareSIWxExtension() → "sign-in-with-x" key
+    // - Multi-chain: declareSIWxExtensionMultiChain() → "sign-in-with-x:eip155:8453" keys
+    let siwxExtension = extensions[SIGN_IN_WITH_X] as { info: SIWxExtensionInfo } | undefined;
+
+    // If simple key not found, search for namespaced key matching signer's chain type
+    if (!siwxExtension?.info) {
+      // Determine chain type from signer properties
+      const isEVM = "address" in signer || "account" in signer;
+      const chainPrefix = isEVM ? "eip155:" : "solana:";
+
+      // Find matching extension by chain prefix
+      for (const [key, value] of Object.entries(extensions)) {
+        if (key.startsWith(SIGN_IN_WITH_X)) {
+          const ext = value as { info: SIWxExtensionInfo };
+          if (ext.info?.chainId.startsWith(chainPrefix)) {
+            siwxExtension = ext;
+            break;
+          }
+        }
+      }
+    }
 
     if (!siwxExtension?.info) return;
 

@@ -475,14 +475,44 @@ const response = await fetch(url, {
 
 Creates the extension object for servers to include in PaymentRequired.
 
+Time-based fields (nonce, issuedAt, expirationTime) are automatically refreshed per-request when `siwxResourceServerExtension` is registered.
+
 ```typescript
 declareSIWxExtension({
-  resourceUri: string;           // Full resource URI (domain derived from this)
-  network: string;               // CAIP-2 network (e.g., "eip155:8453")
+  domain: string;                // Server's domain (must match request host)
+  resourceUri: string;           // Full resource URI
+  network: string | string[];    // CAIP-2 network(s) - string for single, array for multi-chain
   statement?: string;            // Human-readable purpose
   version?: string;              // CAIP-122 version (default: "1")
-  expirationTime?: string;       // Optional explicit expiry
+  expirationSeconds?: number;    // Expiration duration (300 = 5 min, undefined = infinite)
   signatureScheme?: SignatureScheme;  // Hint for client
+})
+```
+
+**Examples:**
+```typescript
+// Single-chain (EVM only)
+declareSIWxExtension({
+  domain: 'api.example.com',
+  resourceUri: 'https://api.example.com/data',
+  network: 'eip155:8453',
+  expirationSeconds: 300, // 5 minutes
+})
+
+// Multi-chain (EVM + Solana)
+declareSIWxExtension({
+  domain: 'api.example.com',
+  resourceUri: 'https://api.example.com/data',
+  network: ['eip155:8453', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'],
+  expirationSeconds: 30 * 24 * 60 * 60, // 30 days
+})
+
+// Infinite expiration (subscription-like access)
+declareSIWxExtension({
+  domain: 'api.example.com',
+  resourceUri: 'https://api.example.com/data',
+  network: 'eip155:8453',
+  expirationSeconds: undefined, // Once paid, access forever
 })
 ```
 

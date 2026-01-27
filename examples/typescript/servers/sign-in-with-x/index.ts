@@ -9,6 +9,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import {
   declareSIWxExtension,
+  siwxResourceServerExtension,
   createSIWxSettleHook,
   createSIWxRequestHook,
   InMemorySIWxStorage,
@@ -34,11 +35,21 @@ const NETWORK = "eip155:84532" as const;
 // Shared storage for tracking paid addresses
 const storage = new InMemorySIWxStorage();
 
-// Configure resource server with SIWX settle hook
+// Configure resource server with SIWX extension and hooks
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, new ExactEvmScheme())
-  .onAfterSettle(createSIWxSettleHook({ storage }));
+  .registerExtension(siwxResourceServerExtension) // Register extension for time-based field refresh
+  .onAfterSettle(
+    createSIWxSettleHook({
+      storage,
+      onEvent: event => {
+        if (event.type === "payment_recorded") {
+          console.log(`Payment recorded: ${event.address} for ${event.resource}`);
+        }
+      },
+    }),
+  );
 
 /**
  * Creates route configuration with SIWX extension.
@@ -55,6 +66,7 @@ function routeConfig(path: string) {
       domain: HOST,
       resourceUri: `http://${HOST}${path}`,
       network: NETWORK,
+      expirationSeconds: 300, // 5 minutes
     }),
   };
 }
@@ -66,7 +78,14 @@ const routes = {
 
 // Configure HTTP server with SIWX request hook
 const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtectedRequest(
-  createSIWxRequestHook({ storage }),
+  createSIWxRequestHook({
+    storage,
+    onEvent: event => {
+      if (event.type === "access_granted") {
+        console.log(`SIWX auth: ${event.address} for ${event.resource}`);
+      }
+    },
+  }),
 );
 
 const app = express();
