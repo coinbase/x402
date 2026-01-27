@@ -77,6 +77,31 @@ When configuring payment requirements, you have two options:
 1. **Price String** (e.g., `"$0.01"`) - The system infers USDC as the token
 2. **TokenAmount** - Specify exact atomic units of any EIP-3009 token
 
+#### Choosing the Transfer Method (Server-Side)
+
+Facilitators can specify which authorization method to use via the `assetTransferMethod` field in payment requirements:
+
+```typescript
+{
+  accepts: [{
+    scheme: "exact",
+    price: "$0.001",
+    network: "eip155:8453",
+    payTo: "0xYourAddress",
+    extra: {
+      assetTransferMethod: "permit2"  // or "eip3009" (default)
+    }
+  }]
+}
+```
+
+**When to use each method:**
+
+- **EIP-3009** (default): Use for USDC and other tokens with native `transferWithAuthorization` support. Provides the best user experience with no approval transaction.
+- **Permit2**: Use for any ERC-20 token that doesn't implement EIP-3009. Requires a one-time approval but works universally.
+
+The client SDK automatically handles both methods based on the facilitator's requirements.
+
 #### Using Custom EIP-3009 Tokens
 
 To use a custom EIP-3009 token, you need three key pieces of information:
