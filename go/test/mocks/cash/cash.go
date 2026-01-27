@@ -111,7 +111,7 @@ func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.Pay
 	}
 
 	if validUntil < time.Now().Unix() {
-		return nil, x402.NewVerifyError("expired_signature", signature, fmt.Sprintf("expired signature: %s < %s", validUntil, time.Now().Unix()))
+		return nil, x402.NewVerifyError("expired_signature", signature, fmt.Sprintf("expired signature: %d < %d", validUntil, time.Now().Unix()))
 	}
 
 	return &x402.VerifyResponse{

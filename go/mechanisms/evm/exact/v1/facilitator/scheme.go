@@ -98,7 +98,7 @@ func (f *ExactEvmSchemeV1) Verify(
 	// Parse EVM payload
 	evmPayload, err := evm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrInvalidPayload, "", fmt.Sprintf(err.Error()))
+		return nil, x402.NewVerifyError(ErrInvalidPayload, "", err.Error())
 	}
 
 	// Validate signature exists
