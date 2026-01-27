@@ -2,31 +2,13 @@ import { config } from 'dotenv';
 import { spawn } from 'child_process';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig } from './src/types';
-import {
-  config as loggerConfig,
-  log,
-  verboseLog,
-  errorLog,
-  close as closeLogger,
-} from './src/logger';
-import {
-  handleDiscoveryValidation,
-  shouldRunDiscoveryValidation,
-} from './extensions/bazaar';
+import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
+import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
-import {
-  filterScenarios,
-  TestFilters,
-  shouldShowExtensionOutput,
-} from './src/cli/filters';
+import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
-import {
-  getNetworkSet,
-  NetworkMode,
-  NetworkSet,
-  getNetworkModeDescription,
-} from './src/networks/networks';
+import { getNetworkSet, NetworkMode, NetworkSet, getNetworkModeDescription } from './src/networks/networks';
 import { FacilitatorConfig } from './src/facilitators/generic-facilitator';
 
 /**
@@ -36,7 +18,7 @@ async function setupPermit2Approval(): Promise<boolean> {
   return new Promise((resolve) => {
     log('\n🔑 Setting up Permit2 approval for EVM client wallet...');
 
-    const child = spawn('pnpm', ['permit2:setup'], {
+    const child = spawn('pnpm', ['permit2:approve'], {
       cwd: process.cwd(),
       stdio: 'pipe',
       shell: true,
@@ -162,7 +144,7 @@ class FacilitatorManager {
 
     while (attempts < maxAttempts) {
       const healthResult = await this.facilitator.health();
-      verboseLog(`  🔍 Facilitator health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
+      verboseLog(` 🔍 Facilitator health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
 
       if (healthResult.success) {
         verboseLog(`  ✅ Facilitator is healthy`);
@@ -211,7 +193,7 @@ async function startServer(
     }
 
     const healthResult = await server.health();
-    verboseLog(`  🔍 Server health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
+    verboseLog(` 🔍 Server health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
 
     if (healthResult.success) {
       verboseLog(`  ✅ Server is healthy`);
@@ -346,7 +328,7 @@ async function runTest() {
 
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
-    errorLog('   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
+    errorLog(' SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
     process.exit(1);
   }
 
@@ -379,7 +361,7 @@ async function runTest() {
       allFacilitators,
       allScenarios,
       parsedArgs.minimize,
-      parsedArgs.networkMode  // Pass preselected network mode (may be undefined)
+      parsedArgs.networkMode // Pass preselected network mode (may be undefined)
     );
 
     if (!selections) {
@@ -396,7 +378,7 @@ async function runTest() {
 
     filters = parsedArgs.filters;
     selectedExtensions = parsedArgs.filters.extensions;
-    
+
     // In programmatic mode, network mode defaults to testnet if not specified
     networkMode = parsedArgs.networkMode || 'testnet';
 
@@ -415,11 +397,11 @@ async function runTest() {
 
   // Get network configuration based on selected mode
   const networks = getNetworkSet(networkMode);
-  
+
   log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
-  
+
   if (networkMode === 'mainnet') {
     log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
   }
@@ -452,6 +434,27 @@ async function runTest() {
   }
   log('');
 
+  // Auto-detect Permit2 scenarios and setup approval if needed
+  const hasPermit2Scenarios = filteredScenarios.some(
+    (s) => s.endpoint.permit2 === true
+  );
+  let permit2SetupComplete = false;
+
+  if (hasPermit2Scenarios) {
+    log('🔐 Permit2 scenarios detected - setting up approval...');
+    const setupSuccess = await setupPermit2Approval();
+    if (!setupSuccess) {
+      errorLog(
+        '\n❌ Failed to setup Permit2 approval. Cannot continue with Permit2 tests.'
+      );
+      errorLog(
+        '💡 Make sure CLIENT_EVM_PRIVATE_KEY is set and the wallet has USDC.'
+      );
+      process.exit(1);
+    }
+    permit2SetupComplete = true;
+  }
+
   // Collect unique facilitators and servers
   const uniqueFacilitators = new Map<string, any>();
   const uniqueServers = new Map<string, any>();
@@ -466,40 +469,40 @@ async function runTest() {
   // Validate environment variables for all selected facilitators
   log('\n🔍 Validating facilitator environment variables...\n');
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
-  
+
   // Environment variables managed by the test framework (don't require user to set)
   const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL']);
-  
+
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
     const missing: string[] = [];
-    
+
     for (const envVar of requiredVars) {
       // Skip variables managed by the test framework
       if (systemManagedVars.has(envVar)) {
         continue;
       }
-      
+
       if (!process.env[envVar]) {
         missing.push(envVar);
       }
     }
-    
+
     if (missing.length > 0) {
       missingEnvVars.push({ facilitatorName, missingVars: missing });
     }
   }
-  
+
   if (missingEnvVars.length > 0) {
     errorLog('❌ Missing required environment variables for selected facilitators:\n');
     for (const { facilitatorName, missingVars } of missingEnvVars) {
       errorLog(`   ${facilitatorName}:`);
-      missingVars.forEach(varName => errorLog(`      - ${varName}`));
+      missingVars.forEach(varName => errorLog(` - ${varName}`));
     }
     errorLog('\n💡 Please set the required environment variables and try again.\n');
     process.exit(1);
   }
-  
+
   log('  ✅ All required environment variables are present\n');
 
   interface DetailedTestResult {
@@ -618,7 +621,7 @@ async function runTest() {
 
     // Stop server if it's already running (from previous combo)
     if (runningServers.has(serverName)) {
-      verboseLog(`  🔄 Restarting ${serverName} with new facilitator: ${facilitatorName || 'none'}`);
+      verboseLog(` 🔄 Restarting ${serverName} with new facilitator: ${facilitatorName || 'none'}`);
       await runningServers.get(serverName).stop();
       runningServers.delete(serverName);
       await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for port to be released
@@ -826,7 +829,7 @@ async function runTest() {
   Object.entries(facilitatorBreakdown).forEach(([facilitator, stats]) => {
     const total = stats.passed + stats.failed;
     const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
-    log(`   ${facilitator.padEnd(15)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
+    log(` ${facilitator.padEnd(15)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
   });
   log('');
 
@@ -843,7 +846,7 @@ async function runTest() {
   Object.entries(serverBreakdown).forEach(([server, stats]) => {
     const total = stats.passed + stats.failed;
     const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
-    log(`   ${server.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
+    log(` ${server.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
   });
   log('');
 
@@ -877,7 +880,7 @@ async function runTest() {
     log('📊 Protocol Family Breakdown:');
     Object.entries(protocolBreakdown).forEach(([protocol, stats]) => {
       const total = stats.passed + stats.failed;
-      log(`   ${protocol.toUpperCase()}: ✅ ${stats.passed} / ❌ ${stats.failed} / 📈 ${total} total`);
+      log(` ${protocol.toUpperCase()}: ✅ ${stats.passed} / ❌ ${stats.failed} / 📈 ${total} total`);
     });
     log('');
   }
