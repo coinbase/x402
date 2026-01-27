@@ -7,8 +7,10 @@ import {
   APTOS_TESTNET_CAIP2,
   APTOS_ADDRESS_REGEX,
   TRANSFER_FUNCTION,
+  MAX_GAS_AMOUNT,
   getAptosNetwork,
   getAptosRpcUrl,
+  getAptosChainId,
 } from "../../src/index";
 import type { PaymentRequirements } from "@x402/core/types";
 
@@ -25,11 +27,13 @@ describe("@x402/aptos", () => {
       expect(APTOS_TESTNET_CAIP2).toBe("aptos:2");
       expect(APTOS_ADDRESS_REGEX).toBeDefined();
       expect(TRANSFER_FUNCTION).toBe("0x1::primary_fungible_store::transfer");
+      expect(MAX_GAS_AMOUNT).toBe(500000n);
     });
 
     it("should export utility functions", () => {
       expect(getAptosNetwork).toBeDefined();
       expect(getAptosRpcUrl).toBeDefined();
+      expect(getAptosChainId).toBeDefined();
     });
   });
 

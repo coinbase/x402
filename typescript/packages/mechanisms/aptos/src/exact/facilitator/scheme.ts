@@ -1,4 +1,4 @@
-import { AccountAddress, Deserializer, PublicKey } from "@aptos-labs/ts-sdk";
+import { AccountAddress, Deserializer, Ed25519PublicKey, PublicKey } from "@aptos-labs/ts-sdk";
 import type {
   PaymentPayload,
   PaymentRequirements,
@@ -9,6 +9,7 @@ import type {
 import type { FacilitatorAptosSigner } from "../../signer";
 import type { ExactAptosPayload } from "../../types";
 import { createAptosClient, deserializeAptosPayment } from "../../utils";
+import { getAptosChainId, MAX_GAS_AMOUNT } from "../../constants";
 
 /**
  * Aptos facilitator implementation for the Exact payment scheme.
@@ -90,6 +91,42 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
         aptosPayload.transaction,
       );
       const senderAddress = transaction.rawTransaction.sender.toString();
+
+      // Step 2a: Verify chain ID matches expected network
+      const expectedChainId = getAptosChainId(requirements.network);
+      const txChainId = Number(transaction.rawTransaction.chain_id.chainId);
+      if (txChainId !== expectedChainId) {
+        return {
+          isValid: false,
+          invalidReason: `invalid_exact_aptos_payload_chain_id_mismatch: expected ${expectedChainId}, got ${txChainId}`,
+          payer: senderAddress,
+        };
+      }
+
+      // Step 2b: Verify sender matches authenticator public key
+      if (senderAuthenticator.isEd25519()) {
+        const pubKey = senderAuthenticator.public_key as Ed25519PublicKey;
+        const derivedAddress = AccountAddress.from(pubKey.authKey().derivedAddress());
+        if (!derivedAddress.equals(transaction.rawTransaction.sender)) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_aptos_payload_sender_authenticator_mismatch",
+            payer: senderAddress,
+          };
+        }
+      }
+
+      // Step 2c: For sponsored transactions, verify max gas to prevent gas draining
+      if (isSponsored) {
+        const maxGasAmount = BigInt(transaction.rawTransaction.max_gas_amount);
+        if (maxGasAmount > MAX_GAS_AMOUNT) {
+          return {
+            isValid: false,
+            invalidReason: `invalid_exact_aptos_payload_gas_too_high: ${maxGasAmount} > ${MAX_GAS_AMOUNT}`,
+            payer: senderAddress,
+          };
+        }
+      }
 
       // For sponsored transactions, verify fee payer address matches
       if (isSponsored) {

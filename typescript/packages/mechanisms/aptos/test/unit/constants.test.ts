@@ -5,8 +5,10 @@ import {
   APTOS_TESTNET_CAIP2,
   APTOS_ADDRESS_REGEX,
   TRANSFER_FUNCTION,
+  MAX_GAS_AMOUNT,
   getAptosNetwork,
   getAptosRpcUrl,
+  getAptosChainId,
 } from "../../src/constants";
 
 describe("Aptos Constants", () => {
@@ -86,6 +88,28 @@ describe("Aptos Constants", () => {
       const mainnetUrl = getAptosRpcUrl(Network.MAINNET);
       const testnetUrl = getAptosRpcUrl(Network.TESTNET);
       expect(mainnetUrl).not.toBe(testnetUrl);
+    });
+  });
+
+  describe("MAX_GAS_AMOUNT", () => {
+    it("should be a reasonable limit for simple transfers", () => {
+      expect(MAX_GAS_AMOUNT).toBe(500000n);
+    });
+  });
+
+  describe("getAptosChainId", () => {
+    it("should return 1 for mainnet", () => {
+      expect(getAptosChainId("aptos:1")).toBe(1);
+    });
+
+    it("should return 2 for testnet", () => {
+      expect(getAptosChainId("aptos:2")).toBe(2);
+    });
+
+    it("should throw for unsupported networks", () => {
+      expect(() => getAptosChainId("aptos:99")).toThrow("Unsupported Aptos network");
+      expect(() => getAptosChainId("ethereum:1")).toThrow("Unsupported Aptos network");
+      expect(() => getAptosChainId("invalid")).toThrow("Unsupported Aptos network");
     });
   });
 });

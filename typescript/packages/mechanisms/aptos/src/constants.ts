@@ -22,6 +22,29 @@ export const APTOS_ADDRESS_REGEX = /^0x[a-fA-F0-9]{64}$/;
 export const TRANSFER_FUNCTION = "0x1::primary_fungible_store::transfer";
 
 /**
+ * Maximum gas amount allowed for sponsored transactions to prevent gas draining attacks.
+ * The Aptos SDK defaults to 200000 for simple transactions, so we allow some headroom.
+ */
+export const MAX_GAS_AMOUNT = 500000n;
+
+/**
+ * Maps CAIP-2 network identifiers to Aptos chain IDs.
+ *
+ * @param network - The CAIP-2 network identifier (e.g., "aptos:1")
+ * @returns The corresponding chain ID
+ */
+export function getAptosChainId(network: string): number {
+  switch (network) {
+    case APTOS_MAINNET_CAIP2:
+      return 1;
+    case APTOS_TESTNET_CAIP2:
+      return 2;
+    default:
+      throw new Error(`Unsupported Aptos network: ${network}`);
+  }
+}
+
+/**
  * Default USDC fungible asset metadata address on mainnet.
  */
 export const USDC_MAINNET_FA = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
