@@ -121,13 +121,19 @@ On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facili
 * **Why**: USDC implements EIP-3009 and is widely available
 * **Networks**: Available on `eip155:8453` (Base), `eip155:84532` (Base Sepolia), and all supported networks
 
-#### Why EIP-3009?
+#### Why EIP-3009 and Permit2?
 
-The EIP-3009 standard is essential for x402 because it enables:
+x402 supports both EIP-3009 and Permit2 to provide flexibility:
 
+**EIP-3009 Benefits:**
 1. **Gas abstraction**: Buyers don't need native tokens (ETH, MATIC, etc.) for gas
 2. **One-step payments**: No separate approval transactions required
-3. **Universal facilitator support**: Any EIP-3009 token works with any facilitator
+3. **Best user experience**: Works immediately without any setup
+
+**Permit2 Benefits:**
+1. **Universal token support**: Works with any ERC-20 token, not just EIP-3009 tokens
+2. **One-time approval**: After initial approval, all future payments are gasless signatures
+3. **Ecosystem standard**: Leverages Uniswap's widely-adopted Permit2 contract
 
 ### Quick Reference
 
