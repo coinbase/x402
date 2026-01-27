@@ -30,11 +30,11 @@ export type ExactEIP3009Payload = {
 /**
  * Permit2 witness data structure.
  * Matches the Witness struct in x402Permit2Proxy contract.
+ * Note: Upper time bound is enforced by Permit2's `deadline` field, not a witness field.
  */
 export type Permit2Witness = {
   to: `0x${string}`;
   validAfter: string;
-  validBefore: string;
   extra: `0x${string}`;
 };
 
