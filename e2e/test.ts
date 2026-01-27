@@ -1,14 +1,122 @@
 import { config } from 'dotenv';
+import { spawn } from 'child_process';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig } from './src/types';
-import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
-import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
+import {
+  config as loggerConfig,
+  log,
+  verboseLog,
+  errorLog,
+  close as closeLogger,
+} from './src/logger';
+import {
+  handleDiscoveryValidation,
+  shouldRunDiscoveryValidation,
+} from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
-import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
+import {
+  filterScenarios,
+  TestFilters,
+  shouldShowExtensionOutput,
+} from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
-import { getNetworkSet, NetworkMode, NetworkSet, getNetworkModeDescription } from './src/networks/networks';
+import {
+  getNetworkSet,
+  NetworkMode,
+  NetworkSet,
+  getNetworkModeDescription,
+} from './src/networks/networks';
 import { FacilitatorConfig } from './src/facilitators/generic-facilitator';
+
+/**
+ * Run Permit2 setup script to ensure the client wallet has approved the Permit2 contract
+ */
+async function setupPermit2Approval(): Promise<boolean> {
+  return new Promise((resolve) => {
+    log('\n🔑 Setting up Permit2 approval for EVM client wallet...');
+
+    const child = spawn('pnpm', ['permit2:setup'], {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      shell: true,
+    });
+
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      verboseLog(data.toString().trim());
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      verboseLog(data.toString().trim());
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        log('  ✅ Permit2 approval setup complete');
+        resolve(true);
+      } else {
+        errorLog(`  ❌ Permit2 setup failed (exit code ${code})`);
+        if (stderr) {
+          errorLog(`  Error: ${stderr}`);
+        }
+        resolve(false);
+      }
+    });
+
+    child.on('error', (error) => {
+      errorLog(`  ❌ Failed to run Permit2 setup: ${error.message}`);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Run Permit2 teardown script to revoke the approval after tests complete
+ */
+async function teardownPermit2Approval(): Promise<boolean> {
+  return new Promise((resolve) => {
+    log('\n🔒 Revoking Permit2 approval (cleanup)...');
+
+    const child = spawn('pnpm', ['permit2:revoke'], {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      shell: true,
+    });
+
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      verboseLog(data.toString().trim());
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      verboseLog(data.toString().trim());
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        log('  ✅ Permit2 approval revoked');
+        resolve(true);
+      } else {
+        // Don't fail the test run for teardown failures
+        errorLog(`  ⚠️  Permit2 revoke failed (exit code ${code})`);
+        if (stderr) {
+          errorLog(`  Error: ${stderr}`);
+        }
+        resolve(false);
+      }
+    });
+
+    child.on('error', (error) => {
+      errorLog(`  ⚠️  Failed to run Permit2 revoke: ${error.message}`);
+      resolve(false);
+    });
+  });
+}
 
 // Load environment variables
 config();
@@ -628,6 +736,11 @@ async function runTest() {
       serverPorts,
       facilitatorServerMap
     );
+  }
+
+  // Teardown Permit2 approval if it was set up
+  if (permit2SetupComplete) {
+    await teardownPermit2Approval();
   }
 
   // Clean up facilitators (servers already stopped in test loop)
