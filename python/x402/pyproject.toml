@@ -62,6 +62,7 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "black>=23.0.0",
+    "towncrier>=24.8.0,<25",
     # Include all optional deps for testing
     "httpx>=0.28.1",
     "requests>=2.31.0",
@@ -148,3 +149,24 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.towncrier]
+package = "x402"
+filename = "CHANGELOG.md"
+directory = "changelog.d/"
+title_format = "## [{version}] - {project_date}"
+issue_format = "[#{issue}](https://github.com/coinbase/x402/pull/{issue})"
+
+[tool.towncrier.fragment.feature]
+name = "Features"
+
+[tool.towncrier.fragment.bugfix]
+name = "Bugfixes"
+
+[tool.towncrier.fragment.doc]
+name = "Documentation"
+
+[tool.towncrier.fragment.removal]
+name = "Removals"
+
+[tool.towncrier.fragment.misc]
+name = "Misc"

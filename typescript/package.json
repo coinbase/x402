@@ -22,7 +22,10 @@
     "format:check": "turbo run format:check",
     "test": "turbo run test",
     "test:integration": "pnpm --filter @x402/core --filter @x402/evm --filter @x402/svm test:integration",
-    "test:all": "pnpm test && pnpm test:integration"
+    "test:all": "pnpm test && pnpm test:integration",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "pnpm install --frozen-lockfile && pnpm run build && changeset publish"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +33,8 @@
   "devDependencies": {
     "tsup": "^8.4.0",
     "turbo": "^2.5.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@changesets/cli": "^2.28.1",
+    "@changesets/changelog-github": "^0.5.1"
   }
 }
