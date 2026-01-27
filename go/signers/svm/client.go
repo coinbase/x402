@@ -9,10 +9,29 @@ import (
 	x402svm "github.com/coinbase/x402/go/mechanisms/svm"
 )
 
-// ClientSigner implements x402svm.ClientSvmSigner using an Ed25519 private key.
+// SignTransactionFunc defines the callback used to sign Solana transactions.
+type SignTransactionFunc func(ctx context.Context, tx *solana.Transaction) error
+
+// ClientSigner implements x402svm.ClientSvmSigner using a signing callback.
 // This provides client-side transaction signing for creating payment payloads.
 type ClientSigner struct {
-	privateKey solana.PrivateKey
+	publicKey       solana.PublicKey
+	signTransaction SignTransactionFunc
+}
+
+// NewClientSigner creates a client signer from a public key and signing callback.
+func NewClientSigner(publicKey solana.PublicKey, signFunc SignTransactionFunc) (x402svm.ClientSvmSigner, error) {
+	if publicKey == (solana.PublicKey{}) {
+		return nil, fmt.Errorf("public key is required")
+	}
+	if signFunc == nil {
+		return nil, fmt.Errorf("sign callback is required")
+	}
+
+	return &ClientSigner{
+		publicKey:       publicKey,
+		signTransaction: signFunc,
+	}, nil
 }
 
 // NewClientSignerFromPrivateKey creates a client signer from a base58-encoded private key.
@@ -41,14 +60,16 @@ func NewClientSignerFromPrivateKey(privateKeyBase58 string) (x402svm.ClientSvmSi
 		return nil, fmt.Errorf("invalid private key: %w", err)
 	}
 
-	return &ClientSigner{
-		privateKey: privateKey,
-	}, nil
+	signFunc := func(ctx context.Context, tx *solana.Transaction) error {
+		return signTransactionWithPrivateKey(ctx, privateKey, tx)
+	}
+
+	return NewClientSigner(privateKey.PublicKey(), signFunc)
 }
 
 // Address returns the Solana public key of the signer.
 func (s *ClientSigner) Address() solana.PublicKey {
-	return s.privateKey.PublicKey()
+	return s.publicKey
 }
 
 // SignTransaction partially signs a Solana transaction.
@@ -63,6 +84,10 @@ func (s *ClientSigner) Address() solana.PublicKey {
 //
 //	Error if signing fails
 func (s *ClientSigner) SignTransaction(ctx context.Context, tx *solana.Transaction) error {
+	return s.signTransaction(ctx, tx)
+}
+
+func signTransactionWithPrivateKey(_ context.Context, privateKey solana.PrivateKey, tx *solana.Transaction) error {
 	// Marshal transaction message to bytes
 	messageBytes, err := tx.Message.MarshalBinary()
 	if err != nil {
@@ -70,13 +95,13 @@ func (s *ClientSigner) SignTransaction(ctx context.Context, tx *solana.Transacti
 	}
 
 	// Sign the message bytes with Ed25519
-	signature, err := s.privateKey.Sign(messageBytes)
+	signature, err := privateKey.Sign(messageBytes)
 	if err != nil {
 		return fmt.Errorf("failed to sign: %w", err)
 	}
 
 	// Find the index of our public key in the transaction
-	accountIndex, err := tx.GetAccountIndex(s.privateKey.PublicKey())
+	accountIndex, err := tx.GetAccountIndex(privateKey.PublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to get account index: %w", err)
 	}

@@ -60,6 +60,64 @@ func TestNewClientSignerFromPrivateKey(t *testing.T) {
 	}
 }
 
+func TestNewClientSigner(t *testing.T) {
+	privateKey, err := solana.PrivateKeyFromBase58(testPrivateKeyBase58)
+	if err != nil {
+		t.Fatalf("PrivateKeyFromBase58() failed: %v", err)
+	}
+
+	publicKey := privateKey.PublicKey()
+	called := false
+
+	signer, err := NewClientSigner(publicKey, func(_ context.Context, tx *solana.Transaction) error {
+		called = true
+		accountIndex, err := tx.GetAccountIndex(publicKey)
+		if err != nil {
+			return err
+		}
+		if len(tx.Signatures) <= int(accountIndex) {
+			newSignatures := make([]solana.Signature, accountIndex+1)
+			copy(newSignatures, tx.Signatures)
+			tx.Signatures = newSignatures
+		}
+		tx.Signatures[accountIndex] = solana.Signature{1}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewClientSigner() failed: %v", err)
+	}
+
+	if signer.Address() != publicKey {
+		t.Errorf("Address() = %v, want %v", signer.Address(), publicKey)
+	}
+
+	recentBlockhash := solana.MustHashFromBase58("11111111111111111111111111111111")
+	recipient := solana.MustPublicKeyFromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+
+	transferIx := system.NewTransferInstruction(
+		1000000,
+		signer.Address(),
+		recipient,
+	).Build()
+
+	tx, err := solana.NewTransactionBuilder().
+		AddInstruction(transferIx).
+		SetRecentBlockHash(recentBlockhash).
+		SetFeePayer(signer.Address()).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to create test transaction: %v", err)
+	}
+
+	if err := signer.SignTransaction(context.Background(), tx); err != nil {
+		t.Fatalf("SignTransaction() failed: %v", err)
+	}
+
+	if !called {
+		t.Fatal("expected callback to be called")
+	}
+}
+
 func TestClientSigner_Address(t *testing.T) {
 	signer, err := NewClientSignerFromPrivateKey(testPrivateKeyBase58)
 	if err != nil {

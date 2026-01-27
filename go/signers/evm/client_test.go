@@ -77,6 +77,44 @@ func TestNewClientSignerFromPrivateKey(t *testing.T) {
 	}
 }
 
+func TestNewClientSigner(t *testing.T) {
+	address := "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+	expectedSig := make([]byte, 65)
+	expectedSig[64] = 27
+	called := false
+
+	signer, err := NewClientSigner(address, func(
+		_ context.Context,
+		_ x402evm.TypedDataDomain,
+		_ map[string][]x402evm.TypedDataField,
+		_ string,
+		_ map[string]any,
+	) ([]byte, error) {
+		called = true
+		return expectedSig, nil
+	})
+	if err != nil {
+		t.Fatalf("NewClientSigner() failed: %v", err)
+	}
+
+	if !equalAddresses(signer.Address(), address) {
+		t.Errorf("Address() = %v, want %v", signer.Address(), address)
+	}
+
+	sig, err := signer.SignTypedData(context.Background(), x402evm.TypedDataDomain{}, nil, "", nil)
+	if err != nil {
+		t.Fatalf("SignTypedData() failed: %v", err)
+	}
+
+	if !called {
+		t.Fatal("expected callback to be called")
+	}
+
+	if len(sig) != len(expectedSig) || sig[64] != expectedSig[64] {
+		t.Errorf("SignTypedData() signature mismatch")
+	}
+}
+
 func TestClientSigner_Address(t *testing.T) {
 	signer, err := NewClientSignerFromPrivateKey(testPrivateKeyHex)
 	if err != nil {
