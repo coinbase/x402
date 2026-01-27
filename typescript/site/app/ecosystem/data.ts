@@ -3,6 +3,9 @@ export interface FacilitatorInfo {
   networks: string[];
   schemes: string[];
   assets: string[];
+  addresses: {
+    [key: string]: string[];
+  };
   supports: {
     verify: boolean;
     settle: boolean;
