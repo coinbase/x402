@@ -109,13 +109,13 @@ Steps to verify a payment for the `exact` scheme:
 2. Verify `x402Version` is `2`.
 3. Verify the network matches the agreed upon chain (CAIP-2 format: `aptos:1` or `aptos:2`).
 4. Deserialize the BCS-encoded transaction and verify the signature is valid.
-5. Verify the transaction sender has sufficient balance of the `asset` to cover the required amount.
-6. Verify the transaction contains a fungible asset transfer operation (e.g., `0x1::primary_fungible_store::transfer` or `0x1::fungible_asset::transfer`).
+5. Verify the transaction has not expired (check expiration timestamp). Note: A buffer time should be considered to account for network propagation delays and processing time.
+6. Verify the transaction contains a fungible asset transfer operation (`0x1::primary_fungible_store::transfer` or `0x1::fungible_asset::transfer`).
 7. Verify the transfer is for the correct asset (matching `requirements.asset`).
 8. Verify the transfer amount matches `requirements.amount`.
 9. Verify the transfer recipient matches `requirements.payTo`.
-10. Simulate the transaction using the Aptos REST API to ensure it would succeed and has not already been executed/committed to the chain.
-11. Verify the transaction has not expired (check sequence number and expiration timestamp). Note: A buffer time should be considered to account for network propagation delays and processing time.
+10. Verify the transaction sender has sufficient balance of the `asset` to cover the required amount.
+11. Simulate the transaction using the Aptos REST API to ensure it would succeed and has not already been executed/committed to the chain. This also validates the sequence number to prevent replay attacks.
 
 ## Settlement
 
