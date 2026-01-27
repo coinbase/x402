@@ -21,17 +21,24 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
   /**
    * Creates a new ExactAptosFacilitator instance.
    *
-   * @param signer - The Aptos facilitator signer for sponsored transactions
+   * @param signer - The Aptos facilitator signer for transaction submission
+   * @param sponsorTransactions - Whether to sponsor transactions (pay gas fees). Defaults to true.
    */
-  constructor(private readonly signer: FacilitatorAptosSigner) {}
+  constructor(
+    private readonly signer: FacilitatorAptosSigner,
+    private readonly sponsorTransactions: boolean = true,
+  ) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
    *
    * @param _ - The network identifier (unused)
-   * @returns Extra data with fee payer address
+   * @returns Extra data with fee payer address, or undefined if sponsorship is disabled
    */
   getExtra(_: string): Record<string, unknown> | undefined {
+    if (!this.sponsorTransactions) {
+      return undefined;
+    }
     const addresses = this.signer.getAddresses();
     const randomIndex = Math.floor(Math.random() * addresses.length);
     return { feePayer: addresses[randomIndex] };
@@ -104,6 +111,7 @@ export class ExactAptosScheme implements SchemeNetworkFacilitator {
       }
 
       // Verify sender matches authenticator public key (for Ed25519 accounts)
+      // Note: SingleKey and MultiKey authenticators are validated during simulation (step 11)
       if (senderAuthenticator.isEd25519()) {
         const pubKey = senderAuthenticator.public_key as Ed25519PublicKey;
         const derivedAddress = AccountAddress.from(pubKey.authKey().derivedAddress());

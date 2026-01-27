@@ -222,6 +222,54 @@ describe("Aptos Integration Tests", () => {
       expect(aptosPayload.transaction).toBeDefined();
       expect(typeof aptosPayload.transaction).toBe("string");
     });
+
+    it("server should successfully verify a non-sponsored Aptos payment", async () => {
+      // Create a non-sponsoring facilitator
+      const facilitatorAccount = await createClientSigner(FACILITATOR_PRIVATE_KEY);
+      const facilitatorSigner = toFacilitatorAptosSigner(facilitatorAccount);
+      const aptosFacilitator = new ExactAptosFacilitator(facilitatorSigner, false); // sponsorTransactions = false
+      const facilitator = new x402Facilitator().register("aptos:2", aptosFacilitator);
+
+      const facilitatorClient = new AptosFacilitatorClient(facilitator);
+      const nonSponsoringServer = new x402ResourceServer(facilitatorClient);
+      nonSponsoringServer.register("aptos:2", new ExactAptosServer());
+      await nonSponsoringServer.initialize();
+
+      // Payment requirements without feePayer (non-sponsored mode)
+      const accepts = [
+        buildAptosPaymentRequirements(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "1000",
+          undefined, // No fee payer - client pays gas
+        ),
+      ];
+      const resource = {
+        url: "https://company.co",
+        description: "Company Co. resource",
+        mimeType: "application/json",
+      };
+      const paymentRequired = nonSponsoringServer.createPaymentRequiredResponse(accepts, resource);
+
+      // Client creates non-sponsored payload
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+      expect(paymentPayload).toBeDefined();
+      expect(paymentPayload.accepted.extra?.feePayer).toBeUndefined();
+
+      // Server verifies the non-sponsored payment
+      const accepted = nonSponsoringServer.findMatchingRequirements(accepts, paymentPayload);
+      expect(accepted).toBeDefined();
+
+      const verifyResponse = await nonSponsoringServer.verifyPayment(paymentPayload, accepted!);
+
+      if (!verifyResponse.isValid) {
+        console.log("Non-sponsored verification failed!");
+        console.log("Invalid reason:", verifyResponse.invalidReason);
+      }
+
+      expect(verifyResponse.isValid).toBe(true);
+      expect(verifyResponse.payer).toBe(clientAddress);
+    });
   });
 
   describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - Aptos Flow", () => {
