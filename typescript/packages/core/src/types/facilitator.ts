@@ -58,7 +58,9 @@ export class VerifyError extends Error {
    * @param response - The verify response containing error details
    */
   constructor(statusCode: number, response: VerifyResponse) {
-    super(`verification failed: ${response.invalidReason || "unknown reason"}`);
+    const reason = response.invalidReason || "unknown reason";
+    const message = response.invalidMessage;
+    super(message ? `${reason}: ${message}` : reason);
     this.name = "VerifyError";
     this.statusCode = statusCode;
     this.invalidReason = response.invalidReason;
@@ -85,7 +87,9 @@ export class SettleError extends Error {
    * @param response - The settle response containing error details
    */
   constructor(statusCode: number, response: SettleResponse) {
-    super(`settlement failed: ${response.errorReason || "unknown reason"}`);
+    const reason = response.errorReason || "unknown reason";
+    const message = response.errorMessage;
+    super(message ? `${reason}: ${message}` : reason);
     this.name = "SettleError";
     this.statusCode = statusCode;
     this.errorReason = response.errorReason;

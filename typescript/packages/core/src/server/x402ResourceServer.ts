@@ -1,4 +1,5 @@
 import {
+  SettleError,
   SettleResponse,
   VerifyResponse,
   SupportedResponse,
@@ -6,7 +7,7 @@ import {
 } from "../types/facilitator";
 import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
-import { Price, Network, ResourceServerExtension } from "../types";
+import { Price, Network, ResourceServerExtension, VerifyError } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
 import { FacilitatorClient, HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 import { x402Version } from "..";
@@ -594,12 +595,21 @@ export class x402ResourceServer {
 
     // Execute beforeVerify hooks
     for (const hook of this.beforeVerifyHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
-        return {
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          return {
+            isValid: false,
+            invalidReason: result.reason,
+            invalidMessage: result.message,
+          };
+        }
+      } catch (error) {
+        throw new VerifyError(400, {
           isValid: false,
-          invalidReason: result.reason,
-        };
+          invalidReason: "before_verify_hook_error",
+          invalidMessage: error instanceof Error ? error.message : "",
+        });
       }
     }
 
@@ -688,9 +698,25 @@ export class x402ResourceServer {
 
     // Execute beforeSettle hooks
     for (const hook of this.beforeSettleHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
-        throw new Error(`Settlement aborted: ${result.reason}`);
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          throw new SettleError(400, {
+            success: false,
+            errorReason: result.reason,
+            errorMessage: result.message,
+            transaction: "",
+            network: requirements.network,
+          });
+        }
+      } catch (error) {
+        throw new SettleError(400, {
+          success: false,
+          errorReason: "before_settle_hook_error",
+          errorMessage: error instanceof Error ? error.message : "",
+          transaction: "",
+          network: requirements.network,
+        });
       }
     }
 
