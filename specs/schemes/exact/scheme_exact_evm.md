@@ -272,7 +272,7 @@ contract x402Permit2Proxy {
      * @notice Extension: Settles a transfer using an EIP-2612 Permit for the allowance
      * @dev Deconstructs the 2612 signature bytes to call the token contract
      */
-    function settleWith2612(
+    function settleWithPermit(
         EIP2612Permit calldata permit2612, // Deduplicated/Grouped params
         uint256 amount,
         ISignatureTransfer.PermitTransferFrom calldata permit,

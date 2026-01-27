@@ -1,5 +1,5 @@
 import { SettleResponse, VerifyResponse } from "./facilitator";
-import { PaymentRequirements } from "./payments";
+import { PaymentRequirements, PaymentRequired } from "./payments";
 import { PaymentPayload } from "./payments";
 import { Price, Network, AssetAmount } from ".";
 
@@ -15,13 +15,85 @@ import { Price, Network, AssetAmount } from ".";
  */
 export type MoneyParser = (amount: number, network: Network) => Promise<AssetAmount | null>;
 
+/**
+ * Context passed to SchemeNetworkClient.createPaymentPayload for extension support.
+ * Contains information about the facilitator's capabilities that the mechanism
+ * may need to create extension data (e.g., gas sponsoring signatures).
+ */
+export interface PaymentCreationContext {
+  /**
+   * The full PaymentRequired response from the server
+   */
+  paymentRequired: PaymentRequired;
+
+  /**
+   * Information from the facilitator's /supported endpoint.
+   * Optional - if not provided, mechanism cannot create extension data.
+   */
+  facilitatorSupported?: {
+    /**
+     * Extensions supported by the facilitator (e.g., ["eip2612GasSponsoring", "bazaar"])
+     */
+    extensions: string[];
+
+    /**
+     * Signer addresses by CAIP family (e.g., { "eip155:*": ["0x..."] })
+     */
+    signers?: Record<string, string[]>;
+  };
+}
+
+/**
+ * Result of createPaymentPayload - includes the core payload and optional extensions
+ */
+export interface PaymentPayloadResult {
+  /**
+   * The x402 protocol version
+   */
+  x402Version: number;
+
+  /**
+   * The scheme-specific payload data
+   */
+  payload: PaymentPayload["payload"];
+
+  /**
+   * Optional extensions created by the mechanism (e.g., gas sponsoring data).
+   * These are merged with any extensions declared in PaymentRequired.
+   */
+  extensions?: Record<string, unknown>;
+}
+
 export interface SchemeNetworkClient {
   readonly scheme: string;
 
+  /**
+   * Creates a payment payload for this scheme.
+   *
+   * @param x402Version - The x402 protocol version
+   * @param paymentRequirements - The payment requirements to fulfill
+   * @param context - Optional context with facilitator info for extension support
+   * @returns Payment payload result including optional extension data
+   *
+   * @example
+   * ```typescript
+   * // Without extensions
+   * const result = await client.createPaymentPayload(2, requirements);
+   *
+   * // With facilitator context for extension support
+   * const result = await client.createPaymentPayload(2, requirements, {
+   *   paymentRequired,
+   *   facilitatorSupported: { extensions: ["eip2612GasSponsoring"] }
+   * });
+   * // If mechanism creates extension data:
+   * // result.extensions = { eip2612GasSponsoring: { info: {...} } }
+   * ```
+   */
   createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-  ): Promise<Pick<PaymentPayload, "x402Version" | "payload">>;
+    context?: PaymentCreationContext,
+  ): Promise<PaymentPayloadResult>;
 }
 
 export interface SchemeNetworkFacilitator {

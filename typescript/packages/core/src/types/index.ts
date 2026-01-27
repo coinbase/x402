@@ -17,6 +17,8 @@ export type {
   SchemeNetworkFacilitator,
   SchemeNetworkServer,
   MoneyParser,
+  PaymentCreationContext,
+  PaymentPayloadResult,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
 export type {

@@ -77,6 +77,26 @@
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
         "default": "./dist/cjs/sign-in-with-x/index.js"
       }
+    },
+    "./eip-2612-gas-sponsoring": {
+      "import": {
+        "types": "./dist/esm/eip-2612-gas-sponsoring/index.d.mts",
+        "default": "./dist/esm/eip-2612-gas-sponsoring/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/eip-2612-gas-sponsoring/index.d.ts",
+        "default": "./dist/cjs/eip-2612-gas-sponsoring/index.js"
+      }
+    },
+    "./erc20-approval-gas-sponsoring": {
+      "import": {
+        "types": "./dist/esm/erc20-approval-gas-sponsoring/index.d.mts",
+        "default": "./dist/esm/erc20-approval-gas-sponsoring/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc20-approval-gas-sponsoring/index.d.ts",
+        "default": "./dist/cjs/erc20-approval-gas-sponsoring/index.js"
+      }
     }
   },
   "files": [
