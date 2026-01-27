@@ -113,13 +113,62 @@ On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facili
 * **Why**: USDC implements EIP-3009 and is widely available
 * **Networks**: Available on `eip155:8453` (Base), `eip155:84532` (Base Sepolia), and all supported networks
 
-#### Why EIP-3009?
+#### Using Permit2 with Any ERC-20 Token
 
-The EIP-3009 standard is essential for x402 because it enables:
+For tokens that don't implement EIP-3009, x402 supports Permit2 as a universal fallback. This requires a one-time approval transaction before the first payment:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { createPermit2ApprovalTx, getPermit2AllowanceReadParams } from "@x402/evm/exact/client";
+    import { createPublicClient, createWalletClient, http } from "viem";
+    import { base } from "viem/chains";
+
+    const tokenAddress = "0x..."; // Your ERC-20 token address
+    const ownerAddress = "0x..."; // Your wallet address
+
+    // Check if approval is needed
+    const publicClient = createPublicClient({
+      chain: base,
+      transport: http(),
+    });
+
+    const allowance = await publicClient.readContract(
+      getPermit2AllowanceReadParams({ tokenAddress, ownerAddress })
+    );
+
+    // If allowance is insufficient, send approval transaction
+    if (allowance < requiredAmount) {
+      const walletClient = createWalletClient({
+        chain: base,
+        transport: http(),
+      });
+
+      const approvalTx = createPermit2ApprovalTx(tokenAddress);
+      const hash = await walletClient.sendTransaction({
+        to: approvalTx.to,
+        data: approvalTx.data,
+      });
+
+      console.log("Approval transaction sent:", hash);
+      // Wait for confirmation before making payments
+    }
+
+    // After approval, payments work automatically via Permit2
+    ```
+  </Tab>
+</Tabs>
+
+**Note**: The approval transaction grants Permit2 unlimited allowance (`type(uint256).max`). This is a one-time cost paid by the user. After approval, all subsequent payments are gasless signatures.
+
+#### Why EIP-3009 and Permit2?
+
+These standards are essential for x402 because they enable:
 
 1. **Gas abstraction**: Buyers don't need native tokens (ETH, MATIC, etc.) for gas
-2. **One-step payments**: No separate approval transactions required
-3. **Universal facilitator support**: Any EIP-3009 token works with any facilitator
+2. **Signature-based authorization**: Payments via off-chain signatures
+3. **Universal token support**: EIP-3009 for compatible tokens, Permit2 for any ERC-20
+4. **Secure transfers**: Cryptographic authorization prevents unauthorized payments
 
 ### Quick Reference
 
