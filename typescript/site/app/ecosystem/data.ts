@@ -20,6 +20,8 @@ export interface Partner {
   logoUrl: string; // Path to the logo, e.g., /images/ecosystem/logos/project-logo.png
   websiteUrl: string;
   category: string; // Main category name as defined in categories array
+  typeLabel?: string;
+  featured?: boolean;
   // Additional fields like a slug for directory name can be added if needed for linking or lookup
   slug?: string;
   // Facilitator-specific data (only present for facilitators)

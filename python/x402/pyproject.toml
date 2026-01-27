@@ -1,46 +1,150 @@
 [project]
 name = "x402"
-version = "0.2.1"
-description = "x402: An internet native payments protocol"
+version = "2.0.0"
+description = "x402 Payment Protocol SDK for Python"
 readme = "README.md"
-license = { text = "Apache-2.0" }
-authors = [
-    { name = "erik", email = "erik.reppel@coinbase.com" },
-    { name = "Coinbase Developer Platform", email = "" }
-]
+license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["x402", "sdk", "crypto", "cdp", "payments", "web3"]
-dependencies = [
-    "eth-account>=0.13.7",
-    "eth-typing>=4.0.0",
-    "eth-utils>=3.0.0",
-    "fastapi[standard]>=0.115.12",
-    "flask>=3.0.0",
-    "pydantic>=2.10.3",
-    "pydantic-settings>=2.2.1",
-    "python-dotenv>=1.0.1",
-    "web3>=6.0.0",
+authors = [{ name = "Coinbase" }]
+keywords = ["x402", "payment", "protocol", "http", "402"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
 
-[project.scripts]
+dependencies = [
+    "pydantic>=2.0.0",
+    "typing_extensions>=4.0.0",
+]
 
+[project.optional-dependencies]
+# HTTP clients - install one based on your preference
+httpx = ["httpx>=0.28.1"]
+requests = ["requests>=2.31.0"]
+
+# Server frameworks - install one based on your stack
+flask = ["flask>=3.0.0"]
+fastapi = ["fastapi[standard]>=0.115.0", "starlette>=0.27.0"]
+
+# Blockchain mechanisms - install based on which chains you need
+evm = [
+    "eth-abi>=5.0.0",
+    "eth-keys>=0.5.0",
+    "eth-utils>=4.0.0",
+    "eth-account>=0.12.0",
+    "web3>=7.0.0",
+]
+svm = [
+    "solders>=0.27.0",
+    "solana>=0.36.0",
+]
+
+# Extensions - optional functionality
+extensions = ["jsonschema>=4.0.0"]
+
+# Convenience bundles
+clients = ["x402[httpx,requests]"]
+servers = ["x402[flask,fastapi]"]
+mechanisms = ["x402[evm,svm]"]
+all = ["x402[httpx,requests,flask,fastapi,evm,svm,extensions]"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "black>=23.0.0",
+    # Include all optional deps for testing
+    "httpx>=0.28.1",
+    "requests>=2.31.0",
+    "flask>=3.0.0",
+    "fastapi[standard]>=0.115.0",
+    "starlette>=0.27.0",
+    # EVM dependencies
+    "eth-abi>=5.0.0",
+    "eth-keys>=0.5.0",
+    "eth-utils>=4.0.0",
+    "eth-account>=0.12.0",
+    "web3>=7.0.0",
+    # SVM dependencies
+    "solders>=0.27.0",
+    "solana>=0.36.0",
+    # Extensions dependencies
+    "jsonschema>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/coinbase/x402"
+Documentation = "https://x402.org"
+Repository = "https://github.com/coinbase/x402"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=1.0.0",
-    "ruff>=0.11.9",
+[tool.hatch.build.targets.sdist]
+include = [
+    "*.py",
+    "**/*.py",
+    "py.typed",
+]
+exclude = [
+    "tests/",
+    "**/__pycache__/",
 ]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-
 [tool.hatch.build.targets.wheel]
-packages = ["src/x402"]
+# Force inclusion with package name remapping
+[tool.hatch.build.targets.wheel.force-include]
+"__init__.py" = "x402/__init__.py"
+"client.py" = "x402/client.py"
+"client_base.py" = "x402/client_base.py"
+"server.py" = "x402/server.py"
+"server_base.py" = "x402/server_base.py"
+"facilitator.py" = "x402/facilitator.py"
+"facilitator_base.py" = "x402/facilitator_base.py"
+"interfaces.py" = "x402/interfaces.py"
+"py.typed" = "x402/py.typed"
+"schemas" = "x402/schemas"
+"http" = "x402/http"
+"mechanisms" = "x402/mechanisms"
+"extensions" = "x402/extensions"
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["x402"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

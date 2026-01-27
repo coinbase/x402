@@ -1,37 +1,52 @@
 import { config } from "dotenv";
-import { decodeXPaymentResponse, wrapFetchWithPayment, createSigner, type Hex } from "x402-fetch";
+import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex | string;
-const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
-const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
-const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
-
-if (!baseURL || !privateKey || !endpointPath) {
-  console.error("Missing required environment variables");
-  process.exit(1);
-}
+const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
+const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
+const endpointPath = process.env.ENDPOINT_PATH || "/weather";
+const url = `${baseURL}${endpointPath}`;
 
 /**
- * This example shows how to use the x402-fetch package to make a request to a resource server that requires a payment.
+ * Example demonstrating how to use @x402/fetch to make requests to x402-protected endpoints.
  *
- * To run this example, you need to set the following environment variables:
- * - PRIVATE_KEY: The private key of the signer
- * - RESOURCE_SERVER_URL: The URL of the resource server
- * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
+ * This uses the helper registration functions from @x402/evm and @x402/svm to register
+ * all supported networks for both v1 and v2 protocols.
+ *
+ * Required environment variables:
+ * - EVM_PRIVATE_KEY: The private key of the EVM signer
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
-  const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
+  const evmSigner = privateKeyToAccount(evmPrivateKey);
+  const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
+  const client = new x402Client();
+  registerExactEvmScheme(client, { signer: evmSigner });
+  registerExactSvmScheme(client, { signer: svmSigner });
+
+  const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+  console.log(`Making request to: ${url}\n`);
   const response = await fetchWithPayment(url, { method: "GET" });
   const body = await response.json();
-  console.log(body);
+  console.log("Response body:", body);
 
-  const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
-  console.log(paymentResponse);
+  if (response.ok) {
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+      response.headers.get(name),
+    );
+    console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
+  } else {
+    console.log(`\nNo payment settled (response status: ${response.status})`);
+  }
 }
 
 main().catch(error => {
