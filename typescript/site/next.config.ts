@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@aptos-labs/ts-sdk"],
   images: {
     formats: ["image/avif", "image/webp"],
   },
