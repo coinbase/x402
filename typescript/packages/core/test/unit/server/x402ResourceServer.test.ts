@@ -622,7 +622,7 @@ describe("x402ResourceServer", () => {
 
         await expect(
           async () => await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
-        ).rejects.toThrow("Settlement aborted: Insufficient balance");
+        ).rejects.toThrow("before_settle_hook_error: Insufficient balance");
 
         expect(mockClient.settleCalls.length).toBe(0); // Facilitator not called
       });

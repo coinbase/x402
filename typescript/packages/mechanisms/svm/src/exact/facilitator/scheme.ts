@@ -306,7 +306,8 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         isValid: false,
-        invalidReason: `transaction_simulation_failed: ${errorMessage}`,
+        invalidReason: "transaction_simulation_failed",
+        invalidMessage: errorMessage,
         payer,
       };
     }

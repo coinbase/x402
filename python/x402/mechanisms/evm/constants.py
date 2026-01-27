@@ -44,6 +44,9 @@ ERR_INSUFFICIENT_BALANCE = "insufficient_balance"
 ERR_MISSING_EIP712_DOMAIN = "missing_eip712_domain"
 ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_UNSUPPORTED_SCHEME = "unsupported_scheme"
+ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_config"
+ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
+ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
 
 
