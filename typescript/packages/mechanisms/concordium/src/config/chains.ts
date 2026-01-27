@@ -16,8 +16,8 @@ export const CONCORDIUM_MAINNET: ChainConfig = {
   name: "Concordium Mainnet",
   network: "ccd:9dd9ca4d19e9393877d2c44b70f89acb",
   v1Network: "concordium",
-  grpcUrl: "grpc.mainnet.concordium.com:20000",
-  explorerUrl: "https://dashboard.mainnet.concordium.software",
+  grpcUrl: "grpc.mainnet.concordium.software:20000",
+  explorerUrl: "https://ccdexplorer.io/mainnet",
   decimals: 6,
 };
 
@@ -26,7 +26,7 @@ export const CONCORDIUM_TESTNET: ChainConfig = {
   network: "ccd:4221332d34e1694168c2a0c0b3fd0f27",
   v1Network: "concordium-testnet",
   grpcUrl: "grpc.testnet.concordium.com:20000",
-  explorerUrl: "https://dashboard.testnet.concordium.software",
+  explorerUrl: "https://ccdexplorer.io/testnet",
   decimals: 6,
 };
 
