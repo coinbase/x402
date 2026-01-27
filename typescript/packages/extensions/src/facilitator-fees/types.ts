@@ -3,6 +3,14 @@
  *
  * This extension standardizes facilitator fee disclosure to enable
  * fee-aware multi-facilitator routing.
+ *
+ * ## Design Philosophy
+ *
+ * **Server-side routing is primary.** Servers fetch quotes from facilitators,
+ * compare costs, and select the optimal option. Clients receive a receipt.
+ *
+ * **Client preferences are optional.** Clients MAY express preferences
+ * (asset, max fee) but these are advisory—servers handle the routing.
  */
 
 /**
@@ -23,9 +31,11 @@ export type SignatureScheme = "eip191" | "ed25519";
 /**
  * Facilitator fee quote - signed fee disclosure from a facilitator
  *
+ * Obtained via the Facilitator Quote API (GET /x402/fee-quote).
+ *
  * Model-specific requirements:
  * - `flat` model: `flatFee` is REQUIRED
- * - `bps` model: `bps` REQUIRED, `maxFee` RECOMMENDED (clients may exclude uncapped quotes)
+ * - `bps` model: `bps` REQUIRED, `maxFee` RECOMMENDED (enables fee comparison)
  * - `tiered`/`hybrid` models: `maxFee` is RECOMMENDED
  */
 export interface FacilitatorFeeQuote {
@@ -56,61 +66,42 @@ export interface FacilitatorFeeQuote {
 }
 
 /**
- * A single facilitator option in the fee disclosure
- */
-export interface FacilitatorOption {
-  /** Stable facilitator identifier (MUST be a valid URL) */
-  facilitatorId: string;
-  /** Embedded signed fee quote */
-  facilitatorFeeQuote?: FacilitatorFeeQuote;
-  /** URL to fetch the signed quote directly from facilitator */
-  facilitatorFeeQuoteRef?: string;
-  /** Conservative upper bound on fee (privacy-friendly alternative) */
-  maxFacilitatorFee?: string;
-}
-
-/**
- * Info structure for PaymentRequired extension
- */
-export interface FacilitatorFeesPaymentRequiredInfo {
-  version: "1";
-  options: FacilitatorOption[];
-}
-
-/**
- * Client fee bid - constraints/preferences from client
+ * Client fee bid - optional preferences from client (advisory, not binding)
  *
- * Selection semantics:
- * - If `selectedQuoteId` is absent: Server picks any facilitator meeting `maxTotalFee`
- * - If `selectedQuoteId` is present: Server MUST use that facilitator or reject
+ * Clients MAY include this to express preferences. Servers SHOULD try to
+ * honor these but are not required to. The `amount` field in the payment
+ * is what the client consents to; this is additional context for routing.
+ *
+ * Use cases:
+ * - Cost-conscious clients: "prefer facilitators charging ≤ X"
+ * - Asset preferences: "I prefer paying fees in USDC"
+ * - Simple clients: Omit entirely—server handles everything
  */
 export interface FacilitatorFeeBid {
-  /** Maximum acceptable fee in atomic units (hard constraint) */
-  maxTotalFee: string;
-  /** Fee currency */
-  asset: string;
-  /** Explicitly select a specific quote by ID. Server MUST honor this or reject. */
-  selectedQuoteId?: string;
+  /** Maximum acceptable fee in atomic units (soft constraint, advisory) */
+  maxTotalFee?: string;
+  /** Preferred fee currency */
+  asset?: string;
 }
 
 /**
- * Info structure for PaymentPayload extension
+ * Info structure for PaymentPayload extension (client preferences)
  */
 export interface FacilitatorFeesPaymentPayloadInfo {
   version: "1";
-  facilitatorFeeBid: FacilitatorFeeBid;
+  facilitatorFeeBid?: FacilitatorFeeBid;
 }
 
 /**
- * Fee receipt - actual fee charged after settlement
+ * Fee receipt - actual fee charged after settlement (core)
+ *
+ * Provides transparency to clients about what they paid in facilitator fees.
  */
 export interface FacilitatorFeePaid {
   /** Actual fee charged in atomic units */
   facilitatorFeePaid: string;
   /** Fee currency */
   asset: string;
-  /** Quote that was used (if any) */
-  quoteId?: string;
   /** Facilitator that processed the payment */
   facilitatorId?: string;
   /** Fee model that was applied */
@@ -118,34 +109,31 @@ export interface FacilitatorFeePaid {
 }
 
 /**
- * Info structure for SettlementResponse extension
+ * Info structure for SettlementResponse extension (receipt)
+ *
+ * This is the "receipt" - shows actual fees charged after settlement.
  */
 export interface FacilitatorFeesSettlementInfo {
   version: "1";
+  /** Actual fee charged in atomic units */
   facilitatorFeePaid: string;
+  /** Fee currency */
   asset: string;
-  quoteId?: string;
+  /** Facilitator that processed the payment */
   facilitatorId?: string;
+  /** Fee model that was applied */
   model?: FeeModel;
 }
 
 /**
- * Full extension structure for PaymentRequired
- */
-export interface FacilitatorFeesPaymentRequiredExtension {
-  info: FacilitatorFeesPaymentRequiredInfo;
-  schema: Record<string, unknown>;
-}
-
-/**
- * Full extension structure for PaymentPayload
+ * Full extension structure for PaymentPayload (client preferences)
  */
 export interface FacilitatorFeesPaymentPayloadExtension {
   info: FacilitatorFeesPaymentPayloadInfo;
 }
 
 /**
- * Full extension structure for SettlementResponse
+ * Full extension structure for SettlementResponse (receipt)
  */
 export interface FacilitatorFeesSettlementExtension {
   info: FacilitatorFeesSettlementInfo;

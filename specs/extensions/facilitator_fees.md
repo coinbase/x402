@@ -2,14 +2,16 @@
 
 ## Summary
 
-The `facilitatorFees` extension standardizes **facilitator fee disclosure** to enable fee-aware multi-facilitator routing. It allows facilitators to disclose their fee structures, clients to express fee constraints, and servers to report actual fees paid after settlement.
+The `facilitatorFees` extension standardizes **facilitator fee disclosure** to enable fee-aware multi-facilitator routing. It prioritizes server-side routing (where servers select the optimal facilitator) while providing optional client-side preferences.
 
 This extension introduces:
 
-- **Facilitator Quote API** (recommended): Standardized `GET /x402/fee-quote` endpoint for dynamic quote fetching
-- **`facilitatorFeeQuote`**: Facilitator-signed fee disclosure surfaced at `PaymentRequired` time
-- **`facilitatorFeeBid`** (optional): Client fee constraints surfaced in `PaymentPayload`
-- **`facilitatorFeePaid`** (optional): Actual fee charged surfaced in `SettlementResponse`
+**Server-Side (Core):**
+- **Facilitator Quote API**: Standardized `GET /x402/fee-quote` endpoint for dynamic fee discovery
+- **`facilitatorFeePaid`**: Settlement receipt showing actual fees charged
+
+**Client-Side (Optional):**
+- **`facilitatorFeeBid`**: Client preferences for network, asset, and fee constraints
 
 ---
 
@@ -20,19 +22,36 @@ x402 v2 supports multi-facilitator routing, but there is no in-band standard for
 - Thirdweb: percentage-based fees (0.3% bps)
 
 Without standardization:
-- Clients cannot compare total cost across facilitators
+- Servers cannot compare cost across facilitators for optimal routing
 - Multi-facilitator routing cannot become a real market
 - Each facilitator invents bespoke fee disclosure formats
 
-### Connection to x402 v2 Multi-Facilitator Support
+### Design Philosophy
 
-x402 v2 introduced first-class multi-facilitator support where "the SDK chooses the best match." However, without standardized fee disclosure, "best match" cannot include cost optimization. This extension provides the missing fee metadata that enables SDKs and servers to make cost-aware routing decisions.
+**Server-side routing is primary.** In most x402 flows, the server selects which facilitator to use. The client doesn't need to know or control this decision—they care about the total `amount` they're paying. The server handles the complexity of fetching quotes, comparing fees, and routing optimally.
+
+**Client preferences are a lightweight handshake.** Clients may optionally express preferences (e.g., "I prefer USDC on Base" or "don't charge me more than X in fees") but this is not required. The server decides; the client gets a receipt.
 
 ---
 
+## Placement
+
+Uses the top-level `extensions` field following the v2 extension pattern:
+
+```
+PaymentPayload.extensions.facilitatorFees   (client → server, optional)
+SettlementResponse.extensions.facilitatorFees (server → client, receipt)
+```
+
+---
+
+# Part 1: Server-Side Fee Discovery (Core)
+
+This section covers the core components that enable servers to perform fee-aware multi-facilitator routing.
+
 ## Facilitator Quote API
 
-To enable **server-side multi-facilitator routing**, facilitators SHOULD expose a standardized quote endpoint. This API is the primary mechanism for obtaining `FacilitatorFeeQuote` objects.
+To enable **server-side multi-facilitator routing**, facilitators SHOULD expose a standardized quote endpoint. This API is the primary mechanism for obtaining fee quotes.
 
 ### Endpoint
 
@@ -94,86 +113,9 @@ This API enables:
 
 ---
 
-## `PaymentRequired`
-
-A server advertises facilitator fee options by including the `facilitatorFees` extension in the `extensions` object of the **402 Payment Required** response.
-
-The extension follows the standard v2 pattern:
-- **`info`**: Contains the fee disclosure data
-- **`schema`**: JSON Schema that validates the structure of `info`
-
-### Example
-
-```json
-{
-  "x402Version": 2,
-  "error": "Payment required",
-  "resource": {
-    "url": "https://api.example.com/data",
-    "description": "Premium data endpoint",
-    "mimeType": "application/json"
-  },
-  "accepts": [ ... ],
-  "extensions": {
-    "facilitatorFees": {
-      "info": {
-        "version": "1",
-        "options": [
-          {
-            "facilitatorId": "https://x402.org/facilitator",
-            "facilitatorFeeQuote": {
-              "quoteId": "quote_abc123",
-              "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
-              "network": "eip155:8453",
-              "model": "flat",
-              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-              "flatFee": "1000",
-              "expiry": 1737400000,
-              "signature": "0x...",
-              "signatureScheme": "eip191"
-            }
-          },
-          {
-            "facilitatorId": "https://thirdweb.io/facilitator",
-            "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/x402/fee-quote?network=eip155:8453"
-          },
-          {
-            "facilitatorId": "https://other.facilitator.io",
-            "maxFacilitatorFee": "5000"
-          }
-        ]
-      },
-      "schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "version": { "type": "string" },
-          "options": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "facilitatorId": { "type": "string", "format": "uri" },
-                "facilitatorFeeQuote": { "type": "object" },
-                "facilitatorFeeQuoteRef": { "type": "string" },
-                "maxFacilitatorFee": { "type": "string" }
-              },
-              "required": ["facilitatorId"]
-            }
-          }
-        },
-        "required": ["version", "options"]
-      }
-    }
-  }
-}
-```
-
----
-
 ## FacilitatorFeeQuote Structure
 
-The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
+The `FacilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -192,80 +134,13 @@ The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 
 See [Fee Model Semantics](#fee-model-semantics) for detailed requirements per model type.
 
-### Alternative: `facilitatorFeeQuoteRef`
-
-Instead of embedding the quote, servers MAY provide a URL where clients can fetch the quote directly. This URL typically points to the facilitator's `/x402/fee-quote` endpoint (described above):
-
-```json
-{
-  "facilitatorId": "https://thirdweb.io/facilitator",
-  "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/x402/fee-quote?network=eip155:8453&amount=100000"
-}
-```
-
-When a client fetches this URL, they receive a `FacilitatorFeeQuote` object that they can use to make an informed selection.
-
-### Alternative: `maxFacilitatorFee`
-
-For privacy or simplicity, servers MAY provide only a conservative upper bound:
-
-```json
-{
-  "facilitatorId": "https://other.facilitator.io",
-  "maxFacilitatorFee": "5000"
-}
-```
-
 ---
 
-## `PaymentPayload`
+## Settlement Receipt: `facilitatorFeePaid`
 
-Clients MAY include fee constraints in their `PaymentPayload` via the `facilitatorFees` extension:
+After settlement, servers SHOULD include a fee receipt in the `SettlementResponse`. This provides transparency to clients about the actual fees charged.
 
-```json
-{
-  "x402Version": 2,
-  "resource": { ... },
-  "accepted": { ... },
-  "payload": { ... },
-  "extensions": {
-    "facilitatorFees": {
-      "info": {
-        "version": "1",
-        "facilitatorFeeBid": {
-          "maxTotalFee": "2000",
-          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          "selectedQuoteId": "quote_abc123"
-        }
-      }
-    }
-  }
-}
-```
-
-### FacilitatorFeeBid Structure
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `maxTotalFee` | string | Yes | Maximum acceptable fee in atomic units |
-| `asset` | string | Yes | Fee currency |
-| `selectedQuoteId` | string | No | Explicitly select a specific quote |
-
-### Selection Semantics
-
-- If `selectedQuoteId` is **absent**: Server picks any facilitator meeting `maxTotalFee` constraint
-- If `selectedQuoteId` is **present**: Server **MUST** use the facilitator associated with that quote, or reject the request with an error
-- If `asset` doesn't match any available quote's asset: Server **MUST** reject with an error
-
-> **Rationale**: MUST (not SHOULD) ensures client agency is enforceable. Clients can verify the `facilitatorId` in `facilitatorFeePaid` matches their selection. Without mandatory enforcement, fee-aware routing becomes meaningless as servers could always route to more expensive facilitators.
-
-This keeps simple cases simple while enabling agency for clients who fetch quotes via `facilitatorFeeQuoteRef`.
-
----
-
-## `SettlementResponse`
-
-After settlement, servers MAY include fee receipt information:
+### Example
 
 ```json
 {
@@ -279,7 +154,6 @@ After settlement, servers MAY include fee receipt information:
         "version": "1",
         "facilitatorFeePaid": "1000",
         "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "quoteId": "quote_abc123",
         "facilitatorId": "https://x402.org/facilitator",
         "model": "flat"
       }
@@ -294,13 +168,70 @@ After settlement, servers MAY include fee receipt information:
 |-------|------|----------|-------------|
 | `facilitatorFeePaid` | string | Yes | Actual fee charged in atomic units |
 | `asset` | string | Yes | Fee currency |
-| `quoteId` | string | No | Quote that was used |
 | `facilitatorId` | string | No | Facilitator that processed payment |
 | `model` | string | No | Fee model applied |
+
+### Why This Matters
+
+The settlement receipt:
+- **Provides transparency**: Clients see exactly what they paid in facilitator fees
+- **Enables auditing**: Clients can verify fees match expectations
+- **Supports analytics**: Applications can track fee costs over time
 
 ### Core Dependency: `SettleResponse.extensions`
 
 > **✅ Resolved:** The x402 v2 spec now includes `extensions?: Record<string, unknown>` in the `SettleResponse` type (added in PR #1003). This allows extensions like `facilitatorFees` to attach metadata to settlement responses.
+
+---
+
+# Part 2: Client Fee Preferences (Optional)
+
+This section covers optional client-side features. Most clients will not need these—the server handles routing and clients get a receipt. However, clients MAY express preferences as a lightweight handshake.
+
+## `facilitatorFeeBid` in PaymentPayload
+
+Clients MAY include fee preferences in their `PaymentPayload` via the `facilitatorFees` extension. This is purely advisory—the server is not required to honor these preferences but SHOULD attempt to.
+
+### Example
+
+```json
+{
+  "x402Version": 2,
+  "resource": { ... },
+  "accepted": { ... },
+  "payload": { ... },
+  "extensions": {
+    "facilitatorFees": {
+      "info": {
+        "version": "1",
+        "facilitatorFeeBid": {
+          "maxTotalFee": "2000",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      }
+    }
+  }
+}
+```
+
+### FacilitatorFeeBid Structure
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `maxTotalFee` | string | No | Maximum acceptable fee in atomic units (soft constraint) |
+| `asset` | string | No | Preferred fee currency |
+
+### Semantics
+
+- **These are preferences, not requirements.** The server SHOULD try to honor them but MAY route differently based on availability, reliability, or other factors.
+- **The `amount` field is authoritative.** Clients already consent to the total payment amount. The fee bid is additional context for cost-conscious routing, not a mechanism to reduce the total.
+- **Simple cases need nothing.** Most clients can omit this extension entirely.
+
+### Use Cases
+
+1. **Cost-conscious clients**: Express "prefer facilitators charging ≤ $0.001"
+2. **Asset preferences**: Express "I prefer paying fees in USDC rather than native tokens"
+3. **Simple clients**: Omit the extension entirely—server handles everything
 
 ---
 
@@ -331,10 +262,10 @@ For `bps` model quotes:
 
 **Important**: BPS fees depend on the payment amount, which isn't known at quote time.
 
-Clients comparing BPS quotes to flat quotes must:
+Servers comparing BPS quotes to flat quotes must:
 1. Use `maxFee` as the upper bound for comparison if payment amount is unknown
 2. Calculate the exact fee once payment amount is determined
-3. Use `minFee` and `maxFee` bounds to filter options that could exceed `maxTotalFee`
+3. Use `minFee` and `maxFee` bounds to filter options that could exceed constraints
 
 Quotes with `bps` model that omit `maxFee` SHOULD be treated as "unknown upper bound" and MAY be excluded from fee-constrained routing.
 
@@ -379,7 +310,7 @@ asset, bps, expiry, facilitatorAddress, flatFee, maxFee, minFee, model, network,
 
 ### Verification
 
-Clients SHOULD verify quote signatures before trusting fee information:
+Servers SHOULD verify quote signatures before trusting fee information:
 
 **For EIP-191 (EVM networks):**
 1. Reconstruct the canonical payload from quote fields
@@ -398,26 +329,9 @@ Reference implementation provided in `@x402/extensions/facilitator-fees`.
 ## Expiry Handling
 
 - **Quote expiry MUST be ≥ payment's `validBefore`**: Ensures the quote remains valid for the entire payment window
-- **Server receiving expired `selectedQuoteId`**: MUST reject with error; client must re-fetch quotes
 - **Facilitator settling with expired quote**: MUST reject settlement
-- **Quote expires after verification but before settlement**: Facilitator MUST reject; client should use quotes with sufficient buffer
+- **Quote expires after verification but before settlement**: Facilitator MUST reject; servers should use quotes with sufficient buffer
 - **Grace period**: Implementations MAY allow ~30 seconds for clock skew (not required)
-
----
-
-## Privacy Considerations
-
-Servers can preserve privacy by:
-1. Providing multiple `options` without indicating which will be used
-2. Providing only `maxFacilitatorFee` without specific quotes
-3. Providing `facilitatorFeeQuoteRef` URLs so clients fetch quotes directly (server doesn't learn which quote client evaluated)
-
-**Important:**
-- Quotes SHOULD NOT include payer identity
-- Avoid stable quote identifiers that enable cross-request correlation
-- Quotes are signed and expiry-bounded; clients can retain proofs without trusting the server
-
-> **Note**: When clients fetch quotes via `facilitatorFeeQuoteRef`, the facilitator learns the client's IP address before the transaction. This is a privacy side channel. Clients requiring stronger privacy should use a proxy or prefer embedded quotes.
 
 ---
 
@@ -431,10 +345,8 @@ Servers can preserve privacy by:
 
 ## Open Questions
 
-1. **Patient bidding**: Should `facilitatorFeeBid` include a `patient` flag to indicate willingness to wait longer for a lower quote (e.g., batched settlements)?
+1. **Quote `for` field**: Should quotes include a `for` field specifying the payment amount? This would make BPS fees deterministic at quote time and enable easier fee comparison.
 
-2. **Quote `for` field**: Should quotes include a `for` field specifying the payment amount? This would make BPS fees deterministic at quote time and enable easier fee comparison.
+2. **Error codes**: Should we define standardized error codes for fee-related rejections (e.g., `QUOTE_EXPIRED`, `ASSET_MISMATCH`)?
 
-3. **Error codes**: Should we define standardized error codes for fee-related rejections (e.g., `QUOTE_EXPIRED`, `ASSET_MISMATCH`, `FEE_EXCEEDED`)?
-
-4. **Privacy guidance**: Should we provide more comprehensive privacy guidance? Considerations include: URL parameters in `facilitatorFeeQuoteRef` revealing payment context, quote ID correlation across requests, and timing analysis. Current mitigation is to prefer embedded quotes or use a proxy.
+3. **Receipt detail level**: Should `facilitatorFeePaid` include more breakdown details (e.g., base fee vs. network costs)?

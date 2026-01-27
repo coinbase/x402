@@ -2,70 +2,21 @@
  * Facilitator Fees Extension for x402 v2
  *
  * Enables fee-aware multi-facilitator routing by standardizing:
- * - FacilitatorFeeQuote: Facilitator fee disclosure at PaymentRequired time
- * - FacilitatorFeeBid: Client fee constraints in PaymentPayload
- * - FacilitatorFeePaid: Actual fee charged in SettlementResponse
+ * - **Facilitator Quote API**: Server-side fee discovery (core)
+ * - **FacilitatorFeePaid**: Settlement receipt (core)
+ * - **FacilitatorFeeBid**: Client fee preferences (optional)
+ *
+ * ## Design Philosophy
+ *
+ * **Server-side routing is primary.** Servers fetch quotes from facilitators,
+ * compare costs, and select the optimal option. Clients receive a receipt.
+ *
+ * **Client preferences are optional.** Clients MAY express preferences
+ * (asset, max fee) but these are advisory—servers handle the routing.
  *
  * ## Usage
  *
- * ### For Resource Servers (declaring fee options)
- *
- * ```typescript
- * import {
- *   declareFacilitatorFeesExtension,
- *   FACILITATOR_FEES
- * } from '@x402/extensions/facilitator-fees';
- *
- * const extension = declareFacilitatorFeesExtension([
- *   {
- *     facilitatorId: "https://x402.org/facilitator",
- *     facilitatorFeeQuote: {
- *       quoteId: "quote_123",
- *       model: "flat",
- *       asset: "0x...",
- *       flatFee: "1000",
- *       expiry: Date.now() / 1000 + 3600,
- *       signature: "0x...",
- *       signatureScheme: "eip191"
- *     }
- *   }
- * ]);
- *
- * // Include in PaymentRequired
- * const paymentRequired = {
- *   x402Version: 2,
- *   resource: { ... },
- *   accepts: [ ... ],
- *   extensions: {
- *     [FACILITATOR_FEES]: extension
- *   }
- * };
- * ```
- *
- * ### For Clients (expressing fee constraints)
- *
- * ```typescript
- * import {
- *   createFacilitatorFeeBid,
- *   FACILITATOR_FEES
- * } from '@x402/extensions/facilitator-fees';
- *
- * const bid = createFacilitatorFeeBid({
- *   maxTotalFee: "2000",
- *   asset: "0x...",
- *   selectedQuoteId: "quote_123"
- * });
- *
- * // Include in PaymentPayload
- * const paymentPayload = {
- *   ...payload,
- *   extensions: {
- *     [FACILITATOR_FEES]: bid
- *   }
- * };
- * ```
- *
- * ### For Facilitators/Servers (reporting fees paid)
+ * ### For Servers (creating settlement receipts)
  *
  * ```typescript
  * import {
@@ -76,8 +27,8 @@
  * const feePaid = createFacilitatorFeePaid({
  *   facilitatorFeePaid: "1000",
  *   asset: "0x...",
- *   quoteId: "quote_123",
- *   facilitatorId: "https://x402.org/facilitator"
+ *   facilitatorId: "https://x402.org/facilitator",
+ *   model: "flat"
  * });
  *
  * // Include in SettlementResponse
@@ -88,21 +39,54 @@
  *   }
  * };
  * ```
+ *
+ * ### For Servers (fetching fee quotes)
+ *
+ * ```typescript
+ * import { fetchFeeQuote, buildFeeQuoteUrl } from '@x402/extensions/facilitator-fees';
+ *
+ * // Fetch quotes from multiple facilitators
+ * const quotes = await Promise.all([
+ *   fetchFeeQuote("https://facilitator1.com", { network: "eip155:8453", asset: "0x..." }),
+ *   fetchFeeQuote("https://facilitator2.com", { network: "eip155:8453", asset: "0x..." }),
+ * ]);
+ *
+ * // Pick the cheapest
+ * const cheapest = quotes.filter(q => q.success).sort(...)[0];
+ * ```
+ *
+ * ### For Clients (expressing preferences - optional)
+ *
+ * ```typescript
+ * import {
+ *   createFacilitatorFeeBid,
+ *   FACILITATOR_FEES
+ * } from '@x402/extensions/facilitator-fees';
+ *
+ * const bid = createFacilitatorFeeBid({
+ *   maxTotalFee: "2000",
+ *   asset: "0x..."
+ * });
+ *
+ * // Include in PaymentPayload
+ * const paymentPayload = {
+ *   ...payload,
+ *   extensions: {
+ *     [FACILITATOR_FEES]: bid
+ *   }
+ * };
+ * ```
  */
 
 import {
-  FacilitatorFeesPaymentRequiredInfoSchema,
   FacilitatorFeesPaymentPayloadInfoSchema,
   FacilitatorFeesSettlementInfoSchema,
-  FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA,
   FeeQuoteResponseSchema,
   FeeQuoteErrorResponseSchema,
 } from "./schema";
 
 import type {
-  FacilitatorOption,
   FacilitatorFeeBid,
-  FacilitatorFeesPaymentRequiredExtension,
   FacilitatorFeesPaymentPayloadExtension,
   FacilitatorFeesSettlementExtension,
   FacilitatorFeesSettlementInfo,
@@ -115,13 +99,10 @@ export type {
   FeeModel,
   SignatureScheme,
   FacilitatorFeeQuote,
-  FacilitatorOption,
   FacilitatorFeeBid,
   FacilitatorFeePaid,
-  FacilitatorFeesPaymentRequiredInfo,
   FacilitatorFeesPaymentPayloadInfo,
   FacilitatorFeesSettlementInfo,
-  FacilitatorFeesPaymentRequiredExtension,
   FacilitatorFeesPaymentPayloadExtension,
   FacilitatorFeesSettlementExtension,
   // Quote API types
@@ -138,12 +119,11 @@ export {
   FeeModelSchema,
   SignatureSchemeSchema,
   FacilitatorFeeQuoteSchema,
-  FacilitatorOptionSchema,
   FacilitatorFeeBidSchema,
-  FacilitatorFeesPaymentRequiredInfoSchema,
   FacilitatorFeesPaymentPayloadInfoSchema,
   FacilitatorFeesSettlementInfoSchema,
-  FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA,
+  FACILITATOR_FEES_PAYMENT_PAYLOAD_JSON_SCHEMA,
+  FACILITATOR_FEES_SETTLEMENT_JSON_SCHEMA,
   // Quote API schemas
   FeeQuoteRequestSchema,
   FeeQuoteResponseSchema,
@@ -152,33 +132,17 @@ export {
 } from "./schema";
 
 /**
- * Create a facilitator fees extension for PaymentRequired
+ * Create a facilitator fee bid for PaymentPayload (client preferences)
  *
- * @param options - Array of facilitator options with fee quotes
- * @returns Extension object to include in PaymentRequired.extensions
- */
-export function declareFacilitatorFeesExtension(
-  options: FacilitatorOption[],
-): FacilitatorFeesPaymentRequiredExtension {
-  const info = { version: "1" as const, options };
-
-  // Validate
-  FacilitatorFeesPaymentRequiredInfoSchema.parse(info);
-
-  return {
-    info,
-    schema: FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA,
-  };
-}
-
-/**
- * Create a facilitator fee bid for PaymentPayload
+ * These preferences are advisory—servers SHOULD try to honor them but
+ * are not required to. The `amount` field in the payment is what the
+ * client consents to; this is additional context for routing.
  *
- * @param bid - Client fee constraints
+ * @param bid - Client fee preferences (all fields optional)
  * @returns Extension object to include in PaymentPayload.extensions
  */
 export function createFacilitatorFeeBid(
-  bid: FacilitatorFeeBid,
+  bid?: FacilitatorFeeBid,
 ): FacilitatorFeesPaymentPayloadExtension {
   const info = { version: "1" as const, facilitatorFeeBid: bid };
 
@@ -189,7 +153,9 @@ export function createFacilitatorFeeBid(
 }
 
 /**
- * Create a facilitator fee paid extension for SettlementResponse
+ * Create a facilitator fee paid extension for SettlementResponse (receipt)
+ *
+ * This provides transparency to clients about actual fees charged.
  *
  * @param feePaid - Fee payment details
  * @returns Extension object to include in SettlementResponse.extensions
@@ -203,23 +169,6 @@ export function createFacilitatorFeePaid(
   FacilitatorFeesSettlementInfoSchema.parse(info);
 
   return { info };
-}
-
-/**
- * Extract facilitator fees extension from PaymentRequired
- *
- * @param paymentRequired - PaymentRequired object with extensions
- * @param paymentRequired.extensions - Extensions map
- * @returns Parsed extension info or undefined if not present/invalid
- */
-export function extractFacilitatorFeesFromPaymentRequired(paymentRequired: {
-  extensions?: Record<string, unknown>;
-}): FacilitatorFeesPaymentRequiredExtension["info"] | undefined {
-  const ext = paymentRequired.extensions?.["facilitatorFees"] as { info?: unknown } | undefined;
-  if (!ext?.info) return undefined;
-
-  const result = FacilitatorFeesPaymentRequiredInfoSchema.safeParse(ext.info);
-  return result.success ? result.data : undefined;
 }
 
 /**
@@ -240,7 +189,7 @@ export function extractFacilitatorFeeBid(paymentPayload: {
 }
 
 /**
- * Extract facilitator fee paid from SettlementResponse
+ * Extract facilitator fee paid from SettlementResponse (receipt)
  *
  * @param settlementResponse - SettlementResponse object with extensions
  * @param settlementResponse.extensions - Extensions map
@@ -266,62 +215,6 @@ export function extractFacilitatorFeePaid(settlementResponse: {
 export function isQuoteExpired(quote: FacilitatorFeeQuote, gracePeriodSeconds = 0): boolean {
   const now = Math.floor(Date.now() / 1000);
   return now > quote.expiry + gracePeriodSeconds;
-}
-
-/**
- * Find a fee quote by ID from facilitator options
- *
- * @param options - Array of facilitator options
- * @param quoteId - Quote ID to find
- * @returns The matching option or undefined
- */
-export function findOptionByQuoteId(
-  options: FacilitatorOption[],
-  quoteId: string,
-): FacilitatorOption | undefined {
-  return options.find(opt => opt.facilitatorFeeQuote?.quoteId === quoteId);
-}
-
-/**
- * Filter facilitator options by max fee constraint
- *
- * @param options - Array of facilitator options
- * @param maxTotalFee - Maximum acceptable fee (as bigint-compatible string)
- * @param paymentAmount - Optional payment amount for BPS calculation
- * @returns Options that meet the fee constraint
- */
-export function filterOptionsByMaxFee(
-  options: FacilitatorOption[],
-  maxTotalFee: string,
-  paymentAmount?: string,
-): FacilitatorOption[] {
-  const maxFeeConstraint = BigInt(maxTotalFee);
-
-  return options.filter(opt => {
-    // If maxFacilitatorFee is provided, use it
-    if (opt.maxFacilitatorFee !== undefined) {
-      return BigInt(opt.maxFacilitatorFee) <= maxFeeConstraint;
-    }
-
-    // If we have a quote with flat fee, use it
-    if (opt.facilitatorFeeQuote?.flatFee !== undefined) {
-      return BigInt(opt.facilitatorFeeQuote.flatFee) <= maxFeeConstraint;
-    }
-
-    // If we have a BPS quote and payment amount is known, calculate
-    if (opt.facilitatorFeeQuote?.bps !== undefined && paymentAmount !== undefined) {
-      const calculatedFee = calculateBpsFee(opt.facilitatorFeeQuote, paymentAmount);
-      return calculatedFee <= maxFeeConstraint;
-    }
-
-    // If we have a quote with maxFee bound, use it
-    if (opt.facilitatorFeeQuote?.maxFee !== undefined) {
-      return BigInt(opt.facilitatorFeeQuote.maxFee) <= maxFeeConstraint;
-    }
-
-    // Can't determine fee, exclude by default
-    return false;
-  });
 }
 
 // =============================================================================
@@ -396,6 +289,31 @@ export function calculateFee(
   }
 }
 
+/**
+ * Compare two quotes and return the cheaper one
+ *
+ * @param a - First quote
+ * @param b - Second quote
+ * @param paymentAmount - Payment amount for BPS calculation
+ * @returns -1 if a is cheaper, 1 if b is cheaper, 0 if equal/incomparable
+ */
+export function compareQuotes(
+  a: FacilitatorFeeQuote,
+  b: FacilitatorFeeQuote,
+  paymentAmount?: string,
+): number {
+  const feeA = calculateFee(a, paymentAmount);
+  const feeB = calculateFee(b, paymentAmount);
+
+  if (feeA === undefined && feeB === undefined) return 0;
+  if (feeA === undefined) return 1; // b is better (known fee)
+  if (feeB === undefined) return -1; // a is better (known fee)
+
+  if (feeA < feeB) return -1;
+  if (feeA > feeB) return 1;
+  return 0;
+}
+
 // =============================================================================
 // Signature Verification
 // =============================================================================
@@ -458,41 +376,6 @@ export async function verifyQuoteSignatureEip191(
 }
 
 /**
- * Verify that the settlement response matches the client's selected quote
- *
- * Per the spec, servers MUST honor the client's `selectedQuoteId` or reject
- * the request. This function allows clients to verify enforcement.
- *
- * @param settlementInfo - Fee paid info from settlement response
- * @param selectedQuoteId - Quote ID that was selected by client
- * @param expectedFacilitatorId - Expected facilitator ID from the original quote
- * @returns Object with validation result and any error message
- */
-export function verifySettlementMatchesSelection(
-  settlementInfo: FacilitatorFeesSettlementInfo,
-  selectedQuoteId: string,
-  expectedFacilitatorId: string,
-): { valid: boolean; error?: string } {
-  // Verify quote ID matches
-  if (settlementInfo.quoteId !== selectedQuoteId) {
-    return {
-      valid: false,
-      error: `Quote ID mismatch: expected ${selectedQuoteId}, got ${settlementInfo.quoteId}. Server MUST honor selectedQuoteId per spec.`,
-    };
-  }
-
-  // Verify facilitator ID matches
-  if (settlementInfo.facilitatorId !== expectedFacilitatorId) {
-    return {
-      valid: false,
-      error: `Facilitator ID mismatch: expected ${expectedFacilitatorId}, got ${settlementInfo.facilitatorId}. Server MUST honor selectedQuoteId per spec.`,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
  * Error thrown when a quote doesn't meet fee model requirements
  */
 export class InvalidFeeQuoteError extends Error {
@@ -516,7 +399,7 @@ export class InvalidFeeQuoteError extends Error {
 /**
  * Validate that a BPS quote has the required maxFee field for fee comparison
  *
- * Per the spec, BPS model quotes MUST include maxFee to enable clients to
+ * Per the spec, BPS model quotes SHOULD include maxFee to enable servers to
  * compare fees when payment amount is unknown at quote time.
  *
  * @param quote - Fee quote to validate
@@ -525,54 +408,11 @@ export class InvalidFeeQuoteError extends Error {
 export function validateBpsQuoteHasMaxFee(quote: FacilitatorFeeQuote): void {
   if (quote.model === "bps" && quote.maxFee === undefined) {
     throw new InvalidFeeQuoteError(
-      "BPS model quote must include maxFee for fee comparison when payment amount is unknown",
+      "BPS model quote should include maxFee for fee comparison when payment amount is unknown",
       quote.model,
       "maxFee",
     );
   }
-}
-
-/**
- * Check if a quote can be used for fee-constrained routing
- *
- * Returns false for BPS quotes without maxFee since they cannot be compared
- * against maxTotalFee constraints when payment amount is unknown.
- *
- * @param option - Facilitator option to check
- * @returns True if the option can be used for fee comparison
- */
-export function canCompareForFeeRouting(option: FacilitatorOption): boolean {
-  // maxFacilitatorFee is always comparable
-  if (option.maxFacilitatorFee !== undefined) {
-    return true;
-  }
-
-  // Quote ref needs to be fetched first
-  if (option.facilitatorFeeQuoteRef !== undefined && option.facilitatorFeeQuote === undefined) {
-    return false;
-  }
-
-  const quote = option.facilitatorFeeQuote;
-  if (!quote) {
-    return false;
-  }
-
-  // Flat fee is always comparable
-  if (quote.model === "flat" && quote.flatFee !== undefined) {
-    return true;
-  }
-
-  // BPS requires maxFee for comparison
-  if (quote.model === "bps") {
-    return quote.maxFee !== undefined;
-  }
-
-  // Tiered/hybrid can use maxFee if provided
-  if ((quote.model === "tiered" || quote.model === "hybrid") && quote.maxFee !== undefined) {
-    return true;
-  }
-
-  return false;
 }
 
 // =============================================================================
@@ -598,6 +438,9 @@ export function buildFeeQuoteUrl(baseUrl: string, request: FeeQuoteRequest): str
 
 /**
  * Fetch a fee quote from a facilitator
+ *
+ * This is the primary mechanism for server-side fee discovery. Servers
+ * should call this for multiple facilitators and compare quotes.
  *
  * @param facilitatorUrl - Facilitator base URL or full quote endpoint URL
  * @param request - Quote request parameters (optional if facilitatorUrl is a full URL)
@@ -632,17 +475,69 @@ export async function fetchFeeQuote(
 }
 
 /**
- * Fetch a fee quote from a facilitatorFeeQuoteRef URL
+ * Fetch quotes from multiple facilitators in parallel
  *
- * Convenience wrapper for fetching quotes from URLs provided in PaymentRequired.
+ * Convenience wrapper for server-side multi-facilitator routing.
  *
- * @param quoteRef - The facilitatorFeeQuoteRef URL from a FacilitatorOption
- * @returns Fee quote or error response
+ * @param facilitators - Array of facilitator URLs
+ * @param request - Quote request parameters
+ * @returns Array of results (success or error for each)
  */
-export async function fetchFeeQuoteFromRef(
-  quoteRef: string,
+export async function fetchMultipleFeeQuotes(
+  facilitators: string[],
+  request: FeeQuoteRequest,
 ): Promise<
-  { success: true; quote: FacilitatorFeeQuote } | { success: false; error: string; code?: string }
+  Array<{
+    facilitator: string;
+    result:
+      | { success: true; quote: FacilitatorFeeQuote }
+      | { success: false; error: string; code?: string };
+  }>
 > {
-  return fetchFeeQuote(quoteRef);
+  const results = await Promise.all(
+    facilitators.map(async facilitator => ({
+      facilitator,
+      result: await fetchFeeQuote(facilitator, request).catch(
+        (err: Error) =>
+          ({ success: false, error: err.message }) as {
+            success: false;
+            error: string;
+            code?: string;
+          },
+      ),
+    })),
+  );
+  return results;
+}
+
+/**
+ * Find the cheapest quote from a list of results
+ *
+ * @param results - Results from fetchMultipleFeeQuotes
+ * @param paymentAmount - Payment amount for BPS calculation
+ * @returns The cheapest successful result, or undefined if none succeeded
+ */
+export function findCheapestQuote(
+  results: Array<{
+    facilitator: string;
+    result:
+      | { success: true; quote: FacilitatorFeeQuote }
+      | { success: false; error: string; code?: string };
+  }>,
+  paymentAmount?: string,
+): { facilitator: string; quote: FacilitatorFeeQuote } | undefined {
+  const successful = results.filter(
+    (r): r is { facilitator: string; result: { success: true; quote: FacilitatorFeeQuote } } =>
+      r.result.success,
+  );
+
+  if (successful.length === 0) return undefined;
+
+  // Sort by fee (cheapest first)
+  successful.sort((a, b) => compareQuotes(a.result.quote, b.result.quote, paymentAmount));
+
+  return {
+    facilitator: successful[0].facilitator,
+    quote: successful[0].result.quote,
+  };
 }

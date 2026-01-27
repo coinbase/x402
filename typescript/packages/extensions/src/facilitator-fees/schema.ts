@@ -1,5 +1,10 @@
 /**
  * Zod schemas for validating Facilitator Fees Extension data
+ *
+ * ## Design Philosophy
+ *
+ * **Server-side routing is primary.** The Quote API is the core mechanism
+ * for fee discovery. Client preferences are optional and advisory.
  */
 
 import { z } from "zod";
@@ -36,7 +41,7 @@ const BaseFacilitatorFeeQuoteSchema = z.object({
  * Facilitator fee quote schema with model-specific validation
  *
  * - `flat` model: requires `flatFee`
- * - `bps` model: requires `bps`, `maxFee` RECOMMENDED (clients may exclude uncapped BPS quotes)
+ * - `bps` model: requires `bps`, `maxFee` RECOMMENDED (enables fee comparison)
  * - `tiered`/`hybrid` models: `maxFee` recommended but not required
  */
 export const FacilitatorFeeQuoteSchema = BaseFacilitatorFeeQuoteSchema.superRefine((data, ctx) => {
@@ -56,73 +61,48 @@ export const FacilitatorFeeQuoteSchema = BaseFacilitatorFeeQuoteSchema.superRefi
     });
   }
   // Note: maxFee is RECOMMENDED for BPS (enables fee comparison) but not required.
-  // Clients may exclude BPS quotes without maxFee from fee-constrained routing.
 });
 
 /**
- * Facilitator option schema
- */
-export const FacilitatorOptionSchema = z
-  .object({
-    facilitatorId: z.string().url(),
-    facilitatorFeeQuote: FacilitatorFeeQuoteSchema.optional(),
-    facilitatorFeeQuoteRef: z.string().url().optional(),
-    maxFacilitatorFee: z.string().optional(),
-  })
-  .refine(
-    data =>
-      data.facilitatorFeeQuote !== undefined ||
-      data.facilitatorFeeQuoteRef !== undefined ||
-      data.maxFacilitatorFee !== undefined,
-    {
-      message:
-        "At least one of facilitatorFeeQuote, facilitatorFeeQuoteRef, or maxFacilitatorFee must be provided",
-    },
-  );
-
-/**
- * PaymentRequired info schema
- */
-export const FacilitatorFeesPaymentRequiredInfoSchema = z.object({
-  version: z.literal("1"),
-  options: z.array(FacilitatorOptionSchema).min(1),
-});
-
-/**
- * Facilitator fee bid schema
+ * Facilitator fee bid schema (client preferences - optional and advisory)
+ *
+ * All fields are optional. Servers SHOULD try to honor preferences but are not required to.
  */
 export const FacilitatorFeeBidSchema = z.object({
-  maxTotalFee: z.string(),
-  asset: z.string(),
-  selectedQuoteId: z.string().optional(),
+  maxTotalFee: z.string().optional(),
+  asset: z.string().optional(),
 });
 
 /**
- * PaymentPayload info schema
+ * PaymentPayload info schema (client preferences)
  */
 export const FacilitatorFeesPaymentPayloadInfoSchema = z.object({
   version: z.literal("1"),
-  facilitatorFeeBid: FacilitatorFeeBidSchema,
+  facilitatorFeeBid: FacilitatorFeeBidSchema.optional(),
 });
 
 /**
- * SettlementResponse info schema
+ * SettlementResponse info schema (receipt - core)
+ *
+ * The settlement receipt provides transparency about actual fees charged.
  */
 export const FacilitatorFeesSettlementInfoSchema = z.object({
   version: z.literal("1"),
   facilitatorFeePaid: z.string(),
   asset: z.string(),
-  quoteId: z.string().optional(),
   facilitatorId: z.string().optional(),
   model: FeeModelSchema.optional(),
 });
 
 // =============================================================================
-// Facilitator Quote API Schemas (GET /x402/fee-quote)
+// Facilitator Quote API Schemas (GET /x402/fee-quote) - Core
 // =============================================================================
 
 /**
  * Fee quote request schema (query parameters)
+ *
+ * This is the primary mechanism for fee discovery. Servers call this API
+ * to get quotes from multiple facilitators for cost-aware routing.
  */
 export const FeeQuoteRequestSchema = z.object({
   network: z.string(),
@@ -155,53 +135,36 @@ export const FeeQuoteErrorResponseSchema = z.object({
 });
 
 /**
- * JSON Schema for PaymentRequired extension (for embedding in the extension)
+ * JSON Schema for PaymentPayload extension (for embedding in the extension)
  */
-export const FACILITATOR_FEES_PAYMENT_REQUIRED_JSON_SCHEMA = {
+export const FACILITATOR_FEES_PAYMENT_PAYLOAD_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   properties: {
     version: { type: "string", const: "1" },
-    options: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          facilitatorId: { type: "string" },
-          facilitatorFeeQuote: {
-            type: "object",
-            properties: {
-              quoteId: { type: "string" },
-              facilitatorAddress: { type: "string" },
-              network: { type: "string" },
-              model: { type: "string", enum: ["flat", "bps", "tiered", "hybrid"] },
-              asset: { type: "string" },
-              flatFee: { type: "string" },
-              bps: { type: "number", minimum: 0, maximum: 10000 },
-              minFee: { type: "string" },
-              maxFee: { type: "string" },
-              expiry: { type: "number" },
-              signature: { type: "string" },
-              signatureScheme: { type: "string", enum: ["eip191", "ed25519"] },
-            },
-            required: [
-              "quoteId",
-              "facilitatorAddress",
-              "network",
-              "model",
-              "asset",
-              "expiry",
-              "signature",
-              "signatureScheme",
-            ],
-          },
-          facilitatorFeeQuoteRef: { type: "string", format: "uri" },
-          maxFacilitatorFee: { type: "string" },
-        },
-        required: ["facilitatorId"],
+    facilitatorFeeBid: {
+      type: "object",
+      properties: {
+        maxTotalFee: { type: "string" },
+        asset: { type: "string" },
       },
-      minItems: 1,
     },
   },
-  required: ["version", "options"],
+  required: ["version"],
+} as const;
+
+/**
+ * JSON Schema for SettlementResponse extension (receipt)
+ */
+export const FACILITATOR_FEES_SETTLEMENT_JSON_SCHEMA = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  type: "object",
+  properties: {
+    version: { type: "string", const: "1" },
+    facilitatorFeePaid: { type: "string" },
+    asset: { type: "string" },
+    facilitatorId: { type: "string" },
+    model: { type: "string", enum: ["flat", "bps", "tiered", "hybrid"] },
+  },
+  required: ["version", "facilitatorFeePaid", "asset"],
 } as const;
