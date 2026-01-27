@@ -80,8 +80,8 @@ func TestBeforeVerifyHook_Abort(t *testing.T) {
 	// Check that it's a VerifyError with the correct reason
 	ve := &VerifyError{}
 	if errors.As(err, &ve) {
-		if ve.Reason != "Security check failed" {
-			t.Errorf("Expected reason='Security check failed', got '%s'", ve.Reason)
+		if ve.InvalidReason != "Security check failed" {
+			t.Errorf("Expected reason='Security check failed', got '%s'", ve.InvalidReason)
 		}
 	} else {
 		t.Errorf("Expected *VerifyError, got %T", err)
@@ -285,8 +285,8 @@ func TestBeforeSettleHook_Abort(t *testing.T) {
 	// Check that it's a SettleError with the correct reason
 	se := &SettleError{}
 	if errors.As(err, &se) {
-		if se.Reason != "Insufficient funds" {
-			t.Errorf("Expected reason='Insufficient funds', got '%s'", se.Reason)
+		if se.ErrorReason != "Insufficient funds" {
+			t.Errorf("Expected reason='Insufficient funds', got '%s'", se.ErrorReason)
 		}
 	} else {
 		t.Errorf("Expected *SettleError, got %T", err)
