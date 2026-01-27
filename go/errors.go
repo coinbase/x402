@@ -64,9 +64,9 @@ type VerifyError struct {
 // Error implements the error interface
 func (e *VerifyError) Error() string {
 	if e.InvalidMessage != "" {
-		return fmt.Sprintf("verification failed: %s (reason: %s)", e.InvalidMessage, e.InvalidReason)
+		return fmt.Sprintf("%s: %s", e.InvalidReason, e.InvalidMessage)
 	}
-	return fmt.Sprintf("verification failed: %s", e.InvalidReason)
+	return e.InvalidReason
 }
 
 // NewVerifyError creates a new verification error
@@ -102,9 +102,9 @@ type SettleError struct {
 // Error implements the error interface
 func (e *SettleError) Error() string {
 	if e.ErrorMessage != "" {
-		return fmt.Sprintf("settlement failed: %s (reason: %s)", e.ErrorMessage, e.ErrorReason)
+		return fmt.Sprintf("%s: %s", e.ErrorReason, e.ErrorMessage)
 	}
-	return fmt.Sprintf("settlement failed: %s", e.ErrorReason)
+	return e.ErrorReason
 }
 
 // NewSettleError creates a new settlement error

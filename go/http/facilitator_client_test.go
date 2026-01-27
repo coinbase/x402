@@ -204,15 +204,58 @@ func TestHTTPFacilitatorClientVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
 	if !response.IsValid {
 		t.Error("Expected valid response")
 	}
 	if response.Payer != "0xverifiedpayer" {
 		t.Errorf("Expected payer 0xverifiedpayer, got %s", response.Payer)
+	}
+}
+
+func TestHTTPFacilitatorClientVerifyInvalidResponse(t *testing.T) {
+	ctx := context.Background()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"isValid":`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{
+		URL: server.URL,
+	})
+
+	requirements := x402.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{"sig": "test"},
+	}
+
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for invalid verify response")
+	}
+
+	var verifyErr *x402.VerifyError
+	if !errors.As(err, &verifyErr) {
+		t.Fatalf("Expected VerifyError, got: %T (%v)", err, err)
+	}
+	if verifyErr.InvalidReason != x402.ErrInvalidResponse {
+		t.Errorf("Expected InvalidReason %q, got %q", x402.ErrInvalidResponse, verifyErr.InvalidReason)
+	}
+	if verifyErr.InvalidMessage == "" {
+		t.Error("Expected InvalidMessage to be set for invalid response")
 	}
 }
 
@@ -263,10 +306,6 @@ func TestHTTPFacilitatorClientSettle(t *testing.T) {
 	response, err := client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
 	}
 	if !response.Success {
 		t.Error("Expected successful settlement")
