@@ -1,6 +1,6 @@
-import { PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
+import { PaymentRequirements, SchemeNetworkClient, PaymentPayloadResult } from "@x402/core/types";
 import { ClientEvmSigner } from "../../signer";
-import { AssetTransferMethod, PaymentPayloadResult } from "../../types";
+import { AssetTransferMethod } from "../../types";
 import { createEIP3009Payload } from "./eip3009";
 import { createPermit2Payload } from "./permit2";
 

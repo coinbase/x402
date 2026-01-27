@@ -78,7 +78,6 @@ describe("EVM Types", () => {
           witness: {
             to: "0x9876543210987654321098765432109876543210",
             validAfter: "1234567000",
-            validBefore: "1234567890",
             extra: "0x",
           },
         },
@@ -117,7 +116,6 @@ describe("EVM Types", () => {
         witness: {
           to: "0x9876543210987654321098765432109876543210",
           validAfter: "1234567000",
-          validBefore: "1234567890",
           extra: "0x",
         },
       },
