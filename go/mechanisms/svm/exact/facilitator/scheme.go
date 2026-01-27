@@ -120,8 +120,13 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", network, err)
 	}
 
-	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-	if len(tx.Message.Instructions) != 3 {
+	// Allow 3, 4, or 5 instructions:
+	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
+	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse (Phantom wallet protection)
+	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse (Solflare wallet protection)
+	// See: https://github.com/coinbase/x402/issues/828
+	numInstructions := len(tx.Message.Instructions)
+	if numInstructions < 3 || numInstructions > 5 {
 		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", network, nil)
 	}
 
@@ -158,7 +163,26 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
 	}
 
-	// Step 5: Sign and Simulate Transaction
+	// Step 5: Verify Lighthouse Instructions (if present)
+	// - 4th instruction: Lighthouse program (Phantom wallet protection)
+	// - 5th instruction: Lighthouse program (Solflare wallet adds 2 Lighthouse instructions)
+	if numInstructions >= 4 {
+		fourthProgID := tx.Message.AccountKeys[tx.Message.Instructions[3].ProgramIDIndex]
+		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
+		if !fourthProgID.Equals(lighthousePubkey) {
+			return nil, x402.NewVerifyError(ErrUnknownFourthInstruction, payer, network, nil)
+		}
+	}
+
+	if numInstructions == 5 {
+		fifthProgID := tx.Message.AccountKeys[tx.Message.Instructions[4].ProgramIDIndex]
+		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
+		if !fifthProgID.Equals(lighthousePubkey) {
+			return nil, x402.NewVerifyError(ErrUnknownFifthInstruction, payer, network, nil)
+		}
+	}
+
+	// Step 6: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 
 	// feePayer already validated in Step 1
