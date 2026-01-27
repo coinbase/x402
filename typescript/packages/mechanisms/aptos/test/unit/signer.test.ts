@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { Account } from "@aptos-labs/ts-sdk";
 import { createClientSigner, toFacilitatorAptosSigner } from "../../src/signer";
 
