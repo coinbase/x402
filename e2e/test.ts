@@ -55,51 +55,6 @@ async function setupPermit2Approval(): Promise<boolean> {
   });
 }
 
-/**
- * Run Permit2 teardown script to revoke the approval after tests complete
- */
-async function teardownPermit2Approval(): Promise<boolean> {
-  return new Promise((resolve) => {
-    log('\n🔒 Revoking Permit2 approval (cleanup)...');
-
-    const child = spawn('pnpm', ['permit2:revoke'], {
-      cwd: process.cwd(),
-      stdio: 'pipe',
-      shell: true,
-    });
-
-    let stderr = '';
-
-    child.stdout?.on('data', (data) => {
-      verboseLog(data.toString().trim());
-    });
-
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-      verboseLog(data.toString().trim());
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        log('  ✅ Permit2 approval revoked');
-        resolve(true);
-      } else {
-        // Don't fail the test run for teardown failures
-        errorLog(`  ⚠️  Permit2 revoke failed (exit code ${code})`);
-        if (stderr) {
-          errorLog(`  Error: ${stderr}`);
-        }
-        resolve(false);
-      }
-    });
-
-    child.on('error', (error) => {
-      errorLog(`  ⚠️  Failed to run Permit2 revoke: ${error.message}`);
-      resolve(false);
-    });
-  });
-}
-
 // Load environment variables
 config();
 
@@ -434,14 +389,13 @@ async function runTest() {
   }
   log('');
 
-  // Auto-detect Permit2 scenarios and setup approval if needed
+  // Auto-detect Permit2 scenarios and ensure approval exists
   const hasPermit2Scenarios = filteredScenarios.some(
     (s) => s.endpoint.permit2 === true
   );
-  let permit2SetupComplete = false;
 
   if (hasPermit2Scenarios) {
-    log('🔐 Permit2 scenarios detected - setting up approval...');
+    log('🔐 Permit2 scenarios detected - checking approval...');
     const setupSuccess = await setupPermit2Approval();
     if (!setupSuccess) {
       errorLog(
@@ -452,7 +406,6 @@ async function runTest() {
       );
       process.exit(1);
     }
-    permit2SetupComplete = true;
   }
 
   // Collect unique facilitators and servers
@@ -739,11 +692,6 @@ async function runTest() {
       serverPorts,
       facilitatorServerMap
     );
-  }
-
-  // Teardown Permit2 approval if it was set up
-  if (permit2SetupComplete) {
-    await teardownPermit2Approval();
   }
 
   // Clean up facilitators (servers already stopped in test loop)

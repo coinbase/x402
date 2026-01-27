@@ -166,7 +166,6 @@ export const x402UptoPermit2ProxyABI = [
           { name: "deadline", type: "uint256", internalType: "uint256" },
         ],
       },
-      { name: "amount", type: "uint256", internalType: "uint256" },
       { name: "owner", type: "address", internalType: "address" },
       {
         name: "witness",
@@ -217,7 +216,6 @@ export const x402UptoPermit2ProxyABI = [
           { name: "deadline", type: "uint256", internalType: "uint256" },
         ],
       },
-      { name: "amount", type: "uint256", internalType: "uint256" },
       { name: "owner", type: "address", internalType: "address" },
       {
         name: "witness",
