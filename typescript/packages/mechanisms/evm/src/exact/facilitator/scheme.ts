@@ -8,7 +8,7 @@ import {
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
-import { ExactEvmPayloadV2 } from "../../types";
+import { ExactEvmPayloadV2, ExactEIP3009Payload, isPermit2Payload } from "../../types";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -76,7 +76,19 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
-    const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload as ExactEvmPayloadV2;
+
+    // Reject Permit2 payloads - facilitator only supports EIP-3009 currently
+    if (isPermit2Payload(rawPayload)) {
+      return {
+        isValid: false,
+        invalidReason: "unsupported_payload_type",
+        payer: rawPayload.permit2Authorization.from,
+      };
+    }
+
+    // Type-narrowed to EIP-3009 payload
+    const exactEvmPayload: ExactEIP3009Payload = rawPayload;
 
     // Verify scheme matches
     if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
@@ -268,7 +280,21 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<SettleResponse> {
-    const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload as ExactEvmPayloadV2;
+
+    // Reject Permit2 payloads - facilitator only supports EIP-3009 currently
+    if (isPermit2Payload(rawPayload)) {
+      return {
+        success: false,
+        network: payload.accepted.network,
+        transaction: "",
+        errorReason: "unsupported_payload_type",
+        payer: rawPayload.permit2Authorization.from,
+      };
+    }
+
+    // Type-narrowed to EIP-3009 payload
+    const exactEvmPayload: ExactEIP3009Payload = rawPayload;
 
     // Re-verify before settling
     const valid = await this.verify(payload, requirements);
