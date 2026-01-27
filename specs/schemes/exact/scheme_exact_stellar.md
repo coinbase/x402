@@ -5,9 +5,18 @@
 - ❌ `v1` - we don't plan to support v1 for now.
 - ✅ `v2`
 
+## Supported Networks
+
+This spec uses [CAIP-2](https://namespaces.chainagnostic.org/stellar/caip2) identifiers:
+- `stellar:pubnet` — Stellar mainnet
+- `stellar:testnet` — Stellar testnet
+
 ## Summary
 
-The x402 `exact` scheme on Stellar uses [smart contract token transfers][SEP-41] where the facilitator sponsors transaction fees while the client controls fund flow via signed authorization entries.
+The x402 `exact` scheme on Stellar uses [Soroban token transfers][SEP-41] where the facilitator sponsors transaction fees while the client controls fund flow via signed authorization entries.
+
+> [!NOTE]
+> **Scope:** This spec covers [SEP-41]-compliant Soroban tokens **only**. Classic Stellar assets are not supported.
 
 ## Protocol Flow
 
@@ -112,6 +121,8 @@ A facilitator verifying an `exact` scheme on Stellar MUST enforce all of the fol
 ### 3. Authorization Entries
 
 - The transaction MUST contain signed authorization entries for the `from` address.
+- Auth entries MUST use credential type `sorobanCredentialsAddress` only.
+- The `rootInvocation` MUST NOT contain `subInvocations` that authorize additional operations beyond the transfer.
 - The facilitator MUST verify that all required signers have signed their auth entries.
 - The auth entry expiration ledger MUST NOT exceed `currentLedger + ceil(maxTimeoutSeconds / estimatedLedgerSeconds)`.
   - NOTE: implementations should use the current network estimate for `estimatedLedgerSeconds` when available (fallback to `5` seconds).
