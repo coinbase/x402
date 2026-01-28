@@ -86,10 +86,13 @@ export type {
   SIWxVerifyResult,
   EVMMessageVerifier,
   SIWxVerifyOptions,
+  SupportedChain,
 } from "./types";
+export type { CompleteSIWxInfo } from "./client";
 
 // Server
 export { declareSIWxExtension } from "./declare";
+export { siwxResourceServerExtension } from "./server";
 export { parseSIWxHeader } from "./parse";
 export { validateSIWxMessage } from "./validate";
 export { verifySIWxSignature } from "./verify";

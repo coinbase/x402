@@ -7,7 +7,8 @@
 
 import { verifyMessage } from "viem";
 import { SiweMessage } from "siwe";
-import type { SIWxExtensionInfo, EVMMessageVerifier } from "./types";
+import type { EVMMessageVerifier } from "./types";
+import type { CompleteSIWxInfo } from "./client";
 
 /**
  * Extract numeric chain ID from CAIP-2 EVM chainId.
@@ -56,7 +57,7 @@ export function extractEVMChainId(chainId: string): number {
  * // Issued At: 2024-01-01T00:00:00.000Z"
  * ```
  */
-export function formatSIWEMessage(info: SIWxExtensionInfo, address: string): string {
+export function formatSIWEMessage(info: CompleteSIWxInfo, address: string): string {
   const numericChainId = extractEVMChainId(info.chainId);
 
   const siweMessage = new SiweMessage({

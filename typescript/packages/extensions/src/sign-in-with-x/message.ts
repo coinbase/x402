@@ -7,7 +7,7 @@
 
 import { formatSIWEMessage } from "./evm";
 import { formatSIWSMessage } from "./solana";
-import type { SIWxExtensionInfo } from "./types";
+import type { CompleteSIWxInfo } from "./client";
 
 /**
  * Construct CAIP-122 compliant message string for signing.
@@ -17,7 +17,7 @@ import type { SIWxExtensionInfo } from "./types";
  * - `eip155:*` → SIWE (EIP-4361) format via siwe library
  * - `solana:*` → SIWS format
  *
- * @param serverInfo - Server-provided extension info
+ * @param serverInfo - Server extension info with chain selected (includes chainId)
  * @param address - Client wallet address
  * @returns Message string ready for signing
  * @throws Error if chainId namespace is not supported
@@ -25,13 +25,11 @@ import type { SIWxExtensionInfo } from "./types";
  * @example
  * ```typescript
  * // EVM (Ethereum, Base, etc.)
- * const evmMessage = createSIWxMessage(serverInfo, "0x1234...");
- *
- * // Solana
- * const solMessage = createSIWxMessage(serverInfo, "BSmWDg...");
+ * const completeInfo = { ...extension.info, chainId: "eip155:8453", type: "eip191" };
+ * const evmMessage = createSIWxMessage(completeInfo, "0x1234...");
  * ```
  */
-export function createSIWxMessage(serverInfo: SIWxExtensionInfo, address: string): string {
+export function createSIWxMessage(serverInfo: CompleteSIWxInfo, address: string): string {
   // Route by chain namespace
   if (serverInfo.chainId.startsWith("eip155:")) {
     return formatSIWEMessage(serverInfo, address);

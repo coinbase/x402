@@ -7,10 +7,25 @@
 
 import { decodePaymentRequiredHeader } from "@x402/core/http";
 import type { SIWxSigner } from "./sign";
-import type { SIWxExtensionInfo } from "./types";
+import type { SIWxExtension } from "./types";
 import { SIGN_IN_WITH_X } from "./types";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
+
+/**
+ * Helper to extract signer's chain ID from signer object.
+ *
+ * @param signer - Wallet signer (EVMSigner or SolanaSigner)
+ * @returns CAIP-2 chain ID (e.g., "eip155:1" or "solana:5eykt...")
+ */
+async function getSignerChainIdForFetch(signer: SIWxSigner): Promise<string> {
+  if ("getChainId" in signer && typeof signer.getChainId === "function") {
+    return await signer.getChainId();
+  }
+  // Fallback: detect from signer properties
+  const isEVM = "address" in signer || "account" in signer;
+  return isEVM ? "eip155:1" : "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+}
 
 /**
  * Wraps fetch to automatically handle SIWX authentication.
@@ -57,11 +72,9 @@ export function wrapFetchWithSIWx(fetch: typeof globalThis.fetch, signer: SIWxSi
     }
 
     const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
-    const siwxExtension = paymentRequired.extensions?.[SIGN_IN_WITH_X] as
-      | { info: SIWxExtensionInfo }
-      | undefined;
+    const siwxExtension = paymentRequired.extensions?.[SIGN_IN_WITH_X] as SIWxExtension | undefined;
 
-    if (!siwxExtension?.info) {
+    if (!siwxExtension?.supportedChains) {
       return response; // Server doesn't support SIWX, return original 402
     }
 
@@ -70,8 +83,25 @@ export function wrapFetchWithSIWx(fetch: typeof globalThis.fetch, signer: SIWxSi
       throw new Error("SIWX authentication already attempted");
     }
 
+    // Get signer's chain and find matching chain in supportedChains
+    const signerChainId = await getSignerChainIdForFetch(signer);
+    const matchingChain = siwxExtension.supportedChains.find(
+      chain => chain.chainId === signerChainId,
+    );
+
+    if (!matchingChain) {
+      return response; // Chain not supported, return original 402
+    }
+
+    // Build complete info with selected chain
+    const completeInfo = {
+      ...siwxExtension.info,
+      chainId: matchingChain.chainId,
+      type: matchingChain.type,
+    };
+
     // Create and send SIWX proof
-    const payload = await createSIWxPayload(siwxExtension.info, signer);
+    const payload = await createSIWxPayload(completeInfo, signer);
     const siwxHeader = encodeSIWxHeader(payload);
 
     clonedRequest.headers.set(SIGN_IN_WITH_X, siwxHeader);

@@ -9,6 +9,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import {
   declareSIWxExtension,
+  siwxResourceServerExtension,
   createSIWxSettleHook,
   createSIWxRequestHook,
   InMemorySIWxStorage,
@@ -34,10 +35,11 @@ const NETWORK = "eip155:84532" as const;
 // Shared storage for tracking paid addresses
 const storage = new InMemorySIWxStorage();
 
-// Configure resource server with SIWX settle hook
+// Configure resource server with SIWX extension and settle hook
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, new ExactEvmScheme())
+  .registerExtension(siwxResourceServerExtension)
   .onAfterSettle(createSIWxSettleHook({ storage }));
 
 /**

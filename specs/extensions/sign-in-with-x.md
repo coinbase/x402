@@ -33,15 +33,18 @@ A Server advertises SIWX support by including the `sign-in-with-x` key in the `e
         "domain": "api.example.com",
         "uri": "https://api.example.com/premium-data",
         "version": "1",
-        "chainId": "eip155:8453",
-        "type": "eip191",
         "nonce": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
         "issuedAt": "2024-01-15T10:30:00.000Z",
         "expirationTime": "2024-01-15T10:35:00.000Z",
         "statement": "Sign in to access premium data",
-        "resources": ["https://api.example.com/premium-data"],
-        "signatureScheme": "eip191"
+        "resources": ["https://api.example.com/premium-data"]
       },
+      "supportedChains": [
+        {
+          "chainId": "eip155:8453",
+          "type": "eip191"
+        }
+      ],
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -78,6 +81,46 @@ A Server advertises SIWX support by including the `sign-in-with-x` key in the `e
 }
 ```
 
+### Multi-Chain Support
+
+Servers supporting multiple chains (e.g., both EVM and Solana) can include multiple entries in `supportedChains`:
+
+```json
+{
+  "x402Version": "2",
+  "accepts": [...],
+  "extensions": {
+    "sign-in-with-x": {
+      "info": {
+        "domain": "api.example.com",
+        "uri": "https://api.example.com/premium-data",
+        "version": "1",
+        "nonce": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
+        "issuedAt": "2024-01-15T10:30:00.000Z",
+        "expirationTime": "2024-01-15T10:35:00.000Z",
+        "statement": "Sign in to access premium data",
+        "resources": ["https://api.example.com/premium-data"]
+      },
+      "supportedChains": [
+        {
+          "chainId": "eip155:8453",
+          "type": "eip191"
+        },
+        {
+          "chainId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "type": "ed25519"
+        }
+      ],
+      "schema": {...}
+    }
+  }
+}
+```
+
+Clients match their wallet's `chainId` against `supportedChains` and use the first matching entry. The same `nonce` is shared across all chains, preventing replay attacks when authenticating with different wallets.
+
+---
+
 ## Client Request
 
 To authenticate, the Client signs the challenge message and sends the proof in the `SIGN-IN-WITH-X` HTTP header as base64-encoded JSON.
@@ -112,6 +155,8 @@ The base64 header decodes to:
 
 ## Server-Declared Fields
 
+### Message Metadata (`info`)
+
 The Server includes these fields in `extensions["sign-in-with-x"].info`:
 
 | Field | Type | Required | Description |
@@ -119,8 +164,6 @@ The Server includes these fields in `extensions["sign-in-with-x"].info`:
 | `domain` | `string` | Required | Server's domain (e.g., `"api.example.com"`). MUST match the request host. |
 | `uri` | `string` | Required | Full resource URI being accessed. |
 | `version` | `string` | Required | CAIP-122 version. Always `"1"`. |
-| `chainId` | `string` | Required | CAIP-2 chain identifier (e.g., `"eip155:8453"`). |
-| `type` | `string` | Required | Signature algorithm: `"eip191"` for EVM, `"ed25519"` for Solana. |
 | `nonce` | `string` | Required | Cryptographic nonce (32 hex characters). Server MUST generate this. |
 | `issuedAt` | `string` | Required | ISO 8601 timestamp when challenge was created. |
 | `statement` | `string` | Optional | Human-readable purpose for signing. |
@@ -128,7 +171,18 @@ The Server includes these fields in `extensions["sign-in-with-x"].info`:
 | `notBefore` | `string` | Optional | ISO 8601 timestamp before which the signature is not valid. |
 | `requestId` | `string` | Optional | Correlation ID for the request. |
 | `resources` | `string[]` | Optional | URIs associated with the request. |
+
+### Authentication Methods (`supportedChains[]`)
+
+The Server declares supported authentication methods in `extensions["sign-in-with-x"].supportedChains`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `chainId` | `string` | Required | CAIP-2 chain identifier (e.g., `"eip155:8453"`, `"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"`). |
+| `type` | `string` | Required | Signature algorithm: `"eip191"` for EVM, `"ed25519"` for Solana. |
 | `signatureScheme` | `string` | Optional | Hint for client signing UX: `"eip191"`, `"eip1271"`, `"eip6492"`, or `"siws"`. |
+
+Clients select the first entry in `supportedChains` that matches their wallet's chain.
 
 ---
 

@@ -7,7 +7,7 @@
 
 import { base58 } from "@scure/base";
 import nacl from "tweetnacl";
-import type { SIWxExtensionInfo } from "./types";
+import type { CompleteSIWxInfo } from "./client";
 
 /**
  * Common Solana network CAIP-2 identifiers.
@@ -59,7 +59,7 @@ export function extractSolanaChainReference(chainId: string): string {
  * // Issued At: 2024-01-01T00:00:00.000Z"
  * ```
  */
-export function formatSIWSMessage(info: SIWxExtensionInfo, address: string): string {
+export function formatSIWSMessage(info: CompleteSIWxInfo, address: string): string {
   const lines: string[] = [
     `${info.domain} wants you to sign in with your Solana account:`,
     address,
