@@ -75,15 +75,15 @@ When configuring payment requirements, you have two options:
 1. **Price String** (e.g., `"$0.01"`) - The system infers USDC as the token
 2. **TokenAmount** - Specify exact atomic units of any EIP-3009 token
 
-#### Using Custom EIP-3009 Tokens
+#### Using Custom Tokens
+
+**For EIP-3009 Tokens (Recommended)**
 
 To use a custom EIP-3009 token, you need three key pieces of information:
 
 1. **Token Address**: The contract address of your EIP-3009 token
 2. **EIP-712 Name**: The token's name for EIP-712 signatures
 3. **EIP-712 Version**: The token's version for EIP-712 signatures
-
-**Finding Token Information on Basescan**
 
 You can retrieve the required EIP-712 values from any block explorer:
 
@@ -100,6 +100,43 @@ These values are used in the `eip712` nested object when configuring TokenAmount
   }
 }
 ```
+
+**For Non-EIP-3009 Tokens (Permit2)**
+
+To use any ERC-20 token via Permit2, specify the `assetTransferMethod` in your price configuration:
+
+```typescript
+{
+  "GET /api/resource": {
+    accepts: [{
+      payTo: "0xYourAddress",
+      scheme: "exact",
+      network: "eip155:8453",
+      price: {
+        amount: "1000000",  // Token amount in atomic units
+        asset: "0xYourTokenAddress",
+        extra: {
+          assetTransferMethod: "permit2",  // Use Permit2 for this token
+        },
+      },
+    }],
+  },
+}
+```
+
+**Client Requirements for Permit2**
+
+When using Permit2, clients must approve the Permit2 contract once before making payments:
+
+```typescript
+import { createPermit2ApprovalTx, PERMIT2_ADDRESS } from "@x402/evm";
+
+// One-time approval per token
+const tx = createPermit2ApprovalTx(tokenAddress);
+await walletClient.sendTransaction(tx);
+```
+
+After approval, payments work like EIP-3009 - clients sign payment authorizations and the facilitator handles gas.
 
 #### Solana: SPL Tokens & Token 2022 Tokens
 
