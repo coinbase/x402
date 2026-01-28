@@ -10,6 +10,7 @@
 - `guides/` — How-to guides (MCP server, v1→v2 migration)
 - `README.md` — Welcome/landing page
 - `docs.json` — Mintlify navigation and configuration
+- `sdk-features.md` - Feature list of SDKs
 
 ## Code-to-Doc Mapping
 - Changes to `typescript/packages/core/src/` affect Core Concepts docs
@@ -43,6 +44,7 @@
 - `core-concepts/*.md` — Conceptual documentation
 - `getting-started/*.mdx` — Quickstart guides (MDX for tab components)
 - `guides/*.md` — How-to guides
+- `sdk-features.md` — Update when SDK capabilities change
 
 ## File Extensions
 - Use `.md` for standard markdown pages
@@ -105,3 +107,12 @@ If the code changes are limited to:
 - Legacy packages (`typescript/packages/legacy/*`, `go/legacy`, `python/legacy`)
 
 Then report "No documentation updates needed" and **do not create a PR**.
+
+### SDK Feature Parity Document
+
+When SDK code changes involve:
+- New mechanisms in `*/mechanisms/`
+- New extensions in `*/extensions/`
+- New hooks in client/server/facilitator files
+
+Update `sdk-features.md` to reflect the current state. Check all three SDKs (typescript/, go/, python/) when updating.
