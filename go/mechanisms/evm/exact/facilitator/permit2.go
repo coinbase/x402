@@ -26,7 +26,7 @@ func VerifyPermit2(
 
 	// Verify scheme matches
 	if payload.Accepted.Scheme != evm.SchemeExact || requirements.Scheme != evm.SchemeExact {
-		return nil, x402.NewVerifyError(evm.ErrUnsupportedPayloadType, payer, "scheme mismatch")
+		return nil, x402.NewVerifyError(ErrUnsupportedPayloadType, payer, "scheme mismatch")
 	}
 
 	// Verify network matches
@@ -43,12 +43,12 @@ func VerifyPermit2(
 
 	// Verify spender is x402ExactPermit2Proxy
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Spender, evm.X402ExactPermit2ProxyAddress) {
-		return nil, x402.NewVerifyError(evm.ErrPermit2InvalidSpender, payer, "invalid spender")
+		return nil, x402.NewVerifyError(ErrPermit2InvalidSpender, payer, "invalid spender")
 	}
 
 	// Verify witness.to matches payTo
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Witness.To, requirements.PayTo) {
-		return nil, x402.NewVerifyError(evm.ErrPermit2RecipientMismatch, payer, "recipient mismatch")
+		return nil, x402.NewVerifyError(ErrPermit2RecipientMismatch, payer, "recipient mismatch")
 	}
 
 	// Parse and verify deadline not expired (with buffer for block time)
@@ -59,7 +59,7 @@ func VerifyPermit2(
 	}
 	deadlineThreshold := big.NewInt(now + evm.Permit2DeadlineBuffer)
 	if deadline.Cmp(deadlineThreshold) < 0 {
-		return nil, x402.NewVerifyError(evm.ErrPermit2DeadlineExpired, payer, "deadline expired")
+		return nil, x402.NewVerifyError(ErrPermit2DeadlineExpired, payer, "deadline expired")
 	}
 
 	// Parse and verify validAfter is not in the future
@@ -69,7 +69,7 @@ func VerifyPermit2(
 	}
 	nowBig := big.NewInt(now)
 	if validAfter.Cmp(nowBig) > 0 {
-		return nil, x402.NewVerifyError(evm.ErrPermit2NotYetValid, payer, "not yet valid")
+		return nil, x402.NewVerifyError(ErrPermit2NotYetValid, payer, "not yet valid")
 	}
 
 	// Parse and verify amount is sufficient
@@ -82,12 +82,12 @@ func VerifyPermit2(
 		return nil, x402.NewVerifyError(ErrInvalidRequiredAmount, payer, "invalid required amount format")
 	}
 	if authAmount.Cmp(requiredAmount) < 0 {
-		return nil, x402.NewVerifyError(evm.ErrPermit2InsufficientAmount, payer, "insufficient amount")
+		return nil, x402.NewVerifyError(ErrPermit2InsufficientAmount, payer, "insufficient amount")
 	}
 
 	// Verify token matches
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Permitted.Token, requirements.Asset) {
-		return nil, x402.NewVerifyError(evm.ErrPermit2TokenMismatch, payer, "token mismatch")
+		return nil, x402.NewVerifyError(ErrPermit2TokenMismatch, payer, "token mismatch")
 	}
 
 	// Verify signature
@@ -98,7 +98,7 @@ func VerifyPermit2(
 
 	valid, err := verifyPermit2Signature(ctx, signer, permit2Payload.Permit2Authorization, signatureBytes, chainID)
 	if err != nil || !valid {
-		return nil, x402.NewVerifyError(evm.ErrPermit2InvalidSignature, payer, "invalid signature")
+		return nil, x402.NewVerifyError(ErrPermit2InvalidSignature, payer, "invalid signature")
 	}
 
 	// Check Permit2 allowance
@@ -106,7 +106,7 @@ func VerifyPermit2(
 		common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address))
 	if err == nil {
 		if allowanceBig, ok := allowance.(*big.Int); ok && allowanceBig.Cmp(requiredAmount) < 0 {
-			return nil, x402.NewVerifyError(evm.ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
+			return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
 		}
 	}
 
@@ -261,17 +261,17 @@ func parsePermit2Error(err error) string {
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "AmountExceedsPermitted"):
-		return evm.ErrPermit2AmountExceedsPermitted
+		return ErrPermit2AmountExceedsPermitted
 	case strings.Contains(msg, "InvalidDestination"):
-		return evm.ErrPermit2InvalidDestination
+		return ErrPermit2InvalidDestination
 	case strings.Contains(msg, "InvalidOwner"):
-		return evm.ErrPermit2InvalidOwner
+		return ErrPermit2InvalidOwner
 	case strings.Contains(msg, "PaymentTooEarly"):
-		return evm.ErrPermit2PaymentTooEarly
+		return ErrPermit2PaymentTooEarly
 	case strings.Contains(msg, "InvalidSignature"), strings.Contains(msg, "SignatureExpired"):
-		return evm.ErrPermit2InvalidSignature
+		return ErrPermit2InvalidSignature
 	case strings.Contains(msg, "InvalidNonce"):
-		return evm.ErrPermit2InvalidNonce
+		return ErrPermit2InvalidNonce
 	default:
 		return ErrFailedToExecuteTransfer
 	}

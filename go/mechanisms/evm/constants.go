@@ -33,10 +33,8 @@ const (
 	// EIP-1271 magic value (returned by isValidSignature on success)
 	EIP1271MagicValue = "0x1626ba7e"
 
-	// Error codes matching TypeScript implementation
-	ErrInvalidSignature            = "invalid_exact_evm_payload_signature"
-	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"
-	ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed"
+	// Shared error constants (used by verify_universal.go and other shared utilities)
+	ErrUndeployedSmartWallet = "invalid_exact_evm_payload_undeployed_smart_wallet"
 
 	// Permit2 constants
 	// PERMIT2Address is the canonical Uniswap Permit2 contract address.
@@ -54,22 +52,6 @@ const (
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
 	Permit2DeadlineBuffer = 6
-
-	// Permit2 error codes
-	ErrPermit2AllowanceRequired      = "permit2_allowance_required"
-	ErrPermit2InvalidSpender         = "invalid_permit2_spender"
-	ErrPermit2RecipientMismatch      = "invalid_permit2_recipient_mismatch"
-	ErrPermit2DeadlineExpired        = "permit2_deadline_expired"
-	ErrPermit2NotYetValid            = "permit2_not_yet_valid"
-	ErrPermit2InsufficientAmount     = "permit2_insufficient_amount"
-	ErrPermit2TokenMismatch          = "permit2_token_mismatch"
-	ErrPermit2InvalidSignature       = "invalid_permit2_signature"
-	ErrPermit2AmountExceedsPermitted = "permit2_amount_exceeds_permitted"
-	ErrPermit2InvalidDestination     = "permit2_invalid_destination"
-	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
-	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
-	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
-	ErrUnsupportedPayloadType        = "unsupported_payload_type"
 )
 
 var (

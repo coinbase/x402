@@ -90,7 +90,7 @@ func main() {
 	 * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
 	 * on the Base Sepolia testnet with bazaar discovery extension.
 	 */
-	// Declare bazaar discovery extension for the GET endpoint
+	// Declare bazaar discovery extension for GET endpoints
 	discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
 		bazaar.MethodGET,
 		nil, // No query params
@@ -112,32 +112,6 @@ func main() {
 	)
 	if err != nil {
 		fmt.Printf("Warning: Failed to create bazaar extension: %v\n", err)
-	}
-
-	// Declare bazaar discovery extension for Permit2 endpoint
-	permit2DiscoveryExtension, err := bazaar.DeclareDiscoveryExtension(
-		bazaar.MethodGET,
-		nil, // No query params
-		nil, // No input schema
-		"",  // No body type (GET method)
-		&types.OutputConfig{
-			Example: map[string]interface{}{
-				"message":   "Permit2 endpoint accessed successfully",
-				"timestamp": "2024-01-01T00:00:00Z",
-				"method":    "permit2",
-			},
-			Schema: types.JSONSchema{
-				"properties": map[string]interface{}{
-					"message":   map[string]interface{}{"type": "string"},
-					"timestamp": map[string]interface{}{"type": "string"},
-					"method":    map[string]interface{}{"type": "string"},
-				},
-				"required": []string{"message", "timestamp", "method"},
-			},
-		},
-	)
-	if err != nil {
-		fmt.Printf("Warning: Failed to create permit2 bazaar extension: %v\n", err)
 	}
 
 	routes := x402http.RoutesConfig{
@@ -185,7 +159,7 @@ func main() {
 				},
 			},
 			Extensions: map[string]interface{}{
-				types.BAZAAR: permit2DiscoveryExtension,
+				types.BAZAAR: discoveryExtension,
 			},
 		},
 	}

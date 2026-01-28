@@ -288,11 +288,11 @@ func (f *ExactEvmScheme) settleEIP3009(
 				// Deploy wallet
 				err := f.deploySmartWallet(ctx, sigData)
 				if err != nil {
-					return nil, x402.NewSettleError(evm.ErrSmartWalletDeploymentFailed, verifyResp.Payer, network, "", err.Error())
+					return nil, x402.NewSettleError(ErrSmartWalletDeploymentFailed, verifyResp.Payer, network, "", err.Error())
 				}
 			} else {
 				// Deployment not enabled - fail settlement
-				return nil, x402.NewSettleError(evm.ErrUndeployedSmartWallet, verifyResp.Payer, network, "", "")
+				return nil, x402.NewSettleError(ErrUndeployedSmartWallet, verifyResp.Payer, network, "", "")
 			}
 		}
 	}
