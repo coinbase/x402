@@ -223,6 +223,7 @@ export type ProcessSettleSuccessResponse = SettleResponse & {
 export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
+  errorMessage?: string;
 };
 
 export type ProcessSettleResultResponse =
@@ -544,6 +545,8 @@ export class x402HTTPResourceServer {
           ...settleResponse,
           success: false,
           errorReason: settleResponse.errorReason || "Settlement failed",
+          errorMessage:
+            settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
         };
       }
 
@@ -558,6 +561,7 @@ export class x402HTTPResourceServer {
         return {
           success: false,
           errorReason: error.errorReason || error.message,
+          errorMessage: error.errorMessage || error.errorReason || error.message,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
@@ -566,6 +570,7 @@ export class x402HTTPResourceServer {
       return {
         success: false,
         errorReason: error instanceof Error ? error.message : "Settlement failed",
+        errorMessage: error instanceof Error ? error.message : "Settlement failed",
         network: requirements.network as Network,
         transaction: "",
       };
@@ -717,10 +722,14 @@ export class x402HTTPResourceServer {
     customHtml?: string,
     unpaidResponse?: UnpaidResponseResult,
   ): HTTPResponseInstructions {
+    // Use 412 Precondition Failed for permit2_allowance_required error
+    // This signals client needs to approve Permit2 before retrying
+    const status = paymentRequired.error === "permit2_allowance_required" ? 412 : 402;
+
     if (isWebBrowser) {
       const html = this.generatePaywallHTML(paymentRequired, paywallConfig, customHtml);
       return {
-        status: 402,
+        status,
         headers: { "Content-Type": "text/html" },
         body: html,
         isHtml: true,
@@ -734,7 +743,7 @@ export class x402HTTPResourceServer {
     const body = unpaidResponse ? unpaidResponse.body : {};
 
     return {
-      status: 402,
+      status,
       headers: {
         "Content-Type": contentType,
         ...response.headers,

@@ -9,6 +9,7 @@ export type VerifyRequest = {
 export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string;
+  invalidMessage?: string;
   payer?: string;
   extensions?: Record<string, unknown>;
 };
@@ -21,6 +22,7 @@ export type SettleRequest = {
 export type SettleResponse = {
   success: boolean;
   errorReason?: string;
+  errorMessage?: string;
   payer?: string;
   transaction: string;
   network: Network;
@@ -45,6 +47,7 @@ export type SupportedResponse = {
  */
 export class VerifyError extends Error {
   readonly invalidReason?: string;
+  readonly invalidMessage?: string;
   readonly payer?: string;
   readonly statusCode: number;
 
@@ -55,10 +58,13 @@ export class VerifyError extends Error {
    * @param response - The verify response containing error details
    */
   constructor(statusCode: number, response: VerifyResponse) {
-    super(`verification failed: ${response.invalidReason || "unknown reason"}`);
+    const reason = response.invalidReason || "unknown reason";
+    const message = response.invalidMessage;
+    super(message ? `${reason}: ${message}` : reason);
     this.name = "VerifyError";
     this.statusCode = statusCode;
     this.invalidReason = response.invalidReason;
+    this.invalidMessage = response.invalidMessage;
     this.payer = response.payer;
   }
 }
@@ -68,6 +74,7 @@ export class VerifyError extends Error {
  */
 export class SettleError extends Error {
   readonly errorReason?: string;
+  readonly errorMessage?: string;
   readonly payer?: string;
   readonly transaction: string;
   readonly network: Network;
@@ -80,10 +87,13 @@ export class SettleError extends Error {
    * @param response - The settle response containing error details
    */
   constructor(statusCode: number, response: SettleResponse) {
-    super(`settlement failed: ${response.errorReason || "unknown reason"}`);
+    const reason = response.errorReason || "unknown reason";
+    const message = response.errorMessage;
+    super(message ? `${reason}: ${message}` : reason);
     this.name = "SettleError";
     this.statusCode = statusCode;
     this.errorReason = response.errorReason;
+    this.errorMessage = response.errorMessage;
     this.payer = response.payer;
     this.transaction = response.transaction;
     this.network = response.network;
