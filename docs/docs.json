@@ -59,8 +59,19 @@
           "core-concepts/client-server",
           "core-concepts/facilitator",
           "core-concepts/wallet",
-          "core-concepts/network-and-token-support",
-          "core-concepts/bazaar-discovery-layer"
+          "core-concepts/network-and-token-support"
+        ]
+      },
+      {
+        "group": "Extensions",
+        "pages": [
+          "extensions/bazaar"
+        ]
+      },
+      {
+        "group": "Advanced Concepts",
+        "pages": [
+          "advanced-concepts/lifecycle-hooks"
         ]
       },
       {
