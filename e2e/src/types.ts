@@ -43,6 +43,7 @@ export interface TestEndpoint {
   description: string;
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
+  permit2?: boolean; // Endpoint requires Permit2 approval
   health?: boolean;
   close?: boolean;
 }

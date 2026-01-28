@@ -245,6 +245,41 @@ describe("ExactEvmSchemeV1", () => {
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_exact_evm_payload_recipient_mismatch");
     });
+
+    it("should reject if network not supported", async () => {
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "unknown-network",
+        payload: {
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: "0",
+            validBefore: "999999999999",
+            nonce: "0x00",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "unknown-network",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: {},
+      };
+
+      const result = await facilitator.verify(payload as never, requirements as never);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_network");
+    });
   });
 
   describe("settle", () => {
