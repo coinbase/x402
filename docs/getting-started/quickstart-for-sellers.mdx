@@ -433,6 +433,105 @@ interface RouteConfig {
 
 When a request is made to these routes without payment, your server will respond with the HTTP 402 Payment Required code and payment instructions.
 
+**Using Permit2 for Custom Tokens**
+
+By default, x402 uses EIP-3009 for token transfers (works with USDC and other EIP-3009 tokens). For tokens that don't support EIP-3009, you can use Permit2:
+
+<Tabs>
+  <Tab title="Express">
+    ```typescript
+    app.use(
+      paymentMiddleware(
+        {
+          "GET /custom-token": {
+            accepts: [{
+              scheme: "exact",
+              network: "eip155:84532",
+              payTo,
+              price: {
+                amount: "1000000",  // 1 USDC (6 decimals)
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",  // Token address
+                extra: {
+                  assetTransferMethod: "permit2",  // Use Permit2
+                },
+              },
+            }],
+          },
+        },
+        server,
+      ),
+    );
+    ```
+  </Tab>
+  <Tab title="Next.js">
+    ```typescript
+    export const middleware = paymentProxy(
+      {
+        "/api/custom-token": {
+          accepts: [{
+            scheme: "exact",
+            network: "eip155:84532",
+            payTo,
+            price: {
+              amount: "1000000",
+              asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+              extra: {
+                assetTransferMethod: "permit2",
+              },
+            },
+          }],
+        },
+      },
+      server,
+    );
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    Routes: x402http.RoutesConfig{
+        "GET /custom-token": {
+            Accepts: x402http.PaymentOptions{
+                {
+                    Scheme:  "exact",
+                    PayTo:   payTo,
+                    Network: network,
+                    Price: x402http.TokenAmount{
+                        Amount: "1000000",
+                        Asset:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                        Extra: map[string]interface{}{
+                            "assetTransferMethod": "permit2",
+                        },
+                    },
+                },
+            },
+        },
+    },
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    routes: dict[str, RouteConfig] = {
+        "GET /custom-token": RouteConfig(
+            accepts=[
+                PaymentOption(
+                    scheme="exact",
+                    pay_to=pay_to,
+                    network="eip155:84532",
+                    price=TokenAmount(
+                        amount="1000000",
+                        asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                        extra={"assetTransferMethod": "permit2"},
+                    ),
+                ),
+            ],
+        ),
+    }
+    ```
+  </Tab>
+</Tabs>
+
+**Note:** Clients using Permit2 must approve the Permit2 contract once before making payments. See [Network & Token Support](/core-concepts/network-and-token-support) for details.
+
 ### 3. Test Your Integration
 
 To verify:
