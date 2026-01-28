@@ -114,6 +114,32 @@ func main() {
 		fmt.Printf("Warning: Failed to create bazaar extension: %v\n", err)
 	}
 
+	// Declare bazaar discovery extension for Permit2 endpoint
+	permit2DiscoveryExtension, err := bazaar.DeclareDiscoveryExtension(
+		bazaar.MethodGET,
+		nil, // No query params
+		nil, // No input schema
+		"",  // No body type (GET method)
+		&types.OutputConfig{
+			Example: map[string]interface{}{
+				"message":   "Permit2 endpoint accessed successfully",
+				"timestamp": "2024-01-01T00:00:00Z",
+				"method":    "permit2",
+			},
+			Schema: types.JSONSchema{
+				"properties": map[string]interface{}{
+					"message":   map[string]interface{}{"type": "string"},
+					"timestamp": map[string]interface{}{"type": "string"},
+					"method":    map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"message", "timestamp", "method"},
+			},
+		},
+	)
+	if err != nil {
+		fmt.Printf("Warning: Failed to create permit2 bazaar extension: %v\n", err)
+	}
+
 	routes := x402http.RoutesConfig{
 		"GET /protected": {
 			Accepts: x402http.PaymentOptions{
@@ -139,6 +165,27 @@ func main() {
 			},
 			Extensions: map[string]interface{}{
 				types.BAZAAR: discoveryExtension,
+			},
+		},
+		// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
+		"GET /protected-permit2": {
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Network: evmNetwork,
+					// Use pre-parsed price with assetTransferMethod to force Permit2
+					Price: map[string]interface{}{
+						"amount": "1000", // 0.001 USDC (6 decimals)
+						"asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+						"extra": map[string]interface{}{
+							"assetTransferMethod": "permit2",
+						},
+					},
+				},
+			},
+			Extensions: map[string]interface{}{
+				types.BAZAAR: permit2DiscoveryExtension,
 			},
 		},
 	}
@@ -219,6 +266,27 @@ func main() {
 	})
 
 	/**
+	 * Protected Permit2 endpoint - requires payment via Permit2 flow
+	 *
+	 * This endpoint demonstrates the Permit2 payment flow.
+	 * Clients must have approved Permit2 to spend their USDC before accessing.
+	 */
+	r.GET("/protected-permit2", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Permit2 endpoint accessed successfully",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"method":    "permit2",
+		})
+	})
+
+	/**
 	 * Health check endpoint - no payment required
 	 *
 	 * Used to verify the server is running and responsive.
@@ -276,10 +344,11 @@ func main() {
 ║  SVM Payee:   %-40s ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected      (requires $0.001 EVM payment) ║
-║  • GET  /protected-svm  (requires $0.001 SVM payment) ║
-║  • GET  /health         (no payment required)         ║
-║  • POST /close          (shutdown server)             ║
+║  • GET  /protected         (EIP-3009 payment)         ║
+║  • GET  /protected-svm     (SVM payment)              ║
+║  • GET  /protected-permit2 (Permit2 payment)          ║
+║  • GET  /health            (no payment required)      ║
+║  • POST /close             (shutdown server)          ║
 ╚════════════════════════════════════════════════════════╝
 `, port, evmNetwork, evmPayeeAddress, svmNetwork, svmPayeeAddress)
 
@@ -292,14 +361,4 @@ func main() {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func maskPrivateKey(key string) string {
-	if key == "" {
-		return "not configured"
-	}
-	if len(key) > 10 {
-		return key[:10] + "..."
-	}
-	return key
 }

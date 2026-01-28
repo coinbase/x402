@@ -16,6 +16,9 @@ const (
 	FunctionReceiveWithAuthorization  = "receiveWithAuthorization"
 	FunctionAuthorizationState        = "authorizationState"
 
+	// Permit2 function names
+	FunctionSettle = "settle"
+
 	// Transaction status
 	TxStatusSuccess = 1
 	TxStatusFailed  = 0
@@ -34,6 +37,39 @@ const (
 	ErrInvalidSignature            = "invalid_exact_evm_payload_signature"
 	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"
 	ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed"
+
+	// Permit2 constants
+	// PERMIT2Address is the canonical Uniswap Permit2 contract address.
+	// Same address on all EVM chains via CREATE2 deployment.
+	PERMIT2Address = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+
+	// X402ExactPermit2ProxyAddress is the x402 exact payment proxy.
+	// Vanity address: 0x4020...0001 for easy recognition.
+	X402ExactPermit2ProxyAddress = "0x4020615294c913F045dc10f0a5cdEbd86c280001"
+
+	// X402UptoPermit2ProxyAddress is the x402 upto payment proxy.
+	// Vanity address: 0x4020...0002 for easy recognition.
+	X402UptoPermit2ProxyAddress = "0x4020633461b2895a48930Ff97eE8fCdE8E520002"
+
+	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
+	// deadline expiration to account for block propagation time.
+	Permit2DeadlineBuffer = 6
+
+	// Permit2 error codes
+	ErrPermit2AllowanceRequired      = "permit2_allowance_required"
+	ErrPermit2InvalidSpender         = "invalid_permit2_spender"
+	ErrPermit2RecipientMismatch      = "invalid_permit2_recipient_mismatch"
+	ErrPermit2DeadlineExpired        = "permit2_deadline_expired"
+	ErrPermit2NotYetValid            = "permit2_not_yet_valid"
+	ErrPermit2InsufficientAmount     = "permit2_insufficient_amount"
+	ErrPermit2TokenMismatch          = "permit2_token_mismatch"
+	ErrPermit2InvalidSignature       = "invalid_permit2_signature"
+	ErrPermit2AmountExceedsPermitted = "permit2_amount_exceeds_permitted"
+	ErrPermit2InvalidDestination     = "permit2_invalid_destination"
+	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
+	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
+	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
+	ErrUnsupportedPayloadType        = "unsupported_payload_type"
 )
 
 var (
@@ -150,4 +186,125 @@ var (
 			"type": "function"
 		}
 	]`)
+
+	// ERC20AllowanceABI for checking Permit2 approval
+	ERC20AllowanceABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "owner", "type": "address"},
+				{"name": "spender", "type": "address"}
+			],
+			"name": "allowance",
+			"outputs": [{"name": "", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// ERC20ApproveABI for approving Permit2
+	ERC20ApproveABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "spender", "type": "address"},
+				{"name": "amount", "type": "uint256"}
+			],
+			"name": "approve",
+			"outputs": [{"name": "", "type": "bool"}],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		}
+	]`)
+
+	// ERC20BalanceOfABI for checking token balance
+	ERC20BalanceOfABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "account", "type": "address"}
+			],
+			"name": "balanceOf",
+			"outputs": [{"name": "", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// X402ExactPermit2ProxySettleABI for calling settle on x402ExactPermit2Proxy
+	X402ExactPermit2ProxySettleABI = []byte(`[
+		{
+			"type": "function",
+			"name": "settle",
+			"inputs": [
+				{
+					"name": "permit",
+					"type": "tuple",
+					"components": [
+						{
+							"name": "permitted",
+							"type": "tuple",
+							"components": [
+								{"name": "token", "type": "address"},
+								{"name": "amount", "type": "uint256"}
+							]
+						},
+						{"name": "nonce", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"}
+					]
+				},
+				{"name": "owner", "type": "address"},
+				{
+					"name": "witness",
+					"type": "tuple",
+					"components": [
+						{"name": "to", "type": "address"},
+						{"name": "validAfter", "type": "uint256"},
+						{"name": "extra", "type": "bytes"}
+					]
+				},
+				{"name": "signature", "type": "bytes"}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// EIP712DomainTypes defines the standard EIP-712 domain type for Permit2.
+	// Permit2 uses name + chainId + verifyingContract (no version field).
+	EIP712DomainTypes = []TypedDataField{
+		{Name: "name", Type: "string"},
+		{Name: "chainId", Type: "uint256"},
+		{Name: "verifyingContract", Type: "address"},
+	}
+
+	// Permit2WitnessTypes defines the EIP-712 types for Permit2 with witness.
+	// Field order MUST match the on-chain Permit2 contract and TypeScript implementation.
+	Permit2WitnessTypes = map[string][]TypedDataField{
+		"PermitWitnessTransferFrom": {
+			{Name: "permitted", Type: "TokenPermissions"},
+			{Name: "spender", Type: "address"},
+			{Name: "nonce", Type: "uint256"},
+			{Name: "deadline", Type: "uint256"},
+			{Name: "witness", Type: "Witness"},
+		},
+		"TokenPermissions": {
+			{Name: "token", Type: "address"},
+			{Name: "amount", Type: "uint256"},
+		},
+		"Witness": {
+			{Name: "to", Type: "address"},
+			{Name: "validAfter", Type: "uint256"},
+			{Name: "extra", Type: "bytes"},
+		},
+	}
 )
+
+// GetPermit2EIP712Types returns the complete EIP-712 types map for Permit2 signing.
+// This combines the EIP712Domain with the Permit2-specific types.
+// Use this function instead of defining types locally to ensure consistency.
+func GetPermit2EIP712Types() map[string][]TypedDataField {
+	return map[string][]TypedDataField{
+		"EIP712Domain":              EIP712DomainTypes,
+		"PermitWitnessTransferFrom": Permit2WitnessTypes["PermitWitnessTransferFrom"],
+		"TokenPermissions":          Permit2WitnessTypes["TokenPermissions"],
+		"Witness":                   Permit2WitnessTypes["Witness"],
+	}
+}
