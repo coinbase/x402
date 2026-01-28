@@ -11,21 +11,7 @@ import type { SIWxExtension } from "./types";
 import { SIGN_IN_WITH_X } from "./types";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
-
-/**
- * Helper to extract signer's chain ID from signer object.
- *
- * @param signer - Wallet signer (EVMSigner or SolanaSigner)
- * @returns CAIP-2 chain ID (e.g., "eip155:1" or "solana:5eykt...")
- */
-async function getSignerChainIdForFetch(signer: SIWxSigner): Promise<string> {
-  if ("getChainId" in signer && typeof signer.getChainId === "function") {
-    return await signer.getChainId();
-  }
-  // Fallback: detect from signer properties
-  const isEVM = "address" in signer || "account" in signer;
-  return isEVM ? "eip155:1" : "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-}
+import { getSignerChainId } from "./sign";
 
 /**
  * Wraps fetch to automatically handle SIWX authentication.
@@ -84,7 +70,7 @@ export function wrapFetchWithSIWx(fetch: typeof globalThis.fetch, signer: SIWxSi
     }
 
     // Get signer's chain and find matching chain in supportedChains
-    const signerChainId = await getSignerChainIdForFetch(signer);
+    const signerChainId = await getSignerChainId(signer);
     const matchingChain = siwxExtension.supportedChains.find(
       chain => chain.chainId === signerChainId,
     );

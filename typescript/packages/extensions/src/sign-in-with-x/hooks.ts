@@ -13,6 +13,7 @@ import { validateSIWxMessage } from "./validate";
 import { verifySIWxSignature } from "./verify";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
+import { getSignerChainId } from "./sign";
 
 /**
  * Extracts the payer address from a payment payload.
@@ -153,30 +154,6 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
       });
     }
   };
-}
-
-/**
- * Helper to extract signer's chain ID.
- * Attempts to call getChainId if available, otherwise detects from address format.
- *
- * @param signer - Wallet signer (EVMSigner or SolanaSigner)
- * @returns CAIP-2 chain ID (e.g., "eip155:1" or "solana:5eykt...")
- */
-async function getSignerChainId(signer: SIWxSigner): Promise<string> {
-  // Try direct getChainId method if available
-  if ("getChainId" in signer && typeof signer.getChainId === "function") {
-    return await signer.getChainId();
-  }
-
-  // Fallback: detect from address format
-  const isEVM = "address" in signer || "account" in signer;
-  if (isEVM) {
-    // EVM signers - default to mainnet, but this should be overridden by actual chain
-    return "eip155:1";
-  } else {
-    // Solana signers - default to mainnet
-    return "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-  }
 }
 
 /**
