@@ -8,7 +8,9 @@ config();
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 
-const signer = privateKeyToAccount(evmPrivateKey);
+const signer = Object.assign(privateKeyToAccount(evmPrivateKey), {
+  getChainId: () => "eip155:84532", // Base Sepolia - must match server
+});
 
 // Configure client with SIWX hook - automatically tries SIWX auth before payment
 const client = new x402Client();
