@@ -91,3 +91,35 @@ export async function signSolanaMessage(message: string, signer: SolanaSigner): 
   const signatureBytes = await signer.signMessage(messageBytes);
   return encodeBase58(signatureBytes);
 }
+
+/**
+ * Extracts the chain ID from a signer.
+ *
+ * Attempts to call signer.getChainId() if available, otherwise detects
+ * from address format as a fallback.
+ *
+ * @param signer - Wallet signer (EVMSigner or SolanaSigner)
+ * @returns CAIP-2 chain ID (e.g., "eip155:1" or "solana:5eykt...")
+ *
+ * @example
+ * ```typescript
+ * const chainId = await getSignerChainId(signer);
+ * // "eip155:8453" for EVM or "solana:..." for Solana
+ * ```
+ */
+export async function getSignerChainId(signer: SIWxSigner): Promise<string> {
+  // Try direct getChainId method if available
+  if ("getChainId" in signer && typeof signer.getChainId === "function") {
+    return await signer.getChainId();
+  }
+
+  // Fallback: detect from address format
+  const isEVM = "address" in signer || "account" in signer;
+  if (isEVM) {
+    // EVM signers - default to mainnet (should be overridden with getChainId)
+    return "eip155:1";
+  } else {
+    // Solana signers - default to mainnet
+    return "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+  }
+}
