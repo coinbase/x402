@@ -5,7 +5,7 @@
  */
 
 import type { SIWxStorage } from "./storage";
-import type { SIWxExtensionInfo, SIWxVerifyOptions } from "./types";
+import type { SIWxExtension, SIWxVerifyOptions } from "./types";
 import type { SIWxSigner } from "./sign";
 import { SIGN_IN_WITH_X } from "./types";
 import { parseSIWxHeader } from "./parse";
@@ -156,7 +156,34 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 }
 
 /**
+ * Helper to extract signer's chain ID.
+ * Attempts to call getChainId if available, otherwise detects from address format.
+ *
+ * @param signer - Wallet signer (EVMSigner or SolanaSigner)
+ * @returns CAIP-2 chain ID (e.g., "eip155:1" or "solana:5eykt...")
+ */
+async function getSignerChainId(signer: SIWxSigner): Promise<string> {
+  // Try direct getChainId method if available
+  if ("getChainId" in signer && typeof signer.getChainId === "function") {
+    return await signer.getChainId();
+  }
+
+  // Fallback: detect from address format
+  const isEVM = "address" in signer || "account" in signer;
+  if (isEVM) {
+    // EVM signers - default to mainnet, but this should be overridden by actual chain
+    return "eip155:1";
+  } else {
+    // Solana signers - default to mainnet
+    return "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+  }
+}
+
+/**
  * Creates an onPaymentRequired hook for client-side SIWX authentication.
+ *
+ * Supports both single-chain and multi-chain servers. For multi-chain servers,
+ * automatically selects the matching chain from supportedChains array.
  *
  * @param signer - Wallet signer for creating SIWX proofs
  * @returns Hook function for x402HTTPClient.onPaymentRequired()
@@ -171,14 +198,33 @@ export function createSIWxClientHook(signer: SIWxSigner) {
   return async (context: {
     paymentRequired: { extensions?: Record<string, unknown> };
   }): Promise<{ headers: Record<string, string> } | void> => {
-    const siwxExtension = context.paymentRequired.extensions?.[SIGN_IN_WITH_X] as
-      | { info: SIWxExtensionInfo }
-      | undefined;
+    const extensions = context.paymentRequired.extensions ?? {};
+    const siwxExtension = extensions[SIGN_IN_WITH_X] as SIWxExtension | undefined;
 
-    if (!siwxExtension?.info) return;
+    if (!siwxExtension?.supportedChains) return;
 
     try {
-      const payload = await createSIWxPayload(siwxExtension.info, signer);
+      // Get signer's exact chain ID
+      const signerChainId = await getSignerChainId(signer);
+
+      // Find matching chain in supportedChains
+      const matchingChain = siwxExtension.supportedChains.find(
+        chain => chain.chainId === signerChainId,
+      );
+
+      if (!matchingChain) {
+        // Chain not supported by server
+        return;
+      }
+
+      // Build complete info with selected chain
+      const completeInfo = {
+        ...siwxExtension.info,
+        chainId: matchingChain.chainId,
+        type: matchingChain.type,
+      };
+
+      const payload = await createSIWxPayload(completeInfo, signer);
       const header = encodeSIWxHeader(payload);
       return { headers: { [SIGN_IN_WITH_X]: header } };
     } catch {

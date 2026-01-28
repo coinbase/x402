@@ -115,24 +115,60 @@ describe("Sign-In-With-X Extension", () => {
   });
 
   describe("declareSIWxExtension", () => {
-    it("should create extension with auto-generated fields", () => {
+    it("should create extension with supportedChains array", () => {
       const result = declareSIWxExtension({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/data",
         network: "eip155:8453",
         statement: "Sign in to access",
+        expirationSeconds: 300,
       });
 
       expect(result).toHaveProperty("sign-in-with-x");
       const extension = result["sign-in-with-x"];
       expect(extension.info.domain).toBe("api.example.com");
       expect(extension.info.uri).toBe("https://api.example.com/data");
-      expect(extension.info.chainId).toBe("eip155:8453");
-      expect(extension.info.type).toBe("eip191");
       expect(extension.info.nonce).toBeDefined();
       expect(extension.info.nonce.length).toBe(32);
       expect(extension.info.issuedAt).toBeDefined();
       expect(extension.schema).toBeDefined();
+
+      // Check supportedChains array
+      expect(extension.supportedChains).toHaveLength(1);
+      expect(extension.supportedChains[0].chainId).toBe("eip155:8453");
+      expect(extension.supportedChains[0].type).toBe("eip191");
+    });
+
+    it("should support multiple chains in single extension", () => {
+      const result = declareSIWxExtension({
+        domain: "api.example.com",
+        resourceUri: "https://api.example.com/data",
+        network: ["eip155:8453", SOLANA_DEVNET],
+        expirationSeconds: 300,
+      });
+
+      const extension = result["sign-in-with-x"];
+      expect(extension.supportedChains).toHaveLength(2);
+      expect(extension.supportedChains[0].chainId).toBe("eip155:8453");
+      expect(extension.supportedChains[0].type).toBe("eip191");
+      expect(extension.supportedChains[1].chainId).toBe(SOLANA_DEVNET);
+      expect(extension.supportedChains[1].type).toBe("ed25519");
+
+      // Shared nonce and metadata
+      expect(extension.info.nonce).toBeDefined();
+      expect(extension.info.nonce.length).toBe(32);
+    });
+
+    it("should support infinite expiration", () => {
+      const result = declareSIWxExtension({
+        domain: "api.example.com",
+        resourceUri: "https://api.example.com/data",
+        network: "eip155:8453",
+        expirationSeconds: undefined,
+      });
+
+      const extension = result["sign-in-with-x"];
+      expect(extension.info.expirationTime).toBeUndefined();
     });
   });
 
@@ -201,7 +237,13 @@ describe("Sign-In-With-X Extension", () => {
         statement: "Sign in to access your content",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
       const header = encodeSIWxHeader(payload);
       const parsed = parseSIWxHeader(header);
 
@@ -222,7 +264,13 @@ describe("Sign-In-With-X Extension", () => {
         network: "eip155:8453",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
       payload.signature = "0x" + "00".repeat(65); // Invalid signature
 
       const verification = await verifySIWxSignature(payload);
@@ -241,7 +289,13 @@ describe("Sign-In-With-X Extension", () => {
         network: "eip155:8453",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
 
       const result = await verifySIWxSignature(payload, {
         evmVerifier: mockVerifier,
@@ -265,7 +319,13 @@ describe("Sign-In-With-X Extension", () => {
         network: "eip155:8453",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
 
       // No verifier - should still work for EOA
       const result = await verifySIWxSignature(payload);
@@ -283,7 +343,13 @@ describe("Sign-In-With-X Extension", () => {
         network: "eip155:8453",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
 
       const result = await verifySIWxSignature(payload, {
         evmVerifier: mockVerifier,
@@ -303,7 +369,13 @@ describe("Sign-In-With-X Extension", () => {
         network: "eip155:8453",
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
 
       const result = await verifySIWxSignature(payload, {
         evmVerifier: mockVerifier,
@@ -329,7 +401,13 @@ describe("Sign-In-With-X Extension", () => {
         network: SOLANA_MAINNET,
       });
 
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, solanaSigner);
 
       const result = await verifySIWxSignature(payload, {
         evmVerifier: mockVerifier,
@@ -693,7 +771,13 @@ describe("Sign-In-With-X Extension", () => {
           statement: "Sign in to access",
         });
 
-        const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, solanaSigner);
         const header = encodeSIWxHeader(payload);
         const parsed = parseSIWxHeader(header);
 
@@ -721,7 +805,13 @@ describe("Sign-In-With-X Extension", () => {
           network: SOLANA_DEVNET,
         });
 
-        const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, solanaSigner);
 
         expect(payload.address).toBe(address);
         expect(payload.chainId).toBe(SOLANA_DEVNET);
@@ -921,7 +1011,13 @@ describe("SIWX Hooks", () => {
         resourceUri: "http://example.com/resource",
         network: "eip155:8453",
       });
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
       const header = encodeSIWxHeader(payload);
 
       const hook = createSIWxRequestHook({ storage });
@@ -948,7 +1044,13 @@ describe("SIWX Hooks", () => {
         resourceUri: "http://example.com/resource",
         network: "eip155:8453",
       });
-      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const ext = extension["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
+      };
+      const payload = await createSIWxPayload(completeInfo, account);
       const header = encodeSIWxHeader(payload);
 
       const hook = createSIWxRequestHook({ storage });
@@ -1016,7 +1118,7 @@ describe("SIWX Hooks", () => {
       const extension = declareSIWxExtension({
         domain: "example.com",
         resourceUri: "http://example.com/resource",
-        network: "eip155:8453",
+        network: "eip155:1", // Use eip155:1 to match fallback chain detection
       });
 
       const result = await hook({

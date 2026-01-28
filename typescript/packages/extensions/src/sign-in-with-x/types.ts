@@ -33,7 +33,21 @@ export type SignatureScheme =
 export type SignatureType = "eip191" | "ed25519";
 
 /**
- * Server-declared extension info included in PaymentRequired.extensions
+ * Supported chain configuration in supportedChains array.
+ * Specifies which chains the server accepts for authentication.
+ */
+export interface SupportedChain {
+  /** CAIP-2 chain identifier (e.g., "eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") */
+  chainId: string;
+  /** Signature algorithm type per CAIP-122 */
+  type: SignatureType;
+  /** Optional signature scheme hint (informational) */
+  signatureScheme?: SignatureScheme;
+}
+
+/**
+ * Server-declared extension info included in PaymentRequired.extensions.
+ * Contains message metadata shared across all supported chains.
  * Per CHANGELOG-v2.md lines 263-272
  */
 export interface SIWxExtensionInfo {
@@ -45,10 +59,6 @@ export interface SIWxExtensionInfo {
   statement?: string;
   /** CAIP-122 version, always "1" */
   version: string;
-  /** CAIP-2 chain identifier (e.g., "eip155:8453") */
-  chainId: string;
-  /** Signature algorithm type per CAIP-122 */
-  type: SignatureType;
   /** Cryptographic nonce (SDK auto-generates) */
   nonce: string;
   /** ISO 8601 timestamp (SDK auto-generates) */
@@ -61,8 +71,6 @@ export interface SIWxExtensionInfo {
   requestId?: string;
   /** Associated resources */
   resources?: string[];
-  /** Signature scheme hint (informational) */
-  signatureScheme?: SignatureScheme;
 }
 
 /**
@@ -92,11 +100,12 @@ export interface SIWxExtensionSchema {
 }
 
 /**
- * Complete SIWX extension structure (info + schema)
- * Follows standard x402 v2 extension pattern
+ * Complete SIWX extension structure (info + supportedChains + schema).
+ * Follows standard x402 v2 extension pattern with multi-chain support.
  */
 export interface SIWxExtension {
   info: SIWxExtensionInfo;
+  supportedChains: SupportedChain[];
   schema: SIWxExtensionSchema;
 }
 
@@ -141,15 +150,19 @@ export interface DeclareSIWxOptions {
   /** CAIP-122 version (default: "1") */
   version?: string;
   /**
-   * CAIP-2 network identifier.
-   * - EVM: "eip155:8453" (Base), "eip155:1" (Ethereum mainnet)
-   * - Solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" (mainnet)
+   * Network(s) to support.
+   * - Single chain: "eip155:8453" or "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+   * - Multi-chain: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
    */
-  network: `eip155:${string}` | `solana:${string}` | (string & {});
-  /** Optional explicit expiration time */
-  expirationTime?: string;
-  /** Signature scheme hint (informational) */
-  signatureScheme?: SignatureScheme;
+  network: string | string[];
+  /**
+   * Optional expiration duration in seconds.
+   * - Number (e.g., 300): Signature expires after this many seconds
+   * - undefined: Infinite expiration (no expirationTime field in wire format)
+   *
+   * The actual expirationTime timestamp is generated per-request by enrichDeclaration hook.
+   */
+  expirationSeconds?: number;
 }
 
 /**
