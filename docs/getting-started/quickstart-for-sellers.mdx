@@ -415,7 +415,13 @@ Integrate the payment middleware into your application. You will need to provide
 interface RouteConfig {
   accepts: Array<{
     scheme: string;           // Payment scheme (e.g., "exact")
-    price: string;            // Price in dollars (e.g., "$0.01")
+    price: string | {         // Price in dollars (e.g., "$0.01") or TokenAmount
+      amount: string;         // Token amount in atomic units
+      asset: string;          // Token contract address
+      extra?: {
+        assetTransferMethod?: "permit2";  // Use Permit2 for non-EIP-3009 tokens
+      };
+    };
     network: string;          // Network in CAIP-2 format (e.g., "eip155:84532")
     payTo: string;            // Your wallet address
   }>;
