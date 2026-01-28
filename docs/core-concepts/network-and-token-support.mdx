@@ -299,8 +299,9 @@ Key takeaways:
 
 * Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) have the best out-of-the-box support
 * Any EVM network can be supported with a custom facilitator using CAIP-2 format
-* Any EIP-3009 token (with `transferWithAuthorization`) works on any facilitator
+* Any ERC-20 token works via EIP-3009 (recommended) or Permit2 (universal fallback)
 * Use price strings for USDC or TokenAmount for custom tokens
+* Permit2 requires one-time approval but works with any ERC-20 token
 * Network choice affects gas costs and payment economics
 * V2 uses CAIP-2 network identifiers for unambiguous cross-chain support
 
