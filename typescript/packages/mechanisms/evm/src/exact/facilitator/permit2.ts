@@ -266,11 +266,11 @@ export async function settlePermit2(
           nonce: BigInt(permit2Payload.permit2Authorization.nonce),
           deadline: BigInt(permit2Payload.permit2Authorization.deadline),
         },
-        payer,
+        getAddress(payer),
         {
           to: getAddress(permit2Payload.permit2Authorization.witness.to),
           validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-          extra: permit2Payload.permit2Authorization.witness.extra,
+          extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
         },
         permit2Payload.signature,
       ],
@@ -295,10 +295,32 @@ export async function settlePermit2(
       network: payload.accepted.network,
       payer,
     };
-  } catch {
+  } catch (error) {
+    // Extract meaningful error message from the contract revert
+    let errorReason = "transaction_failed";
+    if (error instanceof Error) {
+      // Check for common contract revert patterns
+      const message = error.message;
+      if (message.includes("AmountExceedsPermitted")) {
+        errorReason = "permit2_amount_exceeds_permitted";
+      } else if (message.includes("InvalidDestination")) {
+        errorReason = "permit2_invalid_destination";
+      } else if (message.includes("InvalidOwner")) {
+        errorReason = "permit2_invalid_owner";
+      } else if (message.includes("PaymentTooEarly")) {
+        errorReason = "permit2_payment_too_early";
+      } else if (message.includes("InvalidSignature") || message.includes("SignatureExpired")) {
+        errorReason = "permit2_invalid_signature";
+      } else if (message.includes("InvalidNonce")) {
+        errorReason = "permit2_invalid_nonce";
+      } else {
+        // Include error message for debugging (longer for better visibility)
+        errorReason = `transaction_failed: ${message.slice(0, 500)}`;
+      }
+    }
     return {
       success: false,
-      errorReason: "transaction_failed",
+      errorReason,
       transaction: "",
       network: payload.accepted.network,
       payer,
