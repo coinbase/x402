@@ -157,10 +157,10 @@ title_format = "## [{version}] - {project_date}"
 issue_format = "[#{issue}](https://github.com/coinbase/x402/pull/{issue})"
 
 [tool.towncrier.fragment.feature]
-name = "Features"
+name = "Added"
 
 [tool.towncrier.fragment.bugfix]
-name = "Bugfixes"
+name = "Fixed"
 
 [tool.towncrier.fragment.doc]
 name = "Documentation"
