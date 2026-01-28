@@ -10,9 +10,17 @@
     {
       "path": "/protected",
       "method": "GET",
-      "description": "Protected endpoint requiring payment",
+      "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
       "protocolFamily": "evm"
+    },
+    {
+      "path": "/protected-permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "permit2": true
     },
     {
       "path": "/protected-svm",
