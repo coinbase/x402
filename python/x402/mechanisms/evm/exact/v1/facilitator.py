@@ -8,6 +8,9 @@ from typing import Any
 from .....schemas import Network, SettleResponse, VerifyResponse
 from .....schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
 from ...constants import (
+    ERR_FAILED_TO_GET_ASSET_INFO,
+    ERR_FAILED_TO_GET_NETWORK_CONFIG,
+    ERR_FAILED_TO_VERIFY_SIGNATURE,
     ERR_INSUFFICIENT_AMOUNT,
     ERR_INSUFFICIENT_BALANCE,
     ERR_INVALID_SIGNATURE,
@@ -130,9 +133,23 @@ class ExactEvmSchemeV1:
         # V1: Legacy chain ID lookup
         try:
             chain_id = get_evm_chain_id(network)
+        except ValueError as e:
+            return VerifyResponse(
+                is_valid=False,
+                invalid_reason=ERR_FAILED_TO_GET_NETWORK_CONFIG,
+                invalid_message=str(e),
+                payer=payer,
+            )
+
+        try:
             asset_info = get_asset_info(network, requirements.asset)
         except ValueError as e:
-            return VerifyResponse(is_valid=False, invalid_reason=str(e), payer=payer)
+            return VerifyResponse(
+                is_valid=False,
+                invalid_reason=ERR_FAILED_TO_GET_ASSET_INFO,
+                invalid_message=str(e),
+                payer=payer,
+            )
 
         # V1: Parse JSON-encoded extra
         extra = requirements.extra or {}
@@ -200,8 +217,13 @@ class ExactEvmSchemeV1:
                 return VerifyResponse(
                     is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer
                 )
-        except Exception:
-            return VerifyResponse(is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer)
+        except Exception as e:
+            return VerifyResponse(
+                is_valid=False,
+                invalid_reason=ERR_FAILED_TO_VERIFY_SIGNATURE,
+                invalid_message=str(e),
+                payer=payer,
+            )
 
         return VerifyResponse(is_valid=True, payer=payer)
 
@@ -250,7 +272,8 @@ class ExactEvmSchemeV1:
                     except Exception as e:
                         return SettleResponse(
                             success=False,
-                            error_reason=str(e),
+                            error_reason=ERR_SMART_WALLET_DEPLOYMENT_FAILED,
+                            error_message=str(e),
                             network=network,
                             payer=payer,
                             transaction="",
@@ -318,7 +341,8 @@ class ExactEvmSchemeV1:
         except Exception as e:
             return SettleResponse(
                 success=False,
-                error_reason=str(e),
+                error_reason=ERR_TRANSACTION_FAILED,
+                error_message=str(e),
                 network=network,
                 payer=payer,
                 transaction="",
