@@ -1,7 +1,0 @@
-{
-  "name": "Primer SDK",
-  "description": "TypeScript & Python SDKs for payers and payees, with full ERC-20 support. x402 v2, multi-chain, plus testing utilities with a mock facilitator.",
-  "logoUrl": "/logos/primer.png",
-  "websiteUrl": "https://github.com/Primer-Systems/x402",
-  "category": "Infrastructure & Tooling"
-}
