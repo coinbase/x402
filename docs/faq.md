@@ -118,8 +118,8 @@ Yes. Programmatic wallets (e.g., **CDP Wallet API**, **viem**, **ethers‑v6** H
 
 Tracked in public GitHub issues + community RFCs. Major themes:
 
-* Multi‑asset support
-* Additional schemes (`upto`, `stream`, `permit2`)
+* Multi‑asset support (now includes Permit2 for any ERC-20 token)
+* Additional schemes (`upto`, `stream`)
 * Discovery layer for service search & reputation
 
 **Why is x402 hosted in the Coinbase GitHub?**
