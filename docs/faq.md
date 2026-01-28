@@ -63,8 +63,8 @@ Yes. x402 handles the _payment execution_. You can still meter usage, aggregate 
 
 | Network        | CAIP-2 ID | Asset | Fees\*   | Status      |
 | -------------- | --------- | ----- | -------- | ----------- |
-| Base           | `eip155:8453` | Any EIP-3009 token  | fee-free | **Mainnet** |
-| Base Sepolia   | `eip155:84532` | Any EIP-3009 token  | fee-free | **Testnet** |
+| Base           | `eip155:8453` | Any ERC-20 token (via EIP-3009 or Permit2)  | fee-free | **Mainnet** |
+| Base Sepolia   | `eip155:84532` | Any ERC-20 token (via EIP-3009 or Permit2)  | fee-free | **Testnet** |
 | Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Mainnet** |
 | Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Testnet** |
 
