@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	"github.com/coinbase/x402/go/test/mocks/cash"
+	x402 "github.com/gatechain/x402/go"
+	x402http "github.com/gatechain/x402/go/http"
+	"github.com/gatechain/x402/go/test/mocks/cash"
 )
 
 // mockBrowserHTTPAdapter implements the HTTPAdapter interface for browser testing

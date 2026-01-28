@@ -11,9 +11,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/gatechain/x402/go"
+	"github.com/gatechain/x402/go/mechanisms/evm"
+	"github.com/gatechain/x402/go/types"
 )
 
 // ExactEvmSchemeV1Config holds configuration for the ExactEvmSchemeV1 facilitator

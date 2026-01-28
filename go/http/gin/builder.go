@@ -3,8 +3,8 @@ package gin
 import (
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
+	x402 "github.com/gatechain/x402/go"
+	x402http "github.com/gatechain/x402/go/http"
 	"github.com/gin-gonic/gin"
 )
 

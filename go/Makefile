@@ -96,7 +96,7 @@ generate: $(MOCKGEN)
 docs:
 	@echo "Generating documentation..."
 	@godoc -http=:6060 &
-	@echo "Documentation server started at http://localhost:6060/pkg/github.com/coinbase/x402/go/"
+	@echo "Documentation server started at http://localhost:6060/pkg/github.com/gatechain/x402/go/"
 
 ## example-client: Run client example
 example-client:

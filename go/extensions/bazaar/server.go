@@ -1,8 +1,8 @@
 package bazaar
 
 import (
-	"github.com/coinbase/x402/go/extensions/types"
-	"github.com/coinbase/x402/go/http"
+	"github.com/gatechain/x402/go/extensions/types"
+	"github.com/gatechain/x402/go/http"
 )
 
 type bazaarResourceServerExtension struct{}

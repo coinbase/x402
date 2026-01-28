@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/gatechain/x402/go"
+	"github.com/gatechain/x402/go/types"
 )
 
 // ============================================================================

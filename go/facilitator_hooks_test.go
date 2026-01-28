@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/gatechain/x402/go/types"
 )
 
 // Test Facilitator BeforeVerify hook - abort verification

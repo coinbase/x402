@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/coinbase/x402/go/pkg/types"
+	"github.com/gatechain/x402/go/legacy/pkg/types"
 )
 
 const (

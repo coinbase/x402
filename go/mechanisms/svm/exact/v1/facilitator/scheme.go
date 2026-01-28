@@ -12,9 +12,9 @@ import (
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/token"
 
-	x402 "github.com/coinbase/x402/go"
-	svm "github.com/coinbase/x402/go/mechanisms/svm"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/gatechain/x402/go"
+	svm "github.com/gatechain/x402/go/mechanisms/svm"
+	"github.com/gatechain/x402/go/types"
 )
 
 // ExactSvmSchemeV1 implements the SchemeNetworkFacilitator interface for SVM (Solana) exact payments (V1)

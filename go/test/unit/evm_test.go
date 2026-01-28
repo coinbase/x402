@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmv1client "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/gatechain/x402/go"
+	"github.com/gatechain/x402/go/mechanisms/evm"
+	evmclient "github.com/gatechain/x402/go/mechanisms/evm/exact/client"
+	evmv1client "github.com/gatechain/x402/go/mechanisms/evm/exact/v1/client"
+	"github.com/gatechain/x402/go/types"
 )
 
 // Mock EVM signer for client

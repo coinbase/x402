@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/gatechain/x402/go/types"
 )
 
 // Mock server for testing

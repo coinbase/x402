@@ -29,7 +29,7 @@ Client → Resource Server → Facilitator → Network
 ### Installation
 
 ```bash
-go get github.com/coinbase/x402/go
+go get github.com/gatechain/x402/go
 ```
 
 ### Basic Facilitator Server
@@ -39,8 +39,8 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    x402 "github.com/coinbase/x402/go"
-    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+    x402 "github.com/gatechain/x402/go"
+    evm "github.com/gatechain/x402/go/mechanisms/evm/exact/facilitator"
 )
 
 func main() {

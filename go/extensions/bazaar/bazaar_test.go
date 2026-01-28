@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/bazaar"
-	v1 "github.com/coinbase/x402/go/extensions/v1"
-	x402http "github.com/coinbase/x402/go/http"
+	x402 "github.com/gatechain/x402/go"
+	"github.com/gatechain/x402/go/extensions/bazaar"
+	v1 "github.com/gatechain/x402/go/extensions/v1"
+	x402http "github.com/gatechain/x402/go/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

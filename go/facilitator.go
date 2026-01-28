@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/gatechain/x402/go/types"
 )
 
 // schemeData stores facilitator and its registered networks

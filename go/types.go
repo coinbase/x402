@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/gatechain/x402/go/types"
 )
 
 // Network represents a blockchain network identifier in CAIP-2 format
