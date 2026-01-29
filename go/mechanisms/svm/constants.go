@@ -31,6 +31,9 @@ const (
 	// See: https://github.com/coinbase/x402/issues/828
 	LighthouseProgramAddress = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
 
+	// MemoProgramAddress is the SPL Memo program address
+	MemoProgramAddress = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
 
