@@ -38,8 +38,7 @@ const (
 
 var (
 	// Network chain IDs
-	ChainIDBase        = big.NewInt(8453)
-	ChainIDBaseSepolia = big.NewInt(84532)
+	ChainIDGateLayerTestnet = big.NewInt(10087) // Gate Layer Testnet chain ID (0x2767)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -52,41 +51,21 @@ var (
 	// NOTE: Currently only EIP-3009 supporting stablecoins can be used.
 	// Generic ERC-20 support via EIP-2612/Permit2 is planned but not yet implemented.
 	NetworkConfigs = map[string]NetworkConfig{
-		// Base Mainnet
-		"eip155:8453": {
-			ChainID: ChainIDBase,
+		// Gate Layer Testnet
+		"gatelayer_testnet": {
+			ChainID: ChainIDGateLayerTestnet,
 			DefaultAsset: AssetInfo{
-				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
-				Name:     "USD Coin",
-				Version:  "2",
-				Decimals: DefaultDecimals,
-			},
-		},
-		// Base Mainnet (legacy v1 format)
-		"base": {
-			ChainID: ChainIDBase,
-			DefaultAsset: AssetInfo{
-				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-				Name:     "USD Coin",
-				Version:  "2",
-				Decimals: DefaultDecimals,
-			},
-		},
-		// Base Sepolia Testnet
-		"eip155:84532": {
-			ChainID: ChainIDBaseSepolia,
-			DefaultAsset: AssetInfo{
-				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
+				Address:  "0x9be8Df37C788B244cFc28E46654aD5Ec28a880AF", // USDC on Gate Layer Testnet
 				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
 		},
-		// Base Sepolia Testnet (legacy v1 format)
-		"base-sepolia": {
-			ChainID: ChainIDBaseSepolia,
+		// Gate Layer Testnet (CAIP-2 format)
+		"eip155:10087": {
+			ChainID: ChainIDGateLayerTestnet,
 			DefaultAsset: AssetInfo{
-				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+				Address:  "0x9be8Df37C788B244cFc28E46654aD5Ec28a880AF", // USDC on Gate Layer Testnet
 				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
