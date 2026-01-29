@@ -50,10 +50,11 @@ export async function validateSIWxMessage(
   const maxAge = options.maxAge ?? DEFAULT_MAX_AGE_MS;
 
   // 1. Domain binding (spec: "domain field MUST match server's domain")
-  if (message.domain !== expectedUrl.host) {
+  // Use hostname (without port) per EIP-4361 convention
+  if (message.domain !== expectedUrl.hostname) {
     return {
       valid: false,
-      error: `Domain mismatch: expected "${expectedUrl.host}", got "${message.domain}"`,
+      error: `Domain mismatch: expected "${expectedUrl.hostname}", got "${message.domain}"`,
     };
   }
 
