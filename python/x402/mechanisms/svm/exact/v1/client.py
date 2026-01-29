@@ -26,7 +26,6 @@ from ...constants import (
     SCHEME_EXACT,
     TOKEN_2022_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
-    V1_TO_V2_NETWORK_MAP,
 )
 from ...signer import ClientSvmSigner
 from ...types import ExactSvmPayload

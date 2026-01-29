@@ -93,7 +93,7 @@ class TestFixedBlockhashProducesDistinctTransactions:
 
         assert len(tx1_base64) > 100
 
-        print(f"\n=== MEMO UNIQUENESS CONFIRMED ===")
+        print("\n=== MEMO UNIQUENESS CONFIRMED ===")
         print(f"Transaction 1 (first 80 chars): {tx1_base64[:80]}...")
         print(f"Transaction 2 (first 80 chars): {tx2_base64[:80]}...")
         print(f"Transactions are DISTINCT: {tx1_base64 != tx2_base64}")
@@ -151,7 +151,7 @@ class TestFixedBlockhashProducesDistinctTransactions:
             "CONTROL TEST PASSED: Different blockhash produces different transactions"
         )
 
-        print(f"\n=== CONTROL TEST: DIFFERENT BLOCKHASH ===")
+        print("\n=== CONTROL TEST: DIFFERENT BLOCKHASH ===")
         print(f"Transaction 1 (first 80 chars): {tx1_base64[:80]}...")
         print(f"Transaction 2 (first 80 chars): {tx2_base64[:80]}...")
         print(f"Transactions are DIFFERENT: {tx1_base64 != tx2_base64}")
@@ -276,6 +276,6 @@ class TestMemoDataIsValidUTF8:
 
         assert re.match(r"^[0-9a-f]+$", memo_string), "Memo data should only contain hex characters"
 
-        print(f"\n=== UTF-8 VALIDITY CONFIRMED ===")
+        print("\n=== UTF-8 VALIDITY CONFIRMED ===")
         print(f"Memo data: {memo_string}")
-        print(f"Is valid UTF-8: True")
+        print("Is valid UTF-8: True")
