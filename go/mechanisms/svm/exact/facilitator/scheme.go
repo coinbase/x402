@@ -73,21 +73,21 @@ func (f *ExactSvmScheme) Verify(
 
 	// Step 1: Validate Payment Requirements
 	if payload.Accepted.Scheme != svm.SchemeExact || requirements.Scheme != svm.SchemeExact {
-		return nil, x402.NewVerifyError(ErrUnsupportedScheme, "", network, nil)
+		return nil, x402.NewVerifyError(ErrUnsupportedScheme, "", fmt.Sprintf("invalid scheme: %s", payload.Accepted.Scheme))
 	}
 
 	// V2: Network matching - validate payload network matches requirements
 	if string(payload.Accepted.Network) != string(requirements.Network) {
-		return nil, x402.NewVerifyError(ErrNetworkMismatch, "", network, nil)
+		return nil, x402.NewVerifyError(ErrNetworkMismatch, "", fmt.Sprintf("network mismatch: %s != %s", payload.Accepted.Network, requirements.Network))
 	}
 
 	if requirements.Extra == nil || requirements.Extra["feePayer"] == nil {
-		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", network, nil)
+		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", "missing feePayer")
 	}
 
 	feePayerStr, ok := requirements.Extra["feePayer"].(string)
 	if !ok {
-		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", network, nil)
+		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", fmt.Sprintf("invalid feePayer: %v", requirements.Extra["feePayer"]))
 	}
 
 	// Verify that the requested feePayer is managed by this facilitator
@@ -105,39 +105,44 @@ func (f *ExactSvmScheme) Verify(
 		}
 	}
 	if !feePayerManaged {
-		return nil, x402.NewVerifyError(ErrFeePayerNotManaged, "", network, nil)
+		return nil, x402.NewVerifyError(ErrFeePayerNotManaged, "", fmt.Sprintf("feePayer not managed: %s", feePayerStr))
 	}
 
 	// Parse payload
 	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrInvalidPayloadTransaction, "", network, err)
+		return nil, x402.NewVerifyError(ErrInvalidPayloadTransaction, "", err.Error())
 	}
 
 	// Step 2: Parse and Validate Transaction Structure
 	tx, err := svm.DecodeTransaction(solanaPayload.Transaction)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", network, err)
+		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", err.Error())
 	}
 
-	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-	if len(tx.Message.Instructions) != 3 {
-		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", network, nil)
+	// Allow 3, 4, or 5 instructions:
+	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
+	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse (Phantom wallet protection)
+	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse (Solflare wallet protection)
+	// See: https://github.com/coinbase/x402/issues/828
+	numInstructions := len(tx.Message.Instructions)
+	if numInstructions < 3 || numInstructions > 5 {
+		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 5", numInstructions, numInstructions))
 	}
 
 	// Step 3: Verify Compute Budget Instructions
 	if err := f.verifyComputeLimitInstruction(tx, tx.Message.Instructions[0]); err != nil {
-		return nil, x402.NewVerifyError(err.Error(), "", network, err)
+		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
 	if err := f.verifyComputePriceInstruction(tx, tx.Message.Instructions[1]); err != nil {
-		return nil, x402.NewVerifyError(err.Error(), "", network, err)
+		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
 	// Extract payer from transaction
 	payer, err := svm.GetTokenPayerFromTransaction(tx)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrNoTransferInstruction, payer, network, err)
+		return nil, x402.NewVerifyError(ErrNoTransferInstruction, payer, err.Error())
 	}
 
 	// V2: payload.Accepted.Network is already validated by scheme lookup
@@ -155,26 +160,45 @@ func (f *ExactSvmScheme) Verify(
 
 	// Step 4: Verify Transfer Instruction
 	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], reqStruct, signerAddressStrs); err != nil {
-		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
+		return nil, x402.NewVerifyError(err.Error(), payer, err.Error())
 	}
 
-	// Step 5: Sign and Simulate Transaction
+	// Step 5: Verify Lighthouse Instructions (if present)
+	// - 4th instruction: Lighthouse program (Phantom wallet protection)
+	// - 5th instruction: Lighthouse program (Solflare wallet adds 2 Lighthouse instructions)
+	if numInstructions >= 4 {
+		fourthProgID := tx.Message.AccountKeys[tx.Message.Instructions[3].ProgramIDIndex]
+		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
+		if !fourthProgID.Equals(lighthousePubkey) {
+			return nil, x402.NewVerifyError(ErrUnknownFourthInstruction, payer, fmt.Sprintf("unknown fourth instruction: %s", fourthProgID.String()))
+		}
+	}
+
+	if numInstructions == 5 {
+		fifthProgID := tx.Message.AccountKeys[tx.Message.Instructions[4].ProgramIDIndex]
+		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
+		if !fifthProgID.Equals(lighthousePubkey) {
+			return nil, x402.NewVerifyError(ErrUnknownFifthInstruction, payer, fmt.Sprintf("unknown fifth instruction: %s", fifthProgID.String()))
+		}
+	}
+
+	// Step 6: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 
 	// feePayer already validated in Step 1
 	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrInvalidFeePayer, payer, network, err)
+		return nil, x402.NewVerifyError(ErrInvalidFeePayer, payer, err.Error())
 	}
 
 	// Sign transaction with the feePayer's signer
 	if err := f.signer.SignTransaction(ctx, tx, feePayer, string(requirements.Network)); err != nil {
-		return nil, x402.NewVerifyError(ErrTransactionSigningFailed, payer, network, err)
+		return nil, x402.NewVerifyError(ErrTransactionSigningFailed, payer, err.Error())
 	}
 
 	// Simulate transaction to verify it would succeed
 	if err := f.signer.SimulateTransaction(ctx, tx, string(requirements.Network)); err != nil {
-		return nil, x402.NewVerifyError(ErrTransactionSimulationFailed, payer, network, err)
+		return nil, x402.NewVerifyError(ErrTransactionSimulationFailed, payer, err.Error())
 	}
 
 	return &x402.VerifyResponse{
@@ -198,55 +222,55 @@ func (f *ExactSvmScheme) Settle(
 		// Convert VerifyError to SettleError
 		ve := &x402.VerifyError{}
 		if errors.As(err, &ve) {
-			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
+			return nil, x402.NewSettleError(ve.InvalidReason, ve.Payer, network, "", ve.InvalidMessage)
 		}
-		return nil, x402.NewSettleError(ErrVerificationFailed, "", network, "", err)
+		return nil, x402.NewSettleError(ErrVerificationFailed, "", network, "", err.Error())
 	}
 
 	// Parse payload
 	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
 	}
 
 	// Decode transaction
 	tx, err := svm.DecodeTransaction(solanaPayload.Transaction)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
 	}
 
 	// Extract and validate feePayer from requirements matches transaction
 	feePayerStr, ok := requirements.Extra["feePayer"].(string)
 	if !ok {
-		return nil, x402.NewSettleError(ErrMissingFeePayer, verifyResp.Payer, network, "", nil)
+		return nil, x402.NewSettleError(ErrMissingFeePayer, verifyResp.Payer, network, "", "")
 	}
 
 	expectedFeePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidFeePayer, verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidFeePayer, verifyResp.Payer, network, "", err.Error())
 	}
 
 	// Verify transaction feePayer matches requirements
 	actualFeePayer := tx.Message.AccountKeys[0] // First account is fee payer
 	if actualFeePayer != expectedFeePayer {
 		return nil, x402.NewSettleError(ErrFeePayerMismatch, verifyResp.Payer, network, "",
-			fmt.Errorf("expected %s, got %s", expectedFeePayer, actualFeePayer))
+			fmt.Sprintf("expected %s, got %s", expectedFeePayer, actualFeePayer))
 	}
 
 	// Sign with the feePayer's signer
 	if err := f.signer.SignTransaction(ctx, tx, expectedFeePayer, string(requirements.Network)); err != nil {
-		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err.Error())
 	}
 
 	// Send transaction to network
 	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
-		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err.Error())
 	}
 
 	// Wait for confirmation
 	if err := f.signer.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
-		return nil, x402.NewSettleError(ErrTransactionConfirmationFailed, verifyResp.Payer, network, signature.String(), err)
+		return nil, x402.NewSettleError(ErrTransactionConfirmationFailed, verifyResp.Payer, network, signature.String(), err.Error())
 	}
 
 	return &x402.SettleResponse{
