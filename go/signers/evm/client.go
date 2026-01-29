@@ -14,11 +14,30 @@ import (
 	x402evm "github.com/coinbase/x402/go/mechanisms/evm"
 )
 
-// ClientSigner implements x402evm.ClientEvmSigner using an ECDSA private key.
+// SignTypedDataFunc defines the callback used to sign EIP-712 typed data.
+type SignTypedDataFunc func(ctx context.Context, domain x402evm.TypedDataDomain,
+	types map[string][]x402evm.TypedDataField, primaryType string, message map[string]any) ([]byte, error)
+
+// ClientSigner implements x402evm.ClientEvmSigner using a signing callback.
 // This provides client-side EIP-712 signing for creating payment payloads.
 type ClientSigner struct {
-	privateKey *ecdsa.PrivateKey
-	address    common.Address
+	address       common.Address
+	signTypedData SignTypedDataFunc
+}
+
+// NewClientSigner creates a client signer from an address and signing callback.
+func NewClientSigner(address string, signFunc SignTypedDataFunc) (x402evm.ClientEvmSigner, error) {
+	if !common.IsHexAddress(address) {
+		return nil, fmt.Errorf("invalid address: %s", address)
+	}
+	if signFunc == nil {
+		return nil, fmt.Errorf("sign callback is required")
+	}
+
+	return &ClientSigner{
+		address:       common.HexToAddress(address),
+		signTypedData: signFunc,
+	}, nil
 }
 
 // NewClientSignerFromPrivateKey creates a client signer from a hex-encoded private key.
@@ -53,10 +72,12 @@ func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigne
 	// Derive Ethereum address from public key
 	address := crypto.PubkeyToAddress(privateKey.PublicKey)
 
-	return &ClientSigner{
-		privateKey: privateKey,
-		address:    address,
-	}, nil
+	signFunc := func(ctx context.Context, domain x402evm.TypedDataDomain,
+		types map[string][]x402evm.TypedDataField, primaryType string, message map[string]any) ([]byte, error) {
+		return signTypedDataWithPrivateKey(ctx, privateKey, domain, types, primaryType, message)
+	}
+
+	return NewClientSigner(address.Hex(), signFunc)
 }
 
 // Address returns the Ethereum address of the signer.
@@ -83,7 +104,18 @@ func (s *ClientSigner) SignTypedData(
 	domain x402evm.TypedDataDomain,
 	types map[string][]x402evm.TypedDataField,
 	primaryType string,
-	message map[string]interface{},
+	message map[string]any,
+) ([]byte, error) {
+	return s.signTypedData(ctx, domain, types, primaryType, message)
+}
+
+func signTypedDataWithPrivateKey(
+	_ context.Context,
+	privateKey *ecdsa.PrivateKey,
+	domain x402evm.TypedDataDomain,
+	types map[string][]x402evm.TypedDataField,
+	primaryType string,
+	message map[string]any,
 ) ([]byte, error) {
 	// Convert x402 types to go-ethereum apitypes
 	typedData := apitypes.TypedData{
@@ -139,7 +171,7 @@ func (s *ClientSigner) SignTypedData(
 	digest := crypto.Keccak256(rawData)
 
 	// Sign the digest with ECDSA
-	signature, err := crypto.Sign(digest, s.privateKey)
+	signature, err := crypto.Sign(digest, privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %w", err)
 	}
