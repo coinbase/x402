@@ -451,6 +451,107 @@ describe("x402HTTPResourceServer", () => {
 
       expect(result.type).toBe("no-payment-required");
     });
+
+    describe("malformed percent-encoding", () => {
+      it("should require payment for path with trailing malformed %", async () => {
+        const routes = {
+          "/paywall/[param]": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/paywall/test%",
+          method: "GET",
+        };
+
+        const result = await httpServer.processHTTPRequest(context);
+        expect(result.type).toBe("payment-error");
+      });
+
+      it("should require payment for path with malformed %c0 sequence", async () => {
+        const routes = {
+          "/api/*": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/api/resource%c0",
+          method: "GET",
+        };
+
+        const result = await httpServer.processHTTPRequest(context);
+        expect(result.type).toBe("payment-error");
+      });
+
+      it("should require payment for path with multiple malformed sequences", async () => {
+        const routes = {
+          "/protected/*": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/protected/data%c0%c1%",
+          method: "GET",
+        };
+
+        const result = await httpServer.processHTTPRequest(context);
+        expect(result.type).toBe("payment-error");
+      });
+
+      it("should correctly identify requiresPayment for malformed paths", async () => {
+        const routes = {
+          "/paywall/[id]": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/paywall/test%",
+          method: "GET",
+        };
+
+        expect(httpServer.requiresPayment(context)).toBe(true);
+      });
+    });
   });
 
   describe("Payment processing", () => {

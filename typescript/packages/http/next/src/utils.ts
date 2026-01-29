@@ -6,7 +6,6 @@ import {
   x402HTTPResourceServer,
   x402ResourceServer,
   RoutesConfig,
-  OfferReceiptConfig,
 } from "@x402/core/server";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -26,7 +25,6 @@ export interface HttpServerInstance {
  * @param server - The x402 resource server instance
  * @param paywall - Optional paywall provider for custom payment UI
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on start (defaults to true)
- * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns The HTTP server instance with initialization function
  */
 export function createHttpServer(
@@ -34,10 +32,9 @@ export function createHttpServer(
   server: x402ResourceServer,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
-  offerReceiptConfig?: OfferReceiptConfig,
 ): HttpServerInstance {
   // Create the x402 HTTP server instance with the resource server
-  const httpServer = new x402HTTPResourceServer(server, routes, offerReceiptConfig);
+  const httpServer = new x402HTTPResourceServer(server, routes);
 
   // Register custom paywall provider if provided
   if (paywall) {

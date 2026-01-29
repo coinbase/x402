@@ -22,5 +22,3 @@ export type {
   ProcessSettleFailureResponse,
   RouteValidationError,
 } from "../http/x402HTTPResourceServer";
-
-export type { OfferReceiptSigner, OfferReceiptConfig } from "../types/offer-receipt";

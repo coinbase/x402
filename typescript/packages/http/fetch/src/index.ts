@@ -1,37 +1,5 @@
 import { x402Client, x402ClientConfig, x402HTTPClient } from "@x402/core/client";
-import { type PaymentPayload, type PaymentRequired } from "@x402/core/types";
-
-/**
- * Context passed to the onPaymentComplete callback after a successful payment flow.
- */
-export interface PaymentCompleteContext {
-  /** The parsed 402 payment requirements */
-  paymentRequired: PaymentRequired;
-  /** The payment payload that was sent */
-  paymentPayload: PaymentPayload;
-  /** The response after successful payment (can be mutated by callback) */
-  response: Response;
-}
-
-/**
- * Options for wrapFetchWithPayment
- */
-export interface WrapFetchOptions {
-  /**
-   * Callback invoked after a successful 402 → payment → retry flow.
-   * Use this to extract and attach extension-specific metadata to the response.
-   *
-   * @example
-   * ```typescript
-   * import { createOfferReceiptExtractor } from "@x402/extensions/offer-receipt";
-   *
-   * const fetchWithPay = wrapFetchWithPayment(fetch, client, {
-   *   onPaymentComplete: createOfferReceiptExtractor()
-   * });
-   * ```
-   */
-  onPaymentComplete?: (context: PaymentCompleteContext) => void;
-}
+import { type PaymentRequired } from "@x402/core/types";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol v2.
@@ -45,7 +13,6 @@ export interface WrapFetchOptions {
  *
  * @param fetch - The fetch function to wrap (typically globalThis.fetch)
  * @param client - Configured x402Client or x402HTTPClient instance for handling payments
- * @param options - Optional configuration including onPaymentComplete callback
  * @returns A wrapped fetch function that handles 402 responses automatically
  *
  * @example
@@ -73,11 +40,10 @@ export interface WrapFetchOptions {
 export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
   client: x402Client | x402HTTPClient,
-  options?: WrapFetchOptions,
-): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
+) {
   const httpClient = client instanceof x402HTTPClient ? client : new x402HTTPClient(client);
 
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const clonedRequest = request.clone();
 
@@ -112,7 +78,7 @@ export function wrapFetchWithPayment(
     }
 
     // Create payment payload (copy extensions from PaymentRequired)
-    let paymentPayload: PaymentPayload;
+    let paymentPayload;
     try {
       paymentPayload = await client.createPaymentPayload(paymentRequired);
     } catch (error) {
@@ -140,16 +106,6 @@ export function wrapFetchWithPayment(
 
     // Retry the request with payment
     const secondResponse = await fetch(clonedRequest);
-
-    // Call onPaymentComplete callback if provided
-    if (options?.onPaymentComplete) {
-      options.onPaymentComplete({
-        paymentRequired,
-        paymentPayload,
-        response: secondResponse,
-      });
-    }
-
     return secondResponse;
   };
 }
@@ -184,5 +140,4 @@ export type {
   PaymentRequired,
   PaymentRequirements,
   SchemeNetworkClient,
-  SettleResponse,
 } from "@x402/core/types";

@@ -209,13 +209,7 @@ describe("paymentProxy", () => {
 
     paymentProxy(mockRoutes, {} as unknown as x402ResourceServer, undefined, paywall);
 
-    expect(createHttpServer).toHaveBeenCalledWith(
-      mockRoutes,
-      expect.anything(),
-      paywall,
-      true,
-      undefined,
-    );
+    expect(createHttpServer).toHaveBeenCalledWith(mockRoutes, expect.anything(), paywall, true);
   });
 
   it("returns 402 when settlement throws error", async () => {
@@ -424,12 +418,6 @@ describe("paymentProxyFromConfig", () => {
 
     paymentProxyFromConfig(mockRoutes, undefined, undefined, paywallConfig, paywall, false);
 
-    expect(createHttpServer).toHaveBeenCalledWith(
-      mockRoutes,
-      expect.anything(),
-      paywall,
-      false,
-      undefined,
-    );
+    expect(createHttpServer).toHaveBeenCalledWith(mockRoutes, expect.anything(), paywall, false);
   });
 });

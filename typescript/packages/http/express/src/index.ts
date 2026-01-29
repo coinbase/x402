@@ -6,7 +6,6 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
-  OfferReceiptConfig,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
@@ -57,7 +56,6 @@ export interface SchemeRegistration {
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
- * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns Express middleware handler
  *
  * @example
@@ -78,10 +76,9 @@ export function paymentMiddleware(
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
-  offerReceiptConfig?: OfferReceiptConfig,
 ) {
   // Create the x402 HTTP server instance with the resource server
-  const httpServer = new x402HTTPResourceServer(server, routes, offerReceiptConfig);
+  const httpServer = new x402HTTPResourceServer(server, routes);
 
   // Register custom paywall provider if provided
   if (paywall) {
@@ -92,9 +89,10 @@ export function paymentMiddleware(
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
 
-  // Dynamically register bazaar extension if routes declare it
+  // Dynamically register bazaar extension if routes declare it and not already registered
+  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(routes)) {
+  if (checkIfBazaarNeeded(routes) && !server.hasExtension("bazaar")) {
     bazaarPromise = import("@x402/extensions/bazaar")
       .then(({ bazaarResourceServerExtension }) => {
         server.registerExtension(bazaarResourceServerExtension);
@@ -302,7 +300,6 @@ export function paymentMiddleware(
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
- * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns Express middleware handler
  *
  * @example
@@ -324,7 +321,6 @@ export function paymentMiddlewareFromConfig(
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
-  offerReceiptConfig?: OfferReceiptConfig,
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
@@ -336,14 +332,7 @@ export function paymentMiddlewareFromConfig(
 
   // Use the direct paymentMiddleware with the configured server
   // Note: paymentMiddleware handles dynamic bazaar registration
-  return paymentMiddleware(
-    routes,
-    ResourceServer,
-    paywallConfig,
-    paywall,
-    syncFacilitatorOnStart,
-    offerReceiptConfig,
-  );
+  return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
 }
 
 export { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";
@@ -357,8 +346,6 @@ export type {
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig } from "@x402/core/server";
-
-export type { OfferReceiptSigner, OfferReceiptConfig } from "@x402/core/server";
 
 export { RouteConfigurationError } from "@x402/core/server";
 
