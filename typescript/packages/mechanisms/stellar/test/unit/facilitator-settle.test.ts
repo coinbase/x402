@@ -26,19 +26,21 @@ vi.mock("../../src/utils", async () => {
 
 describe("ExactStellarScheme - Settle", () => {
   const CLIENT_PUBLIC = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
-  const FACILITATOR_SECRET = "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK";
-  const FACILITATOR_PUBLIC = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
+  const FACILITATOR_SECRET = "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV";
+  const FACILITATOR_PUBLIC = "GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P";
+  // The transaction's recipient (different from facilitator signer address)
+  const TRANSACTION_RECIPIENT = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
   const ASSET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
   const validRequirements: PaymentRequirements = {
     scheme: "exact",
     network: STELLAR_TESTNET_CAIP2,
     amount: "10000", // Extracted from transaction XDR
-    payTo: FACILITATOR_PUBLIC,
+    payTo: TRANSACTION_RECIPIENT, // Must match transaction's recipient
     maxTimeoutSeconds: 60,
     asset: ASSET,
     extra: {
-      maxLedgerOffset: 12,
+      areFeesSponsored: true,
     },
   };
 

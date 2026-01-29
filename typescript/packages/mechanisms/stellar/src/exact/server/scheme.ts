@@ -32,17 +32,17 @@ export class ExactStellarScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Parses a price into an asset amount.
-   * If price is already an AssetAmount, returns it directly.
-   * If price is Money (string | number), parses to decimal and tries custom parsers.
-   * Falls back to default conversion if all custom parsers return null.
+   * Parses a price into `AssetAmount`.
+   * If price is already an `AssetAmount`, returns it directly.
+   * If price is `Money` (string | number), parses to decimal and tries custom parsers.
+   * If no custom parsers return a valid `AssetAmount`, falls back to default conversion, assuming USDC token contract.
    *
-   * @param price - The price to parse
-   * @param network - The network to use
-   * @returns Promise that resolves to the parsed asset amount
+   * @param price - The `Price` to parse
+   * @param network - The `Network` to use
+   * @returns Promise that resolves to the parsed `AssetAmount`
    */
   async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
-    // If already an AssetAmount, return it directly
+    // Attempt 1: if already an AssetAmount, return it directly
     if (typeof price === "object" && price !== null && "amount" in price) {
       if (!price.asset) {
         throw new Error(`Asset address must be specified for AssetAmount on network ${network}`);
@@ -57,7 +57,7 @@ export class ExactStellarScheme implements SchemeNetworkServer {
     // Parse Money to decimal number
     const amount = this.parseMoneyToDecimal(price);
 
-    // Try each custom money parser in order
+    // Attempt 2: try each custom money parser in order
     for (const parser of this.moneyParsers) {
       const result = await parser(amount, network);
       if (result !== null) {
@@ -65,7 +65,7 @@ export class ExactStellarScheme implements SchemeNetworkServer {
       }
     }
 
-    // All custom parsers returned null, use default conversion
+    // Attempt 3: fallback to default conversion, assuming USDC token contract.
     return this.defaultMoneyConversion(amount, network);
   }
 
@@ -77,9 +77,9 @@ export class ExactStellarScheme implements SchemeNetworkServer {
    * @param supportedKind.x402Version - The x402 protocol version
    * @param supportedKind.scheme - The payment scheme
    * @param supportedKind.network - The network identifier
-   * @param supportedKind.extra - Extra metadata including maxLedgerOffset from facilitator
+   * @param supportedKind.extra - Extra metadata including `areFeesSponsored` from facilitator
    * @param extensionKeys - Extension keys supported by the facilitator
-   * @returns Enhanced payment requirements with maxLedgerOffset in extra
+   * @returns Enhanced payment requirements with `areFeesSponsored` in extra
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -94,14 +94,14 @@ export class ExactStellarScheme implements SchemeNetworkServer {
     // Mark unused parameters to satisfy linter
     void extensionKeys;
 
-    // Add maxLedgerOffset from supportedKind.extra to payment requirements
-    // The facilitator provides maxLedgerOffset which clients use to calculate transaction expiration
-    const maxLedgerOffset = supportedKind.extra?.maxLedgerOffset;
+    // Add `areFeesSponsored` from supportedKind.extra to payment requirements
+    // The facilitator provides `areFeesSponsored` which clients use to determine if fees are sponsored
+    const areFeesSponsored = supportedKind.extra?.areFeesSponsored;
     return Promise.resolve({
       ...paymentRequirements,
       extra: {
         ...paymentRequirements.extra,
-        ...(typeof maxLedgerOffset === "number" && { maxLedgerOffset }),
+        ...(typeof areFeesSponsored === "boolean" && { areFeesSponsored }),
       },
     });
   }

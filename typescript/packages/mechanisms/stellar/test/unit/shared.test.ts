@@ -95,7 +95,7 @@ describe("Stellar Shared Utilities", () => {
       payTo: "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W",
       maxTimeoutSeconds: 60,
       extra: {
-        maxLedgerOffset: 12,
+        areFeesSponsored: true,
       },
     };
 
