@@ -2336,6 +2336,15 @@ importers:
       '@radix-ui/themes':
         specifier: ^3.2.1
         version: 3.2.1(@types/react-dom@19.2.1(@types/react@19.2.1))(@types/react@19.2.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@x402/axios':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/http/axios
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/evm
       axios:
         specifier: ^1.10.0
         version: 1.13.2
@@ -2360,12 +2369,6 @@ importers:
       winston:
         specifier: ^3.17.0
         version: 3.17.0
-      x402:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/legacy/x402
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/legacy/x402-axios
       zod:
         specifier: ^3.23.8
         version: 3.25.76

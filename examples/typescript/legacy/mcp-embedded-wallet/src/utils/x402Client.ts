@@ -1,9 +1,9 @@
 import axios from "axios";
 import { base, baseSepolia } from "viem/chains";
-import { withPaymentInterceptor } from "x402-axios";
-import { PaymentRequirements } from "x402/types";
+import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { budgetStore } from "../stores/budget";
-import { operationStore, SettlementInfo } from "../stores/operations";
+import { operationStore, SettlementInfo, PaymentRequirements } from "../stores/operations";
 import { getBlockExplorerUrl, formatUSDC } from "./chainConfig";
 import { createPaymentTrackingInterceptor, PaymentInterceptorError } from "./paymentInterceptor";
 import { handle402Error, handleNon402Error, type ErrorHandlingContext } from "./x402ErrorHandler";
@@ -81,9 +81,10 @@ export async function makeX402Request({
     effectiveMaxAmountPerRequest,
     paymentRequirements, // Pass pre-discovered payment requirements
   );
-  // Cast to any to work around axios version mismatch between dependencies
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fetchWithPayment = withPaymentInterceptor(trackedInstance as any, account as any);
+  // Create x402 client with EVM scheme for v2 support (handles both v1 and v2 protocols)
+  const x402 = new x402Client();
+  registerExactEvmScheme(x402, { signer: account });
+  const fetchWithPayment = wrapAxiosWithPayment(trackedInstance, x402);
 
   try {
     // Add initial operation (interceptor will handle payment logic)
