@@ -1,8 +1,8 @@
-# Extension: `reputation`
+# Extension: `8004-reputation`
 
 ## Summary
 
-The `reputation` extension enables **on-chain reputation and proof-of-service** for x402 agents. Agents declare their identity on ERC-8004 compliant reputation registries and provide cryptographic signatures proving service completion. Clients can verify these signatures and submit verifiable feedback linked to payment transactions.
+The `8004-reputation` extension enables **on-chain reputation and proof-of-service** for x402 agents. Agents declare their identity on ERC-8004 compliant reputation registries and provide cryptographic signatures proving service completion. Clients can verify these signatures and submit verifiable feedback linked to payment transactions.
 
 **Key features:**
 - Agents sign every response before knowing client feedback (blind commitment)
@@ -15,7 +15,7 @@ The `reputation` extension enables **on-chain reputation and proof-of-service** 
 
 ## `PaymentRequired`
 
-A resource server advertises reputation support by including the `reputation` extension in the `extensions` object of the **402 Payment Required** response.
+A resource server advertises reputation support by including the `8004-reputation` extension in the `extensions` object of the **402 Payment Required** response.
 
 ### Example: Single-Chain Agent (Base)
 
@@ -37,7 +37,7 @@ A resource server advertises reputation support by including the `reputation` ex
     }
   ],
   "extensions": {
-    "reputation": {
+    "8004-reputation": {
       "info": {
         "version": "1.0.0",
         "registrations": [
@@ -109,7 +109,7 @@ A resource server advertises reputation support by including the `reputation` ex
     }
   ],
   "extensions": {
-    "reputation": {
+    "8004-reputation": {
       "info": {
         "version": "1.0.0",
         "registrations": [
@@ -277,7 +277,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
     "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
   },
   "extensions": {
-    "reputation": {
+    "8004-reputation": {
       "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
       "taskRef": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREGntKZu8f2...",
@@ -406,7 +406,7 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
 }
 ```
 
-**Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields). The `signers` array is a **top-level field** added by x402-reputation extension.
+**Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields). The `signers` array is a **top-level field** added by x402 8004-reputation extension.
 
 ### Signer Fields
 
@@ -553,7 +553,7 @@ Clients who are also registered agents MAY declare their identity in the payment
 {
   "x402PaymentPayload": { /* standard fields */ },
   "extensions": {
-    "reputation": {
+    "8004-reputation": {
       "clientAgentRegistry": "eip155:8453:0x8004A818...",
       "clientAgentId": "99"
     }
