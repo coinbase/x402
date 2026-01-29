@@ -138,29 +138,34 @@ export const SIWxPayloadSchema = z.object({
 export type SIWxPayload = z.infer<typeof SIWxPayloadSchema>;
 
 /**
- * Options for declaring SIWX extension on server
+ * Options for declaring SIWX extension on server.
+ *
+ * Most fields are optional and derived automatically from request context:
+ * - `domain`: Parsed from resourceUri or request URL
+ * - `resourceUri`: From request URL
+ * - `network`: From payment requirements (accepts[].network)
+ *
+ * Explicit values override automatic derivation.
  */
 export interface DeclareSIWxOptions {
-  /** Server's domain (must match request origin) */
-  domain: string;
-  /** Full resource URI */
-  resourceUri: string;
+  /** Server's domain. If omitted, derived from resourceUri or request URL. */
+  domain?: string;
+  /** Full resource URI. If omitted, derived from request URL. */
+  resourceUri?: string;
   /** Human-readable purpose */
   statement?: string;
   /** CAIP-122 version (default: "1") */
   version?: string;
   /**
-   * Network(s) to support.
+   * Network(s) to support. If omitted, derived from payment requirements.
    * - Single chain: "eip155:8453" or "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
    * - Multi-chain: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
    */
-  network: string | string[];
+  network?: string | string[];
   /**
    * Optional expiration duration in seconds.
    * - Number (e.g., 300): Signature expires after this many seconds
    * - undefined: Infinite expiration (no expirationTime field in wire format)
-   *
-   * The actual expirationTime timestamp is generated per-request by enrichDeclaration hook.
    */
   expirationSeconds?: number;
 }
