@@ -90,8 +90,8 @@ class StellarFacilitatorClient implements FacilitatorClient {
    */
   getSupported(): Promise<SupportedResponse> {
     // Delegate to actual facilitator to get real supported kinds
-    // This includes dynamically selected maxLedger values
-    return this.facilitator.getSupported() as Promise<SupportedResponse>;
+    // This includes fee sponsorship metadata
+    return Promise.resolve(this.facilitator.getSupported() as SupportedResponse);
   }
 }
 
@@ -115,8 +115,7 @@ function buildStellarPaymentRequirements(
     amount,
     payTo,
     maxTimeoutSeconds: 3600,
-    extra: {},
-    // maxLedger will be added by server.enhancePaymentRequirements
+    extra: { areFeesSponsored: true },
   };
 }
 
@@ -162,7 +161,6 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("server should successfully verify and settle a Stellar payment from a client", async () => {
-      // Get maxLedgerOffset from facilitator (server will add it automatically)
       const baseRequirements = buildStellarPaymentRequirements(RESOURCE_SERVER_ADDRESS, "1000");
       const accepts = [baseRequirements];
       const resource = {

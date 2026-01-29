@@ -44,7 +44,7 @@ describe("ExactStellarScheme", () => {
     payTo: "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W",
     maxTimeoutSeconds: 60,
     asset: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-    extra: { maxLedgerOffset: 12 },
+    extra: { areFeesSponsored: true },
   };
 
   const mockTransaction = {
@@ -250,7 +250,7 @@ describe("ExactStellarScheme", () => {
           rpcUrl,
           parseResultXdr: expect.any(Function),
         });
-        // Expiration is calculated as currentLedger (100000) + maxLedgerOffset (12) = 100012
+        // Expiration is calculated as currentLedger (100000) + ceil(maxTimeoutSeconds / 5) = 100012
         expect(mockTransaction.signAuthEntries).toHaveBeenCalledWith({
           address: mockSignerAddress,
           signAuthEntry: mockSigner.signAuthEntry,

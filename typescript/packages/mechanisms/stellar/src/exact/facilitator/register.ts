@@ -20,14 +20,14 @@ export interface StellarFacilitatorConfig {
   networks: Network | Network[];
 
   /**
+   * Flag indicating to clients if they can expect fees to be sponsored. As of now, the spec only supports `areFeesSponsored: true`.
+   */
+  areFeesSponsored?: boolean;
+
+  /**
    * Optional RPC configuration with custom RPC URL
    */
   rpcConfig?: RpcConfig;
-
-  /**
-   * Optional max number of ledgers a signature is allowed to have in order to be submitted by the server (default: 12)
-   */
-  maxLedgerOffset?: number;
 }
 
 /**
@@ -60,7 +60,7 @@ export function registerExactStellarScheme(
   // Register V2 scheme with specified networks
   facilitator.register(
     config.networks,
-    new ExactStellarScheme(config.signer, config.rpcConfig, config.maxLedgerOffset),
+    new ExactStellarScheme(config.signer, config.rpcConfig, config.areFeesSponsored),
   );
 
   return facilitator;
