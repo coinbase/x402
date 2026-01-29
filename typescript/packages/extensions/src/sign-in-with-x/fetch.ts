@@ -11,7 +11,6 @@ import type { SIWxExtension } from "./types";
 import { SIGN_IN_WITH_X } from "./types";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
-import { getSignerChainId } from "./sign";
 
 /**
  * Wraps fetch to automatically handle SIWX authentication.
@@ -69,14 +68,19 @@ export function wrapFetchWithSIWx(fetch: typeof globalThis.fetch, signer: SIWxSi
       throw new Error("SIWX authentication already attempted");
     }
 
-    // Get signer's chain and find matching chain in supportedChains
-    const signerChainId = await getSignerChainId(signer);
+    // Get network from payment requirements
+    const paymentNetwork = paymentRequired.accepts?.[0]?.network;
+    if (!paymentNetwork) {
+      return response; // No network in payment requirements
+    }
+
+    // Find matching chain in supportedChains
     const matchingChain = siwxExtension.supportedChains.find(
-      chain => chain.chainId === signerChainId,
+      chain => chain.chainId === paymentNetwork,
     );
 
     if (!matchingChain) {
-      return response; // Chain not supported, return original 402
+      return response; // Payment network not in SIWX supportedChains
     }
 
     // Build complete info with selected chain

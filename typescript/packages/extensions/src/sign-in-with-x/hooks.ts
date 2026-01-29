@@ -13,7 +13,6 @@ import { validateSIWxMessage } from "./validate";
 import { verifySIWxSignature } from "./verify";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
-import { getSignerChainId } from "./sign";
 
 /**
  * Extracts the payer address from a payment payload.
@@ -159,8 +158,8 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 /**
  * Creates an onPaymentRequired hook for client-side SIWX authentication.
  *
- * Supports both single-chain and multi-chain servers. For multi-chain servers,
- * automatically selects the matching chain from supportedChains array.
+ * Uses the network from payment requirements to select the appropriate chain
+ * from the server's supportedChains.
  *
  * @param signer - Wallet signer for creating SIWX proofs
  * @returns Hook function for x402HTTPClient.onPaymentRequired()
@@ -173,7 +172,7 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
  */
 export function createSIWxClientHook(signer: SIWxSigner) {
   return async (context: {
-    paymentRequired: { extensions?: Record<string, unknown> };
+    paymentRequired: { accepts?: Array<{ network: string }>; extensions?: Record<string, unknown> };
   }): Promise<{ headers: Record<string, string> } | void> => {
     const extensions = context.paymentRequired.extensions ?? {};
     const siwxExtension = extensions[SIGN_IN_WITH_X] as SIWxExtension | undefined;
@@ -181,16 +180,17 @@ export function createSIWxClientHook(signer: SIWxSigner) {
     if (!siwxExtension?.supportedChains) return;
 
     try {
-      // Get signer's exact chain ID
-      const signerChainId = await getSignerChainId(signer);
+      // Get network from payment requirements
+      const paymentNetwork = context.paymentRequired.accepts?.[0]?.network;
+      if (!paymentNetwork) return;
 
       // Find matching chain in supportedChains
       const matchingChain = siwxExtension.supportedChains.find(
-        chain => chain.chainId === signerChainId,
+        chain => chain.chainId === paymentNetwork,
       );
 
       if (!matchingChain) {
-        // Chain not supported by server
+        // Payment network not in SIWX supportedChains
         return;
       }
 
