@@ -288,7 +288,8 @@ class ExactSvmScheme:
             error_msg = str(e)
             return VerifyResponse(
                 is_valid=False,
-                invalid_reason=f"{ERR_SIMULATION_FAILED}: {error_msg}",
+                invalid_reason=ERR_SIMULATION_FAILED,
+                invalid_message=error_msg,
                 payer=payer,
             )
 
@@ -354,7 +355,8 @@ class ExactSvmScheme:
         except Exception as e:
             return SettleResponse(
                 success=False,
-                error_reason=f"{ERR_TRANSACTION_FAILED}: {e}",
+                error_reason=ERR_TRANSACTION_FAILED,
+                error_message=str(e),
                 transaction=signature,
                 network=network,
                 payer=verify_result.payer or "",

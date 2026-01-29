@@ -23,6 +23,14 @@ const (
 	// DefaultComputeUnitLimit is the default compute unit limit for transactions
 	DefaultComputeUnitLimit uint32 = 8000
 
+	// LighthouseProgramAddress is the Phantom/Solflare Lighthouse program address
+	// Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
+	// - Phantom adds 1 Lighthouse instruction (4th instruction)
+	// - Solflare adds 2 Lighthouse instructions (4th and 5th instructions)
+	// We allow these as optional instructions to support these wallets.
+	// See: https://github.com/coinbase/x402/issues/828
+	LighthouseProgramAddress = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
+
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
 

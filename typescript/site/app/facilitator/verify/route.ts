@@ -23,6 +23,7 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "invalid_json",
+        invalidMessage: "Failed to parse request body",
         error: "Failed to parse request body",
       } as VerifyResponse,
       { status: 400 },
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "missing_parameters",
+        invalidMessage: "Missing paymentPayload or paymentRequirements",
         error: "Missing paymentPayload or paymentRequirements",
       } as VerifyResponse,
       { status: 400 },
@@ -57,6 +59,7 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "unexpected_error",
+        invalidMessage: errorMessage,
         error: errorMessage,
       } as VerifyResponse,
       { status: 500 },

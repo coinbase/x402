@@ -5,17 +5,24 @@
 - MDX/Markdown files with `docs.json` as navigation configuration
 
 ## Directory Structure
+- `advanced-concepts/` — Advanced topics (lifecycle hooks, etc.)
 - `core-concepts/` — Protocol explanations (HTTP 402, client-server, facilitator, wallet)
+- `extensions/` — x402 extension documentation (Bazaar discovery, and future extensions)
 - `getting-started/` — Quickstart guides for buyers and sellers (MDX files with tabs)
 - `guides/` — How-to guides (MCP server, v1→v2 migration)
-- `README.md` — Welcome/landing page
+- `introduction.md` — Welcome/landing page
+- `faq.md` — Frequently asked questions
 - `docs.json` — Mintlify navigation and configuration
+- `sdk-features.md` - Feature list of SDKs
 
 ## Code-to-Doc Mapping
 - Changes to `typescript/packages/core/src/` affect Core Concepts docs
+- Changes to `typescript/packages/extensions/src/` affect Extensions docs (Bazaar, etc.)
 - Changes to `typescript/packages/*/src/` affect SDK references and quickstart guides
 - Changes to `python/x402/` affect Python SDK references
+- Changes to `python/x402/extensions/` affect Extensions docs
 - Changes to `go/` affect Go SDK references
+- Changes to `go/extensions/` affect Extensions docs
 - Changes to facilitator endpoints affect quickstart guides
 - Changes to `specs/` may require updates to core-concepts docs
 
@@ -38,11 +45,15 @@
 - **Git: Create PRs for review; NEVER commit directly to main**
 
 ## Touch Points / Key Files
-- `README.md` — Landing page
+- `introduction.md` — Landing page
+- `faq.md` — Frequently asked questions
 - `docs.json` — Navigation and configuration (MUST update when adding pages)
 - `core-concepts/*.md` — Conceptual documentation
+- `extensions/*.mdx` — Extension documentation (Bazaar, future extensions)
+- `advanced-concepts/*.mdx` — Advanced topics (lifecycle hooks for custom workflows, etc.)
 - `getting-started/*.mdx` — Quickstart guides (MDX for tab components)
 - `guides/*.md` — How-to guides
+- `sdk-features.md` — Update when SDK capabilities change
 
 ## File Extensions
 - Use `.md` for standard markdown pages
@@ -83,11 +94,16 @@ When triggered by GitHub Actions or other automated workflows:
 
 | Code Change | Doc Update Required |
 |-------------|---------------------|
+| `typescript/packages/core/src/*.ts` API changes | Core Concepts, quickstart guides |
+| `typescript/packages/extensions/src/*.ts` Extensions changes | Extensions docs (Bazaar, etc.) |
 | `typescript/packages/*/src/*.ts` API changes | SDK reference, quickstart guides |
 | `python/x402/*.py` API changes | Python SDK reference |
+| `python/x402/extensions/*.py` Extensions changes | Extensions docs |
 | `go/*.go` API changes | Go SDK reference |
+| `go/extensions/*.go` Extensions changes | Extensions docs |
 | `java/src/**/*.java` API changes | Java SDK reference |
 | `specs/*.md` protocol changes | core-concepts docs |
+| `specs/extensions/*.md` Extensions changes | Extensions docs (only if SDK implementation exists) |
 | Comment removal, formatting | NO update needed |
 | Test file changes | NO update needed |
 | Build/CI config changes | NO update needed |
@@ -105,3 +121,12 @@ If the code changes are limited to:
 - Legacy packages (`typescript/packages/legacy/*`, `go/legacy`, `python/legacy`)
 
 Then report "No documentation updates needed" and **do not create a PR**.
+
+### SDK Feature Parity Document
+
+When SDK code changes involve:
+- New mechanisms in `*/mechanisms/`
+- New extensions in `*/extensions/`
+- New hooks in client/server/facilitator files
+
+Update `sdk-features.md` to reflect the current state. Check all three SDKs (typescript/, go/, python/) when updating.
