@@ -32,7 +32,7 @@ A resource server advertises reputation support by including the `8004-reputatio
       "network": "eip155:8453",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "payTo": "0xAgentWallet123456...",
-      "maxAmountRequired": "1000",
+      "amount": "1000",
       "maxTimeoutSeconds": 60
     }
   ],
@@ -92,20 +92,24 @@ A resource server advertises reputation support by including the `8004-reputatio
 ```json
 {
   "x402Version": 2,
+  "resource": {
+    "url": "https://agent.example/weather",
+    "description": "Weather data API"
+  },
   "accepts": [
     {
       "scheme": "exact",
       "network": "eip155:8453",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "payTo": "0xBaseWallet...",
-      "maxAmountRequired": "1000"
+      "amount": "1000"
     },
     {
       "scheme": "exact",
       "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       "payTo": "SolanaWallet...",
-      "maxAmountRequired": "1000"
+      "amount": "1000"
     }
   ],
   "extensions": {
@@ -274,7 +278,8 @@ After successful payment settlement, agents MUST sign the interaction and includ
   "settlementResponse": {
     "success": true,
     "txHash": "5A2CSREGntKZu8f2...",
-    "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "payer": "ClientWallet..."
   },
   "extensions": {
     "8004-reputation": {
@@ -373,6 +378,8 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
   "name": "Agent Name",
   "description": "Agent description",
   "image": "https://...",
+  "x402Support": true,
+  "supportedTrust": ["reputation"],
 
   "registrations": [
     {
