@@ -2,21 +2,31 @@ package main
 
 import (
 	"fmt"
-	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/coinbase/x402/go/pkg/coinbasefacilitator"
-	x402gin "github.com/coinbase/x402/go/pkg/gin"
-	"github.com/coinbase/x402/go/pkg/types"
-	"github.com/gin-gonic/gin"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/types"
+	x402http "github.com/coinbase/x402/go/http"
+	ginmw "github.com/coinbase/x402/go/http/gin"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 var shutdownRequested bool
+
+/**
+ * Gin E2E Test Server with x402 v2 Payment Middleware
+ *
+ * This server demonstrates how to integrate x402 v2 payment middleware
+ * with a Gin application for end-to-end testing.
+ */
 
 func main() {
 	// Load .env file if it exists
@@ -25,89 +35,217 @@ func main() {
 	}
 
 	// Get configuration from environment
-	useCdpFacilitator := os.Getenv("USE_CDP_FACILITATOR") == "true"
-	network := os.Getenv("EVM_NETWORK")
-	if network == "" {
-		network = "base-sepolia"
-	}
-	address := os.Getenv("EVM_ADDRESS")
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "4021"
 	}
 
-	// CDP facilitator configuration
-	cdpAPIKeyID := os.Getenv("CDP_API_KEY_ID")
-	cdpAPIKeySecret := os.Getenv("CDP_API_KEY_SECRET")
-
-	if address == "" {
-		fmt.Println("Error: Missing required environment variable ADDRESS")
+	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
+	if evmPayeeAddress == "" {
+		fmt.Println("❌ EVM_PAYEE_ADDRESS environment variable is required")
 		os.Exit(1)
 	}
 
-	// Validate CDP configuration if using CDP facilitator
-	if useCdpFacilitator && (cdpAPIKeyID == "" || cdpAPIKeySecret == "") {
-		fmt.Println("Error: CDP facilitator enabled but missing CDP_API_KEY_ID or CDP_API_KEY_SECRET")
+	svmPayeeAddress := os.Getenv("SVM_PAYEE_ADDRESS")
+	if svmPayeeAddress == "" {
+		fmt.Println("❌ SVM_PAYEE_ADDRESS environment variable is required")
 		os.Exit(1)
 	}
 
-	// Create facilitator config if using CDP
-	var facilitatorConfig *types.FacilitatorConfig
-	if useCdpFacilitator {
-		facilitatorConfig = coinbasefacilitator.CreateFacilitatorConfig(cdpAPIKeyID, cdpAPIKeySecret)
+	facilitatorURL := os.Getenv("FACILITATOR_URL")
+	if facilitatorURL == "" {
+		fmt.Println("❌ FACILITATOR_URL environment variable is required")
+		os.Exit(1)
 	}
+
+	// Network configurations (from env or defaults)
+	evmNetworkStr := os.Getenv("EVM_NETWORK")
+	if evmNetworkStr == "" {
+		evmNetworkStr = "eip155:84532" // Default: Base Sepolia
+	}
+	svmNetworkStr := os.Getenv("SVM_NETWORK")
+	if svmNetworkStr == "" {
+		svmNetworkStr = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" // Default: Solana Devnet
+	}
+	evmNetwork := x402.Network(evmNetworkStr)
+	svmNetwork := x402.Network(svmNetworkStr)
+
+	fmt.Printf("EVM Payee address: %s\n", evmPayeeAddress)
+	fmt.Printf("SVM Payee address: %s\n", svmPayeeAddress)
+	fmt.Printf("Using remote facilitator at: %s\n", facilitatorURL)
 
 	// Set Gin to release mode to reduce logs
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Use(gin.Recovery())
+	ginfw.SetMode(ginfw.ReleaseMode)
+	r := ginfw.New()
+	r.Use(ginfw.Recovery())
 
-	// Protected endpoint that requires payment
-	r.GET("/protected",
-		x402gin.PaymentMiddleware(
-			big.NewFloat(0.001), // $0.001 USD
-			address,
-			x402gin.WithFacilitatorConfig(facilitatorConfig),
-			x402gin.WithDescription("Protected endpoint requiring payment"),
-			x402gin.WithResource("http://localhost:"+port+"/protected"),
-			x402gin.WithTestnet(network == "base-sepolia"),
-		),
-		func(c *gin.Context) {
-			if shutdownRequested {
-				c.JSON(http.StatusServiceUnavailable, gin.H{
-					"error": "Server shutting down",
-				})
-				return
-			}
+	// Create HTTP facilitator client
+	facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+		URL: facilitatorURL,
+	})
 
-			c.JSON(http.StatusOK, gin.H{
-				"message":   "Access granted to protected resource",
+	/**
+	 * Configure x402 payment middleware
+	 *
+	 * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
+	 * on the Base Sepolia testnet with bazaar discovery extension.
+	 */
+	// Declare bazaar discovery extension for the GET endpoint
+	discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
+		bazaar.MethodGET,
+		nil, // No query params
+		nil, // No input schema
+		"",  // No body type (GET method)
+		&types.OutputConfig{
+			Example: map[string]interface{}{
+				"message":   "Protected endpoint accessed successfully",
 				"timestamp": "2024-01-01T00:00:00Z",
-				"data": gin.H{
-					"resource":     "premium_content",
-					"access_level": "paid",
+			},
+			Schema: types.JSONSchema{
+				"properties": map[string]interface{}{
+					"message":   map[string]interface{}{"type": "string"},
+					"timestamp": map[string]interface{}{"type": "string"},
 				},
-			})
+				"required": []string{"message", "timestamp"},
+			},
 		},
 	)
+	if err != nil {
+		fmt.Printf("Warning: Failed to create bazaar extension: %v\n", err)
+	}
 
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "healthy",
-			"timestamp": "2024-01-01T00:00:00Z",
-			"server":    "gin",
+	routes := x402http.RoutesConfig{
+		"GET /protected": {
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   "$0.001",
+					Network: evmNetwork,
+				},
+			},
+			Extensions: map[string]interface{}{
+				types.BAZAAR: discoveryExtension,
+			},
+		},
+		"GET /protected-svm": {
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   svmPayeeAddress,
+					Price:   "$0.001",
+					Network: svmNetwork,
+				},
+			},
+			Extensions: map[string]interface{}{
+				types.BAZAAR: discoveryExtension,
+			},
+		},
+	}
+
+	// Apply payment middleware with detailed error logging
+	r.Use(ginmw.X402Payment(ginmw.Config{
+		Routes:      routes,
+		Facilitator: facilitatorClient,
+		Schemes: []ginmw.SchemeConfig{
+			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
+			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
+		},
+		SyncFacilitatorOnStart: true,
+		Timeout:    30 * time.Second,
+		ErrorHandler: func(c *ginfw.Context, err error) {
+			// Log detailed error information for debugging
+			fmt.Printf("❌ [E2E SERVER ERROR] Payment error occurred\n")
+			fmt.Printf("   Path: %s\n", c.Request.URL.Path)
+			fmt.Printf("   Method: %s\n", c.Request.Method)
+			fmt.Printf("   Error: %v\n", err)
+			fmt.Printf("   Headers: %v\n", c.Request.Header)
+
+			// Default error response
+			c.JSON(http.StatusPaymentRequired, ginfw.H{
+				"error": err.Error(),
+			})
+		},
+		SettlementHandler: func(c *ginfw.Context, settleResp *x402.SettleResponse) {
+			// Log successful settlement
+			fmt.Printf("✅ [E2E SERVER SUCCESS] Payment settled\n")
+			fmt.Printf("   Path: %s\n", c.Request.URL.Path)
+			fmt.Printf("   Transaction: %s\n", settleResp.Transaction)
+			fmt.Printf("   Network: %s\n", settleResp.Network)
+			fmt.Printf("   Payer: %s\n", settleResp.Payer)
+		},
+	}))
+
+	/**
+	 * Protected endpoint - requires payment to access
+	 *
+	 * This endpoint demonstrates a resource protected by x402 payment middleware.
+	 * Clients must provide a valid payment signature to access this endpoint.
+	 */
+	r.GET("/protected", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Protected endpoint accessed successfully (EVM)",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"network":   "eip155:84532",
 		})
 	})
 
-	// Graceful shutdown endpoint
-	r.POST("/close", func(c *gin.Context) {
+	/**
+	 * Protected SVM endpoint - requires payment to access
+	 *
+	 * This endpoint demonstrates a Solana payment protected resource.
+	 * Clients must provide a valid payment signature to access this endpoint.
+	 */
+	r.GET("/protected-svm", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Protected endpoint accessed successfully (SVM)",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"network":   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		})
+	})
+
+	/**
+	 * Health check endpoint - no payment required
+	 *
+	 * Used to verify the server is running and responsive.
+	 */
+	r.GET("/health", func(c *ginfw.Context) {
+		c.JSON(http.StatusOK, ginfw.H{
+			"status":      "ok",
+			"version":     "2.0.0",
+			"evm_network": string(evmNetwork),
+			"evm_payee":   evmPayeeAddress,
+			"svm_network": string(svmNetwork),
+			"svm_payee":   svmPayeeAddress,
+		})
+	})
+
+	/**
+	 * Shutdown endpoint - used by e2e tests
+	 *
+	 * Allows graceful shutdown of the server during testing.
+	 */
+	r.POST("/close", func(c *ginfw.Context) {
 		shutdownRequested = true
 
-		c.JSON(http.StatusOK, gin.H{
-			"message":   "Server shutting down gracefully",
-			"timestamp": "2024-01-01T00:00:00Z",
+		c.JSON(http.StatusOK, ginfw.H{
+			"message": "Server shutting down gracefully",
 		})
+		fmt.Println("Received shutdown request")
 
 		// Schedule server shutdown after response
 		go func() {
@@ -126,11 +264,24 @@ func main() {
 		os.Exit(0)
 	}()
 
-	fmt.Printf("Starting Gin server on port %s\n", port)
-	fmt.Printf("Server address: %s\n", address)
-	fmt.Printf("Network: %s\n", network)
-	fmt.Printf("Using CDP facilitator: %t\n", useCdpFacilitator)
-	fmt.Printf("Server listening on port %s\n", port)
+	// Print startup banner
+	fmt.Printf(`
+╔════════════════════════════════════════════════════════╗
+║           x402 Gin E2E Test Server                     ║
+╠════════════════════════════════════════════════════════╣
+║  Server:     http://localhost:%-29s ║
+║  EVM Network: %-40s ║
+║  EVM Payee:   %-40s ║
+║  SVM Network: %-40s ║
+║  SVM Payee:   %-40s ║
+║                                                        ║
+║  Endpoints:                                            ║
+║  • GET  /protected      (requires $0.001 EVM payment) ║
+║  • GET  /protected-svm  (requires $0.001 SVM payment) ║
+║  • GET  /health         (no payment required)         ║
+║  • POST /close          (shutdown server)             ║
+╚════════════════════════════════════════════════════════╝
+`, port, evmNetwork, evmPayeeAddress, svmNetwork, svmPayeeAddress)
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -141,4 +292,14 @@ func main() {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func maskPrivateKey(key string) string {
+	if key == "" {
+		return "not configured"
+	}
+	if len(key) > 10 {
+		return key[:10] + "..."
+	}
+	return key
 }

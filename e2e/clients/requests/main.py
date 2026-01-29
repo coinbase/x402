@@ -1,36 +1,57 @@
+"""requests e2e test client using x402 v2 SDK."""
+
 import os
 import json
 from dotenv import load_dotenv
 from eth_account import Account
-from x402.clients.requests import x402_http_adapter
-from x402.clients.base import decode_x_payment_response
+
+# Import from new x402 package (sync variant for requests)
+from x402 import x402ClientSync
+from x402.http import decode_payment_response_header
+from x402.http.clients import x402_requests
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact import register_exact_evm_client
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact import register_exact_svm_client
 import requests
 
 # Load environment variables
 load_dotenv()
 
 # Get environment variables
-private_key = os.getenv("EVM_PRIVATE_KEY")
+evm_private_key = os.getenv("EVM_PRIVATE_KEY")
+svm_private_key = os.getenv("SVM_PRIVATE_KEY")
 base_url = os.getenv("RESOURCE_SERVER_URL")
 endpoint_path = os.getenv("ENDPOINT_PATH")
 
-if not all([private_key, base_url, endpoint_path]):
+if not base_url or not endpoint_path:
     error_result = {"success": False, "error": "Missing required environment variables"}
     print(json.dumps(error_result))
     exit(1)
 
-# Create eth_account from private key
-account = Account.from_key(private_key)
+if not evm_private_key and not svm_private_key:
+    error_result = {"success": False, "error": "At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY must be set"}
+    print(json.dumps(error_result))
+    exit(1)
 
 
 def main():
-    # Create a session and mount the x402 adapter
-    session = requests.Session()
-    adapter = x402_http_adapter(account)
+    # Create x402 client (sync for requests)
+    client = x402ClientSync()
 
-    # Mount the adapter for both HTTP and HTTPS
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
+    # Register EVM exact scheme if private key is available
+    if evm_private_key:
+        account = Account.from_key(evm_private_key)
+        evm_signer = EthAccountSigner(account)
+        register_exact_evm_client(client, evm_signer)
+
+    # Register SVM exact scheme if private key is available
+    if svm_private_key:
+        svm_signer = KeypairSigner.from_base58(svm_private_key)
+        register_exact_svm_client(client, svm_signer)
+
+    # Create a session with x402 payment handling
+    session = x402_requests(client)
 
     # Make request
     try:
@@ -48,12 +69,11 @@ def main():
             "payment_response": None,
         }
 
-        # Check for payment response header
-        if "X-Payment-Response" in response.headers:
-            payment_response = decode_x_payment_response(
-                response.headers["X-Payment-Response"]
-            )
-            result["payment_response"] = payment_response
+        # Check for payment response header (V2: PAYMENT-RESPONSE, V1: X-PAYMENT-RESPONSE)
+        payment_header = response.headers.get("PAYMENT-RESPONSE") or response.headers.get("X-PAYMENT-RESPONSE")
+        if payment_header:
+            payment_response = decode_payment_response_header(payment_header)
+            result["payment_response"] = payment_response.model_dump()
 
         # Output structured result as JSON for proxy to parse
         print(json.dumps(result))
