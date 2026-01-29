@@ -29,7 +29,7 @@ For Go: Run `go test ./...` from the `/go` directory
 - [ ] I have formatted and linted my code
 - [ ] All new and existing tests pass
 - [ ] My commits are signed (required for merge) -- you may need to rebase if you initially pushed unsigned commits
-- [ ] I added a changelog fragment for user-facing changes (docs-only/internal changes can skip)
+- [ ] I added a changelog fragment for user-facing changes (docs-only changes can skip)
 
 <!--
 Changelog fragments (required for user-facing changes):

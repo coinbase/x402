@@ -22,10 +22,7 @@
     "format:check": "turbo run format:check",
     "test": "turbo run test",
     "test:integration": "pnpm --filter @x402/core --filter @x402/evm --filter @x402/svm test:integration",
-    "test:all": "pnpm test && pnpm test:integration",
-    "changeset": "changeset",
-    "changeset:version": "changeset version",
-    "changeset:publish": "pnpm install --frozen-lockfile && pnpm run build && changeset publish"
+    "test:all": "pnpm test && pnpm test:integration"
   },
   "keywords": [],
   "author": "",

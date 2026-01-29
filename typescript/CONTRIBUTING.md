@@ -283,7 +283,7 @@ pnpm changeset
 ```
 
 Follow the interactive prompts to:
-1. Select the packages that should be published. Choose only publishable packages under the `@x402/*` scope — do not select internal monorepo packages such as `x402_monorepo`.
+1. Select the packages that should be published.
 2. Provide a short, past‑tense summary of the change (for example, "Fixed bug where X failed" or "Added support for Y").
 3. Pick the appropriate release type:
    - Patch: Bug fixes, no API changes
