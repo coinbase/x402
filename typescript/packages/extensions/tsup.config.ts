@@ -5,6 +5,7 @@ const baseConfig = {
     index: "src/index.ts",
     "bazaar/index": "src/bazaar/index.ts",
     "sign-in-with-x/index": "src/sign-in-with-x/index.ts",
+    "facilitator-fees/index": "src/facilitator-fees/index.ts",
   },
   dts: {
     resolve: true,
