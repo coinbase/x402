@@ -227,6 +227,16 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		paymentReq.Header.Set(k, v)
 	}
 
+	// Replenish body for retry if possible
+	if req.GetBody != nil {
+		body, err := req.GetBody()
+		if err != nil {
+			t.retryCount.Delete(requestID)
+			return nil, fmt.Errorf("failed to get body for payment retry: %w", err)
+		}
+		paymentReq.Body = body
+	}
+
 	// Retry with payment
 	newResp, err := t.Transport.RoundTrip(paymentReq)
 	t.retryCount.Delete(requestID)
