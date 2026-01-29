@@ -275,12 +275,10 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 ```json
 {
-  "settlementResponse": {
-    "success": true,
-    "txHash": "5A2CSREGntKZu8f2...",
-    "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-    "payer": "ClientWallet..."
-  },
+  "success": true,
+  "transaction": "5A2CSREGntKZu8f2...",
+  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "payer": "ClientWallet...",
   "extensions": {
     "8004-reputation": {
       "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
