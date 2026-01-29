@@ -10,6 +10,7 @@ Guide for developing and contributing to the x402 Python SDK.
 - [Adding Features](#adding-features)
 - [Testing](#testing)
 - [Code Quality](#code-quality)
+- [Changelog](#changelog)
 
 ## Repository Structure
 
@@ -255,6 +256,30 @@ def create_payment(
     ...
 ```
 
+## Changelog
+
+These instructions apply to the **`python/x402` package (v2)**.
+
+For **user-facing changes** (behavior changes, bug fixes, new features, removals), add a Towncrier fragment:
+
+- Location: `python/x402/changelog.d/<PR>.<type>.md`
+- Naming convention: `<PR>.<type>.md` (for example, `123.bugfix.md`)
+- Allowed types: `feature|bugfix|doc|removal|misc`
+
+Create a fragment (from `python/x402/`):
+
+```bash
+uv run towncrier create --content "Fixed ..." 123.bugfix.md
+```
+
+### Building the Changelog (Maintainers)
+
+During release, consolidate fragments:
+
+```bash
+uv run towncrier build --yes --version=X.Y.Z
+```
+
 ## Examples
 
 Examples live in `examples/python/`. When adding a new example:
@@ -272,4 +297,3 @@ Package publishing to PyPI is handled by maintainers via GitHub Actions. Version
 - Open an issue on GitHub
 - Check the [examples](../examples/python/) for usage patterns
 - Reference the [README](x402/README.md) for API documentation
-
