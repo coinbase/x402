@@ -17,9 +17,9 @@ This package provides three main components for handling x402 payments on Stella
 - **Server** - For resource servers that accept payments and build payment requirements
 
 **Key Differences from EVM/SVM:**
-- Uses ledger-based expiration (not timestamps) - default 12 ledgers ≈ 60 seconds
-- Auth entry signatures - client signs, facilitator rebuilds and submits transaction
-- Mainnet requires custom RPC URL (see [Stellar RPC Providers](https://developers.stellar.org/docs/data/apis/rpc/providers))
+- **Ledger-based expiration** (not timestamps) - default ~12 ledgers ≈ 60 seconds
+- **Auth entry signing** - client signs authorization entries only, facilitator rebuilds and submits transaction
+- **Mainnet requires custom RPC URL** (see [Stellar RPC Providers](https://developers.stellar.org/docs/data/apis/rpc/providers))
 
 ## Package Exports
 
@@ -29,12 +29,15 @@ This package provides three main components for handling x402 payments on Stella
 
 **Client:**
 - `ExactStellarScheme` - Client implementation using Soroban token transfers
-- `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-0043)
+- `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-43)
 - `ClientStellarSigner` - TypeScript type for client signers
 
 **Facilitator:**
 - `ExactStellarScheme` - Facilitator for payment verification and settlement
 - `FacilitatorStellarSigner` - TypeScript type for facilitator signers
+
+> [!NOTE]
+> Facilitators currently always sponsor transaction fees (`areFeesSponsored: true`). A non-sponsored flow will be added later. See [spec](../../../specs/schemes/exact/scheme_exact_stellar.md#paymentrequirements-for-exact) for details.
 
 **Server:**
 - `ExactStellarScheme` - Server for building payment requirements
@@ -71,8 +74,10 @@ This package provides three main components for handling x402 payments on Stella
 ## Asset Support
 
 Supports Soroban tokens implementing [SEP-41](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md):
-- Any Soroban token contract with `transfer` function
+- Any Soroban token contract with `transfer(from, to, amount)` function
 - Default asset is USDC (primary, 7 decimals)
+
+> **For detailed protocol flow, transaction structure, and verification rules, see the [Exact Scheme Specification](../../../specs/schemes/exact/scheme_exact_stellar.md).**
 
 ## Usage Patterns
 
@@ -92,7 +97,7 @@ registerExactStellarScheme(client, { signer });
 
 ```typescript
 import { x402Client } from "@x402/core/client";
-import { ExactStellarScheme } from "@x402/stellar";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
 
 const client = new x402Client()
   .register("stellar:*", new ExactStellarScheme(signer));
@@ -118,7 +123,7 @@ const scheme = new ExactStellarScheme()
 // Facilitator with custom ledger offset
 registerExactStellarScheme(facilitator, {
   signer,
-  networks: ["stellar:testnet", "stellar:pubnet"],
+  networks: ["stellar:testnet"],
   maxLedgerOffset: 20  // ~100 second validity window
 });
 ```

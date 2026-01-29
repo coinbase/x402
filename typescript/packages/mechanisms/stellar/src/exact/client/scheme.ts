@@ -12,6 +12,8 @@ import {
 import type { ClientStellarSigner } from "../../signer";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
 
+const DEFAULT_LEDGER_CLOSE_TIME_SECONDS = 5;
+
 /**
  * Stellar client implementation for the Exact payment scheme.
  */
@@ -48,22 +50,20 @@ export class ExactStellarScheme implements SchemeNetworkClient {
     }
 
     const sourcePublicKey = this.signer.address;
-    const { network, payTo, asset, amount, extra } = paymentRequirements;
+    const { network, payTo, asset, amount, extra, maxTimeoutSeconds } = paymentRequirements;
     const { networkPassphrase } = await this.signer.getNetwork();
     const rpcUrl = getRpcUrl(network, this.rpcConfig);
 
-    // Get maxLedgerOffset from extra and validate, defaulting to 12 if invalid
-    const maxLedgerOffsetValue = extra?.maxLedgerOffset;
-    const maxLedgerOffset =
-      typeof maxLedgerOffsetValue === "number" && maxLedgerOffsetValue > 0
-        ? maxLedgerOffsetValue
-        : 12;
+    if (!extra.areFeesSponsored) {
+      throw new Error(`Exact scheme requires areFeesSponsored to be true`);
+    }
 
     // Fetch current ledger and calculate maxLedger
     const rpcServer = getRpcClient(network, this.rpcConfig);
     const latestLedger = await rpcServer.getLatestLedger();
     const currentLedger = latestLedger.sequence;
-    const maxLedger = currentLedger + maxLedgerOffset;
+    const maxLedger =
+      currentLedger + Math.ceil(maxTimeoutSeconds / DEFAULT_LEDGER_CLOSE_TIME_SECONDS);
 
     const tx = await AssembledTransaction.build({
       contractId: asset,

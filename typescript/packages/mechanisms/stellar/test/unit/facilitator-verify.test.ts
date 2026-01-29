@@ -8,6 +8,8 @@ import {
   Operation,
   Account,
   xdr,
+  Keypair,
+  Asset,
 } from "@stellar/stellar-sdk";
 import { Api } from "@stellar/stellar-sdk/rpc";
 import { beforeEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -22,41 +24,128 @@ import * as stellarUtils from "../../src/utils";
 import type { FacilitatorStellarSigner } from "../../src/signer";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 
-vi.mock("@stellar/stellar-sdk/contract", async () => {
-  const actual = await vi.importActual<typeof import("@stellar/stellar-sdk/contract")>(
-    "@stellar/stellar-sdk/contract",
+/**
+ * Creates a mock transfer event for testing event validation.
+ * Follows CAP-46-06 format: Topic: ["transfer", from, to, ...], Data: amount
+ * @see https://github.com/stellar/stellar-protocol/blob/master/core/cap-0046-06.md
+ *
+ * @param params - The parameters object
+ * @param params.from - The sender address
+ * @param params.to - The recipient address
+ * @param params.amount - The transfer amount as bigint
+ * @param params.fnName - The function name (defaults to "transfer")
+ * @returns A DiagnosticEvent XDR object
+ */
+function createMockContractEvent({
+  from,
+  to,
+  amount,
+  fnName = "transfer",
+}: {
+  from: string;
+  to: string;
+  amount: bigint;
+  fnName?: string;
+}): xdr.DiagnosticEvent {
+  // symbol for the function name
+  const transferSymbol = xdr.ScVal.scvSymbol(fnName);
+
+  const fromKeypair = Keypair.fromPublicKey(from);
+  const fromScAddress = xdr.ScVal.scvAddress(
+    xdr.ScAddress.scAddressTypeAccount(
+      xdr.PublicKey.publicKeyTypeEd25519(fromKeypair.rawPublicKey()),
+    ),
   );
-  return {
-    ...actual,
-    AssembledTransaction: {
-      build: vi.fn(),
-    },
-  };
-});
+
+  const toKeypair = Keypair.fromPublicKey(to);
+  const toScAddress = xdr.ScVal.scvAddress(
+    xdr.ScAddress.scAddressTypeAccount(
+      xdr.PublicKey.publicKeyTypeEd25519(toKeypair.rawPublicKey()),
+    ),
+  );
+
+  const amountScVal = xdr.ScVal.scvI128(
+    new xdr.Int128Parts({
+      lo: xdr.Uint64.fromString(amount.toString()),
+      hi: xdr.Int64.fromString("0"),
+    }),
+  );
+
+  const contractEventV0 = new xdr.ContractEventV0({
+    topics: [transferSymbol, fromScAddress, toScAddress],
+    data: amountScVal,
+  });
+  return createMockDiagnosticEvent(contractEventV0, xdr.ContractEventType.contract());
+}
+
+/**
+ * Creates a mock system diagnostic event (should be ignored by event validator).
+ */
+function createMockSystemEvent(): xdr.DiagnosticEvent {
+  return createMockDiagnosticEvent(
+    new xdr.ContractEventV0({ topics: [], data: xdr.ScVal.scvVoid() }),
+    xdr.ContractEventType.system(),
+  );
+}
+
+/**
+ * Creates a mock diagnostic event from a ContractEventV0 and event type.
+ * This helper function constructs the proper XDR structure for testing
+ * contract event validation in the facilitator verification process.
+ *
+ * @param v0 - The ContractEventV0 containing the event data
+ * @param eventType - The contract event type (contract or system)
+ * @returns A properly formatted DiagnosticEvent for testing
+ */
+function createMockDiagnosticEvent(
+  v0: xdr.ContractEventV0,
+  eventType: ReturnType<typeof xdr.ContractEventType.contract> = xdr.ContractEventType.contract(),
+): xdr.DiagnosticEvent {
+  const eventBodyXdr = xdr.ContractEventBody.toXDR(
+    xdr.ContractEventBody.fromXDR(
+      Buffer.concat([Buffer.from([0, 0, 0, 0]), xdr.ContractEventV0.toXDR(v0)]),
+    ),
+  );
+  const contractEvent = new xdr.ContractEvent({
+    ext: xdr.ExtensionPoint.fromXDR(Buffer.from([0, 0, 0, 0])),
+    contractId: null,
+    type: eventType,
+    body: xdr.ContractEventBody.fromXDR(eventBodyXdr),
+  });
+  return new xdr.DiagnosticEvent({
+    inSuccessfulContractCall: true,
+    event: contractEvent,
+  });
+}
 
 vi.mock("../../src/utils", async () => {
   const actual = await vi.importActual<typeof stellarUtils>("../../src/utils");
   return {
     ...actual,
     getNetworkPassphrase: vi.fn(),
-    getRpcUrl: vi.fn(),
     getRpcClient: vi.fn(),
-    isStellarNetwork: vi.fn(),
-    validateStellarAssetAddress: vi.fn(),
-    validateStellarDestinationAddress: vi.fn(),
   };
 });
 
-describe("ExactStellarScheme - Verify", () => {
+describe("ExactStellarScheme#Verify", () => {
   const mockServer = {
     simulateTransaction: vi.fn(),
     getLatestLedger: vi.fn(),
   } as unknown as rpc.Server;
 
   const CLIENT_PUBLIC = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
-  const FACILITATOR_PUBLIC = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
+  const FACILITATOR_PUBLIC = "GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P";
+  const TRANSACTION_RECIPIENT = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
   const ASSET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+  const networkPassphrase = StellarNetworks.TESTNET;
+  const account = new Account(CLIENT_PUBLIC, "100");
 
+  let stellarPayload: { transaction: string };
+  let baseTransaction: Transaction;
+  let baseSorobanData: xdr.SorobanTransactionData | undefined;
+  let baseOperation: Operation.InvokeHostFunction;
+  let baseFunc: xdr.HostFunction;
+  let baseInvokeContractArgs: xdr.InvokeContractArgs;
   let facilitatorSigner: FacilitatorStellarSigner;
   let facilitator: ExactStellarScheme;
   let validPayload: PaymentPayload;
@@ -70,37 +159,25 @@ describe("ExactStellarScheme - Verify", () => {
     Buffer.from(signedTxJson, "base64").toString("utf8"),
   );
 
-  // Create a transaction with proper ledger bounds for testing
-  // The transaction needs ledger bounds within [currentLedger, currentLedger + maxLedgerOffset]
-  // We'll rebuild it with proper bounds in beforeAll
-  let mockTransactionXDR: string;
-
   beforeAll(async () => {
     // Set up mocks
     vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
-    vi.mocked(stellarUtils.getRpcUrl).mockReturnValue("https://soroban-testnet.stellar.org");
     vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockServer);
-    vi.mocked(stellarUtils.isStellarNetwork).mockReturnValue(true);
-    vi.mocked(stellarUtils.validateStellarAssetAddress).mockReturnValue(true);
-    vi.mocked(stellarUtils.validateStellarDestinationAddress).mockReturnValue(true);
     vi.mocked(mockServer.getLatestLedger).mockResolvedValue({
       sequence: txSignatureExpiration - 10,
     } as Api.GetLatestLedgerResponse);
 
     // Create signers
-    // Use a different secret for facilitator to get FACILITATOR_PUBLIC address
-    // FACILITATOR_PUBLIC = GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W
-    // We need to find the secret for this, or use CLIENT_PUBLIC as facilitator for tests
-    // For now, we'll use CLIENT_PUBLIC as facilitator address in the test
+    // Use a different secret for facilitator that does NOT appear in mock transaction auth entries.
+    // The mock transaction has auth entries from CLIENT_PUBLIC (the payer).
+    // This ensures the facilitator address doesn't appear in auth entries.
+    // Using a separate keypair: GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P
     facilitatorSigner = createEd25519Signer(
-      "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
+      "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV",
       STELLAR_TESTNET_CAIP2,
     );
 
     facilitator = new ExactStellarScheme(facilitatorSigner);
-
-    // Use the original transaction XDR directly - it should already have ledger bounds
-    mockTransactionXDR = baseTransactionXDR;
 
     // Create valid requirements (V2 format)
     // Note: Values must match the transaction XDR from shared test
@@ -108,7 +185,7 @@ describe("ExactStellarScheme - Verify", () => {
       scheme: "exact",
       network: STELLAR_TESTNET_CAIP2,
       amount: "10000", // Extracted from transaction XDR
-      payTo: FACILITATOR_PUBLIC,
+      payTo: TRANSACTION_RECIPIENT, // Must match transaction's recipient
       maxTimeoutSeconds: 60,
       asset: ASSET,
       extra: {
@@ -126,23 +203,53 @@ describe("ExactStellarScheme - Verify", () => {
       },
       accepted: validRequirements,
       payload: {
-        transaction: mockTransactionXDR,
+        transaction: baseTransactionXDR,
       },
     };
+
+    stellarPayload = validPayload.payload as { transaction: string };
+    const txEnvelope = xdr.TransactionEnvelope.fromXDR(stellarPayload.transaction, "base64");
+    baseTransaction = new Transaction(stellarPayload.transaction, networkPassphrase);
+    baseSorobanData = txEnvelope.v1()?.tx()?.ext()?.sorobanData() || undefined;
+    baseOperation = baseTransaction.operations[0] as Operation.InvokeHostFunction;
+    baseFunc = baseOperation.func;
+    baseInvokeContractArgs = baseFunc.invokeContract();
   });
 
+  /**
+   * Builds a modified transaction and wraps it in a PaymentPayload.
+   */
+  function buildStellarPayloadFromOp(
+    operation: xdr.Operation,
+    options?: { includeSorobanData?: boolean },
+  ): PaymentPayload {
+    const modifiedTx = new TransactionBuilder(account, {
+      fee: baseTransaction.fee,
+      networkPassphrase,
+      ledgerbounds: baseTransaction.ledgerBounds,
+      ...(options?.includeSorobanData !== false &&
+        baseSorobanData && { sorobanData: baseSorobanData }),
+    })
+      .addOperation(operation)
+      .setTimeout(validRequirements.maxTimeoutSeconds)
+      .build();
+    return {
+      ...validPayload,
+      payload: { transaction: modifiedTx.toXDR() },
+    };
+  }
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
-    vi.mocked(stellarUtils.getRpcUrl).mockReturnValue("https://soroban-testnet.stellar.org");
-    vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockServer);
-    vi.mocked(mockServer.getLatestLedger).mockResolvedValue({
-      sequence: txSignatureExpiration - 10,
-    } as Api.GetLatestLedgerResponse);
+    const defaultTransferEvent = createMockContractEvent({
+      from: CLIENT_PUBLIC,
+      to: TRANSACTION_RECIPIENT,
+      amount: BigInt(validRequirements.amount),
+    });
+
     vi.mocked(mockServer.simulateTransaction).mockResolvedValue({
       id: "test",
       latestLedger: 123,
-      events: [],
+      events: [defaultTransferEvent],
       _parsed: true,
       transactionData: new SorobanDataBuilder(),
       minResourceFee: "100",
@@ -153,13 +260,16 @@ describe("ExactStellarScheme - Verify", () => {
 
   describe("validation errors", () => {
     it("should reject invalid x402 version, scheme, and network mismatch", async () => {
-      let result = await facilitator.verify({ ...validPayload, x402Version: 9 }, validRequirements);
+      let result = await facilitator.verify(
+        { ...validPayload, x402Version: 9 }, // ❌ unsupported x402 version
+        validRequirements,
+      );
       expect(result).toEqual(invalidVerifyResponse("invalid_x402_version"));
 
       result = await facilitator.verify(
         {
           ...validPayload,
-          accepted: { ...validPayload.accepted, scheme: "invalid" },
+          accepted: { ...validPayload.accepted, scheme: "invalid" }, // ❌ wrong scheme
         },
         validRequirements,
       );
@@ -168,56 +278,444 @@ describe("ExactStellarScheme - Verify", () => {
       result = await facilitator.verify(
         {
           ...validPayload,
-          accepted: { ...validPayload.accepted, network: "foo:bar" },
+          accepted: { ...validPayload.accepted, network: "foo:bar" }, // ❌ wrong network
         },
         validRequirements,
       );
       expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
     });
 
-    it("should reject mismatching requirement<>payload networks", async () => {
-      const requirements: PaymentRequirements = {
-        ...validRequirements,
-        network: "eip155:84532" as never,
-      };
-      const result = await facilitator.verify(validPayload, requirements);
-      expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
+    describe("mismatching networks", () => {
+      it("should reject mismatching requirement<>payload networks", async () => {
+        const requirements: PaymentRequirements = {
+          ...validRequirements,
+          network: "eip155:84532" as never, // ❌ requirements network != payload accepted
+        };
+        const result = await facilitator.verify(validPayload, requirements);
+        expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
+      });
+
+      it("should reject when facilitator network differs from payload's and requirements'", async () => {
+        const wrongNetwork = "eip155:84532" as never; // ❌ signer network != payload/requirements
+        const requirements: PaymentRequirements = {
+          ...validRequirements,
+          network: wrongNetwork,
+        };
+        const payload: PaymentPayload = {
+          ...validPayload,
+          accepted: { ...validPayload.accepted, network: wrongNetwork },
+        };
+        const result = await facilitator.verify(payload, requirements);
+        expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
+      });
     });
 
     it("should reject malformed transaction XDR", async () => {
       const payload = {
         ...validPayload,
-        payload: { transaction: "AAAA" },
+        payload: { transaction: "AAAA" }, // ❌ Invalid XDR
       };
       const result = await facilitator.verify(payload, validRequirements);
       expect(result).toEqual(invalidVerifyResponse("invalid_exact_stellar_payload_malformed"));
     });
 
+    it("should reject wrong operation count", async () => {
+      expect(baseSorobanData).toBeDefined();
+
+      const parsedOperation = Operation.invokeHostFunction(baseOperation);
+      const modifiedTx = new TransactionBuilder(account, {
+        fee: baseTransaction.fee,
+        networkPassphrase,
+        ledgerbounds: baseTransaction.ledgerBounds,
+        sorobanData: baseSorobanData,
+      })
+        .addOperation(parsedOperation)
+        .addOperation(parsedOperation) // ❌ Multiple operations are forbidden
+        .setTimeout(validRequirements.maxTimeoutSeconds)
+        .build();
+
+      const modifiedStellarPayload: PaymentPayload = {
+        ...validPayload,
+        payload: { transaction: modifiedTx.toXDR() },
+      };
+
+      const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_operation");
+    });
+
+    it("should reject wrong operation type", async () => {
+      const paymentOp = Operation.payment({
+        // ❌ operation of unsupported type (MUST be invokeHostFunction)
+        destination: CLIENT_PUBLIC,
+        asset: Asset.native(),
+        amount: "1",
+      });
+      const modifiedStellarPayload = buildStellarPayloadFromOp(paymentOp, {
+        includeSorobanData: false,
+      });
+
+      const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_operation");
+    });
+
+    it("should reject wrong contract function name", async () => {
+      const wrongFuncArgs = new xdr.InvokeContractArgs({
+        contractAddress: baseInvokeContractArgs.contractAddress(),
+        functionName: "mint", // ❌ function name MUST be "transfer"
+        args: baseInvokeContractArgs.args(),
+      });
+      const modifiedFunc = xdr.HostFunction.hostFunctionTypeInvokeContract(wrongFuncArgs);
+      const modifiedOperation = Operation.invokeHostFunction({
+        ...baseOperation,
+        func: modifiedFunc,
+      });
+      const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+      const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_function_name");
+    });
+
     it("should reject wrong asset, recipient, or amount", async () => {
       let result = await facilitator.verify(validPayload, {
         ...validRequirements,
-        asset: "CDNVQW44C3HALYNVQ4SOBXY5EWYTGVYXX6JPESOLQDABJI5FC5LTRRUE",
+        asset: "CDNVQW44C3HALYNVQ4SOBXY5EWYTGVYXX6JPESOLQDABJI5FC5LTRRUE", // ❌ wrong asset
       });
       expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_asset");
 
       result = await facilitator.verify(validPayload, {
         ...validRequirements,
-        payTo: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER",
+        payTo: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER", // ❌ wrong recipient
       });
       expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_recipient");
       expect(result.payer).toBe(CLIENT_PUBLIC);
 
       result = await facilitator.verify(validPayload, {
         ...validRequirements,
-        amount: "10001",
+        amount: "10001", // ❌ wrong amount
       });
       expect(result.invalidReason).toBe("invalid_exact_stellar_payload_wrong_amount");
       expect(result.payer).toBe(CLIENT_PUBLIC);
     });
 
+    describe("Authorization entries and facilitator safety", () => {
+      it("should reject when facilitator is the payer (from address)", async () => {
+        const facilitatorAddress = facilitatorSigner.address;
+
+        if (!baseSorobanData || !baseOperation.auth?.length) {
+          throw new Error("Missing sorobanData or auth in test transaction");
+        }
+
+        const originalArgs = baseInvokeContractArgs.args();
+        const facilitatorKeypair = Keypair.fromPublicKey(facilitatorAddress);
+        const facilitatorScAddress = xdr.ScVal.scvAddress(
+          xdr.ScAddress.scAddressTypeAccount(
+            xdr.PublicKey.publicKeyTypeEd25519(facilitatorKeypair.rawPublicKey()),
+          ),
+        );
+
+        const modifiedInvokeContractArgs = new xdr.InvokeContractArgs({
+          contractAddress: baseInvokeContractArgs.contractAddress(),
+          functionName: baseInvokeContractArgs.functionName(),
+          args: [
+            facilitatorScAddress, // ❌ facilitator CANNOT be the payer
+            originalArgs[1],
+            originalArgs[2],
+          ],
+        });
+        const modifiedFunc = xdr.HostFunction.hostFunctionTypeInvokeContract(
+          modifiedInvokeContractArgs,
+        );
+        const modifiedOperation = Operation.invokeHostFunction({
+          ...baseOperation,
+          func: modifiedFunc,
+        });
+        const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+        const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_facilitator_is_payer");
+      });
+
+      it("should reject empty auth entries array", async () => {
+        const modifiedOperation = Operation.invokeHostFunction({
+          ...baseOperation,
+          auth: [], // ❌ Empty auth array
+        });
+        const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+        const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_no_auth_entries");
+      });
+
+      it("should reject missing payer signature", async () => {
+        if (!baseSorobanData || !baseOperation.auth || baseOperation.auth.length === 0) {
+          throw new Error("Missing sorobanData or auth in test transaction");
+        }
+
+        const originalAuth = baseOperation.auth[0];
+        const originalCreds = originalAuth.credentials().address();
+
+        const unsignedCreds = new xdr.SorobanAddressCredentials({
+          address: originalCreds.address(),
+          nonce: originalCreds.nonce(),
+          signatureExpirationLedger: originalCreds.signatureExpirationLedger(),
+          signature: xdr.ScVal.scvVoid(), // ❌ payer signature is missing
+        });
+
+        const authWithoutSignature = new xdr.SorobanAuthorizationEntry({
+          credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(unsignedCreds),
+          rootInvocation: originalAuth.rootInvocation(),
+        });
+
+        const modifiedOperation = Operation.invokeHostFunction({
+          ...baseOperation,
+          auth: [authWithoutSignature],
+        });
+        const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+        const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_missing_payer_signature");
+        expect(result.payer).toBe(CLIENT_PUBLIC);
+      });
+
+      it("should reject unexpected pending signatures", async () => {
+        if (!baseSorobanData || !baseOperation.auth || baseOperation.auth.length === 0) {
+          throw new Error("Missing sorobanData or auth in test transaction");
+        }
+
+        const originalAuth = baseOperation.auth[0];
+        const originalCreds = originalAuth.credentials().address();
+
+        const otherKeypair = Keypair.random();
+        const otherAddressScVal = xdr.ScAddress.scAddressTypeAccount(
+          xdr.PublicKey.publicKeyTypeEd25519(otherKeypair.rawPublicKey()),
+        );
+
+        const pendingCreds = new xdr.SorobanAddressCredentials({
+          address: otherAddressScVal,
+          nonce: originalCreds.nonce(),
+          signatureExpirationLedger: originalCreds.signatureExpirationLedger(),
+          signature: xdr.ScVal.scvVoid(),
+        });
+
+        const pendingAuth = new xdr.SorobanAuthorizationEntry({
+          credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(pendingCreds),
+          rootInvocation: originalAuth.rootInvocation(),
+        });
+
+        const modifiedOperation = Operation.invokeHostFunction({
+          ...baseOperation,
+          auth: [originalAuth, pendingAuth], // ❌ unexpected pending signature(s)
+        });
+        const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+        const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe(
+          "invalid_exact_stellar_payload_unexpected_pending_signatures",
+        );
+        expect(result.payer).toBe(CLIENT_PUBLIC);
+      });
+
+      it("should reject expiration ledger too far in the future", async () => {
+        if (!baseSorobanData || !baseOperation.auth || baseOperation.auth.length === 0) {
+          throw new Error("Missing sorobanData or auth in test transaction");
+        }
+
+        const originalAuth = baseOperation.auth[0];
+        const originalCreds = originalAuth.credentials().address();
+        const farFuture = (txSignatureExpiration + 10_000).toString();
+
+        const farFutureCreds = new xdr.SorobanAddressCredentials({
+          address: originalCreds.address(),
+          nonce: originalCreds.nonce(),
+          signatureExpirationLedger: Number(farFuture), // ❌ Signature expiration too far
+          signature: originalCreds.signature(),
+        });
+
+        const authWithFarExpiration = new xdr.SorobanAuthorizationEntry({
+          credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(farFutureCreds),
+          rootInvocation: originalAuth.rootInvocation(),
+        });
+
+        const modifiedOperation = Operation.invokeHostFunction({
+          ...baseOperation,
+          auth: [authWithFarExpiration],
+        });
+        const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+        const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_signature_expiration_too_far");
+        expect(result.payer).toBe(CLIENT_PUBLIC);
+      });
+
+      describe("credential type validation", () => {
+        it("should reject auth entries with non-sorobanCredentialsAddress credentials", async () => {
+          if (!baseSorobanData) {
+            throw new Error("Missing sorobanData in test transaction");
+          }
+
+          const sourceAccountAuth = xdr.SorobanAuthorizationEntry.fromXDR(
+            xdr.SorobanAuthorizationEntry.toXDR(
+              new xdr.SorobanAuthorizationEntry({
+                credentials: xdr.SorobanCredentials.sorobanCredentialsSourceAccount(), // ❌ not sorobanCredentialsAddress
+                rootInvocation: baseOperation.auth![0].rootInvocation(),
+              }),
+            ),
+          );
+
+          const modifiedOperation = Operation.invokeHostFunction({
+            ...baseOperation,
+            auth: [sourceAccountAuth],
+          });
+          const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+          const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+          expect(result.isValid).toBe(false);
+          expect(result.invalidReason).toBe(
+            "invalid_exact_stellar_payload_unsupported_credential_type",
+          );
+        });
+      });
+
+      describe("sub-invocation validation", () => {
+        it("should reject auth entries with sub-invocations", async () => {
+          if (!baseSorobanData || !baseOperation.auth || baseOperation.auth.length === 0) {
+            throw new Error("Missing sorobanData or auth in test transaction");
+          }
+
+          const originalAuth = baseOperation.auth[0];
+          const originalRootInvocation = originalAuth.rootInvocation();
+
+          const subInvocation = new xdr.SorobanAuthorizedInvocation({
+            function: originalRootInvocation.function(),
+            subInvocations: [],
+          });
+
+          const rootWithSubInvocations = new xdr.SorobanAuthorizedInvocation({
+            function: originalRootInvocation.function(),
+            subInvocations: [subInvocation], // ❌ sub-invocations not allowed
+          });
+
+          const authWithSubInvocations = new xdr.SorobanAuthorizationEntry({
+            credentials: originalAuth.credentials(),
+            rootInvocation: rootWithSubInvocations,
+          });
+
+          const modifiedOperation = Operation.invokeHostFunction({
+            ...baseOperation,
+            auth: [authWithSubInvocations],
+          });
+          const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+          const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+          expect(result.isValid).toBe(false);
+          expect(result.invalidReason).toBe("invalid_exact_stellar_payload_has_subinvocations");
+        });
+      });
+
+      describe("facilitator in auth entries validation", () => {
+        it("should reject when facilitator address is in auth entries", async () => {
+          if (!baseSorobanData || !baseOperation.auth || baseOperation.auth.length === 0) {
+            throw new Error("Missing sorobanData or auth in test transaction");
+          }
+
+          const facilitatorAddress = facilitatorSigner.address;
+          const originalAuth = baseOperation.auth[0];
+          const originalAddressCredentials = originalAuth.credentials().address();
+
+          const facilitatorKeypair = Keypair.fromPublicKey(facilitatorAddress);
+          const facilitatorAddressScVal = xdr.ScAddress.scAddressTypeAccount(
+            xdr.PublicKey.publicKeyTypeEd25519(facilitatorKeypair.rawPublicKey()),
+          );
+
+          const facilitatorCredentials = new xdr.SorobanAddressCredentials({
+            address: facilitatorAddressScVal, // ❌ facilitator address in auth entry
+            nonce: originalAddressCredentials.nonce(),
+            signatureExpirationLedger: originalAddressCredentials.signatureExpirationLedger(),
+            signature: originalAddressCredentials.signature(),
+          });
+
+          const authWithFacilitator = new xdr.SorobanAuthorizationEntry({
+            credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(facilitatorCredentials),
+            rootInvocation: originalAuth.rootInvocation(),
+          });
+
+          const modifiedOperation = Operation.invokeHostFunction({
+            ...baseOperation,
+            auth: [authWithFacilitator],
+          });
+          const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+          const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+          expect(result.isValid).toBe(false);
+          expect(result.invalidReason).toBe("invalid_exact_stellar_payload_facilitator_in_auth");
+        });
+      });
+
+      describe("should reject when source is unauthorized", () => {
+        it("should reject operation.source == facilitatorAccount", async () => {
+          const facilitatorAddress = facilitatorSigner.address;
+
+          if (!baseSorobanData) {
+            throw new Error("Missing sorobanData in test transaction");
+          }
+
+          const modifiedOperation = Operation.invokeHostFunction({
+            ...baseOperation,
+            source: facilitatorAddress, // ❌ operation source is facilitator
+          });
+          const modifiedStellarPayload = buildStellarPayloadFromOp(modifiedOperation);
+
+          const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+          expect(result.isValid).toBe(false);
+          expect(result.invalidReason).toBe("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
+        });
+
+        it("should reject transaction.source == facilitatorAccount", async () => {
+          const facilitatorAddress = facilitatorSigner.address;
+
+          if (!baseSorobanData) {
+            throw new Error("Missing sorobanData in test transaction");
+          }
+
+          const modifiedOperation = Operation.invokeHostFunction({
+            ...baseOperation,
+          });
+          const facilitatorAccount = new Account(facilitatorAddress, "100"); // ❌ transaction source is facilitator
+          const modifiedTx = new TransactionBuilder(facilitatorAccount, {
+            fee: baseTransaction.fee,
+            networkPassphrase,
+            ledgerbounds: baseTransaction.ledgerBounds,
+            sorobanData: baseSorobanData,
+          })
+            .addOperation(modifiedOperation)
+            .setTimeout(validRequirements.maxTimeoutSeconds)
+            .build();
+
+          const modifiedStellarPayload: PaymentPayload = {
+            ...validPayload,
+            payload: {
+              transaction: modifiedTx.toXDR(),
+            },
+          };
+
+          const result = await facilitator.verify(modifiedStellarPayload, validRequirements);
+          expect(result.isValid).toBe(false);
+          expect(result.invalidReason).toBe("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
+        });
+      });
+    });
+
     it("should reject simulation failure", async () => {
       vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
-        error: "Simulation failed",
+        error: "Simulation failed", // ❌ Simulation error
         events: [],
         id: "test",
         latestLedger: 123,
@@ -229,117 +727,176 @@ describe("ExactStellarScheme - Verify", () => {
       expect(result.payer).toBe(CLIENT_PUBLIC);
     });
 
-    it("should reject auth entry whose signature expiration is too far", async () => {
-      const facilitatorWithOffset = new ExactStellarScheme(facilitatorSigner, undefined, 5);
-      const result = await facilitatorWithOffset.verify(validPayload, {
-        ...validRequirements,
-        extra: { maxLedgerOffset: 5 },
-      });
-      expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_stellar_signature_expiration_too_far");
-      expect(result.payer).toBe(CLIENT_PUBLIC);
-    });
-
-    describe("should reject when source is unauthorized", () => {
-      it("should reject operation.source == facilitatorAccount", async () => {
-        // Get the actual facilitator address from the signer
-        const facilitatorAddress = facilitatorSigner.address;
-
-        // Parse the valid transaction
-        const networkPassphrase = StellarNetworks.TESTNET;
-        const stellarPayload = validPayload.payload as { transaction: string };
-        const txEnvelope = xdr.TransactionEnvelope.fromXDR(stellarPayload.transaction, "base64");
-        const transaction = new Transaction(stellarPayload.transaction, networkPassphrase);
-        const sorobanData = txEnvelope.v1()?.tx()?.ext()?.sorobanData() || undefined;
-        const operation = transaction.operations[0] as Operation.InvokeHostFunction;
-
-        if (!sorobanData) {
-          throw new Error("Missing sorobanData in test transaction");
-        }
-
-        // Create a new operation with facilitator as source
-        const modifiedOperation = Operation.invokeHostFunction({
-          func: operation.func,
-          auth: operation.auth || [],
-          source: facilitatorAddress,
+    // Event-based balance change validation
+    describe("simulation event validation", () => {
+      it("should reject when simulation shows multiple transfer events", async () => {
+        // Create mock diagnostic events with multiple transfers
+        const mockTransferEvent1 = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: TRANSACTION_RECIPIENT,
+          amount: BigInt(10000),
+        });
+        const mockTransferEvent2 = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER",
+          amount: BigInt(5000),
         });
 
-        // Create a new transaction with the modified operation
-        const account = new Account(CLIENT_PUBLIC, "100");
-        const modifiedTx = new TransactionBuilder(account, {
-          fee: transaction.fee,
-          networkPassphrase,
-          ledgerbounds: transaction.ledgerBounds,
-          sorobanData,
-        })
-          .addOperation(modifiedOperation)
-          .setTimeout(validRequirements.maxTimeoutSeconds)
-          .build();
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent1, mockTransferEvent2], // ❌ multiple transfer events
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
 
-        const modifiedPayload: PaymentPayload = {
-          ...validPayload,
-          payload: {
-            transaction: modifiedTx.toXDR(),
-          },
-        };
-
-        const result = await facilitator.verify(modifiedPayload, validRequirements);
+        const result = await facilitator.verify(validPayload, validRequirements);
         expect(result.isValid).toBe(false);
-        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
-        expect(result.payer).toBe(CLIENT_PUBLIC);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_multiple_transfers");
       });
 
-      it("should reject transaction.source == facilitatorAccount", async () => {
-        // Get the actual facilitator address from the signer
-        const facilitatorAddress = facilitatorSigner.address;
-
-        // Parse the valid transaction
-        const networkPassphrase = StellarNetworks.TESTNET;
-        const stellarPayload = validPayload.payload as { transaction: string };
-        const txEnvelope = xdr.TransactionEnvelope.fromXDR(stellarPayload.transaction, "base64");
-        const transaction = new Transaction(stellarPayload.transaction, networkPassphrase);
-        const sorobanData = txEnvelope.v1()?.tx()?.ext()?.sorobanData() || undefined;
-        const operation = transaction.operations[0] as Operation.InvokeHostFunction;
-
-        if (!sorobanData) {
-          throw new Error("Missing sorobanData in test transaction");
-        }
-
-        // Create a new operation (reuse the function and auth from original)
-        const modifiedOperation = Operation.invokeHostFunction({
-          func: operation.func,
-          auth: operation.auth || [],
-          source: operation.source,
+      it("should reject when transfer event has wrong from address", async () => {
+        // Create mock event with wrong from address
+        const mockTransferEvent = createMockContractEvent({
+          from: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER", // ❌ wrong `from` address
+          to: FACILITATOR_PUBLIC,
+          amount: BigInt(10000),
         });
 
-        // Create a new transaction with facilitator as source
-        const account = new Account(facilitatorAddress, "100");
-        const modifiedTx = new TransactionBuilder(account, {
-          fee: transaction.fee,
-          networkPassphrase,
-          ledgerbounds: transaction.ledgerBounds,
-          sorobanData,
-        })
-          .addOperation(modifiedOperation)
-          .setTimeout(validRequirements.maxTimeoutSeconds)
-          .build();
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
 
-        const modifiedPayload: PaymentPayload = {
-          ...validPayload,
-          payload: {
-            transaction: modifiedTx.toXDR(),
-          },
-        };
-
-        const result = await facilitator.verify(modifiedPayload, validRequirements);
+        const result = await facilitator.verify(validPayload, validRequirements);
         expect(result.isValid).toBe(false);
-        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
-        expect(result.payer).toBe(CLIENT_PUBLIC);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_wrong_from");
+      });
+
+      it("should reject when transfer event has wrong to address", async () => {
+        // Create mock event with wrong to address
+        const mockTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER", // ❌ wrong `to` address
+          amount: BigInt(10000),
+        });
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_wrong_to");
+      });
+
+      it("should reject when transfer event has wrong amount", async () => {
+        // Create mock event with wrong amount
+        const mockTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: TRANSACTION_RECIPIENT,
+          amount: BigInt(5000), // ❌ wrong `amount` (expected 10000)
+        });
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_wrong_amount");
+      });
+
+      it("should reject when no transfer events are present", async () => {
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [], // ❌ no transfer events
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_no_transfer_events");
+      });
+
+      it("should reject when a contract event is not a transfer", async () => {
+        const mockNonTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: FACILITATOR_PUBLIC,
+          amount: BigInt(10000),
+          fnName: "mint", // ❌ event is not "transfer"
+        });
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockNonTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_not_transfer");
+      });
+
+      it("should ignore non-contract events and still accept valid transfer", async () => {
+        const mockTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: TRANSACTION_RECIPIENT,
+          amount: BigInt(10000),
+        });
+        const nonContractEvent = createMockSystemEvent();
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [nonContractEvent, mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(true);
       });
     });
   });
 
-  describe("successful verification", () => {
+  describe("🎉 Successful verification", () => {
     it("should verify valid payment", async () => {
       const result = await facilitator.verify(validPayload, validRequirements);
       expect(result).toEqual(validVerifyResponse(CLIENT_PUBLIC));

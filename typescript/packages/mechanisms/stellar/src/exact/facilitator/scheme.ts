@@ -8,6 +8,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import { Api } from "@stellar/stellar-sdk/rpc";
+import { STELLAR_WILDCARD_CAIP2 } from "../../constants";
 import { gatherAuthEntrySignatureStatus } from "../../shared";
 import { ExactStellarPayloadV2 } from "../../types";
 import { getRpcClient, getNetworkPassphrase } from "../../utils";
@@ -23,24 +24,24 @@ import type {
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
-const DEFAULT_MAX_LEDGER_OFFSET = 12;
+const DEFAULT_ESTIMATED_LEDGER_SECONDS = 5;
 
 /**
- * Creates an invalid verification response
+ * Helper to create a `VerifyResponse` with `isValid: false`.
  *
  * @param reason - The error reason code
  * @param payer - Optional payer address
- * @returns Invalid verification response
+ * @returns a `VerifyResponse` with `isValid: false` and the provided reason and (optional) payer
  */
 export function invalidVerifyResponse(reason: string, payer?: string): VerifyResponse {
   return { isValid: false, invalidReason: reason, payer };
 }
 
 /**
- * Creates a valid verification response
+ * Helper to create a `VerifyResponse` with `isValid: true`.
  *
  * @param payer - The payer address
- * @returns Valid verification response
+ * @returns a `VerifyResponse` with `isValid: true` and the provided payer
  */
 export function validVerifyResponse(payer: string): VerifyResponse {
   return { isValid: true, payer };
@@ -51,32 +52,35 @@ export function validVerifyResponse(payer: string): VerifyResponse {
  */
 export class ExactStellarScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
-  readonly caipFamily = "stellar:*";
+  readonly caipFamily = STELLAR_WILDCARD_CAIP2;
 
   /**
    * Creates a new ExactStellarScheme instance.
    *
-   * @param signer - The Stellar signer for facilitator operations
+   * @param signer - The Stellar signer managed by the facilitator
    * @param rpcConfig - Optional RPC configuration with custom RPC URL
    * @param rpcConfig.url - Custom RPC URL to use instead of defaults
-   * @param maxLedgerOffset - Max number of ledgers a signature is allowed to have in order to be submitted by the server (default: 12)
+   * @param areFeesSponsored - Indicates if fees are sponsored (default: true)
    * @returns ExactStellarScheme instance
    */
   constructor(
     private readonly signer: FacilitatorStellarSigner,
     private readonly rpcConfig?: { url?: string },
-    private readonly maxLedgerOffset: number = DEFAULT_MAX_LEDGER_OFFSET,
+    private readonly areFeesSponsored: boolean = true,
   ) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For Stellar, returns maxLedgerOffset which clients use to calculate transaction expiration.
+   * For Stellar, returns `areFeesSponsored` indicating to clients if they can expect fees to be sponsored.
+   * As of now, the spec only supports `areFeesSponsored: true`.
    *
    * @param _ - The network identifier (unused, offset is network-agnostic)
-   * @returns Extra data with maxLedgerOffset
+   * @returns Extra data with the `areFeesSponsored` flag
    */
   getExtra(_: Network): Record<string, unknown> | undefined {
-    return { maxLedgerOffset: this.maxLedgerOffset };
+    return {
+      areFeesSponsored: this.areFeesSponsored,
+    };
   }
 
   /**
@@ -111,12 +115,13 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         return invalidVerifyResponse("unsupported_scheme");
       }
 
-      if (payload.accepted.network !== requirements.network) {
+      const signerNetwork = (await this.signer.getNetwork()).network;
+      if (signerNetwork !== requirements.network || signerNetwork !== payload.accepted.network) {
         return invalidVerifyResponse("network_mismatch");
       }
 
-      const server = getRpcClient(requirements.network, this.rpcConfig);
-      const networkPassphrase = getNetworkPassphrase(requirements.network);
+      const server = getRpcClient(signerNetwork, this.rpcConfig);
+      const networkPassphrase = getNetworkPassphrase(signerNetwork);
 
       // Step 2: Parse and decode transaction
       const stellarPayload = payload.payload as ExactStellarPayloadV2;
@@ -144,6 +149,11 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
+      const facilitatorAddress = this.signer.address;
+      if (operation.source === facilitatorAddress || transaction.source === facilitatorAddress) {
+        return invalidVerifyResponse("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
+      }
+
       // Step 4: Extract and validate contract invocation details
       const invokeOp = operation as Operation.InvokeHostFunction;
       const func = invokeOp.func;
@@ -153,14 +163,14 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
+      // Step 5: Validate contract address and function name
       const invokeContractArgs = func.invokeContract();
       const contractAddress = Address.fromScAddress(
         invokeContractArgs.contractAddress(),
       ).toString();
       const functionName = invokeContractArgs.functionName().toString();
-      const args = invokeContractArgs.args();
 
-      // Step 5: Validate contract address and function name
+      const args = invokeContractArgs.args();
       if (contractAddress !== requirements.asset) {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_asset");
       }
@@ -174,19 +184,23 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const toAddress = scValToNative(args[1]) as string;
       const amount = scValToNative(args[2]) as bigint;
 
+      if (fromAddress === facilitatorAddress) {
+        return invalidVerifyResponse("invalid_exact_stellar_payload_facilitator_is_payer");
+      }
+
       if (toAddress !== requirements.payTo) {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_recipient", fromAddress);
       }
 
-      const requiredAmount = BigInt(requirements.amount);
-      if (amount !== requiredAmount) {
+      const expectedAmount = BigInt(requirements.amount);
+      if (amount !== expectedAmount) {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_amount", fromAddress);
       }
 
       // Step 7: Re-simulate to ensure transaction will succeed
-      const simulateResponse = await server.simulateTransaction(transaction);
-      if (Api.isSimulationError(simulateResponse)) {
-        const errorMsg = simulateResponse.error ? `: ${simulateResponse.error}` : "";
+      const simResponse = await server.simulateTransaction(transaction);
+      if (!Api.isSimulationSuccess(simResponse)) {
+        const errorMsg = simResponse.error ? `: ${simResponse.error}` : "";
         console.error("Simulation error" + errorMsg);
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_simulation_failed",
@@ -194,56 +208,36 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         );
       }
 
-      // Step 8: Audit signers to ensure transaction is properly signed
-      const authStatus = gatherAuthEntrySignatureStatus({
-        transaction,
-        simulationResponse: simulateResponse,
-      });
-
-      const facilitatorAddress = this.signer.address;
-
-      // Ensure the operation is not trying anything funny with the facilitator account
-      if (operation.source === facilitatorAddress || transaction.source === facilitatorAddress) {
-        return invalidVerifyResponse(
-          "invalid_exact_stellar_payload_unsafe_tx_or_op_source",
-          fromAddress,
-        );
+      // Step 8: Validate simulation events for expected transfer only.
+      const eventValidation = this.validateSimulationEvents(
+        simResponse.events,
+        fromAddress,
+        requirements.payTo,
+        expectedAmount,
+      );
+      if (eventValidation) {
+        console.error("Event validation failed:", eventValidation.invalidReason);
+        return eventValidation;
       }
 
-      // Ensure the payer has already signed
-      if (!authStatus.alreadySigned.includes(fromAddress)) {
-        return invalidVerifyResponse(
-          "invalid_exact_stellar_payload_missing_payer_signature",
-          fromAddress,
-        );
-      }
-
-      // Ensure no other signatures are pending
-      if (authStatus.pendingSignature.length > 0) {
-        console.error("Unexpected pending signatures:", authStatus.pendingSignature);
-        return invalidVerifyResponse(
-          "invalid_exact_stellar_payload_unexpected_pending_signatures",
-          fromAddress,
-        );
-      }
-
-      // Step 9: Check auth entry expiration ledgers (same logic as settle)
       const latestLedger = await server.getLatestLedger();
       const currentLedger = latestLedger.sequence;
-      const maxLedger = currentLedger + this.maxLedgerOffset;
+      const maxTimeoutSeconds = requirements.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
+      const maxLedgerOffset = Math.ceil(maxTimeoutSeconds / DEFAULT_ESTIMATED_LEDGER_SECONDS);
+      const maxLedger = currentLedger + maxLedgerOffset;
 
-      // Check expiration ledgers for address-based auth entries (exact same logic as settle)
-      for (const auth of invokeOp?.auth ?? []) {
-        const expirationLedger = auth.credentials()?.address()?.signatureExpirationLedger();
-        if (expirationLedger && expirationLedger > maxLedger) {
-          console.error(
-            `Expiration ledger ${expirationLedger} is too far, maxLedger is ${maxLedger}`,
-          );
-          return invalidVerifyResponse(
-            "invalid_exact_stellar_signature_expiration_too_far",
-            fromAddress,
-          );
-        }
+      // Step 9: Validate auth entries (structure, credential type, expiration, facilitator safety, and signature status).
+      const authValidation = this.validateAuthEntries(
+        invokeOp,
+        facilitatorAddress,
+        fromAddress,
+        maxLedger,
+        transaction,
+        simResponse,
+      );
+      if (authValidation) {
+        console.error("Auth entry validation failed:", authValidation.invalidReason);
+        return authValidation;
       }
 
       return validVerifyResponse(fromAddress);
@@ -322,13 +316,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         sorobanData,
       })
         .setTimeout(requirements.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS)
-        .addOperation(
-          Operation.invokeHostFunction({
-            func: invokeOp.func,
-            auth: invokeOp.auth || [],
-            source: invokeOp.source,
-          }),
-        )
+        .addOperation(Operation.invokeHostFunction(invokeOp))
         .build();
 
       // Step 5: Sign transaction with facilitator's key
@@ -438,5 +426,204 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
     // Timeout
     return { success: false };
+  }
+
+  /**
+   * Validates simulation events for transfer correctness.
+   * Ensures there is exactly one token transfer event, the transfer matches the
+   * expected sender, recipient, and amount, and the facilitator address is not
+   * involved in the transfer.
+   *
+   * @param events - The array of DiagnosticEvent objects from the simulation
+   * @param fromAddress - The payer's address
+   * @param toAddress - The recipient's address
+   * @param expectedAmount - The expected transfer amount
+   * @returns undefined if the validation succeeds, otherwise an invalid VerifyResponse
+   */
+  private validateSimulationEvents(
+    events: xdr.DiagnosticEvent[],
+    fromAddress: string,
+    toAddress: string,
+    expectedAmount: bigint,
+  ): VerifyResponse | undefined {
+    // Soroban token transfer events follow the [CAP-46](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0046-06.md) format:
+    // Topic: ["transfer", from, to], Data: amount
+    const transferEvents: Array<{
+      from: string;
+      to: string;
+      amount: bigint;
+    }> = [];
+
+    // Parse events into
+    for (const diagnosticEvent of events) {
+      try {
+        const event = diagnosticEvent.event();
+
+        // Skip non-contract events
+        if (event.type().name !== "contract") {
+          continue;
+        }
+
+        const body = event.body().v0();
+        const topics = body.topics();
+
+        // Check if this is a transfer event (first topic is "transfer" symbol)
+        if (topics.length < 3) {
+          console.error("Contract event missing transfer topics");
+          return invalidVerifyResponse(
+            "invalid_exact_stellar_payload_event_not_transfer",
+            fromAddress,
+          );
+        }
+
+        const topicType = topics[0].switch().name;
+        if (topicType !== "scvSymbol") {
+          console.error(`Contract event has non-symbol topic type: ${topicType}`);
+          return invalidVerifyResponse(
+            "invalid_exact_stellar_payload_event_not_transfer",
+            fromAddress,
+          );
+        }
+
+        const symbol = topics[0].sym().toString();
+        if (symbol !== "transfer") {
+          console.error(`Contract event has non-transfer symbol: ${symbol}`);
+          return invalidVerifyResponse(
+            "invalid_exact_stellar_payload_event_not_transfer",
+            fromAddress,
+          );
+        }
+
+        // Extract from, to, and amount
+        const from = scValToNative(topics[1]) as string;
+        const to = scValToNative(topics[2]) as string;
+        const amount = scValToNative(body.data()) as bigint;
+
+        transferEvents.push({ from, to, amount });
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          console.error("Error parsing diagnostic event:", error.message);
+        } else {
+          console.error("Error parsing diagnostic event:", String(error));
+        }
+        return invalidVerifyResponse("unexpected_verify_error", fromAddress);
+      }
+    }
+
+    // If no transfer events are present, reject.
+    if (transferEvents.length === 0) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_no_transfer_events", fromAddress);
+    }
+
+    if (transferEvents.length > 1) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_multiple_transfers", fromAddress);
+    }
+
+    const transferEvent = transferEvents[0];
+
+    // Validate the transfer matches the expected sender, recipient, and amount
+    if (transferEvent.from !== fromAddress) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_event_wrong_from", fromAddress);
+    }
+    if (transferEvent.to !== toAddress) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_event_wrong_to", fromAddress);
+    }
+    if (transferEvent.amount !== expectedAmount) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_event_wrong_amount", fromAddress);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Validates authorization entries: structure, credential type, expiration,
+   * facilitator safety, no sub-invocations, and that the payer has signed and
+   * no other signatures are pending (per simulation).
+   *
+   * @param invokeOp - The invoke host function operation
+   * @param facilitatorAddress - The facilitator's address
+   * @param fromAddress - The payer's address (for error reporting)
+   * @param maxLedger - The maximum allowed expiration ledger
+   * @param transaction - The full transaction (for signature status)
+   * @param simResponse - The simulation result (used to interpret auth entry signatures)
+   * @returns Invalid VerifyResponse when validation fails
+   */
+  private validateAuthEntries(
+    invokeOp: Operation.InvokeHostFunction,
+    facilitatorAddress: string,
+    fromAddress: string,
+    maxLedger: number,
+    transaction: Transaction,
+    simResponse: Api.SimulateTransactionSuccessResponse,
+  ): VerifyResponse | undefined {
+    if (!invokeOp.auth || invokeOp.auth.length === 0) {
+      return invalidVerifyResponse("invalid_exact_stellar_payload_no_auth_entries", fromAddress);
+    }
+
+    for (const auth of invokeOp.auth) {
+      const credentialsType = auth.credentials().switch();
+
+      // Only address-based credentials are allowed
+      if (credentialsType !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
+        console.error(`Invalid credential type: ${credentialsType.name}`);
+        return invalidVerifyResponse(
+          "invalid_exact_stellar_payload_unsupported_credential_type",
+          fromAddress,
+        );
+      }
+
+      // Extract address from credentials
+      const addressCredentials = auth.credentials().address();
+      const authAddress = Address.fromScAddress(addressCredentials.address()).toString();
+
+      // Facilitator must not appear in auth entries
+      if (authAddress === facilitatorAddress) {
+        console.error("Facilitator address found in auth entry");
+        return invalidVerifyResponse(
+          "invalid_exact_stellar_payload_facilitator_in_auth",
+          fromAddress,
+        );
+      }
+
+      // Check signature expiration is within allowed window
+      const expirationLedger = addressCredentials.signatureExpirationLedger();
+      if (expirationLedger > maxLedger) {
+        console.error(`Expiration ledger ${expirationLedger} exceeds max ${maxLedger}`);
+        return invalidVerifyResponse(
+          "invalid_exact_stellar_signature_expiration_too_far",
+          fromAddress,
+        );
+      }
+
+      // No sub-invocations allowed
+      const rootInvocation = auth.rootInvocation();
+      if (rootInvocation.subInvocations().length > 0) {
+        console.error(`Auth entry has ${rootInvocation.subInvocations().length} sub-invocations`);
+        return invalidVerifyResponse(
+          "invalid_exact_stellar_payload_has_subinvocations",
+          fromAddress,
+        );
+      }
+    }
+
+    const authStatus = gatherAuthEntrySignatureStatus({
+      transaction,
+      simulationResponse: simResponse,
+    });
+    if (!authStatus.alreadySigned.includes(fromAddress)) {
+      return invalidVerifyResponse(
+        "invalid_exact_stellar_payload_missing_payer_signature",
+        fromAddress,
+      );
+    }
+    if (authStatus.pendingSignature.length > 0) {
+      console.error("Unexpected pending signatures:", authStatus.pendingSignature);
+      return invalidVerifyResponse(
+        "invalid_exact_stellar_payload_unexpected_pending_signatures",
+        fromAddress,
+      );
+    }
+
+    return undefined;
   }
 }

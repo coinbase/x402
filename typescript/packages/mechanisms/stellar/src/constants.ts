@@ -3,6 +3,7 @@
  */
 export const STELLAR_PUBNET_CAIP2 = "stellar:pubnet";
 export const STELLAR_TESTNET_CAIP2 = "stellar:testnet";
+export const STELLAR_WILDCARD_CAIP2 = "stellar:*";
 
 /**
  * Default testnet RPC URL

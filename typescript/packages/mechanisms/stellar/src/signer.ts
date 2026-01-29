@@ -15,7 +15,7 @@ export type Ed25519Signer = {
   signAuthEntry: SignAuthEntry;
   signTransaction: SignTransaction;
   getNetwork: () => Promise<{
-    network: string;
+    network: Network;
     networkPassphrase: string;
   }>;
 };
@@ -42,7 +42,7 @@ export type ClientStellarSigner = {
   signAuthEntry: SignAuthEntry;
   signTransaction?: SignTransaction;
   getNetwork: () => Promise<{
-    network: string;
+    network: Network;
     networkPassphrase: string;
   }>;
 };
