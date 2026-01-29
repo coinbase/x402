@@ -11,8 +11,10 @@ import {
   extractDiscoveryInfoFromExtension,
   extractDiscoveryInfoV1,
   validateAndExtract,
+  bazaarResourceServerExtension,
 } from "../src/bazaar/index";
 import type { BodyDiscoveryInfo, DiscoveryExtension } from "../src/bazaar/types";
+import type { HTTPAdapter, HTTPRequestContext } from "@x402/core/http";
 
 describe("Bazaar Discovery Extension", () => {
   describe("BAZAAR constant", () => {
@@ -365,6 +367,8 @@ describe("Bazaar Discovery Extension", () => {
 
       expect(discovered).not.toBeNull();
       expect(discovered!.resourceUrl).toBe("https://api.example.com/weather");
+      expect(discovered!.description).toBe("Weather API");
+      expect(discovered!.mimeType).toBe("application/json");
     });
 
     it("should strip hash sections from v2 resourceUrl", () => {
@@ -462,6 +466,8 @@ describe("Bazaar Discovery Extension", () => {
       expect(discovered!.discoveryInfo.input.method).toBe("GET");
       expect(discovered!.resourceUrl).toBe("https://api.example.com/data");
       expect(discovered!.method).toBe("GET");
+      expect(discovered!.description).toBe("Get data");
+      expect(discovered!.mimeType).toBe("application/json");
     });
 
     it("should strip query params from v1 resourceUrl", () => {
@@ -1125,6 +1131,161 @@ describe("Bazaar Discovery Extension", () => {
       expect(typeof v2Discovered!.discoveryInfo.input).toBe(
         typeof v1Discovered!.discoveryInfo.input,
       );
+    });
+  });
+
+  describe("bazaarResourceServerExtension", () => {
+    // Helper to extract method enum from schema
+    const extractMethodEnum = (schema: Record<string, unknown>): string[] => {
+      const props = schema.properties as Record<string, unknown>;
+      const input = props.input as Record<string, unknown>;
+      const inputProps = input.properties as Record<string, unknown>;
+      const method = inputProps.method as Record<string, unknown>;
+      return method.enum as string[];
+    };
+
+    // Helper to extract required fields from schema
+    const extractRequiredFields = (schema: Record<string, unknown>): string[] => {
+      const props = schema.properties as Record<string, unknown>;
+      const input = props.input as Record<string, unknown>;
+      return input.required as string[];
+    };
+
+    // Mock adapter for testing
+    const createMockAdapter = (): HTTPAdapter => ({
+      getHeader: () => undefined,
+      getMethod: () => "POST",
+      getPath: () => "/test",
+      getUrl: () => "http://localhost/test",
+      getAcceptHeader: () => "application/json",
+      getUserAgent: () => "test-agent",
+    });
+
+    it("should narrow method enum in schema for POST request", () => {
+      const declared = declareDiscoveryExtension({
+        input: { prompt: "test" },
+        inputSchema: { properties: { prompt: { type: "string" } } },
+        bodyType: "json",
+      });
+
+      const extension = declared.bazaar;
+
+      // Before enrichment, schema has broad enum
+      const beforeEnum = extractMethodEnum(extension.schema as Record<string, unknown>);
+      expect(beforeEnum).toEqual(["POST", "PUT", "PATCH"]);
+
+      const httpContext: HTTPRequestContext = {
+        method: "POST",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      // After enrichment, schema should have narrow enum
+      const afterEnum = extractMethodEnum(enriched.schema as Record<string, unknown>);
+      expect(afterEnum).toEqual(["POST"]);
+    });
+
+    it("should narrow method enum in schema for GET request", () => {
+      const declared = declareDiscoveryExtension({
+        input: { query: "test" },
+        inputSchema: { properties: { query: { type: "string" } } },
+      });
+
+      const extension = declared.bazaar;
+
+      // Before enrichment, schema has broad enum
+      const beforeEnum = extractMethodEnum(extension.schema as Record<string, unknown>);
+      expect(beforeEnum).toEqual(["GET", "HEAD", "DELETE"]);
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      // After enrichment, schema should have narrow enum
+      const afterEnum = extractMethodEnum(enriched.schema as Record<string, unknown>);
+      expect(afterEnum).toEqual(["GET"]);
+    });
+
+    it("should enrich declaration with method in info.input", () => {
+      const declared = declareDiscoveryExtension({
+        input: { data: "test" },
+        inputSchema: { properties: { data: { type: "string" } } },
+        bodyType: "json",
+      });
+
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "POST",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      // Method should be set in info.input
+      expect((enriched.info as BodyDiscoveryInfo).input.method).toBe("POST");
+    });
+
+    it("should add method to required array if not already present", () => {
+      const declared = declareDiscoveryExtension({
+        input: { prompt: "test" },
+        inputSchema: { properties: { prompt: { type: "string" } } },
+        bodyType: "json",
+      });
+
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "POST",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      const required = extractRequiredFields(enriched.schema as Record<string, unknown>);
+      expect(required).toContain("method");
+    });
+
+    it("should return unchanged declaration for non-HTTP context", () => {
+      const declared = declareDiscoveryExtension({
+        input: { data: "test" },
+        inputSchema: { properties: { data: { type: "string" } } },
+        bodyType: "json",
+      });
+
+      const extension = declared.bazaar;
+
+      // Non-HTTP context (missing adapter property)
+      const nonHTTPContext = { method: "POST" };
+
+      const result = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        nonHTTPContext,
+      ) as DiscoveryExtension;
+
+      // Should return unchanged - schema still has broad enum
+      const methodEnum = extractMethodEnum(result.schema as Record<string, unknown>);
+      expect(methodEnum).toEqual(["POST", "PUT", "PATCH"]);
     });
   });
 });

@@ -279,6 +279,44 @@ if err != nil {
 }
 ```
 
+## Changelog
+
+User-facing changes to the Go SDK should include a changelog fragment.
+
+### When a fragment is required
+
+Add a fragment when the change affects SDK users, including:
+
+- New/changed/removed exported APIs (types, functions, interfaces)
+- Bug fixes
+- Behavior changes
+- New features or configuration options
+
+Pure refactors, tests, or build/CI-only changes typically do not require a fragment.
+
+### Create a fragment
+
+From the `go/` directory:
+
+```bash
+make changelog-new
+```
+
+Fragments are created under:
+
+- `.changes/unreleased/`
+
+Commit the generated fragment with your PR.
+
+### Maintainer flow (batch + merge)
+
+Maintainers should batch unreleased fragments into a version and merge them into `CHANGELOG.md`:
+
+```bash
+make changelog-batch VERSION=v0.1.0
+make changelog-merge
+```
+
 ## Examples
 
 Examples live in `examples/go/`. When adding a new example:

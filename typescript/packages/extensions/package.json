@@ -1,6 +1,6 @@
 {
   "name": "@x402/extensions",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -43,7 +43,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@x402/core": "workspace:*",
+    "@x402/core": "workspace:^",
     "ajv": "^8.17.1",
     "jose": "^5.9.6",
     "viem": "^2.21.0",

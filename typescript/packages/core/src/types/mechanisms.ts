@@ -15,13 +15,19 @@ import { Price, Network, AssetAmount } from ".";
  */
 export type MoneyParser = (amount: number, network: Network) => Promise<AssetAmount | null>;
 
+/**
+ * Result of createPaymentPayload - the core payload fields.
+ * Contains the x402 version and the scheme-specific payload data.
+ */
+export type PaymentPayloadResult = Pick<PaymentPayload, "x402Version" | "payload">;
+
 export interface SchemeNetworkClient {
   readonly scheme: string;
 
   createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-  ): Promise<Pick<PaymentPayload, "x402Version" | "payload">>;
+  ): Promise<PaymentPayloadResult>;
 }
 
 export interface SchemeNetworkFacilitator {

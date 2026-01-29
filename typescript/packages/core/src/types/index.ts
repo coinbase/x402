@@ -6,15 +6,25 @@ export type {
   SupportedResponse,
 } from "./facilitator";
 export { VerifyError, SettleError } from "./facilitator";
-export type { PaymentRequirements, PaymentPayload, PaymentRequired } from "./payments";
+export type {
+  PaymentRequirements,
+  PaymentPayload,
+  PaymentRequired,
+  ResourceInfo,
+} from "./payments";
 export type {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
   SchemeNetworkServer,
   MoneyParser,
+  PaymentPayloadResult,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
-export type { ResourceServerExtension } from "./extensions";
+export type {
+  ResourceServerExtension,
+  PaymentRequiredContext,
+  SettleResultContext,
+} from "./extensions";
 
 export type Network = `${string}:${string}`;
 

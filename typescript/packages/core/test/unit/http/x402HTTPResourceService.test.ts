@@ -585,6 +585,69 @@ describe("x402HTTPResourceServer", () => {
       }
     });
 
+    it("should return 412 Precondition Failed for permit2_allowance_required error", async () => {
+      // Override mock to simulate permit2 allowance required error
+      mockFacilitator.setVerifyResponse({
+        isValid: false,
+        invalidReason: "permit2_allowance_required",
+      });
+
+      const routes = {
+        "/api/test": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      // Build requirements that match the route exactly (including amount/asset from mock scheme)
+      const matchingRequirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        payTo: "0xabc",
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        maxTimeoutSeconds: 300,
+        extra: {},
+      });
+
+      // Create payment payload with matching requirements
+      const payload = buildPaymentPayload({
+        accepted: matchingRequirements,
+      });
+
+      // Use proper encoding for payment header
+      const { encodePaymentSignatureHeader } = await import("../../../src/http");
+      const paymentHeader = encodePaymentSignatureHeader(payload);
+
+      const adapter = new MockHTTPAdapter({
+        "payment-signature": paymentHeader,
+      });
+
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/test",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      // Verify that the mock was called
+      expect(mockFacilitator.verifyCalls.length).toBe(1);
+
+      expect(result.type).toBe("payment-error");
+      if (result.type === "payment-error") {
+        // Should return 412 for permit2_allowance_required
+        expect(result.response.status).toBe(412);
+        expect(result.response.headers["PAYMENT-REQUIRED"]).toBeDefined();
+      }
+    });
+
     it("should delegate verification to resource service", async () => {
       const routes = {
         "/api/test": {
