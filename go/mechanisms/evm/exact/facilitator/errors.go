@@ -2,7 +2,7 @@ package facilitator
 
 // Facilitator error constants for the exact EVM scheme
 const (
-	// Verify errors
+	// EIP-3009 Verify errors
 	ErrInvalidScheme             = "invalid_exact_evm_scheme"
 	ErrNetworkMismatch           = "invalid_exact_evm_network_mismatch"
 	ErrInvalidPayload            = "invalid_exact_evm_payload"
@@ -21,11 +21,33 @@ const (
 	ErrFailedToVerifySignature   = "invalid_exact_evm_failed_to_verify_signature"
 	ErrInvalidSignature          = "invalid_exact_evm_signature"
 
-	// Settle errors
+	// EIP-3009 Settle errors
 	ErrVerificationFailed      = "invalid_exact_evm_verification_failed"
 	ErrFailedToParseSignature  = "invalid_exact_evm_failed_to_parse_signature"
 	ErrFailedToCheckDeployment = "invalid_exact_evm_failed_to_check_deployment"
 	ErrFailedToExecuteTransfer = "invalid_exact_evm_failed_to_execute_transfer"
 	ErrFailedToGetReceipt      = "invalid_exact_evm_failed_to_get_receipt"
 	ErrTransactionFailed       = "invalid_exact_evm_transaction_failed"
+
+	// Smart wallet errors (shared by EIP-3009 and Permit2)
+	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"
+	ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed"
+	ErrUnsupportedPayloadType      = "unsupported_payload_type"
+
+	// Permit2 verify errors
+	ErrPermit2InvalidSpender     = "invalid_permit2_spender"
+	ErrPermit2RecipientMismatch  = "invalid_permit2_recipient_mismatch"
+	ErrPermit2DeadlineExpired    = "permit2_deadline_expired"
+	ErrPermit2NotYetValid        = "permit2_not_yet_valid"
+	ErrPermit2InsufficientAmount = "permit2_insufficient_amount"
+	ErrPermit2TokenMismatch      = "permit2_token_mismatch"
+	ErrPermit2InvalidSignature   = "invalid_permit2_signature"
+	ErrPermit2AllowanceRequired  = "permit2_allowance_required"
+
+	// Permit2 settle errors (from contract reverts)
+	ErrPermit2AmountExceedsPermitted = "permit2_amount_exceeds_permitted"
+	ErrPermit2InvalidDestination     = "permit2_invalid_destination"
+	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
+	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
+	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
 )
