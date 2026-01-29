@@ -362,11 +362,16 @@ export function paymentMiddleware(
       decodedPayment = exact.evm.decodePayment(payment);
       decodedPayment.x402Version = x402Version;
     } catch (error) {
+      const errorMessage =
+        errorMessages?.invalidPayment ||
+        (error instanceof Error
+          ? error.message
+          : typeof error === "string" && error
+            ? error
+            : "Invalid or malformed payment header");
       return c.json(
         {
-          error:
-            errorMessages?.invalidPayment ||
-            (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
+          error: errorMessage,
           accepts: paymentRequirements,
           x402Version,
         },
@@ -435,11 +440,16 @@ export function paymentMiddleware(
         throw new Error(settlement.errorReason);
       }
     } catch (error) {
+      const errorMessage =
+        errorMessages?.settlementFailed ||
+        (error instanceof Error
+          ? error.message
+          : typeof error === "string" && error
+            ? error
+            : "Failed to settle payment");
       res = c.json(
         {
-          error:
-            errorMessages?.settlementFailed ||
-            (error instanceof Error ? error : new Error("Failed to settle payment")),
+          error: errorMessage,
           accepts: paymentRequirements,
           x402Version,
         },

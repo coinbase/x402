@@ -394,11 +394,17 @@ export function paymentMiddleware(
       decodedPayment = exact.evm.decodePayment(paymentHeader);
       decodedPayment.x402Version = x402Version;
     } catch (error) {
+      const errorMessage =
+        errorMessages?.invalidPayment ||
+        (error instanceof Error
+          ? error.message
+          : typeof error === "string" && error
+            ? error
+            : "Invalid payment");
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error:
-            errorMessages?.invalidPayment || (error instanceof Error ? error : "Invalid payment"),
+          error: errorMessage,
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -470,12 +476,17 @@ export function paymentMiddleware(
         );
       }
     } catch (error) {
+      const errorMessage =
+        errorMessages?.settlementFailed ||
+        (error instanceof Error
+          ? error.message
+          : typeof error === "string" && error
+            ? error
+            : "Settlement failed");
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error:
-            errorMessages?.settlementFailed ||
-            (error instanceof Error ? error : "Settlement failed"),
+          error: errorMessage,
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },

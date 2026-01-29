@@ -548,7 +548,7 @@ describe("paymentMiddleware()", () => {
     const json = await response.json();
     expect(json).toEqual({
       x402Version: 1,
-      error: expect.any(Object),
+      error: "Settlement failed",
       accepts: [
         {
           scheme: "exact",
