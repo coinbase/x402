@@ -1,7 +1,0 @@
-{
-  "name": "Primer Pay",
-  "description": "A browser wallet for seamless interaction with x402 paywalls across the web.",
-  "logoUrl": "/logos/primer.png",
-  "websiteUrl": "https://primer.systems",
-  "category": "Client-Side Integrations"
-}
