@@ -32,24 +32,30 @@ async function demonstrateResource(path: string): Promise<void> {
   // First request: pays for access
   console.log("1. First request...");
   const response1 = await fetchWithPayment(url);
+  const body1 = await response1.json();
   const paymentHeader1 = response1.headers.get("payment-response");
   if (paymentHeader1) {
     console.log("   ✓ Paid via payment settlement");
+  } else if (body1.error) {
+    console.log("   ✗ Payment failed:", body1.details || body1.error);
   } else {
     console.log("   ✓ Authenticated via SIWX (previously paid)");
   }
-  console.log("   Response:", await response1.json());
+  console.log("   Response:", body1);
 
   // Second request: SIWX hook automatically proves we already paid
   console.log("2. Second request...");
   const response2 = await fetchWithPayment(url);
+  const body2 = await response2.json();
   const paymentHeader2 = response2.headers.get("payment-response");
   if (paymentHeader2) {
     console.log("   ✓ Paid via payment settlement");
+  } else if (body2.error) {
+    console.log("   ✗ Payment failed:", body2.details || body2.error);
   } else {
     console.log("   ✓ Authenticated via SIWX (previously paid)");
   }
-  console.log("   Response:", await response2.json());
+  console.log("   Response:", body2);
 }
 
 /**
