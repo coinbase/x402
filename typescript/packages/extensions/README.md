@@ -428,6 +428,17 @@ const routes = {
 // 3. Verify incoming SIWX proofs
 const httpServer = new x402HTTPResourceServer(resourceServer, routes)
   .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access if paid
+
+// Optional: Enable smart wallet support (EIP-1271/EIP-6492)
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
+
+const publicClient = createPublicClient({ chain: base, transport: http() });
+const httpServerWithSmartWallets = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(createSIWxRequestHook({
+    storage,
+    verifyOptions: { evmVerifier: publicClient.verifyMessage },
+  }));
 ```
 
 The hooks automatically:
@@ -597,11 +608,35 @@ Verifies the cryptographic signature and recovers the signer address.
 
 ```typescript
 verifySIWxSignature(payload, {
-  provider?: any;           // Web3 provider for EIP-1271/6492
-  checkSmartWallet?: boolean;  // Enable smart wallet verification
+  evmVerifier?: EVMMessageVerifier;  // For smart wallet support
 })
 // Returns: { valid: boolean; address?: string; error?: string }
 ```
+
+**Smart Wallet Support (EIP-1271 / EIP-6492):**
+
+By default, only EOA (Externally Owned Account) signatures are verified. To support smart contract wallets (like Coinbase Smart Wallet, Safe, etc.), pass `publicClient.verifyMessage` from viem:
+
+```typescript
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http()
+});
+
+// In your request hook
+const result = await verifySIWxSignature(payload, {
+  evmVerifier: publicClient.verifyMessage,
+});
+```
+
+This enables:
+- **EIP-1271**: Verification of deployed smart contract wallets
+- **EIP-6492**: Verification of counterfactual (not-yet-deployed) wallets
+
+Note: Smart wallet verification requires RPC calls, while EOA verification is purely local.
 
 #### `createSIWxPayload(serverInfo, signer)`
 
@@ -620,11 +655,9 @@ Extension identifier constant (`"sign-in-with-x"`).
 | Scheme | Description |
 |--------|-------------|
 | `eip191` | personal_sign (default for EVM EOAs) |
-| `eip712` | Typed data signing |
 | `eip1271` | Smart contract wallet verification |
 | `eip6492` | Counterfactual smart wallet verification |
 | `siws` | Sign-In-With-Solana |
-| `sep10` | Stellar SEP-10 |
 
 ## Troubleshooting
 
@@ -652,7 +685,7 @@ Extension identifier constant (`"sign-in-with-x"`).
 
 **Solutions:**
 - Ensure the message was signed with the correct wallet
-- Check that the signature scheme matches (eip191 vs eip712)
+- Check that the signature scheme matches the wallet type
 - For smart wallets, enable `checkSmartWallet` option with a provider
 
 ### SIWx Message Validation Fails

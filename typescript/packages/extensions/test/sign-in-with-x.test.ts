@@ -26,10 +26,12 @@ import {
   createSIWxSettleHook,
   createSIWxRequestHook,
   createSIWxClientHook,
+  siwxResourceServerExtension,
   type SIWxHookEvent,
   type SolanaSigner,
   type EVMSigner,
   type EVMMessageVerifier,
+  type SIWxExtension,
 } from "../src/sign-in-with-x/index";
 import { safeBase64Encode } from "@x402/core/utils";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
@@ -1184,5 +1186,66 @@ describe("SIWX Hooks", () => {
       const parsed = parseSIWxHeader(result!.headers["sign-in-with-x"]);
       expect(parsed.address.toLowerCase()).toBe(account.address.toLowerCase());
     });
+  });
+});
+
+describe("siwxResourceServerExtension", () => {
+  const mockContext = (networks: string[], url = "https://api.example.com/resource") => ({
+    requirements: networks.map(network => ({ network, scheme: "exact" })),
+    resourceInfo: { url },
+  });
+
+  it("derives single network from requirements", async () => {
+    const declaration = declareSIWxExtension({});
+    const ext = declaration["sign-in-with-x"];
+
+    const result = (await siwxResourceServerExtension.enrichPaymentRequiredResponse!(
+      ext,
+      mockContext(["eip155:8453"]),
+    )) as SIWxExtension;
+
+    expect(result.supportedChains).toHaveLength(1);
+    expect(result.supportedChains[0]).toEqual({ chainId: "eip155:8453", type: "eip191" });
+  });
+
+  it("derives multiple networks from requirements (EVM + Solana)", async () => {
+    const declaration = declareSIWxExtension({});
+    const ext = declaration["sign-in-with-x"];
+
+    const result = (await siwxResourceServerExtension.enrichPaymentRequiredResponse!(
+      ext,
+      mockContext(["eip155:8453", SOLANA_MAINNET]),
+    )) as SIWxExtension;
+
+    expect(result.supportedChains).toHaveLength(2);
+    expect(result.supportedChains[0]).toEqual({ chainId: "eip155:8453", type: "eip191" });
+    expect(result.supportedChains[1]).toEqual({ chainId: SOLANA_MAINNET, type: "ed25519" });
+  });
+
+  it("generates fresh time-based fields", async () => {
+    const declaration = declareSIWxExtension({ expirationSeconds: 300 });
+    const ext = declaration["sign-in-with-x"];
+
+    const result = (await siwxResourceServerExtension.enrichPaymentRequiredResponse!(
+      ext,
+      mockContext(["eip155:8453"]),
+    )) as SIWxExtension;
+
+    expect(result.info.nonce).toHaveLength(32);
+    expect(result.info.issuedAt).toBeDefined();
+    expect(result.info.expirationTime).toBeDefined();
+  });
+
+  it("derives domain and uri from request context", async () => {
+    const declaration = declareSIWxExtension({});
+    const ext = declaration["sign-in-with-x"];
+
+    const result = (await siwxResourceServerExtension.enrichPaymentRequiredResponse!(
+      ext,
+      mockContext(["eip155:8453"], "https://api.example.com/data"),
+    )) as SIWxExtension;
+
+    expect(result.info.domain).toBe("api.example.com");
+    expect(result.info.uri).toBe("https://api.example.com/data");
   });
 });

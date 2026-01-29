@@ -34,6 +34,11 @@ const NETWORK = "eip155:84532" as const;
 // Shared storage for tracking paid addresses
 const storage = new InMemorySIWxStorage();
 
+// Log SIWX events for visibility
+function onEvent(event: { type: string; resource: string; address?: string; error?: string }) {
+  console.log(`[SIWX] ${event.type}`, event);
+}
+
 // Configure resource server with SIWX extension and settle hook
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const resourceServer = new x402ResourceServer(facilitatorClient)
@@ -64,7 +69,7 @@ const routes = {
 
 // Configure HTTP server with SIWX request hook
 const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtectedRequest(
-  createSIWxRequestHook({ storage }),
+  createSIWxRequestHook({ storage, onEvent }),
 );
 
 const app = express();
