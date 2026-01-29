@@ -21,89 +21,99 @@ import { buildSIWxSchema } from "./schema";
  * @param network - CAIP-2 network identifier
  * @returns Signature algorithm type
  */
-function getSignatureType(network: string): SignatureType {
+export function getSignatureType(network: string): SignatureType {
   return network.startsWith("solana:") ? "ed25519" : "eip191";
+}
+
+/**
+ * Internal type for SIWX declaration with stored options.
+ * The _options field is used by enrichPaymentRequiredResponse to derive
+ * values from request context.
+ */
+export interface SIWxDeclaration extends SIWxExtension {
+  _options: DeclareSIWxOptions;
 }
 
 /**
  * Create SIWX extension declaration for PaymentRequired.extensions
  *
- * Supports both single-chain and multi-chain configurations:
- * - Single-chain: Pass string for network
- * - Multi-chain: Pass array for network
+ * Most fields are derived automatically from request context when using
+ * siwxResourceServerExtension:
+ * - `network`: From payment requirements (accepts[].network)
+ * - `resourceUri`: From request URL
+ * - `domain`: Parsed from resourceUri
  *
- * All chains share the same message metadata (domain, uri, nonce, etc.)
- * and are listed in the supportedChains array.
+ * Explicit values in options override automatic derivation.
  *
- * Time-based fields (nonce, issuedAt, expirationTime) are generated per-request
- * by the enrichDeclaration hook when siwxResourceServerExtension is registered.
- *
- * @param options - Configuration options
+ * @param options - Configuration options (most are optional)
  * @returns Extension object ready for PaymentRequired.extensions
  *
  * @example
  * ```typescript
- * // Single-chain
+ * // Minimal - derives network, domain, resourceUri from context
  * const extensions = declareSIWxExtension({
- *   domain: 'api.example.com',
- *   resourceUri: 'https://api.example.com/data',
- *   network: 'eip155:8453',
- *   expirationSeconds: 300,
+ *   statement: 'Sign in to access your purchased content',
  * });
  *
- * // Multi-chain (EVM + Solana)
+ * // With explicit network (overrides accepts)
+ * const extensions = declareSIWxExtension({
+ *   network: 'eip155:8453',
+ *   statement: 'Sign in to access',
+ * });
+ *
+ * // Full explicit config (no derivation)
  * const extensions = declareSIWxExtension({
  *   domain: 'api.example.com',
  *   resourceUri: 'https://api.example.com/data',
  *   network: ['eip155:8453', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'],
+ *   statement: 'Sign in to access',
  *   expirationSeconds: 300,
  * });
  * ```
  */
-export function declareSIWxExtension(options: DeclareSIWxOptions): Record<string, SIWxExtension> {
-  const networks = Array.isArray(options.network) ? options.network : [options.network];
-
-  // Generate time-based fields for standalone usage (tests, etc.)
-  // enrichDeclaration hook will override these per-request when extension is registered
-  const expirationSeconds = options.expirationSeconds;
-  const nonce = randomBytes(16).toString("hex");
-  const issuedAt = new Date().toISOString();
-
-  // Build shared info (no chain-specific fields)
-  const info: SIWxExtensionInfo = {
-    domain: options.domain,
-    uri: options.resourceUri,
+export function declareSIWxExtension(
+  options: DeclareSIWxOptions = {},
+): Record<string, SIWxDeclaration> {
+  // Build partial info with whatever is provided
+  // Missing fields will be filled by enrichPaymentRequiredResponse
+  const info: Partial<SIWxExtensionInfo> & { version: string; nonce: string; issuedAt: string } = {
     version: options.version ?? "1",
-    nonce,
-    issuedAt,
-    resources: [options.resourceUri],
+    // Generate defaults for time-based fields (will be refreshed per-request)
+    nonce: randomBytes(16).toString("hex"),
+    issuedAt: new Date().toISOString(),
   };
 
-  // Only include expirationTime if duration specified (undefined = infinite)
-  if (expirationSeconds !== undefined) {
-    info.expirationTime = new Date(Date.now() + expirationSeconds * 1000).toISOString();
+  // Add fields that are provided
+  if (options.domain) {
+    info.domain = options.domain;
   }
-
-  // Add optional fields if provided
+  if (options.resourceUri) {
+    info.uri = options.resourceUri;
+    info.resources = [options.resourceUri];
+  }
   if (options.statement) {
     info.statement = options.statement;
   }
+  if (options.expirationSeconds !== undefined) {
+    info.expirationTime = new Date(Date.now() + options.expirationSeconds * 1000).toISOString();
+  }
 
-  // Build supportedChains array from network(s)
-  const supportedChains: SupportedChain[] = networks.map(network => ({
-    chainId: network,
-    type: getSignatureType(network),
-  }));
+  // Build supportedChains if network is provided
+  let supportedChains: SupportedChain[] = [];
+  if (options.network) {
+    const networks = Array.isArray(options.network) ? options.network : [options.network];
+    supportedChains = networks.map(network => ({
+      chainId: network,
+      type: getSignatureType(network),
+    }));
+  }
 
-  const extension: SIWxExtension & { _metadata?: { expirationSeconds?: number } } = {
-    info,
+  const declaration: SIWxDeclaration = {
+    info: info as SIWxExtensionInfo,
     supportedChains,
     schema: buildSIWxSchema(),
-    _metadata: {
-      expirationSeconds: options.expirationSeconds,
-    },
+    _options: options,
   };
 
-  // Always use simple key (no namespacing)
-  return { [SIGN_IN_WITH_X]: extension };
+  return { [SIGN_IN_WITH_X]: declaration };
 }

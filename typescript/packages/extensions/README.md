@@ -415,16 +415,12 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
   .registerExtension(siwxResourceServerExtension)  // Refreshes nonce/timestamps per request
   .onAfterSettle(createSIWxSettleHook({ storage }));  // Records payments
 
-// 2. Declare SIWX support in routes
+// 2. Declare SIWX support in routes (network/domain/uri derived automatically)
 const routes = {
   "GET /data": {
     accepts: [{scheme: "exact", price: "$0.01", network: "eip155:8453", payTo}],
     extensions: declareSIWxExtension({
-      domain: 'api.example.com',
-      resourceUri: 'https://api.example.com/data',
-      network: 'eip155:8453',  // Or array: ['eip155:8453', 'solana:5eykt...']
       statement: 'Sign in to access your purchased content',
-      expirationSeconds: 300,  // 5 minutes (default)
     }),
   },
 };
@@ -435,7 +431,7 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes)
 ```
 
 The hooks automatically:
-- **siwxResourceServerExtension**: Refreshes `nonce`, `issuedAt`, `expirationTime` per request
+- **siwxResourceServerExtension**: Derives `network` from `accepts`, `domain`/`uri` from request URL, refreshes `nonce`/`issuedAt`/`expirationTime` per request
 - **createSIWxSettleHook**: Records payment when settlement succeeds
 - **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access if wallet has paid
 
@@ -556,23 +552,28 @@ const response = await fetch(url, {
 
 ### SIWx API Reference
 
-#### `declareSIWxExtension(options)`
+#### `declareSIWxExtension(options?)`
 
-Creates the extension object for servers to include in PaymentRequired. Returns an extension with `info` (shared message metadata) and `supportedChains` (authentication methods).
+Creates the extension object for servers to include in PaymentRequired. Most fields are derived automatically from request context when using `siwxResourceServerExtension`.
 
 ```typescript
 declareSIWxExtension({
-  domain: string;                      // Server domain (e.g., "api.example.com")
-  resourceUri: string;                 // Full resource URI
-  network: string | string[];          // CAIP-2 network(s) - single: "eip155:8453"
-                                       // or multi-chain: ["eip155:8453", "solana:5eykt..."]
+  // All fields optional - derived from context if omitted
+  domain?: string;                     // Server domain (derived from request URL)
+  resourceUri?: string;                // Full resource URI (derived from request URL)
+  network?: string | string[];         // CAIP-2 network(s) (derived from accepts[].network)
   statement?: string;                  // Human-readable purpose
   version?: string;                    // CAIP-122 version (default: "1")
-  expirationSeconds?: number;          // Challenge TTL in seconds (default: 300)
+  expirationSeconds?: number;          // Challenge TTL in seconds
 })
 ```
 
-**Multi-chain support:** When `network` is an array, `supportedChains` will contain one entry per network. Clients automatically select the first matching chain for their wallet.
+**Automatic derivation:** When using `siwxResourceServerExtension`, omitted fields are derived:
+- `network` → from `accepts[].network` in route config
+- `resourceUri` → from request URL
+- `domain` → parsed from resourceUri
+
+**Multi-chain support:** When `network` is an array (or multiple networks in `accepts`), `supportedChains` will contain one entry per network.
 
 #### `parseSIWxHeader(header)`
 

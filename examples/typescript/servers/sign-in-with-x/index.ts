@@ -29,7 +29,6 @@ if (!facilitatorUrl) {
 }
 
 const PORT = 4021;
-const HOST = `localhost:${PORT}`;
 const NETWORK = "eip155:84532" as const;
 
 // Shared storage for tracking paid addresses
@@ -44,6 +43,7 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
 
 /**
  * Creates route configuration with SIWX extension.
+ * Network, domain, and resourceUri are derived automatically from context.
  *
  * @param path - The resource path
  * @returns Route configuration object
@@ -53,11 +53,7 @@ function routeConfig(path: string) {
     accepts: [{ scheme: "exact", price: "$0.001", network: NETWORK, payTo: evmAddress }],
     description: `Protected resource: ${path}`,
     mimeType: "application/json",
-    extensions: declareSIWxExtension({
-      domain: HOST,
-      resourceUri: `http://${HOST}${path}`,
-      network: NETWORK,
-    }),
+    extensions: declareSIWxExtension(),
   };
 }
 
