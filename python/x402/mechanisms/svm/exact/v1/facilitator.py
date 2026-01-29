@@ -21,6 +21,9 @@ from ...constants import (
     ERR_INVALID_COMPUTE_LIMIT,
     ERR_INVALID_COMPUTE_PRICE,
     ERR_INVALID_INSTRUCTION_COUNT,
+    ERR_UNKNOWN_FIFTH_INSTRUCTION,
+    ERR_UNKNOWN_FOURTH_INSTRUCTION,
+    ERR_UNKNOWN_SIXTH_INSTRUCTION,
     ERR_MINT_MISMATCH,
     ERR_NETWORK_MISMATCH,
     ERR_NO_TRANSFER_INSTRUCTION,
@@ -29,6 +32,8 @@ from ...constants import (
     ERR_TRANSACTION_DECODE_FAILED,
     ERR_TRANSACTION_FAILED,
     ERR_UNSUPPORTED_SCHEME,
+    LIGHTHOUSE_PROGRAM_ADDRESS,
+    MEMO_PROGRAM_ADDRESS,
     MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
     SCHEME_EXACT,
     TOKEN_2022_PROGRAM_ADDRESS,
@@ -142,8 +147,8 @@ class ExactSvmSchemeV1:
         instructions = message.instructions
         static_accounts = list(message.account_keys)
 
-        # 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-        if len(instructions) != 3:
+        # 3-6 instructions: ComputeLimit + ComputePrice + TransferChecked + optional Lighthouse/Memo
+        if len(instructions) < 3 or len(instructions) > 6:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_INSTRUCTION_COUNT, payer=""
             )
@@ -207,6 +212,29 @@ class ExactSvmSchemeV1:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer
             )
+
+        # Verify optional instructions (if present)
+        optional_instructions = instructions[3:]
+        if optional_instructions:
+            lighthouse_program = Pubkey.from_string(LIGHTHOUSE_PROGRAM_ADDRESS)
+            memo_program = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
+            invalid_reasons = [
+                ERR_UNKNOWN_FOURTH_INSTRUCTION,
+                ERR_UNKNOWN_FIFTH_INSTRUCTION,
+                ERR_UNKNOWN_SIXTH_INSTRUCTION,
+            ]
+
+            for idx, optional_ix in enumerate(optional_instructions):
+                optional_program = static_accounts[optional_ix.program_id_index]
+                if optional_program in (lighthouse_program, memo_program):
+                    continue
+
+                reason = (
+                    invalid_reasons[idx]
+                    if idx < len(invalid_reasons)
+                    else ERR_UNKNOWN_SIXTH_INSTRUCTION
+                )
+                return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
 
         # Parse transfer instruction
         transfer_accounts = list(transfer_ix.accounts)

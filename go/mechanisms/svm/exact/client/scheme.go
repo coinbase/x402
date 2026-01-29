@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -9,6 +11,7 @@ import (
 	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
+	"github.com/gagliardetto/solana-go/programs/memo"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 
@@ -161,11 +164,26 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildTransferIx+": %w", err)
 	}
 
+	memoBytes := make([]byte, 16)
+	if _, err := rand.Read(memoBytes); err != nil {
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildMemoIx+": %w", err)
+	}
+	memoHex := hex.EncodeToString(memoBytes)
+
+	memoIx, err := memo.NewMemoInstructionBuilder().
+		SetMessage([]byte(memoHex)).
+		SetSigner(c.signer.Address()).
+		ValidateAndBuild()
+	if err != nil {
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildMemoIx+": %w", err)
+	}
+
 	// Create final transaction
 	tx, err := solana.NewTransactionBuilder().
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
 		AddInstruction(transferIx).
+		AddInstruction(memoIx).
 		SetRecentBlockHash(recentBlockhash).
 		SetFeePayer(feePayer).
 		Build()

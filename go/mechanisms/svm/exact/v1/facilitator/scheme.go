@@ -130,14 +130,15 @@ func (f *ExactSvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", err.Error())
 	}
 
-	// Allow 3, 4, or 5 instructions:
+	// Allow 3-6 instructions:
 	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse (Phantom wallet protection)
-	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse (Solflare wallet protection)
+	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
+	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
+	// - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
 	// See: https://github.com/coinbase/x402/issues/828
 	numInstructions := len(tx.Message.Instructions)
-	if numInstructions < 3 || numInstructions > 5 {
-		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 5", numInstructions, numInstructions))
+	if numInstructions < 3 || numInstructions > 6 {
+		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 6", numInstructions, numInstructions))
 	}
 
 	// Step 3: Verify Compute Budget Instructions
@@ -160,22 +161,30 @@ func (f *ExactSvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError(err.Error(), payer, err.Error())
 	}
 
-	// Step 5: Verify Lighthouse Instructions (if present)
-	// - 4th instruction: Lighthouse program (Phantom wallet protection)
-	// - 5th instruction: Lighthouse program (Solflare wallet adds 2 Lighthouse instructions)
+	// Step 5: Verify optional instructions (if present)
+	// Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
 	if numInstructions >= 4 {
-		fourthProgID := tx.Message.AccountKeys[tx.Message.Instructions[3].ProgramIDIndex]
 		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
-		if !fourthProgID.Equals(lighthousePubkey) {
-			return nil, x402.NewVerifyError(ErrUnknownFourthInstruction, payer, fmt.Sprintf("unknown fourth instruction: %s", fourthProgID.String()))
+		memoPubkey := solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)
+		optionalInstructions := tx.Message.Instructions[3:]
+		invalidReasons := []string{
+			ErrUnknownFourthInstruction,
+			ErrUnknownFifthInstruction,
+			ErrUnknownSixthInstruction,
 		}
-	}
 
-	if numInstructions == 5 {
-		fifthProgID := tx.Message.AccountKeys[tx.Message.Instructions[4].ProgramIDIndex]
-		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
-		if !fifthProgID.Equals(lighthousePubkey) {
-			return nil, x402.NewVerifyError(ErrUnknownFifthInstruction, payer, fmt.Sprintf("unknown fifth instruction: %s", fifthProgID.String()))
+		for i, instruction := range optionalInstructions {
+			progID := tx.Message.AccountKeys[instruction.ProgramIDIndex]
+			if progID.Equals(lighthousePubkey) || progID.Equals(memoPubkey) {
+				continue
+			}
+
+			reason := ErrUnknownSixthInstruction
+			if i < len(invalidReasons) {
+				reason = invalidReasons[i]
+			}
+
+			return nil, x402.NewVerifyError(reason, payer, fmt.Sprintf("unknown optional instruction: %s", progID.String()))
 		}
 	}
 

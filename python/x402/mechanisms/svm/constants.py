@@ -12,6 +12,8 @@ DEFAULT_DECIMALS = 6
 TOKEN_PROGRAM_ADDRESS = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 TOKEN_2022_PROGRAM_ADDRESS = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 COMPUTE_BUDGET_PROGRAM_ADDRESS = "ComputeBudget111111111111111111111111111111"
+MEMO_PROGRAM_ADDRESS = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+LIGHTHOUSE_PROGRAM_ADDRESS = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
 
 # Default RPC URLs for Solana networks
 DEVNET_RPC_URL = "https://api.devnet.solana.com"
@@ -62,6 +64,9 @@ ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_INVALID_PAYLOAD = "invalid_exact_svm_payload"
 ERR_TRANSACTION_DECODE_FAILED = "invalid_exact_svm_payload_transaction_could_not_be_decoded"
 ERR_INVALID_INSTRUCTION_COUNT = "invalid_exact_svm_payload_transaction_instructions_length"
+ERR_UNKNOWN_FOURTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fourth_instruction"
+ERR_UNKNOWN_FIFTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fifth_instruction"
+ERR_UNKNOWN_SIXTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_sixth_instruction"
 ERR_INVALID_COMPUTE_LIMIT = (
     "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction"
 )
