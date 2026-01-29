@@ -1118,11 +1118,14 @@ describe("SIWX Hooks", () => {
       const extension = declareSIWxExtension({
         domain: "example.com",
         resourceUri: "http://example.com/resource",
-        network: "eip155:1", // Use eip155:1 to match fallback chain detection
+        network: "eip155:1",
       });
 
       const result = await hook({
-        paymentRequired: { extensions: extension },
+        paymentRequired: {
+          accepts: [{ network: "eip155:1" }],
+          extensions: extension,
+        },
       });
 
       expect(result).toHaveProperty("headers");
