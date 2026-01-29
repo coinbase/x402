@@ -38,8 +38,9 @@ const (
 
 var (
 	// Network chain IDs
-	ChainIDBase        = big.NewInt(8453)
-	ChainIDBaseSepolia = big.NewInt(84532)
+	ChainIDBase            = big.NewInt(8453)
+	ChainIDBaseSepolia     = big.NewInt(84532)
+	ChainIDOptimismSepolia = big.NewInt(11155420)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -87,6 +88,26 @@ var (
 			ChainID: ChainIDBaseSepolia,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+				Name:     "USDC",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// OP Sepolia Testnet
+		"eip155:11155420": {
+			ChainID: ChainIDOptimismSepolia,
+			DefaultAsset: AssetInfo{
+				Address:  "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+				Name:     "USDC",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// OP Sepolia Testnet (legacy v1 format)
+		"optimism-sepolia": {
+			ChainID: ChainIDOptimismSepolia,
+			DefaultAsset: AssetInfo{
+				Address:  "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
 				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,

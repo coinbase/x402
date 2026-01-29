@@ -123,6 +123,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # OP Sepolia (Testnet)
+    "eip155:11155420": {
+        "chain_id": 11155420,
+        "default_asset": {
+            "address": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+            "name": "USDC",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC": {
+                "address": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+                "name": "USDC",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
     # Polygon Mainnet
     "eip155:137": {
         "chain_id": 137,
@@ -168,6 +186,7 @@ NETWORK_ALIASES: dict[str, str] = {
     "base-sepolia": "eip155:84532",
     "ethereum": "eip155:1",
     "mainnet": "eip155:1",
+    "optimism-sepolia": "eip155:11155420",
     "polygon": "eip155:137",
     "avalanche": "eip155:43114",
 }
@@ -181,6 +200,7 @@ V1_NETWORKS = [
     "avalanche-fuji",
     "avalanche",
     "iotex",
+    "optimism-sepolia",
     "sei",
     "sei-testnet",
     "polygon",
@@ -196,6 +216,7 @@ V1_NETWORK_CHAIN_IDS: dict[str, int] = {
     "base": 8453,
     "base-sepolia": 84532,
     "ethereum": 1,
+    "optimism-sepolia": 11155420,
     "polygon": 137,
     "polygon-amoy": 80002,
     "avalanche": 43114,

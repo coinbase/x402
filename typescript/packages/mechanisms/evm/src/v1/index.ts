@@ -10,6 +10,7 @@ export const EVM_NETWORK_CHAIN_ID_MAP = {
   "avalanche-fuji": 43113,
   avalanche: 43114,
   iotex: 4689,
+  "optimism-sepolia": 11155420,
   sei: 1329,
   "sei-testnet": 1328,
   polygon: 137,
