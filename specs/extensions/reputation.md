@@ -44,8 +44,7 @@ A resource server advertises reputation support by including the `reputation` ex
           {
             "agentRegistry": "eip155:8453:0x8004A818BFB912233c491871b3d84c89A494BD9e",
             "agentId": "42",
-            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890",
-            "backend": "erc8004"
+            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890"
           }
         ],
         "endpoint": "https://agent.example/weather",
@@ -67,11 +66,7 @@ A resource server advertises reputation support by including the `reputation` ex
               "properties": {
                 "agentRegistry": { "type": "string" },
                 "agentId": { "type": "string" },
-                "reputationRegistry": { "type": "string" },
-                "backend": {
-                  "type": "string",
-                  "enum": ["sati", "erc8004"]
-                }
+                "reputationRegistry": { "type": "string" }
               },
               "required": ["agentRegistry", "agentId", "reputationRegistry"]
             }
@@ -121,14 +116,12 @@ A resource server advertises reputation support by including the `reputation` ex
           {
             "agentRegistry": "eip155:8453:0x8004A818BFB912233c491871b3d84c89A494BD9e",
             "agentId": "42",
-            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890",
-            "backend": "erc8004"
+            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890"
           },
           {
             "agentRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
             "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            "reputationRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
-            "backend": "sati"
+            "reputationRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe"
           }
         ]
       },
@@ -148,11 +141,7 @@ A resource server advertises reputation support by including the `reputation` ex
               "properties": {
                 "agentRegistry": { "type": "string" },
                 "agentId": { "type": "string" },
-                "reputationRegistry": { "type": "string" },
-                "backend": {
-                  "type": "string",
-                  "enum": ["sati", "erc8004"]
-                }
+                "reputationRegistry": { "type": "string" }
               },
               "required": ["agentRegistry", "agentId", "reputationRegistry"]
             }
@@ -193,7 +182,6 @@ A resource server advertises reputation support by including the `reputation` ex
 | `agentRegistry` | string | Yes | CAIP-10 Identity Registry address |
 | `agentId` | string | Yes | Agent identifier (tokenId for EVM, mint address for Solana) |
 | `reputationRegistry` | string | Yes | CAIP-10 Reputation Registry address (may equal agentRegistry on Solana) |
-| `backend` | string | No | Backend hint: `"sati"` or `"erc8004"` |
 
 **Note:** ERC-8004 separates identity (ERC-721 NFT registry) from reputation (feedback storage). On Solana, both may be the same program address.
 
@@ -237,11 +225,11 @@ agentWallet = registry.getAgentWallet(registration.agentId)
 // - EVM: case-insensitive (lowercase both)
 // - Solana: case-sensitive (exact match)
 
-if backend == "erc8004":
+if paymentNetwork.startsWith("eip155:"):
   if lowercase(payToAddress) != lowercase(agentWallet):
     error "Payment address mismatch - potential fraud. ABORTING."
 
-if backend == "sati":
+if paymentNetwork.startsWith("solana:"):
   if payToAddress != agentWallet:
     error "Payment address mismatch - potential fraud. ABORTING."
 
