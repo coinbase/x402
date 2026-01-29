@@ -66,6 +66,10 @@ async function main(): Promise<void> {
   console.log(`Server: ${baseURL}`);
 
   await demonstrateResource("/weather");
+
+  // Small delay to avoid facilitator race condition with rapid payments
+  await new Promise(resolve => setTimeout(resolve, 300));
+
   await demonstrateResource("/joke");
 
   console.log("\nDone. Each resource required payment once, then SIWX auth worked.");
