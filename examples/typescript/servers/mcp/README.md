@@ -29,9 +29,26 @@ pnpm install
 
 ## Running
 
+### Simple Mode (Recommended)
+
+Uses the `createX402MCPServer` factory function for easy setup:
+
 ```bash
 pnpm dev
 ```
+
+### Advanced Mode
+
+Uses `x402MCPServer` with manual setup for full control:
+
+```bash
+pnpm dev:advanced
+```
+
+Advanced mode demonstrates:
+- Manual MCP server creation
+- Custom facilitator client configuration
+- Server-side hooks (onBeforeExecution, onAfterExecution, onAfterSettlement)
 
 The server will start on `http://localhost:4022` with:
 - SSE endpoint: `GET /sse`

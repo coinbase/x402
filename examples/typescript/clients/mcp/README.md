@@ -39,9 +39,26 @@ pnpm dev
 
 Then run the client:
 
+### Simple Mode (Recommended)
+
+Uses the `createX402MCPClient` factory function for easy setup:
+
 ```bash
 pnpm dev
 ```
+
+### Advanced Mode
+
+Uses `x402MCPClient` with manual setup for full control:
+
+```bash
+pnpm dev:advanced
+```
+
+Advanced mode demonstrates:
+- Manual MCP client and x402Client creation
+- Client-side hooks (onPaymentRequired, onBeforePayment, onAfterPayment)
+- Accessing underlying client instances
 
 ## Expected Output
 
