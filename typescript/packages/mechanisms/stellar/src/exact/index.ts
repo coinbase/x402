@@ -1,1 +1,1 @@
-// Placeholder - to be implemented
+export { ExactStellarScheme } from "./client";

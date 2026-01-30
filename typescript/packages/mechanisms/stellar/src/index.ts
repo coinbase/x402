@@ -7,8 +7,18 @@
  * @module
  */
 
-export * from "./constants";
+// Exact scheme client
+export { ExactStellarScheme } from "./exact";
+
+// Types
 export * from "./types";
-export * from "./utils";
+
+// Constants
+export * from "./constants";
+
+// Signers
 export * from "./signer";
+
+// Utilities
+export * from "./utils";
 export * from "./shared";

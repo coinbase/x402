@@ -17,6 +17,7 @@ This package provides three main components for handling x402 payments on Stella
 - **Server** - For resource servers that accept payments and build payment requirements
 
 **Key Differences from EVM/SVM:**
+
 - **Ledger-based expiration** (not timestamps) - default ~12 ledgers ≈ 60 seconds
 - **Auth entry signing** - client signs authorization entries only, facilitator rebuilds and submits transaction
 - **Mainnet requires custom RPC URL** (see [Stellar RPC Providers](https://developers.stellar.org/docs/data/apis/rpc/providers))
@@ -28,11 +29,13 @@ This package provides three main components for handling x402 payments on Stella
 **V2 Protocol Support** - x402 v2 protocol with CAIP-2 network identifiers
 
 **Client:**
+
 - `ExactStellarScheme` - Client implementation using Soroban token transfers
 - `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-43)
 - `ClientStellarSigner` - TypeScript type for client signers
 
 **Facilitator:**
+
 - `ExactStellarScheme` - Facilitator for payment verification and settlement
 - `FacilitatorStellarSigner` - TypeScript type for facilitator signers
 
@@ -40,9 +43,11 @@ This package provides three main components for handling x402 payments on Stella
 > Facilitators currently always sponsor transaction fees (`areFeesSponsored: true`). A non-sponsored flow will be added later. See [spec](../../../specs/schemes/exact/scheme_exact_stellar.md#paymentrequirements-for-exact) for details.
 
 **Server:**
+
 - `ExactStellarScheme` - Server for building payment requirements
 
 **Utilities:**
+
 - `getRpcUrl(network, config?)` - Get RPC URL for a network
 - `getRpcClient(network, config?)` - Create Soroban RPC client
 - `getNetworkPassphrase(network)` - Get network passphrase
@@ -52,6 +57,7 @@ This package provides three main components for handling x402 payments on Stella
 - `getUsdcAddress(network)` - Get USDC contract address
 
 **Constants:**
+
 - `STELLAR_PUBNET_CAIP2` = `"stellar:pubnet"`
 - `STELLAR_TESTNET_CAIP2` = `"stellar:testnet"`
 - `USDC_PUBNET_ADDRESS` - USDC contract on mainnet
@@ -67,6 +73,7 @@ This package provides three main components for handling x402 payments on Stella
 ## Supported Networks
 
 **V2 Networks** (via [CAIP-28](https://namespaces.chainagnostic.org/stellar/caip2)):
+
 - `stellar:pubnet` - Mainnet (requires custom RPC URL)
 - `stellar:testnet` - Testnet (default: [https://soroban-testnet.stellar.org](https://soroban-testnet.stellar.org))
 - `stellar:*` - Wildcard (matches all Stellar networks)
@@ -74,6 +81,7 @@ This package provides three main components for handling x402 payments on Stella
 ## Asset Support
 
 Supports Soroban tokens implementing [SEP-41](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md):
+
 - Any Soroban token contract with `transfer(from, to, amount)` function
 - Default asset is USDC (primary, 7 decimals)
 
@@ -99,8 +107,7 @@ registerExactStellarScheme(client, { signer });
 import { x402Client } from "@x402/core/client";
 import { ExactStellarScheme } from "@x402/stellar/exact/client";
 
-const client = new x402Client()
-  .register("stellar:*", new ExactStellarScheme(signer));
+const client = new x402Client().register("stellar:*", new ExactStellarScheme(signer));
 ```
 
 ### 3. Custom Configuration
@@ -109,22 +116,21 @@ const client = new x402Client()
 // Client with custom RPC
 registerExactStellarScheme(client, {
   signer,
-  rpcConfig: { url: "https://custom-rpc.example.com" }
+  rpcConfig: { url: "https://custom-rpc.example.com" },
 });
 
 // Server with custom money parser
-const scheme = new ExactStellarScheme()
-  .registerMoneyParser(async (amount, network) => ({
-    amount: customConvert(amount),
-    asset: "TOKEN_ADDRESS",
-    extra: {}
-  }));
+const scheme = new ExactStellarScheme().registerMoneyParser(async (amount, network) => ({
+  amount: customConvert(amount),
+  asset: "TOKEN_ADDRESS",
+  extra: {},
+}));
 
 // Facilitator with custom ledger offset
 registerExactStellarScheme(facilitator, {
   signer,
   networks: ["stellar:testnet"],
-  maxLedgerOffset: 20  // ~100 second validity window
+  maxLedgerOffset: 20, // ~100 second validity window
 });
 ```
 
