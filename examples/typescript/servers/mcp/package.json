@@ -1,5 +1,5 @@
 {
-  "name": "@x402/mcp-client-example",
+  "name": "@x402/mcp-server-example",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,11 +14,13 @@
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
     "@x402/mcp": "workspace:*",
-    "dotenv": "^16.5.0",
-    "viem": "^2.39.0"
+    "dotenv": "^16.4.7",
+    "express": "^4.18.2",
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
+    "@types/express": "^5.0.1",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
     "eslint": "^9.24.0",
