@@ -1,19 +1,19 @@
 /**
- * MCP Client Example Entry Point
+ * MCP Server Example Entry Point
  *
  * Routes to either simple or advanced example based on CLI arguments.
  *
  * Usage:
- *   pnpm dev           - Run simple example (createX402MCPClient factory)
- *   pnpm dev:advanced  - Run advanced example (x402MCPClient with manual setup)
+ *   pnpm dev           - Run simple example (createX402MCPServer factory)
+ *   pnpm dev:advanced  - Run advanced example (x402MCPServer with manual setup)
  */
 
 const mode = process.argv[2] || "simple";
 
 /**
- * Runs the MCP client example based on the selected mode.
+ * Runs the MCP server example based on the selected mode.
  *
- * @returns Promise that resolves when the example completes
+ * @returns Promise that resolves when the server starts
  */
 async function run(): Promise<void> {
   if (mode === "advanced") {
