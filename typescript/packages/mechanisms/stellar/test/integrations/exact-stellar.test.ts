@@ -8,6 +8,7 @@ import {
   FacilitatorClient,
 } from "@x402/core/server";
 import {
+  AssetAmount,
   Network,
   PaymentPayload,
   PaymentRequirements,
@@ -15,8 +16,8 @@ import {
   SettleResponse,
   SupportedResponse,
 } from "@x402/core/types";
-import { beforeEach, describe, expect, it } from "vitest";
-import { createEd25519Signer, STELLAR_TESTNET_CAIP2, USDC_TESTNET_ADDRESS } from "../../src";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createEd25519Signer, Ed25519Signer, STELLAR_TESTNET_CAIP2 } from "../../src";
 import { ExactStellarScheme as ExactStellarClient } from "../../src/exact/client";
 import { ExactStellarScheme as ExactStellarFacilitator } from "../../src/exact/facilitator";
 import { ExactStellarScheme as ExactStellarServer } from "../../src/exact/server";
@@ -27,6 +28,18 @@ const CLIENT_PRIVATE_KEY = process.env.CLIENT_PRIVATE_KEY;
 const FACILITATOR_PRIVATE_KEY = process.env.FACILITATOR_PRIVATE_KEY;
 const FACILITATOR_ADDRESS = process.env.FACILITATOR_ADDRESS;
 const RESOURCE_SERVER_ADDRESS = process.env.RESOURCE_SERVER_ADDRESS;
+const XLM_TESTNET_ASSET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
+async function xlmFallbackParser(amount: number, network: string): Promise<AssetAmount | null> {
+  if (network === STELLAR_TESTNET_CAIP2) {
+    return {
+      amount: Math.round(amount * 1e7).toString(),
+      asset: XLM_TESTNET_ASSET,
+      extra: {},
+    };
+  }
+  return null;
+}
 
 if (
   !CLIENT_PRIVATE_KEY ||
@@ -37,6 +50,33 @@ if (
   throw new Error(
     "CLIENT_PRIVATE_KEY, FACILITATOR_PRIVATE_KEY, FACILITATOR_ADDRESS and RESOURCE_SERVER_ADDRESS environment variables must be set for integration tests",
   );
+}
+
+const HORIZON_TESTNET = "https://horizon-testnet.stellar.org";
+const FRIENDBOT_URL = "https://friendbot.stellar.org";
+const STELLAR_EXPERT_TESTNET_TX = "https://stellar.expert/explorer/testnet/tx";
+
+function logStellarExpertTxUrl(txHash: string): void {
+  console.log(`Stellar Expert (testnet): ${STELLAR_EXPERT_TESTNET_TX}/${txHash}`);
+}
+
+async function fundOneAccount(address: string): Promise<void> {
+  const res = await fetch(`${HORIZON_TESTNET}/accounts/${address}`);
+  if (res.status === 404) {
+    console.log(`Account ${address} not found, funding with Friendbot\n`);
+    const fb = await fetch(`${FRIENDBOT_URL}?addr=${encodeURIComponent(address)}`);
+    if (!fb.ok) {
+      const body = await fb.text();
+      throw new Error(`Friendbot failed for ${address}: ${fb.status} ${body}`);
+    }
+    console.log(`Account ${address} funded with Friendbot\n`);
+  } else if (!res.ok) {
+    throw new Error(`Horizon account check failed for ${address}: ${res.status}`);
+  }
+}
+
+async function ensureAccountsFunded(addresses: string[]): Promise<void> {
+  await Promise.all(addresses.map(fundOneAccount));
 }
 
 /**
@@ -90,7 +130,6 @@ class StellarFacilitatorClient implements FacilitatorClient {
    */
   getSupported(): Promise<SupportedResponse> {
     // Delegate to actual facilitator to get real supported kinds
-    // This includes fee sponsorship metadata
     return Promise.resolve(this.facilitator.getSupported() as SupportedResponse);
   }
 }
@@ -111,7 +150,7 @@ function buildStellarPaymentRequirements(
   return {
     scheme: "exact",
     network,
-    asset: USDC_TESTNET_ADDRESS,
+    asset: XLM_TESTNET_ASSET,
     amount,
     payTo,
     maxTimeoutSeconds: 3600,
@@ -134,22 +173,26 @@ function isInsufficientBalanceError(error: unknown): boolean {
 }
 
 describe("Stellar Integration Tests", () => {
+  let clientAddress: string;
+  let clientSigner: Ed25519Signer;
+  let facilitatorSigner: Ed25519Signer;
+  beforeAll(async () => {
+    clientSigner = createEd25519Signer(CLIENT_PRIVATE_KEY!, STELLAR_TESTNET_CAIP2);
+    clientAddress = clientSigner.address;
+
+    facilitatorSigner = createEd25519Signer(FACILITATOR_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
+
+    await ensureAccountsFunded([FACILITATOR_ADDRESS, RESOURCE_SERVER_ADDRESS, clientAddress]);
+  });
+
   describe("x402Client / x402ResourceServer / x402Facilitator - Stellar Flow", () => {
     let client: x402Client;
     let server: x402ResourceServer;
     let facilitatorClient: StellarFacilitatorClient;
-    let clientAddress: string;
 
     beforeEach(async () => {
-      const clientSigner = createEd25519Signer(CLIENT_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
-      clientAddress = clientSigner.address;
-
-      const stellarClient = new ExactStellarClient(clientSigner, {
-        url: "https://soroban-testnet.stellar.org",
-      });
+      const stellarClient = new ExactStellarClient(clientSigner);
       client = new x402Client().register(STELLAR_TESTNET_CAIP2, stellarClient);
-
-      const facilitatorSigner = createEd25519Signer(FACILITATOR_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
 
       const stellarFacilitator = new ExactStellarFacilitator(facilitatorSigner);
       const facilitator = new x402Facilitator().register(STELLAR_TESTNET_CAIP2, stellarFacilitator);
@@ -161,8 +204,8 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("server should successfully verify and settle a Stellar payment from a client", async () => {
-      const baseRequirements = buildStellarPaymentRequirements(RESOURCE_SERVER_ADDRESS, "1000");
-      const accepts = [baseRequirements];
+      // Server - builds PaymentRequired response
+      const accepts = [buildStellarPaymentRequirements(RESOURCE_SERVER_ADDRESS, "1000")];
       const resource = {
         url: "https://company.co",
         description: "Company Co. resource",
@@ -170,15 +213,15 @@ describe("Stellar Integration Tests", () => {
       };
       const paymentRequired = await server.createPaymentRequiredResponse(accepts, resource);
 
+      // Client - responds with PaymentPayload response
       let paymentPayload: PaymentPayload;
       try {
         paymentPayload = await client.createPaymentPayload(paymentRequired);
       } catch (error) {
         if (isInsufficientBalanceError(error)) {
           throw new Error(
-            `Insufficient USDC balance on testnet account ${clientAddress}. ` +
-              `Please fund the account with testnet USDC at ${USDC_TESTNET_ADDRESS}. ` +
-              `You can use the Stellar Testnet Friendbot or transfer testnet USDC to the account.`,
+            `Insufficient balance on testnet account ${clientAddress}. ` +
+              `Asset: ${XLM_TESTNET_ASSET}. Ensure the account is funded (e.g. via Friendbot).`,
           );
         }
         throw error;
@@ -188,11 +231,13 @@ describe("Stellar Integration Tests", () => {
       expect(paymentPayload.x402Version).toBe(2);
       expect(paymentPayload.accepted.scheme).toBe("exact");
 
+      // Verify the payload structure
       const stellarPayload = paymentPayload.payload as ExactStellarPayloadV2;
       expect(stellarPayload.transaction).toBeDefined();
       expect(typeof stellarPayload.transaction).toBe("string");
       expect(stellarPayload.transaction.length).toBeGreaterThan(0);
 
+      // Server - maps payment payload to payment requirements
       const accepted = server.findMatchingRequirements(accepts, paymentPayload);
       expect(accepted).toBeDefined();
 
@@ -201,11 +246,13 @@ describe("Stellar Integration Tests", () => {
       expect(verifyResponse.isValid).toBe(true);
       expect(verifyResponse.payer).toBe(clientAddress);
 
+      // Server does work here
       const settleResponse = await server.settlePayment(paymentPayload, accepted!);
       expect(settleResponse.success).toBe(true);
       expect(settleResponse.network).toBe(STELLAR_TESTNET_CAIP2);
       expect(settleResponse.transaction).toBeDefined();
       expect(settleResponse.payer).toBe(clientAddress);
+      logStellarExpertTxUrl(settleResponse.transaction);
     });
   });
 
@@ -218,7 +265,7 @@ describe("Stellar Integration Tests", () => {
         accepts: {
           scheme: "exact",
           payTo: RESOURCE_SERVER_ADDRESS,
-          price: "$0.0001",
+          price: { amount: "1000", asset: XLM_TESTNET_ASSET },
           network: STELLAR_TESTNET_CAIP2 as Network,
         },
         description: "Access to protected API",
@@ -238,18 +285,12 @@ describe("Stellar Integration Tests", () => {
     };
 
     beforeEach(async () => {
-      const facilitatorSigner = createEd25519Signer(FACILITATOR_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
-
       const stellarFacilitator = new ExactStellarFacilitator(facilitatorSigner);
       const facilitator = new x402Facilitator().register(STELLAR_TESTNET_CAIP2, stellarFacilitator);
 
       const facilitatorClient = new StellarFacilitatorClient(facilitator);
 
-      const clientSigner = createEd25519Signer(CLIENT_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
-
-      const stellarClient = new ExactStellarClient(clientSigner, {
-        url: "https://soroban-testnet.stellar.org",
-      });
+      const stellarClient = new ExactStellarClient(clientSigner);
       const paymentClient = new x402Client().register(STELLAR_TESTNET_CAIP2, stellarClient);
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
@@ -262,12 +303,14 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("middleware should successfully verify and settle a Stellar payment from an http client", async () => {
+      // Middleware creates a PaymentRequired response
       const context = {
         adapter: mockAdapter,
         path: "/api/protected",
         method: "GET",
       };
 
+      // No payment made, get PaymentRequired response & header
       const httpProcessResult = (await httpServer.processHTTPRequest(context))!;
       expect(httpProcessResult.type).toBe("payment-error");
 
@@ -280,6 +323,7 @@ describe("Stellar Integration Tests", () => {
       expect(initial402Response.headers).toBeDefined();
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
 
+      // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(
         name => initial402Response.headers[name],
         initial402Response.body,
@@ -289,11 +333,9 @@ describe("Stellar Integration Tests", () => {
         paymentPayload = await client.createPaymentPayload(paymentRequired);
       } catch (error) {
         if (isInsufficientBalanceError(error)) {
-          const clientSigner = createEd25519Signer(CLIENT_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
           throw new Error(
-            `Insufficient USDC balance on testnet account ${clientSigner.address}. ` +
-              `Please fund the account with testnet USDC at ${USDC_TESTNET_ADDRESS}. ` +
-              `You can use the Stellar Testnet Friendbot or transfer testnet USDC to the account.`,
+            `Insufficient balance on testnet account ${clientAddress}. ` +
+              `Asset: ${XLM_TESTNET_ASSET}. Ensure the account is funded (e.g. via Friendbot).`,
           );
         }
         throw error;
@@ -304,6 +346,7 @@ describe("Stellar Integration Tests", () => {
 
       const requestHeaders = await client.encodePaymentSignatureHeader(paymentPayload);
 
+      // Middleware handles PAYMENT-SIGNATURE request
       mockAdapter.getHeader = (name: string) => {
         if (name === "PAYMENT-SIGNATURE") {
           return requestHeaders["PAYMENT-SIGNATURE"];
@@ -313,6 +356,7 @@ describe("Stellar Integration Tests", () => {
 
       const httpProcessResult2 = await httpServer.processHTTPRequest(context);
 
+      // No need to respond, can continue with request
       expect(httpProcessResult2.type).toBe("payment-verified");
       const {
         paymentPayload: verifiedPaymentPayload,
@@ -337,6 +381,7 @@ describe("Stellar Integration Tests", () => {
       if (settlementResult.success) {
         expect(settlementResult.headers).toBeDefined();
         expect(settlementResult.headers["PAYMENT-RESPONSE"]).toBeDefined();
+        logStellarExpertTxUrl(settlementResult.transaction);
       }
     });
   });
@@ -346,8 +391,6 @@ describe("Stellar Integration Tests", () => {
     let stellarServer: ExactStellarServer;
 
     beforeEach(async () => {
-      const facilitatorSigner = createEd25519Signer(FACILITATOR_PRIVATE_KEY, STELLAR_TESTNET_CAIP2);
-
       const facilitator = new x402Facilitator().register(
         STELLAR_TESTNET_CAIP2,
         new ExactStellarFacilitator(facilitatorSigner),
@@ -362,6 +405,8 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("should parse Money formats and build payment requirements", async () => {
+      stellarServer.registerMoneyParser(xlmFallbackParser);
+
       // Test different Money formats
       const testCases = [
         { input: "$1.00", expectedAmount: "10000000" },
@@ -379,7 +424,7 @@ describe("Stellar Integration Tests", () => {
 
         expect(requirements).toHaveLength(1);
         expect(requirements[0].amount).toBe(testCase.expectedAmount);
-        expect(requirements[0].asset).toBe(USDC_TESTNET_ADDRESS);
+        expect(requirements[0].asset).toBe(XLM_TESTNET_ASSET);
       }
     });
 
@@ -404,17 +449,18 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("should use registerMoneyParser for custom conversion", async () => {
-      // Register custom parser: large amounts use custom token
-      stellarServer.registerMoneyParser(async (amount, _network) => {
-        if (amount > 100) {
-          return {
-            amount: (amount * 1e7).toString(), // Custom token with 7 decimals (Stellar default)
-            asset: "CUSTOMLARGETOKENMINT111111111111111111111",
-            extra: { token: "CUSTOM", tier: "large" },
-          };
-        }
-        return null; // Use default for small amounts
-      });
+      stellarServer
+        .registerMoneyParser(async (amount, _network) => {
+          if (amount > 100) {
+            return {
+              amount: (amount * 1e7).toString(),
+              asset: "CUSTOMLARGETOKENMINT111111111111111111111",
+              extra: { token: "CUSTOM", tier: "large" },
+            };
+          }
+          return null;
+        })
+        .registerMoneyParser(xlmFallbackParser);
 
       // Test large amount - should use custom parser
       const largeRequirements = await server.buildPaymentRequirements({
@@ -429,7 +475,7 @@ describe("Stellar Integration Tests", () => {
       expect(largeRequirements[0].extra?.token).toBe("CUSTOM");
       expect(largeRequirements[0].extra?.tier).toBe("large");
 
-      // Test small amount - should use default USDC
+      // Test small amount - should use default (XLM)
       const smallRequirements = await server.buildPaymentRequirements({
         scheme: "exact",
         payTo: RESOURCE_SERVER_ADDRESS,
@@ -437,8 +483,8 @@ describe("Stellar Integration Tests", () => {
         network: STELLAR_TESTNET_CAIP2 as Network,
       });
 
-      expect(smallRequirements[0].amount).toBe("500000000"); // 50 * 1e7 (Stellar default decimals)
-      expect(smallRequirements[0].asset).toBe(USDC_TESTNET_ADDRESS);
+      expect(smallRequirements[0].amount).toBe("500000000"); // 50 * 1e7 (7 decimals)
+      expect(smallRequirements[0].asset).toBe(XLM_TESTNET_ASSET);
     });
 
     it("should support multiple MoneyParser in chain", async () => {
@@ -462,8 +508,9 @@ describe("Stellar Integration Tests", () => {
             };
           }
           return null;
-        });
-      // < 100 uses default USDC
+        })
+        .registerMoneyParser(xlmFallbackParser);
+      // < 100 uses XLM fallback
 
       // VIP tier
       const vipReq = await server.buildPaymentRequirements({
@@ -492,20 +539,19 @@ describe("Stellar Integration Tests", () => {
         price: 50,
         network: STELLAR_TESTNET_CAIP2 as Network,
       });
-      expect(standardReq[0].asset).toBe(USDC_TESTNET_ADDRESS);
+      expect(standardReq[0].asset).toBe(XLM_TESTNET_ASSET);
     });
 
     it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
       const mockExchangeRate = 0.98;
 
       stellarServer.registerMoneyParser(async (amount, _network) => {
-        // Simulate async API call
         await new Promise(resolve => setTimeout(resolve, 10));
 
-        const usdcAmount = amount * mockExchangeRate;
+        const convertedAmount = amount * mockExchangeRate;
         return {
-          amount: Math.floor(usdcAmount * 1e7).toString(),
-          asset: USDC_TESTNET_ADDRESS,
+          amount: Math.floor(convertedAmount * 1e7).toString(),
+          asset: XLM_TESTNET_ASSET,
           extra: {
             exchangeRate: mockExchangeRate,
             originalUSD: amount,
@@ -520,18 +566,20 @@ describe("Stellar Integration Tests", () => {
         network: STELLAR_TESTNET_CAIP2 as Network,
       });
 
-      // 100 USD * 0.98 = 98 USDC
+      // 100 * 0.98 = 98 (XLM, 7 decimals)
       expect(requirements[0].amount).toBe("980000000");
       expect(requirements[0].extra?.exchangeRate).toBe(0.98);
       expect(requirements[0].extra?.originalUSD).toBe(100);
     });
 
     it("should avoid floating-point rounding error", async () => {
+      stellarServer.registerMoneyParser(xlmFallbackParser);
+
       // Test different Money formats
       const testCases = [
         { input: "$4.02", expectedAmount: "40200000" },
         { input: "4.02", expectedAmount: "40200000" },
-        { input: "4.02 USDC", expectedAmount: "40200000" },
+        { input: "4.02 XLM", expectedAmount: "40200000" },
         { input: "4.02 USD", expectedAmount: "40200000" },
         { input: 4.02, expectedAmount: "40200000" },
       ];
@@ -546,7 +594,7 @@ describe("Stellar Integration Tests", () => {
 
         expect(requirements).toHaveLength(1);
         expect(requirements[0].amount).toBe(testCase.expectedAmount);
-        expect(requirements[0].asset).toBe(USDC_TESTNET_ADDRESS);
+        expect(requirements[0].asset).toBe(XLM_TESTNET_ASSET);
       }
     });
   });
