@@ -106,10 +106,16 @@ A facilitator verifying an `exact`-scheme SVM payment MUST enforce all of the fo
 
 1. Instruction layout
 
-- The decompiled transaction MUST contain 3 instructions in this exact order:
+- The decompiled transaction MUST contain 3 to 5 instructions in this order:
   1. Compute Budget: Set Compute Unit Limit
   2. Compute Budget: Set Compute Unit Price
-  4. SPL Token or Token-2022 TransferChecked
+  3. SPL Token or Token-2022 TransferChecked
+  4. (Optional) Lighthouse program instruction (Phantom wallet protection)
+  5. (Optional) Lighthouse program instruction (Solflare wallet protection)
+
+- If a 4th or 5th instruction is present, the program MUST be the Lighthouse program (`L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95`).
+- Phantom wallet injects 1 Lighthouse instruction; Solflare injects 2.
+- These Lighthouse instructions are wallet-injected user protection mechanisms and MUST be allowed to support these wallets.
 
 2. Fee payer (facilitator) safety
 

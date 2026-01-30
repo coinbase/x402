@@ -61,8 +61,9 @@ type FacilitatorSettleFailureContext struct {
 // FacilitatorBeforeHookResult represents the result of a facilitator "before" hook
 // If Abort is true, the operation will be aborted with the given Reason
 type FacilitatorBeforeHookResult struct {
-	Abort  bool
-	Reason string
+	Abort   bool
+	Reason  string
+	Message string
 }
 
 // FacilitatorVerifyFailureHookResult represents the result of a facilitator verify failure hook

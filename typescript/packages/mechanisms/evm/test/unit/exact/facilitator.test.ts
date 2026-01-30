@@ -3,6 +3,7 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
+import { x402ExactPermit2ProxyAddress } from "../../../src/constants";
 
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
@@ -20,10 +21,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
     // Create mock facilitator signer
     mockFacilitatorSigner = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      getAddresses: vi.fn().mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"]),
       readContract: vi.fn().mockResolvedValue(0n), // Mock nonce state
       verifyTypedData: vi.fn().mockResolvedValue(true), // Mock signature verification
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
+      sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       getCode: vi.fn().mockResolvedValue("0x"),
     };
@@ -239,6 +241,316 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       const result = await facilitator.verify(fullPayload, requirements);
 
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+  });
+
+  describe("Permit2 payload verification", () => {
+    it("should verify Permit2 payloads with valid signature and allowance", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Mock readContract to return sufficient allowance and balance
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should reject Permit2 payloads with insufficient allowance", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Mock readContract to return zero allowance
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt(0));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("permit2_allowance_required");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should reject Permit2 payloads with expired deadline", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "1", // Expired deadline
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("permit2_deadline_expired");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should reject Permit2 payloads with wrong spender", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: "0x0000000000000000000000000000000000000001", // Wrong spender
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_spender");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should reject Permit2 payloads with recipient mismatch", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: "0x0000000000000000000000000000000000000001", // Wrong recipient
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_recipient_mismatch");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+  });
+
+  describe("Permit2 settlement", () => {
+    it("should settle Permit2 payloads successfully", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Mock readContract to return sufficient allowance and balance
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(true);
+      expect(result.transaction).toBe("0xtxhash");
+      expect(result.payer).toBe(mockClientSigner.address);
+      expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
+    });
+
+    it("should fail Permit2 settlement when verification fails", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      // Mock readContract to return zero allowance
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt(0));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_allowance_required");
       expect(result.payer).toBe(mockClientSigner.address);
     });
   });

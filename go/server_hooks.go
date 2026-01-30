@@ -61,8 +61,9 @@ type SettleFailureContext struct {
 // BeforeHookResult represents the result of a "before" hook
 // If Abort is true, the operation will be aborted with the given Reason
 type BeforeHookResult struct {
-	Abort  bool
-	Reason string
+	Abort   bool
+	Reason  string
+	Message string
 }
 
 // VerifyFailureHookResult represents the result of a verify failure hook

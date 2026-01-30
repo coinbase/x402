@@ -89,7 +89,7 @@ export function NavBar({ animateLogo = false }: NavBarProps): React.ReactElement
           <div className="hidden lg:flex flex-1 items-center gap-6 justify-end">
             {/* Docs button */}
             <Link
-              href="https://x402.gitbook.io/x402"
+              href="https://docs.x402.org"
               className="flex items-center gap-1 px-4 py-2 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
               target="_blank"
               rel="noopener noreferrer"
@@ -192,7 +192,7 @@ export function NavBar({ animateLogo = false }: NavBarProps): React.ReactElement
             {/* CTA buttons */}
             <div className="space-y-3 pt-2">
               <Link
-                href="https://x402.gitbook.io/x402"
+                href="https://docs.x402.org"
                 className="flex items-center justify-center gap-2 w-full px-4 py-3 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"

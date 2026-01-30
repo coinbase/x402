@@ -81,19 +81,21 @@ type (
 // VerifyResponse contains the verification result
 // If verification fails, an error (typically *VerifyError) is returned and this will be nil
 type VerifyResponse struct {
-	IsValid       bool   `json:"isValid"`
-	InvalidReason string `json:"invalidReason,omitempty"`
-	Payer         string `json:"payer,omitempty"`
+	IsValid        bool   `json:"isValid"`
+	InvalidReason  string `json:"invalidReason,omitempty"`
+	InvalidMessage string `json:"invalidMessage,omitempty"`
+	Payer          string `json:"payer,omitempty"`
 }
 
 // SettleResponse contains the settlement result
 // If settlement fails, an error (typically *SettleError) is returned and this will be nil
 type SettleResponse struct {
-	Success     bool    `json:"success"`
-	ErrorReason string  `json:"errorReason,omitempty"`
-	Payer       string  `json:"payer,omitempty"`
-	Transaction string  `json:"transaction"`
-	Network     Network `json:"network"`
+	Success      bool    `json:"success"`
+	ErrorReason  string  `json:"errorReason,omitempty"`
+	ErrorMessage string  `json:"errorMessage,omitempty"`
+	Payer        string  `json:"payer,omitempty"`
+	Transaction  string  `json:"transaction"`
+	Network      Network `json:"network"`
 }
 
 // ResourceConfig defines payment configuration for a protected resource

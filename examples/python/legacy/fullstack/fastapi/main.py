@@ -39,6 +39,7 @@ app.middleware("http")(
     )
 )
 
+
 @app.get("/premium/content")
 async def get_premium_content() -> FileResponse:
     return FileResponse("static/premium.html")

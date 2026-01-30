@@ -2546,9 +2546,6 @@ packages:
   '@coinbase/wallet-sdk@4.3.6':
     resolution: {integrity: sha512-4q8BNG1ViL4mSAAvPAtpwlOs1gpC+67eQtgIwNvT3xyeyFFd+guwkc8bcX5rTmQhXpqnhzC4f0obACbP9CqMSA==}
 
-  '@coinbase/x402@0.7.3':
-    resolution: {integrity: sha512-mSxxbPnDCvSLfq6ZZAB5P1HyYQfQNSdWyY01Cn7yjzTuGUFFgZ7onDkbZnZ1Yry0UnG467aqrmjs6AgoYgpzCQ==}
-
   '@craftamap/esbuild-plugin-html@0.9.0':
     resolution: {integrity: sha512-V5LFrcGXQWU1SSzYPwxEFjF8IjeXW0oTKh5c0xyhGuTNoEnjgJRNSX83HnZ5TTAutJfo/MAyWA4Z9/fIwbMhUQ==}
     engines: {node: '>=18'}
@@ -8532,9 +8529,6 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
-
-  x402@0.7.3:
-    resolution: {integrity: sha512-8CIZsdMTOn52PjMH/ErVke9ebeZ7ErwiZ5FL3tN3Wny7Ynxs3LkuB/0q7IoccRLdVXA7f2lueYBJ2iDrElhXnA==}
 
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}

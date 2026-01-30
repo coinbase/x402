@@ -1,6 +1,7 @@
-# HTTP 402
-
-For decades, HTTP 402 Payment Required has been reserved for future use. x402 unlocks it, and [absolves the internet of its original sin](https://economyofbits.substack.com/p/marc-andreessens-original-sin).
+---
+title: "HTTP 402"
+description: "For decades, HTTP 402 Payment Required has been reserved for future use. x402 unlocks it, and [absolves the internet of its original sin](https://economyofbits.substack.com/p/marc-andreessens-original-sin)."
+---
 
 ### What is HTTP 402?
 

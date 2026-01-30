@@ -23,6 +23,7 @@ export async function POST(req: Request) {
       {
         success: false,
         errorReason: "invalid_json",
+        errorMessage: "Failed to parse request body",
         error: "Failed to parse request body",
         transaction: "",
         network: "unknown:unknown" as `${string}:${string}`,
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
       {
         success: false,
         errorReason: "missing_parameters",
+        errorMessage: "Missing paymentPayload or paymentRequirements",
         error: "Missing paymentPayload or paymentRequirements",
         transaction: "",
         // Use network from paymentRequirements if available, otherwise unknown
@@ -69,6 +71,7 @@ export async function POST(req: Request) {
       return Response.json({
         success: false,
         errorReason: error.message.replace("Settlement aborted: ", ""),
+        errorMessage: error.message.replace("Settlement aborted: ", ""),
         transaction: "",
         network: network,
       } as SettleResponse);
@@ -78,6 +81,7 @@ export async function POST(req: Request) {
       {
         success: false,
         errorReason: "unexpected_error",
+        errorMessage: errorMessage,
         error: errorMessage,
         transaction: "",
         network: network,

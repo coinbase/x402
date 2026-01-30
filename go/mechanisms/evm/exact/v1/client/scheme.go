@@ -52,7 +52,7 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 
 	value, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
-		return types.PaymentPayloadV1{}, fmt.Errorf("invalid amount: %s", amountStr)
+		return types.PaymentPayloadV1{}, fmt.Errorf(ErrInvalidAmount+": %s", amountStr)
 	}
 
 	// Create nonce
@@ -98,7 +98,7 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 	// Sign the authorization
 	signature, err := c.signAuthorization(ctx, authorization, chainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return types.PaymentPayloadV1{}, fmt.Errorf("failed to sign authorization: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToSignAuthorization+": %w", err)
 	}
 
 	// Create EVM payload

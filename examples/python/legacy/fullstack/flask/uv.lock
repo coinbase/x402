@@ -2088,7 +2088,7 @@ wheels = [
 [[package]]
 name = "x402"
 version = "1.0.0"
-source = { editable = "../../../../../python/x402" }
+source = { editable = "../../../../../python/legacy" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },
@@ -2139,7 +2139,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "waitress", specifier = ">=2.1.2" },
-    { name = "x402", editable = "../../../../../python/x402" },
+    { name = "x402", editable = "../../../../../python/legacy" },
 ]
 
 [[package]]

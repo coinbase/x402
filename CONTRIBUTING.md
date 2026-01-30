@@ -7,6 +7,7 @@ x402 welcomes contributions of schemes, middleware, new chain support, and more.
 - [Repository Structure](#repository-structure)
 - [Language-Specific Guides](#language-specific-guides)
 - [Contributing Workflow](#contributing-workflow)
+- [Changelog Tooling](#changelog-tooling)
 - [Commit Signing](#commit-signing)
 - [Getting Help](#getting-help)
 
@@ -78,6 +79,17 @@ cd go && make test
 - Fill out the PR template completely
 - Link related issues
 - Ensure CI passes
+
+## Changelog Tooling
+
+For **user-facing changes** (behavior changes, bug fixes, new features, breaking changes), add a changelog fragment for the SDK(s) you modified. Docs-only changes and internal refactors that do not affect users can skip fragments.
+
+- **TypeScript**: Changesets fragments in `typescript/.changeset/*.md`
+  - Create: `pnpm -C typescript changeset`
+- **Go**: Changie fragments in `go/.changes/unreleased/*`
+  - Create: `make -C go changelog-new`
+- **Python (python/x402 v2)**: Towncrier fragments in `python/x402/changelog.d/<PR>.<type>.md`
+  - Create (example): `cd python/x402 && uv run towncrier create --content "Fixed ..." 123.bugfix.md`
 
 ## Commit Signing
 

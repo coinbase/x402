@@ -293,12 +293,12 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	// Marshal to bytes early for hooks (escape hatch for extensions)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, NewVerifyError("failed_to_marshal_payload", "", Network(requirements.Network), err)
+		return nil, NewVerifyError(ErrFailedToMarshalPayload, "", err.Error())
 	}
 
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
-		return nil, NewVerifyError("failed_to_marshal_requirements", "", Network(requirements.Network), err)
+		return nil, NewVerifyError(ErrFailedToMarshalRequirements, "", err.Error())
 	}
 
 	// Execute beforeVerify hooks
@@ -316,7 +316,7 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 			return nil, err
 		}
 		if result != nil && result.Abort {
-			return nil, NewVerifyError(result.Reason, "", Network(requirements.Network), nil)
+			return nil, NewVerifyError(result.Reason, "", result.Message)
 		}
 	}
 
@@ -328,7 +328,7 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	s.mu.RUnlock()
 
 	if facilitator == nil {
-		return nil, NewVerifyError("no_facilitator", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
+		return nil, NewVerifyError(ErrNoFacilitatorForNetwork, "", fmt.Sprintf("no facilitator for %s on %s", scheme, network))
 	}
 
 	// Use already marshaled bytes for network call
@@ -360,12 +360,12 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	// Marshal to bytes early for hooks (escape hatch for extensions)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, NewSettleError("failed_to_marshal_payload", "", Network(requirements.Network), "", err)
+		return nil, NewSettleError("failed_to_marshal_payload", "", Network(requirements.Network), "", err.Error())
 	}
 
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
-		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(requirements.Network), "", err)
+		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(requirements.Network), "", err.Error())
 	}
 
 	// Execute beforeSettle hooks
@@ -383,7 +383,7 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 			return nil, err
 		}
 		if result != nil && result.Abort {
-			return nil, NewSettleError(result.Reason, "", Network(requirements.Network), "", nil)
+			return nil, NewSettleError(result.Reason, "", Network(requirements.Network), "", "")
 		}
 	}
 
@@ -395,7 +395,7 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	s.mu.RUnlock()
 
 	if facilitator == nil {
-		return nil, NewSettleError("no_facilitator", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
+		return nil, NewSettleError("no_facilitator", "", network, "", fmt.Sprintf("no facilitator for %s on %s", scheme, network))
 	}
 
 	// Use already marshaled bytes for network call

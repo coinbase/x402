@@ -6,7 +6,7 @@ import type {
   PaywallProvider,
   FacilitatorClient,
 } from "@x402/core/server";
-import { x402ResourceServer } from "@x402/core/server";
+import { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkServer } from "@x402/core/types";
 import { paymentProxy, paymentProxyFromConfig, withX402, type SchemeRegistration } from "./index";
 
@@ -21,14 +21,33 @@ vi.mock("./utils", async () => {
   };
 });
 
+// Shared mock functions storage - will be populated by tests
+const mockFunctions = {
+  processHTTPRequest: vi.fn(),
+  processSettlement: vi.fn(),
+  requiresPayment: vi.fn().mockReturnValue(true),
+};
+
 // Mock @x402/core/server
 vi.mock("@x402/core/server", () => ({
   x402ResourceServer: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     registerExtension: vi.fn(),
     register: vi.fn(),
+    hasExtension: vi.fn().mockReturnValue(false),
   })),
-  x402HTTPResourceServer: vi.fn(),
+  x402HTTPResourceServer: vi.fn().mockImplementation((server, routes) => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    registerPaywallProvider: vi.fn(),
+    processHTTPRequest: (...args: unknown[]) => mockFunctions.processHTTPRequest(...args),
+    processSettlement: (...args: unknown[]) => mockFunctions.processSettlement(...args),
+    requiresPayment: (...args: unknown[]) => mockFunctions.requiresPayment(...args),
+    routes: routes || {},
+    server: server || {
+      hasExtension: vi.fn().mockReturnValue(false),
+      registerExtension: vi.fn(),
+    },
+  })),
 }));
 
 // --- Test Fixtures ---
@@ -74,7 +93,13 @@ function createMockHttpServer(
     processHTTPRequest: vi.fn().mockResolvedValue(processResult),
     processSettlement: vi.fn().mockResolvedValue(settlementResult),
     registerPaywallProvider: vi.fn(),
+    initialize: vi.fn().mockResolvedValue(undefined),
     requiresPayment: vi.fn().mockReturnValue(true),
+    routes: mockRoutes,
+    server: {
+      hasExtension: vi.fn().mockReturnValue(false),
+      registerExtension: vi.fn(),
+    },
   } as unknown as x402HTTPResourceServer;
 }
 
@@ -102,11 +127,19 @@ function createMockRequest(
 }
 
 /**
- * Sets up createHttpServer mock to return the provided server.
+ * Sets up the mock x402HTTPResourceServer constructor to return instances
+ * with the provided mock server's behavior.
  *
- * @param mockServer - The mock x402HTTPResourceServer to return.
+ * @param mockServer - The mock x402HTTPResourceServer to use as template.
  */
 function setupMockCreateHttpServer(mockServer: x402HTTPResourceServer): void {
+  // Replace the shared mock functions with the ones from mockServer
+  // This allows the mock constructor to use the configured mocks
+  mockFunctions.processHTTPRequest = mockServer.processHTTPRequest as ReturnType<typeof vi.fn>;
+  mockFunctions.processSettlement = mockServer.processSettlement as ReturnType<typeof vi.fn>;
+  mockFunctions.requiresPayment = mockServer.requiresPayment as ReturnType<typeof vi.fn>;
+
+  // Also set up createHttpServer mock for backward compatibility
   vi.mocked(createHttpServer).mockReturnValue({
     httpServer: mockServer,
     init: vi.fn().mockResolvedValue(undefined),
@@ -116,6 +149,10 @@ function setupMockCreateHttpServer(mockServer: x402HTTPResourceServer): void {
 describe("paymentProxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset shared mock functions
+    mockFunctions.processHTTPRequest = vi.fn();
+    mockFunctions.processSettlement = vi.fn();
+    mockFunctions.requiresPayment = vi.fn().mockReturnValue(true);
   });
 
   it("returns NextResponse.next() when no-payment-required", async () => {
@@ -188,6 +225,7 @@ describe("paymentProxy", () => {
     expect(mockServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockPaymentRequirements,
+      undefined,
     );
   });
 
@@ -209,7 +247,7 @@ describe("paymentProxy", () => {
 
     paymentProxy(mockRoutes, {} as unknown as x402ResourceServer, undefined, paywall);
 
-    expect(createHttpServer).toHaveBeenCalledWith(mockRoutes, expect.anything(), paywall, true);
+    expect(x402HTTPResourceServer).toHaveBeenCalledWith(expect.anything(), mockRoutes);
   });
 
   it("returns 402 when settlement throws error", async () => {
@@ -418,6 +456,6 @@ describe("paymentProxyFromConfig", () => {
 
     paymentProxyFromConfig(mockRoutes, undefined, undefined, paywallConfig, paywall, false);
 
-    expect(createHttpServer).toHaveBeenCalledWith(mockRoutes, expect.anything(), paywall, false);
+    expect(x402HTTPResourceServer).toHaveBeenCalledWith(expect.anything(), mockRoutes);
   });
 });

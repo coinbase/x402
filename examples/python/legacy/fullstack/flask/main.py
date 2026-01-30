@@ -19,10 +19,11 @@ if not ADDRESS:
 
 app = Flask(__name__)
 
+
 # Configure Flask to serve static files
-@app.route('/static/<path:filename>')
+@app.route("/static/<path:filename>")
 def serve_static(filename):
-    return send_from_directory('static', filename)
+    return send_from_directory("static", filename)
 
 
 # Initialize payment middleware
@@ -41,9 +42,11 @@ payment_middleware.add(
     ),
 )
 
+
 @app.route("/premium/content")
 def get_premium_content():
-    return send_from_directory('static', 'premium.html')
+    return send_from_directory("static", "premium.html")
+
 
 if __name__ == "__main__":
     print("Starting server on http://0.0.0.0:4021")

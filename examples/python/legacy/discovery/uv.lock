@@ -481,7 +481,7 @@ requires-dist = [
     { name = "cdp-sdk", specifier = ">=1.31.2" },
     { name = "flask", specifier = ">=3.1.1" },
     { name = "uvicorn", specifier = ">=0.27.0" },
-    { name = "x402", editable = "../../../../python/x402" },
+    { name = "x402", editable = "../../../../python/legacy" },
 ]
 
 [[package]]
@@ -2098,7 +2098,7 @@ wheels = [
 [[package]]
 name = "x402"
 version = "1.0.0"
-source = { editable = "../../../../python/x402" }
+source = { editable = "../../../../python/legacy" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },

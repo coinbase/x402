@@ -2636,6 +2636,8 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
+  servers/cloudfront-lambda-edge: {}
+
   servers/custom:
     dependencies:
       '@x402/core':

@@ -40,9 +40,9 @@ import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axio
  */
 export function wrapAxiosWithPayment(
   axiosInstance: AxiosInstance,
-  client: x402Client,
+  client: x402Client | x402HTTPClient,
 ): AxiosInstance {
-  const httpClient = new x402HTTPClient(client);
+  const httpClient = client instanceof x402HTTPClient ? client : new x402HTTPClient(client);
 
   axiosInstance.interceptors.response.use(
     response => response,
@@ -85,6 +85,21 @@ export function wrapAxiosWithPayment(
               `Failed to parse payment requirements: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
             ),
           );
+        }
+
+        // Run payment required hooks
+        const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired);
+        if (hookHeaders) {
+          const hookConfig = { ...originalConfig };
+          hookConfig.headers = { ...originalConfig.headers } as typeof originalConfig.headers;
+          Object.entries(hookHeaders).forEach(([key, value]) => {
+            hookConfig.headers.set(key, value);
+          });
+          const hookResponse = await axiosInstance.request(hookConfig);
+          if (hookResponse.status !== 402) {
+            return hookResponse; // Hook succeeded
+          }
+          // Hook's retry got 402, fall through to payment
         }
 
         // Create payment payload

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getEvmChainId, createNonce } from "../../src/utils";
+import { EvmNetworkV1 } from "../../src/v1";
 
 describe("EVM Utils", () => {
   describe("getEvmChainId", () => {
@@ -27,8 +28,54 @@ describe("EVM Utils", () => {
       expect(getEvmChainId("polygon-amoy")).toBe(80002);
     });
 
-    it("should return default chain ID (1) for unknown networks", () => {
-      expect(getEvmChainId("unknown-network")).toBe(1);
+    it("should return correct chain ID for Abstract", () => {
+      expect(getEvmChainId("abstract")).toBe(2741);
+    });
+
+    it("should return correct chain ID for Abstract Testnet", () => {
+      expect(getEvmChainId("abstract-testnet")).toBe(11124);
+    });
+
+    it("should return correct chain ID for Avalanche Fuji", () => {
+      expect(getEvmChainId("avalanche-fuji")).toBe(43113);
+    });
+
+    it("should return correct chain ID for Avalanche", () => {
+      expect(getEvmChainId("avalanche")).toBe(43114);
+    });
+
+    it("should return correct chain ID for IoTeX", () => {
+      expect(getEvmChainId("iotex")).toBe(4689);
+    });
+
+    it("should return correct chain ID for Sei", () => {
+      expect(getEvmChainId("sei")).toBe(1329);
+    });
+
+    it("should return correct chain ID for Sei Testnet", () => {
+      expect(getEvmChainId("sei-testnet")).toBe(1328);
+    });
+
+    it("should return correct chain ID for Peaq", () => {
+      expect(getEvmChainId("peaq")).toBe(3338);
+    });
+
+    it("should return correct chain ID for Story", () => {
+      expect(getEvmChainId("story")).toBe(1514);
+    });
+
+    it("should return correct chain ID for Educhain", () => {
+      expect(getEvmChainId("educhain")).toBe(41923);
+    });
+
+    it("should return correct chain ID for Skale Base Sepolia", () => {
+      expect(getEvmChainId("skale-base-sepolia")).toBe(324705682);
+    });
+
+    it("should throw for unsupported network", () => {
+      expect(() => getEvmChainId("unknown-network" as EvmNetworkV1)).toThrow(
+        "Unsupported network: unknown-network",
+      );
     });
   });
 

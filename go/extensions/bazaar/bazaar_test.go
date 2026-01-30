@@ -986,13 +986,13 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		})
 
 		var paymentRequired map[string]interface{}
-		json.Unmarshal(paymentRequiredJSON, &paymentRequired)
+		_ = json.Unmarshal(paymentRequiredJSON, &paymentRequired)
 
 		// 3. Facilitator receives and validates
 		bazaarExtRaw := paymentRequired["extensions"].(map[string]interface{})[bazaar.BAZAAR]
 		bazaarExtJSON, _ := json.Marshal(bazaarExtRaw)
 		var bazaarExt bazaar.DiscoveryExtension
-		json.Unmarshal(bazaarExtJSON, &bazaarExt)
+		_ = json.Unmarshal(bazaarExtJSON, &bazaarExt)
 
 		validation := bazaar.ValidateDiscoveryExtension(bazaarExt)
 		assert.True(t, validation.Valid)
@@ -1086,6 +1086,8 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 		// Verify resource URL extracted correctly
 		assert.Equal(t, "https://mesh.heurist.xyz/x402/agents/TokenResolverAgent/search", info.ResourceURL)
+		assert.Equal(t, "Find tokens by address, ticker/symbol, or token name", info.Description)
+		assert.Equal(t, "application/json", info.MimeType)
 		assert.Equal(t, 1, info.X402Version)
 	})
 

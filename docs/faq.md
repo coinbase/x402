@@ -1,4 +1,6 @@
-# FAQ
+---
+title: "FAQ"
+---
 
 ### General
 
@@ -31,9 +33,9 @@ Nothing prevents you from implementing the spec in Rust, Java, or other language
 
 #### Who runs facilitators today?
 
-Coinbase Developer Platform operates the first production facilitator. The protocol, however, is **permissionless**—anyone can run a facilitator. Expect:
+Multiple organizations operate production facilitators. The protocol is **permissionless**—anyone can run a facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options, including:
 
-* Community‑run facilitators for other networks or assets.
+* Community‑run facilitators for various networks and assets
 * Private facilitators for enterprises that need custom KYT / KYC flows.
 
 #### What stops a malicious facilitator from stealing funds or lying about settlement?
@@ -61,12 +63,12 @@ Yes. x402 handles the _payment execution_. You can still meter usage, aggregate 
 
 | Network        | CAIP-2 ID | Asset | Fees\*   | Status      |
 | -------------- | --------- | ----- | -------- | ----------- |
-| Base           | `eip155:8453` | USDC  | fee-free | **Mainnet** |
-| Base Sepolia   | `eip155:84532` | USDC  | fee-free | **Testnet** |
-| Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | SPL Tokens  | fee-free | **Mainnet** |
-| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | SPL Tokens  | fee-free | **Testnet** |
+| Base           | `eip155:8453` | Any EIP-3009 token  | fee-free | **Mainnet** |
+| Base Sepolia   | `eip155:84532` | Any EIP-3009 token  | fee-free | **Testnet** |
+| Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Mainnet** |
+| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Testnet** |
 
-\* Gas paid on chain; Coinbase's x402 facilitator adds **zero** facilitator fee.
+\* Gas paid on chain; many facilitators offer **zero** facilitator fees (see [ecosystem](https://www.x402.org/ecosystem?category=facilitators) for details).
 
 _Support for additional chains and assets is on the roadmap and community‑driven._
 
