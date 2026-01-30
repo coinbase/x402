@@ -12,7 +12,6 @@ export function BackgroundVideo({ src }: BackgroundVideoProps) {
   const isDesktop = useMediaQuery('(min-width: 1280px)');
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
 
-  // Extract the base name without extension to construct placeholder path
   const baseName = src.replace(/\.[^/.]+$/, '');
 
   if (!isDesktop) {

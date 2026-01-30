@@ -1,90 +1,157 @@
+"""FastAPI e2e test server using x402 v2 SDK."""
+
 import os
 import signal
 import sys
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from x402.fastapi.middleware import require_payment
-from x402.types import EIP712Domain, TokenAmount, TokenAsset
-from x402.chains import (
-    get_chain_id,
-    get_token_decimals,
-    get_token_name,
-    get_token_version,
-    get_default_token_address,
+
+# Import from new x402 package
+from x402 import x402ResourceServer
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient
+from x402.http.middleware.fastapi import payment_middleware
+from x402.mechanisms.evm.exact import (
+    ExactEvmServerScheme,
+    register_exact_evm_server,
+)
+from x402.mechanisms.svm.exact import register_exact_svm_server
+from x402.extensions.bazaar import (
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+    OutputConfig,
 )
 
 # Load environment variables
 load_dotenv()
 
 # Get configuration from environment
-USE_CDP_FACILITATOR = os.getenv("USE_CDP_FACILITATOR", "false").lower() == "true"
-NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
-ADDRESS = os.getenv("EVM_ADDRESS")
+EVM_ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
+SVM_ADDRESS = os.getenv("SVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
+FACILITATOR_URL = os.getenv("FACILITATOR_URL")
 
-# CDP facilitator configuration
-CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
-CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
-
-if not ADDRESS:
-    print("Error: Missing required environment variable ADDRESS")
+if not EVM_ADDRESS:
+    print("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
     sys.exit(1)
 
-# Validate CDP configuration if using CDP facilitator
-if USE_CDP_FACILITATOR and (not CDP_API_KEY_ID or not CDP_API_KEY_SECRET):
-    print(
-        "Error: CDP facilitator enabled but missing CDP_API_KEY_ID or CDP_API_KEY_SECRET"
-    )
+if not SVM_ADDRESS:
+    print("Error: Missing required environment variable SVM_PAYEE_ADDRESS")
     sys.exit(1)
 
-
-chain_id = get_chain_id(NETWORK)
-address = get_default_token_address(chain_id)
+# Network configurations (CAIP-2 format)
+EVM_NETWORK = "eip155:84532"  # Base Sepolia
+SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
 app = FastAPI()
 
-# Create facilitator config if using CDP
-facilitator_config = None
-if USE_CDP_FACILITATOR:
-    from cdp.x402 import create_facilitator_config
+# Create HTTP facilitator client
+if FACILITATOR_URL:
+    print(f"Using remote facilitator at: {FACILITATOR_URL}")
+    config = FacilitatorConfig(url=FACILITATOR_URL)
+    facilitator = HTTPFacilitatorClient(config)
+else:
+    print("Using default facilitator")
+    facilitator = HTTPFacilitatorClient()
 
-    facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
+# Create resource server
+server = x402ResourceServer(facilitator)
 
-# Apply payment middleware to protected endpoints
-app.middleware("http")(
-    require_payment(
-        path="/protected",
-        price="$0.001",
-        pay_to_address=ADDRESS,
-        network=NETWORK,
-        facilitator_config=facilitator_config,
-    )
-)
+# Register EVM and SVM exact schemes
+register_exact_evm_server(server, EVM_NETWORK)
+register_exact_svm_server(server, SVM_NETWORK)
 
-# Add second protected endpoint with ERC20TokenAmount price
-app.middleware("http")(
-    require_payment(
-        path="/protected-2",
-        price=TokenAmount(
-            amount="1000",  # 1000 USDC units (0.001 USDC)
-            asset=TokenAsset(
-                address=address,
-                decimals=get_token_decimals(chain_id, address),
-                eip712=EIP712Domain(
-                    name=get_token_name(chain_id, address),
-                    version=get_token_version(chain_id, address),
-                ),
+# Register Bazaar discovery extension
+server.register_extension(bazaar_resource_server_extension)
+
+# Define routes with payment requirements
+routes = {
+    "GET /protected": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "price": "$0.001",
+            "network": EVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
             ),
-        ),
-        pay_to_address=ADDRESS,
-        network=NETWORK,
-        facilitator_config=facilitator_config,
-    )
-)
+        },
+    },
+    "GET /protected-2": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "price": "$0.001",  # 0.001 USDC
+            "network": EVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource #2",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+    "GET /protected-svm": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": SVM_ADDRESS,
+            "price": "$0.001",
+            "network": SVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to SVM protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+}
+
+
+# Apply payment middleware
+@app.middleware("http")
+async def x402_payment_middleware(request, call_next):
+    return await payment_middleware(routes, server)(request, call_next)
+
 
 # Global flag to track if server should accept new requests
 shutdown_requested = False
@@ -92,7 +159,7 @@ shutdown_requested = False
 
 @app.get("/protected")
 async def protected_endpoint() -> Dict[str, Any]:
-    """Protected endpoint that requires payment"""
+    """Protected endpoint that requires payment."""
     if shutdown_requested:
         raise HTTPException(status_code=503, detail="Server shutting down")
 
@@ -104,7 +171,7 @@ async def protected_endpoint() -> Dict[str, Any]:
 
 @app.get("/protected-2")
 async def protected_endpoint_2() -> Dict[str, Any]:
-    """Protected endpoint that requires ERC20 payment"""
+    """Protected endpoint that requires ERC20 payment."""
     if shutdown_requested:
         raise HTTPException(status_code=503, detail="Server shutting down")
 
@@ -114,9 +181,21 @@ async def protected_endpoint_2() -> Dict[str, Any]:
     }
 
 
+@app.get("/protected-svm")
+async def protected_svm_endpoint() -> Dict[str, Any]:
+    """Protected endpoint that requires SVM (Solana) payment."""
+    if shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server shutting down")
+
+    return {
+        "message": "Access granted to SVM protected resource",
+        "timestamp": "2024-01-01T00:00:00Z",
+    }
+
+
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
-    """Health check endpoint"""
+    """Health check endpoint."""
     return {
         "status": "healthy",
         "timestamp": "2024-01-01T00:00:00Z",
@@ -126,7 +205,7 @@ async def health_check() -> Dict[str, Any]:
 
 @app.post("/close")
 async def close_server() -> Dict[str, Any]:
-    """Graceful shutdown endpoint"""
+    """Graceful shutdown endpoint."""
     global shutdown_requested
     shutdown_requested = True
 
@@ -144,7 +223,7 @@ async def close_server() -> Dict[str, Any]:
 
 
 def signal_handler(signum, frame):
-    """Handle shutdown signals gracefully"""
+    """Handle shutdown signals gracefully."""
     print("Received shutdown signal, exiting...")
     sys.exit(0)
 
@@ -157,9 +236,11 @@ if __name__ == "__main__":
     import uvicorn
 
     print(f"Starting FastAPI server on port {PORT}")
-    print(f"Server address: {ADDRESS}")
-    print(f"Network: {NETWORK}")
-    print(f"Using CDP facilitator: {USE_CDP_FACILITATOR}")
+    print(f"EVM address: {EVM_ADDRESS}")
+    print(f"SVM address: {SVM_ADDRESS}")
+    print(f"EVM Network: {EVM_NETWORK}")
+    print(f"SVM Network: {SVM_NETWORK}")
+    print(f"Using facilitator: {FACILITATOR_URL}")
     print("Server listening on port", PORT)
 
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")

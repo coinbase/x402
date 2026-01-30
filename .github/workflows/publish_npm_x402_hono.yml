@@ -26,7 +26,7 @@ jobs:
           pnpm -r --filter=x402 --filter=x402-hono run build
           
       - name: Publish x402-hono package
-        working-directory: ./typescript/packages/x402-hono
+        working-directory: ./typescript/packages/legacy/x402-hono
         run: |
           # Get package information directly
           PACKAGE_NAME=$(node -p "require('./package.json').name")

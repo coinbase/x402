@@ -4,10 +4,8 @@ version = "0.1.0"
 description = "Python httpx client for x402 e2e tests"
 requires-python = ">=3.10"
 dependencies = [
-    "httpx>=0.24.0",
-    "eth-account>=0.8.0",
     "python-dotenv>=1.0.0",
-    "x402"
+    "x402[httpx,evm,svm,extensions]"
 ]
 
 [build-system]
@@ -24,4 +22,4 @@ allow-direct-references = true
 package = false
 
 [tool.uv.sources]
-x402 = { path = "../../../python/x402", editable = true } 
+x402 = { path = "../../../python/x402", editable = true }

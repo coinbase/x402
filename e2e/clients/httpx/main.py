@@ -1,41 +1,70 @@
+"""httpx e2e test client using x402 v2 SDK."""
+
 import os
 import json
 import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
-from x402.clients.httpx import x402_payment_hooks
-from x402.clients.base import decode_x_payment_response
+
+# Import from new x402 package
+from x402 import x402Client
+from x402.http import decode_payment_response_header
+from x402.http.clients import x402_httpx_transport
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact import register_exact_evm_client
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact import register_exact_svm_client
 import httpx
 
 # Load environment variables
 load_dotenv()
 
 # Get environment variables
-private_key = os.getenv("EVM_PRIVATE_KEY")
+evm_private_key = os.getenv("EVM_PRIVATE_KEY")
+svm_private_key = os.getenv("SVM_PRIVATE_KEY")
 base_url = os.getenv("RESOURCE_SERVER_URL")
 endpoint_path = os.getenv("ENDPOINT_PATH")
 
-if not all([private_key, base_url, endpoint_path]):
+if not base_url or not endpoint_path:
     error_result = {"success": False, "error": "Missing required environment variables"}
     print(json.dumps(error_result))
     exit(1)
 
-# Create eth_account from private key
-account = Account.from_key(private_key)
+if not evm_private_key and not svm_private_key:
+    error_result = {"success": False, "error": "At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY must be set"}
+    print(json.dumps(error_result))
+    exit(1)
 
 
 async def main():
-    # Create httpx client with x402 payment hooks
-    async with httpx.AsyncClient(base_url=base_url) as client:
-        # Add payment hooks directly to client.event_hooks
-        client.event_hooks = x402_payment_hooks(account)
+    # Create x402 client
+    client = x402Client()
 
+    # Register EVM exact scheme if private key is available
+    if evm_private_key:
+        account = Account.from_key(evm_private_key)
+        evm_signer = EthAccountSigner(account)
+        register_exact_evm_client(client, evm_signer)
+
+    # Register SVM exact scheme if private key is available
+    if svm_private_key:
+        svm_signer = KeypairSigner.from_base58(svm_private_key)
+        register_exact_svm_client(client, svm_signer)
+
+    # Create httpx client with x402 payment transport and increased timeout
+    # Set timeout to 30 seconds to handle busy servers during test runs
+    timeout = httpx.Timeout(30.0, connect=10.0)
+    async with httpx.AsyncClient(
+        base_url=base_url,
+        timeout=timeout,
+        transport=x402_httpx_transport(client),
+    ) as http_client:
         # Make request
         try:
-            response = await client.get(endpoint_path)
+            response = await http_client.get(endpoint_path)
 
             # Read the response content
-            content = await response.aread()
+            content = response.content
             response_data = json.loads(content.decode())
 
             # Prepare result
@@ -46,12 +75,11 @@ async def main():
                 "payment_response": None,
             }
 
-            # Check for payment response header
-            if "X-Payment-Response" in response.headers:
-                payment_response = decode_x_payment_response(
-                    response.headers["X-Payment-Response"]
-                )
-                result["payment_response"] = payment_response
+            # Check for payment response header (V2: PAYMENT-RESPONSE, V1: X-PAYMENT-RESPONSE)
+            payment_header = response.headers.get("PAYMENT-RESPONSE") or response.headers.get("X-PAYMENT-RESPONSE")
+            if payment_header:
+                payment_response = decode_payment_response_header(payment_header)
+                result["payment_response"] = payment_response.model_dump()
 
             # Output structured result as JSON for proxy to parse
             print(json.dumps(result))

@@ -3,15 +3,22 @@
   "type": "client",
   "language": "python",
   "protocolFamilies": [
-    "evm"
+    "evm",
+    "svm"
   ],
-  "description": "Python httpx client with x402 payment hooks",
+  "x402Versions": [
+    1,
+    2
+  ],
+  "description": "Python httpx client with x402 v2 payment hooks",
   "environment": {
     "required": [
-      "EVM_PRIVATE_KEY",
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],
-    "optional": []
+    "optional": [
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
+    ]
   }
 }
