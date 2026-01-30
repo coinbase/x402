@@ -34,7 +34,11 @@ const NETWORK = "eip155:84532" as const;
 // Shared storage for tracking paid addresses
 const storage = new InMemorySIWxStorage();
 
-// Log SIWX events for visibility
+/**
+ * Log SIWX events for visibility.
+ *
+ * @param event - The SIWX hook event
+ */
 function onEvent(event: { type: string; resource: string; address?: string; error?: string }) {
   console.log(`[SIWX] ${event.type}`, event);
 }
