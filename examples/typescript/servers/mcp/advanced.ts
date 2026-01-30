@@ -128,7 +128,9 @@ export async function main(): Promise<void> {
       extra: { name: "USDC", version: "2" },
     },
     async ({ city }) => ({
-      content: [{ type: "text" as const, text: JSON.stringify(getWeatherData(city as string), null, 2) }],
+      content: [
+        { type: "text" as const, text: JSON.stringify(getWeatherData(city as string), null, 2) },
+      ],
     }),
   );
 

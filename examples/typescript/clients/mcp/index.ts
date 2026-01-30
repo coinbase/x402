@@ -10,6 +10,11 @@
 
 const mode = process.argv[2] || "simple";
 
+/**
+ * Runs the MCP client example based on the selected mode.
+ *
+ * @returns Promise that resolves when the example completes
+ */
 async function run(): Promise<void> {
   if (mode === "advanced") {
     const { main } = await import("./advanced.js");
