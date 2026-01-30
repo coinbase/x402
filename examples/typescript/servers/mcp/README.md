@@ -5,6 +5,7 @@ This example demonstrates how to create an MCP (Model Context Protocol) server w
 ## Overview
 
 The server exposes:
+
 - **get_weather** (paid) - Returns weather data for a city, costs $0.001
 - **ping** (free) - Returns "pong", no payment required
 
@@ -17,6 +18,7 @@ cp .env-local .env
 ```
 
 2. Configure environment variables:
+
    - `EVM_ADDRESS`: Your EVM wallet address to receive payments
    - `FACILITATOR_URL`: x402 facilitator URL (default: https://x402.org/facilitator)
    - `PORT`: Server port (default: 4022)
@@ -46,11 +48,13 @@ pnpm dev:advanced
 ```
 
 Advanced mode demonstrates:
+
 - Manual MCP server creation
 - Custom facilitator client configuration
 - Server-side hooks (onBeforeExecution, onAfterExecution, onAfterSettlement)
 
 The server will start on `http://localhost:4022` with:
+
 - SSE endpoint: `GET /sse`
 - Messages endpoint: `POST /messages`
 - Health check: `GET /health`

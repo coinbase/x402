@@ -80,7 +80,9 @@ export async function main(): Promise<void> {
       extra: { name: "USDC", version: "2" },
     },
     async ({ city }) => ({
-      content: [{ type: "text" as const, text: JSON.stringify(getWeatherData(city as string), null, 2) }],
+      content: [
+        { type: "text" as const, text: JSON.stringify(getWeatherData(city as string), null, 2) },
+      ],
     }),
   );
 
@@ -99,7 +101,10 @@ export async function main(): Promise<void> {
  * @param mcpServer - The MCP server instance
  * @param port - Port to listen on
  */
-function startExpressServer(mcpServer: ReturnType<typeof createX402MCPServer>["server"], port: number): void {
+function startExpressServer(
+  mcpServer: ReturnType<typeof createX402MCPServer>["server"],
+  port: number,
+): void {
   const app = express();
   const transports = new Map<string, SSEServerTransport>();
 
