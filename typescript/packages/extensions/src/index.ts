@@ -11,10 +11,36 @@ export * from "./sign-in-with-x";
 // 8004-Reputation extension
 // Export explicitly to avoid name collisions
 export { REPUTATION } from "./reputation";
-export { reputationServerExtension, createReputationServerExtension, declareReputationExtension } from "./reputation/server";
-export { createAttestation, verifyAttestation, createTaskRef, extractNetworkFromTaskRef, extractTxHashFromTaskRef } from "./reputation/attestation";
-export { createFeedbackSubmission, submitFeedback, createAndSubmitFeedback, extractReputationFromSettlement, extractReputationFromPaymentRequired, getAggregatorEndpoint, determineEvidenceTag } from "./reputation/aggregator";
-export { validateReputationExtension, extractReputationData, validateFeedbackSubmission, hasReputationExtension, getAgentRegistrations, getFeedbackAggregator, findRegistrationForNetwork } from "./reputation/facilitator";
+export {
+  reputationServerExtension,
+  createReputationServerExtension,
+  declareReputationExtension,
+} from "./reputation/server";
+export {
+  createAttestation,
+  verifyAttestation,
+  createTaskRef,
+  extractNetworkFromTaskRef,
+  extractTxHashFromTaskRef,
+} from "./reputation/attestation";
+export {
+  createFeedbackSubmission,
+  submitFeedback,
+  createAndSubmitFeedback,
+  extractReputationFromSettlement,
+  extractReputationFromPaymentRequired,
+  getAggregatorEndpoint,
+  determineEvidenceTag,
+} from "./reputation/aggregator";
+export {
+  validateReputationExtension,
+  extractReputationData,
+  validateFeedbackSubmission,
+  hasReputationExtension,
+  getAgentRegistrations,
+  getFeedbackAggregator,
+  findRegistrationForNetwork,
+} from "./reputation/facilitator";
 
 // Re-export reputation types with distinct names
 export type {
@@ -44,11 +70,6 @@ export type {
   VerifyAttestationResult,
 } from "./reputation/attestation";
 
-export type {
-  CreateFeedbackParams,
-} from "./reputation/aggregator";
+export type { CreateFeedbackParams } from "./reputation/aggregator";
 
-export type {
-  ReputationServerExtensionConfig,
-  DeclareReputationConfig,
-} from "./reputation/server";
+export type { ReputationServerExtensionConfig, DeclareReputationConfig } from "./reputation/server";

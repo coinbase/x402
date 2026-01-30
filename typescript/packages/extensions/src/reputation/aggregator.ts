@@ -40,7 +40,6 @@ export function buildClientFeedbackMessage(
   value: number,
   valueDecimals: number,
 ): Uint8Array {
-
   const agentIdBytes = encoder.encode(agentId);
   const taskRefBytes = encoder.encode(taskRef);
 
@@ -75,6 +74,9 @@ export function buildClientFeedbackMessage(
 /**
  * Hash the client feedback message
  * Uses SHA-256 (replace with keccak256 in production)
+ *
+ * @param message - The message bytes to hash
+ * @returns SHA-256 hash of the message as Uint8Array
  */
 export async function hashClientFeedbackMessage(message: Uint8Array): Promise<Uint8Array> {
   // Note: We create a new ArrayBuffer to ensure compatibility with strict TypeScript settings

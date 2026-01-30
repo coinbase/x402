@@ -48,17 +48,18 @@ export function validateReputationExtension(
       return { valid: true };
     }
 
-    const errors =
-      validate.errors?.map((err) => {
-        const path = err.instancePath || "(root)";
-        return `${path}: ${err.message}`;
-      }) || ["Unknown validation error"];
+    const errors = validate.errors?.map(err => {
+      const path = err.instancePath || "(root)";
+      return `${path}: ${err.message}`;
+    }) || ["Unknown validation error"];
 
     return { valid: false, errors };
   } catch (error) {
     return {
       valid: false,
-      errors: [`Schema validation failed: ${error instanceof Error ? error.message : String(error)}`],
+      errors: [
+        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`,
+      ],
     };
   }
 }
@@ -139,7 +140,7 @@ export function extractReputationData(
 
     // Find registration matching the payment network
     const paymentNetwork = paymentRequirements.network;
-    const matchingRegistration = agentInfo.registrations.find((reg) => {
+    const matchingRegistration = agentInfo.registrations.find(reg => {
       // Extract network from CAIP-10 agentRegistry
       // Format: "{namespace}:{chainId}:{address}"
       const parts = reg.agentRegistry.split(":");
@@ -179,9 +180,7 @@ export interface ValidateFeedbackParams {
    * Function to check if taskRef corresponds to a real settlement
    * Should return settlement data if found
    */
-  lookupSettlement: (
-    taskRef: string,
-  ) => Promise<{
+  lookupSettlement: (taskRef: string) => Promise<{
     found: boolean;
     payer?: string;
     payTo?: string;
@@ -282,10 +281,14 @@ export async function validateFeedbackSubmission(
 
   // Extract address from CAIP-10 format if needed
   const clientAddress = submission.clientAddress.includes(":")
-    ? submission.clientAddress.split(":").pop() ?? submission.clientAddress
+    ? (submission.clientAddress.split(":").pop() ?? submission.clientAddress)
     : submission.clientAddress;
 
-  const signatureValid = await verifyClientSignature(hash, submission.clientSignature, clientAddress);
+  const signatureValid = await verifyClientSignature(
+    hash,
+    submission.clientSignature,
+    clientAddress,
+  );
   if (!signatureValid) {
     return {
       valid: false,
@@ -303,6 +306,9 @@ export async function validateFeedbackSubmission(
 
 /**
  * Checks if payment payload contains reputation extension
+ *
+ * @param paymentPayload - The payment payload to check
+ * @returns True if the payload contains a reputation extension
  */
 export function hasReputationExtension(paymentPayload: PaymentPayload): boolean {
   return !!(paymentPayload.extensions && paymentPayload.extensions[REPUTATION]);
@@ -310,6 +316,9 @@ export function hasReputationExtension(paymentPayload: PaymentPayload): boolean 
 
 /**
  * Gets agent registrations from payment payload
+ *
+ * @param paymentPayload - The payment payload to extract registrations from
+ * @returns Array of agent registrations, or empty array if none found
  */
 export function getAgentRegistrations(paymentPayload: PaymentPayload): AgentRegistration[] {
   if (!paymentPayload.extensions) return [];
@@ -320,6 +329,9 @@ export function getAgentRegistrations(paymentPayload: PaymentPayload): AgentRegi
 
 /**
  * Gets feedback aggregator endpoint from payment payload
+ *
+ * @param paymentPayload - The payment payload to extract aggregator from
+ * @returns The feedback aggregator endpoint URL, or undefined if not set
  */
 export function getFeedbackAggregator(paymentPayload: PaymentPayload): string | undefined {
   if (!paymentPayload.extensions) return undefined;
@@ -330,12 +342,16 @@ export function getFeedbackAggregator(paymentPayload: PaymentPayload): string | 
 
 /**
  * Finds the agent registration matching a specific network
+ *
+ * @param registrations - Array of agent registrations to search
+ * @param network - Network identifier to match (e.g., "solana-mainnet")
+ * @returns The matching registration, or undefined if not found
  */
 export function findRegistrationForNetwork(
   registrations: AgentRegistration[],
   network: string,
 ): AgentRegistration | undefined {
-  return registrations.find((reg) => {
+  return registrations.find(reg => {
     const parts = reg.agentRegistry.split(":");
     if (parts.length >= 2) {
       const regNetwork = `${parts[0]}:${parts[1]}`;
@@ -347,6 +363,7 @@ export function findRegistrationForNetwork(
 
 /**
  * Extracts network from CAIP-10 address
+ *
  * @param caip10Address - Format: "{namespace}:{chainId}:{address}"
  * @returns CAIP-2 network or null
  */
@@ -360,6 +377,7 @@ export function extractNetworkFromCaip10(caip10Address: string): string | null {
 
 /**
  * Extracts address from CAIP-10 format
+ *
  * @param caip10Address - Format: "{namespace}:{chainId}:{address}"
  * @returns The address part or the original string
  */

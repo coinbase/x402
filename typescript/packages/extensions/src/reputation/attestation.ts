@@ -60,7 +60,10 @@ export interface CreateAttestationParams {
  *
  * Message format:
  * keccak256(UTF8(taskRef) || UTF8(settledAmount) || UTF8(settledAsset) ||
- *           UTF8(payTo) || UTF8(payer) || uint64BE(settledAt))
+ * UTF8(payTo) || UTF8(payer) || uint64BE(settledAt))
+ *
+ * @param params - Parameters for creating the attestation
+ * @returns The concatenated message bytes ready for hashing
  */
 export function buildAttestationMessage(params: CreateAttestationParams): Uint8Array {
   const settledAt = params.settledAt ?? Math.floor(Date.now() / 1000);
@@ -109,6 +112,9 @@ export function buildAttestationMessage(params: CreateAttestationParams): Uint8A
  *
  * Note: This uses a simple implementation. In production, you'd use
  * a proper keccak256 library like @noble/hashes or ethers.
+ *
+ * @param message - The message bytes to hash
+ * @returns SHA-256 hash of the message as Uint8Array
  */
 export async function hashAttestationMessage(message: Uint8Array): Promise<Uint8Array> {
   // Use SubtleCrypto SHA-256 as fallback
@@ -197,7 +203,12 @@ export interface VerifyAttestationParams {
    * Signature verification function
    * Should return true if signature is valid for the message and public key
    */
-  verify: (message: Uint8Array, signature: string, publicKey: string, algorithm: string) => Promise<boolean>;
+  verify: (
+    message: Uint8Array,
+    signature: string,
+    publicKey: string,
+    algorithm: string,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -237,7 +248,7 @@ export async function verifyAttestation(
   // Filter for currently valid signers
   const now = Math.floor(Date.now() / 1000);
   const validSigners = signers.filter(
-    (s) => s.validFrom <= now && (s.validUntil === null || s.validUntil > now),
+    s => s.validFrom <= now && (s.validUntil === null || s.validUntil > now),
   );
 
   if (validSigners.length === 0) {
@@ -331,6 +342,10 @@ export function createTaskRef(network: string, txHash: string): string {
  *
  * @param attestation - Attestation to validate
  * @param expected - Expected values from settlement
+ * @param expected.payer - Expected payer address
+ * @param expected.payTo - Expected recipient address
+ * @param expected.amount - Expected settlement amount
+ * @param expected.asset - Expected asset identifier
  * @returns true if attestation matches expected values
  */
 export function validateAttestationData(
@@ -359,6 +374,9 @@ export function validateAttestationData(
 
 /**
  * Converts attestation to hex-encoded string for transport
+ *
+ * @param attestation - The attestation to encode
+ * @returns JSON string representation of the attestation
  */
 export function encodeAttestation(attestation: FacilitatorAttestation): string {
   return JSON.stringify(attestation);
@@ -366,6 +384,9 @@ export function encodeAttestation(attestation: FacilitatorAttestation): string {
 
 /**
  * Decodes attestation from string
+ *
+ * @param encoded - JSON string to decode
+ * @returns Parsed FacilitatorAttestation object
  */
 export function decodeAttestation(encoded: string): FacilitatorAttestation {
   return JSON.parse(encoded) as FacilitatorAttestation;

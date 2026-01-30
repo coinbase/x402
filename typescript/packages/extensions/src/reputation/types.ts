@@ -58,6 +58,7 @@ export interface FeedbackAggregator {
 
   /**
    * Whether aggregator pays submission gas
+   *
    * @default false
    */
   gasSponsored?: boolean;
@@ -323,6 +324,7 @@ export interface FacilitatorAttestationConfig {
 
   /**
    * Signing algorithm
+   *
    * @default "secp256k1"
    */
   algorithm?: "secp256k1" | "ed25519";

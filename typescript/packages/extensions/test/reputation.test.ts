@@ -345,7 +345,7 @@ describe("hasReputationExtension", () => {
     const payload = {
       x402Version: 2,
       resource: { url: "https://example.com", description: "", mimeType: "" },
-      accepted: {} as any,
+      accepted: {} as Record<string, unknown>,
       payload: {},
       extensions: {
         [REPUTATION]: { info: {}, schema: {} },
@@ -359,7 +359,7 @@ describe("hasReputationExtension", () => {
     const payload = {
       x402Version: 2,
       resource: { url: "https://example.com", description: "", mimeType: "" },
-      accepted: {} as any,
+      accepted: {} as Record<string, unknown>,
       payload: {},
     };
 
@@ -387,7 +387,10 @@ describe("findRegistrationForNetwork", () => {
   });
 
   it("should find Solana registration", () => {
-    const reg = findRegistrationForNetwork(registrations, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+    const reg = findRegistrationForNetwork(
+      registrations,
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    );
     expect(reg?.agentId).toBe("7xKXtg...");
   });
 
@@ -409,7 +412,8 @@ describe("CAIP utilities", () => {
   });
 
   it("should handle Solana CAIP-10", () => {
-    const caip10 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+    const caip10 =
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
     const network = extractNetworkFromCaip10(caip10);
     const address = extractAddressFromCaip10(caip10);
 

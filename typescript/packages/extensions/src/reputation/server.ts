@@ -31,6 +31,7 @@ export interface ReputationServerExtensionConfig {
 
   /**
    * Whether to include attestation only when agent declares reputation extension
+   *
    * @default true
    */
   requireAgentDeclaration?: boolean;
@@ -72,12 +73,16 @@ export function createReputationServerExtension(
      *
      * Called after successful payment settlement. Adds:
      * - facilitatorAttestation: Signed proof that this facilitator settled the payment
+     *
+     * @param declaration - The agent's reputation declaration from PaymentRequired
+     * @param context - Settlement context containing result, requirements, and payload
+     * @returns Reputation extension data with facilitator attestation, or undefined if not applicable
      */
     enrichSettlementResponse: async (
       declaration: unknown,
       context: SettleResultContext,
     ): Promise<ReputationSettlementExtension | undefined> => {
-      const { result, requirements, paymentPayload } = context;
+      const { result, requirements } = context;
 
       // Only add to successful settlements
       if (!result.success) {
@@ -206,7 +211,7 @@ export function declareReputationExtension(config: DeclareReputationConfig) {
 
   const info: ReputationInfo = {
     version,
-    registrations: registrations.map((r) => ({
+    registrations: registrations.map(r => ({
       agentRegistry: r.agentRegistry,
       agentId: r.agentId,
       reputationRegistry: r.reputationRegistry,
