@@ -23,4 +23,11 @@ While implementation details vary by network, facilitators MUST enforce security
 - Destination correctness: the receiver MUST match the `payTo` derived destination for the specified `asset`.
 - Amount exactness: the transferred amount MUST equal `maxAmountRequired`.
 
-Network-specific rules and exact instruction layouts are defined in the per-network scheme documents. For Solana (SVM), see `scheme_exact_svm.md`.
+### Stellar
+
+- Facilitator safety: the facilitator's address MUST NOT appear as transaction source, operation source, transfer `from` address, or in authorization entries.
+- Authorization integrity: auth entries MUST use `sorobanCredentialsAddress` only, MUST NOT contain sub-invocations, and expiration MUST NOT exceed `currentLedger + ceil(maxTimeoutSeconds / estimatedLedgerSeconds)` (fallback to `5` seconds).
+- Transfer correctness: `to` MUST equal `payTo` and `amount` MUST equal `requirements.amount` exactly.
+- Simulation verification: MUST emit events showing only the expected balance changes (recipient increase, payer decrease) for `requirements.amount`—no other balance changes allowed.
+
+Network-specific rules are in per-network documents: `scheme_exact_svm.md` (Solana), `scheme_exact_stellar.md` (Stellar), `scheme_exact_evm.md` (EVM), `scheme_exact_sui.md` (SUI).
