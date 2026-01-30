@@ -1,77 +1,102 @@
-import os
+"""x402 httpx client example - async HTTP with automatic payment handling."""
+
 import asyncio
+import os
+import sys
+
 from dotenv import load_dotenv
 from eth_account import Account
-from x402.clients.httpx import x402HttpxClient
-from x402.clients.base import decode_x_payment_response, x402Client
+
+from x402 import x402Client
+from x402.http import x402HTTPClient
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact.register import register_exact_svm_client
 
 # Load environment variables
 load_dotenv()
 
-# Get environment variables
-private_key = os.getenv("PRIVATE_KEY")
-base_url = os.getenv("RESOURCE_SERVER_URL")
-endpoint_path = os.getenv("ENDPOINT_PATH")
 
-if not all([private_key, base_url, endpoint_path]):
-    print("Error: Missing required environment variables")
-    exit(1)
+def validate_environment() -> tuple[str | None, str | None, str, str]:
+    """Validate required environment variables.
 
-# Create eth_account from private key
-account = Account.from_key(private_key)
-print(f"Initialized account: {account.address}")
+    Returns:
+        Tuple of (evm_private_key, svm_private_key, base_url, endpoint_path).
 
+    Raises:
+        SystemExit: If required environment variables are missing.
+    """
+    evm_private_key = os.getenv("EVM_PRIVATE_KEY")
+    svm_private_key = os.getenv("SVM_PRIVATE_KEY")
+    base_url = os.getenv("RESOURCE_SERVER_URL")
+    endpoint_path = os.getenv("ENDPOINT_PATH")
 
-def custom_payment_selector(
-    accepts, network_filter=None, scheme_filter=None, max_value=None
-):
-    """Custom payment selector that filters by network."""
-    # Ignore the network_filter parameter for this example - we hardcode base-sepolia
-    _ = network_filter
+    missing = []
+    if not evm_private_key and not svm_private_key:
+        missing.append("EVM_PRIVATE_KEY or SVM_PRIVATE_KEY")
+    if not base_url:
+        missing.append("RESOURCE_SERVER_URL")
+    if not endpoint_path:
+        missing.append("ENDPOINT_PATH")
 
-    # NOTE: In a real application, you'd want to dynamically choose the most
-    # appropriate payment requirement based on user preferences, available funds,
-    # network conditions, or other business logic rather than hardcoding a network.
+    if missing:
+        print(f"Error: Missing required environment variables: {', '.join(missing)}")
+        print("Please copy .env-local to .env and fill in the values.")
+        sys.exit(1)
 
-    # Filter by base-sepolia network (testnet)
-    return x402Client.default_payment_requirements_selector(
-        accepts,
-        network_filter="base-sepolia",
-        scheme_filter=scheme_filter,
-        max_value=max_value,
-    )
+    return evm_private_key, svm_private_key, base_url, endpoint_path
 
 
-async def main():
-    # Create x402HttpxClient with built-in payment handling and network filtering
-    async with x402HttpxClient(
-        account=account,
-        base_url=base_url,
-        payment_requirements_selector=custom_payment_selector,
-    ) as client:
-        # Make request - payment handling is automatic
-        try:
-            assert endpoint_path is not None  # we already guard against None above
-            print(f"Making request to {endpoint_path}")
-            response = await client.get(endpoint_path)
+async def main() -> None:
+    """Main entry point demonstrating httpx with x402 payments."""
+    # Validate environment
+    evm_private_key, svm_private_key, base_url, endpoint_path = validate_environment()
 
-            # Read the response content
-            content = await response.aread()
-            print(f"Response: {content.decode()}")
+    # Create x402 client
+    client = x402Client()
 
-            # Check for payment response header
-            if "X-Payment-Response" in response.headers:
-                payment_response = decode_x_payment_response(
-                    response.headers["X-Payment-Response"]
+    # Register EVM payment scheme if private key provided
+    if evm_private_key:
+        account = Account.from_key(evm_private_key)
+        register_exact_evm_client(client, EthAccountSigner(account))
+        print(f"Initialized EVM account: {account.address}")
+
+    # Register SVM payment scheme if private key provided
+    if svm_private_key:
+        svm_signer = KeypairSigner.from_base58(svm_private_key)
+        register_exact_svm_client(client, svm_signer)
+        print(f"Initialized SVM account: {svm_signer.address}")
+
+    # Create HTTP client helper for payment response extraction
+    http_client = x402HTTPClient(client)
+
+    # Build full URL
+    url = f"{base_url}{endpoint_path}"
+    print(f"Making request to: {url}\n")
+
+    # Make request using async context manager
+    async with x402HttpxClient(client) as http:
+        response = await http.get(url)
+        await response.aread()
+
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.text}")
+
+        # Extract and print payment response if present
+        if response.is_success:
+            try:
+                settle_response = http_client.get_payment_settle_response(
+                    lambda name: response.headers.get(name)
                 )
                 print(
-                    f"Payment response transaction hash: {payment_response['transaction']}"
+                    f"\nPayment response: {settle_response.model_dump_json(indent=2)}"
                 )
-            else:
-                print("Warning: No payment response header found")
-
-        except Exception as e:
-            print(f"Error occurred: {str(e)}")
+            except ValueError:
+                print("\nNo payment response header found")
+        else:
+            print(f"\nRequest failed (status: {response.status_code})")
 
 
 if __name__ == "__main__":

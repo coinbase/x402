@@ -1,10 +1,24 @@
+"""Flask e2e test server using x402 v2 SDK."""
+
 import os
 import signal
 import sys
 import logging
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
+
 from dotenv import load_dotenv
-from x402.flask.middleware import PaymentMiddleware
+
+# Import from new x402 package (sync variants for Flask)
+from x402 import x402ResourceServerSync
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync
+from x402.http.middleware.flask import PaymentMiddleware
+from x402.mechanisms.evm.exact import register_exact_evm_server
+from x402.mechanisms.svm.exact import register_exact_svm_server
+from x402.extensions.bazaar import (
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+    OutputConfig,
+)
 
 # Configure logging to reduce verbosity
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -14,46 +28,102 @@ logging.getLogger("flask").setLevel(logging.ERROR)
 load_dotenv()
 
 # Get configuration from environment
-USE_CDP_FACILITATOR = os.getenv("USE_CDP_FACILITATOR", "false").lower() == "true"
-NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
-ADDRESS = os.getenv("EVM_ADDRESS")
+EVM_ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
+SVM_ADDRESS = os.getenv("SVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
+FACILITATOR_URL = os.getenv("FACILITATOR_URL")
 
-# CDP facilitator configuration
-CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
-CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
-
-if not ADDRESS:
-    print("Error: Missing required environment variable ADDRESS")
+if not EVM_ADDRESS:
+    print("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
     sys.exit(1)
 
-# Validate CDP configuration if using CDP facilitator
-if USE_CDP_FACILITATOR and (not CDP_API_KEY_ID or not CDP_API_KEY_SECRET):
-    print(
-        "Error: CDP facilitator enabled but missing CDP_API_KEY_ID or CDP_API_KEY_SECRET"
-    )
+if not SVM_ADDRESS:
+    print("Error: Missing required environment variable SVM_PAYEE_ADDRESS")
     sys.exit(1)
+
+# Network configurations (CAIP-2 format)
+EVM_NETWORK = "eip155:84532"  # Base Sepolia
+SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
 app = Flask(__name__)
 
-# Create facilitator config if using CDP
-facilitator_config = None
-if USE_CDP_FACILITATOR:
-    from cdp.x402 import create_facilitator_config
+# Create HTTP facilitator client (sync for Flask)
+if FACILITATOR_URL:
+    print(f"Using remote facilitator at: {FACILITATOR_URL}")
+    config = FacilitatorConfig(url=FACILITATOR_URL)
+    facilitator = HTTPFacilitatorClientSync(config)
+else:
+    print("Using default facilitator")
+    facilitator = HTTPFacilitatorClientSync()
 
-    facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
+# Create resource server (sync for Flask)
+server = x402ResourceServerSync(facilitator)
 
-# Initialize payment middleware
-payment_middleware = PaymentMiddleware(app)
+# Register EVM and SVM exact schemes
+register_exact_evm_server(server, EVM_NETWORK)
+register_exact_svm_server(server, SVM_NETWORK)
 
-# Apply payment middleware to protected endpoint
-payment_middleware.add(
-    path="/protected",
-    price="$0.001",
-    pay_to_address=ADDRESS,
-    network=NETWORK,
-    facilitator_config=facilitator_config,
-)
+# Register Bazaar discovery extension
+server.register_extension(bazaar_resource_server_extension)
+
+# Define routes with payment requirements
+routes = {
+    "GET /protected": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "price": "$0.001",
+            "network": EVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "data": {"resource": "premium_content", "access_level": "paid"},
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                            "data": {"type": "object"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+    "GET /protected-svm": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": SVM_ADDRESS,
+            "price": "$0.001",
+            "network": SVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to SVM protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+}
+
+# Apply payment middleware
+PaymentMiddleware(app, routes, server)
 
 # Global flag to track if server should accept new requests
 shutdown_requested = False
@@ -61,7 +131,7 @@ shutdown_requested = False
 
 @app.route("/protected")
 def protected_endpoint():
-    """Protected endpoint that requires payment"""
+    """Protected endpoint that requires payment."""
     if shutdown_requested:
         return jsonify({"error": "Server shutting down"}), 503
 
@@ -74,9 +144,23 @@ def protected_endpoint():
     )
 
 
+@app.route("/protected-svm")
+def protected_svm_endpoint():
+    """Protected endpoint that requires SVM (Solana) payment."""
+    if shutdown_requested:
+        return jsonify({"error": "Server shutting down"}), 503
+
+    return jsonify(
+        {
+            "message": "Access granted to SVM protected resource",
+            "timestamp": "2024-01-01T00:00:00Z",
+        }
+    )
+
+
 @app.route("/health")
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint."""
     return jsonify(
         {"status": "healthy", "timestamp": "2024-01-01T00:00:00Z", "server": "flask"}
     )
@@ -84,7 +168,7 @@ def health_check():
 
 @app.route("/close", methods=["POST"])
 def close_server():
-    """Graceful shutdown endpoint"""
+    """Graceful shutdown endpoint."""
     global shutdown_requested
     shutdown_requested = True
 
@@ -106,7 +190,7 @@ def close_server():
 
 
 def signal_handler(signum, frame):
-    """Handle shutdown signals gracefully"""
+    """Handle shutdown signals gracefully."""
     print("Received shutdown signal, exiting...")
     sys.exit(0)
 
@@ -117,9 +201,11 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
     print(f"Starting Flask server on port {PORT}")
-    print(f"Server address: {ADDRESS}")
-    print(f"Network: {NETWORK}")
-    print(f"Using CDP facilitator: {USE_CDP_FACILITATOR}")
+    print(f"EVM address: {EVM_ADDRESS}")
+    print(f"SVM address: {SVM_ADDRESS}")
+    print(f"EVM Network: {EVM_NETWORK}")
+    print(f"SVM Network: {SVM_NETWORK}")
+    print(f"Using facilitator: {FACILITATOR_URL}")
     print("Server listening on port", PORT)
 
     app.run(
