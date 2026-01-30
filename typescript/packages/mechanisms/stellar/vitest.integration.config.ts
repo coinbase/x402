@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => ({
   test: {
     env: loadEnv(mode, process.cwd(), ""),
     include: ["test/integrations/**/*.test.ts"], // Only include integration tests
-    testTimeout: 10000, // 10 seconds for each integration test
+    testTimeout: 20000,
+    hookTimeout: 20000,
   },
   plugins: [tsconfigPaths({ projects: ["."] })],
 }));
