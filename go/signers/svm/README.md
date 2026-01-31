@@ -16,11 +16,23 @@ if err != nil {
     log.Fatal(err)
 }
 
+// Or create signer from a callback
+signer, err = svmsigners.NewClientSigner(publicKey, signFunc)
+if err != nil {
+    log.Fatal(err)
+}
+
 // Use with ExactSvmScheme
 svmScheme := svmclient.NewExactSvmScheme(signer)
 ```
 
 ## API
+
+### NewClientSigner
+
+```go
+func NewClientSigner(publicKey solana.PublicKey, signFunc SignTransactionFunc) (svm.ClientSvmSigner, error)
+```
 
 ### NewClientSignerFromPrivateKey
 
@@ -213,4 +225,3 @@ fmt.Println("Public Key:", privateKey.PublicKey())
 - [../evm/README.md](../evm/README.md) - EVM client signer
 - [../../mechanisms/svm/README.md](../../mechanisms/svm/README.md) - SVM mechanism documentation
 - [../README.md](../README.md) - Signers package overview
-
