@@ -1,4 +1,7 @@
 {
   "private": true,
-  "packageManager": "pnpm@10.7.0"
+  "packageManager": "pnpm@10.7.0",
+  "dependencies": {
+    "@x402/core": "^2.2.0"
+  }
 }
