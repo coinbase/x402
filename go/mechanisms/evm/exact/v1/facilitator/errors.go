@@ -29,4 +29,8 @@ const (
 	ErrTransactionFailed       = "invalid_exact_evm_transaction_failed"
 	ErrFailedToGetReceipt      = "invalid_exact_evm_failed_to_get_receipt"
 	ErrInvalidTransactionState = "invalid_exact_evm_transaction_state"
+
+	// Smart wallet errors
+	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"
+	ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed"
 )
