@@ -163,8 +163,7 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildTransferIx+": %w", err)
 	}
 
-	// Memo instruction with random nonce for transaction uniqueness
-	// Uses raw instruction (not gagliardetto/memo) because SPL Memo doesn't require signers
+	// Memo with random nonce for transaction uniqueness (empty accounts - SPL Memo doesn't require signers)
 	memoBytes := make([]byte, 16)
 	if _, err := rand.Read(memoBytes); err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildMemoIx+": %w", err)

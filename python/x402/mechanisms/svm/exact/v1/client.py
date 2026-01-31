@@ -177,10 +177,10 @@ class ExactSvmSchemeV1:
             data=transfer_data,
         )
 
-        # Memo instruction with random nonce for transaction uniqueness
+        # Memo with random nonce for uniqueness (empty accounts - SPL Memo doesn't require signers)
         memo_ix = Instruction(
             program_id=Pubkey.from_string(MEMO_PROGRAM_ADDRESS),
-            accounts=[],  # SPL Memo doesn't require signers
+            accounts=[],
             data=binascii.hexlify(os.urandom(16)),
         )
 
