@@ -1,5 +1,12 @@
 // Types
-export type { IdempotencyKeyGenerator, KeyGeneratorFn } from "./types";
+export type {
+  IdempotencyKeyGenerator,
+  KeyGeneratorFn,
+  BackoffConfig,
+  CircuitBreakerConfig,
+  RetryHooks,
+  RetryPolicy,
+} from "./types";
 
 // Idempotency
 export {
@@ -15,3 +22,11 @@ export {
   DefaultErrorClassifier,
   createErrorClassifier,
 } from "./classifier";
+
+// Retry Policy
+export {
+  defaultBackoffConfig,
+  defaultCircuitBreakerConfig,
+  defaultRetryPolicy,
+  createRetryPolicy,
+} from "./policy";
