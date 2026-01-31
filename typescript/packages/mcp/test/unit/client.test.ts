@@ -274,12 +274,12 @@ describe("x402MCPClient", () => {
   });
 
   describe("callTool - approval flow", () => {
-    it("should call onPaymentApproval hook", async () => {
+    it("should call onPaymentRequested hook", async () => {
       const approvalHook = vi.fn().mockResolvedValue(true);
       client = new x402MCPClient(
         mockMcpClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[0],
         mockPaymentClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[1],
-        { autoPayment: true, onPaymentApproval: approvalHook },
+        { autoPayment: true, onPaymentRequested: approvalHook },
       );
 
       mockMcpClient.callTool
@@ -295,17 +295,17 @@ describe("x402MCPClient", () => {
       });
     });
 
-    it("should throw if approval is denied", async () => {
+    it("should throw if payment request is denied", async () => {
       const approvalHook = vi.fn().mockResolvedValue(false);
       client = new x402MCPClient(
         mockMcpClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[0],
         mockPaymentClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[1],
-        { autoPayment: true, onPaymentApproval: approvalHook },
+        { autoPayment: true, onPaymentRequested: approvalHook },
       );
 
       mockMcpClient.callTool.mockResolvedValue(createEmbeddedPaymentError(mockPaymentRequired));
 
-      await expect(client.callTool("paid_tool")).rejects.toThrow("Payment approval denied");
+      await expect(client.callTool("paid_tool")).rejects.toThrow("Payment request denied");
     });
   });
 

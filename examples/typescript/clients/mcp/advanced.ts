@@ -65,7 +65,7 @@ export async function main(): Promise<void> {
   // Step 3: Compose into x402MCPClient
   const x402Mcp = new x402MCPClient(mcpClient, paymentClient, {
     autoPayment: true,
-    onPaymentApproval: async context => {
+    onPaymentRequested: async context => {
       const price = context.paymentRequired.accepts[0];
       console.log(`\n💰 Payment required for tool: ${context.toolName}`);
       console.log(`   Amount: ${price.amount} (${price.asset})`);

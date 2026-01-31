@@ -139,7 +139,7 @@ const x402Mcp = new x402MCPClient(mcpClient, paymentClient, {
   autoPayment: true,
 
   // Custom approval logic (optional)
-  onPaymentApproval: async (context) => {
+  onPaymentRequested: async (context) => {
     console.log(`Pay ${context.paymentRequired.accepts[0].amount}?`);
     return true; // or false to deny
   },

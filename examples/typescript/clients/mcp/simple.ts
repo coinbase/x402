@@ -43,7 +43,7 @@ export async function main(): Promise<void> {
     version: "1.0.0",
     schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(evmSigner) }],
     autoPayment: true,
-    onPaymentApproval: async context => {
+    onPaymentRequested: async context => {
       const price = context.paymentRequired.accepts[0];
       console.log(`\n💰 Payment required for tool: ${context.toolName}`);
       console.log(`   Amount: ${price.amount} (${price.asset})`);

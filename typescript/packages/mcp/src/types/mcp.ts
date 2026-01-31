@@ -151,19 +151,19 @@ export interface x402MCPClientOptions {
   autoPayment?: boolean;
 
   /**
-   * Hook called before automatic payment is submitted.
+   * Hook called when a payment is requested by the server (402 response).
    * Return true to proceed with payment, false to abort.
    * Only called when autoPayment is true.
    *
    * This can be used to implement human-in-the-loop approval.
    */
-  onPaymentApproval?: (context: PaymentApprovalContext) => Promise<boolean> | boolean;
+  onPaymentRequested?: (context: PaymentRequestedContext) => Promise<boolean> | boolean;
 }
 
 /**
- * Context provided to payment approval hook
+ * Context provided to payment requested hook
  */
-export interface PaymentApprovalContext {
+export interface PaymentRequestedContext {
   /** The tool being called */
   toolName: string;
   /** The arguments passed to the tool */

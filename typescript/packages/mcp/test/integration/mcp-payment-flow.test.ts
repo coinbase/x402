@@ -294,7 +294,7 @@ describe("MCP Payment Flow Integration", () => {
       const client = new x402MCPClient(
         mockMcpClient as unknown as ConstructorParameters<typeof x402MCPClient>[0],
         mockPaymentClient as unknown as ConstructorParameters<typeof x402MCPClient>[1],
-        { autoPayment: true, onPaymentApproval: approvalHook },
+        { autoPayment: true, onPaymentRequested: approvalHook },
       );
 
       await client.callTool("get_weather", { city: "NYC" });
@@ -311,7 +311,7 @@ describe("MCP Payment Flow Integration", () => {
       );
     });
 
-    it("should abort if approval denied", async () => {
+    it("should abort if payment request denied", async () => {
       const approvalHook = vi.fn().mockResolvedValue(false);
       const mockPaymentClient = createMockPaymentClient();
 
@@ -324,11 +324,11 @@ describe("MCP Payment Flow Integration", () => {
       const client = new x402MCPClient(
         mockMcpClient as unknown as ConstructorParameters<typeof x402MCPClient>[0],
         mockPaymentClient as unknown as ConstructorParameters<typeof x402MCPClient>[1],
-        { autoPayment: true, onPaymentApproval: approvalHook },
+        { autoPayment: true, onPaymentRequested: approvalHook },
       );
 
       await expect(client.callTool("get_weather", { city: "NYC" })).rejects.toThrow(
-        "Payment approval denied",
+        "Payment request denied",
       );
 
       // Payment should not have been created

@@ -68,7 +68,7 @@ const client = createX402MCPClient({
   version: "1.0.0",
   schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(walletAccount) }],
   autoPayment: true,
-  onPaymentApproval: async ({ paymentRequired }) => {
+  onPaymentRequested: async ({ paymentRequired }) => {
     console.log(`Tool requires payment: ${paymentRequired.accepts[0].amount}`);
     return true; // Return false to deny payment
   },
@@ -166,7 +166,7 @@ The client parses this structure to extract PaymentRequired data. This is a prag
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `autoPayment` | `boolean` | `true` | Automatically retry with payment on 402 |
-| `onPaymentApproval` | `function` | `() => true` | Hook for human-in-the-loop approval |
+| `onPaymentRequested` | `function` | `() => true` | Hook for human-in-the-loop approval when payment is requested |
 
 ### X402MCPServerConfig (Factory)
 

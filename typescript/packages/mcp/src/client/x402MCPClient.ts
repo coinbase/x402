@@ -1,6 +1,7 @@
 import type {
   PaymentPayload,
   PaymentRequired,
+  PaymentRequirements,
   SettleResponse,
   Network,
   SchemeNetworkClient,
@@ -11,9 +12,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 import type {
   MCPResultWithMeta,
-  PaymentApprovalContext,
+  PaymentRequestedContext,
   x402MCPClientOptions,
-  ToolContentItem,
   PaymentRequiredHook,
   PaymentRequiredContext,
 } from "../types";
@@ -25,54 +25,21 @@ import { extractPaymentResponseFromMeta } from "../utils";
 // ============================================================================
 
 /**
- * Text content item from MCP tool result
+ * MCP content item - using a flexible type that matches the MCP SDK's content format.
+ * The MCP SDK returns content items with a `type` discriminator and type-specific fields.
+ * We use this type to preserve the original response structure from the SDK.
  */
-interface MCPTextContent {
-  type: "text";
-  text: string;
-}
+export type MCPContentItem = {
+  type: string;
+  [key: string]: unknown;
+};
 
 /**
- * Image content item from MCP tool result
- */
-interface MCPImageContent {
-  type: "image";
-  data: string;
-  mimeType: string;
-}
-
-/**
- * Audio content item from MCP tool result
- */
-interface MCPAudioContent {
-  type: "audio";
-  data: string;
-  mimeType: string;
-}
-
-/**
- * Resource content item from MCP tool result
- */
-interface MCPResourceContent {
-  type: "resource";
-  resource: {
-    uri: string;
-    mimeType?: string;
-    text?: string;
-    blob?: string;
-  };
-}
-
-/**
- * Union of all MCP content types
- */
-type MCPContent = MCPTextContent | MCPImageContent | MCPAudioContent | MCPResourceContent;
-
-/**
- * Result returned by MCP SDK callTool method
+ * Result returned by MCP SDK callTool method.
+ * This mirrors the SDK's CallToolResult type to ensure compatibility.
  */
 interface MCPCallToolResult {
-  content: MCPContent[];
+  content: MCPContentItem[];
   isError?: boolean;
   _meta?: Record<string, unknown>;
 }
@@ -97,17 +64,110 @@ interface X402EmbeddedError {
  * Type guard for MCP text content
  *
  * @param content - The content item to check
- * @returns True if the content is a text content item
+ * @returns True if the content is a text content item with a string text field
  */
-function isMCPTextContent(content: MCPContent): content is MCPTextContent {
-  return content.type === "text" && typeof (content as MCPTextContent).text === "string";
+function isMCPTextContent(content: MCPContentItem): content is MCPContentItem & { text: string } {
+  return content.type === "text" && typeof content.text === "string";
 }
 
 /**
- * Type guard for x402 embedded error structure
+ * Validates that an object conforms to the PaymentRequirements schema.
+ * This performs thorough validation of all required fields per the x402 specification.
+ *
+ * @param obj - The object to validate
+ * @returns True if the object is a valid PaymentRequirements
+ */
+function isValidPaymentRequirements(obj: unknown): obj is PaymentRequirements {
+  if (typeof obj !== "object" || obj === null) {
+    return false;
+  }
+
+  const req = obj as Record<string, unknown>;
+
+  // Required fields per x402 spec
+  if (typeof req.scheme !== "string" || req.scheme.length === 0) {
+    return false;
+  }
+  if (typeof req.network !== "string" || req.network.length === 0) {
+    return false;
+  }
+  if (typeof req.amount !== "string" || req.amount.length === 0) {
+    return false;
+  }
+  if (typeof req.asset !== "string" || req.asset.length === 0) {
+    return false;
+  }
+  if (typeof req.payTo !== "string" || req.payTo.length === 0) {
+    return false;
+  }
+  if (typeof req.maxTimeoutSeconds !== "number" || req.maxTimeoutSeconds <= 0) {
+    return false;
+  }
+
+  // Optional extra field must be an object if present
+  if (req.extra !== undefined && (typeof req.extra !== "object" || req.extra === null)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validates that an object conforms to the PaymentRequired schema.
+ * This performs thorough validation of all required fields per the x402 specification.
+ *
+ * @param obj - The object to validate
+ * @returns True if the object is a valid PaymentRequired
+ */
+function isValidPaymentRequired(obj: unknown): obj is PaymentRequired {
+  if (typeof obj !== "object" || obj === null) {
+    return false;
+  }
+
+  const pr = obj as Record<string, unknown>;
+
+  // x402Version is required and must be a number (1 or 2)
+  if (typeof pr.x402Version !== "number" || (pr.x402Version !== 1 && pr.x402Version !== 2)) {
+    return false;
+  }
+
+  // accepts is required and must be a non-empty array
+  if (!Array.isArray(pr.accepts) || pr.accepts.length === 0) {
+    return false;
+  }
+
+  // Validate each payment requirements in accepts array
+  for (const req of pr.accepts) {
+    if (!isValidPaymentRequirements(req)) {
+      return false;
+    }
+  }
+
+  // resource is required for v2 and must have at least url
+  if (pr.x402Version === 2) {
+    if (typeof pr.resource !== "object" || pr.resource === null) {
+      return false;
+    }
+    const resource = pr.resource as Record<string, unknown>;
+    if (typeof resource.url !== "string" || resource.url.length === 0) {
+      return false;
+    }
+  }
+
+  // error is optional but must be string if present
+  if (pr.error !== undefined && typeof pr.error !== "string") {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Type guard for x402 embedded error structure.
+ * Validates the complete structure including the embedded PaymentRequired data.
  *
  * @param parsed - The parsed value to check
- * @returns True if the value is an x402 embedded error
+ * @returns True if the value is a valid x402 embedded error
  */
 function isX402EmbeddedError(parsed: unknown): parsed is X402EmbeddedError {
   if (typeof parsed !== "object" || parsed === null) {
@@ -122,12 +182,23 @@ function isX402EmbeddedError(parsed: unknown): parsed is X402EmbeddedError {
   }
 
   const errorObj = x402Error as Record<string, unknown>;
-  return (
-    errorObj.code === MCP_PAYMENT_REQUIRED_CODE &&
-    typeof errorObj.message === "string" &&
-    typeof errorObj.data === "object" &&
-    errorObj.data !== null
-  );
+
+  // Validate error code
+  if (errorObj.code !== MCP_PAYMENT_REQUIRED_CODE) {
+    return false;
+  }
+
+  // Validate error message
+  if (typeof errorObj.message !== "string") {
+    return false;
+  }
+
+  // Validate the PaymentRequired data using thorough validation
+  if (!isValidPaymentRequired(errorObj.data)) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -152,7 +223,7 @@ function isMCPCallToolResult(result: unknown): result is MCPCallToolResult {
 /**
  * Hook called before payment is created
  */
-export type BeforePaymentHook = (context: PaymentApprovalContext) => Promise<void> | void;
+export type BeforePaymentHook = (context: PaymentRequestedContext) => Promise<void> | void;
 
 /**
  * Hook called after payment is submitted
@@ -169,11 +240,12 @@ export type AfterPaymentHook = (context: {
 // ============================================================================
 
 /**
- * Result of a tool call with payment metadata
+ * Result of a tool call with payment metadata.
+ * Content is forwarded directly from the MCP SDK to preserve the original response structure.
  */
 export interface x402MCPToolCallResult {
-  /** The tool result content */
-  content: ToolContentItem[];
+  /** The tool result content, forwarded directly from MCP SDK */
+  content: MCPContentItem[];
   /** Whether the tool returned an error */
   isError?: boolean;
   /** Payment settlement response if payment was made */
@@ -201,7 +273,7 @@ export interface x402MCPToolCallResult {
  * const mcpClient = new Client({ name: "my-agent", version: "1.0.0" }, {...});
  * const x402Mcp = new x402MCPClient(mcpClient, paymentClient, {
  *   autoPayment: true,
- *   onPaymentApproval: async ({ paymentRequired }) => {
+ *   onPaymentRequested: async ({ paymentRequired }) => {
  *     // Optional: implement human-in-the-loop approval
  *     return confirm(`Pay ${paymentRequired.accepts[0].amount}?`);
  *   },
@@ -216,7 +288,7 @@ export interface x402MCPToolCallResult {
  */
 export class x402MCPClient {
   private readonly mcpClient: Client;
-  private readonly paymentClient: x402Client;
+  private readonly _paymentClient: x402Client;
   private readonly options: Required<x402MCPClientOptions>;
   private readonly paymentRequiredHooks: PaymentRequiredHook[] = [];
   private readonly beforePaymentHooks: BeforePaymentHook[] = [];
@@ -235,10 +307,10 @@ export class x402MCPClient {
     options: x402MCPClientOptions = {},
   ) {
     this.mcpClient = mcpClient;
-    this.paymentClient = paymentClient;
+    this._paymentClient = paymentClient;
     this.options = {
       autoPayment: options.autoPayment ?? true,
-      onPaymentApproval: options.onPaymentApproval ?? (() => true),
+      onPaymentRequested: options.onPaymentRequested ?? (() => true),
     };
   }
 
@@ -256,8 +328,8 @@ export class x402MCPClient {
    *
    * @returns The x402 client instance
    */
-  get payment(): x402Client {
-    return this.paymentClient;
+  get paymentClient(): x402Client {
+    return this._paymentClient;
   }
 
   /**
@@ -316,22 +388,26 @@ export class x402MCPClient {
    * Hooks run in order; first to return a result wins.
    *
    * This can be used to:
-   * - Provide pre-existing payment payloads (e.g., from a payment cache)
+   * - Provide pre-existing payment payloads (implementation-specific, not part of x402 spec)
    * - Abort the payment flow for certain tools
    * - Log or track payment required events
+   *
+   * Note: Payment caching is an implementation pattern and not defined in the x402 MCP
+   * transport specification. Implementations that cache payments should ensure cached
+   * payloads are still valid (not expired, correct nonce, etc.).
    *
    * @param hook - Hook function
    * @returns This instance for chaining
    *
    * @example
    * ```typescript
+   * // Example: Custom payment handling (implementation-specific)
    * client.onPaymentRequired(async ({ toolName, paymentRequired }) => {
-   *   // Check if we have a cached payment for this tool
-   *   const cached = await paymentCache.get(toolName);
-   *   if (cached) {
-   *     return { payment: cached };
+   *   // Custom logic to provide a payment or abort
+   *   if (shouldAbort(toolName)) {
+   *     return { abort: true };
    *   }
-   *   // Proceed with normal payment flow
+   *   // Return undefined to proceed with normal payment flow
    * });
    * ```
    */
@@ -391,9 +467,9 @@ export class x402MCPClient {
     const paymentRequired = this.extractPaymentRequiredFromResult(result);
 
     if (!paymentRequired) {
-      // Not a payment required response, return as-is
+      // Not a payment required response, forward original MCP response as-is
       return {
-        content: this.convertToToolContentItems(result.content),
+        content: result.content,
         isError: result.isError,
         paymentMade: false,
       };
@@ -432,26 +508,26 @@ export class x402MCPClient {
       throw err;
     }
 
-    // Create approval context
-    const approvalContext: PaymentApprovalContext = {
+    // Create payment requested context
+    const paymentRequestedContext: PaymentRequestedContext = {
       toolName: name,
       arguments: args,
       paymentRequired,
     };
 
-    // Check approval
-    const approved = await this.options.onPaymentApproval(approvalContext);
+    // Check if payment is approved via onPaymentRequested hook
+    const approved = await this.options.onPaymentRequested(paymentRequestedContext);
     if (!approved) {
-      throw new Error("Payment approval denied");
+      throw new Error("Payment request denied");
     }
 
     // Run before payment hooks
     for (const hook of this.beforePaymentHooks) {
-      await hook(approvalContext);
+      await hook(paymentRequestedContext);
     }
 
     // Create payment payload
-    const paymentPayload = await this.paymentClient.createPaymentPayload(paymentRequired);
+    const paymentPayload = await this._paymentClient.createPaymentPayload(paymentRequired);
 
     // Retry with payment
     return this.callToolWithPayment(name, args, paymentPayload);
@@ -493,7 +569,7 @@ export class x402MCPClient {
 
     // Build result with meta for extraction (preserve _meta if present)
     const resultWithMeta: MCPResultWithMeta = {
-      content: this.convertToToolContentItems(result.content),
+      content: result.content,
       isError: result.isError,
       _meta: result._meta,
     };
@@ -511,8 +587,9 @@ export class x402MCPClient {
       });
     }
 
+    // Forward original MCP response content as-is
     return {
-      content: resultWithMeta.content ?? [],
+      content: result.content,
       isError: result.isError,
       paymentResponse: paymentResponse ?? undefined,
       paymentMade: true,
@@ -609,25 +686,6 @@ export class x402MCPClient {
     return null;
   }
 
-  /**
-   * Converts MCP content items to our public ToolContentItem format.
-   *
-   * @param content - MCP content array
-   * @returns Converted content items
-   */
-  private convertToToolContentItems(content: MCPContent[]): ToolContentItem[] {
-    return content.map((item): ToolContentItem => {
-      // Create base object with required fields
-      const result: ToolContentItem = { type: item.type };
-
-      // Add type-specific fields
-      if (isMCPTextContent(item)) {
-        result.text = item.text;
-      }
-
-      return result;
-    });
-  }
 }
 
 /**
@@ -658,10 +716,10 @@ export interface X402MCPClientConfig {
   autoPayment?: boolean;
 
   /**
-   * Hook called before automatic payment is submitted.
+   * Hook called when a payment is requested.
    * Return true to proceed with payment, false to abort.
    */
-  onPaymentApproval?: (context: PaymentApprovalContext) => Promise<boolean> | boolean;
+  onPaymentRequested?: (context: PaymentRequestedContext) => Promise<boolean> | boolean;
 
   /**
    * Additional MCP client options
@@ -767,7 +825,7 @@ export function wrapMCPClientWithPaymentFromConfig(
  *     { network: "eip155:84532", client: new ExactEvmScheme(account) },
  *   ],
  *   autoPayment: true,
- *   onPaymentApproval: async ({ paymentRequired }) => {
+ *   onPaymentRequested: async ({ paymentRequired }) => {
  *     console.log(`Payment required: ${paymentRequired.accepts[0].amount}`);
  *     return true; // Auto-approve
  *   },
@@ -809,6 +867,6 @@ export function createX402MCPClient(config: X402MCPClientConfig): x402MCPClient 
   // Create x402MCPClient with options
   return new x402MCPClient(mcpClient, paymentClient, {
     autoPayment: config.autoPayment,
-    onPaymentApproval: config.onPaymentApproval,
+    onPaymentRequested: config.onPaymentRequested,
   });
 }

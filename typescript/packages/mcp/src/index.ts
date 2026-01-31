@@ -15,6 +15,7 @@ export type {
   AfterPaymentHook,
   x402MCPToolCallResult,
   X402MCPClientConfig,
+  MCPContentItem,
 } from "./client";
 
 // Server exports
@@ -42,7 +43,7 @@ export type {
   MCPPaymentProcessResult,
   MCPPaymentError,
   x402MCPClientOptions,
-  PaymentApprovalContext,
+  PaymentRequestedContext,
   MCPToolResultWithPayment,
   MCPRequestParamsWithMeta,
   MCPResultWithMeta,
