@@ -28,7 +28,7 @@ MEMO_PROGRAM_ADDRESS = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 
 class TestMemoUniqueness:
     def test_transaction_construction_is_deterministic(self):
-        assert DEFAULT_COMPUTE_UNIT_LIMIT == 8000
+        assert DEFAULT_COMPUTE_UNIT_LIMIT == 20000
         assert DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS == 1
 
     def test_blockhash_is_not_only_source_of_uniqueness(self):
@@ -279,3 +279,51 @@ class TestMemoDataIsValidUTF8:
         print("\n=== UTF-8 VALIDITY CONFIRMED ===")
         print(f"Memo data: {memo_string}")
         print("Is valid UTF-8: True")
+
+
+class TestMemoInstructionHasNoSigners:
+    """Verify memo has no signers - adding them breaks facilitator verification."""
+
+    @pytest.fixture
+    def mock_rpc_client(self):
+        mock_client = MagicMock()
+        mock_blockhash_resp = MagicMock()
+        mock_blockhash_resp.value.blockhash = Hash.from_string(FIXED_BLOCKHASH)
+        mock_client.get_latest_blockhash.return_value = mock_blockhash_resp
+
+        mock_account_info = MagicMock()
+        mock_account_info.value = MagicMock()
+        mock_account_info.value.owner = Pubkey.from_string(TOKEN_PROGRAM_ADDRESS)
+        mock_account_info.value.data = bytes(44) + bytes([6]) + bytes(37)
+        mock_client.get_account_info.return_value = mock_account_info
+        return mock_client
+
+    @pytest.fixture
+    def test_keypair(self):
+        return Keypair.from_seed(bytes([1] * 32))
+
+    @pytest.fixture
+    def test_requirements(self):
+        return PaymentRequirements(
+            scheme="exact",
+            network=SOLANA_DEVNET_CAIP2,
+            asset=USDC_DEVNET_ADDRESS,
+            amount="100000",
+            pay_to=str(Keypair.from_seed(bytes([3] * 32)).pubkey()),
+            max_timeout_seconds=3600,
+            extra={"feePayer": str(Keypair.from_seed(bytes([2] * 32)).pubkey())},
+        )
+
+    def test_memo_has_empty_accounts(self, mock_rpc_client, test_keypair, test_requirements):
+        """Empty accounts is critical - signers break facilitator verification."""
+        client = ExactSvmClientScheme(KeypairSigner(test_keypair))
+
+        with patch.object(client, "_get_client", return_value=mock_rpc_client):
+            payload = client.create_payment_payload(test_requirements)
+
+        tx = decode_transaction_from_payload(ExactSvmPayload(transaction=payload["transaction"]))
+        assert len(tx.message.instructions) >= 4
+
+        memo_ix = tx.message.instructions[3]
+        assert str(tx.message.account_keys[memo_ix.program_id_index]) == MEMO_PROGRAM_ADDRESS
+        assert len(memo_ix.accounts) == 0, "memo must have no accounts"

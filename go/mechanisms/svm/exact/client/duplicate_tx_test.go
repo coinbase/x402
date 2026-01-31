@@ -144,8 +144,8 @@ func (m *mockClientSigner) SignTransaction(ctx context.Context, tx *solana.Trans
 
 func TestDuplicateTransactionAttackVector(t *testing.T) {
 	t.Run("transaction construction is deterministic", func(t *testing.T) {
-		assert.Equal(t, uint32(8000), svm.DefaultComputeUnitLimit,
-			"Compute unit limit is fixed at 8000")
+		assert.Equal(t, uint32(20000), svm.DefaultComputeUnitLimit,
+			"Compute unit limit is fixed at 20000")
 		assert.Equal(t, 1, int(svm.DefaultComputeUnitPriceMicrolamports),
 			"Compute unit price is fixed at 1 microlamport")
 	})
@@ -449,4 +449,40 @@ func TestMemoDataIsValidUTF8(t *testing.T) {
 		t.Logf("Memo hex content: %s", string(trimmedMemo))
 		t.Logf("Is valid UTF-8: %v", utf8.Valid(memoData))
 	})
+}
+
+// TestMemoInstructionHasNoSigners verifies memo has empty accounts.
+// SPL Memo doesn't require signers; adding them breaks facilitator verification.
+func TestMemoInstructionHasNoSigners(t *testing.T) {
+	server := httptest.NewServer(mockSolanaRPCHandler(t, func() string {
+		return fixedBlockhash
+	}))
+	defer server.Close()
+
+	signer := &mockClientSigner{keypair: solana.NewWallet().PrivateKey}
+	client := NewExactSvmScheme(signer, &svm.ClientConfig{RPCURL: server.URL})
+
+	requirements := types.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		Asset:             "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+		Amount:            "100000",
+		PayTo:             solana.NewWallet().PublicKey().String(),
+		MaxTimeoutSeconds: 3600,
+		Extra:             map[string]interface{}{"feePayer": solana.NewWallet().PublicKey().String()},
+	}
+
+	payload, err := client.CreatePaymentPayload(context.Background(), requirements)
+	require.NoError(t, err)
+
+	decoded, err := svm.DecodeTransaction(payload.Payload["transaction"].(string))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(decoded.Message.Instructions), 4)
+
+	memoIx := decoded.Message.Instructions[3]
+	memoProgramID := decoded.Message.AccountKeys[memoIx.ProgramIDIndex]
+	require.Equal(t, solana.MustPublicKeyFromBase58(svm.MemoProgramAddress), memoProgramID)
+
+	// Empty accounts is critical - signers break facilitator verification
+	assert.Empty(t, memoIx.Accounts, "memo must have no accounts")
 }

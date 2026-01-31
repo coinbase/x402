@@ -40,7 +40,8 @@ export const USDC_TESTNET_ADDRESS = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncD
  */
 export const DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 1;
 export const MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000; // 5 lamports
-export const DEFAULT_COMPUTE_UNIT_LIMIT = 8_000;
+// Set to 20000 to accommodate: transfer (~6200 CUs) + memo (~8500 CUs without signer) + budget instructions (~300 CUs) + headroom
+export const DEFAULT_COMPUTE_UNIT_LIMIT = 20_000;
 
 /**
  * Solana address validation regex (base58, 32-44 characters)

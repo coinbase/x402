@@ -34,7 +34,8 @@ USDC_TESTNET_ADDRESS = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Same as
 # All prices are in microlamports (1 lamport = 1,000,000 microlamports)
 DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 1
 MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000  # 5 lamports
-DEFAULT_COMPUTE_UNIT_LIMIT = 8000
+# Set to 20000 to accommodate: transfer (~6200 CUs) + memo (~8500 CUs without signer) + budget instructions (~300 CUs) + headroom
+DEFAULT_COMPUTE_UNIT_LIMIT = 20000
 
 # Solana address validation regex (base58, 32-44 characters)
 SVM_ADDRESS_REGEX = r"^[1-9A-HJ-NP-Za-km-z]{32,44}$"

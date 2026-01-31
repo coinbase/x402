@@ -177,12 +177,11 @@ class ExactSvmSchemeV1:
             data=transfer_data,
         )
 
-        memo_program = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
-        memo_data = binascii.hexlify(os.urandom(16))
+        # Memo instruction with random nonce for transaction uniqueness
         memo_ix = Instruction(
-            program_id=memo_program,
-            accounts=[AccountMeta(payer_pubkey, is_signer=True, is_writable=False)],
-            data=memo_data,
+            program_id=Pubkey.from_string(MEMO_PROGRAM_ADDRESS),
+            accounts=[],  # SPL Memo doesn't require signers
+            data=binascii.hexlify(os.urandom(16)),
         )
 
         # Get latest blockhash
