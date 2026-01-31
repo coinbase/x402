@@ -1,6 +1,6 @@
 # @x402/extensions
 
-x402 Payment Protocol Extensions. This package provides optional extensions that enhance the x402 payment protocol with additional functionality like resource discovery and cataloging.
+x402 Payment Protocol Extensions. This package provides optional extensions that enhance the x402 payment protocol with additional functionality.
 
 ## Installation
 
@@ -10,10 +10,11 @@ pnpm install @x402/extensions
 
 ## Overview
 
-Extensions are optional features that can be added to x402 payment flows. They allow servers to provide additional metadata and enable facilitators to offer enhanced services like resource discovery and cataloging.
+Extensions are optional features that can be added to x402 payment flows. They follow a standardized `{ info, schema }` structure and are included in `PaymentRequired.extensions` and `PaymentPayload.extensions`.
 
-Currently, this package includes:
-- **Bazaar Discovery Extension**: Enables automatic cataloging and indexing of x402-enabled resources
+This package includes:
+- **Bazaar Discovery**: Automatic cataloging and indexing of x402-enabled resources
+- **Sign-In-With-X (SIWx)**: CAIP-122 wallet authentication for accessing previously purchased resources
 
 ## Bazaar Discovery Extension
 
@@ -39,29 +40,29 @@ import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 const resources = {
   "GET /weather": {
-    accepts: { 
-      scheme: "exact", 
-      price: "$0.001", 
-      network: "eip155:84532", 
-      payTo: "0xYourAddress" 
+    accepts: {
+      scheme: "exact",
+      price: "$0.001",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
     },
     extensions: {
       ...declareDiscoveryExtension({
         input: { city: "San Francisco" },
         inputSchema: {
-          properties: { 
+          properties: {
             city: { type: "string" },
             units: { type: "string", enum: ["celsius", "fahrenheit"] }
           },
           required: ["city"]
         },
-        output: { 
-          example: { 
-            city: "San Francisco", 
+        output: {
+          example: {
+            city: "San Francisco",
             weather: "foggy",
             temperature: 15,
             humidity: 85
-          } 
+          }
         },
       }),
     },
@@ -78,15 +79,15 @@ import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 const resources = {
   "POST /api/translate": {
-    accepts: { 
-      scheme: "exact", 
-      price: "$0.01", 
-      network: "eip155:84532", 
-      payTo: "0xYourAddress" 
+    accepts: {
+      scheme: "exact",
+      price: "$0.01",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
     },
     extensions: {
       ...declareDiscoveryExtension({
-        input: { 
+        input: {
           text: "Hello, world!",
           targetLanguage: "es"
         },
@@ -116,15 +117,15 @@ const resources = {
 ```typescript
 const resources = {
   "PUT /api/user/profile": {
-    accepts: { 
-      scheme: "exact", 
-      price: "$0.05", 
-      network: "eip155:84532", 
-      payTo: "0xYourAddress" 
+    accepts: {
+      scheme: "exact",
+      price: "$0.05",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
     },
     extensions: {
       ...declareDiscoveryExtension({
-        input: { 
+        input: {
           name: "John Doe",
           email: "john@example.com",
           bio: "Software developer"
@@ -156,11 +157,11 @@ const resources = {
 ```typescript
 const resources = {
   "DELETE /api/data/:id": {
-    accepts: { 
-      scheme: "exact", 
-      price: "$0.001", 
-      network: "eip155:84532", 
-      payTo: "0xYourAddress" 
+    accepts: {
+      scheme: "exact",
+      price: "$0.001",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
     },
     extensions: {
       ...declareDiscoveryExtension({
@@ -269,17 +270,17 @@ import { validateDiscoveryExtension, extractDiscoveryInfo } from "@x402/extensio
 
 function processPayment(paymentPayload: PaymentPayload, paymentRequirements: PaymentRequirements) {
   const discovered = extractDiscoveryInfo(paymentPayload, paymentRequirements);
-  
+
   if (discovered && paymentPayload.extensions?.bazaar) {
     // Validate the extension schema
     const validation = validateDiscoveryExtension(paymentPayload.extensions.bazaar);
-    
+
     if (!validation.valid) {
       console.warn("Invalid discovery extension:", validation.errors);
       // Handle invalid extension (log, reject, etc.)
       return;
     }
-    
+
     // Extension is valid, proceed with cataloging
     catalogResource(discovered);
   }
@@ -300,9 +301,9 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
   .registerExtension(bazaarResourceServerExtension);
 ```
 
-## API Reference
+### Bazaar API Reference
 
-### `declareDiscoveryExtension(config)`
+#### `declareDiscoveryExtension(config)`
 
 Creates a discovery extension object for resource servers.
 
@@ -333,7 +334,7 @@ const extension = declareDiscoveryExtension({
 // Returns: { bazaar: { info: {...}, schema: {...} } }
 ```
 
-### `extractDiscoveryInfo(paymentPayload, paymentRequirements, validate?)`
+#### `extractDiscoveryInfo(paymentPayload, paymentRequirements, validate?)`
 
 Extracts discovery information from a payment request (for facilitators).
 
@@ -353,51 +354,19 @@ interface DiscoveredResource {
 }
 ```
 
-**Example:**
-```typescript
-const info = extractDiscoveryInfo(paymentPayload, paymentRequirements);
-if (info) {
-  console.log(info.resourceUrl); // "https://api.example.com/endpoint"
-  console.log(info.method);       // "GET"
-  console.log(info.discoveryInfo); // { input: {...}, output: {...} }
-}
-```
-
-### `validateDiscoveryExtension(extension)`
+#### `validateDiscoveryExtension(extension)`
 
 Validates a discovery extension's info against its schema.
 
-**Parameters:**
-- `extension`: A discovery extension object
-
 **Returns:** `{ valid: boolean, errors?: string[] }`
 
-**Example:**
-```typescript
-const result = validateDiscoveryExtension(extension);
-if (!result.valid) {
-  console.error("Validation errors:", result.errors);
-}
-```
-
-### `validateAndExtract(extension)`
+#### `validateAndExtract(extension)`
 
 Validates and extracts discovery info in one step.
 
-**Parameters:**
-- `extension`: A discovery extension object
-
 **Returns:** `{ valid: boolean, info?: DiscoveryInfo, errors?: string[] }`
 
-**Example:**
-```typescript
-const { valid, info, errors } = validateAndExtract(extension);
-if (valid && info) {
-  // Use info
-}
-```
-
-### `bazaarResourceServerExtension`
+#### `bazaarResourceServerExtension`
 
 A server extension that automatically enriches discovery extensions with HTTP method information from the request context.
 
@@ -413,28 +382,286 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
 
 The extension identifier constant (`"bazaar"`).
 
+## Sign-In-With-X Extension
+
+The Sign-In-With-X extension implements [CAIP-122](https://chainagnostic.org/CAIPs/caip-122) for chain-agnostic wallet authentication. It allows clients to prove control of a wallet that previously paid for a resource, enabling access without repurchase.
+
+### How It Works
+
+1. Server returns 402 with `sign-in-with-x` extension containing challenge parameters
+2. Client signs the CAIP-122 message with their wallet
+3. Client sends signed proof in `SIGN-IN-WITH-X` header
+4. Server verifies signature and grants access if wallet has previous payment
+
+### Server Usage
+
+#### Recommended: Hooks (Automatic)
+
 ```typescript
-import { BAZAAR } from "@x402/extensions/bazaar";
-// BAZAAR === "bazaar"
+import {
+  declareSIWxExtension,
+  siwxResourceServerExtension,
+  createSIWxSettleHook,
+  createSIWxRequestHook,
+  InMemorySIWxStorage,
+} from '@x402/extensions/sign-in-with-x';
+
+// Storage for tracking paid addresses
+const storage = new InMemorySIWxStorage();
+
+// 1. Register extension for time-based field refreshment
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register(NETWORK, new ExactEvmScheme())
+  .registerExtension(siwxResourceServerExtension)  // Refreshes nonce/timestamps per request
+  .onAfterSettle(createSIWxSettleHook({ storage }));  // Records payments
+
+// 2. Declare SIWX support in routes (network/domain/uri derived automatically)
+const routes = {
+  "GET /data": {
+    accepts: [{scheme: "exact", price: "$0.01", network: "eip155:8453", payTo}],
+    extensions: declareSIWxExtension({
+      statement: 'Sign in to access your purchased content',
+    }),
+  },
+};
+
+// 3. Verify incoming SIWX proofs
+const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access if paid
+
+// Optional: Enable smart wallet support (EIP-1271/EIP-6492)
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
+
+const publicClient = createPublicClient({ chain: base, transport: http() });
+const httpServerWithSmartWallets = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(createSIWxRequestHook({
+    storage,
+    verifyOptions: { evmVerifier: publicClient.verifyMessage },
+  }));
 ```
 
-## Use Cases
+The hooks automatically:
+- **siwxResourceServerExtension**: Derives `network` from `accepts`, `domain`/`uri` from request URL, refreshes `nonce`/`issuedAt`/`expirationTime` per request
+- **createSIWxSettleHook**: Records payment when settlement succeeds
+- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access if wallet has paid
 
-### 1. API Marketplace Discovery
-Enable users to discover paid APIs through facilitator catalogs. Servers declare their endpoints, and facilitators index them for easy discovery.
+#### Manual Usage (Advanced)
 
-### 2. Developer Tools
-Build tools that automatically generate API documentation or client SDKs from discovery metadata.
+```typescript
+import {
+  declareSIWxExtension,
+  parseSIWxHeader,
+  validateSIWxMessage,
+  verifySIWxSignature,
+  SIGN_IN_WITH_X,
+} from '@x402/extensions/sign-in-with-x';
 
-### 3. Resource Cataloging
-Facilitators can maintain catalogs of available paid resources, making it easier for users to find services.
+// 1. Declare in PaymentRequired response
+const extensions = {
+  [SIGN_IN_WITH_X]: declareSIWxExtension({
+    domain: 'api.example.com',
+    resourceUri: 'https://api.example.com/data',
+    network: 'eip155:8453',
+    statement: 'Sign in to access your purchased content',
+  }),
+};
 
-### 4. Testing and Validation
-Use discovery schemas to validate API requests and responses during development.
+// 2. Verify incoming proof
+async function handleRequest(request: Request) {
+  const header = request.headers.get('SIGN-IN-WITH-X');
+  if (!header) return; // No auth provided
+
+  // Parse the header
+  const payload = parseSIWxHeader(header);
+
+  // Validate message fields (expiry, nonce, domain, etc.)
+  const validation = await validateSIWxMessage(
+    payload,
+    'https://api.example.com/data'
+  );
+  if (!validation.valid) {
+    return { error: validation.error };
+  }
+
+  // Verify signature and recover address
+  const verification = await verifySIWxSignature(payload);
+  if (!verification.valid) {
+    return { error: verification.error };
+  }
+
+  // verification.address is the verified wallet
+  // Check if this wallet has paid before
+  const hasPaid = await checkPaymentHistory(verification.address);
+  if (hasPaid) {
+    // Grant access without payment
+  }
+}
+```
+
+### Client Usage
+
+#### Recommended: Client Hook (Automatic)
+
+```typescript
+import { createSIWxClientHook } from '@x402/extensions/sign-in-with-x';
+import { x402HTTPClient } from '@x402/fetch';
+
+// Configure client with SIWX hook - automatically tries SIWX auth before payment
+const httpClient = new x402HTTPClient(client)
+  .onPaymentRequired(createSIWxClientHook(signer));
+
+// Requests automatically use SIWX auth when server supports it
+const response = await httpClient.fetch(url);
+```
+
+The client hook automatically:
+- Detects SIWX support in 402 responses
+- Matches your wallet's chain with server's `supportedChains`
+- Signs and sends the authentication proof
+- Falls back to payment if SIWX auth fails
+
+#### Manual Usage (Advanced)
+
+```typescript
+import {
+  createSIWxPayload,
+  encodeSIWxHeader,
+} from '@x402/extensions/sign-in-with-x';
+
+// 1. Get extension and network from 402 response
+const paymentRequired = await response.json();
+const extension = paymentRequired.extensions['sign-in-with-x'];
+const paymentNetwork = paymentRequired.accepts[0].network; // e.g., "eip155:8453"
+
+// 2. Find matching chain in supportedChains
+const matchingChain = extension.supportedChains.find(
+  chain => chain.chainId === paymentNetwork
+);
+
+if (!matchingChain) {
+  // Payment network not supported for SIWX
+  throw new Error('Chain not supported');
+}
+
+// 3. Build complete info with selected chain
+const completeInfo = {
+  ...extension.info,
+  chainId: matchingChain.chainId,
+  type: matchingChain.type,
+};
+
+// 4. Create signed payload
+const payload = await createSIWxPayload(completeInfo, signer);
+
+// 5. Encode and send
+const header = encodeSIWxHeader(payload);
+const response = await fetch(url, {
+  headers: { 'SIGN-IN-WITH-X': header }
+});
+```
+
+### SIWx API Reference
+
+#### `declareSIWxExtension(options?)`
+
+Creates the extension object for servers to include in PaymentRequired. Most fields are derived automatically from request context when using `siwxResourceServerExtension`.
+
+```typescript
+declareSIWxExtension({
+  // All fields optional - derived from context if omitted
+  domain?: string;                     // Server domain (derived from request URL)
+  resourceUri?: string;                // Full resource URI (derived from request URL)
+  network?: string | string[];         // CAIP-2 network(s) (derived from accepts[].network)
+  statement?: string;                  // Human-readable purpose
+  version?: string;                    // CAIP-122 version (default: "1")
+  expirationSeconds?: number;          // Challenge TTL in seconds
+})
+```
+
+**Automatic derivation:** When using `siwxResourceServerExtension`, omitted fields are derived:
+- `network` → from `accepts[].network` in route config
+- `resourceUri` → from request URL
+- `domain` → parsed from resourceUri
+
+**Multi-chain support:** When `network` is an array (or multiple networks in `accepts`), `supportedChains` will contain one entry per network.
+
+#### `parseSIWxHeader(header)`
+
+Parses a base64-encoded SIGN-IN-WITH-X header into a payload object.
+
+#### `validateSIWxMessage(payload, resourceUri, options?)`
+
+Validates message fields (expiry, domain binding, nonce, etc.).
+
+```typescript
+validateSIWxMessage(payload, resourceUri, {
+  maxAge?: number;                    // Max age for issuedAt (default: 5 min)
+  checkNonce?: (nonce) => boolean;    // Custom nonce validation
+})
+// Returns: { valid: boolean; error?: string }
+```
+
+#### `verifySIWxSignature(payload, options?)`
+
+Verifies the cryptographic signature and recovers the signer address.
+
+```typescript
+verifySIWxSignature(payload, {
+  evmVerifier?: EVMMessageVerifier;  // For smart wallet support
+})
+// Returns: { valid: boolean; address?: string; error?: string }
+```
+
+**Smart Wallet Support (EIP-1271 / EIP-6492):**
+
+By default, only EOA (Externally Owned Account) signatures are verified. To support smart contract wallets (like Coinbase Smart Wallet, Safe, etc.), pass `publicClient.verifyMessage` from viem:
+
+```typescript
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http()
+});
+
+// In your request hook
+const result = await verifySIWxSignature(payload, {
+  evmVerifier: publicClient.verifyMessage,
+});
+```
+
+This enables:
+- **EIP-1271**: Verification of deployed smart contract wallets
+- **EIP-6492**: Verification of counterfactual (not-yet-deployed) wallets
+
+Note: Smart wallet verification requires RPC calls, while EOA verification is purely local.
+
+#### `createSIWxPayload(serverInfo, signer)`
+
+Client helper that creates and signs a complete payload.
+
+#### `encodeSIWxHeader(payload)`
+
+Encodes a payload as base64 for the SIGN-IN-WITH-X header.
+
+#### `SIGN_IN_WITH_X`
+
+Extension identifier constant (`"sign-in-with-x"`).
+
+### Supported Signature Schemes
+
+| Scheme | Description |
+|--------|-------------|
+| `eip191` | personal_sign (default for EVM EOAs) |
+| `eip1271` | Smart contract wallet verification |
+| `eip6492` | Counterfactual smart wallet verification |
+| `siws` | Sign-In-With-Solana |
 
 ## Troubleshooting
 
-### Extension Not Being Extracted
+### Bazaar Extension Not Being Extracted
 
 **Problem:** `extractDiscoveryInfo` returns `null`.
 
@@ -443,7 +670,7 @@ Use discovery schemas to validate API requests and responses during development.
 - Check that `paymentPayload.extensions.bazaar` exists
 - Verify you're using x402 v2 (v1 uses a different format in `outputSchema`)
 
-### Schema Validation Fails
+### Bazaar Schema Validation Fails
 
 **Problem:** `validateDiscoveryExtension` returns `valid: false`.
 
@@ -452,27 +679,29 @@ Use discovery schemas to validate API requests and responses during development.
 - Check that required fields are marked in `inputSchema.required`
 - Verify JSON Schema syntax is correct
 
-### Missing Discovery Info
+### SIWx Signature Verification Fails
 
-**Problem:** Discovery info is incomplete.
-
-**Solutions:**
-- Ensure both `input` and `inputSchema` are provided
-- For POST/PUT/PATCH, include `bodyType` in the config
-- Check that `output.example` is provided if you want output documentation
-
-### Method Not Being Detected
-
-**Problem:** The HTTP method is missing from discovery info.
+**Problem:** `verifySIWxSignature` returns `valid: false`.
 
 **Solutions:**
-- Use `bazaarResourceServerExtension` which automatically injects the method
-- Ensure the route key follows the format `"METHOD /path"` (e.g., `"GET /weather"`)
+- Ensure the message was signed with the correct wallet
+- Check that the signature scheme matches the wallet type
+- For smart wallets, enable `checkSmartWallet` option with a provider
+
+### SIWx Message Validation Fails
+
+**Problem:** `validateSIWxMessage` returns `valid: false`.
+
+**Solutions:**
+- Check that `issuedAt` is recent (within `maxAge`, default 5 minutes)
+- Verify `expirationTime` hasn't passed
+- Ensure `domain` matches the server's domain
+- Confirm `uri` matches the resource URI
 
 ## Related Resources
 
 - [x402 Core Package](../core/README.md) - Core x402 protocol implementation
-- [x402 Specification](../../../specs/x402-specification.md) - Full protocol specification
+- [CAIP-122 Specification](https://chainagnostic.org/CAIPs/caip-122) - Sign-In-With-X standard
 
 ## Version Support
 
