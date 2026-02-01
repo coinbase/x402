@@ -141,7 +141,23 @@ We acknowledge that the repo is primarily under Coinbase ownership today. This i
 * Confirm your wallet has _mainnet_ USDC.
 * Gas fees are higher on mainnet; fund the wallet with a small amount of ETH for gas.
 
+#### How do I debug signature verification failures?
+
+Common causes:
+* **Incorrect domain separator** - Double-check the chain ID matches the target network
+* **Timestamp issues** - Ensure the `validAfter` and `validBefore` timestamps are set correctly
+* **Nonce conflicts** - The nonce may have been used in a previous transaction
+
+#### Payment is verified but settlement fails - what should I check?
+
+1. **RPC connection** - Verify your RPC endpoint is accessible and responding
+2. **Gas estimation** - Ensure the transaction has sufficient gas
+3. **Token allowance** - For non-EIP-3009 tokens, check that the spender allowance is set
+4. **Facilitator status** - Confirm the facilitator service is online at its `/health` endpoint
+
 ### Still have questions?
 
 • Reach out in the [Discord channel](https://discord.gg/invite/cdp)\
-• Open a GitHub Discussion or Issue in the [x402 repo](https://github.com/coinbase/x402)
+• Open a GitHub Discussion or Issue in the [x402 repo](https://github.com/coinbase/x402)\
+• Check the [SDK Features](/sdk-features) page for implementation status
+
