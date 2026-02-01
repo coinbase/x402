@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -172,11 +174,23 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToBuildTransferIx+": %w", err)
 	}
 
+	// Memo with random nonce for transaction uniqueness (empty accounts - SPL Memo doesn't require signers)
+	memoBytes := make([]byte, 16)
+	if _, err := rand.Read(memoBytes); err != nil {
+		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToBuildMemoIx+": %w", err)
+	}
+	memoIx := solana.NewInstruction(
+		solana.MustPublicKeyFromBase58(svm.MemoProgramAddress),
+		solana.AccountMetaSlice{},
+		[]byte(hex.EncodeToString(memoBytes)),
+	)
+
 	// Create final transaction
 	tx, err := solana.NewTransactionBuilder().
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
 		AddInstruction(transferIx).
+		AddInstruction(memoIx).
 		SetRecentBlockHash(recentBlockhash).
 		SetFeePayer(feePayer).
 		Build()
