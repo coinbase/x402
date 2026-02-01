@@ -7,6 +7,20 @@ description: Feature parity across TypeScript, Go, and Python SDKs
 
 This page tracks which features are implemented in each SDK (TypeScript, Go, Python v2).
 
+## Legend
+
+| Symbol | Meaning |
+|--------|---------|
+| ✅ | Fully implemented and tested |
+| ❌ | Not yet implemented |
+| 🚧 | Work in progress |
+
+## Quick Links
+
+- [TypeScript SDK](https://www.npmjs.com/search?q=%40x402)
+- [Python SDK](https://pypi.org/project/x402/)
+- [Go SDK](https://pkg.go.dev/github.com/coinbase/x402/go)
+
 ## Core
 
 | Component | TypeScript | Go | Python |

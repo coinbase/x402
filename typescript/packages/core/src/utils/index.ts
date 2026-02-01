@@ -156,3 +156,125 @@ export function deepEqual(obj1: unknown, obj2: unknown): boolean {
     return JSON.stringify(obj1) === JSON.stringify(obj2);
   }
 }
+
+/**
+ * Regular expression for validating CAIP-2 network identifiers.
+ * Format: namespace:reference (e.g., "eip155:8453", "solana:mainnet")
+ *
+ * @see https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md
+ */
+export const NetworkIdRegex = /^[a-z0-9-]+:[a-zA-Z0-9-]+$/;
+
+/**
+ * Validates whether a string is a valid CAIP-2 network identifier.
+ *
+ * @param network - The network string to validate
+ * @returns True if the network string matches CAIP-2 format
+ *
+ * @example
+ * ```typescript
+ * isValidNetwork("eip155:8453"); // true (Base mainnet)
+ * isValidNetwork("solana:mainnet"); // true
+ * isValidNetwork("invalid"); // false
+ * isValidNetwork(""); // false
+ * ```
+ */
+export function isValidNetwork(network: string): network is Network {
+  if (!network || typeof network !== "string") {
+    return false;
+  }
+  return NetworkIdRegex.test(network);
+}
+
+/**
+ * Validates whether a payment amount is valid (positive number or numeric string).
+ *
+ * @param amount - The amount to validate (string or number)
+ * @returns True if the amount is a valid positive value
+ *
+ * @example
+ * ```typescript
+ * isValidPaymentAmount("1000000"); // true
+ * isValidPaymentAmount(1000000); // true
+ * isValidPaymentAmount("0"); // false (must be positive)
+ * isValidPaymentAmount("-100"); // false (must be positive)
+ * isValidPaymentAmount("abc"); // false (not a number)
+ * ```
+ */
+export function isValidPaymentAmount(amount: string | number): boolean {
+  if (amount === null || amount === undefined) {
+    return false;
+  }
+
+  const numericAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+
+  if (isNaN(numericAmount) || !isFinite(numericAmount)) {
+    return false;
+  }
+
+  return numericAmount > 0;
+}
+
+/**
+ * Formats a network identifier for human-readable display.
+ *
+ * @param network - The CAIP-2 network identifier
+ * @returns A human-readable network name
+ *
+ * @example
+ * ```typescript
+ * formatNetworkDisplay("eip155:8453"); // "Base"
+ * formatNetworkDisplay("eip155:84532"); // "Base Sepolia"
+ * formatNetworkDisplay("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"); // "Solana"
+ * formatNetworkDisplay("eip155:1"); // "Ethereum"
+ * formatNetworkDisplay("unknown:123"); // "unknown:123"
+ * ```
+ */
+export function formatNetworkDisplay(network: Network): string {
+  const networkNames: Record<string, string> = {
+    "eip155:1": "Ethereum",
+    "eip155:8453": "Base",
+    "eip155:84532": "Base Sepolia",
+    "eip155:137": "Polygon",
+    "eip155:42161": "Arbitrum",
+    "eip155:10": "Optimism",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana",
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": "Solana Devnet",
+  };
+
+  return networkNames[network] || network;
+}
+
+/**
+ * Extracts the namespace (chain family) from a CAIP-2 network identifier.
+ *
+ * @param network - The CAIP-2 network identifier
+ * @returns The namespace portion (e.g., "eip155", "solana")
+ *
+ * @example
+ * ```typescript
+ * getNetworkNamespace("eip155:8453"); // "eip155"
+ * getNetworkNamespace("solana:mainnet"); // "solana"
+ * ```
+ */
+export function getNetworkNamespace(network: Network): string {
+  const [namespace] = network.split(":");
+  return namespace;
+}
+
+/**
+ * Extracts the reference (chain ID) from a CAIP-2 network identifier.
+ *
+ * @param network - The CAIP-2 network identifier
+ * @returns The reference portion (e.g., "8453", "mainnet")
+ *
+ * @example
+ * ```typescript
+ * getNetworkReference("eip155:8453"); // "8453"
+ * getNetworkReference("solana:mainnet"); // "mainnet"
+ * ```
+ */
+export function getNetworkReference(network: Network): string {
+  const parts = network.split(":");
+  return parts.slice(1).join(":");
+}

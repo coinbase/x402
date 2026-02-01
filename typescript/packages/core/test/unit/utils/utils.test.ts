@@ -5,6 +5,11 @@ import {
   deepEqual,
   safeBase64Encode,
   safeBase64Decode,
+  isValidNetwork,
+  isValidPaymentAmount,
+  formatNetworkDisplay,
+  getNetworkNamespace,
+  getNetworkReference,
 } from "../../../src/utils";
 import { Network } from "../../../src/types";
 
@@ -350,6 +355,94 @@ describe("Utils", () => {
         expect(safeBase64Decode("YWI=")).toBe("ab");
         expect(safeBase64Decode("YWJj")).toBe("abc");
       });
+    });
+  });
+
+  describe("isValidNetwork", () => {
+    it("should validate correct CAIP-2 network identifiers", () => {
+      expect(isValidNetwork("eip155:8453")).toBe(true);
+      expect(isValidNetwork("eip155:1")).toBe(true);
+      expect(isValidNetwork("solana:mainnet")).toBe(true);
+      expect(isValidNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toBe(true);
+    });
+
+    it("should reject invalid network identifiers", () => {
+      expect(isValidNetwork("invalid")).toBe(false);
+      expect(isValidNetwork("")).toBe(false);
+      expect(isValidNetwork("no-colon")).toBe(false);
+    });
+
+    it("should reject null and undefined", () => {
+      expect(isValidNetwork(null as unknown as string)).toBe(false);
+      expect(isValidNetwork(undefined as unknown as string)).toBe(false);
+    });
+  });
+
+  describe("isValidPaymentAmount", () => {
+    it("should validate positive numbers", () => {
+      expect(isValidPaymentAmount(100)).toBe(true);
+      expect(isValidPaymentAmount(0.001)).toBe(true);
+      expect(isValidPaymentAmount(1000000)).toBe(true);
+    });
+
+    it("should validate positive numeric strings", () => {
+      expect(isValidPaymentAmount("100")).toBe(true);
+      expect(isValidPaymentAmount("0.001")).toBe(true);
+      expect(isValidPaymentAmount("1000000")).toBe(true);
+    });
+
+    it("should reject zero and negative values", () => {
+      expect(isValidPaymentAmount(0)).toBe(false);
+      expect(isValidPaymentAmount(-100)).toBe(false);
+      expect(isValidPaymentAmount("-100")).toBe(false);
+    });
+
+    it("should reject non-numeric strings", () => {
+      expect(isValidPaymentAmount("abc")).toBe(false);
+      expect(isValidPaymentAmount("")).toBe(false);
+    });
+
+    it("should reject null and undefined", () => {
+      expect(isValidPaymentAmount(null as unknown as number)).toBe(false);
+      expect(isValidPaymentAmount(undefined as unknown as number)).toBe(false);
+    });
+
+    it("should reject Infinity", () => {
+      expect(isValidPaymentAmount(Infinity)).toBe(false);
+      expect(isValidPaymentAmount(-Infinity)).toBe(false);
+    });
+  });
+
+  describe("formatNetworkDisplay", () => {
+    it("should format known networks", () => {
+      expect(formatNetworkDisplay("eip155:8453" as Network)).toBe("Base");
+      expect(formatNetworkDisplay("eip155:84532" as Network)).toBe("Base Sepolia");
+      expect(formatNetworkDisplay("eip155:1" as Network)).toBe("Ethereum");
+      expect(formatNetworkDisplay("eip155:137" as Network)).toBe("Polygon");
+    });
+
+    it("should return original for unknown networks", () => {
+      expect(formatNetworkDisplay("unknown:123" as Network)).toBe("unknown:123");
+      expect(formatNetworkDisplay("custom:network" as Network)).toBe("custom:network");
+    });
+  });
+
+  describe("getNetworkNamespace", () => {
+    it("should extract namespace from network identifier", () => {
+      expect(getNetworkNamespace("eip155:8453" as Network)).toBe("eip155");
+      expect(getNetworkNamespace("solana:mainnet" as Network)).toBe("solana");
+      expect(getNetworkNamespace("custom:123" as Network)).toBe("custom");
+    });
+  });
+
+  describe("getNetworkReference", () => {
+    it("should extract reference from network identifier", () => {
+      expect(getNetworkReference("eip155:8453" as Network)).toBe("8453");
+      expect(getNetworkReference("solana:mainnet" as Network)).toBe("mainnet");
+    });
+
+    it("should handle complex references with colons", () => {
+      expect(getNetworkReference("namespace:ref:with:colons" as Network)).toBe("ref:with:colons");
     });
   });
 });
