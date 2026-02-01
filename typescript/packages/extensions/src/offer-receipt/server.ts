@@ -126,7 +126,8 @@ interface HTTPTransportContext {
 /**
  * Extract resource URL from transport context
  *
- * @param transportContext
+ * @param transportContext - The transport context from the request
+ * @returns The resource URL or undefined
  */
 function extractResourceUrl(transportContext: unknown): string | undefined {
   const ctx = transportContext as HTTPTransportContext | undefined;
@@ -156,9 +157,10 @@ function extractResourceUrl(transportContext: unknown): string | undefined {
 /**
  * Convert PaymentRequirements to OfferInput
  *
- * @param requirements
+ * @param requirements - The payment requirements
  * @param acceptIndex - Index into accepts[] array
- * @param maxTimeoutSeconds - Optional validity duration override (we use maxTimeoutSeconds instead of phdargen's validitySeconds to match the accepts[] field name)
+ * @param maxTimeoutSeconds - Optional validity duration override
+ * @returns The offer input object
  */
 function requirementsToOfferInput(
   requirements: PaymentRequirements,
@@ -193,26 +195,14 @@ export function createOfferReceiptExtension(signer: OfferReceiptSigner): Resourc
   return {
     key: OFFER_RECEIPT,
 
-    /**
-     * Enrich declaration with transport context
-     * Captures the resource URL for later use in hooks
-     *
-     * @param declaration
-     * @param transportContext
-     */
+    // Enrich declaration with transport context - captures the resource URL for later use
     enrichDeclaration: (declaration: unknown, transportContext: unknown): unknown => {
       // Capture resource URL from transport context
       currentResourceUrl = extractResourceUrl(transportContext);
       return declaration;
     },
 
-    /**
-     * Add signed offers to 402 PaymentRequired response.
-     * Returns extension data with signed offers (one per requirement).
-     *
-     * @param declaration
-     * @param context
-     */
+    // Add signed offers to 402 PaymentRequired response
     enrichPaymentRequiredResponse: async (
       declaration: unknown,
       context: PaymentRequiredContext,
@@ -254,13 +244,7 @@ export function createOfferReceiptExtension(signer: OfferReceiptSigner): Resourc
       };
     },
 
-    /**
-     * Add signed receipt to settlement response.
-     * Returns extension data with signed receipt proving service delivery.
-     *
-     * @param declaration
-     * @param context
-     */
+    // Add signed receipt to settlement response
     enrichSettlementResponse: async (
       declaration: unknown,
       context: SettleResultContext,
@@ -387,7 +371,11 @@ export function createEIP712OfferReceiptSigner(
 
     async signReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
       const chainId = extractEIP155ChainId(network);
-      return createReceiptEIP712({ resourceUrl, payer, network, transaction }, chainId, signTypedData);
+      return createReceiptEIP712(
+        { resourceUrl, payer, network, transaction },
+        chainId,
+        signTypedData,
+      );
     },
   };
 }

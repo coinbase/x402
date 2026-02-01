@@ -11,11 +11,9 @@ import type { JWSSigner } from "../src/offer-receipt/types";
 /**
  * Create a JWS signer from a JWK private key (FOR TESTING ONLY)
  *
- * WARNING: This loads the private key into memory. For production,
- * implement JWSSigner with HSM, TPM, or a remote signing service.
- *
- * @param jwk
- * @param kid
+ * @param jwk - The JWK private key
+ * @param kid - The key identifier
+ * @returns A JWS signer
  */
 export async function createJWSSignerFromJWK(jwk: jose.JWK, kid: string): Promise<JWSSigner> {
   const privateKey = await jose.importJWK(jwk);
@@ -46,6 +44,8 @@ export async function createJWSSignerFromJWK(jwk: jose.JWK, kid: string): Promis
 
 /**
  * Generate an ES256K key pair (FOR TESTING ONLY)
+ *
+ * @returns Promise resolving to an object with privateKey and publicKey JWKs
  */
 export async function generateES256KKeyPair(): Promise<{
   privateKey: jose.JWK;

@@ -491,7 +491,7 @@ export function convertNetworkStringToCAIP2(network: string): string {
   }
 
   throw new Error(
-    `Unknown network identifier: "${network}". Expected CAIP-2 format (e.g., "eip155:8453") or v1 name (e.g., "base", "solana").`
+    `Unknown network identifier: "${network}". Expected CAIP-2 format (e.g., "eip155:8453") or v1 name (e.g., "base", "solana").`,
   );
 }
 

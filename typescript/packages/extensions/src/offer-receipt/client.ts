@@ -9,7 +9,12 @@
  */
 
 import { decodePaymentResponseHeader } from "@x402/core/http";
-import type { PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse } from "@x402/core/types";
+import type {
+  PaymentPayload,
+  PaymentRequired,
+  PaymentRequirements,
+  SettleResponse,
+} from "@x402/core/types";
 import { OFFER_RECEIPT, type OfferPayload, type SignedOffer, type SignedReceipt } from "./types";
 import { extractOfferPayload, extractReceiptPayload } from "./signing";
 
@@ -69,10 +74,12 @@ interface OfferReceiptExtensionInfo {
 // ============================================================================
 
 /**
- * Find the accepted offer from the offers array.
- * Used internally by createOfferReceiptExtractor.
+ * Find the accepted offer from the offers array (internal)
  *
- * Uses acceptIndex as a hint but verifies the payload matches the accepted terms.
+ * @param offers - Array of signed offers
+ * @param acceptedIndex - Index of the accepted offer
+ * @param accepted - The accepted payment payload
+ * @returns The matching signed offer or undefined
  */
 function findAcceptedOffer(
   offers: SignedOffer[],
@@ -131,7 +138,7 @@ export function verifyReceiptMatchesOffer(
   const resourceUrlMatch = payload.resourceUrl === offer.resourceUrl;
   const networkMatch = payload.network === offer.network;
   const payerMatch = payerAddresses.some(
-    (addr) => payload.payer.toLowerCase() === addr.toLowerCase()
+    addr => payload.payer.toLowerCase() === addr.toLowerCase(),
   );
   const issuedRecently = Math.floor(Date.now() / 1000) - payload.issuedAt < maxAgeSeconds;
 
@@ -166,7 +173,7 @@ export function extractOffersFromPaymentRequired(paymentRequired: PaymentRequire
  * @returns Array of decoded offers with payload fields at top level
  */
 export function decodeSignedOffers(offers: SignedOffer[]): DecodedOffer[] {
-  return offers.map((offer) => {
+  return offers.map(offer => {
     const payload = extractOfferPayload(offer);
     return {
       // Spread payload fields at top level
@@ -217,12 +224,12 @@ export function findAcceptsObjectFromSignedOffer(
 
   // Fall back to searching all accepts
   return accepts.find(
-    (req) =>
+    req =>
       req.network === payload.network &&
       req.scheme === payload.scheme &&
       req.asset === payload.asset &&
       req.payTo === payload.payTo &&
-      req.amount === payload.amount
+      req.amount === payload.amount,
   );
 }
 
@@ -282,7 +289,7 @@ export function createOfferReceiptExtractor(): (context: PaymentCompleteContext)
       // Find the accepted offer
       // The accepted index is determined by which accepts[] entry was chosen
       const acceptedIndex = paymentRequired.accepts.findIndex(
-        (req) =>
+        req =>
           req.network === paymentPayload.accepted.network &&
           req.scheme === paymentPayload.accepted.scheme &&
           req.asset === paymentPayload.accepted.asset &&

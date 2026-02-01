@@ -1,6 +1,7 @@
 /**
  * Specification-driven tests for x402 Offer/Receipt Extension
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, beforeAll } from "vitest";
 import * as jose from "jose";
@@ -40,7 +41,6 @@ import {
   verifyReceiptMatchesOffer,
   OFFER_RECEIPT,
   type JWSSigner,
-  type SignedOffer,
   type OfferPayload,
   type ReceiptPayload,
 } from "../src/offer-receipt";
@@ -331,14 +331,16 @@ describe("Attestation Helper", () => {
       expect(convertNetworkStringToCAIP2("eip155:8453")).toBe("eip155:8453");
       expect(convertNetworkStringToCAIP2("eip155:1")).toBe("eip155:1");
       expect(convertNetworkStringToCAIP2("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toBe(
-        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       );
     });
 
     it("converts v1 Solana network names", () => {
       expect(convertNetworkStringToCAIP2("solana")).toBe("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
       expect(convertNetworkStringToCAIP2("Solana")).toBe("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
-      expect(convertNetworkStringToCAIP2("solana-devnet")).toBe("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+      expect(convertNetworkStringToCAIP2("solana-devnet")).toBe(
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      );
     });
 
     it("converts v1 EVM network names to CAIP-2", () => {
@@ -351,7 +353,7 @@ describe("Attestation Helper", () => {
 
     it("throws for unknown network identifiers", () => {
       expect(() => convertNetworkStringToCAIP2("unknown-network")).toThrow(
-        'Unknown network identifier: "unknown-network"'
+        'Unknown network identifier: "unknown-network"',
       );
       expect(() => convertNetworkStringToCAIP2("foo")).toThrow('Unknown network identifier: "foo"');
     });
@@ -1145,22 +1147,22 @@ describe("Utility Functions", () => {
 
     it("throws for non-eip155 networks", () => {
       expect(() => extractEIP155ChainId("solana:mainnet")).toThrow(
-        'Invalid network format: solana:mainnet. Expected "eip155:<chainId>"'
+        'Invalid network format: solana:mainnet. Expected "eip155:<chainId>"',
       );
     });
 
     it("throws for malformed eip155 strings", () => {
       expect(() => extractEIP155ChainId("eip155:")).toThrow(
-        'Invalid network format: eip155:. Expected "eip155:<chainId>"'
+        'Invalid network format: eip155:. Expected "eip155:<chainId>"',
       );
       expect(() => extractEIP155ChainId("eip155:abc")).toThrow(
-        'Invalid network format: eip155:abc. Expected "eip155:<chainId>"'
+        'Invalid network format: eip155:abc. Expected "eip155:<chainId>"',
       );
     });
 
     it("throws for strings without colon", () => {
       expect(() => extractEIP155ChainId("base")).toThrow(
-        'Invalid network format: base. Expected "eip155:<chainId>"'
+        'Invalid network format: base. Expected "eip155:<chainId>"',
       );
     });
   });
@@ -1231,10 +1233,13 @@ describe("Server Extension Utilities", () => {
   describe("createJWSOfferReceiptSigner", () => {
     it("creates signer with correct properties", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:api.example.com#key-1");
-      
+      const jwsSigner = await createJWSSignerFromJWK(
+        keyPair.privateKey,
+        "did:web:api.example.com#key-1",
+      );
+
       const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
-      
+
       expect(signer.kid).toBe("did:web:api.example.com#key-1");
       expect(signer.format).toBe("jws");
       expect(typeof signer.signOffer).toBe("function");
@@ -1243,7 +1248,10 @@ describe("Server Extension Utilities", () => {
 
     it("signOffer creates valid JWS offer", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:api.example.com#key-1");
+      const jwsSigner = await createJWSSignerFromJWK(
+        keyPair.privateKey,
+        "did:web:api.example.com#key-1",
+      );
       const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
 
       const offer = await signer.signOffer("https://api.example.com/resource", {
@@ -1261,14 +1269,17 @@ describe("Server Extension Utilities", () => {
 
     it("signReceipt creates valid JWS receipt", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:api.example.com#key-1");
+      const jwsSigner = await createJWSSignerFromJWK(
+        keyPair.privateKey,
+        "did:web:api.example.com#key-1",
+      );
       const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
 
       const receipt = await signer.signReceipt(
         "https://api.example.com/resource",
         "0x857b06519E91e3A54538791bDbb0E22373e36b66",
         "eip155:8453",
-        "0xabc123"
+        "0xabc123",
       );
 
       expect(receipt.format).toBe("jws");
@@ -1280,9 +1291,8 @@ describe("Server Extension Utilities", () => {
     const account = privateKeyToAccount(TEST_PRIVATE_KEY);
 
     it("creates signer with correct properties", () => {
-      const signer = createEIP712OfferReceiptSigner(
-        `did:pkh:eip155:8453:${account.address}`,
-        p => account.signTypedData(p)
+      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+        account.signTypedData(p),
       );
 
       expect(signer.kid).toBe(`did:pkh:eip155:8453:${account.address}`);
@@ -1292,9 +1302,8 @@ describe("Server Extension Utilities", () => {
     });
 
     it("signOffer creates valid EIP-712 offer", async () => {
-      const signer = createEIP712OfferReceiptSigner(
-        `did:pkh:eip155:8453:${account.address}`,
-        p => account.signTypedData(p)
+      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+        account.signTypedData(p),
       );
 
       const offer = await signer.signOffer("https://api.example.com/resource", {
@@ -1312,16 +1321,15 @@ describe("Server Extension Utilities", () => {
     });
 
     it("signReceipt creates valid EIP-712 receipt", async () => {
-      const signer = createEIP712OfferReceiptSigner(
-        `did:pkh:eip155:8453:${account.address}`,
-        p => account.signTypedData(p)
+      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+        account.signTypedData(p),
       );
 
       const receipt = await signer.signReceipt(
         "https://api.example.com/resource",
         "0x857b06519E91e3A54538791bDbb0E22373e36b66",
         "eip155:8453",
-        "0xabc123"
+        "0xabc123",
       );
 
       expect(receipt.format).toBe("eip712");
