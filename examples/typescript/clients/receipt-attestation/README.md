@@ -1,46 +1,8 @@
 # Receipt Attestation Client Example
 
-This example demonstrates how **clients** can extract signed receipts from x402 payment flows and create verified user review attestations.
+Demonstrates how clients extract signed offers and receipts from x402 payment flows.
 
-> **Note:** This is a client-side example. For server-side receipt signing configuration, see the [server examples](../../servers/).
-
-## Why Receipts Matter
-
-Receipts enable **verified user reviews** — like an ecommerce "Verified Purchase" badge. When a server issues a receipt, it proves the reviewer actually paid for and used the service.
-
-## The Flow
-
-```
-┌─────────┐     402 + Offer      ┌─────────┐
-│  Client │ ◄─────────────────── │  Server │
-│         │                      │         │
-│         │  Payment + Request   │         │
-│         │ ──────────────────► │         │
-│         │                      │         │
-│         │   200 + Receipt      │         │
-│         │ ◄─────────────────── │         │
-└─────────┘                      └─────────┘
-     │
-     │  Create Attestation
-     ▼
-┌─────────────────────────────────────────┐
-│  Attestation Payload                    │
-│  - attester: did:pkh:eip155:8453:0x...  │
-│  - subject: did:web:api.example.com     │
-│  - ratingValue: 5                       │
-│  - reviewBody: "Great service!"         │
-│  - proofs: [{ x402-receipt }]           │
-└─────────────────────────────────────────┘
-     │
-     │  Submit to Trust System (e.g. OMATrust)
-     ▼
-┌─────────────────────────────────────────┐
-│  Trust System that allows agents to:    │
-│  - Verify receipt signature             │
-│  - Confirm commercial transaction       │
-│  - Index verified review                │
-└─────────────────────────────────────────┘
-```
+For background on why receipts matter, payload structure, and security considerations, see the [Offer/Receipt Extension README](../../../../typescript/packages/extensions/src/offer-receipt/README.md).
 
 ## Quick Start
 
@@ -58,49 +20,32 @@ cd clients/receipt-attestation
 cp .env.example .env
 ```
 
+Required environment variables:
+- `EVM_PRIVATE_KEY` - Private key for EVM payments
+- `SVM_PRIVATE_KEY` - Private key for Solana payments (base58)
+- `RESOURCE_SERVER_URL` - Server URL (default: `http://localhost:4021`)
+- `ENDPOINT_PATH` - Endpoint path (default: `/weather`)
+
 3. Run the example:
 
 ```bash
 pnpm start
 ```
 
-## Key Files
+## What This Example Shows
 
-- **[index.ts](./index.ts)** - Main example showing the complete flow
-- **[omatrust.ts](./omatrust.ts)** - OMATrust attestation creation (can be replaced with other trust systems)
+The example uses the raw flow (not the wrapper) for visibility into each step:
 
-## How It Works
+1. Make initial request → receive 402 with signed offers
+2. Extract and decode offers to inspect payment options
+3. Select an offer and find the matching `accepts[]` entry
+4. Create payment and retry the request
+5. Extract signed receipt from success response
+6. Verify receipt payload matches the offer
 
-The example uses `wrapFetchWithPayment` with the `onPaymentComplete` callback to capture offer/receipt metadata:
-
-```typescript
-import { wrapFetchWithPayment } from "@x402/fetch";
-import { createOfferReceiptExtractor, type OfferReceiptResponse } from "@x402/extensions/offer-receipt";
-
-const fetchWithPayment = wrapFetchWithPayment(fetch, client, {
-  onPaymentComplete: createOfferReceiptExtractor()
-});
-
-const response = await fetchWithPayment(url, { method: "GET" }) as OfferReceiptResponse;
-
-// Access extracted metadata
-if (response.offerReceipt?.receipt) {
-  // Create verified review with receipt proof
-}
-```
-
-## Attestation Fallback
-
-- **Receipt available** → Rating 5, "Verified Purchase" (proves payment completed)
-- **Only offer available** → Rating 3, less trusted (proves terms were presented)
-
-See [omatrust.ts](./omatrust.ts) for the attestation payload structure.
-
-## Submitting to OMATrust
-
-The example creates an attestation payload ready for submission to OMATrust via EAS (Ethereum Attestation Service). For complete submission instructions, supported chains, and contract addresses, see the [OMATrust documentation](https://docs.oma3.org).
+See [index.ts](./index.ts) for the full implementation with detailed comments.
 
 ## Related
 
-- [Offer/Receipt Extension Spec](../../../../specs/extensions/extension-offer-and-receipt.md)
-- [Server Examples](../../servers/) - How to configure receipt signing on the server
+- [Offer/Receipt Extension](../../../../typescript/packages/extensions/src/offer-receipt/) - Types, signing utilities, client functions
+- [Extension Specification](../../../../specs/extensions/extension-offer-and-receipt.md) - Full protocol spec

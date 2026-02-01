@@ -874,6 +874,7 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 | Version | Date       | Changes                                                        | Author     |
 | ------- | ---------- | -------------------------------------------------------------- | ---------- |
+| 1.0     | 2026-01-29 | First approved release.                                        | Alfred Tom |
 | 0.4     | 2026-01-26 | Add acceptIndex as unsigned envelope field.                    | Alfred Tom |
 | 0.3     | 2026-01-22 | Add validUntil for offer expiration. Move version to payload.  | Alfred Tom |
 | 0.2     | 2026-01-20 | Move offers/receipt to extensions. Add network to receipt.     | Alfred Tom |

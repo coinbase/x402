@@ -1,6 +1,6 @@
 # x402 Offer/Receipt Extension
 
-Enables signed offers and receipts for the x402 payment protocol.
+Enables signed offers and receipts for the x402 payment protocol (v1.0).
 
 ## Overview
 
@@ -30,11 +30,9 @@ Enables signed offers and receipts for the x402 payment protocol.
      │                                    │                                      │
 ```
 
-The **Offer** is signed by the resource server and included in the 402 response. Each `accepts[]` entry has its own signed offer, proving those specific payment requirements are authentic.
+The **Offer** is signed by the resource server and included in the 402 response. Each `accepts[]` entry has a corresponding signed offer, proving those specific payment requirements are authentic.
 
 The **Receipt** is signed by the resource server after successful payment and included in the success response. It proves service was delivered.
-
-The **Facilitator** handles payment verification and settlement but is not involved in offer/receipt signing.
 
 ## Why Receipts?
 
@@ -49,10 +47,8 @@ Receipts are **portable proofs of paid service**. They enable:
 
 Signed offers:
 - Give clients a fallback for proof of interaction if a signed receipt is not sent
-- Proves the offer came from the resource server
-- Prevents clients from creating their own offer and claiming it came from a server
-
-A **signed Offer** proves the payment requirements actually originated from the resource provider.
+- Prove the offer came from the resource server
+- Prevent clients from creating their own offer and claiming it came from a server
 
 ## Installation
 
@@ -62,16 +58,33 @@ npm install @x402/extensions
 
 ## Server Usage
 
-To enable offer/receipt signing on your resource server, use the server extension:
+To enable offer/receipt signing on your resource server:
 
 ```typescript
+import { x402ResourceServer } from "@x402/core/server";
 import { 
-  offerReceiptResourceServerExtension,
-  createJWSOfferReceiptSigner 
+  createOfferReceiptExtension,
+  createJWSOfferReceiptSigner,
+  declareOfferReceipt,
 } from "@x402/extensions/offer-receipt";
-```
 
-See [server.ts](./server.ts) for the extension implementation and signer factory functions.
+// Create a signer (JWS or EIP-712)
+const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
+
+// Register the extension
+const server = new x402ResourceServer(facilitator)
+  .registerExtension(createOfferReceiptExtension(signer));
+
+// Declare in route config
+const routes = {
+  "GET /api/data": {
+    accepts: { payTo, scheme: "exact", price: "$0.01", network: "eip155:8453" },
+    extensions: {
+      ...declareOfferReceipt({ includeTxHash: false })
+    }
+  }
+};
+```
 
 ### Signature Formats
 
@@ -82,57 +95,58 @@ Two formats are supported:
 
 ## Client Usage
 
-See the [receipt-attestation client example](../../../../../examples/typescript/clients/receipt-attestation/README.md) for extracting offers/receipts and creating attestations.
+### Wrapper Flow
+
+> **Note**: The `wrapFetchWithPayment` wrapper does not yet support extensions. Use the raw flow below for now.
+
+### Raw Flow
+
+For a complete working example showing offer/receipt extraction, see the [Receipt Attestation Example](../../../../../examples/typescript/clients/receipt-attestation/).
+
+The example demonstrates:
+1. Making a request and receiving a 402 with signed offers
+2. Extracting offers from the PaymentRequired response
+3. Making payment and receiving a signed receipt
+4. Verifying the receipt payload
+
+## Using Receipts as Proofs
+
+Signed receipts serve as cryptographic proofs of commercial transactions. These proofs can be submitted to downstream trust and reputation platforms:
+
+- **[OMATrust](https://github.com/oma3dao/omatrust-docs)** - Decentralized reputation system for verified user reviews and service attestations
+- **[PEAC Protocol](https://github.com/peacprotocol/peac)** - Payment Evidence and Attestation Chain for commercial transaction proofs
+
+Integration libraries for these platforms will be added in future releases.
+
+## Payload Structure
+
+For detailed payload field definitions, see the [Extension Specification](../../../../../specs/extensions/extension-offer-and-receipt.md):
+- §4.2 Offer Payload Fields
+- §5.2 Receipt Payload Fields
 
 ## Security Considerations
 
-The `extractPayload()` and related functions extract payloads **without verifying** that the signing key is authorized for the resource's domain.
+The `extractPayload()` functions extract payloads without verifying the signature or checking signer authorization. This is by design — signer authorization requires resolving key bindings (did:web documents, attestations, etc.) which varies by deployment and is outside the scope of x402 client utilities.
 
-### Key Management
-
-Servers can sign offers/receipts using:
-
-1. **The payTo address wallet** - The same key that receives payments
-2. **A dedicated signing key** - A separate key (e.g., JWS/JWK) for data signing
-
-Either way, clients need to verify the signing key is authorized by the resource URL's domain.
+For production use, downstream trust systems verify:
+1. The signature is valid (EIP-712 or JWS)
+2. The signing key is authorized for the resource domain
 
 ### Key-to-Domain Binding
 
-To establish trust, bind the signing key's DID to the resource domain using one of:
+To establish trust, bind the signing key's DID to the resource domain using:
 
-1. **`did:web` DID Document** - Serve at `https://example.com/.well-known/did.json`:
-   ```json
-   {
-     "@context": [
-       "https://www.w3.org/ns/did/v1",
-       "https://w3id.org/security/suites/secp256k1recovery-2020/v2"
-     ],
-     "id": "did:web:example.com",
-     "verificationMethod": [{
-       "id": "did:web:example.com#receipt-signer",
-       "type": "EcdsaSecp256k1RecoveryMethod2020",
-       "controller": "did:web:example.com",
-       "blockchainAccountId": "eip155:8453:0x1234..."
-     }],
-     "authentication": ["did:web:example.com#receipt-signer"]
-   }
-   ```
-   The domain hosting the DID document establishes authority over the keys listed within it.
+1. **`did:web` DID Document** - Serve at `https://example.com/.well-known/did.json`
+2. **DNS TXT Record** - Add a TXT record binding a DID to the domain
+3. **Key Binding Attestation** - Create an attestation specifying the key's purpose and authorized domain
 
-2. **DNS TXT Record** - Add a TXT record binding a DID to the domain:
-   ```
-   v=1;controller=did:pkh:eip155:8453:0x1234...
-   ```
+### Key Management
 
-3. **OMATrust Key Binding Attestation** - The key owner creates an attestation specifying the key's purpose (e.g., "receipt-signing") and the domain it's authorized for. This allows flexible key delegation without DNS or server access.
+For production deployments:
 
-### Verification Approaches
-
-For production systems that need trust-bearing verification (verified reviews, reputation systems):
-
-1. **Direct Verification** - Resolve the signer's DID and verify it's authorized for the domain via DNS or `.well-known`
-2. **OMATrust Attestation** - Defer verification to the attestation framework, which handles key authorization as part of attestation validation (recommended)
+- **JWS signing**: Use HSM or KMS-backed keys. The `kid` in the JWS header should be a DID URL that resolves to the public key.
+- **EIP-712 signing**: The signing wallet should be the `payTo` address, or have an on-chain/off-chain authorization linking it to the service.
+- **Key rotation**: Update DID documents or attestations when rotating keys. Old receipts remain valid if the key was authorized at issuance time.
 
 ## Files
 
@@ -143,7 +157,10 @@ For production systems that need trust-bearing verification (verified reviews, r
 | [server.ts](./server.ts) | Server extension and signer factories |
 | [client.ts](./client.ts) | Client-side extraction utilities |
 
+## Examples
+
+- [Receipt Attestation Client](../../../../../examples/typescript/clients/receipt-attestation/) - Complete example showing offer/receipt extraction
+
 ## Related
 
 - [Extension Specification](../../../../../specs/extensions/extension-offer-and-receipt.md)
-- [Client Example](../../../../../examples/typescript/clients/receipt-attestation/)

@@ -17,6 +17,10 @@ export {
   type SignedReceipt,
   type JWSSignedReceipt,
   type EIP712SignedReceipt,
+  type OfferReceiptDeclaration,
+  type OfferReceiptSigner,
+  type OfferInput,
+  type ReceiptInput,
   isJWSSignedOffer,
   isEIP712SignedOffer,
   isJWSSignedReceipt,
@@ -34,7 +38,7 @@ export {
   // JWS
   signJWS,
   extractJWSHeader,
-  extractJWSPayloadUnsafe,
+  extractJWSPayload,
   // EIP-712
   createOfferDomain,
   createReceiptDomain,
@@ -48,26 +52,23 @@ export {
   signReceiptEIP712,
   type SignTypedDataFn,
   // Network utilities
-  extractChainId,
-  parseNetworkToCAIP2,
+  extractEIP155ChainId,
+  convertNetworkStringToCAIP2,
   extractChainIdFromCAIP2,
-  // Payload extraction
-  extractPayload,
   // Offer creation
   createOfferJWS,
   createOfferEIP712,
-  extractOfferPayloadUnsafe,
-  type OfferInput,
+  extractOfferPayload,
   // Receipt creation
   createReceiptJWS,
   createReceiptEIP712,
-  extractReceiptPayloadUnsafe,
-  type ReceiptInput,
+  extractReceiptPayload,
 } from "./signing";
 
 // Server extension and factory functions
 export {
-  offerReceiptResourceServerExtension,
+  createOfferReceiptExtension,
+  declareOfferReceiptExtension,
   createJWSOfferReceiptSigner,
   createEIP712OfferReceiptSigner,
 } from "./server";
@@ -75,6 +76,12 @@ export {
 // Client utilities for extracting offers/receipts
 export {
   createOfferReceiptExtractor,
+  decodeSignedOffers,
+  extractOffersFromPaymentRequired,
+  extractReceiptFromResponse,
+  findAcceptsObjectFromSignedOffer,
+  verifyReceiptMatchesOffer,
+  type DecodedOffer,
   type OfferReceiptMetadata,
   type OfferReceiptResponse,
   type PaymentCompleteContext,

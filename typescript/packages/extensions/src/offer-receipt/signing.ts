@@ -1,18 +1,26 @@
 /**
- * Signing utilities for x402 Offer/Receipt
+ * Signing utilities for x402 Offer/Receipt Extension
  *
- * This module consolidates:
+ * This module provides:
  * - JCS (JSON Canonicalization Scheme) per RFC 8785
  * - JWS (JSON Web Signature) signing and extraction
  * - EIP-712 typed data signing
- * - Network/payload utilities
+ * - Offer/Receipt creation utilities
  *
- * Based on: x402/specs/extensions/extension-offer-and-receipt.md §3
+ * Based on: x402/specs/extensions/extension-offer-and-receipt.md (v1.0) §3
  */
 
 import * as jose from "jose";
 import { hashTypedData, type Hex, type TypedDataDomain } from "viem";
-import type { JWSSigner, OfferPayload, ReceiptPayload, SignedOffer, SignedReceipt } from "./types";
+import type {
+  JWSSigner,
+  OfferPayload,
+  ReceiptPayload,
+  SignedOffer,
+  SignedReceipt,
+  OfferInput,
+  ReceiptInput,
+} from "./types";
 import {
   isJWSSignedOffer,
   isEIP712SignedOffer,
@@ -29,7 +37,7 @@ import {
 // ============================================================================
 
 /**
- * Canonicalize an object using JCS (RFC 8785)
+ * Canonicalize a JSON object using JCS (RFC 8785)
  *
  * Rules:
  * 1. Object keys are sorted lexicographically by UTF-16 code units
@@ -38,15 +46,18 @@ import {
  * 4. Strings use minimal escaping
  * 5. null, true, false are lowercase literals
  *
- * @param obj
+ * @param value - The object to canonicalize
+ * @returns The canonicalized JSON string
  */
-export function canonicalize(obj: unknown): string {
-  return serializeValue(obj);
+export function canonicalize(value: unknown): string {
+  return serializeValue(value);
 }
 
 /**
+ * Serialize a value to canonical JSON
  *
- * @param value
+ * @param value - The value to serialize
+ * @returns The serialized string
  */
 function serializeValue(value: unknown): string {
   if (value === null) return "null";
@@ -63,8 +74,10 @@ function serializeValue(value: unknown): string {
 }
 
 /**
+ * Serialize a number to canonical JSON
  *
- * @param num
+ * @param num - The number to serialize
+ * @returns The serialized string
  */
 function serializeNumber(num: number): string {
   if (!Number.isFinite(num)) throw new Error("Cannot canonicalize Infinity or NaN");
@@ -73,8 +86,10 @@ function serializeNumber(num: number): string {
 }
 
 /**
+ * Serialize a string to canonical JSON
  *
- * @param str
+ * @param str - The string to serialize
+ * @returns The serialized string with proper escaping
  */
 function serializeString(str: string): string {
   let result = '"';
@@ -95,16 +110,20 @@ function serializeString(str: string): string {
 }
 
 /**
+ * Serialize an array to canonical JSON
  *
- * @param arr
+ * @param arr - The array to serialize
+ * @returns The serialized string
  */
 function serializeArray(arr: unknown[]): string {
   return "[" + arr.map(serializeValue).join(",") + "]";
 }
 
 /**
+ * Serialize an object to canonical JSON with sorted keys
  *
- * @param obj
+ * @param obj - The object to serialize
+ * @returns The serialized string with sorted keys
  */
 function serializeObject(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -121,7 +140,8 @@ function serializeObject(obj: Record<string, unknown>): string {
 /**
  * Hash a canonicalized object using SHA-256
  *
- * @param obj
+ * @param obj - The object to hash
+ * @returns The SHA-256 hash as Uint8Array
  */
 export async function hashCanonical(obj: unknown): Promise<Uint8Array> {
   const canonical = canonicalize(obj);
@@ -133,7 +153,8 @@ export async function hashCanonical(obj: unknown): Promise<Uint8Array> {
 /**
  * Get canonical bytes of an object (UTF-8 encoded)
  *
- * @param obj
+ * @param obj - The object to encode
+ * @returns The UTF-8 encoded canonical JSON
  */
 export function getCanonicalBytes(obj: unknown): Uint8Array {
   return new TextEncoder().encode(canonicalize(obj));
@@ -146,8 +167,9 @@ export function getCanonicalBytes(obj: unknown): Uint8Array {
 /**
  * Sign a payload using JWS Compact Serialization
  *
- * @param payload
- * @param signer
+ * @param payload - The payload object to sign
+ * @param signer - The JWS signer
+ * @returns The JWS compact serialization string
  */
 export async function signJWS<T extends object>(payload: T, signer: JWSSigner): Promise<string> {
   const canonical = canonicalize(payload);
@@ -158,7 +180,8 @@ export async function signJWS<T extends object>(payload: T, signer: JWSSigner): 
 /**
  * Extract JWS header without verification
  *
- * @param jws
+ * @param jws - The JWS compact serialization string
+ * @returns The decoded header object
  */
 export function extractJWSHeader(jws: string): { alg: string; kid?: string } {
   const parts = jws.split(".");
@@ -168,11 +191,17 @@ export function extractJWSHeader(jws: string): { alg: string; kid?: string } {
 }
 
 /**
- * Extract JWS payload without verification
+ * Extract JWS payload
  *
- * @param jws
+ * Note: This extracts the payload without verifying the signature or
+ * checking signer authorization. Signature verification requires resolving
+ * key bindings (did:web documents, attestations, etc.) which is outside
+ * the scope of x402 client utilities.
+ *
+ * @param jws - The JWS compact serialization string
+ * @returns The decoded payload
  */
-export function extractJWSPayloadUnsafe<T>(jws: string): T {
+export function extractJWSPayload<T>(jws: string): T {
   const parts = jws.split(".");
   if (parts.length !== 3) throw new Error("Invalid JWS format");
   const payloadJson = jose.base64url.decode(parts[1]);
@@ -184,40 +213,52 @@ export function extractJWSPayloadUnsafe<T>(jws: string): T {
 // ============================================================================
 
 /**
+ * Create EIP-712 domain for offer signing
  *
- * @param chainId
+ * @param chainId - The chain ID for the domain
+ * @returns The EIP-712 domain object
  */
 export function createOfferDomain(chainId: number): TypedDataDomain {
   return { name: "x402 offer", version: "1", chainId };
 }
 
 /**
+ * Create EIP-712 domain for receipt signing
  *
- * @param chainId
+ * @param chainId - The chain ID for the domain
+ * @returns The EIP-712 domain object
  */
 export function createReceiptDomain(chainId: number): TypedDataDomain {
   return { name: "x402 receipt", version: "1", chainId };
 }
 
+/**
+ * EIP-712 types for Offer (§4.3)
+ */
 export const OFFER_TYPES = {
   Offer: [
+    { name: "version", type: "uint256" },
     { name: "resourceUrl", type: "string" },
     { name: "scheme", type: "string" },
-    { name: "settlement", type: "string" },
     { name: "network", type: "string" },
     { name: "asset", type: "string" },
-    { name: "payTo", type: "string" },
+    { name: "payTo", type: "address" },
     { name: "amount", type: "string" },
-    { name: "maxTimeoutSeconds", type: "uint256" },
-    { name: "issuedAt", type: "uint256" },
+    { name: "validUntil", type: "uint256" },
   ],
 };
 
+/**
+ * EIP-712 types for Receipt (§5.3)
+ */
 export const RECEIPT_TYPES = {
   Receipt: [
+    { name: "version", type: "uint256" },
+    { name: "network", type: "string" },
     { name: "resourceUrl", type: "string" },
     { name: "payer", type: "string" },
     { name: "issuedAt", type: "uint256" },
+    { name: "transaction", type: "string" },
   ],
 };
 
@@ -226,32 +267,54 @@ export const RECEIPT_TYPES = {
 // ============================================================================
 
 /**
+ * Prepare offer payload for EIP-712 signing
  *
- * @param payload
+ * @param payload - The offer payload
+ * @returns The prepared message object for EIP-712
  */
-export function prepareOfferForEIP712(payload: OfferPayload) {
+export function prepareOfferForEIP712(payload: OfferPayload): {
+  version: bigint;
+  resourceUrl: string;
+  scheme: string;
+  network: string;
+  asset: string;
+  payTo: `0x${string}`;
+  amount: string;
+  validUntil: bigint;
+} {
   return {
+    version: BigInt(payload.version),
     resourceUrl: payload.resourceUrl,
     scheme: payload.scheme,
-    settlement: payload.settlement,
     network: payload.network,
     asset: payload.asset,
-    payTo: payload.payTo,
+    payTo: payload.payTo as `0x${string}`,
     amount: payload.amount,
-    maxTimeoutSeconds: BigInt(payload.maxTimeoutSeconds ?? 0),
-    issuedAt: BigInt(payload.issuedAt ?? 0),
+    validUntil: BigInt(payload.validUntil),
   };
 }
 
 /**
+ * Prepare receipt payload for EIP-712 signing
  *
- * @param payload
+ * @param payload - The receipt payload
+ * @returns The prepared message object for EIP-712
  */
-export function prepareReceiptForEIP712(payload: ReceiptPayload) {
+export function prepareReceiptForEIP712(payload: ReceiptPayload): {
+  version: bigint;
+  network: string;
+  resourceUrl: string;
+  payer: string;
+  issuedAt: bigint;
+  transaction: string;
+} {
   return {
+    version: BigInt(payload.version),
+    network: payload.network,
     resourceUrl: payload.resourceUrl,
     payer: payload.payer,
     issuedAt: BigInt(payload.issuedAt),
+    transaction: payload.transaction,
   };
 }
 
@@ -260,9 +323,11 @@ export function prepareReceiptForEIP712(payload: ReceiptPayload) {
 // ============================================================================
 
 /**
+ * Hash offer typed data for EIP-712
  *
- * @param payload
- * @param chainId
+ * @param payload - The offer payload
+ * @param chainId - The chain ID for the domain
+ * @returns The EIP-712 hash
  */
 export function hashOfferTypedData(payload: OfferPayload, chainId: number): Hex {
   return hashTypedData({
@@ -274,9 +339,11 @@ export function hashOfferTypedData(payload: OfferPayload, chainId: number): Hex 
 }
 
 /**
+ * Hash receipt typed data for EIP-712
  *
- * @param payload
- * @param chainId
+ * @param payload - The receipt payload
+ * @param chainId - The chain ID for the domain
+ * @returns The EIP-712 hash
  */
 export function hashReceiptTypedData(payload: ReceiptPayload, chainId: number): Hex {
   return hashTypedData({
@@ -291,6 +358,9 @@ export function hashReceiptTypedData(payload: ReceiptPayload, chainId: number): 
 // EIP-712 Signing
 // ============================================================================
 
+/**
+ * Function type for signing EIP-712 typed data
+ */
 export type SignTypedDataFn = (params: {
   domain: TypedDataDomain;
   types: Record<string, Array<{ name: string; type: string }>>;
@@ -299,10 +369,12 @@ export type SignTypedDataFn = (params: {
 }) => Promise<Hex>;
 
 /**
+ * Sign an offer using EIP-712
  *
- * @param payload
- * @param chainId
- * @param signTypedData
+ * @param payload - The offer payload
+ * @param chainId - The chain ID for the domain
+ * @param signTypedData - The signing function
+ * @returns The signature hex string
  */
 export async function signOfferEIP712(
   payload: OfferPayload,
@@ -318,10 +390,12 @@ export async function signOfferEIP712(
 }
 
 /**
+ * Sign a receipt using EIP-712
  *
- * @param payload
- * @param chainId
- * @param signTypedData
+ * @param payload - The receipt payload
+ * @param chainId - The chain ID for the domain
+ * @param signTypedData - The signing function
+ * @returns The signature hex string
  */
 export async function signReceiptEIP712(
   payload: ReceiptPayload,
@@ -341,12 +415,13 @@ export async function signReceiptEIP712(
 // ============================================================================
 
 /**
- * Extract chain ID from a CAIP-2 network string (strict format)
+ * Extract chain ID from an EIP-155 network string (strict format)
  *
- * @param network
+ * @param network - The network string in "eip155:<chainId>" format
+ * @returns The chain ID number
  * @throws Error if network is not in "eip155:<chainId>" format
  */
-export function extractChainId(network: string): number {
+export function extractEIP155ChainId(network: string): number {
   const match = network.match(/^eip155:(\d+)$/);
   if (!match) {
     throw new Error(`Invalid network format: ${network}. Expected "eip155:<chainId>"`);
@@ -355,29 +430,79 @@ export function extractChainId(network: string): number {
 }
 
 /**
- * Parse a network string into CAIP-2 format
+ * V1 EVM network name to chain ID mapping
+ * Based on x402 v1 protocol network identifiers
+ */
+const V1_EVM_NETWORK_CHAIN_IDS: Record<string, number> = {
+  ethereum: 1,
+  sepolia: 11155111,
+  abstract: 2741,
+  "abstract-testnet": 11124,
+  "base-sepolia": 84532,
+  base: 8453,
+  "avalanche-fuji": 43113,
+  avalanche: 43114,
+  iotex: 4689,
+  sei: 1329,
+  "sei-testnet": 1328,
+  polygon: 137,
+  "polygon-amoy": 80002,
+  peaq: 3338,
+  story: 1514,
+  educhain: 41923,
+  "skale-base-sepolia": 324705682,
+};
+
+/**
+ * V1 Solana network name to CAIP-2 mapping
+ */
+const V1_SOLANA_NETWORKS: Record<string, string> = {
+  solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "solana-devnet": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "solana-testnet": "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z",
+};
+
+/**
+ * Convert a network string to CAIP-2 format
  *
  * Handles both CAIP-2 format and legacy x402 v1 network strings:
- * - CAIP-2: "eip155:8453" → "eip155:8453"
- * - Legacy: "solana" → "solana:mainnet"
- * - Legacy: "base", "base-sepolia", etc. → assumed EVM with chainId 1
+ * - CAIP-2: "eip155:8453" → "eip155:8453" (passed through)
+ * - V1 EVM: "base" → "eip155:8453", "base-sepolia" → "eip155:84532"
+ * - V1 Solana: "solana" → "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
  *
- * @param network
+ * @param network - The network string to convert
+ * @returns The CAIP-2 formatted network string
+ * @throws Error if network is not a recognized v1 identifier or CAIP-2 format
  */
-export function parseNetworkToCAIP2(network: string): string {
+export function convertNetworkStringToCAIP2(network: string): string {
+  // Already CAIP-2 format
   if (network.includes(":")) return network;
-  if (network.toLowerCase() === "solana") return "solana:mainnet";
-  return "eip155:1";
+
+  // Check V1 EVM networks
+  const chainId = V1_EVM_NETWORK_CHAIN_IDS[network.toLowerCase()];
+  if (chainId !== undefined) {
+    return `eip155:${chainId}`;
+  }
+
+  // Check V1 Solana networks
+  const solanaNetwork = V1_SOLANA_NETWORKS[network.toLowerCase()];
+  if (solanaNetwork) {
+    return solanaNetwork;
+  }
+
+  throw new Error(
+    `Unknown network identifier: "${network}". Expected CAIP-2 format (e.g., "eip155:8453") or v1 name (e.g., "base", "solana").`
+  );
 }
 
 /**
  * Extract chain ID from a CAIP-2 network string (EVM only)
  *
- * @param caip2Network
+ * @param network - The CAIP-2 network string
  * @returns Chain ID number, or undefined for non-EVM networks
  */
-export function extractChainIdFromCAIP2(caip2Network: string): number | undefined {
-  const [namespace, reference] = caip2Network.split(":");
+export function extractChainIdFromCAIP2(network: string): number | undefined {
+  const [namespace, reference] = network.split(":");
   if (namespace === "eip155" && reference) {
     const chainId = parseInt(reference, 10);
     return isNaN(chainId) ? undefined : chainId;
@@ -386,67 +511,45 @@ export function extractChainIdFromCAIP2(caip2Network: string): number | undefine
 }
 
 // ============================================================================
-// Payload Extraction
-// ============================================================================
-
-/** Signed proof object (either offer or receipt) */
-type SignedProof = SignedOffer | SignedReceipt;
-
-/**
- * Extract the payload from a signed proof (offer or receipt)
- *
- * Works with both JWS and EIP-712 formats:
- * - JWS: decodes payload from the signature string
- * - EIP-712: returns the explicit payload field
- *
- * @param proof
- */
-export function extractPayload<T extends OfferPayload | ReceiptPayload>(proof: SignedProof): T {
-  if (proof.format === "jws") {
-    return extractJWSPayloadUnsafe<T>(proof.signature);
-  }
-  return (proof as unknown as { payload: T }).payload;
-}
-
-// ============================================================================
 // Offer Creation (§4)
 // ============================================================================
 
-export interface OfferInput {
-  scheme: string;
-  settlement: string;
-  network: string;
-  asset: string;
-  payTo: string;
-  amount: string;
-  maxTimeoutSeconds?: number;
-}
+/** Default offer validity in seconds (matches x402ResourceServer.ts) */
+const DEFAULT_MAX_TIMEOUT_SECONDS = 300;
+
+/** Current extension version */
+const EXTENSION_VERSION = 1;
 
 /**
+ * Create an offer payload from input
  *
- * @param resourceUrl
- * @param input
+ * @param resourceUrl - The resource URL being paid for
+ * @param input - The offer input parameters
+ * @returns The offer payload
  */
 function createOfferPayload(resourceUrl: string, input: OfferInput): OfferPayload {
+  const now = Math.floor(Date.now() / 1000);
+  const maxTimeoutSeconds = input.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
+
   return {
+    version: EXTENSION_VERSION,
     resourceUrl,
     scheme: input.scheme,
-    settlement: input.settlement,
     network: input.network,
     asset: input.asset,
     payTo: input.payTo,
     amount: input.amount,
-    maxTimeoutSeconds: input.maxTimeoutSeconds,
-    issuedAt: Math.floor(Date.now() / 1000),
+    validUntil: now + maxTimeoutSeconds,
   };
 }
 
 /**
  * Create a signed offer using JWS
  *
- * @param resourceUrl
- * @param input
- * @param signer
+ * @param resourceUrl - The resource URL being paid for
+ * @param input - The offer input parameters
+ * @param signer - The JWS signer
+ * @returns The signed offer with JWS format
  */
 export async function createOfferJWS(
   resourceUrl: string,
@@ -455,16 +558,21 @@ export async function createOfferJWS(
 ): Promise<JWSSignedOffer> {
   const payload = createOfferPayload(resourceUrl, input);
   const jws = await signJWS(payload, signer);
-  return { format: "jws", signature: jws };
+  return {
+    format: "jws",
+    acceptIndex: input.acceptIndex,
+    signature: jws,
+  };
 }
 
 /**
  * Create a signed offer using EIP-712
  *
- * @param resourceUrl
- * @param input
- * @param chainId
- * @param signTypedData
+ * @param resourceUrl - The resource URL being paid for
+ * @param input - The offer input parameters
+ * @param chainId - The chain ID for EIP-712 domain
+ * @param signTypedData - The signing function
+ * @returns The signed offer with EIP-712 format
  */
 export async function createOfferEIP712(
   resourceUrl: string,
@@ -474,17 +582,28 @@ export async function createOfferEIP712(
 ): Promise<EIP712SignedOffer> {
   const payload = createOfferPayload(resourceUrl, input);
   const signature = await signOfferEIP712(payload, chainId, signTypedData);
-  return { format: "eip712", payload, signature };
+  return {
+    format: "eip712",
+    acceptIndex: input.acceptIndex,
+    payload,
+    signature,
+  };
 }
 
 /**
- * Extract offer payload without verification
+ * Extract offer payload
  *
- * @param offer
+ * Note: This extracts the payload without verifying the signature or
+ * checking signer authorization. Signer authorization requires resolving
+ * key bindings (did:web documents, attestations, etc.) which is outside
+ * the scope of x402 client utilities. See spec §4.5.1.
+ *
+ * @param offer - The signed offer
+ * @returns The offer payload
  */
-export function extractOfferPayloadUnsafe(offer: SignedOffer): OfferPayload {
+export function extractOfferPayload(offer: SignedOffer): OfferPayload {
   if (isJWSSignedOffer(offer)) {
-    return extractJWSPayloadUnsafe<OfferPayload>(offer.signature);
+    return extractJWSPayload<OfferPayload>(offer.signature);
   } else if (isEIP712SignedOffer(offer)) {
     return offer.payload;
   }
@@ -495,34 +614,63 @@ export function extractOfferPayloadUnsafe(offer: SignedOffer): OfferPayload {
 // Receipt Creation (§5)
 // ============================================================================
 
-export interface ReceiptInput {
-  resourceUrl: string;
-  payer: string;
+/**
+ * Create a receipt payload for EIP-712 (requires all fields per spec §5.3)
+ *
+ * Per spec: "implementations MUST set unused fields to empty string"
+ * for EIP-712 signing where fixed schemas require all fields.
+ *
+ * @param input - The receipt input parameters
+ * @returns The receipt payload with all fields
+ */
+function createReceiptPayloadForEIP712(input: ReceiptInput): ReceiptPayload {
+  return {
+    version: EXTENSION_VERSION,
+    network: input.network,
+    resourceUrl: input.resourceUrl,
+    payer: input.payer,
+    issuedAt: Math.floor(Date.now() / 1000),
+    transaction: input.transaction ?? "",
+  };
 }
 
 /**
+ * Create a receipt payload for JWS (omits optional fields when not provided)
  *
- * @param input
+ * Per spec §5.2: transaction is optional and should be omitted in JWS
+ * when not provided (privacy-minimal by default).
+ *
+ * @param input - The receipt input parameters
+ * @returns The receipt payload with optional fields omitted if not provided
  */
-function createReceiptPayload(input: ReceiptInput): ReceiptPayload {
-  return {
+function createReceiptPayloadForJWS(
+  input: ReceiptInput,
+): Omit<ReceiptPayload, "transaction"> & { transaction?: string } {
+  const payload: Omit<ReceiptPayload, "transaction"> & { transaction?: string } = {
+    version: EXTENSION_VERSION,
+    network: input.network,
     resourceUrl: input.resourceUrl,
     payer: input.payer,
     issuedAt: Math.floor(Date.now() / 1000),
   };
+  if (input.transaction) {
+    payload.transaction = input.transaction;
+  }
+  return payload;
 }
 
 /**
  * Create a signed receipt using JWS
  *
- * @param input
- * @param signer
+ * @param input - The receipt input parameters
+ * @param signer - The JWS signer
+ * @returns The signed receipt with JWS format
  */
 export async function createReceiptJWS(
   input: ReceiptInput,
   signer: JWSSigner,
 ): Promise<JWSSignedReceipt> {
-  const payload = createReceiptPayload(input);
+  const payload = createReceiptPayloadForJWS(input);
   const jws = await signJWS(payload, signer);
   return { format: "jws", signature: jws };
 }
@@ -530,28 +678,35 @@ export async function createReceiptJWS(
 /**
  * Create a signed receipt using EIP-712
  *
- * @param input
- * @param chainId
- * @param signTypedData
+ * @param input - The receipt input parameters
+ * @param chainId - The chain ID for EIP-712 domain
+ * @param signTypedData - The signing function
+ * @returns The signed receipt with EIP-712 format
  */
 export async function createReceiptEIP712(
   input: ReceiptInput,
   chainId: number,
   signTypedData: SignTypedDataFn,
 ): Promise<EIP712SignedReceipt> {
-  const payload = createReceiptPayload(input);
+  const payload = createReceiptPayloadForEIP712(input);
   const signature = await signReceiptEIP712(payload, chainId, signTypedData);
   return { format: "eip712", payload, signature };
 }
 
 /**
- * Extract receipt payload without verification
+ * Extract receipt payload
  *
- * @param receipt
+ * Note: This extracts the payload without verifying the signature or
+ * checking signer authorization. Signer authorization requires resolving
+ * key bindings (did:web documents, attestations, etc.) which is outside
+ * the scope of x402 client utilities. See spec §5.5.
+ *
+ * @param receipt - The signed receipt
+ * @returns The receipt payload
  */
-export function extractReceiptPayloadUnsafe(receipt: SignedReceipt): ReceiptPayload {
+export function extractReceiptPayload(receipt: SignedReceipt): ReceiptPayload {
   if (isJWSSignedReceipt(receipt)) {
-    return extractJWSPayloadUnsafe<ReceiptPayload>(receipt.signature);
+    return extractJWSPayload<ReceiptPayload>(receipt.signature);
   } else if (isEIP712SignedReceipt(receipt)) {
     return receipt.payload;
   }
