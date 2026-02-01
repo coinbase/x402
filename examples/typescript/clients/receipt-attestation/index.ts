@@ -12,11 +12,7 @@
  */
 
 import { config } from "dotenv";
-import {
-  x402Client,
-  x402HTTPClient,
-  type PaymentRequired,
-} from "@x402/fetch";
+import { x402Client, x402HTTPClient, type PaymentRequired } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
@@ -56,6 +52,11 @@ const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
 
+/**
+ * Main entry point demonstrating x402 payment flow with offer-receipt extension
+ *
+ * @returns - Promise that resolves when the example completes
+ */
 async function main(): Promise<void> {
   // Set up payment client
   const evmSigner = privateKeyToAccount(evmPrivateKey);
@@ -82,7 +83,7 @@ async function main(): Promise<void> {
   // =========================================================================
   // Step 2: Extract and decode signed offers from 402 response
   // =========================================================================
-  const paymentRequiredBody = await initialResponse.json() as PaymentRequired;
+  const paymentRequiredBody = (await initialResponse.json()) as PaymentRequired;
   const getHeader = (name: string) => initialResponse.headers.get(name);
   const paymentRequired = httpClient.getPaymentRequiredResponse(getHeader, paymentRequiredBody);
 
@@ -198,10 +199,12 @@ async function main(): Promise<void> {
     if (!verified) {
       // For debugging, show individual checks
       const receiptPayload = extractReceiptPayload(signedReceipt);
-      console.log(`  resourceUrl: ${receiptPayload.resourceUrl === selected.resourceUrl ? "✓" : "✗"}`);
+      console.log(
+        `  resourceUrl: ${receiptPayload.resourceUrl === selected.resourceUrl ? "✓" : "✗"}`,
+      );
       console.log(`  network: ${receiptPayload.network === selected.network ? "✓" : "✗"}`);
       const payerMatch = payerAddresses.some(
-        (addr) => receiptPayload.payer.toLowerCase() === addr.toLowerCase()
+        addr => receiptPayload.payer.toLowerCase() === addr.toLowerCase(),
       );
       console.log(`  payer: ${payerMatch ? "✓" : "✗"}`);
       const issuedRecently = Math.floor(Date.now() / 1000) - receiptPayload.issuedAt < 3600;
@@ -237,7 +240,7 @@ async function main(): Promise<void> {
   // -------------------------------------------------------------------------
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error(error?.response?.data?.error ?? error);
   process.exit(1);
 });
