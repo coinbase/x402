@@ -3,6 +3,8 @@
  *
  * Implementations track which addresses have paid for which resources,
  * enabling SIWX authentication to grant access without re-payment.
+ *
+ * Optionally supports nonce tracking to prevent signature replay attacks.
  */
 export interface SIWxStorage {
   /**
@@ -21,6 +23,27 @@ export interface SIWxStorage {
    * @param address - The wallet address that paid
    */
   recordPayment(resource: string, address: string): void | Promise<void>;
+
+  /**
+   * Check if a nonce has already been used (optional).
+   *
+   * Implementing this method prevents signature replay attacks where
+   * an intercepted SIWX header could be reused by an attacker.
+   *
+   * @param nonce - The nonce from the SIWX payload
+   * @returns True if the nonce has been used
+   */
+  hasUsedNonce?(nonce: string): boolean | Promise<boolean>;
+
+  /**
+   * Record that a nonce has been used (optional).
+   *
+   * Called after successfully granting access via SIWX.
+   * Implementations should consider adding expiration to avoid unbounded growth.
+   *
+   * @param nonce - The nonce to record as used
+   */
+  recordNonce?(nonce: string): void | Promise<void>;
 }
 
 /**

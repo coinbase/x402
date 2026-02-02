@@ -33,6 +33,7 @@ export type SIWxHookEvent =
   | { type: "payment_recorded"; resource: string; address: string }
   | { type: "access_granted"; resource: string; address: string }
   | { type: "validation_failed"; resource: string; error?: string }
+  | { type: "nonce_reused"; resource: string; nonce: string }
   | { type: "siwx_header_sent"; resource: string };
 
 /**
@@ -110,8 +111,22 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
         return;
       }
 
+      // Check if nonce was already used (prevents signature replay attacks)
+      if (storage.hasUsedNonce) {
+        const nonceUsed = await storage.hasUsedNonce(payload.nonce);
+        if (nonceUsed) {
+          onEvent?.({ type: "nonce_reused", resource: context.path, nonce: payload.nonce });
+          return;
+        }
+      }
+
       const hasPaid = await storage.hasPaid(context.path, verification.address);
       if (hasPaid) {
+        // Record nonce as used before granting access
+        if (storage.recordNonce) {
+          await storage.recordNonce(payload.nonce);
+        }
+
         onEvent?.({
           type: "access_granted",
           resource: context.path,
