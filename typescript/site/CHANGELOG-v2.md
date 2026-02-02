@@ -268,7 +268,7 @@ Servers advertise SIWx support by including the extension in their PaymentRequir
         "issuedAt": "2025-10-17T10:00:00Z",
         "expirationTime": "2025-10-17T10:05:00Z",
         "resources": ["https://api.example.com"],
-        "signatureScheme": "eip191" // or "eip712", "eip1271", "eip6492", "siws", "sep10"
+        "signatureScheme": "eip191" // or "eip1271", "eip6492", "siws"
       },
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
