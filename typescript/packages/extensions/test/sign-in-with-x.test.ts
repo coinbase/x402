@@ -1141,6 +1141,36 @@ describe("SIWX Hooks", () => {
     });
 
     describe("nonce tracking", () => {
+      it("should throw if only hasUsedNonce is implemented", () => {
+        const storage = new InMemorySIWxStorage();
+        const partialStorage = {
+          ...storage,
+          hasPaid: storage.hasPaid.bind(storage),
+          recordPayment: storage.recordPayment.bind(storage),
+          hasUsedNonce: () => false,
+          // recordNonce intentionally missing
+        };
+
+        expect(() => createSIWxRequestHook({ storage: partialStorage })).toThrow(
+          "SIWxStorage nonce tracking requires both hasUsedNonce and recordNonce to be implemented",
+        );
+      });
+
+      it("should throw if only recordNonce is implemented", () => {
+        const storage = new InMemorySIWxStorage();
+        const partialStorage = {
+          ...storage,
+          hasPaid: storage.hasPaid.bind(storage),
+          recordPayment: storage.recordPayment.bind(storage),
+          // hasUsedNonce intentionally missing
+          recordNonce: () => {},
+        };
+
+        expect(() => createSIWxRequestHook({ storage: partialStorage })).toThrow(
+          "SIWxStorage nonce tracking requires both hasUsedNonce and recordNonce to be implemented",
+        );
+      });
+
       /**
        * Creates a storage implementation with nonce tracking for testing.
        *

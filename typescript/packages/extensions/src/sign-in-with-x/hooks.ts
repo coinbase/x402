@@ -85,6 +85,15 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
 export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
   const { storage, verifyOptions, onEvent } = options;
 
+  // Validate nonce tracking is fully implemented or not at all
+  const hasUsedNonce = typeof storage.hasUsedNonce === "function";
+  const hasRecordNonce = typeof storage.recordNonce === "function";
+  if (hasUsedNonce !== hasRecordNonce) {
+    throw new Error(
+      "SIWxStorage nonce tracking requires both hasUsedNonce and recordNonce to be implemented",
+    );
+  }
+
   return async (context: {
     adapter: { getHeader(name: string): string | undefined; getUrl(): string };
     path: string;
