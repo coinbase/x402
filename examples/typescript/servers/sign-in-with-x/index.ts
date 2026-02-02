@@ -38,6 +38,10 @@ const storage = new InMemorySIWxStorage();
  * Log SIWX events for visibility.
  *
  * @param event - The SIWX hook event
+ * @param event.type - Event type (e.g., "payment_recorded", "access_granted")
+ * @param event.resource - The resource path
+ * @param event.address - Wallet address (optional)
+ * @param event.error - Error message (optional)
  */
 function onEvent(event: { type: string; resource: string; address?: string; error?: string }) {
   console.log(`[SIWX] ${event.type}`, event);
