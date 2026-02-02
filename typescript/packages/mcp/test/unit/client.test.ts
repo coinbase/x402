@@ -2,7 +2,7 @@
  * Unit tests for x402MCPClient
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { x402MCPClient, createX402MCPClient, wrapMCPClientWithPayment } from "../../src/client";
+import { x402MCPClient, createx402MCPClient, wrapMCPClientWithPayment } from "../../src/client";
 import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_META_KEY } from "../../src/types";
 import type { PaymentPayload, PaymentRequired, SettleResponse } from "@x402/core/types";
 
@@ -412,20 +412,20 @@ describe("wrapMCPClientWithPayment", () => {
   });
 });
 
-describe("createX402MCPClient", () => {
+describe("createx402MCPClient", () => {
   it("should create client with config", () => {
     const mockSchemeClient = {
       createPaymentPayload: vi.fn(),
     };
 
-    const client = createX402MCPClient({
+    const client = createx402MCPClient({
       name: "test-client",
       version: "1.0.0",
       schemes: [
         {
           network: "eip155:84532",
           client: mockSchemeClient as unknown as Parameters<
-            typeof createX402MCPClient
+            typeof createx402MCPClient
           >[0]["schemes"][0]["client"],
         },
       ],

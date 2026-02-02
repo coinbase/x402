@@ -2,7 +2,7 @@
  * Unit tests for x402MCPServer and createPaymentWrapper
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { x402MCPServer, createX402MCPServer, createPaymentWrapper } from "../../src/server";
+import { x402MCPServer, createx402MCPServer, createPaymentWrapper } from "../../src/server";
 import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../../src/types";
 import type {
   PaymentPayload,
@@ -377,9 +377,9 @@ describe("x402MCPServer", () => {
 // Factory Function Tests
 // ============================================================================
 
-describe("createX402MCPServer", () => {
+describe("createx402MCPServer", () => {
   it("should create server with basic config", () => {
-    const server = createX402MCPServer({
+    const server = createx402MCPServer({
       name: "test-server",
       version: "1.0.0",
     });
@@ -388,7 +388,7 @@ describe("createX402MCPServer", () => {
   });
 
   it("should create server with facilitator URL", () => {
-    const server = createX402MCPServer({
+    const server = createx402MCPServer({
       name: "test-server",
       version: "1.0.0",
       facilitator: "https://facilitator.x402.org",
@@ -398,7 +398,7 @@ describe("createX402MCPServer", () => {
   });
 
   it("should create server with multiple facilitator URLs", () => {
-    const server = createX402MCPServer({
+    const server = createx402MCPServer({
       name: "test-server",
       version: "1.0.0",
       facilitator: ["https://f1.x402.org", "https://f2.x402.org"],
@@ -413,14 +413,14 @@ describe("createX402MCPServer", () => {
       buildPaymentRequirements: vi.fn(),
     };
 
-    const server = createX402MCPServer({
+    const server = createx402MCPServer({
       name: "test-server",
       version: "1.0.0",
       schemes: [
         {
           network: "eip155:84532",
           server: mockSchemeServer as unknown as Parameters<
-            typeof createX402MCPServer
+            typeof createx402MCPServer
           >[0]["schemes"][0]["server"],
         },
       ],
@@ -430,7 +430,7 @@ describe("createX402MCPServer", () => {
   });
 
   it("should defer initialization when syncFacilitatorOnStart is false", () => {
-    const server = createX402MCPServer({
+    const server = createx402MCPServer({
       name: "test-server",
       version: "1.0.0",
       syncFacilitatorOnStart: false,

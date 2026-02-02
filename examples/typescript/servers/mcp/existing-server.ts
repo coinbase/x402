@@ -86,17 +86,17 @@ export async function main(): Promise<void> {
   // ========================================================================
 
   // Free tool - works exactly as before, no changes needed
-  // Use type assertion to handle MCP SDK's complex overloaded signatures
-  (mcpServer.tool as Function)("ping", "A free health check tool", {}, async () => ({
+  mcpServer.tool("ping", "A free health check tool", {}, async () => ({
     content: [{ type: "text", text: "pong" }],
   }));
 
-  // Paid tool - just wrap the handler with paid("$price", handler)
-  (mcpServer.tool as Function)(
+  // Paid tool - wrap the handler with paid("$price", handler)
+  // The paid() wrapper returns MCPToolCallback which is compatible with McpServer.tool()
+  mcpServer.tool(
     "get_weather",
     "Get current weather for a city. Requires payment of $0.001.",
     { city: z.string().describe("The city name to get weather for") },
-    paid("$0.001", async args => ({
+    paid("$0.001", async (args: { city: string }) => ({
       content: [
         {
           type: "text" as const,
@@ -107,11 +107,11 @@ export async function main(): Promise<void> {
   );
 
   // Another paid tool with different price
-  (mcpServer.tool as Function)(
+  mcpServer.tool(
     "get_forecast",
     "Get 7-day weather forecast. Requires payment of $0.005.",
     { city: z.string().describe("The city name to get forecast for") },
-    paid("$0.005", async args => {
+    paid("$0.005", async (args: { city: string }) => {
       const forecast = Array.from({ length: 7 }, (_, i) => ({
         day: i + 1,
         ...getWeatherData(args.city as string),

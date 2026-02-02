@@ -1,11 +1,11 @@
 import type {
   PaymentPayload,
   PaymentRequired,
-  PaymentRequirements,
   SettleResponse,
   Network,
   SchemeNetworkClient,
 } from "@x402/core/types";
+import { isPaymentRequired } from "@x402/core/schemas";
 import { x402Client } from "@x402/core/client";
 import type { x402ClientConfig } from "@x402/core/client";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -48,7 +48,7 @@ interface MCPCallToolResult {
  * x402 error structure embedded in tool result content.
  * Used because MCP SDK converts JSON-RPC errors to generic isError results.
  */
-interface X402EmbeddedError {
+interface x402EmbeddedError {
   "x402/error": {
     code: number;
     message: string;
@@ -71,105 +71,14 @@ function isMCPTextContent(content: MCPContentItem): content is MCPContentItem & 
 }
 
 /**
- * Validates that an object conforms to the PaymentRequirements schema.
- * This performs thorough validation of all required fields per the x402 specification.
- *
- * @param obj - The object to validate
- * @returns True if the object is a valid PaymentRequirements
- */
-function isValidPaymentRequirements(obj: unknown): obj is PaymentRequirements {
-  if (typeof obj !== "object" || obj === null) {
-    return false;
-  }
-
-  const req = obj as Record<string, unknown>;
-
-  // Required fields per x402 spec
-  if (typeof req.scheme !== "string" || req.scheme.length === 0) {
-    return false;
-  }
-  if (typeof req.network !== "string" || req.network.length === 0) {
-    return false;
-  }
-  if (typeof req.amount !== "string" || req.amount.length === 0) {
-    return false;
-  }
-  if (typeof req.asset !== "string" || req.asset.length === 0) {
-    return false;
-  }
-  if (typeof req.payTo !== "string" || req.payTo.length === 0) {
-    return false;
-  }
-  if (typeof req.maxTimeoutSeconds !== "number" || req.maxTimeoutSeconds <= 0) {
-    return false;
-  }
-
-  // Optional extra field must be an object if present
-  if (req.extra !== undefined && (typeof req.extra !== "object" || req.extra === null)) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Validates that an object conforms to the PaymentRequired schema.
- * This performs thorough validation of all required fields per the x402 specification.
- *
- * @param obj - The object to validate
- * @returns True if the object is a valid PaymentRequired
- */
-function isValidPaymentRequired(obj: unknown): obj is PaymentRequired {
-  if (typeof obj !== "object" || obj === null) {
-    return false;
-  }
-
-  const pr = obj as Record<string, unknown>;
-
-  // x402Version is required and must be a number (1 or 2)
-  if (typeof pr.x402Version !== "number" || (pr.x402Version !== 1 && pr.x402Version !== 2)) {
-    return false;
-  }
-
-  // accepts is required and must be a non-empty array
-  if (!Array.isArray(pr.accepts) || pr.accepts.length === 0) {
-    return false;
-  }
-
-  // Validate each payment requirements in accepts array
-  for (const req of pr.accepts) {
-    if (!isValidPaymentRequirements(req)) {
-      return false;
-    }
-  }
-
-  // resource is required for v2 and must have at least url
-  if (pr.x402Version === 2) {
-    if (typeof pr.resource !== "object" || pr.resource === null) {
-      return false;
-    }
-    const resource = pr.resource as Record<string, unknown>;
-    if (typeof resource.url !== "string" || resource.url.length === 0) {
-      return false;
-    }
-  }
-
-  // error is optional but must be string if present
-  if (pr.error !== undefined && typeof pr.error !== "string") {
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * Type guard for x402 embedded error structure.
- * Validates the complete structure including the embedded PaymentRequired data.
+ * Validates the complete structure including the embedded PaymentRequired data
+ * using Zod schema validation from @x402/core/schemas.
  *
  * @param parsed - The parsed value to check
  * @returns True if the value is a valid x402 embedded error
  */
-function isX402EmbeddedError(parsed: unknown): parsed is X402EmbeddedError {
+function isx402EmbeddedError(parsed: unknown): parsed is x402EmbeddedError {
   if (typeof parsed !== "object" || parsed === null) {
     return false;
   }
@@ -193,8 +102,9 @@ function isX402EmbeddedError(parsed: unknown): parsed is X402EmbeddedError {
     return false;
   }
 
-  // Validate the PaymentRequired data using thorough validation
-  if (!isValidPaymentRequired(errorObj.data)) {
+  // Validate the PaymentRequired data using Zod schema validation
+  // This handles both V1 and V2 formats automatically
+  if (!isPaymentRequired(errorObj.data)) {
     return false;
   }
 
@@ -676,7 +586,7 @@ export class x402MCPClient {
       const parsed: unknown = JSON.parse(firstItem.text);
 
       // Check for x402/error format (MCP transport spec compliant)
-      if (isX402EmbeddedError(parsed)) {
+      if (isx402EmbeddedError(parsed)) {
         return parsed["x402/error"].data;
       }
     } catch {
@@ -689,9 +599,9 @@ export class x402MCPClient {
 }
 
 /**
- * Configuration for createX402MCPClient factory
+ * Configuration for createx402MCPClient factory
  */
-export interface X402MCPClientConfig {
+export interface x402MCPClientConfig {
   /** MCP client name */
   name: string;
 
@@ -731,7 +641,7 @@ export interface X402MCPClientConfig {
  * Wraps an existing MCP client with x402 payment handling.
  *
  * Use this when you already have an MCP client instance and want to add
- * payment capabilities. For a simpler setup, use createX402MCPClient instead.
+ * payment capabilities. For a simpler setup, use createx402MCPClient instead.
  *
  * @param mcpClient - The MCP client to wrap
  * @param paymentClient - The x402 client for payment handling
@@ -814,11 +724,11 @@ export function wrapMCPClientWithPaymentFromConfig(
  *
  * @example
  * ```typescript
- * import { createX402MCPClient } from "@x402/mcp";
+ * import { createx402MCPClient } from "@x402/mcp";
  * import { ExactEvmScheme } from "@x402/evm/exact/client";
  * import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
  *
- * const client = createX402MCPClient({
+ * const client = createx402MCPClient({
  *   name: "my-agent",
  *   version: "1.0.0",
  *   schemes: [
@@ -842,7 +752,7 @@ export function wrapMCPClientWithPaymentFromConfig(
  * const result = await client.callTool("get_weather", { city: "NYC" });
  * ```
  */
-export function createX402MCPClient(config: X402MCPClientConfig): x402MCPClient {
+export function createx402MCPClient(config: x402MCPClientConfig): x402MCPClient {
   // Create MCP client
   const mcpClient = new Client(
     {

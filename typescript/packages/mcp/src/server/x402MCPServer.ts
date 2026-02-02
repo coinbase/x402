@@ -56,9 +56,10 @@ export type ToolHandler<TArgs = Record<string, unknown>> = (
 ) => Promise<ToolResult> | ToolResult;
 
 /**
- * Tool result returned by handlers - simplified to ensure compatibility
+ * Tool result returned by handlers - includes index signature for MCP SDK compatibility.
  */
 export interface ToolResult {
+  [key: string]: unknown;
   content: Array<{
     type: "text";
     text: string;
@@ -651,9 +652,9 @@ export interface SchemeRegistration {
 }
 
 /**
- * Configuration options for createX402MCPServer factory
+ * Configuration options for createx402MCPServer factory
  */
-export interface X402MCPServerConfig {
+export interface x402MCPServerConfig {
   /** MCP server name */
   name: string;
 
@@ -703,10 +704,10 @@ export interface X402MCPServerConfig {
  *
  * @example
  * ```typescript
- * import { createX402MCPServer } from "@x402/mcp";
+ * import { createx402MCPServer } from "@x402/mcp";
  * import { ExactEvmServer } from "@x402/evm/exact/server";
  *
- * const server = createX402MCPServer({
+ * const server = createx402MCPServer({
  *   name: "weather-api",
  *   version: "1.0.0",
  *   facilitator: "https://facilitator.x402.org/",
@@ -735,7 +736,7 @@ export interface X402MCPServerConfig {
  * await server.server.connect(transport);
  * ```
  */
-export function createX402MCPServer(config: X402MCPServerConfig): x402MCPServer {
+export function createx402MCPServer(config: x402MCPServerConfig): x402MCPServer {
   // Create the MCP server
   const mcpServer = new McpServer(
     {
@@ -835,8 +836,10 @@ export interface PaymentWrapperFullConfig extends PaymentWrapperBaseConfig {
 /**
  * Result type for wrapped tool handlers.
  * Matches the MCP SDK's expected tool result format with optional _meta.
+ * Includes index signature for MCP SDK compatibility with CallToolResult.
  */
 export interface WrappedToolResult {
+  [key: string]: unknown;
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
   _meta?: Record<string, unknown>;
@@ -851,21 +854,36 @@ export type PaymentWrappedHandler<TArgs = Record<string, unknown>> = (
 ) => Promise<ToolResult> | ToolResult;
 
 /**
+ * MCP SDK compatible tool callback type.
+ * This type matches the signature expected by McpServer.tool() for tools with arguments.
+ * The return type is compatible with CallToolResult from the MCP SDK.
+ *
+ * Note: We use `unknown` for `extra` because the MCP SDK passes `RequestHandlerExtra` which
+ * contains `_meta` and other fields. Using `unknown` allows TypeScript to accept it.
+ */
+export type MCPToolCallback<TArgs = Record<string, unknown>> = (
+  args: TArgs,
+  extra: unknown,
+) => WrappedToolResult | Promise<WrappedToolResult>;
+
+/**
  * The function returned by createPaymentWrapper when using base config (no price).
  * Call with price and handler to create a wrapped handler.
+ * Returns an MCP SDK compatible callback that can be passed directly to McpServer.tool().
  */
 export type PaymentWrapperWithPrice = <TArgs extends Record<string, unknown>>(
   price: Price | DynamicPrice,
   handler: PaymentWrappedHandler<TArgs>,
-) => (args: TArgs, extra: { _meta?: Record<string, unknown> }) => Promise<WrappedToolResult>;
+) => MCPToolCallback<TArgs>;
 
 /**
  * The function returned by createPaymentWrapper when using full config (includes price).
  * Call with just the handler to create a wrapped handler.
+ * Returns an MCP SDK compatible callback that can be passed directly to McpServer.tool().
  */
 export type PaymentWrapperWithoutPrice = <TArgs extends Record<string, unknown>>(
   handler: PaymentWrappedHandler<TArgs>,
-) => (args: TArgs, extra: { _meta?: Record<string, unknown> }) => Promise<WrappedToolResult>;
+) => MCPToolCallback<TArgs>;
 
 /**
  * Creates a reusable payment wrapper for adding x402 payment to MCP tool handlers.
@@ -1062,22 +1080,18 @@ export function createPaymentWrapper(
     const fullConfig = config as PaymentWrapperFullConfig;
     return <TArgs extends Record<string, unknown>>(
       handler: PaymentWrappedHandler<TArgs>,
-    ): ((
-      args: TArgs,
-      extra: { _meta?: Record<string, unknown> },
-    ) => Promise<WrappedToolResult>) => {
-      return createWrappedHandler(fullConfig.price, handler);
+    ): MCPToolCallback<TArgs> => {
+      // Cast to MCPToolCallback for MCP SDK compatibility
+      return createWrappedHandler(fullConfig.price, handler) as MCPToolCallback<TArgs>;
     };
   } else {
     // Base config without price - return function that takes price and handler
     return <TArgs extends Record<string, unknown>>(
       price: Price | DynamicPrice,
       handler: PaymentWrappedHandler<TArgs>,
-    ): ((
-      args: TArgs,
-      extra: { _meta?: Record<string, unknown> },
-    ) => Promise<WrappedToolResult>) => {
-      return createWrappedHandler(price, handler);
+    ): MCPToolCallback<TArgs> => {
+      // Cast to MCPToolCallback for MCP SDK compatibility
+      return createWrappedHandler(price, handler) as MCPToolCallback<TArgs>;
     };
   }
 }

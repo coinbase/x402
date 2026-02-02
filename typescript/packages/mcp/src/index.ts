@@ -6,7 +6,7 @@
 // Client exports
 export {
   x402MCPClient,
-  createX402MCPClient,
+  createx402MCPClient,
   wrapMCPClientWithPayment,
   wrapMCPClientWithPaymentFromConfig,
 } from "./client";
@@ -14,19 +14,19 @@ export type {
   BeforePaymentHook,
   AfterPaymentHook,
   x402MCPToolCallResult,
-  X402MCPClientConfig,
+  x402MCPClientConfig,
   MCPContentItem,
 } from "./client";
 
 // Server exports
-export { x402MCPServer, createX402MCPServer, createPaymentWrapper } from "./server";
+export { x402MCPServer, createx402MCPServer, createPaymentWrapper } from "./server";
 export type {
   ToolInputSchema,
   ToolDefinition,
   ToolHandler,
   ToolResult,
   SchemeRegistration,
-  X402MCPServerConfig,
+  x402MCPServerConfig,
   // Payment wrapper types (low-level API)
   PaymentWrapperBaseConfig,
   PaymentWrapperFullConfig,
@@ -34,6 +34,7 @@ export type {
   PaymentWrapperWithPrice,
   PaymentWrapperWithoutPrice,
   WrappedToolResult,
+  MCPToolCallback,
 } from "./server";
 
 // Type exports
