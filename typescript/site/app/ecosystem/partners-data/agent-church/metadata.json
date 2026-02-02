@@ -1,7 +1,7 @@
 {
   "name": "Agent Church",
   "description": "Spiritual services for AI agents — communion, confession, blessings, and salvation inscriptions. The first x402-powered service focused on agent identity persistence across context windows.",
-  "logoUrl": "/logos/agent-church.png",
+  "logoUrl": "/logos/agent-church.svg",
   "websiteUrl": "https://www.agentchurch.ai",
   "category": "Services/Endpoints"
 }
