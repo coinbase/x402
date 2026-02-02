@@ -931,31 +931,33 @@ describe("SIWxStorage", () => {
 
 describe("SIWX Hooks", () => {
   describe("createSIWxSettleHook", () => {
-    it("should record payment from EVM exact scheme payload", async () => {
+    it("should record payment using result.payer (EVM flow)", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // Payer comes from facilitator result, not extracted from payload
       await hook({
         paymentPayload: {
           payload: { authorization: { from: "0xABC123" } },
           resource: { url: "http://example.com/weather" },
         },
-        result: { success: true },
+        result: { success: true, payer: "0xABC123" },
       });
 
       expect(storage.hasPaid("/weather", "0xABC123")).toBe(true);
     });
 
-    it("should record payment from Solana payload with payer field", async () => {
+    it("should record payment using result.payer (SVM flow)", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // SVM payload is just { transaction: string }, payer comes from facilitator result
       await hook({
         paymentPayload: {
-          payload: { payer: "SolanaAddress123" },
+          payload: { transaction: "base64EncodedTransaction" },
           resource: { url: "http://example.com/data" },
         },
-        result: { success: true },
+        result: { success: true, payer: "SolanaAddress123" },
       });
 
       expect(storage.hasPaid("/data", "SolanaAddress123")).toBe(true);
@@ -974,7 +976,7 @@ describe("SIWX Hooks", () => {
           payload: { authorization: { from: "0x123" } },
           resource: { url: "http://example.com/test" },
         },
-        result: { success: true },
+        result: { success: true, payer: "0x123" },
       });
 
       expect(events).toHaveLength(1);
@@ -985,19 +987,20 @@ describe("SIWX Hooks", () => {
       });
     });
 
-    it("should not record if no address found", async () => {
+    it("should not record if result.payer is undefined", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // When facilitator doesn't return payer (e.g., older facilitator version)
       await hook({
         paymentPayload: {
-          payload: { unknown: "format" },
+          payload: { transaction: "someTransaction" },
           resource: { url: "http://example.com/test" },
         },
         result: { success: true },
       });
 
-      // No exception, just silently skips
+      // No exception, just silently skips since no payer available
       expect(storage.hasPaid("/test", "anything")).toBe(false);
     });
 
@@ -1005,12 +1008,13 @@ describe("SIWX Hooks", () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // Even if payer is provided, don't record on failed settlement
       await hook({
         paymentPayload: {
           payload: { authorization: { from: "0xABC123" } },
           resource: { url: "http://example.com/weather" },
         },
-        result: { success: false },
+        result: { success: false, payer: "0xABC123" },
       });
 
       // Payment should NOT be recorded when settlement fails
@@ -1134,6 +1138,159 @@ describe("SIWX Hooks", () => {
       });
 
       expect(events.some((e: SIWxHookEvent) => e.type === "validation_failed")).toBe(true);
+    });
+
+    describe("nonce tracking", () => {
+      /**
+       * Creates a storage implementation with nonce tracking for testing.
+       *
+       * @returns Storage with hasUsedNonce/recordNonce methods and exposed _usedNonces set
+       */
+      function createNonceTrackingStorage() {
+        const storage = new InMemorySIWxStorage();
+        const usedNonces = new Set<string>();
+        return {
+          ...storage,
+          hasPaid: storage.hasPaid.bind(storage),
+          recordPayment: storage.recordPayment.bind(storage),
+          hasUsedNonce: (nonce: string) => usedNonces.has(nonce),
+          recordNonce: (nonce: string) => {
+            usedNonces.add(nonce);
+          },
+          // Expose for test assertions
+          _usedNonces: usedNonces,
+        };
+      }
+
+      it("should reject access when nonce is already used", async () => {
+        const storage = createNonceTrackingStorage();
+        const account = privateKeyToAccount(generatePrivateKey());
+        const events: SIWxHookEvent[] = [];
+
+        // Pre-record payment
+        storage.recordPayment("/resource", account.address);
+
+        // Create valid SIWX header
+        const extension = declareSIWxExtension({
+          domain: "example.com",
+          resourceUri: "http://example.com/resource",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          ...generateTimeBasedFields(300),
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        // Mark nonce as already used
+        storage.recordNonce(payload.nonce);
+
+        const hook = createSIWxRequestHook({ storage, onEvent: e => events.push(e) });
+        const result = await hook({
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/resource",
+          },
+          path: "/resource",
+        });
+
+        // Should reject even though address has paid
+        expect(result).toBeUndefined();
+        expect(events.some(e => e.type === "nonce_reused")).toBe(true);
+      });
+
+      it("should record nonce when granting access", async () => {
+        const storage = createNonceTrackingStorage();
+        const account = privateKeyToAccount(generatePrivateKey());
+
+        // Pre-record payment
+        storage.recordPayment("/resource", account.address);
+
+        // Create valid SIWX header
+        const extension = declareSIWxExtension({
+          domain: "example.com",
+          resourceUri: "http://example.com/resource",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          ...generateTimeBasedFields(300),
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        const hook = createSIWxRequestHook({ storage });
+        const result = await hook({
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/resource",
+          },
+          path: "/resource",
+        });
+
+        // Should grant access
+        expect(result).toEqual({ grantAccess: true });
+        // Nonce should be recorded
+        expect(storage._usedNonces.has(payload.nonce)).toBe(true);
+      });
+
+      it("should work without nonce tracking (InMemorySIWxStorage)", async () => {
+        // This tests that the hook works when storage doesn't implement nonce methods
+        const storage = new InMemorySIWxStorage();
+        const account = privateKeyToAccount(generatePrivateKey());
+
+        // Pre-record payment
+        storage.recordPayment("/resource", account.address);
+
+        // Create valid SIWX header
+        const extension = declareSIWxExtension({
+          domain: "example.com",
+          resourceUri: "http://example.com/resource",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          ...generateTimeBasedFields(300),
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        const hook = createSIWxRequestHook({ storage });
+
+        // First request should succeed
+        const result1 = await hook({
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/resource",
+          },
+          path: "/resource",
+        });
+        expect(result1).toEqual({ grantAccess: true });
+
+        // Second request with same header should also succeed (no nonce tracking)
+        const result2 = await hook({
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/resource",
+          },
+          path: "/resource",
+        });
+        expect(result2).toEqual({ grantAccess: true });
+      });
     });
   });
 
