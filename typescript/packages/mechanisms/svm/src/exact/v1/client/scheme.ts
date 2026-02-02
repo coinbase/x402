@@ -30,6 +30,7 @@ import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import {
   DEFAULT_COMPUTE_UNIT_LIMIT,
   DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  MEMO_PROGRAM_ADDRESS,
 } from "../../../constants";
 import type { ClientSvmConfig, ClientSvmSigner } from "../../../signer";
 import type { ExactSvmPayloadV1 } from "../../../types";
@@ -111,6 +112,17 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
 
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
+    const nonce = crypto.getRandomValues(new Uint8Array(16));
+    const memoIx = {
+      programAddress: MEMO_PROGRAM_ADDRESS as Address,
+      accounts: [] as const,
+      data: new TextEncoder().encode(
+        Array.from(nonce)
+          .map(b => b.toString(16).padStart(2, "0"))
+          .join(""),
+      ),
+    };
+
     const tx = pipe(
       createTransactionMessage({ version: 0 }),
       tx => setTransactionMessageComputeUnitPrice(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS, tx),
@@ -120,7 +132,7 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
           getSetComputeUnitLimitInstruction({ units: DEFAULT_COMPUTE_UNIT_LIMIT }),
           tx,
         ),
-      tx => appendTransactionMessageInstructions([transferIx], tx),
+      tx => appendTransactionMessageInstructions([transferIx, memoIx], tx),
       tx => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
     );
 

@@ -12,6 +12,7 @@ const (
 	ErrTransactionInstructionsLength  = "invalid_exact_solana_payload_transaction_instructions_length"
 	ErrUnknownFourthInstruction       = "invalid_exact_solana_payload_unknown_fourth_instruction"
 	ErrUnknownFifthInstruction        = "invalid_exact_solana_payload_unknown_fifth_instruction"
+	ErrUnknownSixthInstruction        = "invalid_exact_solana_payload_unknown_sixth_instruction"
 	ErrComputeLimitInstruction        = "invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction"
 	ErrComputePriceInstruction        = "invalid_exact_solana_payload_transaction_instructions_compute_price_instruction"
 	ErrComputePriceInstructionTooHigh = "invalid_exact_solana_payload_transaction_instructions_compute_price_instruction_too_high"
