@@ -15,33 +15,6 @@ import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
 
 /**
- * Extracts the payer address from a payment payload.
- * Supports multiple payment scheme formats.
- *
- * @param payload - The payment payload from settlement
- * @returns The payer address if found, undefined otherwise
- */
-function extractPayerAddress(payload: unknown): string | undefined {
-  if (!payload || typeof payload !== "object") return undefined;
-
-  const p = payload as Record<string, unknown>;
-
-  // EVM exact scheme: payload.authorization.from
-  if (p.authorization && typeof p.authorization === "object") {
-    const auth = p.authorization as Record<string, unknown>;
-    if (typeof auth.from === "string") return auth.from;
-  }
-
-  // Solana exact scheme: payload.payer
-  if (typeof p.payer === "string") return p.payer;
-
-  // Generic: payload.from
-  if (typeof p.from === "string") return p.from;
-
-  return undefined;
-}
-
-/**
  * Options for creating server-side SIWX hooks.
  */
 export interface CreateSIWxHookOptions {
@@ -80,12 +53,13 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
 
   return async (ctx: {
     paymentPayload: { payload: unknown; resource: { url: string } };
-    result: { success: boolean };
+    result: { success: boolean; payer?: string };
   }): Promise<void> => {
     // Only record payment if settlement succeeded
     if (!ctx.result.success) return;
 
-    const address = extractPayerAddress(ctx.paymentPayload.payload);
+    // Get payer from facilitator's settle result (works for all payment schemes)
+    const address = ctx.result.payer;
     if (!address) return;
 
     const resource = new URL(ctx.paymentPayload.resource.url).pathname;

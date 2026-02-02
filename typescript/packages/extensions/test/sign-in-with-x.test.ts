@@ -931,31 +931,33 @@ describe("SIWxStorage", () => {
 
 describe("SIWX Hooks", () => {
   describe("createSIWxSettleHook", () => {
-    it("should record payment from EVM exact scheme payload", async () => {
+    it("should record payment using result.payer (EVM flow)", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // Payer comes from facilitator result, not extracted from payload
       await hook({
         paymentPayload: {
           payload: { authorization: { from: "0xABC123" } },
           resource: { url: "http://example.com/weather" },
         },
-        result: { success: true },
+        result: { success: true, payer: "0xABC123" },
       });
 
       expect(storage.hasPaid("/weather", "0xABC123")).toBe(true);
     });
 
-    it("should record payment from Solana payload with payer field", async () => {
+    it("should record payment using result.payer (SVM flow)", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // SVM payload is just { transaction: string }, payer comes from facilitator result
       await hook({
         paymentPayload: {
-          payload: { payer: "SolanaAddress123" },
+          payload: { transaction: "base64EncodedTransaction" },
           resource: { url: "http://example.com/data" },
         },
-        result: { success: true },
+        result: { success: true, payer: "SolanaAddress123" },
       });
 
       expect(storage.hasPaid("/data", "SolanaAddress123")).toBe(true);
@@ -974,7 +976,7 @@ describe("SIWX Hooks", () => {
           payload: { authorization: { from: "0x123" } },
           resource: { url: "http://example.com/test" },
         },
-        result: { success: true },
+        result: { success: true, payer: "0x123" },
       });
 
       expect(events).toHaveLength(1);
@@ -985,19 +987,20 @@ describe("SIWX Hooks", () => {
       });
     });
 
-    it("should not record if no address found", async () => {
+    it("should not record if result.payer is undefined", async () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // When facilitator doesn't return payer (e.g., older facilitator version)
       await hook({
         paymentPayload: {
-          payload: { unknown: "format" },
+          payload: { transaction: "someTransaction" },
           resource: { url: "http://example.com/test" },
         },
         result: { success: true },
       });
 
-      // No exception, just silently skips
+      // No exception, just silently skips since no payer available
       expect(storage.hasPaid("/test", "anything")).toBe(false);
     });
 
@@ -1005,12 +1008,13 @@ describe("SIWX Hooks", () => {
       const storage = new InMemorySIWxStorage();
       const hook = createSIWxSettleHook({ storage });
 
+      // Even if payer is provided, don't record on failed settlement
       await hook({
         paymentPayload: {
           payload: { authorization: { from: "0xABC123" } },
           resource: { url: "http://example.com/weather" },
         },
-        result: { success: false },
+        result: { success: false, payer: "0xABC123" },
       });
 
       // Payment should NOT be recorded when settlement fails
