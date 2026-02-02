@@ -356,6 +356,10 @@ export class x402MCPClient {
    *
    * @param name - The name of the tool to call
    * @param args - Arguments to pass to the tool
+   * @param options - Optional MCP request options (timeout, signal, etc.)
+   * @param options.timeout - Request timeout in milliseconds (default: 60000)
+   * @param options.signal - AbortSignal for cancellation
+   * @param options.resetTimeoutOnProgress - If true, progress notifications reset the timeout
    * @returns The tool result with payment metadata
    * @throws Error if payment is required but autoPayment is disabled and no payment provided
    * @throws Error if payment approval is denied
@@ -364,9 +368,10 @@ export class x402MCPClient {
   async callTool(
     name: string,
     args: Record<string, unknown> = {},
+    options?: { timeout?: number; signal?: AbortSignal; resetTimeoutOnProgress?: boolean },
   ): Promise<x402MCPToolCallResult> {
     // First attempt without payment
-    const result = await this.mcpClient.callTool({ name, arguments: args });
+    const result = await this.mcpClient.callTool({ name, arguments: args }, undefined, options);
 
     // Validate result structure
     if (!isMCPCallToolResult(result)) {
@@ -401,7 +406,7 @@ export class x402MCPClient {
         }
         if (hookResult.payment) {
           // Use the hook-provided payment
-          return this.callToolWithPayment(name, args, hookResult.payment);
+          return this.callToolWithPayment(name, args, hookResult.payment, options);
         }
       }
     }
@@ -440,7 +445,7 @@ export class x402MCPClient {
     const paymentPayload = await this._paymentClient.createPaymentPayload(paymentRequired);
 
     // Retry with payment
-    return this.callToolWithPayment(name, args, paymentPayload);
+    return this.callToolWithPayment(name, args, paymentPayload, options);
   }
 
   /**
@@ -452,12 +457,17 @@ export class x402MCPClient {
    * @param name - The name of the tool to call
    * @param args - Arguments to pass to the tool
    * @param paymentPayload - The payment payload to include
+   * @param options - Optional MCP request options (timeout, signal, etc.)
+   * @param options.timeout - Request timeout in milliseconds (default: 60000)
+   * @param options.signal - AbortSignal for cancellation
+   * @param options.resetTimeoutOnProgress - If true, progress notifications reset the timeout
    * @returns The tool result with payment metadata
    */
   async callToolWithPayment(
     name: string,
     args: Record<string, unknown>,
     paymentPayload: PaymentPayload,
+    options?: { timeout?: number; signal?: AbortSignal; resetTimeoutOnProgress?: boolean },
   ): Promise<x402MCPToolCallResult> {
     // Build the call parameters with payment metadata
     // Note: The MCP SDK's callTool accepts _meta but the types don't always expose it
@@ -470,7 +480,7 @@ export class x402MCPClient {
     };
 
     // Call with payment in _meta
-    const result = await this.mcpClient.callTool(callParams);
+    const result = await this.mcpClient.callTool(callParams, undefined, options);
 
     // Validate result structure
     if (!isMCPCallToolResult(result)) {
