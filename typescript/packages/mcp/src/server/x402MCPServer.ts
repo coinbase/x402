@@ -1,4 +1,4 @@
-import type { PaymentRequirements, Network, SchemeNetworkServer } from "@x402/core/types";
+import type { PaymentRequirements, Network, SchemeNetworkServer, Price } from "@x402/core/types";
 import type { FacilitatorClient } from "@x402/core/server";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -13,6 +13,8 @@ import type {
   ServerHookContext,
   AfterExecutionContext,
   SettlementContext,
+  DynamicPayTo,
+  DynamicPrice,
 } from "../types";
 import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../types";
 import { createToolResourceUrl, extractPaymentFromMeta } from "../utils";
@@ -420,8 +422,13 @@ export class x402MCPServer {
         await hook(afterExecContext);
       }
 
+      // If the tool handler returned an error, don't proceed to settlement
+      // The user shouldn't be charged if the tool failed to execute
+      if (result.isError) {
+        return result;
+      }
+
       // Settle the payment (match HTTP behavior: settle after execution)
-      // If settlement fails, still return the result but include the error in _meta
       try {
         const settleResult = await this.resourceServer.settlePayment(
           paymentPayload,
@@ -446,20 +453,14 @@ export class x402MCPServer {
           },
         };
       } catch (settleError) {
-        // Settlement failed after execution - return result with error info
-        // This matches HTTP behavior where we still return content but indicate settlement failed
-        return {
-          content: result.content,
-          isError: result.isError,
-          _meta: {
-            [MCP_PAYMENT_RESPONSE_META_KEY]: {
-              success: false,
-              errorReason: settleError instanceof Error ? settleError.message : "Settlement failed",
-              transaction: "",
-              network: paymentRequirements.network,
-            },
-          },
-        };
+        // Settlement failed after execution - return 402 error per MCP spec
+        // Don't return content when settlement fails
+        return this.createSettlementFailedResult(
+          name,
+          paymentConfig,
+          paymentRequirements,
+          settleError instanceof Error ? settleError.message : "Settlement failed",
+        );
       }
     };
 
@@ -524,6 +525,68 @@ export class x402MCPServer {
               code: MCP_PAYMENT_REQUIRED_CODE,
               message: errorMessage,
               data: paymentRequired,
+            },
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  /**
+   * Creates a structured 402 settlement failed result.
+   *
+   * Per MCP transport spec, settlement failure returns a 402 error (not content with error in _meta).
+   * The error data includes the original payment requirements plus settlement failure info.
+   *
+   * @param name - Tool name
+   * @param paymentConfig - Payment configuration
+   * @param paymentRequirements - Resolved payment requirements
+   * @param errorMessage - Error message describing settlement failure
+   * @returns Structured 402 error result
+   */
+  private async createSettlementFailedResult(
+    name: string,
+    paymentConfig: MCPToolPaymentConfig,
+    paymentRequirements: PaymentRequirements,
+    errorMessage: string,
+  ): Promise<{
+    content: Array<{ type: "text"; text: string }>;
+    isError: boolean;
+  }> {
+    const resourceInfo = {
+      url: createToolResourceUrl(name, paymentConfig.resource?.url),
+      description: paymentConfig.resource?.description || `Tool: ${name}`,
+      mimeType: paymentConfig.resource?.mimeType || "application/json",
+    };
+
+    const paymentRequired = await this.resourceServer.createPaymentRequiredResponse(
+      [paymentRequirements],
+      resourceInfo,
+      `Payment settlement failed: ${errorMessage}`,
+    );
+
+    // Include settlement failure response per MCP spec
+    const settlementFailure = {
+      success: false,
+      errorReason: errorMessage,
+      transaction: "",
+      network: paymentRequirements.network,
+    };
+
+    // Embed error in content as JSON (SDK limitation workaround)
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            "x402/error": {
+              code: MCP_PAYMENT_REQUIRED_CODE,
+              message: `Payment settlement failed: ${errorMessage}`,
+              data: {
+                ...paymentRequired,
+                [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
+              },
             },
           }),
         },
@@ -723,4 +786,446 @@ export function createX402MCPServer(config: X402MCPServerConfig): x402MCPServer 
   }
 
   return x402Server;
+}
+
+// ============================================================================
+// Low-Level API: Payment Wrapper for Existing MCP Servers
+// ============================================================================
+
+/**
+ * Base configuration for payment wrapper (without price).
+ * Use this when you want to specify different prices per tool.
+ */
+export interface PaymentWrapperBaseConfig {
+  /** Payment scheme identifier (e.g., "exact") */
+  scheme: string;
+
+  /** Blockchain network identifier in CAIP-2 format (e.g., "eip155:84532") */
+  network: Network;
+
+  /** Recipient wallet address or dynamic resolver */
+  payTo: string | DynamicPayTo;
+
+  /** Maximum time allowed for payment completion in seconds */
+  maxTimeoutSeconds?: number;
+
+  /** Scheme-specific additional information */
+  extra?: Record<string, unknown>;
+
+  /** Resource metadata for the tool */
+  resource?: {
+    /** Custom URL for the resource (defaults to mcp://tool/{toolName}) */
+    url?: string;
+    /** Human-readable description of the tool */
+    description?: string;
+    /** MIME type of the tool response */
+    mimeType?: string;
+  };
+}
+
+/**
+ * Full configuration for payment wrapper (includes price).
+ * Use this for single-tool scenarios or when all tools have the same price.
+ */
+export interface PaymentWrapperFullConfig extends PaymentWrapperBaseConfig {
+  /** Price for the tool call (e.g., "$0.10", "1000000") */
+  price: Price | DynamicPrice;
+}
+
+/**
+ * Result type for wrapped tool handlers.
+ * Matches the MCP SDK's expected tool result format with optional _meta.
+ */
+export interface WrappedToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+  _meta?: Record<string, unknown>;
+}
+
+/**
+ * Handler function type for tools to be wrapped with payment.
+ */
+export type PaymentWrappedHandler<TArgs = Record<string, unknown>> = (
+  args: TArgs,
+  context: MCPToolContext,
+) => Promise<ToolResult> | ToolResult;
+
+/**
+ * The function returned by createPaymentWrapper when using base config (no price).
+ * Call with price and handler to create a wrapped handler.
+ */
+export type PaymentWrapperWithPrice = <TArgs extends Record<string, unknown>>(
+  price: Price | DynamicPrice,
+  handler: PaymentWrappedHandler<TArgs>,
+) => (args: TArgs, extra: { _meta?: Record<string, unknown> }) => Promise<WrappedToolResult>;
+
+/**
+ * The function returned by createPaymentWrapper when using full config (includes price).
+ * Call with just the handler to create a wrapped handler.
+ */
+export type PaymentWrapperWithoutPrice = <TArgs extends Record<string, unknown>>(
+  handler: PaymentWrappedHandler<TArgs>,
+) => (args: TArgs, extra: { _meta?: Record<string, unknown> }) => Promise<WrappedToolResult>;
+
+/**
+ * Creates a reusable payment wrapper for adding x402 payment to MCP tool handlers.
+ *
+ * This is the LOW-LEVEL API for integrating x402 payments with existing MCP servers.
+ * Use this when you have an existing McpServer and want to add payment to specific tools
+ * without adopting the full x402MCPServer abstraction.
+ *
+ * @param resourceServer - The x402 resource server for payment verification/settlement
+ * @param config - Payment configuration (with or without price)
+ * @returns A function that wraps tool handlers with payment logic
+ *
+ * @example
+ * ```typescript
+ * // === Integrating with an EXISTING MCP server ===
+ *
+ * import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+ * import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+ * import { ExactEvmServer } from "@x402/evm/exact/server";
+ *
+ * // Your existing MCP server
+ * const mcpServer = new McpServer({ name: "my-api", version: "1.0.0" });
+ *
+ * // Set up x402 resource server for payment handling
+ * const resourceServer = new x402ResourceServer(facilitatorClient);
+ * resourceServer.register("eip155:84532", new ExactEvmServer());
+ * await resourceServer.initialize();
+ *
+ * // Create a payment wrapper with shared config
+ * const paid = createPaymentWrapper(resourceServer, {
+ *   scheme: "exact",
+ *   network: "eip155:84532",
+ *   payTo: "0x...",
+ * });
+ *
+ * // Use native McpServer.tool() API - wrap handlers with payment
+ * mcpServer.tool("search", "Premium search", { query: z.string() },
+ *   paid("$0.10", async (args) => ({
+ *     content: [{ type: "text", text: "Search results..." }]
+ *   }))
+ * );
+ *
+ * mcpServer.tool("analyze", "Data analysis", { data: z.string() },
+ *   paid("$0.05", async (args) => ({
+ *     content: [{ type: "text", text: "Analysis results..." }]
+ *   }))
+ * );
+ *
+ * // Free tools work exactly as before - no wrapper needed
+ * mcpServer.tool("ping", "Health check", {},
+ *   async () => ({ content: [{ type: "text", text: "pong" }] })
+ * );
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // === Single tool with full config (includes price) ===
+ *
+ * const paid = createPaymentWrapper(resourceServer, {
+ *   scheme: "exact",
+ *   network: "eip155:84532",
+ *   payTo: "0x...",
+ *   price: "$0.10",  // Price included in config
+ * });
+ *
+ * // Just pass the handler - price is already configured
+ * mcpServer.tool("premium_tool", "desc", {},
+ *   paid(async (args) => ({
+ *     content: [{ type: "text", text: "Result" }]
+ *   }))
+ * );
+ * ```
+ */
+export function createPaymentWrapper(
+  resourceServer: x402ResourceServer,
+  config: PaymentWrapperBaseConfig,
+): PaymentWrapperWithPrice;
+export function createPaymentWrapper(
+  resourceServer: x402ResourceServer,
+  config: PaymentWrapperFullConfig,
+): PaymentWrapperWithoutPrice;
+/**
+ * Implementation of createPaymentWrapper that handles both base and full config variants.
+ *
+ * @param resourceServer - The x402 resource server for payment verification and settlement
+ * @param config - Payment wrapper configuration (with or without price)
+ * @returns A function that wraps tool handlers with payment logic
+ */
+export function createPaymentWrapper(
+  resourceServer: x402ResourceServer,
+  config: PaymentWrapperBaseConfig | PaymentWrapperFullConfig,
+): PaymentWrapperWithPrice | PaymentWrapperWithoutPrice {
+  const hasPrice = "price" in config && config.price !== undefined;
+
+  // Internal function to create the actual wrapped handler
+  const createWrappedHandler = <TArgs extends Record<string, unknown>>(
+    price: Price | DynamicPrice,
+    handler: PaymentWrappedHandler<TArgs>,
+  ): ((args: TArgs, extra: { _meta?: Record<string, unknown> }) => Promise<WrappedToolResult>) => {
+    return async (
+      args: TArgs,
+      extra: { _meta?: Record<string, unknown> },
+    ): Promise<WrappedToolResult> => {
+      // We need to derive toolName from somewhere - use a placeholder that gets resolved
+      // The MCP SDK passes the tool name through, but we don't have direct access to it here
+      // We'll use a generic name that can be customized via config.resource
+      const toolName = config.resource?.url?.replace("mcp://tool/", "") || "paid_tool";
+
+      const context: MCPToolContext = {
+        toolName,
+        arguments: args,
+        meta: extra?._meta,
+      };
+
+      // Extract payment from _meta if present
+      const paymentPayload = extractPaymentFromMeta({
+        name: toolName,
+        arguments: args,
+        _meta: extra?._meta,
+      });
+
+      // Build payment requirements
+      const paymentRequirements = await buildPaymentRequirementsFromConfig(
+        resourceServer,
+        toolName,
+        { ...config, price },
+        context,
+      );
+
+      // If no payment provided, return 402 error as structured result
+      if (!paymentPayload) {
+        return createPaymentRequiredResultFromConfig(
+          resourceServer,
+          toolName,
+          { ...config, price },
+          paymentRequirements,
+          "Payment required to access this tool",
+        );
+      }
+
+      // Verify payment
+      const verifyResult = await resourceServer.verifyPayment(paymentPayload, paymentRequirements);
+
+      if (!verifyResult.isValid) {
+        return createPaymentRequiredResultFromConfig(
+          resourceServer,
+          toolName,
+          { ...config, price },
+          paymentRequirements,
+          verifyResult.invalidReason || "Payment verification failed",
+        );
+      }
+
+      // Execute the tool handler
+      const result = await handler(args, context);
+
+      // If the tool handler returned an error, don't proceed to settlement
+      // The user shouldn't be charged if the tool failed to execute
+      if (result.isError) {
+        return result;
+      }
+
+      // Settle the payment
+      try {
+        const settleResult = await resourceServer.settlePayment(
+          paymentPayload,
+          paymentRequirements,
+        );
+
+        // Return result with payment response in _meta
+        return {
+          content: result.content,
+          isError: result.isError,
+          _meta: {
+            [MCP_PAYMENT_RESPONSE_META_KEY]: settleResult,
+          },
+        };
+      } catch (settleError) {
+        // Settlement failed after execution - return 402 error per MCP spec
+        // Don't return content when settlement fails
+        return createSettlementFailedResultFromConfig(
+          resourceServer,
+          toolName,
+          { ...config, price },
+          paymentRequirements,
+          settleError instanceof Error ? settleError.message : "Settlement failed",
+        );
+      }
+    };
+  };
+
+  if (hasPrice) {
+    // Full config with price - return function that just takes handler
+    const fullConfig = config as PaymentWrapperFullConfig;
+    return <TArgs extends Record<string, unknown>>(
+      handler: PaymentWrappedHandler<TArgs>,
+    ): ((
+      args: TArgs,
+      extra: { _meta?: Record<string, unknown> },
+    ) => Promise<WrappedToolResult>) => {
+      return createWrappedHandler(fullConfig.price, handler);
+    };
+  } else {
+    // Base config without price - return function that takes price and handler
+    return <TArgs extends Record<string, unknown>>(
+      price: Price | DynamicPrice,
+      handler: PaymentWrappedHandler<TArgs>,
+    ): ((
+      args: TArgs,
+      extra: { _meta?: Record<string, unknown> },
+    ) => Promise<WrappedToolResult>) => {
+      return createWrappedHandler(price, handler);
+    };
+  }
+}
+
+/**
+ * Helper to build payment requirements from wrapper config.
+ *
+ * @param resourceServer - The x402 resource server for building requirements
+ * @param toolName - Name of the tool for error messages
+ * @param config - Payment wrapper configuration including price
+ * @param context - Tool call context for resolving dynamic values
+ * @returns Resolved payment requirements for the tool
+ */
+async function buildPaymentRequirementsFromConfig(
+  resourceServer: x402ResourceServer,
+  toolName: string,
+  config: PaymentWrapperFullConfig,
+  context: MCPToolContext,
+): Promise<PaymentRequirements> {
+  // Resolve dynamic payTo
+  const payTo = typeof config.payTo === "function" ? await config.payTo(context) : config.payTo;
+
+  // Resolve dynamic price
+  const price = typeof config.price === "function" ? await config.price(context) : config.price;
+
+  // Use resource server to build requirements
+  const requirements = await resourceServer.buildPaymentRequirements({
+    scheme: config.scheme,
+    payTo,
+    price,
+    network: config.network,
+    maxTimeoutSeconds: config.maxTimeoutSeconds,
+  });
+
+  if (requirements.length === 0) {
+    throw new Error(`No payment requirements could be built for tool ${toolName}`);
+  }
+
+  const result = requirements[0];
+
+  // Merge any extra config
+  if (config.extra) {
+    result.extra = { ...result.extra, ...config.extra };
+  }
+
+  return result;
+}
+
+/**
+ * Helper to create 402 payment required result from wrapper config.
+ *
+ * @param resourceServer - The x402 resource server for creating payment required response
+ * @param toolName - Name of the tool for resource URL
+ * @param config - Payment wrapper configuration
+ * @param paymentRequirements - Resolved payment requirements to include in response
+ * @param errorMessage - Error message describing why payment is required
+ * @returns Structured 402 error result with payment requirements
+ */
+async function createPaymentRequiredResultFromConfig(
+  resourceServer: x402ResourceServer,
+  toolName: string,
+  config: PaymentWrapperFullConfig,
+  paymentRequirements: PaymentRequirements,
+  errorMessage: string,
+): Promise<WrappedToolResult> {
+  const resourceInfo = {
+    url: createToolResourceUrl(toolName, config.resource?.url),
+    description: config.resource?.description || `Tool: ${toolName}`,
+    mimeType: config.resource?.mimeType || "application/json",
+  };
+
+  const paymentRequired = await resourceServer.createPaymentRequiredResponse(
+    [paymentRequirements],
+    resourceInfo,
+    errorMessage,
+  );
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          "x402/error": {
+            code: MCP_PAYMENT_REQUIRED_CODE,
+            message: errorMessage,
+            data: paymentRequired,
+          },
+        }),
+      },
+    ],
+    isError: true,
+  };
+}
+
+/**
+ * Helper to create 402 settlement failed result from wrapper config.
+ * Per MCP transport spec, settlement failure returns a 402 error (not content with error in _meta).
+ *
+ * @param resourceServer - The x402 resource server for creating error response
+ * @param toolName - Name of the tool for resource URL
+ * @param config - Payment wrapper configuration
+ * @param paymentRequirements - Original payment requirements for error response
+ * @param errorMessage - Error message describing the settlement failure
+ * @returns Structured 402 error result with settlement failure info
+ */
+async function createSettlementFailedResultFromConfig(
+  resourceServer: x402ResourceServer,
+  toolName: string,
+  config: PaymentWrapperFullConfig,
+  paymentRequirements: PaymentRequirements,
+  errorMessage: string,
+): Promise<WrappedToolResult> {
+  const resourceInfo = {
+    url: createToolResourceUrl(toolName, config.resource?.url),
+    description: config.resource?.description || `Tool: ${toolName}`,
+    mimeType: config.resource?.mimeType || "application/json",
+  };
+
+  const paymentRequired = await resourceServer.createPaymentRequiredResponse(
+    [paymentRequirements],
+    resourceInfo,
+    `Payment settlement failed: ${errorMessage}`,
+  );
+
+  // Include settlement failure response per MCP spec
+  const settlementFailure = {
+    success: false,
+    errorReason: errorMessage,
+    transaction: "",
+    network: paymentRequirements.network,
+  };
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          "x402/error": {
+            code: MCP_PAYMENT_REQUIRED_CODE,
+            message: `Payment settlement failed: ${errorMessage}`,
+            data: {
+              ...paymentRequired,
+              [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
+            },
+          },
+        }),
+      },
+    ],
+    isError: true,
+  };
 }

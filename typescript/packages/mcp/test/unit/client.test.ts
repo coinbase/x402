@@ -38,7 +38,7 @@ const mockPaymentRequired: PaymentRequired = {
       amount: "1000",
       asset: "0xtoken",
       payTo: "0xrecipient",
-      maxAmountRequired: "1000",
+      maxTimeoutSeconds: 60,
       extra: {},
     },
   ],
@@ -155,7 +155,7 @@ describe("x402MCPClient", () => {
     });
 
     it("should expose underlying payment client", () => {
-      expect(client.payment).toBe(mockPaymentClient);
+      expect(client.paymentClient).toBe(mockPaymentClient);
     });
 
     it("should default autoPayment to true", async () => {

@@ -1,8 +1,8 @@
 /**
- * Unit tests for x402MCPServer
+ * Unit tests for x402MCPServer and createPaymentWrapper
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { x402MCPServer, createX402MCPServer } from "../../src/server";
+import { x402MCPServer, createX402MCPServer, createPaymentWrapper } from "../../src/server";
 import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../../src/types";
 import type {
   PaymentPayload,
@@ -41,7 +41,7 @@ const mockPaymentRequirements: PaymentRequirements = {
   amount: "1000",
   asset: "0xtoken",
   payTo: "0xrecipient",
-  maxAmountRequired: "1000",
+  maxTimeoutSeconds: 60,
   extra: {},
 };
 
@@ -286,14 +286,49 @@ describe("x402MCPServer", () => {
         );
       });
 
+      it("should NOT settle payment when handler returns an error", async () => {
+        // Register a tool that returns an error
+        const errorHandler = vi.fn().mockResolvedValue({
+          content: [{ type: "text", text: "Tool execution failed" }],
+          isError: true,
+        });
+
+        server.paidTool(
+          "error_tool",
+          { description: "Tool that fails", inputSchema: {} },
+          paymentConfig,
+          errorHandler,
+        );
+
+        const errorWrappedHandler =
+          mockMcpServer.tool.mock.calls[mockMcpServer.tool.mock.calls.length - 1][3];
+        mockResourceServer.settlePayment.mockClear();
+
+        const result = await errorWrappedHandler(
+          {},
+          { _meta: { "x402/payment": mockPaymentPayload } },
+        );
+
+        // Handler was called
+        expect(errorHandler).toHaveBeenCalled();
+        // Settlement was NOT called because handler returned an error
+        expect(mockResourceServer.settlePayment).not.toHaveBeenCalled();
+        // Result should be the error from the handler
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Tool execution failed");
+      });
+
       it("should handle settlement failure gracefully", async () => {
         mockResourceServer.settlePayment.mockRejectedValueOnce(new Error("Settlement failed"));
 
         const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
 
-        // Should still return content but with error in _meta
-        expect(result.content[0].text).toBe("success");
-        expect(result._meta?.[MCP_PAYMENT_RESPONSE_META_KEY]).toMatchObject({
+        // Per MCP spec, settlement failure returns a 402 error (no content)
+        expect(result.isError).toBe(true);
+        const errorData = JSON.parse(result.content[0].text);
+        expect(errorData["x402/error"].code).toBe(402);
+        expect(errorData["x402/error"].message).toContain("Payment settlement failed");
+        expect(errorData["x402/error"].data["x402/payment-response"]).toMatchObject({
           success: false,
           errorReason: "Settlement failed",
         });
@@ -561,6 +596,354 @@ describe("x402MCPServer hooks", () => {
         .onAfterSettlement(vi.fn());
 
       expect(result).toBe(server);
+    });
+  });
+});
+
+// ============================================================================
+// createPaymentWrapper Tests (Low-Level API)
+// ============================================================================
+
+describe("createPaymentWrapper", () => {
+  let mockResourceServer: MockResourceServer;
+
+  beforeEach(() => {
+    mockResourceServer = createMockResourceServer();
+  });
+
+  describe("with base config (no price)", () => {
+    it("should create a wrapper function that takes price and handler", () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      expect(typeof paid).toBe("function");
+    });
+
+    it("should create wrapped handler when called with price and handler", () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid("$0.10", handler);
+
+      expect(typeof wrappedHandler).toBe("function");
+    });
+
+    it("should return 402 when no payment provided", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid("$0.10", handler);
+
+      const result = await wrappedHandler({}, { _meta: undefined });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('"x402/error"');
+      expect(result.content[0].text).toContain(`"code":${MCP_PAYMENT_REQUIRED_CODE}`);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("should verify payment and execute handler when payment provided", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "success" }] });
+      const wrappedHandler = paid("$0.10", handler);
+
+      const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
+
+      expect(mockResourceServer.verifyPayment).toHaveBeenCalled();
+      expect(handler).toHaveBeenCalled();
+      expect(result.content[0].text).toBe("success");
+      expect(result._meta?.[MCP_PAYMENT_RESPONSE_META_KEY]).toEqual(mockSettleResponse);
+    });
+
+    it("should return 402 when payment verification fails", async () => {
+      mockResourceServer.verifyPayment.mockResolvedValueOnce({
+        isValid: false,
+        invalidReason: "Insufficient balance",
+      });
+
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn();
+      const wrappedHandler = paid("$0.10", handler);
+
+      const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Insufficient balance");
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("should NOT settle payment when handler returns an error", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const errorHandler = vi.fn().mockResolvedValue({
+        content: [{ type: "text", text: "Tool execution failed" }],
+        isError: true,
+      });
+      const wrappedHandler = paid("$0.10", errorHandler);
+      mockResourceServer.settlePayment.mockClear();
+
+      const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
+
+      // Handler was called
+      expect(errorHandler).toHaveBeenCalled();
+      // Settlement was NOT called because handler returned an error
+      expect(mockResourceServer.settlePayment).not.toHaveBeenCalled();
+      // Result should be the error from the handler
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toBe("Tool execution failed");
+    });
+
+    it("should handle settlement failure gracefully", async () => {
+      mockResourceServer.settlePayment.mockRejectedValueOnce(new Error("Settlement failed"));
+
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "success" }] });
+      const wrappedHandler = paid("$0.10", handler);
+
+      const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
+
+      // Per MCP spec, settlement failure returns a 402 error (no content)
+      expect(result.isError).toBe(true);
+      const errorData = JSON.parse(result.content[0].text);
+      expect(errorData["x402/error"].code).toBe(402);
+      expect(errorData["x402/error"].message).toContain("Payment settlement failed");
+      expect(errorData["x402/error"].data["x402/payment-response"]).toMatchObject({
+        success: false,
+        errorReason: "Settlement failed",
+      });
+    });
+  });
+
+  describe("with full config (includes price)", () => {
+    it("should create a wrapper function that takes only handler", () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+        },
+      );
+
+      expect(typeof paid).toBe("function");
+    });
+
+    it("should create wrapped handler when called with handler only", () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(handler);
+
+      expect(typeof wrappedHandler).toBe("function");
+    });
+
+    it("should work correctly with full config", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "success" }] });
+      const wrappedHandler = paid(handler);
+
+      const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
+
+      expect(handler).toHaveBeenCalled();
+      expect(result.content[0].text).toBe("success");
+    });
+  });
+
+  describe("with extra config options", () => {
+    it("should include extra in payment requirements", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+          extra: { name: "USDC", version: "2" },
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(handler);
+
+      await wrappedHandler({}, { _meta: undefined });
+
+      // The buildPaymentRequirements should have been called
+      expect(mockResourceServer.buildPaymentRequirements).toHaveBeenCalled();
+    });
+
+    it("should use resource config when provided", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+          resource: {
+            url: "mcp://tool/custom_tool",
+            description: "Custom description",
+            mimeType: "text/plain",
+          },
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(handler);
+
+      await wrappedHandler({}, { _meta: undefined });
+
+      expect(mockResourceServer.createPaymentRequiredResponse).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          description: "Custom description",
+          mimeType: "text/plain",
+        }),
+        expect.any(String),
+      );
+    });
+  });
+
+  describe("dynamic config resolution", () => {
+    it("should resolve dynamic payTo", async () => {
+      const dynamicPayTo = vi.fn().mockResolvedValue("0xdynamic");
+
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: dynamicPayTo,
+          price: "$0.10",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(handler);
+
+      await wrappedHandler({ arg: "value" }, { _meta: undefined });
+
+      expect(dynamicPayTo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arguments: { arg: "value" },
+        }),
+      );
+    });
+
+    it("should resolve dynamic price", async () => {
+      const dynamicPrice = vi.fn().mockResolvedValue("$0.05");
+
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(dynamicPrice, handler);
+
+      await wrappedHandler({}, { _meta: undefined });
+
+      expect(dynamicPrice).toHaveBeenCalled();
+    });
+  });
+
+  describe("handler context", () => {
+    it("should pass correct context to handler", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+          price: "$0.10",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid(handler);
+
+      const meta = { "x402/payment": mockPaymentPayload, custom: "data" };
+      await wrappedHandler({ arg1: "value1" }, { _meta: meta });
+
+      expect(handler).toHaveBeenCalledWith(
+        { arg1: "value1" },
+        expect.objectContaining({
+          arguments: { arg1: "value1" },
+          meta: meta,
+        }),
+      );
     });
   });
 });

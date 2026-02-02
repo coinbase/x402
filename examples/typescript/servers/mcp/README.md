@@ -31,7 +31,7 @@ pnpm install
 
 ## Running
 
-### Simple Mode (Recommended)
+### Simple Mode (Recommended for New Projects)
 
 Uses the `createX402MCPServer` factory function for easy setup:
 
@@ -39,9 +39,9 @@ Uses the `createX402MCPServer` factory function for easy setup:
 pnpm dev
 ```
 
-### Advanced Mode
+### Advanced Mode (Mid-Level API)
 
-Uses `x402MCPServer` with manual setup for full control:
+Uses `x402MCPServer` with manual setup for full control and hooks:
 
 ```bash
 pnpm dev:advanced
@@ -52,6 +52,21 @@ Advanced mode demonstrates:
 - Manual MCP server creation
 - Custom facilitator client configuration
 - Server-side hooks (onBeforeExecution, onAfterExecution, onAfterSettlement)
+
+### Existing Server Mode (Low-Level API)
+
+Uses `createPaymentWrapper` to add payment to an existing MCP server:
+
+```bash
+pnpm dev:existing
+```
+
+Existing server mode demonstrates:
+
+- Adding x402 to an existing `McpServer` instance
+- Using native `McpServer.tool()` API
+- Creating a reusable payment wrapper
+- Mixing paid and free tools naturally
 
 The server will start on `http://localhost:4022` with:
 

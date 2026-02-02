@@ -86,9 +86,73 @@ if (result.paymentMade) {
 }
 ```
 
-## Advanced Usage (Low-Level API)
+## Integrating with Existing MCP Servers
 
-### Server - Manual Setup
+If you have an existing MCP server and want to add payment to specific tools without adopting the full `x402MCPServer` abstraction, use `createPaymentWrapper`:
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+// Your existing MCP server
+const mcpServer = new McpServer({ name: "my-api", version: "1.0.0" });
+
+// Set up x402 for payment handling
+const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }));
+resourceServer.register("eip155:84532", new ExactEvmScheme());
+await resourceServer.initialize();
+
+// Create a payment wrapper with shared config
+const paid = createPaymentWrapper(resourceServer, {
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...",
+});
+
+// Free tools - unchanged, use native McpServer API
+mcpServer.tool("ping", "Health check", {}, async () => ({
+  content: [{ type: "text", text: "pong" }],
+}));
+
+// Paid tools - wrap handlers with paid("$price", handler)
+mcpServer.tool("search", "Premium search", { query: z.string() },
+  paid("$0.10", async (args) => ({
+    content: [{ type: "text", text: "Search results..." }],
+  }))
+);
+
+mcpServer.tool("analyze", "Data analysis", { data: z.string() },
+  paid("$0.05", async (args) => ({
+    content: [{ type: "text", text: "Analysis results..." }],
+  }))
+);
+```
+
+### Single Tool with Full Config
+
+If you only have one paid tool, include the price in the config:
+
+```typescript
+const paid = createPaymentWrapper(resourceServer, {
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...",
+  price: "$0.10",  // Price included
+});
+
+// Just pass the handler
+mcpServer.tool("premium_tool", "desc", {},
+  paid(async (args) => ({ content: [{ type: "text", text: "Result" }] }))
+);
+```
+
+## Advanced Usage (Mid-Level API)
+
+### Server - Manual Setup with x402MCPServer
+
+Use `x402MCPServer` when you need hooks and server-level concerns:
 
 ```typescript
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -103,6 +167,10 @@ resourceServer.register("eip155:84532", new ExactEvmScheme());
 await resourceServer.initialize();
 
 const x402Server = new x402MCPServer(mcpServer, resourceServer);
+
+// Register hooks (available with x402MCPServer)
+x402Server.onBeforeExecution(async (ctx) => { /* ... */ });
+x402Server.onAfterSettlement(async (ctx) => { /* ... */ });
 
 // Register tools...
 x402Server.paidTool(...);
@@ -188,6 +256,18 @@ The client parses this structure to extract PaymentRequired data. This is a prag
 | `payTo` | `string` | Yes | Recipient wallet address |
 | `maxTimeoutSeconds` | `number` | No | Payment timeout (default: 60) |
 | `extra` | `object` | No | Scheme-specific parameters (e.g., EIP-712 domain) |
+| `resource` | `object` | No | Resource metadata |
+
+### PaymentWrapperConfig (for createPaymentWrapper)
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `scheme` | `string` | Yes | Payment scheme (e.g., "exact") |
+| `network` | `Network` | Yes | CAIP-2 network ID (e.g., "eip155:84532") |
+| `payTo` | `string` | Yes | Recipient wallet address |
+| `price` | `Price` | No | Price - omit to specify per-tool |
+| `maxTimeoutSeconds` | `number` | No | Payment timeout (default: 60) |
+| `extra` | `object` | No | Scheme-specific parameters |
 | `resource` | `object` | No | Resource metadata |
 
 ## Hooks

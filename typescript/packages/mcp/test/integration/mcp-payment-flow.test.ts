@@ -31,7 +31,7 @@ const mockPaymentRequirements: PaymentRequirements = {
   amount: TEST_PRICE,
   asset: TEST_ASSET,
   payTo: TEST_RECIPIENT,
-  maxAmountRequired: TEST_PRICE,
+  maxTimeoutSeconds: 60,
   extra: { name: "USDC", version: "2" },
 };
 
@@ -389,10 +389,15 @@ describe("MCP Payment Flow Integration", () => {
 
       const result = await client.callTool("get_weather", { city: "NYC" });
 
-      // Should still return result but with settlement failure in _meta
+      // Per MCP spec, settlement failure returns a 402 error (not content with error in _meta)
+      // The client should see this as an error response
       expect(result.paymentMade).toBe(true);
-      expect(result.paymentResponse?.success).toBe(false);
-      expect(result.paymentResponse?.errorReason).toContain("Network error");
+      expect(result.isError).toBe(true);
+      expect(result.content.length).toBeGreaterThan(0);
+      // The error content contains the settlement failure info
+      const errorText = result.content[0].type === "text" ? result.content[0].text : "";
+      expect(errorText).toContain("Payment settlement failed");
+      expect(errorText).toContain("Network error");
     });
   });
 });

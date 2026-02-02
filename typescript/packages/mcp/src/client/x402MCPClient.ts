@@ -30,8 +30,8 @@ import { extractPaymentResponseFromMeta } from "../utils";
  * We use this type to preserve the original response structure from the SDK.
  */
 export type MCPContentItem = {
-  type: string;
   [key: string]: unknown;
+  type: string;
 };
 
 /**
