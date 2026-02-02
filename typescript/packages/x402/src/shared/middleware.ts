@@ -206,13 +206,19 @@ export function processPriceToAtomicAmount(
  * @param paymentRequirements - The payment requirements to search through
  * @param payment - The payment to match against
  * @returns The matching payment requirements or undefined if no match is found
+ *
+ * For cross-chain payments, the payment.network is the source network (where the payer
+ * signs the permit), while paymentRequirements.network is the destination network.
+ * We need to match against srcNetwork for cross-chain scenarios.
  */
 export function findMatchingPaymentRequirements(
   paymentRequirements: PaymentRequirements[],
   payment: PaymentPayload,
 ) {
   return paymentRequirements.find(
-    value => value.scheme === payment.scheme && value.network === payment.network,
+    value =>
+      value.scheme === payment.scheme &&
+      (value.network === payment.network || value.srcNetwork === payment.network),
   );
 }
 
