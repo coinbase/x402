@@ -1,5 +1,8 @@
+import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { toFacilitatorAptosSigner } from "@x402/aptos";
+import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import { Network } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
@@ -13,7 +16,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
 /**
- * Initialize and configure the x402 facilitator with EVM and SVM support
+ * Initialize and configure the x402 facilitator with EVM, SVM, and Aptos support
  * This is called lazily on first use to support Next.js module loading
  *
  * @returns A configured x402Facilitator instance
@@ -26,6 +29,10 @@ async function createFacilitator(): Promise<x402Facilitator> {
 
   if (!process.env.FACILITATOR_SVM_PRIVATE_KEY) {
     throw new Error("❌ FACILITATOR_SVM_PRIVATE_KEY environment variable is required");
+  }
+
+  if (!process.env.FACILITATOR_APTOS_PRIVATE_KEY) {
+    throw new Error("❌ FACILITATOR_APTOS_PRIVATE_KEY environment variable is required");
   }
 
   // Initialize the EVM account from private key
@@ -88,12 +95,24 @@ async function createFacilitator(): Promise<x402Facilitator> {
   // Initialize SVM signer - handles all Solana networks with automatic RPC creation
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
+  // Initialize Aptos account from private key (format to AIP-80 compliant format)
+  const formattedAptosKey = PrivateKey.formatPrivateKey(
+    process.env.FACILITATOR_APTOS_PRIVATE_KEY as string,
+    PrivateKeyVariants.Ed25519,
+  );
+  const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
+  const aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+
+  // Initialize Aptos signer - handles all Aptos networks with automatic RPC creation
+  const aptosSigner = toFacilitatorAptosSigner(aptosAccount);
+
   // Create and configure the facilitator
   const facilitator = new x402Facilitator()
     .register("eip155:84532", new ExactEvmScheme(evmSigner))
     .registerV1("base-sepolia" as Network, new ExactEvmSchemeV1(evmSigner))
     .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
-    .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
+    .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner))
+    .register("aptos:2", new ExactAptosScheme(aptosSigner));
 
   return facilitator;
 }

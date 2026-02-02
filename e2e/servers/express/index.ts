@@ -3,6 +3,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
@@ -18,8 +19,10 @@ dotenv.config();
 const PORT = process.env.PORT || "4021";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
 const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -29,6 +32,11 @@ if (!EVM_PAYEE_ADDRESS) {
 
 if (!SVM_PAYEE_ADDRESS) {
   console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
+  process.exit(1);
+}
+
+if (!APTOS_PAYEE_ADDRESS) {
+  console.error("❌ APTOS_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
 
@@ -49,6 +57,7 @@ const server = new x402ResourceServer(facilitatorClient);
 // Register server schemes
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
+registerExactAptosScheme(server);
 
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
@@ -60,7 +69,7 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
  * Configure x402 payment middleware using builder pattern
  *
  * This middleware protects endpoints with $0.001 USDC payment requirements
- * on Base Sepolia and Solana Devnet with bazaar discovery extension.
+ * on Base Sepolia, Solana Devnet, and Aptos Testnet with bazaar discovery extension.
  */
 app.use(
   paymentMiddleware(
@@ -97,6 +106,31 @@ app.use(
           scheme: "exact",
           price: "$0.001",
           network: SVM_NETWORK,
+        },
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Protected endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
+      },
+      "GET /protected-aptos": {
+        accepts: {
+          payTo: APTOS_PAYEE_ADDRESS,
+          scheme: "exact",
+          price: "$0.001",
+          network: APTOS_NETWORK,
         },
         extensions: {
           ...declareDiscoveryExtension({
@@ -183,6 +217,19 @@ app.get("/protected-svm", (req, res) => {
 });
 
 /**
+ * Protected Aptos endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for Aptos.
+ * Clients must provide a valid payment signature to access this endpoint.
+ */
+app.get("/protected-aptos", (req, res) => {
+  res.json({
+    message: "Protected endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Protected Permit2 endpoint - requires payment via Permit2 flow
  *
  * This endpoint demonstrates the Permit2 payment flow.
@@ -231,16 +278,19 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Express E2E Test Server                 ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                  ║
-║  EVM Network:    ${EVM_NETWORK}                         ║
-║  SVM Network:    ${SVM_NETWORK}                         ║
-║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
-║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
+║  Server:       http://localhost:${PORT}                ║
+║  EVM Network:  ${EVM_NETWORK}                          ║
+║  SVM Network:  ${SVM_NETWORK}                          ║
+║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  EVM Payee:    ${EVM_PAYEE_ADDRESS}                    ║
+║  SVM Payee:    ${SVM_PAYEE_ADDRESS}                    ║
+║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS}                  ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected        (EIP-3009 payment)          ║
+║  • GET  /protected        (EIP-3009 payment - EVM)    ║
 ║  • GET  /protected-svm    (SVM payment)               ║
-║  • GET  /protected-permit2 (Permit2 payment)          ║
+║  • GET  /protected-aptos  (Aptos payment)             ║
+║  • GET  /protected-permit2 (Permit2 payment - EVM)    ║
 ║  • GET  /health           (no payment required)       ║
 ║  • POST /close            (shutdown server)           ║
 ╚════════════════════════════════════════════════════════╝

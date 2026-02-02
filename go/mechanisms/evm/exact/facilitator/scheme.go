@@ -328,7 +328,7 @@ func (f *ExactEvmScheme) settleEIP3009(
 		s := signatureBytes[32:64]
 		v := signatureBytes[64]
 		if v == 0 || v == 1 {
-			v += 27
+			v = v + 27
 		}
 
 		txHash, err = f.signer.WriteContract(

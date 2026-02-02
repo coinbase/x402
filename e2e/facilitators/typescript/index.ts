@@ -11,8 +11,11 @@
  * - Discovery resource cataloging
  */
 
+import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { toFacilitatorAptosSigner } from "@x402/aptos";
+import { registerExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   Network,
@@ -40,8 +43,10 @@ dotenv.config();
 const PORT = process.env.PORT || "4022";
 const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
 const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const APTOS_NETWORK = process.env.APTOS_NETWORK || "aptos:2";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
+const APTOS_RPC_URL = process.env.APTOS_RPC_URL;
 
 // Map CAIP-2 network IDs to viem chains
 function getEvmChain(network: string): Chain {
@@ -56,8 +61,10 @@ function getEvmChain(network: string): Chain {
 
 console.log(`🌐 EVM Network: ${EVM_NETWORK}`);
 console.log(`🌐 SVM Network: ${SVM_NETWORK}`);
+console.log(`🌐 Aptos Network: ${APTOS_NETWORK}`);
 if (EVM_RPC_URL) console.log(`🌐 EVM RPC URL: ${EVM_RPC_URL}`);
 if (SVM_RPC_URL) console.log(`🌐 SVM RPC URL: ${SVM_RPC_URL}`);
+if (APTOS_RPC_URL) console.log(`🌐 Aptos RPC URL: ${APTOS_RPC_URL}`);
 
 // Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
@@ -70,14 +77,24 @@ if (!process.env.SVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
+if (!process.env.APTOS_PRIVATE_KEY) {
+  console.error("❌ APTOS_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
+
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-
-// Initialize the EVM account from private key
+// Initialize the SVM account from private key
 const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
-console.info(`EVM Facilitator account: ${evmAccount.address}`);
+console.info(`SVM Facilitator account: ${svmAccount.address}`);
+
+// Initialize the Aptos account from private key (format to AIP-80 compliant format)
+const formattedAptosKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY as string, PrivateKeyVariants.Ed25519);
+const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
+const aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+console.info(`Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`);
 
 // Create a Viem client with both wallet and public capabilities
 const evmChain = getEvmChain(EVM_NETWORK);
@@ -87,7 +104,7 @@ const viemClient = createWalletClient({
   transport: http(EVM_RPC_URL),
 }).extend(publicActions);
 
-// Initialize the x402 Facilitator with EVM and SVM support
+// Initialize the x402 Facilitator with EVM, SVM, and Aptos support
 
 const evmSigner = toFacilitatorEvmSigner({
   address: evmAccount.address,
@@ -130,6 +147,10 @@ const evmSigner = toFacilitatorEvmSigner({
 // Pass custom RPC URL if provided
 const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
 
+// Facilitator can handle all Aptos networks with automatic RPC creation
+// Pass custom RPC URL if provided
+const aptosSigner = toFacilitatorAptosSigner(aptosAccount, APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined);
+
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
 
@@ -142,7 +163,7 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 
 const facilitator = new x402Facilitator();
 
-// Register EVM and SVM schemes using the new register helpers
+// Register EVM, SVM, and Aptos schemes using the register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
   networks: EVM_NETWORK as Network,
@@ -150,6 +171,10 @@ registerExactEvmScheme(facilitator, {
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   networks: SVM_NETWORK as Network,
+});
+registerExactAptosScheme(facilitator, {
+  signer: aptosSigner,
+  networks: APTOS_NETWORK as Network,
 });
 
 facilitator.registerExtension(BAZAAR)
@@ -335,6 +360,7 @@ app.get("/health", (req, res) => {
     status: "ok",
     evmNetwork: EVM_NETWORK,
     svmNetwork: SVM_NETWORK,
+    aptosNetwork: APTOS_NETWORK,
     facilitator: "typescript",
     version: "2.0.0",
     extensions: [BAZAAR],
@@ -362,19 +388,21 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 TypeScript Facilitator                  ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                  ║
-║  EVM Network:    ${EVM_NETWORK}                        ║
-║  SVM Network:    ${SVM_NETWORK}                        ║
-║  Address:    ${evmAccount.address}                        ║
-║  Extensions: bazaar                                    ║
+║  Server:       http://localhost:${PORT}                ║
+║  EVM Network:  ${EVM_NETWORK}                          ║
+║  SVM Network:  ${SVM_NETWORK}                          ║
+║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  EVM Address:  ${evmAccount.address}                   ║
+║  Aptos Address: ${aptosAccount.accountAddress.toStringLong().slice(0, 20)}...  ║
+║  Extensions:   bazaar                                  ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • POST /verify              (verify payment)         ║
-║  • POST /settle              (settle payment)         ║
-║  • GET  /supported           (get supported kinds)    ║
-║  • GET  /discovery/resources (list discovered)        ║
-║  • GET  /health              (health check)           ║
-║  • POST /close               (shutdown server)        ║
+║  • POST /verify              (verify payment)          ║
+║  • POST /settle              (settle payment)          ║
+║  • GET  /supported           (get supported kinds)     ║
+║  • GET  /discovery/resources (list discovered)         ║
+║  • GET  /health              (health check)            ║
+║  • POST /close               (shutdown server)         ║
 ╚════════════════════════════════════════════════════════╝
   `);
 
