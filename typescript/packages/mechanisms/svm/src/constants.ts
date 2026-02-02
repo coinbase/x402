@@ -7,6 +7,16 @@ export const TOKEN_2022_PROGRAM_ADDRESS = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXE
 export const COMPUTE_BUDGET_PROGRAM_ADDRESS = "ComputeBudget111111111111111111111111111111";
 
 /**
+ * Phantom/Solflare Lighthouse program address
+ * Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
+ * - Phantom adds 1 Lighthouse instruction (4th instruction)
+ * - Solflare adds 2 Lighthouse instructions (4th and 5th instructions)
+ * We allow these as optional instructions to support these wallets.
+ * See: https://github.com/coinbase/x402/issues/828
+ */
+export const LIGHTHOUSE_PROGRAM_ADDRESS = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95";
+
+/**
  * Default RPC URLs for Solana networks
  */
 export const DEVNET_RPC_URL = "https://api.devnet.solana.com";
@@ -29,7 +39,7 @@ export const USDC_TESTNET_ADDRESS = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncD
  */
 export const DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 1;
 export const MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000; // 5 lamports
-export const DEFAULT_COMPUTE_UNIT_LIMIT = 6500;
+export const DEFAULT_COMPUTE_UNIT_LIMIT = 8_000;
 
 /**
  * Solana address validation regex (base58, 32-44 characters)

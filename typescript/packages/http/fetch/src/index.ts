@@ -43,8 +43,11 @@ export function wrapFetchWithPayment(
 ) {
   const httpClient = client instanceof x402HTTPClient ? client : new x402HTTPClient(client);
 
-  return async (input: RequestInfo, init?: RequestInit) => {
-    const response = await fetch(input, init);
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const clonedRequest = request.clone();
+
+    const response = await fetch(request);
 
     if (response.status !== 402) {
       return response;
@@ -74,6 +77,20 @@ export function wrapFetchWithPayment(
       );
     }
 
+    // Run payment required hooks
+    const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired);
+    if (hookHeaders) {
+      const hookRequest = clonedRequest.clone();
+      for (const [key, value] of Object.entries(hookHeaders)) {
+        hookRequest.headers.set(key, value);
+      }
+      const hookResponse = await fetch(hookRequest);
+      if (hookResponse.status !== 402) {
+        return hookResponse; // Hook succeeded
+      }
+      // Hook's retry got 402, fall through to payment
+    }
+
     // Create payment payload (copy extensions from PaymentRequired)
     let paymentPayload;
     try {
@@ -87,29 +104,22 @@ export function wrapFetchWithPayment(
     // Encode payment header
     const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
 
-    // Ensure we have request init
-    if (!init) {
-      throw new Error("Missing fetch request configuration");
-    }
-
     // Check if this is already a retry to prevent infinite loops
-    if ((init as { __is402Retry?: boolean }).__is402Retry) {
+    if (clonedRequest.headers.has("PAYMENT-SIGNATURE") || clonedRequest.headers.has("X-PAYMENT")) {
       throw new Error("Payment already attempted");
     }
 
-    // Create new request with payment header
-    const newInit = {
-      ...init,
-      headers: {
-        ...(init.headers || {}),
-        ...paymentHeaders,
-        "Access-Control-Expose-Headers": "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
-      },
-      __is402Retry: true,
-    };
+    // Add payment headers to cloned request
+    for (const [key, value] of Object.entries(paymentHeaders)) {
+      clonedRequest.headers.set(key, value);
+    }
+    clonedRequest.headers.set(
+      "Access-Control-Expose-Headers",
+      "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
+    );
 
     // Retry the request with payment
-    const secondResponse = await fetch(input, newInit);
+    const secondResponse = await fetch(clonedRequest);
     return secondResponse;
   };
 }

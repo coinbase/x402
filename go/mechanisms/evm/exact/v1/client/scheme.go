@@ -33,19 +33,15 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirementsV1,
 ) (types.PaymentPayloadV1, error) {
-	// Validate network
 	networkStr := requirements.Network
-	if !evm.IsValidNetwork(networkStr) {
-		return types.PaymentPayloadV1{}, fmt.Errorf("unsupported network: %s", requirements.Network)
-	}
 
-	// Get network configuration
-	config, err := evm.GetNetworkConfig(networkStr)
+	// Get chain ID - works for any EIP-155 network (eip155:CHAIN_ID)
+	chainID, err := evm.GetEvmChainId(networkStr)
 	if err != nil {
 		return types.PaymentPayloadV1{}, err
 	}
 
-	// Get asset info
+	// Get asset info - works for any explicit address, or uses default if configured
 	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
 		return types.PaymentPayloadV1{}, err
@@ -56,7 +52,7 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 
 	value, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
-		return types.PaymentPayloadV1{}, fmt.Errorf("invalid amount: %s", amountStr)
+		return types.PaymentPayloadV1{}, fmt.Errorf(ErrInvalidAmount+": %s", amountStr)
 	}
 
 	// Create nonce
@@ -100,9 +96,9 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 	}
 
 	// Sign the authorization
-	signature, err := c.signAuthorization(ctx, authorization, config.ChainID, assetInfo.Address, tokenName, tokenVersion)
+	signature, err := c.signAuthorization(ctx, authorization, chainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return types.PaymentPayloadV1{}, fmt.Errorf("failed to sign authorization: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToSignAuthorization+": %w", err)
 	}
 
 	// Create EVM payload

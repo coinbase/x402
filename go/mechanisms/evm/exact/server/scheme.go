@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -80,7 +81,7 @@ func (s *ExactEvmScheme) ParsePrice(price x402.Price, network x402.Network) (x40
 		if amountVal, hasAmount := priceMap["amount"]; hasAmount {
 			amountStr, ok := amountVal.(string)
 			if !ok {
-				return x402.AssetAmount{}, fmt.Errorf("amount must be a string")
+				return x402.AssetAmount{}, errors.New(ErrAmountMustBeString)
 			}
 
 			asset := ""
@@ -91,7 +92,7 @@ func (s *ExactEvmScheme) ParsePrice(price x402.Price, network x402.Network) (x40
 			}
 
 			if asset == "" {
-				return x402.AssetAmount{}, fmt.Errorf("asset address must be specified for AssetAmount")
+				return x402.AssetAmount{}, errors.New(ErrAssetAddressRequired)
 			}
 
 			extra := make(map[string]interface{})
@@ -147,7 +148,7 @@ func (s *ExactEvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) 
 		// Parse as float
 		amount, err := strconv.ParseFloat(cleanPrice, 64)
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse price string '%s': %w", v, err)
+			return 0, fmt.Errorf(ErrFailedToParsePrice+": '%s': %w", v, err)
 		}
 		return amount, nil
 
@@ -161,7 +162,7 @@ func (s *ExactEvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) 
 		return float64(v), nil
 
 	default:
-		return 0, fmt.Errorf("unsupported price type: %T", price)
+		return 0, fmt.Errorf(ErrUnsupportedPriceType+": %T", price)
 	}
 }
 
@@ -195,7 +196,7 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 	amountStr := fmt.Sprintf("%.6f", amount)
 	parsedAmount, err := evm.ParseAmount(amountStr, config.DefaultAsset.Decimals)
 	if err != nil {
-		return x402.AssetAmount{}, fmt.Errorf("failed to convert amount: %w", err)
+		return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", err)
 	}
 
 	return x402.AssetAmount{
@@ -212,23 +213,22 @@ func (s *ExactEvmScheme) EnhancePaymentRequirements(
 	supportedKind types.SupportedKind,
 	extensionKeys []string,
 ) (types.PaymentRequirements, error) {
-	// Get network config
 	networkStr := string(requirements.Network)
-	config, err := evm.GetNetworkConfig(networkStr)
-	if err != nil {
-		return requirements, err
-	}
 
-	// Get asset info
+	// Get asset info - if no asset specified, GetAssetInfo will try to use the default
 	var assetInfo *evm.AssetInfo
+	var err error
 	if requirements.Asset != "" {
 		assetInfo, err = evm.GetAssetInfo(networkStr, requirements.Asset)
 		if err != nil {
 			return requirements, err
 		}
 	} else {
-		// Use default asset if not specified
-		assetInfo = &config.DefaultAsset
+		// Try to get default asset for this network
+		assetInfo, err = evm.GetAssetInfo(networkStr, "")
+		if err != nil {
+			return requirements, fmt.Errorf(ErrNoAssetSpecified+": %w", err)
+		}
 		requirements.Asset = assetInfo.Address
 	}
 
@@ -237,7 +237,7 @@ func (s *ExactEvmScheme) EnhancePaymentRequirements(
 		// Convert decimal to smallest unit
 		amount, err := evm.ParseAmount(requirements.Amount, assetInfo.Decimals)
 		if err != nil {
-			return requirements, fmt.Errorf("failed to parse amount: %w", err)
+			return requirements, fmt.Errorf(ErrFailedToParseAmount+": %w", err)
 		}
 		requirements.Amount = amount.String()
 	}
@@ -289,35 +289,32 @@ func (s *ExactEvmScheme) GetDisplayAmount(amount string, network string, asset s
 	return "$" + formatted + " USDC", nil
 }
 
-// ValidatePaymentRequirements validates that requirements are valid for this scheme
+// ValidatePaymentRequirements validates that requirements are valid for this scheme.
+// All EVM networks are supported - this validates required fields only.
 func (s *ExactEvmScheme) ValidatePaymentRequirements(requirements x402.PaymentRequirements) error {
-	// Check network is supported
 	networkStr := string(requirements.Network)
-	if !evm.IsValidNetwork(networkStr) {
-		return fmt.Errorf("unsupported network: %s", requirements.Network)
-	}
 
 	// Check PayTo is a valid address
 	if !evm.IsValidAddress(requirements.PayTo) {
-		return fmt.Errorf("invalid PayTo address: %s", requirements.PayTo)
+		return fmt.Errorf(ErrInvalidPayToAddress+": %s", requirements.PayTo)
 	}
 
 	// Check amount is valid
 	if requirements.Amount == "" {
-		return fmt.Errorf("amount is required")
+		return errors.New(ErrAmountRequired)
 	}
 
 	amount, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok || amount.Sign() <= 0 {
-		return fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return fmt.Errorf(ErrInvalidAmount+": %s", requirements.Amount)
 	}
 
 	// Check asset is valid if specified
 	if requirements.Asset != "" && !evm.IsValidAddress(requirements.Asset) {
-		// Try to look it up as a symbol
+		// Try to look it up (only works for networks with default assets)
 		_, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 		if err != nil {
-			return fmt.Errorf("invalid asset: %s", requirements.Asset)
+			return fmt.Errorf(ErrInvalidAsset+": %s", requirements.Asset)
 		}
 	}
 
@@ -348,7 +345,7 @@ func (s *ExactEvmScheme) ConvertFromTokenAmount(tokenAmount string, network stri
 
 	amount, ok := new(big.Int).SetString(tokenAmount, 10)
 	if !ok {
-		return "", fmt.Errorf("invalid token amount: %s", tokenAmount)
+		return "", fmt.Errorf(ErrInvalidTokenAmount+": %s", tokenAmount)
 	}
 
 	return evm.FormatAmount(amount, config.DefaultAsset.Decimals), nil
@@ -361,24 +358,4 @@ func (s *ExactEvmScheme) GetSupportedNetworks() []string {
 		networks = append(networks, network)
 	}
 	return networks
-}
-
-// GetSupportedAssets returns the list of supported assets for a network
-func (s *ExactEvmScheme) GetSupportedAssets(network string) ([]string, error) {
-	config, err := evm.GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
-	}
-
-	assets := make([]string, 0, len(config.SupportedAssets))
-	for symbol := range config.SupportedAssets {
-		assets = append(assets, symbol)
-	}
-
-	// Also add the addresses
-	for _, asset := range config.SupportedAssets {
-		assets = append(assets, asset.Address)
-	}
-
-	return assets, nil
 }

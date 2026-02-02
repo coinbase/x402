@@ -16,7 +16,6 @@ import {
   decompileTransactionMessage,
   getCompiledTransactionMessageDecoder,
   type Address,
-  type CompiledTransactionMessage,
 } from "@solana/kit";
 import type {
   PaymentPayload,
@@ -25,7 +24,7 @@ import type {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../constants";
+import { LIGHTHOUSE_PROGRAM_ADDRESS, MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
@@ -134,14 +133,16 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const compiled = getCompiledTransactionMessageDecoder().decode(
-      transaction.messageBytes,
-    ) as CompiledTransactionMessage;
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 
-    // 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    if (instructions.length !== 3) {
+    // Allow 3, 4, or 5 instructions:
+    // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
+    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse (Phantom wallet protection)
+    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse (Solflare wallet protection)
+    // See: https://github.com/coinbase/x402/issues/828
+    if (instructions.length < 3 || instructions.length > 5) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
@@ -260,7 +261,34 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 5: Sign and Simulate Transaction
+    // Step 5: Verify Lighthouse Instructions (if present)
+    // - 4th instruction: Lighthouse program (Phantom wallet protection)
+    // - 5th instruction: Lighthouse program (Solflare wallet adds 2 Lighthouse instructions)
+    if (instructions.length >= 4) {
+      const fourthInstruction = instructions[3];
+      const fourthProgramAddress = fourthInstruction.programAddress.toString();
+      if (fourthProgramAddress !== LIGHTHOUSE_PROGRAM_ADDRESS) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_unknown_fourth_instruction",
+          payer,
+        };
+      }
+    }
+
+    if (instructions.length === 5) {
+      const fifthInstruction = instructions[4];
+      const fifthProgramAddress = fifthInstruction.programAddress.toString();
+      if (fifthProgramAddress !== LIGHTHOUSE_PROGRAM_ADDRESS) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_unknown_fifth_instruction",
+          payer,
+        };
+      }
+    }
+
+    // Step 6: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
       const feePayer = requirements.extra.feePayer as Address;
@@ -278,7 +306,8 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         isValid: false,
-        invalidReason: `transaction_simulation_failed: ${errorMessage}`,
+        invalidReason: "transaction_simulation_failed",
+        invalidMessage: errorMessage,
         payer,
       };
     }

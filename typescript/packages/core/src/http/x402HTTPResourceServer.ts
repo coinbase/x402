@@ -156,6 +156,20 @@ export interface RouteConfig {
 export type RoutesConfig = Record<string, RouteConfig> | RouteConfig;
 
 /**
+ * Hook that runs on every request to a protected route, before payment processing.
+ * Can grant access without payment, deny the request, or continue to payment flow.
+ *
+ * @returns
+ * - `void` - Continue to payment processing (default behavior)
+ * - `{ grantAccess: true }` - Grant access without requiring payment
+ * - `{ abort: true; reason: string }` - Deny the request (returns 403)
+ */
+export type ProtectedRequestHook = (
+  context: HTTPRequestContext,
+  routeConfig: RouteConfig,
+) => Promise<void | { grantAccess: true } | { abort: true; reason: string }>;
+
+/**
  * Compiled route for efficient matching
  */
 export interface CompiledRoute {
@@ -193,6 +207,7 @@ export type HTTPProcessResult =
       type: "payment-verified";
       paymentPayload: PaymentPayload;
       paymentRequirements: PaymentRequirements;
+      declaredExtensions?: Record<string, unknown>;
     }
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
@@ -208,6 +223,7 @@ export type ProcessSettleSuccessResponse = SettleResponse & {
 export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
+  errorMessage?: string;
 };
 
 export type ProcessSettleResultResponse =
@@ -259,6 +275,7 @@ export class x402HTTPResourceServer {
   private compiledRoutes: CompiledRoute[] = [];
   private routesConfig: RoutesConfig;
   private paywallProvider?: PaywallProvider;
+  private protectedRequestHooks: ProtectedRequestHook[] = [];
 
   /**
    * Creates a new x402HTTPResourceServer instance.
@@ -284,6 +301,24 @@ export class x402HTTPResourceServer {
         config,
       });
     }
+  }
+
+  /**
+   * Get the underlying x402ResourceServer instance.
+   *
+   * @returns The underlying x402ResourceServer instance
+   */
+  get server(): x402ResourceServer {
+    return this.ResourceServer;
+  }
+
+  /**
+   * Get the routes configuration.
+   *
+   * @returns The routes configuration
+   */
+  get routes(): RoutesConfig {
+    return this.routesConfig;
   }
 
   /**
@@ -325,6 +360,18 @@ export class x402HTTPResourceServer {
   }
 
   /**
+   * Register a hook that runs on every request to a protected route, before payment processing.
+   * Hooks are executed in order of registration. The first hook to return a non-void result wins.
+   *
+   * @param hook - The request hook function
+   * @returns The x402HTTPResourceServer instance for chaining
+   */
+  onProtectedRequest(hook: ProtectedRequestHook): this {
+    this.protectedRequestHooks.push(hook);
+    return this;
+  }
+
+  /**
    * Process HTTP request and return response instructions
    * This is the main entry point for framework middleware
    *
@@ -344,6 +391,24 @@ export class x402HTTPResourceServer {
       return { type: "no-payment-required" }; // No payment required for this route
     }
 
+    // Execute request hooks before any payment processing
+    for (const hook of this.protectedRequestHooks) {
+      const result = await hook(context, routeConfig);
+      if (result && "grantAccess" in result) {
+        return { type: "no-payment-required" };
+      }
+      if (result && "abort" in result) {
+        return {
+          type: "payment-error",
+          response: {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+            body: { error: result.reason },
+          },
+        };
+      }
+    }
+
     // Normalize accepts field to array of payment options
     const paymentOptions = this.normalizePaymentOptions(routeConfig);
 
@@ -359,7 +424,7 @@ export class x402HTTPResourceServer {
 
     // Build requirements from all payment options
     // (this method handles resolving dynamic functions internally)
-    const requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
+    let requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
       paymentOptions,
       context,
     );
@@ -369,7 +434,8 @@ export class x402HTTPResourceServer {
       extensions = this.ResourceServer.enrichExtensions(extensions, context);
     }
 
-    const paymentRequired = this.ResourceServer.createPaymentRequiredResponse(
+    // createPaymentRequiredResponse already handles extension enrichment in the core layer
+    const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
@@ -403,7 +469,7 @@ export class x402HTTPResourceServer {
       );
 
       if (!matchingRequirements) {
-        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+        const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements",
@@ -421,7 +487,7 @@ export class x402HTTPResourceServer {
       );
 
       if (!verifyResult.isValid) {
-        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+        const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           verifyResult.invalidReason,
@@ -438,9 +504,10 @@ export class x402HTTPResourceServer {
         type: "payment-verified",
         paymentPayload,
         paymentRequirements: matchingRequirements,
+        declaredExtensions: routeConfig.extensions,
       };
     } catch (error) {
-      const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+      const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
@@ -458,27 +525,35 @@ export class x402HTTPResourceServer {
    *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
+   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    declaredExtensions?: Record<string, unknown>,
   ): Promise<ProcessSettleResultResponse> {
     try {
-      const settleResponse = await this.ResourceServer.settlePayment(paymentPayload, requirements);
+      const settleResponse = await this.ResourceServer.settlePayment(
+        paymentPayload,
+        requirements,
+        declaredExtensions,
+      );
 
       if (!settleResponse.success) {
         return {
           ...settleResponse,
           success: false,
           errorReason: settleResponse.errorReason || "Settlement failed",
+          errorMessage:
+            settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
         };
       }
 
       return {
         ...settleResponse,
         success: true,
-        headers: this.createSettlementHeaders(settleResponse, requirements),
+        headers: this.createSettlementHeaders(settleResponse),
         requirements,
       };
     } catch (error) {
@@ -486,6 +561,7 @@ export class x402HTTPResourceServer {
         return {
           success: false,
           errorReason: error.errorReason || error.message,
+          errorMessage: error.errorMessage || error.errorReason || error.message,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
@@ -494,6 +570,7 @@ export class x402HTTPResourceServer {
       return {
         success: false,
         errorReason: error instanceof Error ? error.message : "Settlement failed",
+        errorMessage: error instanceof Error ? error.message : "Settlement failed",
         network: requirements.network as Network,
         transaction: "",
       };
@@ -645,10 +722,14 @@ export class x402HTTPResourceServer {
     customHtml?: string,
     unpaidResponse?: UnpaidResponseResult,
   ): HTTPResponseInstructions {
+    // Use 412 Precondition Failed for permit2_allowance_required error
+    // This signals client needs to approve Permit2 before retrying
+    const status = paymentRequired.error === "permit2_allowance_required" ? 412 : 402;
+
     if (isWebBrowser) {
       const html = this.generatePaywallHTML(paymentRequired, paywallConfig, customHtml);
       return {
-        status: 402,
+        status,
         headers: { "Content-Type": "text/html" },
         body: html,
         isHtml: true,
@@ -662,7 +743,7 @@ export class x402HTTPResourceServer {
     const body = unpaidResponse ? unpaidResponse.body : {};
 
     return {
-      status: 402,
+      status,
       headers: {
         "Content-Type": contentType,
         ...response.headers,
@@ -691,17 +772,10 @@ export class x402HTTPResourceServer {
    * Create settlement response headers
    *
    * @param settleResponse - Settlement response
-   * @param requirements - Payment requirements that were settled
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(
-    settleResponse: SettleResponse,
-    requirements: PaymentRequirements,
-  ): Record<string, string> {
-    const encoded = encodePaymentResponseHeader({
-      ...settleResponse,
-      requirements,
-    });
+  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
+    const encoded = encodePaymentResponseHeader(settleResponse);
     return { "PAYMENT-RESPONSE": encoded };
   }
 
@@ -735,16 +809,19 @@ export class x402HTTPResourceServer {
    * @returns Normalized path
    */
   private normalizePath(path: string): string {
+    const pathWithoutQuery = path.split(/[?#]/)[0];
+
+    let decodedOrRawPath: string;
     try {
-      const pathWithoutQuery = path.split(/[?#]/)[0];
-      const decodedPath = decodeURIComponent(pathWithoutQuery);
-      return decodedPath
-        .replace(/\\/g, "/")
-        .replace(/\/+/g, "/")
-        .replace(/(.+?)\/+$/, "$1");
+      decodedOrRawPath = decodeURIComponent(pathWithoutQuery);
     } catch {
-      return path;
+      decodedOrRawPath = pathWithoutQuery;
     }
+
+    return decodedOrRawPath
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/")
+      .replace(/(.+?)\/+$/, "$1");
   }
 
   /**

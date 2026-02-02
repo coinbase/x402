@@ -27,24 +27,44 @@ func (c *ExactEvmScheme) Scheme() string {
 	return evm.SchemeExact
 }
 
-// CreatePaymentPayload creates a V2 payment payload for the exact scheme
+// CreatePaymentPayload creates a V2 payment payload for the exact scheme.
+// Routes to EIP-3009 or Permit2 based on requirements.Extra["assetTransferMethod"].
+// Defaults to EIP-3009 for backward compatibility.
 func (c *ExactEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
 ) (types.PaymentPayload, error) {
-	// Validate network
-	networkStr := string(requirements.Network)
-	if !evm.IsValidNetwork(networkStr) {
-		return types.PaymentPayload{}, fmt.Errorf("unsupported network: %s", requirements.Network)
+	// Check asset transfer method
+	assetTransferMethod := evm.AssetTransferMethodEIP3009 // default
+	if requirements.Extra != nil {
+		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
+			assetTransferMethod = evm.AssetTransferMethod(method)
+		}
 	}
 
-	// Get network configuration
-	config, err := evm.GetNetworkConfig(networkStr)
+	// Route based on method
+	if assetTransferMethod == evm.AssetTransferMethodPermit2 {
+		return CreatePermit2Payload(ctx, c.signer, requirements)
+	}
+
+	// Default to EIP-3009
+	return c.createEIP3009Payload(ctx, requirements)
+}
+
+// createEIP3009Payload creates an EIP-3009 (transferWithAuthorization) payload.
+func (c *ExactEvmScheme) createEIP3009Payload(
+	ctx context.Context,
+	requirements types.PaymentRequirements,
+) (types.PaymentPayload, error) {
+	networkStr := string(requirements.Network)
+
+	// Get chain ID - works for any EIP-155 network (eip155:CHAIN_ID)
+	chainID, err := evm.GetEvmChainId(networkStr)
 	if err != nil {
 		return types.PaymentPayload{}, err
 	}
 
-	// Get asset info
+	// Get asset info - works for any explicit address, or uses default if configured
 	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
 		return types.PaymentPayload{}, err
@@ -53,7 +73,7 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	// Requirements.Amount is already in the smallest unit
 	value, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok {
-		return types.PaymentPayload{}, fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidAmount+": %s", requirements.Amount)
 	}
 
 	// Create nonce
@@ -88,9 +108,9 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	}
 
 	// Sign the authorization
-	signature, err := c.signAuthorization(ctx, authorization, config.ChainID, assetInfo.Address, tokenName, tokenVersion)
+	signature, err := c.signAuthorization(ctx, authorization, chainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to sign authorization: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToSignAuthorization+": %w", err)
 	}
 
 	// Create EVM payload
@@ -141,11 +161,23 @@ func (c *ExactEvmScheme) signAuthorization(
 		},
 	}
 
-	// Parse values for message
-	value, _ := new(big.Int).SetString(authorization.Value, 10)
-	validAfter, _ := new(big.Int).SetString(authorization.ValidAfter, 10)
-	validBefore, _ := new(big.Int).SetString(authorization.ValidBefore, 10)
-	nonceBytes, _ := evm.HexToBytes(authorization.Nonce)
+	// Parse values for message (these are set by us in createEIP3009Payload, but validate for safety)
+	value, ok := new(big.Int).SetString(authorization.Value, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid authorization value: %s", authorization.Value)
+	}
+	validAfter, ok := new(big.Int).SetString(authorization.ValidAfter, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid validAfter: %s", authorization.ValidAfter)
+	}
+	validBefore, ok := new(big.Int).SetString(authorization.ValidBefore, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid validBefore: %s", authorization.ValidBefore)
+	}
+	nonceBytes, err := evm.HexToBytes(authorization.Nonce)
+	if err != nil {
+		return nil, fmt.Errorf("invalid nonce: %w", err)
+	}
 
 	// Create message
 	message := map[string]interface{}{

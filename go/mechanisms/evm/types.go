@@ -2,6 +2,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 )
 
@@ -25,7 +26,171 @@ type ExactEIP3009Payload struct {
 type ExactEvmPayloadV1 = ExactEIP3009Payload
 
 // ExactEvmPayloadV2 is an alias for ExactEIP3009Payload (v2 compatibility)
+// Note: V2 also supports ExactPermit2Payload - use IsPermit2Payload() to check
 type ExactEvmPayloadV2 = ExactEIP3009Payload
+
+// AssetTransferMethod defines how assets are transferred on EVM chains.
+// The choice affects which on-chain mechanism is used for token transfers:
+//   - eip3009: Uses transferWithAuthorization (USDC, etc.) - recommended for compatible tokens
+//   - permit2: Uses Permit2 + x402Permit2Proxy - universal fallback for any ERC-20
+type AssetTransferMethod string
+
+const (
+	// AssetTransferMethodEIP3009 uses EIP-3009 transferWithAuthorization
+	AssetTransferMethodEIP3009 AssetTransferMethod = "eip3009"
+	// AssetTransferMethodPermit2 uses Permit2 + x402Permit2Proxy
+	AssetTransferMethodPermit2 AssetTransferMethod = "permit2"
+)
+
+// Permit2TokenPermissions represents the permitted token and amount for Permit2.
+// This is part of the PermitWitnessTransferFrom message structure that gets signed.
+type Permit2TokenPermissions struct {
+	Token  string `json:"token"`  // Token contract address (hex, e.g., "0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+	Amount string `json:"amount"` // Amount in smallest unit as decimal string (e.g., "1000000" for 1 USDC)
+}
+
+// Permit2Witness represents the witness data structure for x402Permit2Proxy.
+// The witness is included in the EIP-712 signature and verified on-chain by the proxy.
+// Note: Upper time bound is enforced by Permit2's `deadline` field, not a witness field.
+type Permit2Witness struct {
+	To         string `json:"to"`         // Destination address for funds (hex)
+	ValidAfter string `json:"validAfter"` // Unix timestamp (decimal string) - payment invalid before this time
+	Extra      string `json:"extra"`      // Extra data (hex, typically "0x" for empty)
+}
+
+// Permit2Authorization represents the Permit2 authorization parameters.
+// This maps to the PermitWitnessTransferFrom struct used by the Permit2 contract.
+type Permit2Authorization struct {
+	From      string                  `json:"from"`      // Signer/owner address (hex)
+	Permitted Permit2TokenPermissions `json:"permitted"` // Token and amount permitted
+	Spender   string                  `json:"spender"`   // Must be x402Permit2Proxy address
+	Nonce     string                  `json:"nonce"`     // uint256 nonce as decimal string (unique per signature)
+	Deadline  string                  `json:"deadline"`  // Unix timestamp as decimal string - signature expires after this
+	Witness   Permit2Witness          `json:"witness"`   // Witness data verified by x402Permit2Proxy
+}
+
+// ExactPermit2Payload represents the Permit2 payment payload sent by clients.
+// This is the complete payment data including the EIP-712 signature.
+type ExactPermit2Payload struct {
+	Signature            string               `json:"signature"`            // EIP-712 signature (hex, 65 bytes for EOA)
+	Permit2Authorization Permit2Authorization `json:"permit2Authorization"` // Authorization parameters that were signed
+}
+
+// ToMap converts an ExactPermit2Payload to a map for JSON marshaling.
+func (p *ExactPermit2Payload) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"signature": p.Signature,
+		"permit2Authorization": map[string]interface{}{
+			"from": p.Permit2Authorization.From,
+			"permitted": map[string]interface{}{
+				"token":  p.Permit2Authorization.Permitted.Token,
+				"amount": p.Permit2Authorization.Permitted.Amount,
+			},
+			"spender":  p.Permit2Authorization.Spender,
+			"nonce":    p.Permit2Authorization.Nonce,
+			"deadline": p.Permit2Authorization.Deadline,
+			"witness": map[string]interface{}{
+				"to":         p.Permit2Authorization.Witness.To,
+				"validAfter": p.Permit2Authorization.Witness.ValidAfter,
+				"extra":      p.Permit2Authorization.Witness.Extra,
+			},
+		},
+	}
+}
+
+// Permit2PayloadFromMap creates an ExactPermit2Payload from a map.
+// Returns an error if required fields are missing or malformed.
+func Permit2PayloadFromMap(data map[string]interface{}) (*ExactPermit2Payload, error) {
+	payload := &ExactPermit2Payload{}
+
+	if sig, ok := data["signature"].(string); ok {
+		payload.Signature = sig
+	}
+
+	auth, ok := data["permit2Authorization"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization field")
+	}
+
+	if from, ok := auth["from"].(string); ok {
+		payload.Permit2Authorization.From = from
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.from field")
+	}
+
+	if spender, ok := auth["spender"].(string); ok {
+		payload.Permit2Authorization.Spender = spender
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.spender field")
+	}
+
+	if nonce, ok := auth["nonce"].(string); ok {
+		payload.Permit2Authorization.Nonce = nonce
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.nonce field")
+	}
+
+	if deadline, ok := auth["deadline"].(string); ok {
+		payload.Permit2Authorization.Deadline = deadline
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.deadline field")
+	}
+
+	permitted, ok := auth["permitted"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.permitted field")
+	}
+
+	if token, ok := permitted["token"].(string); ok {
+		payload.Permit2Authorization.Permitted.Token = token
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.permitted.token field")
+	}
+
+	if amount, ok := permitted["amount"].(string); ok {
+		payload.Permit2Authorization.Permitted.Amount = amount
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.permitted.amount field")
+	}
+
+	witness, ok := auth["witness"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness field")
+	}
+
+	if to, ok := witness["to"].(string); ok {
+		payload.Permit2Authorization.Witness.To = to
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness.to field")
+	}
+
+	if validAfter, ok := witness["validAfter"].(string); ok {
+		payload.Permit2Authorization.Witness.ValidAfter = validAfter
+	} else {
+		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness.validAfter field")
+	}
+
+	if extra, ok := witness["extra"].(string); ok {
+		payload.Permit2Authorization.Witness.Extra = extra
+	} else {
+		// Extra is optional, default to "0x"
+		payload.Permit2Authorization.Witness.Extra = "0x"
+	}
+
+	return payload, nil
+}
+
+// IsPermit2Payload checks if a payload map is a Permit2 payload.
+func IsPermit2Payload(data map[string]interface{}) bool {
+	_, ok := data["permit2Authorization"]
+	return ok
+}
+
+// IsEIP3009Payload checks if a payload map is an EIP-3009 payload.
+func IsEIP3009Payload(data map[string]interface{}) bool {
+	_, ok := data["authorization"]
+	return ok
+}
 
 // ClientEvmSigner defines the interface for client-side EVM signing operations
 type ClientEvmSigner interface {
@@ -100,10 +265,10 @@ type AssetInfo struct {
 }
 
 // NetworkConfig contains network-specific configuration
+// See DEFAULT_ASSET.md for guidelines on adding new chains
 type NetworkConfig struct {
-	ChainID         *big.Int
-	DefaultAsset    AssetInfo
-	SupportedAssets map[string]AssetInfo // symbol -> AssetInfo
+	ChainID      *big.Int
+	DefaultAsset AssetInfo
 }
 
 // PayloadToMap converts an ExactEIP3009Payload to a map for JSON marshaling
@@ -154,16 +319,6 @@ func PayloadFromMap(data map[string]interface{}) (*ExactEIP3009Payload, error) {
 	}
 
 	return payload, nil
-}
-
-// IsValidNetwork checks if the network is supported for EVM
-func IsValidNetwork(network string) bool {
-	switch network {
-	case "eip155:1", "eip155:8453", "eip155:84532", "base", "base-sepolia", "base-mainnet":
-		return true
-	default:
-		return false
-	}
 }
 
 // ERC6492SignatureData represents the parsed components of an ERC-6492 signature

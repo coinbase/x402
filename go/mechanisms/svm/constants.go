@@ -21,7 +21,15 @@ const (
 	MaxComputeUnitPriceMicrolamports = 5_000_000
 
 	// DefaultComputeUnitLimit is the default compute unit limit for transactions
-	DefaultComputeUnitLimit uint32 = 6500
+	DefaultComputeUnitLimit uint32 = 8000
+
+	// LighthouseProgramAddress is the Phantom/Solflare Lighthouse program address
+	// Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
+	// - Phantom adds 1 Lighthouse instruction (4th instruction)
+	// - Solflare adds 2 Lighthouse instructions (4th and 5th instructions)
+	// We allow these as optional instructions to support these wallets.
+	// See: https://github.com/coinbase/x402/issues/828
+	LighthouseProgramAddress = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
 
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
@@ -50,6 +58,7 @@ const (
 
 var (
 	// NetworkConfigs maps CAIP-2 identifiers to network configurations
+	// See DEFAULT_ASSET.md for guidelines on adding new networks
 	NetworkConfigs = map[string]NetworkConfig{
 		SolanaMainnetCAIP2: {
 			Name:   "Solana Mainnet",
@@ -59,13 +68,6 @@ var (
 				Address:  USDCMainnetAddress,
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
-			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCMainnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
 			},
 		},
 		SolanaDevnetCAIP2: {
@@ -77,13 +79,6 @@ var (
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
 			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCDevnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
-			},
 		},
 		SolanaTestnetCAIP2: {
 			Name:   "Solana Testnet",
@@ -93,13 +88,6 @@ var (
 				Address:  USDCTestnetAddress,
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
-			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCTestnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
 			},
 		},
 	}

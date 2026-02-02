@@ -54,28 +54,6 @@ describe("ExactEvmScheme (Server)", () => {
       });
     });
 
-    describe("Ethereum mainnet network", () => {
-      const network = "eip155:1";
-
-      it("should use Ethereum mainnet USDC address", async () => {
-        const result = await server.parsePrice("1.00", network);
-        expect(result.asset).toBe("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-        expect(result.amount).toBe("1000000");
-        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
-      });
-    });
-
-    describe("Sepolia testnet network", () => {
-      const network = "eip155:11155111";
-
-      it("should use Sepolia USDC address", async () => {
-        const result = await server.parsePrice("1.00", network);
-        expect(result.asset).toBe("0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238");
-        expect(result.amount).toBe("1000000");
-        expect(result.extra).toEqual({ name: "USDC", version: "2" });
-      });
-    });
-
     describe("pre-parsed price objects", () => {
       it("should handle pre-parsed price objects with asset", async () => {
         const result = await server.parsePrice(
@@ -91,10 +69,93 @@ describe("ExactEvmScheme (Server)", () => {
         expect(result.extra).toEqual({ foo: "bar" });
       });
 
+      it("should preserve assetTransferMethod in extra for Permit2 tokens", async () => {
+        const result = await server.parsePrice(
+          {
+            amount: "1000000000000000000",
+            asset: "0xCustomTokenAddress1234567890123456789012",
+            extra: { assetTransferMethod: "permit2" },
+          },
+          "eip155:84532",
+        );
+        expect(result.amount).toBe("1000000000000000000");
+        expect(result.asset).toBe("0xCustomTokenAddress1234567890123456789012");
+        expect(result.extra).toEqual({ assetTransferMethod: "permit2" });
+      });
+
+      it("should preserve all extra fields including assetTransferMethod", async () => {
+        const result = await server.parsePrice(
+          {
+            amount: "1000000",
+            asset: "0xCustomTokenAddress1234567890123456789012",
+            extra: {
+              name: "Custom Token",
+              version: "1",
+              assetTransferMethod: "permit2",
+            },
+          },
+          "eip155:8453",
+        );
+        expect(result.extra).toEqual({
+          name: "Custom Token",
+          version: "1",
+          assetTransferMethod: "permit2",
+        });
+      });
+
       it("should throw for price objects without asset", async () => {
         await expect(
           async () => await server.parsePrice({ amount: "123456" } as never, "eip155:84532"),
         ).rejects.toThrow("Asset address must be specified");
+      });
+    });
+
+    describe("custom money parser with Permit2", () => {
+      it("should use custom parser that specifies assetTransferMethod permit2", async () => {
+        const customServer = new ExactEvmScheme();
+
+        // Register a custom parser for a token that requires Permit2
+        customServer.registerMoneyParser(async (amount, network) => {
+          if (network === "eip155:84532" && amount > 0) {
+            return {
+              amount: (amount * 1e18).toString(),
+              asset: "0xPermit2OnlyToken123456789012345678901234",
+              extra: {
+                assetTransferMethod: "permit2",
+              },
+            };
+          }
+          return null;
+        });
+
+        const result = await customServer.parsePrice("1.00", "eip155:84532");
+
+        expect(result.amount).toBe("1000000000000000000"); // 1e18
+        expect(result.asset).toBe("0xPermit2OnlyToken123456789012345678901234");
+        expect(result.extra).toEqual({ assetTransferMethod: "permit2" });
+      });
+
+      it("should fall back to default when custom parser returns null", async () => {
+        const customServer = new ExactEvmScheme();
+
+        // Register a custom parser that only handles specific networks
+        customServer.registerMoneyParser(async (amount, network) => {
+          if (network === "eip155:42161") {
+            // Only Arbitrum
+            return {
+              amount: (amount * 1e18).toString(),
+              asset: "0xArbitrumToken",
+              extra: { assetTransferMethod: "permit2" },
+            };
+          }
+          return null; // Fall through for other networks
+        });
+
+        // Should use default USDC for Base Sepolia
+        const result = await customServer.parsePrice("1.00", "eip155:84532");
+
+        expect(result.asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e");
+        expect(result.extra).toEqual({ name: "USDC", version: "2" });
       });
     });
 

@@ -238,6 +238,7 @@ The `SettleResponse` schema contains the following fields:
 | `payer`       | `string`  | Optional | Address of the payer's wallet                                         |
 | `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed)       |
 | `network`     | `string`  | Required | Blockchain network identifier in CAIP-2 format                        |
+| `extensions`  | `object`  | Optional | Protocol extensions data          |
 
 **5.4 VerifyResponse Schema**
 
@@ -302,7 +303,7 @@ Settlement is performed by calling the `transferWithAuthorization` function on t
 
 For Solana (SVM), the `exact` scheme is implemented using `TransferChecked` for SPL tokens. Critical verification requirements include:
 
-- Enforcing a strict instruction layout (Compute Unit Limit, Compute Unit Price, optional ATA Create, TransferChecked)
+- Enforcing a strict instruction layout (Compute Unit Limit, Compute Unit Price, TransferChecked)
 - Ensuring the facilitator fee payer does not appear in any instruction accounts and is not the transfer `authority` or `source`
 - Bounding compute unit price to mitigate gas abuse
 - Verifying the destination ATA matches the `payTo`/`asset` PDA and account existence rules

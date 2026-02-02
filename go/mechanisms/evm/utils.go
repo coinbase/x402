@@ -37,7 +37,7 @@ func GetEvmChainId(network string) (*big.Int, error) {
 	return nil, fmt.Errorf("unsupported network: %s", network)
 }
 
-// CreateNonce generates a random 32-byte nonce
+// CreateNonce generates a random 32-byte nonce for EIP-3009
 func CreateNonce() (string, error) {
 	nonce := make([]byte, 32)
 	_, err := rand.Read(nonce)
@@ -45,6 +45,27 @@ func CreateNonce() (string, error) {
 		return "", fmt.Errorf("failed to generate nonce: %w", err)
 	}
 	return "0x" + hex.EncodeToString(nonce), nil
+}
+
+// CreatePermit2Nonce generates a random 256-bit nonce for Permit2.
+// Permit2 uses uint256 nonces (not bytes32 like EIP-3009).
+func CreatePermit2Nonce() (string, error) {
+	nonce := make([]byte, 32)
+	_, err := rand.Read(nonce)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	// Convert to uint256 string representation
+	nonceInt := new(big.Int).SetBytes(nonce)
+	return nonceInt.String(), nil
+}
+
+// MaxUint256 returns the maximum value for uint256 (used for unlimited approval).
+func MaxUint256() *big.Int {
+	max := new(big.Int)
+	max.Exp(big.NewInt(2), big.NewInt(256), nil)
+	max.Sub(max, big.NewInt(1))
+	return max
 }
 
 // NormalizeAddress ensures an Ethereum address is in the correct format
@@ -135,7 +156,16 @@ func FormatAmount(amount *big.Int, decimals int) string {
 	return quotient.String() + "." + decStr
 }
 
-// GetNetworkConfig returns the configuration for a network
+// GetNetworkConfig returns the configuration for a network.
+// For networks with configured defaults (Base, Base Sepolia), returns the full config.
+// For other valid EIP-155 networks, returns a config with just the chain ID (no default asset).
+//
+// Args:
+//   - network: The network identifier (eip155:CHAIN_ID or legacy name)
+//
+// Returns:
+//   - NetworkConfig with chain ID (and default asset if configured)
+//   - Error if the network format is invalid
 func GetNetworkConfig(network string) (*NetworkConfig, error) {
 	networkStr := network
 
@@ -147,28 +177,51 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 		networkStr = "eip155:84532"
 	}
 
+	// Check if we have a pre-configured network with default asset
 	if config, ok := NetworkConfigs[networkStr]; ok {
 		return &config, nil
 	}
 
-	return nil, fmt.Errorf("unsupported network: %s", network)
-}
-
-// GetAssetInfo returns information about an asset on a network
-func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
-	config, err := GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
+	// For any valid EIP-155 network, dynamically create a config with just the chain ID
+	if strings.HasPrefix(networkStr, "eip155:") {
+		chainIdStr := strings.TrimPrefix(networkStr, "eip155:")
+		chainId, ok := new(big.Int).SetString(chainIdStr, 10)
+		if ok {
+			return &NetworkConfig{
+				ChainID: chainId,
+				// No DefaultAsset - callers using TokenAsset don't need it
+			}, nil
+		}
 	}
 
-	// Check if it's an address
+	return nil, fmt.Errorf("invalid network format: %s (expected eip155:CHAIN_ID)", network)
+}
+
+// GetAssetInfo returns information about an asset on a network.
+// If assetSymbolOrAddress is a valid address, returns info for that specific token.
+// If assetSymbolOrAddress is empty or a symbol, attempts to use the network's default asset.
+//
+// Args:
+//   - network: The network identifier
+//   - assetSymbolOrAddress: Either an asset address (0x...) or empty for default
+//
+// Returns:
+//   - AssetInfo for the requested asset
+//   - Error if default asset is requested but not configured for this network
+func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
+	// Check if it's an explicit address - works for ANY network
 	if IsValidAddress(assetSymbolOrAddress) {
-		// For now, assume it's USDC if the address matches
 		normalizedAddr := NormalizeAddress(assetSymbolOrAddress)
-		if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
-			return &config.DefaultAsset, nil
+
+		// Check if this matches a known default asset for richer metadata
+		config, err := GetNetworkConfig(network)
+		if err == nil && config.DefaultAsset.Address != "" {
+			if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
+				return &config.DefaultAsset, nil
+			}
 		}
-		// Could extend this to support more tokens
+
+		// Unknown token - return basic info (works for any EVM network)
 		return &AssetInfo{
 			Address:  normalizedAddr,
 			Name:     "Unknown Token",
@@ -177,12 +230,17 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 		}, nil
 	}
 
-	// Look up by symbol
-	if asset, ok := config.SupportedAssets[strings.ToUpper(assetSymbolOrAddress)]; ok {
-		return &asset, nil
+	// Not an explicit address - need the network's default asset
+	config, err := GetNetworkConfig(network)
+	if err != nil {
+		return nil, err
 	}
 
-	// Default to the network's default asset
+	// Check if default asset is configured
+	if config.DefaultAsset.Address == "" {
+		return nil, fmt.Errorf("no default asset configured for network %s; specify an explicit asset address or register a money parser", network)
+	}
+
 	return &config.DefaultAsset, nil
 }
 

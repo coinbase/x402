@@ -42,6 +42,7 @@ export type SettleRequestV1 = {
 export type SettleResponseV1 = {
   success: boolean;
   errorReason?: string;
+  errorMessage?: string;
   payer?: string;
   transaction: string;
   network: Network;
