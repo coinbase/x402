@@ -86,11 +86,10 @@ export function validatePaymentIdentifier(extension: unknown): PaymentIdentifier
       const valid = validate(ext.info);
 
       if (!valid && validate.errors) {
-        const errors =
-          validate.errors?.map(err => {
-            const path = err.instancePath || "(root)";
-            return `${path}: ${err.message}`;
-          }) || ["Unknown validation error"];
+        const errors = validate.errors?.map(err => {
+          const path = err.instancePath || "(root)";
+          return `${path}: ${err.message}`;
+        }) || ["Unknown validation error"];
 
         return { valid: false, errors };
       }
