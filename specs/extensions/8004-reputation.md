@@ -347,12 +347,56 @@ Aggregators SHOULD:
 2. Deduplicate by `taskRef`
 3. Include original submission in `feedbackURI` for auditability
 
+#### Deduplication Strategy
+
+Aggregators should implement two-layer deduplication:
+
+1. **Local pending queue**: Check against in-memory or database queue of unsubmitted feedback. Fast, prevents same-aggregator duplicates.
+
+2. **On-chain verification**: Before batch submission, verify `taskRef` is not already recorded in the Reputation Registry. Authoritative, prevents cross-aggregator duplicates.
+
+This layered approach balances performance (local check) with correctness (on-chain check).
+
 ### Trust Model
 
 Aggregators are trusted to:
 - Honestly relay feedback to the chain
 - Not fabricate feedback (client signatures provide non-repudiation)
 - Not censor feedback (multiple aggregators provide redundancy)
+
+### Direct On-Chain Submission
+
+For censorship resistance, clients MAY bypass aggregators entirely and submit feedback directly to the Reputation Registry on-chain. This provides a guaranteed fallback if an aggregator refuses to process a submission.
+
+#### Fallback Flow
+
+1. Submit feedback to aggregator (preferred, gas-free)
+2. If aggregator rejects or times out (recommended: 30 seconds), fall back to direct submission
+3. Submit directly to Reputation Registry contract with `taskRef`, `value`, and `clientSignature`
+
+#### Implementation Notes
+
+- Direct submission requires the client to pay gas fees
+- Reputation Registries MUST accept submissions from any address (not just approved aggregators)
+- The on-chain contract performs the same `taskRef` deduplication as aggregators
+- This ensures no single aggregator can censor valid feedback
+
+#### Example Fallback Logic
+
+```typescript
+async function submitFeedbackWithFallback(feedback: Feedback): Promise<void> {
+  try {
+    // Try aggregator first (gas-free)
+    const result = await submitToAggregator(feedback, { timeout: 30000 });
+    if (result.accepted) return;
+  } catch (e) {
+    console.warn('Aggregator failed, falling back to direct submission');
+  }
+  
+  // Fallback to direct on-chain submission (pays gas)
+  await submitDirectToRegistry(feedback);
+}
+```
 
 ---
 
@@ -392,6 +436,22 @@ Aggregators are trusted to:
 - Each `taskRef` can only have one feedback submission
 - Aggregators MUST deduplicate by `taskRef`
 - Attestations are bound to specific timestamps
+
+#### Attestation Freshness
+
+Aggregators SHOULD enforce a maximum attestation age to prevent replay attacks using old, valid attestations. Recommended implementation:
+
+| Configuration | Value | Rationale |
+|--------------|-------|-----------|
+| `maxAttestationAgeSeconds` | 3600 (1 hour) | Reasonable window for legitimate submissions |
+| Grace period | 300 (5 minutes) | Allows for clock skew between systems |
+
+Validation logic:
+```
+currentTime - attestation.settledAt <= maxAttestationAgeSeconds + gracePeriod
+```
+
+Aggregators MAY configure stricter or looser values based on their trust model. Real-time use cases may prefer shorter windows (15 minutes); batch processing may require longer windows (24 hours).
 
 ### Aggregator Misbehavior
 
