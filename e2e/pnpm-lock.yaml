@@ -1302,6 +1302,9 @@ importers:
 
   clients/axios:
     dependencies:
+      '@aptos-labs/ts-sdk':
+        specifier: ^5.2.1
+        version: 5.2.1(got@11.8.6)
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6

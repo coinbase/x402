@@ -5,7 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { registerExactAptosScheme } from "@x402/aptos/exact/client";
-import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@x402/aptos";
+import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client } from "@x402/core/client";
