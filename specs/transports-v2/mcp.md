@@ -17,14 +17,19 @@ The MCP transport implements x402 payment flows over the Model Context Protocol.
 
 When a tool requires payment, servers MUST return a tool result with `isError: true` containing the `PaymentRequired` data.
 
+**Mechanism**: Tool result with `isError: true`, `structuredContent`, and `content` fields  
+**Data Format**: `PaymentRequired` schema
+
 ### Server Requirements
 
-Servers MUST provide `PaymentRequired` in `content[0].text` and SHOULD also provide `structuredContent`:
+Servers MUST provide the `PaymentRequired` in both formats:
 
-1. **`content[0].text`** (REQUIRED): JSON-encoded with `x402/error` wrapper
-2. **`structuredContent`** (OPTIONAL): Direct `PaymentRequired` object for enhanced client compatibility
+1. **`structuredContent`** (REQUIRED): Direct `PaymentRequired` object
+2. **`content[0].text`** (REQUIRED): JSON-encoded string of the same `PaymentRequired` object
 
-**Required Response Format:**
+Both fields contain identical data - `content[0].text` is simply `JSON.stringify(structuredContent)` for clients that cannot access structured content.
+
+**Response Format:**
 
 ```json
 {
@@ -58,7 +63,7 @@ Servers MUST provide `PaymentRequired` in `content[0].text` and SHOULD also prov
     "content": [
       {
         "type": "text",
-        "text": "{\"x402/error\":{\"code\":402,\"message\":\"Payment required\",\"data\":{...}}}"
+        "text": "{\"x402Version\":2,\"error\":\"Payment required to access this resource\",\"resource\":{\"url\":\"mcp://tool/financial_analysis\",\"description\":\"Advanced financial analysis tool\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:84532\",\"amount\":\"10000\",\"asset\":\"0x036CbD53842c5426634e7929541eC2318f3dCF7e\",\"payTo\":\"0x209693Bc6afc0C5328bA36FaF03C514EF312287C\",\"maxTimeoutSeconds\":60,\"extra\":{\"name\":\"USDC\",\"version\":\"2\"}}]}"
       }
     ]
   }
@@ -67,31 +72,10 @@ Servers MUST provide `PaymentRequired` in `content[0].text` and SHOULD also prov
 
 ### Client Requirements
 
-Clients MUST check for `PaymentRequired` in this priority order:
+Clients SHOULD prefer `structuredContent` when available, falling back to parsing `content[0].text`:
 
-1. `structuredContent` - Check for direct `PaymentRequired` object
-2. `structuredContent["x402/error"].data` - Check for wrapped format  
-3. `content[0].text` - Parse JSON and check for `PaymentRequired` or `x402/error` wrapper
-
-### x402/error Wrapper Schema
-
-The `content[0].text` fallback uses this wrapper structure:
-
-```json
-{
-  "x402/error": {
-    "code": 402,
-    "message": "Human-readable error message",
-    "data": { /* PaymentRequired */ }
-  }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `code` | number | MUST be `402` for payment-required errors |
-| `message` | string | Human-readable error description |
-| `data` | PaymentRequired | The payment requirements object |
+1. Check if `result.structuredContent` exists and contains `x402Version` and `accepts` fields
+2. If not, parse `result.content[0].text` as JSON and check for the same fields
 
 ## Payment Payload Transmission
 
@@ -184,7 +168,7 @@ Servers communicate payment settlement results using the `_meta["x402/payment-re
 
 ### Settlement Failure
 
-When payment settlement fails, servers MUST return a tool result with `isError: true` containing the failure details. The response follows the same format as Payment Required Signaling, with additional settlement failure information.
+When payment settlement fails, servers return a tool result with `isError: true`. The response follows the same format as Payment Required Signaling. If settlement fails after the tool has already executed, the server should not return the tool's content - only the payment error.
 
 ```json
 {
@@ -194,26 +178,31 @@ When payment settlement fails, servers MUST return a tool result with `isError: 
     "isError": true,
     "structuredContent": {
       "x402Version": 2,
-      "error": "Payment settlement failed: insufficient funds",
+      "error": "Settlement failed",
       "resource": {
         "url": "mcp://tool/financial_analysis",
         "description": "Advanced financial analysis tool",
         "mimeType": "application/json"
       },
       "accepts": [
-        { /* original payment requirements */ }
-      ],
-      "x402/payment-response": {
-        "success": false,
-        "errorReason": "insufficient_funds",
-        "transaction": "",
-        "network": "eip155:84532"
-      }
+        {
+          "scheme": "exact",
+          "network": "eip155:84532",
+          "amount": "10000",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "name": "USDC",
+            "version": "2"
+          }
+        }
+      ]
     },
     "content": [
       {
         "type": "text",
-        "text": "{\"x402/error\":{\"code\":402,\"message\":\"Payment settlement failed\",\"data\":{...}}}"
+        "text": "{\"x402Version\":2,\"error\":\"Settlement failed\",\"resource\":{\"url\":\"mcp://tool/financial_analysis\",\"description\":\"Advanced financial analysis tool\",\"mimeType\":\"application/json\"},\"accepts\":[...]}"
       }
     ]
   }
@@ -227,8 +216,6 @@ When payment settlement fails, servers MUST return a tool result with `isError: 
 | Payment Required | Tool result with `isError: true` | No payment provided, returns `PaymentRequired` |
 | Payment Invalid | Tool result with `isError: true` | Payment verification failed, returns `PaymentRequired` with reason |
 | Settlement Failed | Tool result with `isError: true` | Settlement failed after execution, returns failure details |
-
-Clients SHOULD detect the format by checking the `x402Version` field and handle both accordingly.
 
 ## References
 
