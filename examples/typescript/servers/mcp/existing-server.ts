@@ -41,6 +41,9 @@ const port = parseInt(process.env.PORT || "4022", 10);
 
 /**
  * Simulates fetching weather data for a city.
+ *
+ * @param city - The name of the city to get weather data for
+ * @returns An object containing the city name, weather condition, and temperature
  */
 function getWeatherData(city: string): { city: string; weather: string; temperature: number } {
   const conditions = ["sunny", "cloudy", "rainy", "snowy", "windy"];
@@ -128,6 +131,9 @@ export async function main(): Promise<void> {
 
 /**
  * Helper to start Express SSE server
+ *
+ * @param mcpServer - The MCP server instance to connect to the Express server
+ * @param port - The port number to listen on
  */
 function startExpressServer(mcpServer: McpServer, port: number): void {
   const app = express();
