@@ -17,6 +17,7 @@ const (
 	ErrFailedToBuildComputeLimitIx  = "invalid_exact_solana_client_failed_to_build_compute_limit_instruction"
 	ErrFailedToBuildComputePriceIx  = "invalid_exact_solana_client_failed_to_build_compute_price_instruction"
 	ErrFailedToBuildTransferIx      = "invalid_exact_solana_client_failed_to_build_transfer_instruction"
+	ErrFailedToBuildMemoIx          = "invalid_exact_solana_client_failed_to_build_memo_instruction"
 	ErrFailedToCreateTransaction    = "invalid_exact_solana_client_failed_to_create_transaction"
 	ErrFailedToSignTransaction      = "invalid_exact_solana_client_failed_to_sign_transaction"
 	ErrFailedToEncodeTransaction    = "invalid_exact_solana_client_failed_to_encode_transaction"

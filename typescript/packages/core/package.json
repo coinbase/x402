@@ -121,6 +121,16 @@
         "types": "./dist/cjs/utils/index.d.ts",
         "default": "./dist/cjs/utils/index.js"
       }
+    },
+    "./schemas": {
+      "import": {
+        "types": "./dist/esm/schemas/index.d.mts",
+        "default": "./dist/esm/schemas/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemas/index.d.ts",
+        "default": "./dist/cjs/schemas/index.js"
+      }
     }
   },
   "files": [

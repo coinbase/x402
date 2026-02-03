@@ -24,7 +24,11 @@ import type {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { LIGHTHOUSE_PROGRAM_ADDRESS, MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../constants";
+import {
+  LIGHTHOUSE_PROGRAM_ADDRESS,
+  MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  MEMO_PROGRAM_ADDRESS,
+} from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
@@ -137,12 +141,13 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 
-    // Allow 3, 4, or 5 instructions:
+    // Allow 3-6 instructions:
     // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse (Phantom wallet protection)
-    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse (Solflare wallet protection)
+    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
+    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
+    // - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
     // See: https://github.com/coinbase/x402/issues/828
-    if (instructions.length < 3 || instructions.length > 5) {
+    if (instructions.length < 3 || instructions.length > 6) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
@@ -261,31 +266,30 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 5: Verify Lighthouse Instructions (if present)
-    // - 4th instruction: Lighthouse program (Phantom wallet protection)
-    // - 5th instruction: Lighthouse program (Solflare wallet adds 2 Lighthouse instructions)
-    if (instructions.length >= 4) {
-      const fourthInstruction = instructions[3];
-      const fourthProgramAddress = fourthInstruction.programAddress.toString();
-      if (fourthProgramAddress !== LIGHTHOUSE_PROGRAM_ADDRESS) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_svm_payload_unknown_fourth_instruction",
-          payer,
-        };
-      }
-    }
+    // Step 5: Verify optional instructions (if present)
+    // Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
+    const optionalInstructions = instructions.slice(3);
+    const invalidReasonByIndex = [
+      "invalid_exact_svm_payload_unknown_fourth_instruction",
+      "invalid_exact_svm_payload_unknown_fifth_instruction",
+      "invalid_exact_svm_payload_unknown_sixth_instruction",
+    ];
 
-    if (instructions.length === 5) {
-      const fifthInstruction = instructions[4];
-      const fifthProgramAddress = fifthInstruction.programAddress.toString();
-      if (fifthProgramAddress !== LIGHTHOUSE_PROGRAM_ADDRESS) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_svm_payload_unknown_fifth_instruction",
-          payer,
-        };
+    for (let i = 0; i < optionalInstructions.length; i += 1) {
+      const programAddress = optionalInstructions[i].programAddress.toString();
+      if (
+        programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
+        programAddress === MEMO_PROGRAM_ADDRESS
+      ) {
+        continue;
       }
+
+      return {
+        isValid: false,
+        invalidReason:
+          invalidReasonByIndex[i] ?? "invalid_exact_svm_payload_unknown_optional_instruction",
+        payer,
+      };
     }
 
     // Step 6: Sign and Simulate Transaction
