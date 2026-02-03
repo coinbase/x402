@@ -42,6 +42,7 @@ interface MCPCallToolResult {
   content: MCPContentItem[];
   isError?: boolean;
   _meta?: Record<string, unknown>;
+  structuredContent?: Record<string, unknown>;
 }
 
 /**
@@ -568,9 +569,11 @@ export class x402MCPClient {
   /**
    * Extracts PaymentRequired from a tool result (structured 402 response).
    *
-   * The MCP SDK converts JSON-RPC errors to tool results with isError: true,
-   * so we embed the x402 error structure in the content. The format is:
-   * { "x402/error": { "code": 402, "message": "...", "data": PaymentRequired } }
+   * Supports multiple response formats for interoperability:
+   * 1. structuredContent with direct PaymentRequired (ethanniser/x402-mcp style)
+   * 2. structuredContent with x402/error wrapper
+   * 3. content[0].text with x402/error wrapper (our default)
+   * 4. content[0].text with direct PaymentRequired (V1 compatibility)
    *
    * @param result - The tool call result
    * @returns PaymentRequired if this is a 402 response, null otherwise
@@ -581,7 +584,13 @@ export class x402MCPClient {
       return null;
     }
 
-    // Check if content contains our structured x402/error response
+    if (result.structuredContent) {
+      const extracted = this.extractPaymentRequiredFromObject(result.structuredContent);
+      if (extracted) {
+        return extracted;
+      }
+    }
+
     const content = result.content;
     if (content.length === 0) {
       return null;
@@ -594,13 +603,35 @@ export class x402MCPClient {
 
     try {
       const parsed: unknown = JSON.parse(firstItem.text);
-
-      // Check for x402/error format (MCP transport spec compliant)
-      if (isx402EmbeddedError(parsed)) {
-        return parsed["x402/error"].data;
+      if (typeof parsed === "object" && parsed !== null) {
+        const extracted = this.extractPaymentRequiredFromObject(
+          parsed as Record<string, unknown>,
+        );
+        if (extracted) {
+          return extracted;
+        }
       }
     } catch {
       // Not JSON, not our structured response
+    }
+
+    return null;
+  }
+
+  /**
+   * Extracts PaymentRequired from an object.
+   * Supports both x402/error wrapper format and direct PaymentRequired format.
+   *
+   * @param obj - The object to extract from
+   * @returns PaymentRequired if found, null otherwise
+   */
+  private extractPaymentRequiredFromObject(obj: Record<string, unknown>): PaymentRequired | null {
+    if (isx402EmbeddedError(obj)) {
+      return obj["x402/error"].data;
+    }
+
+    if (isPaymentRequired(obj)) {
+      return obj as PaymentRequired;
     }
 
     return null;

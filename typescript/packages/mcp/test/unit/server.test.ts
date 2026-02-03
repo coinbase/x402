@@ -254,6 +254,34 @@ describe("x402MCPServer", () => {
         expect(result.content[0].text).toContain(`"code":${MCP_PAYMENT_REQUIRED_CODE}`);
       });
 
+      it("should include structuredContent in 402 response for interoperability", async () => {
+        const result = await wrappedHandler({}, { _meta: undefined });
+
+        expect(result.isError).toBe(true);
+        // Should have structuredContent with direct PaymentRequired
+        expect(result.structuredContent).toBeDefined();
+        expect(result.structuredContent.x402Version).toBe(2);
+        expect(result.structuredContent.accepts).toBeDefined();
+        expect(Array.isArray(result.structuredContent.accepts)).toBe(true);
+      });
+
+      it("should include both structuredContent and content fallback", async () => {
+        const result = await wrappedHandler({}, { _meta: undefined });
+
+        // Both should be present
+        expect(result.structuredContent).toBeDefined();
+        expect(result.content).toBeDefined();
+        expect(result.content.length).toBeGreaterThan(0);
+
+        // structuredContent should be direct PaymentRequired
+        expect(result.structuredContent.accepts).toBeDefined();
+
+        // content should have x402/error wrapper
+        const parsedContent = JSON.parse(result.content[0].text);
+        expect(parsedContent["x402/error"]).toBeDefined();
+        expect(parsedContent["x402/error"].code).toBe(MCP_PAYMENT_REQUIRED_CODE);
+      });
+
       it("should verify and execute when payment provided", async () => {
         const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
 
@@ -660,6 +688,26 @@ describe("createPaymentWrapper", () => {
       expect(result.content[0].text).toContain('"x402/error"');
       expect(result.content[0].text).toContain(`"code":${MCP_PAYMENT_REQUIRED_CODE}`);
       expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("should include structuredContent in 402 response", async () => {
+      const paid = createPaymentWrapper(
+        mockResourceServer as unknown as Parameters<typeof createPaymentWrapper>[0],
+        {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xrecipient",
+        },
+      );
+
+      const handler = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "result" }] });
+      const wrappedHandler = paid("$0.10", handler);
+
+      const result = await wrappedHandler({}, { _meta: undefined });
+
+      expect(result.structuredContent).toBeDefined();
+      expect(result.structuredContent.x402Version).toBe(2);
+      expect(result.structuredContent.accepts).toBeDefined();
     });
 
     it("should verify payment and execute handler when payment provided", async () => {

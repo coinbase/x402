@@ -72,7 +72,29 @@ const mockSettleResponse: SettleResponse = {
 };
 
 /**
- * Creates an x402/error structure embedded in tool result content
+ * V1 PaymentRequired for interoperability testing (ethanniser/x402-mcp style)
+ */
+const mockPaymentRequiredV1 = {
+  x402Version: 1,
+  error: "Payment required",
+  accepts: [
+    {
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      asset: "0xtoken",
+      payTo: "0xrecipient",
+      maxTimeoutSeconds: 60,
+      resource: "mcp://tool/test",
+      mimeType: "application/json",
+      description: "Test tool",
+      extra: {},
+    },
+  ],
+};
+
+/**
+ * Creates an x402/error structure embedded in tool result content (our format)
  *
  * @param paymentRequired - The payment required object to embed
  * @returns MCP tool result with embedded payment error
@@ -94,6 +116,44 @@ function createEmbeddedPaymentError(paymentRequired: PaymentRequired): {
         }),
       },
     ],
+    isError: true,
+  };
+}
+
+/**
+ * Creates a structuredContent response with direct PaymentRequired (ethanniser/x402-mcp style)
+ *
+ * @param paymentRequired - The payment required object
+ * @returns MCP tool result with structuredContent
+ */
+function createStructuredContentDirectPaymentError(
+  paymentRequired: PaymentRequired | typeof mockPaymentRequiredV1,
+): {
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: Record<string, unknown>;
+  isError: true;
+} {
+  return {
+    structuredContent: paymentRequired as Record<string, unknown>,
+    content: [{ type: "text", text: JSON.stringify(paymentRequired) }],
+    isError: true,
+  };
+}
+
+/**
+ * Creates a content-only response with direct PaymentRequired (V1 compatibility fallback)
+ *
+ * @param paymentRequired - The payment required object
+ * @returns MCP tool result with content fallback
+ */
+function createContentDirectPaymentError(
+  paymentRequired: PaymentRequired | typeof mockPaymentRequiredV1,
+): {
+  content: Array<{ type: "text"; text: string }>;
+  isError: true;
+} {
+  return {
+    content: [{ type: "text", text: JSON.stringify(paymentRequired) }],
     isError: true,
   };
 }
@@ -432,6 +492,177 @@ describe("createx402MCPClient", () => {
     });
 
     expect(client).toBeInstanceOf(x402MCPClient);
+  });
+});
+
+// ============================================================================
+// Response Format Interoperability Tests
+// ============================================================================
+
+describe("x402MCPClient response format interoperability", () => {
+  let mockMcpClient: MockMCPClient;
+  let mockPaymentClient: MockPaymentClient;
+  let client: x402MCPClient;
+
+  beforeEach(() => {
+    mockMcpClient = createMockMCPClient();
+    mockPaymentClient = createMockPaymentClient();
+    client = new x402MCPClient(
+      mockMcpClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[0],
+      mockPaymentClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[1],
+    );
+  });
+
+  describe("structuredContent formats", () => {
+    it("should parse structuredContent with direct PaymentRequired V2", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createStructuredContentDirectPaymentError(mockPaymentRequired))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "success" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
+    });
+
+    it("should parse structuredContent with direct PaymentRequired V1 (ethanniser/x402-mcp style)", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createStructuredContentDirectPaymentError(mockPaymentRequiredV1))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "success" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequiredV1);
+    });
+
+    it("should parse structuredContent with x402/error wrapper", async () => {
+      const structuredWithWrapper = {
+        structuredContent: {
+          "x402/error": {
+            code: MCP_PAYMENT_REQUIRED_CODE,
+            message: "Payment required",
+            data: mockPaymentRequired,
+          },
+        },
+        content: [{ type: "text" as const, text: "fallback" }],
+        isError: true as const,
+      };
+
+      mockMcpClient.callTool.mockResolvedValueOnce(structuredWithWrapper).mockResolvedValueOnce({
+        content: [{ type: "text", text: "success" }],
+        _meta: { "x402/payment-response": mockSettleResponse },
+      });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
+    });
+  });
+
+  describe("content fallback formats", () => {
+    it("should parse content with x402/error wrapper (our default format)", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(mockPaymentRequired))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "success" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
+    });
+
+    it("should parse content with direct PaymentRequired V2 (no wrapper)", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createContentDirectPaymentError(mockPaymentRequired))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "success" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
+    });
+
+    it("should parse content with direct PaymentRequired V1 (no wrapper)", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createContentDirectPaymentError(mockPaymentRequiredV1))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "success" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequiredV1);
+    });
+  });
+
+  describe("priority order", () => {
+    it("should prefer structuredContent over content fallback", async () => {
+      const mixedResponse = {
+        structuredContent: mockPaymentRequired as Record<string, unknown>,
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              "x402/error": {
+                code: MCP_PAYMENT_REQUIRED_CODE,
+                message: "Different error",
+                data: { ...mockPaymentRequired, error: "From content fallback" },
+              },
+            }),
+          },
+        ],
+        isError: true as const,
+      };
+
+      mockMcpClient.callTool.mockResolvedValueOnce(mixedResponse).mockResolvedValueOnce({
+        content: [{ type: "text", text: "success" }],
+        _meta: { "x402/payment-response": mockSettleResponse },
+      });
+
+      const result = await client.callTool("paid_tool");
+
+      expect(result.paymentMade).toBe(true);
+      // Should use the structuredContent version (original mockPaymentRequired)
+      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
+    });
+  });
+
+  describe("getToolPaymentRequirements with different formats", () => {
+    it("should extract requirements from structuredContent format", async () => {
+      mockMcpClient.callTool.mockResolvedValue(
+        createStructuredContentDirectPaymentError(mockPaymentRequired),
+      );
+
+      const result = await client.getToolPaymentRequirements("paid_tool");
+
+      expect(result).toEqual(mockPaymentRequired);
+    });
+
+    it("should extract V1 requirements from structuredContent format", async () => {
+      mockMcpClient.callTool.mockResolvedValue(
+        createStructuredContentDirectPaymentError(mockPaymentRequiredV1),
+      );
+
+      const result = await client.getToolPaymentRequirements("paid_tool");
+
+      expect(result).toEqual(mockPaymentRequiredV1);
+    });
   });
 });
 
