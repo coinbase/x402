@@ -81,6 +81,16 @@
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
         "default": "./dist/cjs/sign-in-with-x/index.js"
       }
+    },
+    "./facilitator-fees": {
+      "import": {
+        "types": "./dist/esm/facilitator-fees/index.d.mts",
+        "default": "./dist/esm/facilitator-fees/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/facilitator-fees/index.d.ts",
+        "default": "./dist/cjs/facilitator-fees/index.js"
+      }
     }
   },
   "files": [
