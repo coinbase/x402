@@ -4,6 +4,8 @@ package unit_test
 import (
 	"testing"
 
+	solana "github.com/gagliardetto/solana-go"
+
 	x402 "github.com/coinbase/x402/go"
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
 	svmserver "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
@@ -233,6 +235,61 @@ func TestSolanaGetNetworkConfig(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSolanaMessageVersioning tests message version setting
+func TestSolanaMessageVersioning(t *testing.T) {
+	t.Run("SetVersionToV0", func(t *testing.T) {
+		// Test that we can set the message version to V0
+		// This is important for cross-platform compatibility with Python/TypeScript facilitators
+		msg := solana.Message{
+			Header: solana.MessageHeader{
+				NumRequiredSignatures:       1,
+				NumReadonlySignedAccounts:   0,
+				NumReadonlyUnsignedAccounts: 0,
+			},
+			AccountKeys:     []solana.PublicKey{solana.MustPublicKeyFromBase58("11111111111111111111111111111111")},
+			RecentBlockhash: solana.MustHashFromBase58("11111111111111111111111111111111"),
+		}
+
+		// Default should be legacy
+		if msg.IsVersioned() {
+			t.Error("New message should be legacy by default")
+		}
+
+		// Set to V0
+		msg.SetVersion(solana.MessageVersionV0)
+
+		// Should now be versioned
+		if !msg.IsVersioned() {
+			t.Error("Message should be versioned after SetVersion(V0)")
+		}
+	})
+
+	t.Run("VersionedTransactionSerialization", func(t *testing.T) {
+		// Create a message and set it to V0
+		msg := solana.Message{
+			Header: solana.MessageHeader{
+				NumRequiredSignatures:       1,
+				NumReadonlySignedAccounts:   0,
+				NumReadonlyUnsignedAccounts: 0,
+			},
+			AccountKeys:     []solana.PublicKey{solana.MustPublicKeyFromBase58("11111111111111111111111111111111")},
+			RecentBlockhash: solana.MustHashFromBase58("11111111111111111111111111111111"),
+		}
+		msg.SetVersion(solana.MessageVersionV0)
+
+		// Serialize
+		msgBytes, err := msg.MarshalBinary()
+		if err != nil {
+			t.Fatalf("Failed to marshal message: %v", err)
+		}
+
+		// First byte should be version marker (128 for v0)
+		if msgBytes[0] != 128 {
+			t.Errorf("Expected first byte to be 128 (v0 marker), got %d", msgBytes[0])
+		}
+	})
 }
 
 // TestSolanaGetAssetInfo tests asset info retrieval
