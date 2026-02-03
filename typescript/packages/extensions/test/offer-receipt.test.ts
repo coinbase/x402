@@ -179,7 +179,7 @@ describe("x402 Offer/Receipt Extension", () => {
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
           amount: "10000",
-          maxTimeoutSeconds: 60,
+          offerValiditySeconds: 60,
         },
         signer,
       );
@@ -192,7 +192,7 @@ describe("x402 Offer/Receipt Extension", () => {
       expect(payload.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
       expect(payload.payTo).toBe("0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
       expect(payload.amount).toBe("10000");
-      // validUntil should be approximately now + maxTimeoutSeconds
+      // validUntil should be approximately now + offerValiditySeconds
       expect(payload.validUntil).toBeGreaterThanOrEqual(beforeCreate + 60);
       expect(payload.validUntil).toBeLessThanOrEqual(beforeCreate + 62); // Allow 2s tolerance
     });
@@ -1134,16 +1134,16 @@ describe("Server Extension Utilities", () => {
       const declaration = declareOfferReceiptExtension();
       expect(declaration).toHaveProperty(OFFER_RECEIPT);
       expect(declaration[OFFER_RECEIPT].includeTxHash).toBeUndefined();
-      expect(declaration[OFFER_RECEIPT].maxTimeoutSeconds).toBeUndefined();
+      expect(declaration[OFFER_RECEIPT].offerValiditySeconds).toBeUndefined();
     });
 
     it("returns extension declaration with custom config", () => {
       const declaration = declareOfferReceiptExtension({
         includeTxHash: true,
-        maxTimeoutSeconds: 120,
+        offerValiditySeconds: 120,
       });
       expect(declaration[OFFER_RECEIPT].includeTxHash).toBe(true);
-      expect(declaration[OFFER_RECEIPT].maxTimeoutSeconds).toBe(120);
+      expect(declaration[OFFER_RECEIPT].offerValiditySeconds).toBe(120);
     });
   });
 

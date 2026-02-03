@@ -159,13 +159,13 @@ function extractResourceUrl(transportContext: unknown): string | undefined {
  *
  * @param requirements - The payment requirements
  * @param acceptIndex - Index into accepts[] array
- * @param maxTimeoutSeconds - Optional validity duration override
+ * @param offerValiditySeconds - Optional validity duration override
  * @returns The offer input object
  */
 function requirementsToOfferInput(
   requirements: PaymentRequirements,
   acceptIndex: number,
-  maxTimeoutSeconds?: number,
+  offerValiditySeconds?: number,
 ): OfferInput {
   return {
     acceptIndex,
@@ -174,7 +174,7 @@ function requirementsToOfferInput(
     asset: requirements.asset,
     payTo: requirements.payTo,
     amount: requirements.amount,
-    maxTimeoutSeconds: maxTimeoutSeconds ?? requirements.maxTimeoutSeconds,
+    offerValiditySeconds: offerValiditySeconds ?? requirements.maxTimeoutSeconds,
   };
 }
 
@@ -223,7 +223,7 @@ export function createOfferReceiptExtension(signer: OfferReceiptSigner): Resourc
       for (let i = 0; i < context.requirements.length; i++) {
         const requirement = context.requirements[i];
         try {
-          const offerInput = requirementsToOfferInput(requirement, i, config?.maxTimeoutSeconds);
+          const offerInput = requirementsToOfferInput(requirement, i, config?.offerValiditySeconds);
           const signedOffer = await signer.signOffer(resourceUrl, offerInput);
           offers.push(signedOffer);
         } catch (error) {
@@ -318,7 +318,7 @@ export function declareOfferReceiptExtension(
   return {
     [OFFER_RECEIPT]: {
       includeTxHash: config?.includeTxHash,
-      maxTimeoutSeconds: config?.maxTimeoutSeconds,
+      offerValiditySeconds: config?.offerValiditySeconds,
     },
   };
 }

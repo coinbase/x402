@@ -175,7 +175,7 @@ export interface OfferReceiptDeclaration {
   /** Include transaction hash in receipt (default: false for privacy). Set to true for verifiability. */
   includeTxHash?: boolean;
   /** Offer validity duration in seconds. Default: 300 (see x402ResourceServer.ts) */
-  maxTimeoutSeconds?: number;
+  offerValiditySeconds?: number;
 }
 
 /**
@@ -195,7 +195,7 @@ export interface OfferInput {
   /** Required payment amount */
   amount: string;
   /** Offer validity duration in seconds. Default: 300 (see x402ResourceServer.ts) */
-  maxTimeoutSeconds?: number;
+  offerValiditySeconds?: number;
 }
 
 /**

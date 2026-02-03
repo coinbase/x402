@@ -529,7 +529,7 @@ const EXTENSION_VERSION = 1;
  */
 function createOfferPayload(resourceUrl: string, input: OfferInput): OfferPayload {
   const now = Math.floor(Date.now() / 1000);
-  const maxTimeoutSeconds = input.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
+  const offerValiditySeconds = input.offerValiditySeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
 
   return {
     version: EXTENSION_VERSION,
@@ -539,7 +539,7 @@ function createOfferPayload(resourceUrl: string, input: OfferInput): OfferPayloa
     asset: input.asset,
     payTo: input.payTo,
     amount: input.amount,
-    validUntil: now + maxTimeoutSeconds,
+    validUntil: now + offerValiditySeconds,
   };
 }
 
