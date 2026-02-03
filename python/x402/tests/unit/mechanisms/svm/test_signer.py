@@ -100,6 +100,44 @@ class TestFacilitatorKeypairSigner:
                 tx_base64, "UnknownAddress11111111111111111111", SOLANA_DEVNET_CAIP2
             )
 
+    def test_is_versioned_transaction_should_detect_legacy(self):
+        """_is_versioned_transaction should detect legacy transactions."""
+        keypair = Keypair()
+        signer = FacilitatorKeypairSigner(keypair)
+
+        # Legacy transaction: first byte of message < 128 (numRequiredSignatures = 1)
+        # Format: [sig_count_compact_u16] [signatures...] [message...]
+        # This is a minimal legacy transaction with 1 signature slot
+        # CompactU16(1) = 0x01, then 64 zero bytes for signature, then legacy message header
+        legacy_tx_bytes = bytes([0x01])  # 1 signature
+        legacy_tx_bytes += bytes(64)  # Empty signature
+        legacy_tx_bytes += bytes([0x01, 0x00, 0x00])  # Legacy header: numReqSigs=1, numReadonlySigned=0, numReadonlyUnsigned=0
+        legacy_tx_bytes += bytes([0x01])  # 1 account key
+        legacy_tx_bytes += bytes(32)  # Account key
+        legacy_tx_bytes += bytes(32)  # Recent blockhash
+        legacy_tx_bytes += bytes([0x00])  # 0 instructions
+
+        assert signer._is_versioned_transaction(legacy_tx_bytes) is False
+
+    def test_is_versioned_transaction_should_detect_versioned(self):
+        """_is_versioned_transaction should detect versioned (v0) transactions."""
+        keypair = Keypair()
+        signer = FacilitatorKeypairSigner(keypair)
+
+        # Versioned transaction: first byte of message >= 128 (0x80 for v0)
+        # Format: [sig_count_compact_u16] [signatures...] [version_byte] [message...]
+        versioned_tx_bytes = bytes([0x01])  # 1 signature
+        versioned_tx_bytes += bytes(64)  # Empty signature
+        versioned_tx_bytes += bytes([0x80])  # Version byte for v0 (128)
+        versioned_tx_bytes += bytes([0x01, 0x00, 0x00])  # Header
+        versioned_tx_bytes += bytes([0x01])  # 1 account key
+        versioned_tx_bytes += bytes(32)  # Account key
+        versioned_tx_bytes += bytes(32)  # Recent blockhash
+        versioned_tx_bytes += bytes([0x00])  # 0 instructions
+        versioned_tx_bytes += bytes([0x00])  # 0 address table lookups
+
+        assert signer._is_versioned_transaction(versioned_tx_bytes) is True
+
     def test_from_base58_with_single_key(self):
         """from_base58 should create signer from single base58 key."""
         keypair = Keypair()

@@ -10,6 +10,7 @@ const baseConfig = {
     "types/index": "src/types/index.ts",
     "types/v1/index": "src/types/v1/index.ts",
     "utils/index": "src/utils/index.ts",
+    "schemas/index": "src/schemas/index.ts",
   },
   dts: {
     resolve: true,
