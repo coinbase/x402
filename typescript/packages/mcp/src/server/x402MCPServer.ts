@@ -16,7 +16,7 @@ import type {
   DynamicPayTo,
   DynamicPrice,
 } from "../types";
-import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../types";
+import { MCP_PAYMENT_RESPONSE_META_KEY } from "../types";
 import { createToolResourceUrl, extractPaymentFromMeta } from "../utils";
 
 /**
@@ -517,13 +517,7 @@ export class x402MCPServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            "x402/error": {
-              code: MCP_PAYMENT_REQUIRED_CODE,
-              message: errorMessage,
-              data: paymentRequired,
-            },
-          }),
+          text: JSON.stringify(paymentRequired),
         },
       ],
       isError: true,
@@ -578,13 +572,7 @@ export class x402MCPServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            "x402/error": {
-              code: MCP_PAYMENT_REQUIRED_CODE,
-              message: `Payment settlement failed: ${errorMessage}`,
-              data: errorData,
-            },
-          }),
+          text: JSON.stringify(errorData),
         },
       ],
       isError: true,
@@ -1170,13 +1158,7 @@ async function createPaymentRequiredResultFromConfig(
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify({
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: errorMessage,
-            data: paymentRequired,
-          },
-        }),
+        text: JSON.stringify(paymentRequired),
       },
     ],
     isError: true,
@@ -1229,13 +1211,7 @@ async function createSettlementFailedResultFromConfig(
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify({
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: `Payment settlement failed: ${errorMessage}`,
-            data: errorData,
-          },
-        }),
+        text: JSON.stringify(errorData),
       },
     ],
     isError: true,

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { x402MCPServer, createx402MCPServer, createPaymentWrapper } from "../../src/server";
-import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../../src/types";
+import { MCP_PAYMENT_RESPONSE_META_KEY } from "../../src/types";
 import type {
   PaymentPayload,
   PaymentRequirements,
@@ -110,7 +110,13 @@ function createMockResourceServer(): MockResourceServer {
     verifyPayment: vi.fn().mockResolvedValue(mockVerifyResponse),
     settlePayment: vi.fn().mockResolvedValue(mockSettleResponse),
     buildPaymentRequirements: vi.fn().mockResolvedValue([mockPaymentRequirements]),
-    createPaymentRequiredResponse: vi.fn().mockResolvedValue(mockPaymentRequired),
+    createPaymentRequiredResponse: vi
+      .fn()
+      .mockImplementation((_requirements, resourceInfo, errorMessage) => ({
+        ...mockPaymentRequired,
+        resource: resourceInfo,
+        error: errorMessage,
+      })),
   };
 }
 
@@ -250,8 +256,11 @@ describe("x402MCPServer", () => {
         const result = await wrappedHandler({}, { _meta: undefined });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('"x402/error"');
-        expect(result.content[0].text).toContain(`"code":${MCP_PAYMENT_REQUIRED_CODE}`);
+        // Per updated spec, content[0].text contains direct PaymentRequired (no wrapper)
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.x402Version).toBe(2);
+        expect(parsed.accepts).toBeDefined();
+        expect(Array.isArray(parsed.accepts)).toBe(true);
       });
 
       it("should include structuredContent in 402 response for interoperability", async () => {
@@ -276,10 +285,12 @@ describe("x402MCPServer", () => {
         // structuredContent should be direct PaymentRequired
         expect(result.structuredContent.accepts).toBeDefined();
 
-        // content should have x402/error wrapper
+        // Per updated spec, content[0].text should also be direct PaymentRequired (no wrapper)
         const parsedContent = JSON.parse(result.content[0].text);
-        expect(parsedContent["x402/error"]).toBeDefined();
-        expect(parsedContent["x402/error"].code).toBe(MCP_PAYMENT_REQUIRED_CODE);
+        expect(parsedContent.x402Version).toBe(2);
+        expect(parsedContent.accepts).toBeDefined();
+        // Both should contain identical data
+        expect(parsedContent.accepts).toEqual(result.structuredContent.accepts);
       });
 
       it("should verify and execute when payment provided", async () => {
@@ -302,7 +313,10 @@ describe("x402MCPServer", () => {
         const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
 
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain("Insufficient balance");
+        // Per updated spec, content[0].text is direct PaymentRequired with error message
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.x402Version).toBe(2);
+        expect(parsed.error).toContain("Insufficient balance");
       });
 
       it("should settle payment after execution", async () => {
@@ -353,10 +367,11 @@ describe("x402MCPServer", () => {
 
         // Per MCP spec, settlement failure returns a 402 error (no content)
         expect(result.isError).toBe(true);
+        // Per updated spec, content[0].text is direct PaymentRequired with error and settlement info
         const errorData = JSON.parse(result.content[0].text);
-        expect(errorData["x402/error"].code).toBe(402);
-        expect(errorData["x402/error"].message).toContain("Payment settlement failed");
-        expect(errorData["x402/error"].data["x402/payment-response"]).toMatchObject({
+        expect(errorData.x402Version).toBe(2);
+        expect(errorData.error).toContain("Payment settlement failed");
+        expect(errorData["x402/payment-response"]).toMatchObject({
           success: false,
           errorReason: "Settlement failed",
         });
@@ -498,7 +513,13 @@ describe("x402MCPServer hooks", () => {
       verifyPayment: vi.fn().mockResolvedValue(mockVerifyResponse),
       settlePayment: vi.fn().mockResolvedValue(mockSettleResponse),
       buildPaymentRequirements: vi.fn().mockResolvedValue([mockPaymentRequirements]),
-      createPaymentRequiredResponse: vi.fn().mockResolvedValue(mockPaymentRequired),
+      createPaymentRequiredResponse: vi
+        .fn()
+        .mockImplementation((_requirements, resourceInfo, errorMessage) => ({
+          ...mockPaymentRequired,
+          resource: resourceInfo,
+          error: errorMessage,
+        })),
     };
 
     server = new x402MCPServer(
@@ -685,8 +706,10 @@ describe("createPaymentWrapper", () => {
       const result = await wrappedHandler({}, { _meta: undefined });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('"x402/error"');
-      expect(result.content[0].text).toContain(`"code":${MCP_PAYMENT_REQUIRED_CODE}`);
+      // Per updated spec, content[0].text contains direct PaymentRequired (no wrapper)
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.x402Version).toBe(2);
+      expect(parsed.accepts).toBeDefined();
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -752,7 +775,10 @@ describe("createPaymentWrapper", () => {
       const result = await wrappedHandler({}, { _meta: { "x402/payment": mockPaymentPayload } });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain("Insufficient balance");
+      // Per updated spec, content[0].text is direct PaymentRequired with error message
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.x402Version).toBe(2);
+      expect(parsed.error).toContain("Insufficient balance");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -803,10 +829,11 @@ describe("createPaymentWrapper", () => {
 
       // Per MCP spec, settlement failure returns a 402 error (no content)
       expect(result.isError).toBe(true);
+      // Per updated spec, content[0].text is direct PaymentRequired with error and settlement info
       const errorData = JSON.parse(result.content[0].text);
-      expect(errorData["x402/error"].code).toBe(402);
-      expect(errorData["x402/error"].message).toContain("Payment settlement failed");
-      expect(errorData["x402/error"].data["x402/payment-response"]).toMatchObject({
+      expect(errorData.x402Version).toBe(2);
+      expect(errorData.error).toContain("Payment settlement failed");
+      expect(errorData["x402/payment-response"]).toMatchObject({
         success: false,
         errorReason: "Settlement failed",
       });

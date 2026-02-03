@@ -94,10 +94,10 @@ const mockPaymentRequiredV1 = {
 };
 
 /**
- * Creates an x402/error structure embedded in tool result content (our format)
+ * Creates a PaymentRequired response in content format (per MCP transport spec)
  *
- * @param paymentRequired - The payment required object to embed
- * @returns MCP tool result with embedded payment error
+ * @param paymentRequired - The payment required object
+ * @returns MCP tool result with direct PaymentRequired in content
  */
 function createEmbeddedPaymentError(paymentRequired: PaymentRequired): {
   content: Array<{ type: "text"; text: string }>;
@@ -107,13 +107,7 @@ function createEmbeddedPaymentError(paymentRequired: PaymentRequired): {
     content: [
       {
         type: "text",
-        text: JSON.stringify({
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: "Payment required",
-            data: paymentRequired,
-          },
-        }),
+        text: JSON.stringify(paymentRequired),
       },
     ],
     isError: true,
@@ -541,48 +535,10 @@ describe("x402MCPClient response format interoperability", () => {
       expect(result.paymentMade).toBe(true);
       expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequiredV1);
     });
-
-    it("should parse structuredContent with x402/error wrapper", async () => {
-      const structuredWithWrapper = {
-        structuredContent: {
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: "Payment required",
-            data: mockPaymentRequired,
-          },
-        },
-        content: [{ type: "text" as const, text: "fallback" }],
-        isError: true as const,
-      };
-
-      mockMcpClient.callTool.mockResolvedValueOnce(structuredWithWrapper).mockResolvedValueOnce({
-        content: [{ type: "text", text: "success" }],
-        _meta: { "x402/payment-response": mockSettleResponse },
-      });
-
-      const result = await client.callTool("paid_tool");
-
-      expect(result.paymentMade).toBe(true);
-      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
-    });
   });
 
   describe("content fallback formats", () => {
-    it("should parse content with x402/error wrapper (our default format)", async () => {
-      mockMcpClient.callTool
-        .mockResolvedValueOnce(createEmbeddedPaymentError(mockPaymentRequired))
-        .mockResolvedValueOnce({
-          content: [{ type: "text", text: "success" }],
-          _meta: { "x402/payment-response": mockSettleResponse },
-        });
-
-      const result = await client.callTool("paid_tool");
-
-      expect(result.paymentMade).toBe(true);
-      expect(mockPaymentClient.createPaymentPayload).toHaveBeenCalledWith(mockPaymentRequired);
-    });
-
-    it("should parse content with direct PaymentRequired V2 (no wrapper)", async () => {
+    it("should parse content with direct PaymentRequired V2", async () => {
       mockMcpClient.callTool
         .mockResolvedValueOnce(createContentDirectPaymentError(mockPaymentRequired))
         .mockResolvedValueOnce({
@@ -613,18 +569,16 @@ describe("x402MCPClient response format interoperability", () => {
 
   describe("priority order", () => {
     it("should prefer structuredContent over content fallback", async () => {
+      const contentFallbackPaymentRequired = {
+        ...mockPaymentRequired,
+        error: "From content fallback",
+      };
       const mixedResponse = {
         structuredContent: mockPaymentRequired as Record<string, unknown>,
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({
-              "x402/error": {
-                code: MCP_PAYMENT_REQUIRED_CODE,
-                message: "Different error",
-                data: { ...mockPaymentRequired, error: "From content fallback" },
-              },
-            }),
+            text: JSON.stringify(contentFallbackPaymentRequired),
           },
         ],
         isError: true as const,

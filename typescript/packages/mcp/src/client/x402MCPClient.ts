@@ -45,18 +45,6 @@ interface MCPCallToolResult {
   structuredContent?: Record<string, unknown>;
 }
 
-/**
- * x402 error structure embedded in tool result content.
- * Used because MCP SDK converts JSON-RPC errors to generic isError results.
- */
-interface x402EmbeddedError {
-  "x402/error": {
-    code: number;
-    message: string;
-    data: PaymentRequired;
-  };
-}
-
 // ============================================================================
 // Type Guards
 // ============================================================================
@@ -69,47 +57,6 @@ interface x402EmbeddedError {
  */
 function isMCPTextContent(content: MCPContentItem): content is MCPContentItem & { text: string } {
   return content.type === "text" && typeof content.text === "string";
-}
-
-/**
- * Type guard for x402 embedded error structure.
- * Validates the complete structure including the embedded PaymentRequired data
- * using Zod schema validation from @x402/core/schemas.
- *
- * @param parsed - The parsed value to check
- * @returns True if the value is a valid x402 embedded error
- */
-function isx402EmbeddedError(parsed: unknown): parsed is x402EmbeddedError {
-  if (typeof parsed !== "object" || parsed === null) {
-    return false;
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const x402Error = obj["x402/error"];
-
-  if (typeof x402Error !== "object" || x402Error === null) {
-    return false;
-  }
-
-  const errorObj = x402Error as Record<string, unknown>;
-
-  // Validate error code
-  if (errorObj.code !== MCP_PAYMENT_REQUIRED_CODE) {
-    return false;
-  }
-
-  // Validate error message
-  if (typeof errorObj.message !== "string") {
-    return false;
-  }
-
-  // Validate the PaymentRequired data using Zod schema validation
-  // This handles both V1 and V2 formats automatically
-  if (!isPaymentRequired(errorObj.data)) {
-    return false;
-  }
-
-  return true;
 }
 
 /**
@@ -569,11 +516,9 @@ export class x402MCPClient {
   /**
    * Extracts PaymentRequired from a tool result (structured 402 response).
    *
-   * Supports multiple response formats for interoperability:
-   * 1. structuredContent with direct PaymentRequired (ethanniser/x402-mcp style)
-   * 2. structuredContent with x402/error wrapper
-   * 3. content[0].text with x402/error wrapper (our default)
-   * 4. content[0].text with direct PaymentRequired (V1 compatibility)
+   * Per MCP transport spec, supports:
+   * 1. structuredContent with direct PaymentRequired object (optional, preferred)
+   * 2. content[0].text with JSON-encoded PaymentRequired object (required)
    *
    * @param result - The tool call result
    * @returns PaymentRequired if this is a 402 response, null otherwise
@@ -620,16 +565,12 @@ export class x402MCPClient {
 
   /**
    * Extracts PaymentRequired from an object.
-   * Supports both x402/error wrapper format and direct PaymentRequired format.
+   * Expects direct PaymentRequired format (per MCP transport spec).
    *
    * @param obj - The object to extract from
    * @returns PaymentRequired if found, null otherwise
    */
   private extractPaymentRequiredFromObject(obj: Record<string, unknown>): PaymentRequired | null {
-    if (isx402EmbeddedError(obj)) {
-      return obj["x402/error"].data;
-    }
-
     if (isPaymentRequired(obj)) {
       return obj as PaymentRequired;
     }
