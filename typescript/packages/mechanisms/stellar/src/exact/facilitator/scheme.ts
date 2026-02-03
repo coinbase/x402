@@ -105,6 +105,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
+    let fromAddress: string | undefined;
     try {
       // Step 1: Validate protocol version, scheme, and network
       if (payload.x402Version !== SUPPORTED_X402_VERSION) {
@@ -139,13 +140,11 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
       // Step 3: Validate transaction structure
       if (transaction.operations.length !== 1) {
-        console.error("Invalid transaction operations length:", transaction.operations.length);
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
       const operation = transaction.operations[0];
       if (operation.type !== "invokeHostFunction") {
-        console.error("Invalid transaction operation type:", operation.type);
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
@@ -159,7 +158,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const func = invokeOp.func;
 
       if (!func || func.switch().name !== "hostFunctionTypeInvokeContract") {
-        console.error(`Invalid contract invocation, type=${func?.switch().name}`);
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
@@ -180,7 +178,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       }
 
       // Step 6: Extract and validate transfer arguments
-      const fromAddress = scValToNative(args[0]) as string;
+      fromAddress = scValToNative(args[0]) as string;
       const toAddress = scValToNative(args[1]) as string;
       const amount = scValToNative(args[2]) as bigint;
 
@@ -201,7 +199,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const simResponse = await server.simulateTransaction(transaction);
       if (!Api.isSimulationSuccess(simResponse)) {
         const errorMsg = simResponse.error ? `: ${simResponse.error}` : "";
-        console.error("Simulation error" + errorMsg);
+        console.error("Simulation error:", errorMsg);
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_simulation_failed",
           fromAddress,
@@ -216,7 +214,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         expectedAmount,
       );
       if (eventValidation) {
-        console.error("Event validation failed:", eventValidation.invalidReason);
         return eventValidation;
       }
 
@@ -236,14 +233,13 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         simResponse,
       );
       if (authValidation) {
-        console.error("Auth entry validation failed:", authValidation.invalidReason);
         return authValidation;
       }
 
       return validVerifyResponse(fromAddress);
     } catch (error) {
       console.error("Unexpected verification error:", error);
-      return invalidVerifyResponse("unexpected_verify_error");
+      return invalidVerifyResponse("unexpected_verify_error", fromAddress);
     }
   }
 
@@ -287,7 +283,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
       // Validate Soroban data is present for Soroban transactions
       if (!sorobanData) {
-        console.error("Missing Soroban data in transaction");
         return {
           success: false,
           network: payload.accepted.network,
@@ -328,7 +323,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       );
 
       if (signError) {
-        console.error("Error signing transaction:", signError);
         return {
           success: false,
           network: payload.accepted.network,
@@ -344,7 +338,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const sendResult = await server.sendTransaction(signedTx);
 
       if (sendResult.status !== "PENDING") {
-        console.error("Transaction submission failed with unexpected status:", sendResult.status);
         return {
           success: false,
           network: payload.accepted.network,
@@ -360,7 +353,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const confirmResult = await this.pollForTransaction(server, txHash, maxPollAttempts);
 
       if (!confirmResult.success) {
-        console.error(`Transaction ${txHash} failed or timed out`);
         return {
           success: false,
           network: payload.accepted.network,
@@ -469,7 +461,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
         // Check if this is a transfer event (first topic is "transfer" symbol)
         if (topics.length < 3) {
-          console.error("Contract event missing transfer topics");
           return invalidVerifyResponse(
             "invalid_exact_stellar_payload_event_not_transfer",
             fromAddress,
@@ -478,7 +469,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
         const topicType = topics[0].switch().name;
         if (topicType !== "scvSymbol") {
-          console.error(`Contract event has non-symbol topic type: ${topicType}`);
           return invalidVerifyResponse(
             "invalid_exact_stellar_payload_event_not_transfer",
             fromAddress,
@@ -487,7 +477,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
         const symbol = topics[0].sym().toString();
         if (symbol !== "transfer") {
-          console.error(`Contract event has non-transfer symbol: ${symbol}`);
           return invalidVerifyResponse(
             "invalid_exact_stellar_payload_event_not_transfer",
             fromAddress,
@@ -565,7 +554,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
       // Only address-based credentials are allowed
       if (credentialsType !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
-        console.error(`Invalid credential type: ${credentialsType.name}`);
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_unsupported_credential_type",
           fromAddress,
@@ -578,7 +566,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
       // Facilitator must not appear in auth entries
       if (authAddress === facilitatorAddress) {
-        console.error("Facilitator address found in auth entry");
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_facilitator_in_auth",
           fromAddress,
@@ -588,7 +575,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       // Check signature expiration is within allowed window
       const expirationLedger = addressCredentials.signatureExpirationLedger();
       if (expirationLedger > maxLedger) {
-        console.error(`Expiration ledger ${expirationLedger} exceeds max ${maxLedger}`);
         return invalidVerifyResponse(
           "invalid_exact_stellar_signature_expiration_too_far",
           fromAddress,
@@ -598,7 +584,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       // No sub-invocations allowed
       const rootInvocation = auth.rootInvocation();
       if (rootInvocation.subInvocations().length > 0) {
-        console.error(`Auth entry has ${rootInvocation.subInvocations().length} sub-invocations`);
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_has_subinvocations",
           fromAddress,
@@ -617,7 +602,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       );
     }
     if (authStatus.pendingSignature.length > 0) {
-      console.error("Unexpected pending signatures:", authStatus.pendingSignature);
       return invalidVerifyResponse(
         "invalid_exact_stellar_payload_unexpected_pending_signatures",
         fromAddress,
