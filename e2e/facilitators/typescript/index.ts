@@ -77,10 +77,6 @@ if (!process.env.SVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
-if (!process.env.APTOS_PRIVATE_KEY) {
-  console.error("❌ APTOS_PRIVATE_KEY environment variable is required");
-  process.exit(1);
-}
 
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
@@ -90,11 +86,14 @@ console.info(`EVM Facilitator account: ${evmAccount.address}`);
 const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
-// Initialize the Aptos account from private key (format to AIP-80 compliant format)
-const formattedAptosKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY as string, PrivateKeyVariants.Ed25519);
-const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
-const aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
-console.info(`Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`);
+// Initialize the Aptos account from private key (format to AIP-80 compliant format) if provided
+let aptosAccount: Account | undefined;
+if (process.env.APTOS_PRIVATE_KEY) {
+  const formattedAptosKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY as string, PrivateKeyVariants.Ed25519);
+  const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
+  aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+  console.info(`Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`);
+}
 
 // Create a Viem client with both wallet and public capabilities
 const evmChain = getEvmChain(EVM_NETWORK);
@@ -149,7 +148,7 @@ const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcU
 
 // Facilitator can handle all Aptos networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const aptosSigner = toFacilitatorAptosSigner(aptosAccount, APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined);
+const aptosSigner = aptosAccount ? toFacilitatorAptosSigner(aptosAccount, APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined) : undefined;
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -172,10 +171,12 @@ registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   networks: SVM_NETWORK as Network,
 });
-registerExactAptosScheme(facilitator, {
-  signer: aptosSigner,
-  networks: APTOS_NETWORK as Network,
-});
+if (aptosSigner) {
+  registerExactAptosScheme(facilitator, {
+    signer: aptosSigner,
+    networks: APTOS_NETWORK as Network,
+  });
+}
 
 facilitator.registerExtension(BAZAAR)
   // Lifecycle hooks for payment tracking and discovery
@@ -360,7 +361,7 @@ app.get("/health", (req, res) => {
     status: "ok",
     evmNetwork: EVM_NETWORK,
     svmNetwork: SVM_NETWORK,
-    aptosNetwork: APTOS_NETWORK,
+    aptosNetwork: aptosAccount ? APTOS_NETWORK : "(not configured)",
     facilitator: "typescript",
     version: "2.0.0",
     extensions: [BAZAAR],
@@ -393,7 +394,7 @@ app.listen(parseInt(PORT), () => {
 ║  SVM Network:  ${SVM_NETWORK}                          ║
 ║  Aptos Network: ${APTOS_NETWORK}                       ║
 ║  EVM Address:  ${evmAccount.address}                   ║
-║  Aptos Address: ${aptosAccount.accountAddress.toStringLong().slice(0, 20)}...  ║
+║  Aptos Address: ${aptosAccount ? aptosAccount.accountAddress.toStringLong().slice(0, 20) + "..." : "(not configured)"}
 ║  Extensions:   bazaar                                  ║
 ║                                                        ║
 ║  Endpoints:                                            ║

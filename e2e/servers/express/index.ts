@@ -35,10 +35,6 @@ if (!SVM_PAYEE_ADDRESS) {
   process.exit(1);
 }
 
-if (!APTOS_PAYEE_ADDRESS) {
-  console.error("❌ APTOS_PAYEE_ADDRESS environment variable is required");
-  process.exit(1);
-}
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -57,13 +53,29 @@ const server = new x402ResourceServer(facilitatorClient);
 // Register server schemes
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
-registerExactAptosScheme(server);
+if (APTOS_PAYEE_ADDRESS) {
+  registerExactAptosScheme(server);
+}
 
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
 
 console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+
+/**
+ * Pre-middleware guard for optional Aptos endpoint
+ * Returns 501 Not Implemented if Aptos is not configured
+ */
+app.get("/protected-aptos", (req, res, next) => {
+  if (!APTOS_PAYEE_ADDRESS) {
+    return res.status(501).json({
+      error: "Aptos payments not configured",
+      message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+    });
+  }
+  next();
+});
 
 /**
  * Configure x402 payment middleware using builder pattern
@@ -127,7 +139,7 @@ app.use(
       },
       "GET /protected-aptos": {
         accepts: {
-          payTo: APTOS_PAYEE_ADDRESS,
+          payTo: APTOS_PAYEE_ADDRESS || "0x0",
           scheme: "exact",
           price: "$0.001",
           network: APTOS_NETWORK,
@@ -221,6 +233,7 @@ app.get("/protected-svm", (req, res) => {
  *
  * This endpoint demonstrates a resource protected by x402 payment middleware for Aptos.
  * Clients must provide a valid payment signature to access this endpoint.
+ * Note: 501 check is handled by pre-middleware guard above.
  */
 app.get("/protected-aptos", (req, res) => {
   res.json({
@@ -284,7 +297,7 @@ app.listen(parseInt(PORT), () => {
 ║  Aptos Network: ${APTOS_NETWORK}                       ║
 ║  EVM Payee:    ${EVM_PAYEE_ADDRESS}                    ║
 ║  SVM Payee:    ${SVM_PAYEE_ADDRESS}                    ║
-║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS}                  ║
+║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected        (EIP-3009 payment - EVM)    ║

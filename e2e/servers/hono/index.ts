@@ -36,10 +36,6 @@ if (!SVM_PAYEE_ADDRESS) {
   process.exit(1);
 }
 
-if (!APTOS_PAYEE_ADDRESS) {
-  console.error("❌ APTOS_PAYEE_ADDRESS environment variable is required");
-  process.exit(1);
-}
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -58,7 +54,9 @@ const x402Server = new x402ResourceServer(facilitatorClient);
 // Register server schemes
 registerExactEvmScheme(x402Server);
 registerExactSvmScheme(x402Server);
-registerExactAptosScheme(x402Server);
+if (APTOS_PAYEE_ADDRESS) {
+  registerExactAptosScheme(x402Server);
+}
 
 // Register Bazaar discovery extension
 x402Server.registerExtension(bazaarResourceServerExtension);
@@ -67,6 +65,20 @@ console.log(
   `Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + "..." : "not configured"}`,
 );
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+
+/**
+ * Pre-middleware guard for optional Aptos endpoint
+ * Returns 501 Not Implemented if Aptos is not configured
+ */
+app.use("/protected-aptos", async (c, next) => {
+  if (!APTOS_PAYEE_ADDRESS) {
+    return c.json({
+      error: "Aptos payments not configured",
+      message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+    }, 501);
+  }
+  await next();
+});
 
 /**
  * Configure x402 payment middleware using builder pattern
@@ -131,7 +143,7 @@ app.use(
       },
       "GET /protected-aptos": {
         accepts: {
-          payTo: APTOS_PAYEE_ADDRESS,
+          payTo: APTOS_PAYEE_ADDRESS || "0x0",
           scheme: "exact",
           price: "$0.001",
           network: APTOS_NETWORK,
@@ -190,6 +202,7 @@ app.get("/protected-svm", (c) => {
  *
  * This endpoint demonstrates a resource protected by x402 payment middleware for Aptos.
  * Clients must provide a valid payment signature to access this endpoint.
+ * Note: 501 check is handled by pre-middleware guard above.
  */
 app.get("/protected-aptos", (c) => {
   return c.json({
@@ -244,7 +257,7 @@ console.log(`
 ║  Aptos Network:  ${APTOS_NETWORK}                       ║
 ║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
 ║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
-║  Aptos Payee:    ${APTOS_PAYEE_ADDRESS}                 ║
+║  Aptos Payee:    ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected       (requires $0.001 USDC payment)║
