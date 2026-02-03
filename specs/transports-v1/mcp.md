@@ -19,10 +19,10 @@ When a tool requires payment, servers MUST return a tool result with `isError: t
 
 ### Server Requirements
 
-Servers MUST provide `PaymentRequired` in both formats for client compatibility:
+Servers MUST provide `PaymentRequired` in `content[0].text` and SHOULD also provide `structuredContent`:
 
-1. **`structuredContent`**: Direct `PaymentRequired` object
-2. **`content[0].text`**: JSON-encoded fallback
+1. **`content[0].text`** (REQUIRED): JSON-encoded with `x402/error` wrapper
+2. **`structuredContent`** (OPTIONAL): Direct `PaymentRequired` object for enhanced client compatibility
 
 **Required Response Format:**
 
