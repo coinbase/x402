@@ -31,7 +31,6 @@ async function createFacilitator(): Promise<x402Facilitator> {
     throw new Error("❌ FACILITATOR_SVM_PRIVATE_KEY environment variable is required");
   }
 
-
   // Initialize the EVM account from private key
   const evmAccount = privateKeyToAccount(process.env.FACILITATOR_EVM_PRIVATE_KEY as `0x${string}`);
 

@@ -248,7 +248,10 @@ describe("Aptos Integration Tests", () => {
         description: "Company Co. resource",
         mimeType: "application/json",
       };
-      const paymentRequired = await nonSponsoringServer.createPaymentRequiredResponse(accepts, resource);
+      const paymentRequired = await nonSponsoringServer.createPaymentRequiredResponse(
+        accepts,
+        resource,
+      );
 
       // Client creates non-sponsored payload
       const paymentPayload = await client.createPaymentPayload(paymentRequired);
