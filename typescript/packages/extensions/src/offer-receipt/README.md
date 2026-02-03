@@ -95,19 +95,71 @@ Two formats are supported:
 
 ## Client Usage
 
-### Wrapper Flow
+### Using wrapFetchWithPayment
 
-> **Note**: The `wrapFetchWithPayment` wrapper does not yet support extensions. Use the raw flow below for now.
+The `wrapFetchWithPayment` wrapper can be used with offers and receipts by capturing offers in the `onPaymentRequired` hook and extracting the receipt from the response. Note that this approach does not control which `accepts[]` entry is selected - the client's selector/policies determine that independently.
+
+```typescript
+import { wrapFetchWithPayment, x402Client, x402HTTPClient } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+import {
+  extractOffersFromPaymentRequired,
+  decodeSignedOffers,
+  extractReceiptFromResponse,
+  type DecodedOffer,
+} from "@x402/extensions/offer-receipt";
+
+// Set up signers
+const evmSigner = privateKeyToAccount(evmPrivateKey);
+const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
+
+// Configure x402 client
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: evmSigner });
+registerExactSvmScheme(client, { signer: svmSigner });
+
+const httpClient = new x402HTTPClient(client);
+
+// Store offers for later matching with receipt
+let capturedOffers: DecodedOffer[] = [];
+
+// Capture offers in onPaymentRequired hook
+httpClient.onPaymentRequired(async ({ paymentRequired }) => {
+  const offers = extractOffersFromPaymentRequired(paymentRequired);
+  capturedOffers = decodeSignedOffers(offers);
+});
+
+// Create payment-enabled fetch
+const fetchWithPay = wrapFetchWithPayment(fetch, httpClient);
+
+// Make request (payment handled automatically)
+const response = await fetchWithPay(url);
+
+// Extract receipt from response headers
+const receipt = extractReceiptFromResponse(response);
+
+// Match receipt to captured offer using receipt payload fields
+// (receipt contains network, amount, etc. to identify which offer was accepted)
+```
 
 ### Raw Flow
 
-For a complete working example showing offer/receipt extraction, see the [Receipt Attestation Example](../../../../../examples/typescript/clients/receipt-attestation/).
+For full control over offer selection, use the raw flow. See the [Receipt Attestation Example](../../../../../examples/typescript/clients/receipt-attestation/) for a complete working implementation.
 
 The example demonstrates:
 1. Making a request and receiving a 402 with signed offers
-2. Extracting offers from the PaymentRequired response
-3. Making payment and receiving a signed receipt
-4. Verifying the receipt payload
+2. Extracting and decoding offers to inspect payment options
+3. Selecting an offer and finding the matching `accepts[]` entry
+4. Making payment and receiving a signed receipt
+5. Verifying the receipt payload
+
+### Future: wrapFetchWithPaymentExtended
+
+We may add a `wrapFetchWithPaymentExtended` wrapper that selects payment options based on signed offers rather than the `accepts[]` array directly. This would guarantee that the selected payment option has a corresponding signed offer, which is the correct approach when attestation proofs are important.
 
 ## Using Receipts as Proofs
 

@@ -3,12 +3,6 @@
  *
  * Demonstrates extracting signed offers and receipts from x402 payment flows.
  * Uses the raw flow for visibility into what's happening at each step.
- *
- * Use Cases for Signed Receipts/Offers:
- * - Verified user reviews ("Verified Purchase" badges)
- * - Audit trails and compliance records
- * - Dispute resolution evidence
- * - Agent memory (AI agents proving past interactions)
  */
 
 import { config } from "dotenv";
@@ -28,23 +22,6 @@ import {
 } from "@x402/extensions/offer-receipt";
 
 config();
-
-// ============================================================================
-// SECURITY WARNING
-// ============================================================================
-//
-// 1. PRIVATE KEY MANAGEMENT
-//    Loading private keys from environment variables is for demonstration only.
-//    In production, use secure key management (HSM, KMS, hardware wallets).
-//
-// 2. KEY SEPARATION
-//    The payment signing key SHOULD be different from keys controlling
-//    wallets with significant funds.
-//
-// 3. KEY-TO-DOMAIN BINDING (for servers)
-//    See specs/extensions/extension-offer-and-receipt.md §4.5.1
-//
-// ============================================================================
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
@@ -159,33 +136,6 @@ async function main(): Promise<void> {
 
   // =========================================================================
   // Step 6: Verify receipt matches offer
-  // =========================================================================
-  //
-  // IMPORTANT: Key Binding Verification
-  // ------------------------------------
-  // The extraction functions (extractReceiptPayload, extractOfferPayload) do
-  // NOT verify signatures. They only decode the payload. Before trusting a
-  // receipt or offer, you should verify:
-  //
-  // 1. SIGNATURE VALIDITY
-  //    - JWS: Use jose.compactVerify() with the public key
-  //    - EIP-712: Use viem's recoverTypedDataAddress() to recover the signer
-  //
-  // 2. KEY-TO-DOMAIN BINDING
-  //    The signing key must be authorized to sign for the resource URL's domain.
-  //    To verify this:
-  //    - Extract the signer's DID (kid from JWS header, or did:pkh from EIP-712)
-  //    - Derive the expected domain DID from resourceUrl (e.g., did:web:api.example.com)
-  //    - Check that the signing key is bound to that domain via:
-  //      a) did:web document at https://<domain>/.well-known/did.json
-  //      b) DNS TXT record binding the DID to the domain
-  //      c) On-chain attestation (e.g., OMATrust key binding attestation)
-  //
-  // This verification is typically performed by downstream trust systems
-  // (OMATrust, PEAC) when you submit the receipt as proof. However, clients
-  // can also verify directly if they need immediate trust decisions.
-  //
-  // See: specs/extensions/extension-offer-and-receipt.md §4.5.1
   // =========================================================================
 
   if (signedReceipt) {

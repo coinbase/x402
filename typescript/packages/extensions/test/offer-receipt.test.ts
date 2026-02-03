@@ -34,7 +34,6 @@ import {
   decodeSignedOffers,
   findAcceptsObjectFromSignedOffer,
   extractReceiptFromResponse,
-  createOfferReceiptExtractor,
   declareOfferReceiptExtension,
   createJWSOfferReceiptSigner,
   createEIP712OfferReceiptSigner,
@@ -950,88 +949,6 @@ describe("Client Utilities", () => {
         "SolanaAddressHere",
       ]);
       expect(result).toBe(true);
-    });
-  });
-
-  describe("createOfferReceiptExtractor", () => {
-    it("attaches offerReceipt metadata to response", async () => {
-      const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
-
-      const offer = await createOfferJWS(
-        "https://api.example.com/resource",
-        {
-          acceptIndex: 0,
-          scheme: "exact",
-          network: "eip155:8453",
-          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          payTo: "0x1234567890123456789012345678901234567890",
-          amount: "10000",
-        },
-        signer,
-      );
-
-      const receipt = await createReceiptJWS(
-        {
-          resourceUrl: "https://api.example.com/resource",
-          payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-          network: "eip155:8453",
-        },
-        signer,
-      );
-
-      const paymentRequired = {
-        accepts: [
-          {
-            scheme: "exact",
-            network: "eip155:8453",
-            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-            payTo: "0x1234567890123456789012345678901234567890",
-            amount: "10000",
-          },
-        ],
-        extensions: {
-          [OFFER_RECEIPT]: {
-            info: { offers: [offer] },
-          },
-        },
-      };
-
-      const paymentPayload = {
-        accepted: {
-          scheme: "exact",
-          network: "eip155:8453",
-          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          payTo: "0x1234567890123456789012345678901234567890",
-          amount: "10000",
-        },
-      };
-
-      const settlementResponse = {
-        success: true,
-        extensions: {
-          [OFFER_RECEIPT]: {
-            info: { receipt },
-          },
-        },
-      };
-
-      const headers = new Headers();
-      headers.set("PAYMENT-RESPONSE", btoa(JSON.stringify(settlementResponse)));
-      const response = new Response("OK", { headers });
-
-      const extractor = createOfferReceiptExtractor();
-      extractor({
-        paymentRequired: paymentRequired as any,
-        paymentPayload: paymentPayload as any,
-        response,
-      });
-
-      const offerReceipt = (response as any).offerReceipt;
-      expect(offerReceipt).toBeDefined();
-      expect(offerReceipt.offers).toHaveLength(1);
-      expect(offerReceipt.acceptedOffer).toBeDefined();
-      expect(offerReceipt.receipt).toBeDefined();
     });
   });
 });

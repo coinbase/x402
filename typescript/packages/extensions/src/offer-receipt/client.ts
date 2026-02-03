@@ -9,42 +9,9 @@
  */
 
 import { decodePaymentResponseHeader } from "@x402/core/http";
-import type {
-  PaymentPayload,
-  PaymentRequired,
-  PaymentRequirements,
-  SettleResponse,
-} from "@x402/core/types";
+import type { PaymentRequired, PaymentRequirements, SettleResponse } from "@x402/core/types";
 import { OFFER_RECEIPT, type OfferPayload, type SignedOffer, type SignedReceipt } from "./types";
 import { extractOfferPayload, extractReceiptPayload } from "./signing";
-
-/**
- * Context passed from wrapFetchWithPayment's onPaymentComplete callback
- */
-export interface PaymentCompleteContext {
-  paymentRequired: PaymentRequired;
-  paymentPayload: PaymentPayload;
-  response: Response;
-}
-
-/**
- * Metadata extracted from an x402 payment flow
- */
-export interface OfferReceiptMetadata {
-  /** All signed offers from the 402 response */
-  offers?: SignedOffer[];
-  /** The accepted offer used for payment (matched by acceptIndex or terms) */
-  acceptedOffer?: SignedOffer;
-  /** Signed receipt from settlement response */
-  receipt?: SignedReceipt;
-  /** The full settlement response */
-  settlementResponse?: SettleResponse;
-}
-
-/**
- * Response type with offerReceipt metadata attached
- */
-export type OfferReceiptResponse = Response & { offerReceipt?: OfferReceiptMetadata };
 
 /**
  * A signed offer with its decoded payload fields at the top level.
@@ -67,42 +34,6 @@ interface OfferReceiptExtensionInfo {
     offers?: SignedOffer[];
     receipt?: SignedReceipt;
   };
-}
-
-// ============================================================================
-// Internal Functions (not exported)
-// ============================================================================
-
-/**
- * Find the accepted offer from the offers array (internal)
- *
- * @param offers - Array of signed offers
- * @param acceptedIndex - Index of the accepted offer
- * @param accepted - The accepted payment payload
- * @returns The matching signed offer or undefined
- */
-function findAcceptedOffer(
-  offers: SignedOffer[],
-  acceptedIndex: number,
-  accepted: PaymentPayload["accepted"],
-): SignedOffer | undefined {
-  for (const offer of offers) {
-    // Use acceptIndex as a hint
-    if (offer.acceptIndex !== acceptedIndex) continue;
-
-    // Verify payload matches accepted terms
-    const payload = extractOfferPayload(offer);
-    if (
-      payload.network === accepted.network &&
-      payload.scheme === accepted.scheme &&
-      payload.asset === accepted.asset &&
-      payload.payTo === accepted.payTo &&
-      payload.amount === accepted.amount
-    ) {
-      return offer;
-    }
-  }
-  return undefined;
 }
 
 // ============================================================================
@@ -259,74 +190,4 @@ export function extractReceiptFromResponse(response: Response): SignedReceipt | 
   } catch {
     return undefined;
   }
-}
-
-/**
- * Creates an extractor function for use with wrapFetchWithPayment's onPaymentComplete option.
- * The extractor attaches offerReceipt metadata to the response object.
- *
- * NOTE: This function is not yet usable. The x402 wrapFetchWithPayment wrapper does not
- * currently support the onPaymentComplete callback or extension handling. Use the raw
- * flow functions (extractOffersFromPaymentRequired, extractReceiptFromResponse) instead
- * until the wrapper is updated.
- *
- * @returns Extractor function for onPaymentComplete callback
- */
-export function createOfferReceiptExtractor(): (context: PaymentCompleteContext) => void {
-  return (context: PaymentCompleteContext): void => {
-    const { paymentRequired, paymentPayload, response } = context;
-    const metadata: OfferReceiptMetadata = {};
-
-    // Extract offers from paymentRequired.extensions["offer-receipt"].info.offers
-    const extData = paymentRequired.extensions?.[OFFER_RECEIPT] as
-      | OfferReceiptExtensionInfo
-      | undefined;
-    const offers = extData?.info?.offers;
-
-    if (offers && offers.length > 0) {
-      metadata.offers = offers;
-
-      // Find the accepted offer
-      // The accepted index is determined by which accepts[] entry was chosen
-      const acceptedIndex = paymentRequired.accepts.findIndex(
-        req =>
-          req.network === paymentPayload.accepted.network &&
-          req.scheme === paymentPayload.accepted.scheme &&
-          req.asset === paymentPayload.accepted.asset &&
-          req.payTo === paymentPayload.accepted.payTo &&
-          req.amount === paymentPayload.accepted.amount,
-      );
-
-      if (acceptedIndex >= 0) {
-        const acceptedOffer = findAcceptedOffer(offers, acceptedIndex, paymentPayload.accepted);
-        if (acceptedOffer) {
-          metadata.acceptedOffer = acceptedOffer;
-        }
-      }
-    }
-
-    // Extract settlement response and receipt from response header
-    try {
-      const paymentResponse =
-        response.headers.get("PAYMENT-RESPONSE") || response.headers.get("X-PAYMENT-RESPONSE");
-
-      if (paymentResponse) {
-        const settlementResponse = decodePaymentResponseHeader(paymentResponse) as SettleResponse;
-        metadata.settlementResponse = settlementResponse;
-
-        // Extract receipt from settlement response extensions
-        const receiptExtData = settlementResponse.extensions?.[OFFER_RECEIPT] as
-          | OfferReceiptExtensionInfo
-          | undefined;
-        if (receiptExtData?.info?.receipt) {
-          metadata.receipt = receiptExtData.info.receipt;
-        }
-      }
-    } catch {
-      // Header parsing failed - continue without settlement data
-    }
-
-    // Attach metadata to response
-    (response as OfferReceiptResponse).offerReceipt = metadata;
-  };
 }

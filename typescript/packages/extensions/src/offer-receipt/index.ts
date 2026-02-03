@@ -75,14 +75,10 @@ export {
 
 // Client utilities for extracting offers/receipts
 export {
-  createOfferReceiptExtractor,
   decodeSignedOffers,
   extractOffersFromPaymentRequired,
   extractReceiptFromResponse,
   findAcceptsObjectFromSignedOffer,
   verifyReceiptMatchesOffer,
   type DecodedOffer,
-  type OfferReceiptMetadata,
-  type OfferReceiptResponse,
-  type PaymentCompleteContext,
 } from "./client";
