@@ -2,27 +2,42 @@
 
 ## Summary
 
-The MCP transport implements x402 payment flows over the Model Context Protocol using JSON-RPC messages. This enables AI agents and MCP clients to seamlessly pay for tools and resources independent of the underlying MCP transport.
+The MCP transport implements x402 payment flows over the Model Context Protocol. This enables AI agents and MCP clients to seamlessly pay for tools and resources.
 
-The flow described below can be used for any MCP request/response cycle: tool calls, resources or client/server initialization.
+## Payment Flow Overview
+
+1. Client calls a paid tool without payment
+2. Server returns a tool result with `isError: true` and `PaymentRequired` data
+3. Client extracts payment requirements and creates a `PaymentPayload`
+4. Client retries the tool call with payment in `_meta["x402/payment"]`
+5. Server verifies payment, executes tool, settles payment
+6. Server returns tool result with settlement info in `_meta["x402/payment-response"]`
 
 ## Payment Required Signaling
 
-The server indicates payment is required using JSON-RPC's native error format with a 402 status code.
+When a tool requires payment, servers MUST return a tool result with `isError: true` containing the `PaymentRequired` data.
 
-**Mechanism**: JSON-RPC error response with `code: 402` and `PaymentRequired` in `error.data`
-**Data Format**: `PaymentRequired` schema in `error.data` field
+**Mechanism**: Tool result with `isError: true`, `structuredContent`, and `content` fields  
+**Data Format**: `PaymentRequired` schema
 
-**Example:**
+### Server Requirements
+
+Servers MUST provide the `PaymentRequired` in both formats:
+
+1. **`structuredContent`** (REQUIRED): Direct `PaymentRequired` object
+2. **`content[0].text`** (REQUIRED): JSON-encoded string of the same `PaymentRequired` object
+
+Both fields contain identical data - `content[0].text` is simply `JSON.stringify(structuredContent)` for clients that cannot access structured content.
+
+**Response Format:**
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "error": {
-    "code": 402,
-    "message": "Payment required",
-    "data": {
+  "result": {
+    "isError": true,
+    "structuredContent": {
       "x402Version": 2,
       "error": "Payment required to access this resource",
       "resource": {
@@ -44,17 +59,30 @@ The server indicates payment is required using JSON-RPC's native error format wi
           }
         }
       ]
-    }
+    },
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"x402Version\":2,\"error\":\"Payment required to access this resource\",\"resource\":{\"url\":\"mcp://tool/financial_analysis\",\"description\":\"Advanced financial analysis tool\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:84532\",\"amount\":\"10000\",\"asset\":\"0x036CbD53842c5426634e7929541eC2318f3dCF7e\",\"payTo\":\"0x209693Bc6afc0C5328bA36FaF03C514EF312287C\",\"maxTimeoutSeconds\":60,\"extra\":{\"name\":\"USDC\",\"version\":\"2\"}}]}"
+      }
+    ]
   }
 }
 ```
+
+### Client Requirements
+
+Clients SHOULD prefer `structuredContent` when available, falling back to parsing `content[0].text`:
+
+1. Check if `result.structuredContent` exists and contains `x402Version` and `accepts` fields
+2. If not, parse `result.content[0].text` as JSON and check for the same fields
 
 ## Payment Payload Transmission
 
 Clients send payment data using the MCP `_meta` field with key `x402/payment`.
 
 **Mechanism**: `_meta["x402/payment"]` field in request parameters
-**Data Format**: `PaymentPayload` schema in metadata field
+**Data Format**: `PaymentPayload` schema
 
 **Example (Tool Call with Payment):**
 
@@ -78,7 +106,7 @@ Clients send payment data using the MCP `_meta` field with key `x402/payment`.
           "mimeType": "application/json"
         },
         "accepted": {
-        "scheme": "exact",
+          "scheme": "exact",
           "network": "eip155:84532",
           "amount": "10000",
           "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
@@ -111,9 +139,9 @@ Clients send payment data using the MCP `_meta` field with key `x402/payment`.
 Servers communicate payment settlement results using the `_meta["x402/payment-response"]` field.
 
 **Mechanism**: `_meta["x402/payment-response"]` field in response result
-**Data Format**: `SettlementResponse` schema in metadata field
+**Data Format**: `SettlementResponse` schema
 
-**Example (Successful Tool Response):**
+### Successful Settlement
 
 ```json
 {
@@ -138,102 +166,60 @@ Servers communicate payment settlement results using the `_meta["x402/payment-re
 }
 ```
 
-**Example (Payment Failure):**
+### Settlement Failure
+
+When payment settlement fails, servers return a tool result with `isError: true`. The response follows the same format as Payment Required Signaling. If settlement fails after the tool has already executed, the server should not return the tool's content - only the payment error.
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "error": {
-    "code": 402,
-    "message": "Payment settlement failed: insufficient funds",
-    "data": {
+  "result": {
+    "isError": true,
+    "structuredContent": {
       "x402Version": 2,
-      "error": "Payment settlement failed: insufficient funds",
+      "error": "Settlement failed",
       "resource": {
         "url": "mcp://tool/financial_analysis",
         "description": "Advanced financial analysis tool",
         "mimeType": "application/json"
       },
       "accepts": [
-        /* original payment requirements */
-      ],
-      "x402/payment-response": {
-        "success": false,
-        "errorReason": "insufficient_funds",
-        "transaction": "",
-        "network": "eip155:84532",
-        "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+        {
+          "scheme": "exact",
+          "network": "eip155:84532",
+          "amount": "10000",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "name": "USDC",
+            "version": "2"
+          }
+        }
+      ]
+    },
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"x402Version\":2,\"error\":\"Settlement failed\",\"resource\":{\"url\":\"mcp://tool/financial_analysis\",\"description\":\"Advanced financial analysis tool\",\"mimeType\":\"application/json\"},\"accepts\":[...]}"
       }
-    }
+    ]
   }
 }
 ```
 
 ## Error Handling
 
-MCP transport maps x402 errors to appropriate JSON-RPC mechanisms:
-
-| x402 Error       | JSON-RPC Response | Code   | Description                                                    |
-| ---------------- | ----------------- | ------ | -------------------------------------------------------------- |
-| Payment Required | Error Response    | 402    | Payment required with `PaymentRequired` in `data` |
-| Payment Failed   | Error Response    | 402    | Payment settlement failed with failure details in `data`      |
-| Invalid Payment  | Error Response    | -32602 | Malformed payment payload or invalid parameters                |
-| Server Error     | Error Response    | -32603 | Internal server error during payment processing                |
-| Parse Error      | Error Response    | -32700 | Invalid JSON in payment payload                                |
-| Method Error     | Error Response    | -32601 | Unsupported x402 method or capability                          |
-
-### Payment-Related Errors (402)
-
-Payment-related errors use JSON-RPC's native error format with code 402 and structured data:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": 402,
-    "message": "Payment required to access this resource",
-    "data": {
-      "x402Version": 2,
-      "error": "Payment required to access this resource",
-      "resource": {
-        "url": "mcp://tool/example",
-        "description": "Example tool",
-        "mimeType": "application/json"
-      },
-      "accepts": [
-        /* PaymentRequirements array */
-      ]
-    }
-  }
-}
-```
-
-### Protocol Errors (Technical Issues)
-
-Technical errors use standard JSON-RPC error responses:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32602,
-    "message": "Invalid parameters: malformed payment payload in _meta['x402/payment']"
-  }
-}
-```
-
-**Common Protocol Error Examples:**
-
-- **Parse Error (-32700)**: Invalid JSON in `_meta["x402/payment"]` field
-- **Invalid Params (-32602)**: Missing required payment fields or invalid payment schema
-- **Internal Error (-32603)**: Payment processor unavailable or blockchain network error
-- **Method Not Found (-32601)**: Server doesn't support x402 payments for the requested method
+| Error Type | Response | Description |
+|------------|----------|-------------|
+| Payment Required | Tool result with `isError: true` | No payment provided, returns `PaymentRequired` |
+| Payment Invalid | Tool result with `isError: true` | Payment verification failed, returns `PaymentRequired` with reason |
+| Settlement Failed | Tool result with `isError: true` | Settlement failed after execution, returns failure details |
 
 ## References
 
 - [Core x402 Specification](../x402-specification-v2.md)
 - [MCP Specification](https://modelcontextprotocol.io/specification/)
 - [MCP \_meta Field Documentation](https://modelcontextprotocol.io/specification/2025-06-18/basic#meta)
+- [agents/x402-mcp](https://github.com/cloudflare/agents/blob/main/packages/agents/src/mcp/x402.ts)
