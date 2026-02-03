@@ -1,6 +1,6 @@
 {
   "name": "ArbitrageEdge",
-  "description": "Real-time sports betting arbitrage API delivering guaranteed profit opportunities across 20+ bookmakers using x402 pay-per-request on Base.",
+  "description": "Sports betting arbitrage API - find guaranteed profit opportunities across 20+ bookmakers via x402 payments",
   "logoUrl": "/logos/arbitrageedge.png",
   "websiteUrl": "https://sportsarbitrageapi-production.up.railway.app",
   "category": "Services/Endpoints"
