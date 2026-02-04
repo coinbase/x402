@@ -1,5 +1,6 @@
 import { Buffer } from "buffer";
 import {
+  Address,
   Networks as StellarNetworks,
   SorobanDataBuilder,
   rpc,
@@ -41,11 +42,13 @@ function createMockContractEvent({
   to,
   amount,
   fnName = "transfer",
+  contractId,
 }: {
   from: string;
   to: string;
   amount: bigint;
   fnName?: string;
+  contractId?: xdr.Hash | null;
 }): xdr.DiagnosticEvent {
   // symbol for the function name
   const transferSymbol = xdr.ScVal.scvSymbol(fnName);
@@ -75,7 +78,11 @@ function createMockContractEvent({
     topics: [transferSymbol, fromScAddress, toScAddress],
     data: amountScVal,
   });
-  return createMockDiagnosticEvent(contractEventV0, xdr.ContractEventType.contract());
+  return createMockDiagnosticEvent(
+    contractEventV0,
+    xdr.ContractEventType.contract(),
+    contractId ?? null,
+  );
 }
 
 /**
@@ -95,11 +102,13 @@ function createMockSystemEvent(): xdr.DiagnosticEvent {
  *
  * @param v0 - The ContractEventV0 containing the event data
  * @param eventType - The contract event type (contract or system)
+ * @param contractId - Optional contract ID (null = event has no contract; omit for backward compat)
  * @returns A properly formatted DiagnosticEvent for testing
  */
 function createMockDiagnosticEvent(
   v0: xdr.ContractEventV0,
   eventType: ReturnType<typeof xdr.ContractEventType.contract> = xdr.ContractEventType.contract(),
+  contractId: xdr.Hash | null = null,
 ): xdr.DiagnosticEvent {
   const eventBodyXdr = xdr.ContractEventBody.toXDR(
     xdr.ContractEventBody.fromXDR(
@@ -108,7 +117,7 @@ function createMockDiagnosticEvent(
   );
   const contractEvent = new xdr.ContractEvent({
     ext: xdr.ExtensionPoint.fromXDR(Buffer.from([0, 0, 0, 0])),
-    contractId: null,
+    contractId,
     type: eventType,
     body: xdr.ContractEventBody.fromXDR(eventBodyXdr),
   });
@@ -240,10 +249,12 @@ describe("ExactStellarScheme#Verify", () => {
   }
 
   beforeEach(() => {
+    const expectedAssetHash = new Address(ASSET).toScAddress().contractId();
     const defaultTransferEvent = createMockContractEvent({
       from: CLIENT_PUBLIC,
       to: TRANSACTION_RECIPIENT,
       amount: BigInt(validRequirements.amount),
+      contractId: expectedAssetHash,
     });
 
     vi.mocked(mockServer.simulateTransaction).mockResolvedValue({
@@ -729,17 +740,20 @@ describe("ExactStellarScheme#Verify", () => {
 
     // Event-based balance change validation
     describe("simulation event validation", () => {
+      const expectedAssetHash = () => new Address(ASSET).toScAddress().contractId();
+
       it("should reject when simulation shows multiple transfer events", async () => {
-        // Create mock diagnostic events with multiple transfers
         const mockTransferEvent1 = createMockContractEvent({
           from: CLIENT_PUBLIC,
           to: TRANSACTION_RECIPIENT,
           amount: BigInt(10000),
+          contractId: expectedAssetHash(),
         });
         const mockTransferEvent2 = createMockContractEvent({
           from: CLIENT_PUBLIC,
           to: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER",
           amount: BigInt(5000),
+          contractId: expectedAssetHash(),
         });
 
         vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
@@ -759,11 +773,11 @@ describe("ExactStellarScheme#Verify", () => {
       });
 
       it("should reject when transfer event has wrong from address", async () => {
-        // Create mock event with wrong from address
         const mockTransferEvent = createMockContractEvent({
           from: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER", // ❌ wrong `from` address
           to: FACILITATOR_PUBLIC,
           amount: BigInt(10000),
+          contractId: expectedAssetHash(),
         });
 
         vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
@@ -783,11 +797,11 @@ describe("ExactStellarScheme#Verify", () => {
       });
 
       it("should reject when transfer event has wrong to address", async () => {
-        // Create mock event with wrong to address
         const mockTransferEvent = createMockContractEvent({
           from: CLIENT_PUBLIC,
           to: "GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER", // ❌ wrong `to` address
           amount: BigInt(10000),
+          contractId: expectedAssetHash(),
         });
 
         vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
@@ -807,11 +821,11 @@ describe("ExactStellarScheme#Verify", () => {
       });
 
       it("should reject when transfer event has wrong amount", async () => {
-        // Create mock event with wrong amount
         const mockTransferEvent = createMockContractEvent({
           from: CLIENT_PUBLIC,
           to: TRANSACTION_RECIPIENT,
           amount: BigInt(5000), // ❌ wrong `amount` (expected 10000)
+          contractId: expectedAssetHash(),
         });
 
         vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
@@ -828,6 +842,57 @@ describe("ExactStellarScheme#Verify", () => {
         const result = await facilitator.verify(validPayload, validRequirements);
         expect(result.isValid).toBe(false);
         expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_wrong_amount");
+      });
+
+      it("should reject when transfer event has null contractId", async () => {
+        const mockTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: TRANSACTION_RECIPIENT,
+          amount: BigInt(10000),
+          contractId: null,
+        });
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe(
+          "invalid_exact_stellar_payload_event_missing_contract_id",
+        );
+      });
+
+      it("should reject when transfer event has wrong asset (contract address)", async () => {
+        const wrongAsset = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+        const mockTransferEvent = createMockContractEvent({
+          from: CLIENT_PUBLIC,
+          to: TRANSACTION_RECIPIENT,
+          amount: BigInt(10000),
+          contractId: new Address(wrongAsset).toScAddress().contractId(),
+        });
+
+        vi.mocked(mockServer.simulateTransaction).mockResolvedValueOnce({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEvent],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "100",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse);
+
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toBe("invalid_exact_stellar_payload_event_wrong_asset");
       });
 
       it("should reject when no transfer events are present", async () => {
@@ -876,6 +941,7 @@ describe("ExactStellarScheme#Verify", () => {
           from: CLIENT_PUBLIC,
           to: TRANSACTION_RECIPIENT,
           amount: BigInt(10000),
+          contractId: expectedAssetHash(),
         });
         const nonContractEvent = createMockSystemEvent();
 
