@@ -142,6 +142,8 @@ export async function main(): Promise<void> {
 
   /**
    * Process one chat turn
+   *
+   * @param userInput - The user's message to process
    */
   const processTurn = async (userInput: string): Promise<void> => {
     // Add user message to history

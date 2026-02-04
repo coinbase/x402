@@ -89,7 +89,7 @@ export async function main(): Promise<void> {
     console.log("🏓 Pinging server...");
     await client.ping();
     console.log("   ✅ Server is responding");
-  } catch (err) {
+  } catch {
     console.log("   ❌ Ping failed");
   }
   console.log();
@@ -109,7 +109,7 @@ export async function main(): Promise<void> {
       const content = await client.readResource({ uri: resources[0].uri });
       console.log(`   ✅ Read ${content.contents.length} content item(s)`);
     }
-  } catch (err) {
+  } catch {
     console.log("   (Server doesn't support resources)");
   }
   console.log();
@@ -129,7 +129,7 @@ export async function main(): Promise<void> {
       const promptResult = await client.getPrompt({ name: prompts[0].name });
       console.log(`   ✅ Got prompt with ${promptResult.messages.length} message(s)`);
     }
-  } catch (err) {
+  } catch {
     console.log("   (Server doesn't support prompts)");
   }
   console.log();
