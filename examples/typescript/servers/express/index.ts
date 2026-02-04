@@ -44,6 +44,7 @@ const transportContextExtension: ResourceServerExtension = {
 
     // Log what we have access to
     console.log("\n📦 Transport Context Available:");
+    console.log("   httpContext:", httpData.httpContext);
     console.log("   Request path:", httpData.httpContext.path);
     console.log("   Request method:", httpData.httpContext.method);
     console.log("   Response body:", httpData.responseBody.toString("utf-8"));
