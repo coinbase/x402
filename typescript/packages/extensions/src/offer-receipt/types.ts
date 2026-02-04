@@ -199,18 +199,19 @@ export interface OfferInput {
 }
 
 /**
- * High-level signer interface for the offer-receipt extension
+ * High-level issuer interface for the offer-receipt extension.
+ * Creates and signs offers and receipts.
  * Used by createOfferReceiptExtension()
  */
-export interface OfferReceiptSigner {
+export interface OfferReceiptIssuer {
   /** Key identifier DID */
   kid: string;
   /** Signature format */
   format: SignatureFormat;
-  /** Sign an offer for a resource */
-  signOffer(resourceUrl: string, input: OfferInput): Promise<SignedOffer>;
-  /** Sign a receipt for a completed payment */
-  signReceipt(
+  /** Create and sign an offer for a resource */
+  issueOffer(resourceUrl: string, input: OfferInput): Promise<SignedOffer>;
+  /** Create and sign a receipt for a completed payment */
+  issueReceipt(
     resourceUrl: string,
     payer: string,
     network: string,

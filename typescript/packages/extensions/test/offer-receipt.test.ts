@@ -35,8 +35,8 @@ import {
   findAcceptsObjectFromSignedOffer,
   extractReceiptFromResponse,
   declareOfferReceiptExtension,
-  createJWSOfferReceiptSigner,
-  createEIP712OfferReceiptSigner,
+  createJWSOfferReceiptIssuer,
+  createEIP712OfferReceiptIssuer,
   verifyReceiptMatchesOffer,
   OFFER_RECEIPT,
   type JWSSigner,
@@ -1147,31 +1147,31 @@ describe("Server Extension Utilities", () => {
     });
   });
 
-  describe("createJWSOfferReceiptSigner", () => {
-    it("creates signer with correct properties", async () => {
+  describe("createJWSOfferReceiptIssuer", () => {
+    it("creates issuer with correct properties", async () => {
       const keyPair = await generateES256KKeyPair();
       const jwsSigner = await createJWSSignerFromJWK(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
 
-      const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
+      const issuer = createJWSOfferReceiptIssuer("did:web:api.example.com#key-1", jwsSigner);
 
-      expect(signer.kid).toBe("did:web:api.example.com#key-1");
-      expect(signer.format).toBe("jws");
-      expect(typeof signer.signOffer).toBe("function");
-      expect(typeof signer.signReceipt).toBe("function");
+      expect(issuer.kid).toBe("did:web:api.example.com#key-1");
+      expect(issuer.format).toBe("jws");
+      expect(typeof issuer.issueOffer).toBe("function");
+      expect(typeof issuer.issueReceipt).toBe("function");
     });
 
-    it("signOffer creates valid JWS offer", async () => {
+    it("issueOffer creates valid JWS offer", async () => {
       const keyPair = await generateES256KKeyPair();
       const jwsSigner = await createJWSSignerFromJWK(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
-      const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
+      const issuer = createJWSOfferReceiptIssuer("did:web:api.example.com#key-1", jwsSigner);
 
-      const offer = await signer.signOffer("https://api.example.com/resource", {
+      const offer = await issuer.issueOffer("https://api.example.com/resource", {
         acceptIndex: 0,
         scheme: "exact",
         network: "eip155:8453",
@@ -1184,15 +1184,15 @@ describe("Server Extension Utilities", () => {
       expect(offer.signature).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     });
 
-    it("signReceipt creates valid JWS receipt", async () => {
+    it("issueReceipt creates valid JWS receipt", async () => {
       const keyPair = await generateES256KKeyPair();
       const jwsSigner = await createJWSSignerFromJWK(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
-      const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
+      const issuer = createJWSOfferReceiptIssuer("did:web:api.example.com#key-1", jwsSigner);
 
-      const receipt = await signer.signReceipt(
+      const receipt = await issuer.issueReceipt(
         "https://api.example.com/resource",
         "0x857b06519E91e3A54538791bDbb0E22373e36b66",
         "eip155:8453",
@@ -1204,26 +1204,26 @@ describe("Server Extension Utilities", () => {
     });
   });
 
-  describe("createEIP712OfferReceiptSigner", () => {
+  describe("createEIP712OfferReceiptIssuer", () => {
     const account = privateKeyToAccount(TEST_PRIVATE_KEY);
 
-    it("creates signer with correct properties", () => {
-      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+    it("creates issuer with correct properties", () => {
+      const issuer = createEIP712OfferReceiptIssuer(`did:pkh:eip155:8453:${account.address}`, p =>
         account.signTypedData(p),
       );
 
-      expect(signer.kid).toBe(`did:pkh:eip155:8453:${account.address}`);
-      expect(signer.format).toBe("eip712");
-      expect(typeof signer.signOffer).toBe("function");
-      expect(typeof signer.signReceipt).toBe("function");
+      expect(issuer.kid).toBe(`did:pkh:eip155:8453:${account.address}`);
+      expect(issuer.format).toBe("eip712");
+      expect(typeof issuer.issueOffer).toBe("function");
+      expect(typeof issuer.issueReceipt).toBe("function");
     });
 
-    it("signOffer creates valid EIP-712 offer", async () => {
-      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+    it("issueOffer creates valid EIP-712 offer", async () => {
+      const issuer = createEIP712OfferReceiptIssuer(`did:pkh:eip155:8453:${account.address}`, p =>
         account.signTypedData(p),
       );
 
-      const offer = await signer.signOffer("https://api.example.com/resource", {
+      const offer = await issuer.issueOffer("https://api.example.com/resource", {
         acceptIndex: 0,
         scheme: "exact",
         network: "eip155:8453",
@@ -1237,12 +1237,12 @@ describe("Server Extension Utilities", () => {
       expect(offer.signature).toMatch(/^0x[a-fA-F0-9]{130}$/);
     });
 
-    it("signReceipt creates valid EIP-712 receipt", async () => {
-      const signer = createEIP712OfferReceiptSigner(`did:pkh:eip155:8453:${account.address}`, p =>
+    it("issueReceipt creates valid EIP-712 receipt", async () => {
+      const issuer = createEIP712OfferReceiptIssuer(`did:pkh:eip155:8453:${account.address}`, p =>
         account.signTypedData(p),
       );
 
-      const receipt = await signer.signReceipt(
+      const receipt = await issuer.issueReceipt(
         "https://api.example.com/resource",
         "0x857b06519E91e3A54538791bDbb0E22373e36b66",
         "eip155:8453",

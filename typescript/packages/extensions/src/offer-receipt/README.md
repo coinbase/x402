@@ -64,16 +64,16 @@ To enable offer/receipt signing on your resource server:
 import { x402ResourceServer } from "@x402/core/server";
 import { 
   createOfferReceiptExtension,
-  createJWSOfferReceiptSigner,
+  createJWSOfferReceiptIssuer,
   declareOfferReceipt,
 } from "@x402/extensions/offer-receipt";
 
-// Create a signer (JWS or EIP-712)
-const signer = createJWSOfferReceiptSigner("did:web:api.example.com#key-1", jwsSigner);
+// Create an issuer (JWS or EIP-712)
+const issuer = createJWSOfferReceiptIssuer("did:web:api.example.com#key-1", jwsSigner);
 
 // Register the extension
 const server = new x402ResourceServer(facilitator)
-  .registerExtension(createOfferReceiptExtension(signer));
+  .registerExtension(createOfferReceiptExtension(issuer));
 
 // Declare in route config
 const routes = {

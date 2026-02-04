@@ -17,7 +17,7 @@ import type { PaymentRequirements } from "@x402/core/types";
 import type { HTTPRequestContext } from "@x402/core/http";
 import {
   OFFER_RECEIPT,
-  type OfferReceiptSigner,
+  type OfferReceiptIssuer,
   type OfferReceiptDeclaration,
   type OfferInput,
   type SignedOffer,
@@ -155,10 +155,10 @@ function requirementsToOfferInput(
  * 1. Add signed offers to each PaymentRequirements in 402 responses
  * 2. Add signed receipts to settlement responses after successful payment
  *
- * @param signer - The signer to use for creating offers and receipts
+ * @param issuer - The issuer to use for creating and signing offers and receipts
  * @returns ResourceServerExtension that can be registered with x402ResourceServer
  */
-export function createOfferReceiptExtension(signer: OfferReceiptSigner): ResourceServerExtension {
+export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): ResourceServerExtension {
   // Store the current resource URL during declaration enrichment for use in hooks
   let currentResourceUrl: string | undefined;
 
@@ -194,7 +194,7 @@ export function createOfferReceiptExtension(signer: OfferReceiptSigner): Resourc
         const requirement = context.requirements[i];
         try {
           const offerInput = requirementsToOfferInput(requirement, i, config?.offerValiditySeconds);
-          const signedOffer = await signer.signOffer(resourceUrl, offerInput);
+          const signedOffer = await issuer.issueOffer(resourceUrl, offerInput);
           offers.push(signedOffer);
         } catch (error) {
           console.error(`[offer-receipt] Failed to sign offer for requirement ${i}:`, error);
@@ -253,7 +253,7 @@ export function createOfferReceiptExtension(signer: OfferReceiptSigner): Resourc
       const includeTxHash = config?.includeTxHash === true;
 
       try {
-        const signedReceipt: SignedReceipt = await signer.signReceipt(
+        const signedReceipt: SignedReceipt = await issuer.issueReceipt(
           resourceUrl,
           payer,
           network,
@@ -294,52 +294,52 @@ export function declareOfferReceiptExtension(
 }
 
 // ============================================================================
-// Signer Factory Functions
+// Issuer Factory Functions
 // ============================================================================
 
 /**
- * Create an OfferReceiptSigner that uses JWS format
+ * Create an OfferReceiptIssuer that uses JWS format
  *
  * @param kid - Key identifier DID (e.g., did:web:api.example.com#key-1)
  * @param jwsSigner - JWS signer with sign() function and algorithm
- * @returns OfferReceiptSigner for use with createOfferReceiptExtension
+ * @returns OfferReceiptIssuer for use with createOfferReceiptExtension
  */
-export function createJWSOfferReceiptSigner(kid: string, jwsSigner: JWSSigner): OfferReceiptSigner {
+export function createJWSOfferReceiptIssuer(kid: string, jwsSigner: JWSSigner): OfferReceiptIssuer {
   return {
     kid,
     format: "jws",
 
-    async signOffer(resourceUrl: string, input: OfferInput) {
+    async issueOffer(resourceUrl: string, input: OfferInput) {
       return createOfferJWS(resourceUrl, input, jwsSigner);
     },
 
-    async signReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
+    async issueReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
       return createReceiptJWS({ resourceUrl, payer, network, transaction }, jwsSigner);
     },
   };
 }
 
 /**
- * Create an OfferReceiptSigner that uses EIP-712 format
+ * Create an OfferReceiptIssuer that uses EIP-712 format
  *
  * @param kid - Key identifier DID (e.g., did:pkh:eip155:1:0x...)
  * @param signTypedData - Function to sign EIP-712 typed data (from viem wallet client)
- * @returns OfferReceiptSigner for use with createOfferReceiptExtension
+ * @returns OfferReceiptIssuer for use with createOfferReceiptExtension
  */
-export function createEIP712OfferReceiptSigner(
+export function createEIP712OfferReceiptIssuer(
   kid: string,
   signTypedData: SignTypedDataFn,
-): OfferReceiptSigner {
+): OfferReceiptIssuer {
   return {
     kid,
     format: "eip712",
 
-    async signOffer(resourceUrl: string, input: OfferInput) {
+    async issueOffer(resourceUrl: string, input: OfferInput) {
       const chainId = extractEIP155ChainId(input.network);
       return createOfferEIP712(resourceUrl, input, chainId, signTypedData);
     },
 
-    async signReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
+    async issueReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
       const chainId = extractEIP155ChainId(network);
       return createReceiptEIP712(
         { resourceUrl, payer, network, transaction },

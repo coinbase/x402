@@ -18,7 +18,7 @@ export {
   type JWSSignedReceipt,
   type EIP712SignedReceipt,
   type OfferReceiptDeclaration,
-  type OfferReceiptSigner,
+  type OfferReceiptIssuer,
   type OfferInput,
   type ReceiptInput,
   isJWSSignedOffer,
@@ -69,8 +69,8 @@ export {
 export {
   createOfferReceiptExtension,
   declareOfferReceiptExtension,
-  createJWSOfferReceiptSigner,
-  createEIP712OfferReceiptSigner,
+  createJWSOfferReceiptIssuer,
+  createEIP712OfferReceiptIssuer,
 } from "./server";
 
 // Client utilities for extracting offers/receipts
