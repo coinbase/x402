@@ -1,15 +1,9 @@
 {
-  "name": "@x402/advanced-server-example",
+  "name": "@x402/payment-identifier-server-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx index.ts",
-    "dev": "tsx index.ts bazaar",
-    "dev:bazaar": "tsx index.ts bazaar",
-    "dev:custom-money-definition": "tsx index.ts custom-money-definition",
-    "dev:dynamic-pay-to": "tsx index.ts dynamic-pay-to",
-    "dev:dynamic-price": "tsx index.ts dynamic-price",
-    "dev:hooks": "tsx index.ts hooks",
+    "dev": "tsx index.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
@@ -21,7 +15,6 @@
     "@x402/core": "workspace:*",
     "@x402/express": "workspace:*",
     "@x402/evm": "workspace:*",
-    "@x402/svm": "workspace:*",
     "@x402/extensions": "workspace:*"
   },
   "devDependencies": {
