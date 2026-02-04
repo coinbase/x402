@@ -18,6 +18,7 @@ vi.mock("../../src/utils", async () => {
   const actual = await vi.importActual<typeof stellarUtils>("../../src/utils");
   return {
     ...actual,
+    getEstimatedLedgerCloseTimeSeconds: vi.fn().mockResolvedValue(5),
     getRpcUrl: vi.fn(),
     getRpcClient: vi.fn(),
     isStellarNetwork: vi.fn(),
