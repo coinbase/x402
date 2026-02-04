@@ -10,6 +10,46 @@ import { paymentIdentifierSchema } from "./schema";
 import { isValidPaymentId } from "./utils";
 
 /**
+ * Type guard to check if an object is a valid payment-identifier extension structure.
+ *
+ * This checks for the basic structure (info object with required boolean),
+ * but does not validate the id format if present.
+ *
+ * @param extension - The object to check
+ * @returns True if the object has the expected payment-identifier extension structure
+ *
+ * @example
+ * ```typescript
+ * if (isPaymentIdentifierExtension(extensions["payment-identifier"])) {
+ *   // TypeScript knows this is PaymentIdentifierExtension
+ *   console.log(extension.info.required);
+ * }
+ * ```
+ */
+export function isPaymentIdentifierExtension(
+  extension: unknown,
+): extension is PaymentIdentifierExtension {
+  if (!extension || typeof extension !== "object") {
+    return false;
+  }
+
+  const ext = extension as Partial<PaymentIdentifierExtension>;
+
+  if (!ext.info || typeof ext.info !== "object") {
+    return false;
+  }
+
+  const info = ext.info as Partial<PaymentIdentifierInfo>;
+
+  // Must have required boolean
+  if (typeof info.required !== "boolean") {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Result of payment identifier validation
  */
 export interface PaymentIdentifierValidationResult {
@@ -60,16 +100,24 @@ export function validatePaymentIdentifier(extension: unknown): PaymentIdentifier
 
   const info = ext.info as Partial<PaymentIdentifierInfo>;
 
-  // Check id exists and is a string
-  if (typeof info.id !== "string") {
+  // Check required field exists and is a boolean
+  if (typeof info.required !== "boolean") {
     return {
       valid: false,
-      errors: ["Extension info must have an 'id' string property"],
+      errors: ["Extension info must have a 'required' boolean property"],
     };
   }
 
-  // Validate ID format
-  if (!isValidPaymentId(info.id)) {
+  // Check id exists and is a string (if provided)
+  if (info.id !== undefined && typeof info.id !== "string") {
+    return {
+      valid: false,
+      errors: ["Extension info 'id' must be a string if provided"],
+    };
+  }
+
+  // Validate ID format if provided
+  if (info.id !== undefined && !isValidPaymentId(info.id)) {
     return {
       valid: false,
       errors: [
@@ -193,7 +241,7 @@ export function extractAndValidatePaymentIdentifier(paymentPayload: PaymentPaylo
   }
 
   const ext = extension as PaymentIdentifierExtension;
-  return { id: ext.info.id, validation: { valid: true } };
+  return { id: ext.info.id ?? null, validation: { valid: true } };
 }
 
 /**
@@ -204,6 +252,75 @@ export function extractAndValidatePaymentIdentifier(paymentPayload: PaymentPaylo
  */
 export function hasPaymentIdentifier(paymentPayload: PaymentPayload): boolean {
   return !!(paymentPayload.extensions && paymentPayload.extensions[PAYMENT_IDENTIFIER]);
+}
+
+/**
+ * Checks if the server requires a payment identifier based on the extension info.
+ *
+ * @param extension - The payment-identifier extension from PaymentRequired or PaymentPayload
+ * @returns True if the server requires a payment identifier
+ */
+export function isPaymentIdentifierRequired(extension: unknown): boolean {
+  if (!extension || typeof extension !== "object") {
+    return false;
+  }
+
+  const ext = extension as Partial<PaymentIdentifierExtension>;
+
+  if (!ext.info || typeof ext.info !== "object") {
+    return false;
+  }
+
+  return (ext.info as Partial<PaymentIdentifierInfo>).required === true;
+}
+
+/**
+ * Validates that a payment identifier is provided when required.
+ *
+ * Use this to check if a client's PaymentPayload satisfies the server's requirement.
+ *
+ * @param paymentPayload - The client's payment payload
+ * @param serverRequired - Whether the server requires a payment identifier (from PaymentRequired)
+ * @returns Validation result - invalid if required but not provided
+ *
+ * @example
+ * ```typescript
+ * const serverExtension = paymentRequired.extensions?.["payment-identifier"];
+ * const serverRequired = isPaymentIdentifierRequired(serverExtension);
+ * const result = validatePaymentIdentifierRequirement(paymentPayload, serverRequired);
+ * if (!result.valid) {
+ *   return res.status(400).json({ error: result.errors });
+ * }
+ * ```
+ */
+export function validatePaymentIdentifierRequirement(
+  paymentPayload: PaymentPayload,
+  serverRequired: boolean,
+): PaymentIdentifierValidationResult {
+  if (!serverRequired) {
+    return { valid: true };
+  }
+
+  const id = extractPaymentIdentifier(paymentPayload, false);
+
+  if (!id) {
+    return {
+      valid: false,
+      errors: ["Server requires a payment identifier but none was provided"],
+    };
+  }
+
+  // Validate the ID format
+  if (!isValidPaymentId(id)) {
+    return {
+      valid: false,
+      errors: [
+        `Invalid payment ID format. ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores.`,
+      ],
+    };
+  }
+
+  return { valid: true };
 }
 
 export { paymentIdentifierSchema };

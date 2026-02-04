@@ -2,53 +2,68 @@
  * Client-side utilities for the Payment-Identifier Extension
  */
 
-import type { PaymentIdentifierExtension } from "./types";
-import { paymentIdentifierSchema } from "./schema";
+import type { PaymentIdentifierInfo } from "./types";
+import { PAYMENT_IDENTIFIER } from "./types";
 import { generatePaymentId, isValidPaymentId } from "./utils";
+import { isPaymentIdentifierExtension } from "./validation";
 
 /**
- * Creates a payment-identifier extension payload for inclusion in PaymentPayload.extensions.
+ * Appends a payment identifier to the extensions object if the server declared support.
  *
+ * This function reads the server's `payment-identifier` declaration from the extensions,
+ * and appends the client's ID to it. If the extension is not present (server didn't declare it),
+ * the extensions are returned unchanged.
+ *
+ * @param extensions - The extensions object from PaymentRequired (will be modified in place)
  * @param id - Optional custom payment ID. If not provided, a new ID will be generated.
- * @returns A PaymentIdentifierExtension object ready for PaymentPayload.extensions
+ * @returns The modified extensions object (same reference as input)
  * @throws Error if the provided ID is invalid
  *
  * @example
  * ```typescript
- * import { createPaymentIdentifierPayload, PAYMENT_IDENTIFIER } from '@x402/extensions/payment-identifier';
+ * import { appendPaymentIdentifierToExtensions } from '@x402/extensions/payment-identifier';
  *
- * // Auto-generate an ID
- * const extension = createPaymentIdentifierPayload();
+ * // Get extensions from server's PaymentRequired response
+ * const extensions = paymentRequired.extensions ?? {};
  *
- * // Use a custom ID
- * const extension = createPaymentIdentifierPayload("pay_my_custom_id_12345");
+ * // Append a generated ID (only if server declared payment-identifier)
+ * appendPaymentIdentifierToExtensions(extensions);
+ *
+ * // Or use a custom ID
+ * appendPaymentIdentifierToExtensions(extensions, "pay_my_custom_id_12345");
  *
  * // Include in PaymentPayload
  * const paymentPayload = {
  *   x402Version: 2,
- *   resource: { ... },
- *   accepted: { ... },
+ *   resource: paymentRequired.resource,
+ *   accepted: selectedPaymentOption,
  *   payload: { ... },
- *   extensions: {
- *     [PAYMENT_IDENTIFIER]: extension
- *   }
+ *   extensions
  * };
  * ```
  */
-export function createPaymentIdentifierPayload(id?: string): PaymentIdentifierExtension {
+export function appendPaymentIdentifierToExtensions(
+  extensions: Record<string, unknown>,
+  id?: string,
+): Record<string, unknown> {
+  const extension = extensions[PAYMENT_IDENTIFIER];
+
+  // Only append if the server declared this extension with valid structure
+  if (!isPaymentIdentifierExtension(extension)) {
+    return extensions;
+  }
+
   const paymentId = id ?? generatePaymentId();
 
   if (!isValidPaymentId(paymentId)) {
     throw new Error(
       `Invalid payment ID: "${paymentId}". ` +
-        `ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores.`,
+      `ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores.`,
     );
   }
 
-  return {
-    info: {
-      id: paymentId,
-    },
-    schema: paymentIdentifierSchema,
-  };
+  // Append the ID to the existing extension info
+  extension.info.id = paymentId;
+
+  return extensions;
 }

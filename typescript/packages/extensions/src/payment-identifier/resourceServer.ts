@@ -3,7 +3,7 @@
  */
 
 import type { ResourceServerExtension } from "@x402/core/types";
-import type { PaymentIdentifierDeclaration } from "./types";
+import type { PaymentIdentifierExtension } from "./types";
 import { PAYMENT_IDENTIFIER } from "./types";
 import { paymentIdentifierSchema } from "./schema";
 
@@ -11,15 +11,17 @@ import { paymentIdentifierSchema } from "./schema";
  * Declares the payment-identifier extension for inclusion in PaymentRequired.extensions.
  *
  * Resource servers call this function to advertise support for payment identifiers.
- * The declaration contains an empty info object and the schema that clients must follow.
+ * The declaration indicates whether a payment identifier is required and includes
+ * the schema that clients must follow.
  *
- * @returns A PaymentIdentifierDeclaration object ready for PaymentRequired.extensions
+ * @param required - Whether clients must provide a payment identifier. Defaults to false.
+ * @returns A PaymentIdentifierExtension object ready for PaymentRequired.extensions
  *
  * @example
  * ```typescript
  * import { declarePaymentIdentifierExtension, PAYMENT_IDENTIFIER } from '@x402/extensions/payment-identifier';
  *
- * // Include in PaymentRequired response
+ * // Include in PaymentRequired response (optional identifier)
  * const paymentRequired = {
  *   x402Version: 2,
  *   resource: { ... },
@@ -28,11 +30,21 @@ import { paymentIdentifierSchema } from "./schema";
  *     [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension()
  *   }
  * };
+ *
+ * // Require payment identifier
+ * const paymentRequiredStrict = {
+ *   x402Version: 2,
+ *   resource: { ... },
+ *   accepts: [ ... ],
+ *   extensions: {
+ *     [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension(true)
+ *   }
+ * };
  * ```
  */
-export function declarePaymentIdentifierExtension(): PaymentIdentifierDeclaration {
+export function declarePaymentIdentifierExtension(required: boolean = false): PaymentIdentifierExtension {
   return {
-    info: {},
+    info: { required },
     schema: paymentIdentifierSchema,
   };
 }

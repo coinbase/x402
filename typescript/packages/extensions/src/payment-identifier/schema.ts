@@ -13,6 +13,9 @@ export const paymentIdentifierSchema: PaymentIdentifierSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   properties: {
+    required: {
+      type: "boolean",
+    },
     id: {
       type: "string",
       minLength: PAYMENT_ID_MIN_LENGTH,
@@ -20,5 +23,5 @@ export const paymentIdentifierSchema: PaymentIdentifierSchema = {
       pattern: "^[a-zA-Z0-9_-]+$",
     },
   },
-  required: ["id"],
+  required: ["required"],
 };

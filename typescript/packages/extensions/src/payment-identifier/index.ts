@@ -14,7 +14,7 @@
  *   PAYMENT_IDENTIFIER
  * } from '@x402/extensions/payment-identifier';
  *
- * // Advertise support in PaymentRequired response
+ * // Advertise support in PaymentRequired response (optional identifier)
  * const paymentRequired = {
  *   x402Version: 2,
  *   resource: { ... },
@@ -23,25 +23,36 @@
  *     [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension()
  *   }
  * };
+ *
+ * // Require payment identifier
+ * const paymentRequiredStrict = {
+ *   x402Version: 2,
+ *   resource: { ... },
+ *   accepts: [ ... ],
+ *   extensions: {
+ *     [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension(true)
+ *   }
+ * };
  * ```
  *
  * ### For Clients
  *
  * ```typescript
- * import {
- *   createPaymentIdentifierPayload,
- *   PAYMENT_IDENTIFIER
- * } from '@x402/extensions/payment-identifier';
+ * import { appendPaymentIdentifierToExtensions } from '@x402/extensions/payment-identifier';
+ *
+ * // Get extensions from server's PaymentRequired response
+ * const extensions = { ...paymentRequired.extensions };
+ *
+ * // Append payment ID (only if server declared the extension)
+ * appendPaymentIdentifierToExtensions(extensions);
  *
  * // Include in PaymentPayload
  * const paymentPayload = {
  *   x402Version: 2,
- *   resource: { ... },
- *   accepted: { ... },
+ *   resource: paymentRequired.resource,
+ *   accepted: selectedPaymentOption,
  *   payload: { ... },
- *   extensions: {
- *     [PAYMENT_IDENTIFIER]: createPaymentIdentifierPayload()
- *   }
+ *   extensions
  * };
  * ```
  *
@@ -65,7 +76,6 @@
 export type {
   PaymentIdentifierInfo,
   PaymentIdentifierExtension,
-  PaymentIdentifierDeclaration,
   PaymentIdentifierSchema,
 } from "./types";
 
@@ -83,7 +93,7 @@ export { paymentIdentifierSchema } from "./schema";
 export { generatePaymentId, isValidPaymentId } from "./utils";
 
 // Export client functions
-export { createPaymentIdentifierPayload } from "./client";
+export { appendPaymentIdentifierToExtensions } from "./client";
 
 // Export resource server functions
 export {
@@ -93,9 +103,12 @@ export {
 
 // Export validation and extraction functions
 export {
+  isPaymentIdentifierExtension,
   validatePaymentIdentifier,
   extractPaymentIdentifier,
   extractAndValidatePaymentIdentifier,
   hasPaymentIdentifier,
+  isPaymentIdentifierRequired,
+  validatePaymentIdentifierRequirement,
   type PaymentIdentifierValidationResult,
 } from "./validation";
