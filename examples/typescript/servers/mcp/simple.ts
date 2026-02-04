@@ -2,7 +2,7 @@
  * MCP Server with x402 Paid Tools - Simple Example
  *
  * This example demonstrates the RECOMMENDED way to create an MCP server
- * using the high-level `createX402MCPServer` factory function.
+ * using the high-level `createx402MCPServer` factory function.
  *
  * Run with: pnpm dev
  */
@@ -10,7 +10,7 @@
 import { config } from "dotenv";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { createX402MCPServer } from "@x402/mcp";
+import { createx402MCPServer } from "@x402/mcp";
 import express from "express";
 import { z } from "zod";
 
@@ -49,12 +49,12 @@ function getWeatherData(city: string): { city: string; weather: string; temperat
  * @returns Promise that resolves when server is running
  */
 export async function main(): Promise<void> {
-  console.log("\n📦 Using SIMPLE API (createX402MCPServer factory)\n");
+  console.log("\n📦 Using SIMPLE API (createx402MCPServer factory)\n");
 
   // ========================================================================
   // SIMPLE: One-liner setup with factory function
   // ========================================================================
-  const x402Server = createX402MCPServer({
+  const x402Server = createx402MCPServer({
     name: "x402 Weather Service",
     version: "1.0.0",
     facilitator: facilitatorUrl,
@@ -102,7 +102,7 @@ export async function main(): Promise<void> {
  * @param port - Port to listen on
  */
 function startExpressServer(
-  mcpServer: ReturnType<typeof createX402MCPServer>["server"],
+  mcpServer: ReturnType<typeof createx402MCPServer>["server"],
   port: number,
 ): void {
   const app = express();

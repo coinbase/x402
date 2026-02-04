@@ -4,7 +4,7 @@
  * Routes to simple, advanced, or existing-server example based on CLI arguments.
  *
  * Usage:
- *   pnpm dev           - Run simple example (createX402MCPServer factory)
+ *   pnpm dev           - Run simple example (createx402MCPServer factory)
  *   pnpm dev:advanced  - Run advanced example (x402MCPServer with manual setup)
  *   pnpm dev:existing  - Run existing server example (createPaymentWrapper)
  */

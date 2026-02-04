@@ -16,7 +16,7 @@ import type {
   DynamicPayTo,
   DynamicPrice,
 } from "../types";
-import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_RESPONSE_META_KEY } from "../types";
+import { MCP_PAYMENT_RESPONSE_META_KEY } from "../types";
 import { createToolResourceUrl, extractPaymentFromMeta } from "../utils";
 
 /**
@@ -484,11 +484,6 @@ export class x402MCPServer {
   /**
    * Creates a structured 402 payment required result.
    *
-   * Note: The MCP SDK converts McpError exceptions to tool results with isError: true,
-   * but loses the error.data field. We work around this by embedding the error structure
-   * in the result content as JSON. This deviates from the x402 MCP transport spec
-   * (which specifies error.data) due to MCP SDK limitations.
-   *
    * @param name - Tool name
    * @param paymentConfig - Payment configuration
    * @param paymentRequirements - Resolved payment requirements
@@ -503,6 +498,7 @@ export class x402MCPServer {
   ): Promise<{
     content: Array<{ type: "text"; text: string }>;
     isError: boolean;
+    structuredContent: Record<string, unknown>;
   }> {
     const resourceInfo = {
       url: createToolResourceUrl(name, paymentConfig.resource?.url),
@@ -516,18 +512,12 @@ export class x402MCPServer {
       errorMessage,
     );
 
-    // Embed error in content as JSON (SDK limitation workaround)
     return {
+      structuredContent: paymentRequired as unknown as Record<string, unknown>,
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            "x402/error": {
-              code: MCP_PAYMENT_REQUIRED_CODE,
-              message: errorMessage,
-              data: paymentRequired,
-            },
-          }),
+          text: JSON.stringify(paymentRequired),
         },
       ],
       isError: true,
@@ -536,9 +526,6 @@ export class x402MCPServer {
 
   /**
    * Creates a structured 402 settlement failed result.
-   *
-   * Per MCP transport spec, settlement failure returns a 402 error (not content with error in _meta).
-   * The error data includes the original payment requirements plus settlement failure info.
    *
    * @param name - Tool name
    * @param paymentConfig - Payment configuration
@@ -554,6 +541,7 @@ export class x402MCPServer {
   ): Promise<{
     content: Array<{ type: "text"; text: string }>;
     isError: boolean;
+    structuredContent: Record<string, unknown>;
   }> {
     const resourceInfo = {
       url: createToolResourceUrl(name, paymentConfig.resource?.url),
@@ -567,7 +555,6 @@ export class x402MCPServer {
       `Payment settlement failed: ${errorMessage}`,
     );
 
-    // Include settlement failure response per MCP spec
     const settlementFailure = {
       success: false,
       errorReason: errorMessage,
@@ -575,21 +562,17 @@ export class x402MCPServer {
       network: paymentRequirements.network,
     };
 
-    // Embed error in content as JSON (SDK limitation workaround)
+    const errorData = {
+      ...paymentRequired,
+      [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
+    };
+
     return {
+      structuredContent: errorData as unknown as Record<string, unknown>,
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            "x402/error": {
-              code: MCP_PAYMENT_REQUIRED_CODE,
-              message: `Payment settlement failed: ${errorMessage}`,
-              data: {
-                ...paymentRequired,
-                [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
-              },
-            },
-          }),
+          text: JSON.stringify(errorData),
         },
       ],
       isError: true,
@@ -843,6 +826,7 @@ export interface WrappedToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
   _meta?: Record<string, unknown>;
+  structuredContent?: Record<string, unknown>;
 }
 
 /**
@@ -1170,16 +1154,11 @@ async function createPaymentRequiredResultFromConfig(
   );
 
   return {
+    structuredContent: paymentRequired as unknown as Record<string, unknown>,
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify({
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: errorMessage,
-            data: paymentRequired,
-          },
-        }),
+        text: JSON.stringify(paymentRequired),
       },
     ],
     isError: true,
@@ -1188,7 +1167,6 @@ async function createPaymentRequiredResultFromConfig(
 
 /**
  * Helper to create 402 settlement failed result from wrapper config.
- * Per MCP transport spec, settlement failure returns a 402 error (not content with error in _meta).
  *
  * @param resourceServer - The x402 resource server for creating error response
  * @param toolName - Name of the tool for resource URL
@@ -1216,7 +1194,6 @@ async function createSettlementFailedResultFromConfig(
     `Payment settlement failed: ${errorMessage}`,
   );
 
-  // Include settlement failure response per MCP spec
   const settlementFailure = {
     success: false,
     errorReason: errorMessage,
@@ -1224,20 +1201,17 @@ async function createSettlementFailedResultFromConfig(
     network: paymentRequirements.network,
   };
 
+  const errorData = {
+    ...paymentRequired,
+    [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
+  };
+
   return {
+    structuredContent: errorData as unknown as Record<string, unknown>,
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify({
-          "x402/error": {
-            code: MCP_PAYMENT_REQUIRED_CODE,
-            message: `Payment settlement failed: ${errorMessage}`,
-            data: {
-              ...paymentRequired,
-              [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
-            },
-          },
-        }),
+        text: JSON.stringify(errorData),
       },
     ],
     isError: true,
