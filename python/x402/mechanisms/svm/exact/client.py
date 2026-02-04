@@ -1,6 +1,8 @@
 """SVM client implementation for the Exact payment scheme (V2)."""
 
 import base64
+import binascii
+import os
 from typing import Any
 
 try:
@@ -20,6 +22,7 @@ from ..constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     DEFAULT_COMPUTE_UNIT_LIMIT,
     DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+    MEMO_PROGRAM_ADDRESS,
     NETWORK_CONFIGS,
     SCHEME_EXACT,
     TOKEN_2022_PROGRAM_ADDRESS,
@@ -178,6 +181,13 @@ class ExactSvmScheme:
             data=transfer_data,
         )
 
+        # Memo with random nonce for uniqueness (empty accounts - SPL Memo doesn't require signers)
+        memo_ix = Instruction(
+            program_id=Pubkey.from_string(MEMO_PROGRAM_ADDRESS),
+            accounts=[],
+            data=binascii.hexlify(os.urandom(16)),
+        )
+
         # Get latest blockhash
         blockhash_resp = client.get_latest_blockhash()
         blockhash = blockhash_resp.value.blockhash
@@ -185,7 +195,7 @@ class ExactSvmScheme:
         # Build message
         message = MessageV0.try_compile(
             payer=fee_payer,
-            instructions=[set_cu_limit_ix, set_cu_price_ix, transfer_ix],
+            instructions=[set_cu_limit_ix, set_cu_price_ix, transfer_ix, memo_ix],
             address_lookup_table_accounts=[],
             recent_blockhash=blockhash,
         )
