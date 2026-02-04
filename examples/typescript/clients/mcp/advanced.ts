@@ -149,7 +149,7 @@ export async function main(): Promise<void> {
   console.log("🔧 Test 3: Accessing underlying clients");
   console.log("━".repeat(50));
   console.log("MCP Client:", x402Mcp.client.constructor.name);
-  console.log("Payment Client:", x402Mcp.payment.constructor.name);
+  console.log("Payment Client:", x402Mcp.paymentClient.constructor.name);
 
   console.log("\n✅ Demo complete!");
   await x402Mcp.close();
