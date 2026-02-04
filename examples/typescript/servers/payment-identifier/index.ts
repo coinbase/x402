@@ -94,15 +94,6 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
     }
   });
 
-// Extend Express Request type to include payment ID
-declare global {
-  namespace Express {
-    interface Request {
-      paymentId?: string;
-    }
-  }
-}
-
 // Create HTTP server with the onProtectedRequest hook for idempotency
 const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtectedRequest(
   async context => {
@@ -126,10 +117,12 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
         if (cached) {
           const age = Date.now() - cached.timestamp;
           if (age < CACHE_TTL_MS) {
-            console.log(`[Idempotency] Cache HIT - granting access (age: ${Math.round(age / 1000)}s)`);
+            console.log(
+              `[Idempotency] Cache HIT - granting access (age: ${Math.round(age / 1000)}s)`,
+            );
             // Store payment ID in request for route handler access
             // Access Express request through adapter's private req property
-            const adapter = context.adapter as { req: express.Request };
+            const adapter = context.adapter as { req: express.Request & { paymentId?: string } };
             adapter.req.paymentId = paymentId;
             // Grant access without payment processing - the cached response will be served
             return { grantAccess: true };
@@ -155,8 +148,10 @@ app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 app.get("/weather", (req, res) => {
   // Check if this is a cached response (grantAccess was true)
-  if (req.paymentId) {
-    const cached = idempotencyCache.get(req.paymentId);
+  // Use type assertion to access paymentId property
+  const reqWithPaymentId = req as express.Request & { paymentId?: string };
+  if (reqWithPaymentId.paymentId) {
+    const cached = idempotencyCache.get(reqWithPaymentId.paymentId);
     if (cached) {
       // Return cached response with cached flag set to true
       res.json({

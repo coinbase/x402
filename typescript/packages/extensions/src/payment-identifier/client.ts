@@ -2,7 +2,6 @@
  * Client-side utilities for the Payment-Identifier Extension
  */
 
-import type { PaymentIdentifierInfo } from "./types";
 import { PAYMENT_IDENTIFIER } from "./types";
 import { generatePaymentId, isValidPaymentId } from "./utils";
 import { isPaymentIdentifierExtension } from "./validation";
@@ -58,7 +57,7 @@ export function appendPaymentIdentifierToExtensions(
   if (!isValidPaymentId(paymentId)) {
     throw new Error(
       `Invalid payment ID: "${paymentId}". ` +
-      `ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores.`,
+        `ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores.`,
     );
   }
 

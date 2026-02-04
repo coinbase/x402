@@ -20,6 +20,10 @@ import {
 
 /**
  * Helper to create an extension with ID appended (mimics client flow)
+ *
+ * @param id - Optional payment ID to use. If not provided, a new ID will be generated.
+ * @param required - Whether the payment identifier is required (defaults to false).
+ * @returns The payment-identifier extension object with the ID appended.
  */
 function createExtensionWithId(id?: string, required: boolean = false) {
   const extensions: Record<string, unknown> = {

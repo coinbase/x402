@@ -2,7 +2,10 @@ import { config } from "dotenv";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
-import { appendPaymentIdentifierToExtensions, generatePaymentId } from "@x402/extensions/payment-identifier";
+import {
+  appendPaymentIdentifierToExtensions,
+  generatePaymentId,
+} from "@x402/extensions/payment-identifier";
 
 config();
 
@@ -106,7 +109,9 @@ async function main(): Promise<void> {
   console.log(`   First request:  ${duration1}ms (payment processed)`);
   console.log(`   Second request: ${duration2}ms (cached)`);
   if (duration2 < duration1) {
-    console.log(`   ⚡ Cached response was ${Math.round((1 - duration2 / duration1) * 100)}% faster!`);
+    console.log(
+      `   ⚡ Cached response was ${Math.round((1 - duration2 / duration1) * 100)}% faster!`,
+    );
   }
   console.log(``);
 }

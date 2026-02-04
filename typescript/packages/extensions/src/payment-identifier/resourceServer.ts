@@ -42,7 +42,9 @@ import { paymentIdentifierSchema } from "./schema";
  * };
  * ```
  */
-export function declarePaymentIdentifierExtension(required: boolean = false): PaymentIdentifierExtension {
+export function declarePaymentIdentifierExtension(
+  required: boolean = false,
+): PaymentIdentifierExtension {
   return {
     info: { required },
     schema: paymentIdentifierSchema,
