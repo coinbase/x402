@@ -355,15 +355,26 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			unpaidResponse = unpaidResp
 		}
 
+		response, err := s.createHTTPResponseV2(
+			paymentRequired,
+			s.isWebBrowser(reqCtx.Adapter),
+			paywallConfig,
+			routeConfig.CustomPaywallHTML,
+			unpaidResponse,
+		)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
-			Type: ResultPaymentError,
-			Response: s.createHTTPResponseV2(
-				paymentRequired,
-				s.isWebBrowser(reqCtx.Adapter),
-				paywallConfig,
-				routeConfig.CustomPaywallHTML,
-				unpaidResponse,
-			),
+			Type:     ResultPaymentError,
+			Response: response,
 		}
 	}
 
@@ -377,9 +388,20 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			extensions,
 		)
 
+		response, err := s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
+			Response: response,
 		}
 	}
 
@@ -396,9 +418,20 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			extensions,
 		)
 
+		response, err := s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
+			Response: response,
 		}
 	}
 
@@ -434,9 +467,17 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 		}
 	}
 
+	headers, err := s.createSettlementHeaders(settleResult)
+	if err != nil {
+		return &ProcessSettleResult{
+			Success:     false,
+			ErrorReason: fmt.Sprintf("failed to create settlement headers: %v", err),
+		}
+	}
+
 	return &ProcessSettleResult{
 		Success:     true,
-		Headers:     s.createSettlementHeaders(settleResult),
+		Headers:     headers,
 		Transaction: settleResult.Transaction,
 		Network:     settleResult.Network,
 		Payer:       settleResult.Payer,
@@ -541,7 +582,7 @@ func (s *x402HTTPResourceServer) isWebBrowser(adapter HTTPAdapter) bool {
 //	paywallConfig: Optional paywall configuration
 //	customHTML: Optional custom HTML for the paywall
 //	unpaidResponse: Optional custom response for API clients (ignored for browser requests)
-func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string, unpaidResponse *UnpaidResponse) *HTTPResponseInstructions {
+func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string, unpaidResponse *UnpaidResponse) (*HTTPResponseInstructions, error) {
 	if isWebBrowser {
 		html := s.generatePaywallHTMLV2(paymentRequired, paywallConfig, customHTML)
 		return &HTTPResponseInstructions{
@@ -551,7 +592,7 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 			},
 			Body:   html,
 			IsHTML: true,
-		}
+		}, nil
 	}
 
 	// Use custom unpaid response if provided, otherwise default to JSON with no body
@@ -563,20 +604,25 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 		body = unpaidResponse.Body
 	}
 
+	encodedHeader, err := encodePaymentRequiredHeader(paymentRequired)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode payment required header: %w", err)
+	}
+
 	return &HTTPResponseInstructions{
 		Status: 402,
 		Headers: map[string]string{
 			"Content-Type":     contentType,
-			"PAYMENT-REQUIRED": encodePaymentRequiredHeader(paymentRequired),
+			"PAYMENT-REQUIRED": encodedHeader,
 		},
 		Body: body,
-	}
+	}, nil
 }
 
 // createHTTPResponse creates response instructions (legacy method)
 //
 //nolint:unused // Legacy method kept for API compatibility
-func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) (*HTTPResponseInstructions, error) {
 	// Convert to V2 and call V2 method
 	v2Required := types.PaymentRequired{
 		X402Version: 2,
@@ -588,10 +634,14 @@ func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.Payment
 }
 
 // createSettlementHeaders creates settlement response headers
-func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleResponse) map[string]string {
-	return map[string]string{
-		"PAYMENT-RESPONSE": encodePaymentResponseHeader(*response),
+func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleResponse) (map[string]string, error) {
+	encodedHeader, err := encodePaymentResponseHeader(*response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode payment response header: %w", err)
 	}
+	return map[string]string{
+		"PAYMENT-RESPONSE": encodedHeader,
+	}, nil
 }
 
 // generatePaywallHTMLV2 generates HTML paywall for V2 PaymentRequired
