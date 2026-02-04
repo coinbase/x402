@@ -4,9 +4,9 @@
  * Routes to simple, advanced, or existing-server example based on CLI arguments.
  *
  * Usage:
- *   pnpm dev           - Run simple example (createx402MCPServer factory)
- *   pnpm dev:advanced  - Run advanced example (x402MCPServer with manual setup)
- *   pnpm dev:existing  - Run existing server example (createPaymentWrapper)
+ *   pnpm dev           - Run simple example (createPaymentWrapper)
+ *   pnpm dev:advanced  - Run advanced example (createPaymentWrapper with hooks)
+ *   pnpm dev:existing  - Run existing server example (createPaymentWrapper with existing server)
  */
 
 const mode = process.argv[2] || "simple";

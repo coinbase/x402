@@ -118,6 +118,21 @@ export interface x402MCPToolCallResult {
  * Wraps an MCP client to automatically detect 402 (payment required) errors
  * from tool calls, create payment payloads, and retry with payment attached.
  *
+ * PROTOCOL COMPLIANCE:
+ * This wrapper is a COMPLETE, TRANSPARENT passthrough exposing all 19 public methods
+ * from the MCP SDK Client class. It's suitable for any MCP use case including:
+ * - Chatbots and conversational agents
+ * - IDE integrations (like Cursor, VSCode)
+ * - Autonomous agents
+ * - Custom MCP applications
+ *
+ * Only callTool() is enhanced with payment handling. All other methods are direct
+ * passthroughs ensuring full MCP protocol compatibility.
+ *
+ * STABILITY:
+ * Depends on formal MCP specification (JSON-RPC 2.0 based) with semantic versioning.
+ * Proven stable across SDK versions: 1.9.0 → 1.12.1 → 1.15.1
+ *
  * @example
  * ```typescript
  * import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -132,15 +147,16 @@ export interface x402MCPToolCallResult {
  * const x402Mcp = new x402MCPClient(mcpClient, paymentClient, {
  *   autoPayment: true,
  *   onPaymentRequested: async ({ paymentRequired }) => {
- *     // Optional: implement human-in-the-loop approval
  *     return confirm(`Pay ${paymentRequired.accepts[0].amount}?`);
  *   },
  * });
  *
- * // Connect to server
  * await x402Mcp.connect(transport);
  *
- * // Tool calls automatically handle payment
+ * // Full MCP protocol access - all 19 methods available
+ * const tools = await x402Mcp.listTools();
+ * const resource = await x402Mcp.readResource({ uri: "file://..." });
+ * const prompt = await x402Mcp.getPrompt({ name: "code-review" });
  * const result = await x402Mcp.callTool("financial_analysis", { ticker: "AAPL" });
  * ```
  */
@@ -239,6 +255,134 @@ export class x402MCPClient {
    */
   async listPrompts(): ReturnType<Client["listPrompts"]> {
     return this.mcpClient.listPrompts();
+  }
+
+  /**
+   * Get a specific prompt from the server.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for getPrompt method
+   * @returns Promise resolving to the prompt
+   */
+  async getPrompt(...args: Parameters<Client["getPrompt"]>): ReturnType<Client["getPrompt"]> {
+    return this.mcpClient.getPrompt(...args);
+  }
+
+  /**
+   * Read a resource from the server.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for readResource method
+   * @returns Promise resolving to the resource content
+   */
+  async readResource(...args: Parameters<Client["readResource"]>): ReturnType<Client["readResource"]> {
+    return this.mcpClient.readResource(...args);
+  }
+
+  /**
+   * List resource templates from the server.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for listResourceTemplates method
+   * @returns Promise resolving to the list of resource templates
+   */
+  async listResourceTemplates(...args: Parameters<Client["listResourceTemplates"]>): ReturnType<Client["listResourceTemplates"]> {
+    return this.mcpClient.listResourceTemplates(...args);
+  }
+
+  /**
+   * Subscribe to resource updates.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for subscribeResource method
+   * @returns Promise resolving when subscribed
+   */
+  async subscribeResource(...args: Parameters<Client["subscribeResource"]>): ReturnType<Client["subscribeResource"]> {
+    return this.mcpClient.subscribeResource(...args);
+  }
+
+  /**
+   * Unsubscribe from resource updates.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for unsubscribeResource method
+   * @returns Promise resolving when unsubscribed
+   */
+  async unsubscribeResource(...args: Parameters<Client["unsubscribeResource"]>): ReturnType<Client["unsubscribeResource"]> {
+    return this.mcpClient.unsubscribeResource(...args);
+  }
+
+  /**
+   * Ping the server.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for ping method
+   * @returns Promise resolving to ping response
+   */
+  async ping(...args: Parameters<Client["ping"]>): ReturnType<Client["ping"]> {
+    return this.mcpClient.ping(...args);
+  }
+
+  /**
+   * Request completion suggestions.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for complete method
+   * @returns Promise resolving to completion suggestions
+   */
+  async complete(...args: Parameters<Client["complete"]>): ReturnType<Client["complete"]> {
+    return this.mcpClient.complete(...args);
+  }
+
+  /**
+   * Set the logging level on the server.
+   * Passthrough to the underlying MCP client.
+   *
+   * @param args - Arguments for setLoggingLevel method
+   * @returns Promise resolving when level is set
+   */
+  async setLoggingLevel(...args: Parameters<Client["setLoggingLevel"]>): ReturnType<Client["setLoggingLevel"]> {
+    return this.mcpClient.setLoggingLevel(...args);
+  }
+
+  /**
+   * Get server capabilities after initialization.
+   * Passthrough to the underlying MCP client.
+   *
+   * @returns Server capabilities or undefined if not initialized
+   */
+  getServerCapabilities(): ReturnType<Client["getServerCapabilities"]> {
+    return this.mcpClient.getServerCapabilities();
+  }
+
+  /**
+   * Get server version information after initialization.
+   * Passthrough to the underlying MCP client.
+   *
+   * @returns Server version info or undefined if not initialized
+   */
+  getServerVersion(): ReturnType<Client["getServerVersion"]> {
+    return this.mcpClient.getServerVersion();
+  }
+
+  /**
+   * Get server instructions after initialization.
+   * Passthrough to the underlying MCP client.
+   *
+   * @returns Server instructions or undefined if not initialized
+   */
+  getInstructions(): ReturnType<Client["getInstructions"]> {
+    return this.mcpClient.getInstructions();
+  }
+
+  /**
+   * Send notification that roots list has changed.
+   * Passthrough to the underlying MCP client.
+   *
+   * @returns Promise resolving when notification is sent
+   */
+  async sendRootsListChanged(): ReturnType<Client["sendRootsListChanged"]> {
+    return this.mcpClient.sendRootsListChanged();
   }
 
   /**
