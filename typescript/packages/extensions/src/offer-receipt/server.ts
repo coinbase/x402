@@ -14,6 +14,7 @@ import type {
   SettleResultContext,
 } from "@x402/core/types";
 import type { PaymentRequirements } from "@x402/core/types";
+import type { HTTPRequestContext } from "@x402/core/http";
 import {
   OFFER_RECEIPT,
   type OfferReceiptSigner,
@@ -109,45 +110,14 @@ const RECEIPT_SCHEMA = {
 // ============================================================================
 
 /**
- * HTTP transport context interface
- * This matches what x402HTTPResourceServer provides
- */
-interface HTTPTransportContext {
-  adapter?: {
-    getUrl?: () => string;
-  };
-  request?: {
-    url?: string;
-    method?: string;
-  };
-  requestUrl?: string;
-}
-
-/**
  * Extract resource URL from transport context
  *
  * @param transportContext - The transport context from the request
  * @returns The resource URL or undefined
  */
 function extractResourceUrl(transportContext: unknown): string | undefined {
-  const ctx = transportContext as HTTPTransportContext | undefined;
-
-  // Try adapter.getUrl() first (HTTPRequestContext from x402HTTPResourceServer)
-  if (ctx?.adapter?.getUrl) {
-    return ctx.adapter.getUrl();
-  }
-
-  // Try requestUrl (direct property)
-  if (ctx?.requestUrl) {
-    return ctx.requestUrl;
-  }
-
-  // Try request.url
-  if (ctx?.request?.url) {
-    return ctx.request.url;
-  }
-
-  return undefined;
+  const ctx = transportContext as HTTPRequestContext | undefined;
+  return ctx?.adapter?.getUrl?.();
 }
 
 // ============================================================================
