@@ -42,18 +42,7 @@ interface MCPCallToolResult {
   content: MCPContentItem[];
   isError?: boolean;
   _meta?: Record<string, unknown>;
-}
-
-/**
- * x402 error structure embedded in tool result content.
- * Used because MCP SDK converts JSON-RPC errors to generic isError results.
- */
-interface x402EmbeddedError {
-  "x402/error": {
-    code: number;
-    message: string;
-    data: PaymentRequired;
-  };
+  structuredContent?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -68,47 +57,6 @@ interface x402EmbeddedError {
  */
 function isMCPTextContent(content: MCPContentItem): content is MCPContentItem & { text: string } {
   return content.type === "text" && typeof content.text === "string";
-}
-
-/**
- * Type guard for x402 embedded error structure.
- * Validates the complete structure including the embedded PaymentRequired data
- * using Zod schema validation from @x402/core/schemas.
- *
- * @param parsed - The parsed value to check
- * @returns True if the value is a valid x402 embedded error
- */
-function isx402EmbeddedError(parsed: unknown): parsed is x402EmbeddedError {
-  if (typeof parsed !== "object" || parsed === null) {
-    return false;
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const x402Error = obj["x402/error"];
-
-  if (typeof x402Error !== "object" || x402Error === null) {
-    return false;
-  }
-
-  const errorObj = x402Error as Record<string, unknown>;
-
-  // Validate error code
-  if (errorObj.code !== MCP_PAYMENT_REQUIRED_CODE) {
-    return false;
-  }
-
-  // Validate error message
-  if (typeof errorObj.message !== "string") {
-    return false;
-  }
-
-  // Validate the PaymentRequired data using Zod schema validation
-  // This handles both V1 and V2 formats automatically
-  if (!isPaymentRequired(errorObj.data)) {
-    return false;
-  }
-
-  return true;
 }
 
 /**
@@ -568,9 +516,9 @@ export class x402MCPClient {
   /**
    * Extracts PaymentRequired from a tool result (structured 402 response).
    *
-   * The MCP SDK converts JSON-RPC errors to tool results with isError: true,
-   * so we embed the x402 error structure in the content. The format is:
-   * { "x402/error": { "code": 402, "message": "...", "data": PaymentRequired } }
+   * Per MCP transport spec, supports:
+   * 1. structuredContent with direct PaymentRequired object (optional, preferred)
+   * 2. content[0].text with JSON-encoded PaymentRequired object (required)
    *
    * @param result - The tool call result
    * @returns PaymentRequired if this is a 402 response, null otherwise
@@ -581,7 +529,13 @@ export class x402MCPClient {
       return null;
     }
 
-    // Check if content contains our structured x402/error response
+    if (result.structuredContent) {
+      const extracted = this.extractPaymentRequiredFromObject(result.structuredContent);
+      if (extracted) {
+        return extracted;
+      }
+    }
+
     const content = result.content;
     if (content.length === 0) {
       return null;
@@ -594,13 +548,31 @@ export class x402MCPClient {
 
     try {
       const parsed: unknown = JSON.parse(firstItem.text);
-
-      // Check for x402/error format (MCP transport spec compliant)
-      if (isx402EmbeddedError(parsed)) {
-        return parsed["x402/error"].data;
+      if (typeof parsed === "object" && parsed !== null) {
+        const extracted = this.extractPaymentRequiredFromObject(
+          parsed as Record<string, unknown>,
+        );
+        if (extracted) {
+          return extracted;
+        }
       }
     } catch {
       // Not JSON, not our structured response
+    }
+
+    return null;
+  }
+
+  /**
+   * Extracts PaymentRequired from an object.
+   * Expects direct PaymentRequired format (per MCP transport spec).
+   *
+   * @param obj - The object to extract from
+   * @returns PaymentRequired if found, null otherwise
+   */
+  private extractPaymentRequiredFromObject(obj: Record<string, unknown>): PaymentRequired | null {
+    if (isPaymentRequired(obj)) {
+      return obj as PaymentRequired;
     }
 
     return null;
