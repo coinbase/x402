@@ -1,1 +1,1 @@
-export * from "./x402MCPServer";
+export * from "./paymentWrapper";
