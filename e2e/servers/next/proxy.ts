@@ -88,42 +88,40 @@ export const proxy = paymentProxy(
         }),
       },
     },
-    "/api/protected-aptos-proxy": {
-      accepts: {
-        payTo: APTOS_PAYEE_ADDRESS || "0x0",
-        scheme: "exact",
-        price: "$0.001",
-        network: APTOS_NETWORK,
-      },
-      extensions: {
-        ...declareDiscoveryExtension({
-          output: {
-            example: {
-              message: "Protected endpoint accessed successfully",
-              timestamp: "2024-01-01T00:00:00Z",
-            },
-            schema: {
-              properties: {
-                message: { type: "string" },
-                timestamp: { type: "string" },
-              },
-              required: ["message", "timestamp"],
-            },
+    ...(APTOS_PAYEE_ADDRESS
+      ? {
+        "/api/protected-aptos-proxy": {
+          accepts: {
+            payTo: APTOS_PAYEE_ADDRESS,
+            scheme: "exact",
+            price: "$0.001",
+            network: APTOS_NETWORK,
           },
-        }),
-      },
-    },
+          extensions: {
+            ...declareDiscoveryExtension({
+              output: {
+                example: {
+                  message: "Protected endpoint accessed successfully",
+                  timestamp: "2024-01-01T00:00:00Z",
+                },
+                schema: {
+                  properties: {
+                    message: { type: "string" },
+                    timestamp: { type: "string" },
+                  },
+                  required: ["message", "timestamp"],
+                },
+              },
+            }),
+          },
+        },
+      }
+      : {}),
   },
   server, // Pass pre-configured server instance
 );
 
 // Configure which paths the middleware should run on
-// Aptos path is only included if APTOS_PAYEE_ADDRESS is configured
 export const config = {
-  matcher: [
-    "/api/protected-proxy",
-    "/api/protected-svm-proxy",
-    ...(APTOS_PAYEE_ADDRESS ? ["/api/protected-aptos-proxy"] : []),
-  ],
+  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy"],
 };
-

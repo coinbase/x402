@@ -137,31 +137,35 @@ app.use(
           }),
         },
       },
-      "GET /protected-aptos": {
-        accepts: {
-          payTo: APTOS_PAYEE_ADDRESS || "0x0",
-          scheme: "exact",
-          price: "$0.001",
-          network: APTOS_NETWORK,
-        },
-        extensions: {
-          ...declareDiscoveryExtension({
-            output: {
-              example: {
-                message: "Protected endpoint accessed successfully",
-                timestamp: "2024-01-01T00:00:00Z",
+      ...(APTOS_PAYEE_ADDRESS
+        ? {
+            "GET /protected-aptos": {
+              accepts: {
+                payTo: APTOS_PAYEE_ADDRESS,
+                scheme: "exact",
+                price: "$0.001",
+                network: APTOS_NETWORK,
               },
-              schema: {
-                properties: {
-                  message: { type: "string" },
-                  timestamp: { type: "string" },
-                },
-                required: ["message", "timestamp"],
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
+                    },
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
+                  },
+                }),
               },
             },
-          }),
-        },
-      },
+          }
+        : {}),
       // Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
       "GET /protected-permit2": {
         accepts: {
