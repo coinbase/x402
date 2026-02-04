@@ -215,21 +215,19 @@ export function extractJWSPayload<T>(jws: string): T {
 /**
  * Create EIP-712 domain for offer signing
  *
- * @param chainId - The chain ID for the domain
  * @returns The EIP-712 domain object
  */
-export function createOfferDomain(chainId: number): TypedDataDomain {
-  return { name: "x402 offer", version: "1", chainId };
+export function createOfferDomain(): TypedDataDomain {
+  return { name: "x402 offer", version: "1", chainId: 1 };
 }
 
 /**
  * Create EIP-712 domain for receipt signing
  *
- * @param chainId - The chain ID for the domain
  * @returns The EIP-712 domain object
  */
-export function createReceiptDomain(chainId: number): TypedDataDomain {
-  return { name: "x402 receipt", version: "1", chainId };
+export function createReceiptDomain(): TypedDataDomain {
+  return { name: "x402 receipt", version: "1", chainId: 1 };
 }
 
 /**
@@ -242,7 +240,7 @@ export const OFFER_TYPES = {
     { name: "scheme", type: "string" },
     { name: "network", type: "string" },
     { name: "asset", type: "string" },
-    { name: "payTo", type: "address" },
+    { name: "payTo", type: "string" },
     { name: "amount", type: "string" },
     { name: "validUntil", type: "uint256" },
   ],
@@ -278,7 +276,7 @@ export function prepareOfferForEIP712(payload: OfferPayload): {
   scheme: string;
   network: string;
   asset: string;
-  payTo: `0x${string}`;
+  payTo: string;
   amount: string;
   validUntil: bigint;
 } {
@@ -288,7 +286,7 @@ export function prepareOfferForEIP712(payload: OfferPayload): {
     scheme: payload.scheme,
     network: payload.network,
     asset: payload.asset,
-    payTo: payload.payTo as `0x${string}`,
+    payTo: payload.payTo,
     amount: payload.amount,
     validUntil: BigInt(payload.validUntil),
   };
@@ -326,12 +324,11 @@ export function prepareReceiptForEIP712(payload: ReceiptPayload): {
  * Hash offer typed data for EIP-712
  *
  * @param payload - The offer payload
- * @param chainId - The chain ID for the domain
  * @returns The EIP-712 hash
  */
-export function hashOfferTypedData(payload: OfferPayload, chainId: number): Hex {
+export function hashOfferTypedData(payload: OfferPayload): Hex {
   return hashTypedData({
-    domain: createOfferDomain(chainId),
+    domain: createOfferDomain(),
     types: OFFER_TYPES,
     primaryType: "Offer",
     message: prepareOfferForEIP712(payload),
@@ -342,12 +339,11 @@ export function hashOfferTypedData(payload: OfferPayload, chainId: number): Hex 
  * Hash receipt typed data for EIP-712
  *
  * @param payload - The receipt payload
- * @param chainId - The chain ID for the domain
  * @returns The EIP-712 hash
  */
-export function hashReceiptTypedData(payload: ReceiptPayload, chainId: number): Hex {
+export function hashReceiptTypedData(payload: ReceiptPayload): Hex {
   return hashTypedData({
-    domain: createReceiptDomain(chainId),
+    domain: createReceiptDomain(),
     types: RECEIPT_TYPES,
     primaryType: "Receipt",
     message: prepareReceiptForEIP712(payload),
@@ -372,17 +368,15 @@ export type SignTypedDataFn = (params: {
  * Sign an offer using EIP-712
  *
  * @param payload - The offer payload
- * @param chainId - The chain ID for the domain
  * @param signTypedData - The signing function
  * @returns The signature hex string
  */
 export async function signOfferEIP712(
   payload: OfferPayload,
-  chainId: number,
   signTypedData: SignTypedDataFn,
 ): Promise<Hex> {
   return signTypedData({
-    domain: createOfferDomain(chainId),
+    domain: createOfferDomain(),
     types: OFFER_TYPES,
     primaryType: "Offer",
     message: prepareOfferForEIP712(payload) as unknown as Record<string, unknown>,
@@ -393,17 +387,15 @@ export async function signOfferEIP712(
  * Sign a receipt using EIP-712
  *
  * @param payload - The receipt payload
- * @param chainId - The chain ID for the domain
  * @param signTypedData - The signing function
  * @returns The signature hex string
  */
 export async function signReceiptEIP712(
   payload: ReceiptPayload,
-  chainId: number,
   signTypedData: SignTypedDataFn,
 ): Promise<Hex> {
   return signTypedData({
-    domain: createReceiptDomain(chainId),
+    domain: createReceiptDomain(),
     types: RECEIPT_TYPES,
     primaryType: "Receipt",
     message: prepareReceiptForEIP712(payload) as unknown as Record<string, unknown>,
@@ -570,18 +562,16 @@ export async function createOfferJWS(
  *
  * @param resourceUrl - The resource URL being paid for
  * @param input - The offer input parameters
- * @param chainId - The chain ID for EIP-712 domain
  * @param signTypedData - The signing function
  * @returns The signed offer with EIP-712 format
  */
 export async function createOfferEIP712(
   resourceUrl: string,
   input: OfferInput,
-  chainId: number,
   signTypedData: SignTypedDataFn,
 ): Promise<EIP712SignedOffer> {
   const payload = createOfferPayload(resourceUrl, input);
-  const signature = await signOfferEIP712(payload, chainId, signTypedData);
+  const signature = await signOfferEIP712(payload, signTypedData);
   return {
     format: "eip712",
     acceptIndex: input.acceptIndex,
@@ -679,17 +669,15 @@ export async function createReceiptJWS(
  * Create a signed receipt using EIP-712
  *
  * @param input - The receipt input parameters
- * @param chainId - The chain ID for EIP-712 domain
  * @param signTypedData - The signing function
  * @returns The signed receipt with EIP-712 format
  */
 export async function createReceiptEIP712(
   input: ReceiptInput,
-  chainId: number,
   signTypedData: SignTypedDataFn,
 ): Promise<EIP712SignedReceipt> {
   const payload = createReceiptPayloadForEIP712(input);
-  const signature = await signReceiptEIP712(payload, chainId, signTypedData);
+  const signature = await signReceiptEIP712(payload, signTypedData);
   return { format: "eip712", payload, signature };
 }
 

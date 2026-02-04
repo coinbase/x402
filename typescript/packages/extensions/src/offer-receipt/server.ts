@@ -29,7 +29,6 @@ import {
   createOfferEIP712,
   createReceiptJWS,
   createReceiptEIP712,
-  extractEIP155ChainId,
   type SignTypedDataFn,
 } from "./signing";
 
@@ -323,7 +322,7 @@ export function createJWSOfferReceiptIssuer(kid: string, jwsSigner: JWSSigner): 
  * Create an OfferReceiptIssuer that uses EIP-712 format
  *
  * @param kid - Key identifier DID (e.g., did:pkh:eip155:1:0x...)
- * @param signTypedData - Function to sign EIP-712 typed data (from viem wallet client)
+ * @param signTypedData - Function to sign EIP-712 typed data
  * @returns OfferReceiptIssuer for use with createOfferReceiptExtension
  */
 export function createEIP712OfferReceiptIssuer(
@@ -335,17 +334,11 @@ export function createEIP712OfferReceiptIssuer(
     format: "eip712",
 
     async issueOffer(resourceUrl: string, input: OfferInput) {
-      const chainId = extractEIP155ChainId(input.network);
-      return createOfferEIP712(resourceUrl, input, chainId, signTypedData);
+      return createOfferEIP712(resourceUrl, input, signTypedData);
     },
 
     async issueReceipt(resourceUrl: string, payer: string, network: string, transaction?: string) {
-      const chainId = extractEIP155ChainId(network);
-      return createReceiptEIP712(
-        { resourceUrl, payer, network, transaction },
-        chainId,
-        signTypedData,
-      );
+      return createReceiptEIP712({ resourceUrl, payer, network, transaction }, signTypedData);
     },
   };
 }

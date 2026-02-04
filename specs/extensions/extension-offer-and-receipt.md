@@ -68,7 +68,7 @@ All EIP-712 signatures in this extension use the following domain structure:
 {
   name: "<artifact-specific name>",
   version: "1",
-  chainId: <chainId from network>
+  chainId: 1
 }
 ```
 
@@ -76,7 +76,7 @@ Where `name` is:
 - `"x402 offer"` for signed offers
 - `"x402 receipt"` for receipts
 
-When constructing the EIP-712 domain, `chainId` MUST be derived from the `network` field. For CAIP-2 identifiers of the form `eip155:<id>`, the numeric `<id>` value is used as the EIP-712 `chainId`.
+The `chainId` is hardcoded to `1` (Ethereum mainnet) for all EIP-712 signatures in this extension. This is intentional: EIP-712 is used here purely as an off-chain signing format, not for on-chain transaction submission. The payment network is already identified by the `network` field in the payload. Using a constant `chainId` ensures EIP-712 signing works uniformly regardless of the payment network (including non-EVM networks like Solana).
 
 > **Versioning note:** EIP-712 artifacts have two distinct version fields:
 > - **Domain `version`** (string `"1"`): Indicates the EIP-712 schema version. Changing the canonical `types` or `primaryType` requires bumping this version.
@@ -173,7 +173,7 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for off
       { "name": "scheme", "type": "string" },
       { "name": "network", "type": "string" },
       { "name": "asset", "type": "string" },
-      { "name": "payTo", "type": "address" },
+      { "name": "payTo", "type": "string" },
       { "name": "amount", "type": "string" },
       { "name": "validUntil", "type": "uint256" }
     ]
@@ -220,7 +220,7 @@ For the optional `validUntil` field, implementations MUST set unused fields to `
 **For EIP-712:**
 1. Extract `offer.payload` and `offer.signature`
 2. Check `payload.version` to select the appropriate EIP-712 types (currently only version `1` is defined; see §4.3)
-3. Construct the EIP-712 typed data hash using the domain (`name: "x402 offer"`, `version: "1"`, `chainId` from `payload.network`) and the types for the payload version. The `offer.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
+3. Construct the EIP-712 typed data hash using the domain (`name: "x402 offer"`, `version: "1"`, `chainId: 1`) and the types for the payload version. The `offer.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
 4. Verify the signature and recover the signer address
 5. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
 
@@ -360,7 +360,7 @@ For the optional `transaction` field, implementations MUST set unused fields to 
 **For EIP-712:**
 1. Extract `receipt.payload` and `receipt.signature`
 2. Check `payload.version` to select the appropriate EIP-712 types (currently only version `1` is defined; see §5.3)
-3. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId` derived from `payload.network`) and the types for the payload version. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
+3. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId: 1`) and the types for the payload version. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
 4. Verify the signature and recover the signer address
 5. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
 6. Confirm `issuedAt` is within acceptable verifier policy
@@ -874,7 +874,8 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 | Version | Date       | Changes                                                        | Author     |
 | ------- | ---------- | -------------------------------------------------------------- | ---------- |
-| 1.0     | 2026-01-29 | First approved release.                                        | Alfred Tom |
+| 0.6     | 2026-02-04 | Make EIP-712 chain-agnostic: chainId=1, payTo type=string.     | Alfred Tom |
+| 0.5     | 2026-01-29 | First approved release.                                        | Alfred Tom |
 | 0.4     | 2026-01-26 | Add acceptIndex as unsigned envelope field.                    | Alfred Tom |
 | 0.3     | 2026-01-22 | Add validUntil for offer expiration. Move version to payload.  | Alfred Tom |
 | 0.2     | 2026-01-20 | Move offers/receipt to extensions. Add network to receipt.     | Alfred Tom |

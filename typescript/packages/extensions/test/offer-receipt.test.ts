@@ -90,7 +90,6 @@ describe("x402 Offer/Receipt Extension", () => {
             payTo: "0x1234567890123456789012345678901234567890",
             amount: "10000",
           },
-          8453,
           p => account.signTypedData(p),
         );
         expect(offer.format).toBe("eip712");
@@ -102,7 +101,7 @@ describe("x402 Offer/Receipt Extension", () => {
 
   describe("§3.2 EIP-712 Domain", () => {
     const account = privateKeyToAccount(TEST_PRIVATE_KEY);
-    it("Offer domain: name='x402 offer', version='1', chainId from network", async () => {
+    it("Offer domain: name='x402 offer', version='1', chainId=1 (canonical)", async () => {
       await createOfferEIP712(
         "https://api.example.com/resource",
         {
@@ -113,27 +112,45 @@ describe("x402 Offer/Receipt Extension", () => {
           payTo: "0x1234567890123456789012345678901234567890",
           amount: "10000",
         },
-        8453,
         p => {
           expect(p.domain.name).toBe("x402 offer");
           expect(p.domain.version).toBe("1");
-          expect(Number(p.domain.chainId)).toBe(8453);
+          expect(Number(p.domain.chainId)).toBe(1);
           return account.signTypedData(p);
         },
       );
     });
 
-    it("Receipt domain: name='x402 receipt', version='1'", async () => {
+    it("Receipt domain: name='x402 receipt', version='1', chainId=1 (canonical)", async () => {
       await createReceiptEIP712(
         {
           resourceUrl: "https://api.example.com/resource",
           payer: "0xabc123",
           network: "eip155:8453",
         },
-        8453,
         p => {
           expect(p.domain.name).toBe("x402 receipt");
           expect(p.domain.version).toBe("1");
+          expect(Number(p.domain.chainId)).toBe(1);
+          return account.signTypedData(p);
+        },
+      );
+    });
+
+    it("EIP-712 chainId is constant regardless of payment network", async () => {
+      // Even with different payment networks, chainId should always be 1
+      await createOfferEIP712(
+        "https://api.example.com/resource",
+        {
+          acceptIndex: 0,
+          scheme: "exact",
+          network: "eip155:137", // Polygon
+          asset: "native",
+          payTo: "0x1234567890123456789012345678901234567890",
+          amount: "10000",
+        },
+        p => {
+          expect(Number(p.domain.chainId)).toBe(1); // Still 1, not 137
           return account.signTypedData(p);
         },
       );
@@ -245,7 +262,6 @@ describe("x402 Offer/Receipt Extension", () => {
           payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
           network: "eip155:8453",
         },
-        8453,
         p => account.signTypedData(p),
       );
       const payload = extractReceiptPayload(receipt);
@@ -295,7 +311,6 @@ describe("x402 Offer/Receipt Extension", () => {
 
     it("EIP-712 signature recovers correct signer", async () => {
       const account = privateKeyToAccount(TEST_PRIVATE_KEY);
-      const chainId = 8453;
 
       const offer = await createOfferEIP712(
         "https://api.example.com/resource",
@@ -307,12 +322,11 @@ describe("x402 Offer/Receipt Extension", () => {
           payTo: "0x1234567890123456789012345678901234567890",
           amount: "10000",
         },
-        chainId,
         p => account.signTypedData(p),
       );
 
       const recovered = await recoverTypedDataAddress({
-        domain: createOfferDomain(chainId),
+        domain: createOfferDomain(),
         types: OFFER_TYPES,
         primaryType: "Offer",
         message: prepareOfferForEIP712(offer.payload),
@@ -398,7 +412,6 @@ describe("Attestation Helper", () => {
           payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
           network: "eip155:8453",
         },
-        8453,
         p => account.signTypedData(p),
       );
 
@@ -511,7 +524,6 @@ describe("Client Utilities", () => {
           payTo: "0x1234567890123456789012345678901234567890",
           amount: "5000",
         },
-        8453,
         p => account.signTypedData(p),
       );
 
@@ -1001,24 +1013,8 @@ describe("Utility Functions", () => {
         amount: "10000",
         validUntil: 1700000000,
       };
-      const hash = hashOfferTypedData(payload, 8453);
+      const hash = hashOfferTypedData(payload);
       expect(hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-    });
-
-    it("produces different hashes for different chain IDs", () => {
-      const payload: OfferPayload = {
-        version: 1,
-        resourceUrl: "https://api.example.com/resource",
-        scheme: "exact",
-        network: "eip155:8453",
-        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x1234567890123456789012345678901234567890",
-        amount: "10000",
-        validUntil: 1700000000,
-      };
-      const hash1 = hashOfferTypedData(payload, 8453);
-      const hash2 = hashOfferTypedData(payload, 1);
-      expect(hash1).not.toBe(hash2);
     });
   });
 
@@ -1032,7 +1028,7 @@ describe("Utility Functions", () => {
         issuedAt: 1700000000,
         transaction: "",
       };
-      const hash = hashReceiptTypedData(payload, 8453);
+      const hash = hashReceiptTypedData(payload);
       expect(hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
     });
 
@@ -1049,8 +1045,8 @@ describe("Utility Functions", () => {
         ...payload1,
         payer: "0x1234567890123456789012345678901234567890",
       };
-      const hash1 = hashReceiptTypedData(payload1, 8453);
-      const hash2 = hashReceiptTypedData(payload2, 8453);
+      const hash1 = hashReceiptTypedData(payload1);
+      const hash2 = hashReceiptTypedData(payload2);
       expect(hash1).not.toBe(hash2);
     });
   });
@@ -1085,11 +1081,11 @@ describe("Utility Functions", () => {
   });
 
   describe("createReceiptDomain", () => {
-    it("creates receipt domain with correct name and version", () => {
-      const domain = createReceiptDomain(8453);
+    it("creates receipt domain with correct name, version, and canonical chainId", () => {
+      const domain = createReceiptDomain();
       expect(domain.name).toBe("x402 receipt");
       expect(domain.version).toBe("1");
-      expect(domain.chainId).toBe(8453);
+      expect(domain.chainId).toBe(1);
     });
   });
 
