@@ -50,9 +50,6 @@ function cleanupExpiredEntries(): void {
 // Run cleanup every 5 minutes
 setInterval(cleanupExpiredEntries, 5 * 60 * 1000);
 
-// Declare that we support payment-identifier extension (required: false means optional)
-const paymentIdentifierDeclaration = declarePaymentIdentifierExtension(false);
-
 // Route configuration with payment-identifier extension advertised
 const routes = {
   "GET /weather": {
@@ -66,9 +63,9 @@ const routes = {
     ],
     description: "Weather data with idempotency support",
     mimeType: "application/json",
-    // Advertise payment-identifier extension support
+    // Advertise payment-identifier extension support (required: false means optional)
     extensions: {
-      [PAYMENT_IDENTIFIER]: paymentIdentifierDeclaration,
+      [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension(false),
     },
   },
 };
@@ -122,7 +119,10 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
             );
             // Store payment ID in request for route handler access
             // Access Express request through adapter's private req property
-            const adapter = context.adapter as { req: express.Request & { paymentId?: string } };
+            // Cast through unknown first to access private property
+            const adapter = context.adapter as unknown as {
+              req: express.Request & { paymentId?: string };
+            };
             adapter.req.paymentId = paymentId;
             // Grant access without payment processing - the cached response will be served
             return { grantAccess: true };

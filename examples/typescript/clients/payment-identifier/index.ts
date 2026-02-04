@@ -33,23 +33,21 @@ const url = `${baseURL}${endpointPath}`;
 async function main(): Promise<void> {
   const signer = privateKeyToAccount(privateKey);
 
+  const client = new x402Client();
+  registerExactEvmScheme(client, { signer });
+
   // Generate a unique payment ID for this request
   const paymentId = generatePaymentId();
   console.log(`\n🔑 Generated Payment ID: ${paymentId}`);
-
-  const client = new x402Client();
-  registerExactEvmScheme(client, { signer });
 
   // Hook into the payment flow to add payment identifier BEFORE payload creation
   // We modify paymentRequired.extensions to include our payment ID
   client.onBeforePaymentCreation(async ({ paymentRequired }) => {
     // Initialize extensions if not present
-    if (!paymentRequired.extensions) {
-      paymentRequired.extensions = {};
+    if (paymentRequired.extensions) {
+      // Append our payment ID to the extensions (only if server declared the extension)
+      appendPaymentIdentifierToExtensions(paymentRequired.extensions, paymentId);
     }
-
-    // Append our payment ID to the extensions (only if server declared the extension)
-    appendPaymentIdentifierToExtensions(paymentRequired.extensions, paymentId);
   });
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);

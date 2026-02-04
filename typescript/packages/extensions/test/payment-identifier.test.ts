@@ -4,10 +4,12 @@ import {
   PAYMENT_IDENTIFIER,
   PAYMENT_ID_MIN_LENGTH,
   PAYMENT_ID_MAX_LENGTH,
+  PAYMENT_ID_PATTERN,
   generatePaymentId,
   isValidPaymentId,
   appendPaymentIdentifierToExtensions,
   declarePaymentIdentifierExtension,
+  paymentIdentifierResourceServerExtension,
   validatePaymentIdentifier,
   extractPaymentIdentifier,
   extractAndValidatePaymentIdentifier,
@@ -42,6 +44,12 @@ describe("Payment-Identifier Extension", () => {
     it("should export correct length constraints", () => {
       expect(PAYMENT_ID_MIN_LENGTH).toBe(16);
       expect(PAYMENT_ID_MAX_LENGTH).toBe(128);
+    });
+
+    it("should export correct pattern", () => {
+      expect(PAYMENT_ID_PATTERN).toBeInstanceOf(RegExp);
+      expect(PAYMENT_ID_PATTERN.test("valid_id_123")).toBe(true);
+      expect(PAYMENT_ID_PATTERN.test("invalid!@#")).toBe(false);
     });
   });
 
@@ -176,6 +184,26 @@ describe("Payment-Identifier Extension", () => {
       expect(() => appendPaymentIdentifierToExtensions(extensions, "short")).toThrow();
       expect(() => appendPaymentIdentifierToExtensions(extensions, "invalid!@#$%^&")).toThrow();
     });
+
+    it("should not throw when extension doesn't exist and custom ID provided", () => {
+      const extensions: Record<string, unknown> = { other: {} };
+      const result = appendPaymentIdentifierToExtensions(extensions, "valid_id_12345678");
+      expect(result).toBe(extensions);
+      expect(extensions[PAYMENT_IDENTIFIER]).toBeUndefined();
+    });
+
+    it("should overwrite existing id if called multiple times", () => {
+      const extensions: Record<string, unknown> = {
+        [PAYMENT_IDENTIFIER]: declarePaymentIdentifierExtension(),
+      };
+      appendPaymentIdentifierToExtensions(extensions, "first_id_12345678");
+      const ext1 = extensions[PAYMENT_IDENTIFIER] as { info: { id?: string } };
+      expect(ext1.info.id).toBe("first_id_12345678");
+
+      appendPaymentIdentifierToExtensions(extensions, "second_id_12345678");
+      const ext2 = extensions[PAYMENT_IDENTIFIER] as { info: { id?: string } };
+      expect(ext2.info.id).toBe("second_id_12345678");
+    });
   });
 
   describe("declarePaymentIdentifierExtension", () => {
@@ -243,6 +271,39 @@ describe("Payment-Identifier Extension", () => {
       });
       expect(result.valid).toBe(false);
     });
+
+    it("should reject extension with non-string id", () => {
+      const result = validatePaymentIdentifier({
+        info: { required: false, id: 123 as unknown as string },
+        schema: paymentIdentifierSchema,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Extension info 'id' must be a string if provided");
+    });
+
+    it("should validate extension with valid schema", () => {
+      const result = validatePaymentIdentifier({
+        info: { required: false, id: "valid_id_12345678" },
+        schema: paymentIdentifierSchema,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("should reject extension that fails schema validation", () => {
+      const invalidSchema = {
+        ...paymentIdentifierSchema,
+        properties: {
+          ...paymentIdentifierSchema.properties,
+          required: { type: "string" }, // Wrong type
+        },
+      };
+      const result = validatePaymentIdentifier({
+        info: { required: false },
+        schema: invalidSchema,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
   });
 
   describe("extractPaymentIdentifier", () => {
@@ -304,6 +365,45 @@ describe("Payment-Identifier Extension", () => {
       const id = extractPaymentIdentifier(payload);
       expect(id).toBeNull();
     });
+
+    it("should return null when extensions is null", () => {
+      const payload = createMockPayload();
+      payload.extensions = null as unknown as Record<string, unknown>;
+      const id = extractPaymentIdentifier(payload);
+      expect(id).toBeNull();
+    });
+
+    it("should return null when extension exists but is null", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: null,
+      });
+      const id = extractPaymentIdentifier(payload);
+      expect(id).toBeNull();
+    });
+
+    it("should return null when extension exists but info is null", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: { info: null },
+      });
+      const id = extractPaymentIdentifier(payload);
+      expect(id).toBeNull();
+    });
+
+    it("should return null when id exists but is not a string", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: { info: { required: false, id: 123 } },
+      });
+      const id = extractPaymentIdentifier(payload);
+      expect(id).toBeNull();
+    });
+
+    it("should return null when id exists but is undefined", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: { info: { required: false, id: undefined } },
+      });
+      const id = extractPaymentIdentifier(payload);
+      expect(id).toBeNull();
+    });
   });
 
   describe("extractAndValidatePaymentIdentifier", () => {
@@ -351,6 +451,25 @@ describe("Payment-Identifier Extension", () => {
     it("should return null id but valid=true when no id provided", () => {
       const payload = createMockPayload({
         [PAYMENT_IDENTIFIER]: { info: { required: false }, schema: paymentIdentifierSchema },
+      });
+      const { id, validation } = extractAndValidatePaymentIdentifier(payload);
+      expect(id).toBeNull();
+      expect(validation.valid).toBe(true);
+    });
+
+    it("should return validation errors when extension structure is invalid", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: { info: { id: "short" } }, // Missing required
+      });
+      const { id, validation } = extractAndValidatePaymentIdentifier(payload);
+      expect(id).toBeNull();
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toBeDefined();
+    });
+
+    it("should return null id when extension exists but is null", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: null,
       });
       const { id, validation } = extractAndValidatePaymentIdentifier(payload);
       expect(id).toBeNull();
@@ -497,6 +616,22 @@ describe("Payment-Identifier Extension", () => {
       });
       const result = validatePaymentIdentifierRequirement(payload, true);
       expect(result.valid).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
+
+    it("should pass when required=false even if invalid id provided", () => {
+      const payload = createMockPayload({
+        [PAYMENT_IDENTIFIER]: { info: { required: false, id: "short" } },
+      });
+      const result = validatePaymentIdentifierRequirement(payload, false);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should pass when required=true and valid id provided", () => {
+      const extension = createExtensionWithId("valid_id_12345678", true);
+      const payload = createMockPayload({ [PAYMENT_IDENTIFIER]: extension });
+      const result = validatePaymentIdentifierRequirement(payload, true);
+      expect(result.valid).toBe(true);
     });
   });
 
@@ -518,6 +653,17 @@ describe("Payment-Identifier Extension", () => {
       expect(paymentIdentifierSchema.properties.id.minLength).toBe(16);
       expect(paymentIdentifierSchema.properties.id.maxLength).toBe(128);
       expect(paymentIdentifierSchema.properties.id.pattern).toBe("^[a-zA-Z0-9_-]+$");
+    });
+  });
+
+  describe("paymentIdentifierResourceServerExtension", () => {
+    it("should have correct key", () => {
+      expect(paymentIdentifierResourceServerExtension.key).toBe(PAYMENT_IDENTIFIER);
+    });
+
+    it("should be a valid ResourceServerExtension", () => {
+      expect(paymentIdentifierResourceServerExtension).toBeDefined();
+      expect(typeof paymentIdentifierResourceServerExtension.key).toBe("string");
     });
   });
 });
