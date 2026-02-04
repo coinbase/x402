@@ -10,49 +10,55 @@ npm install @x402/mcp @x402/core @modelcontextprotocol/sdk
 
 ## Quick Start (Recommended)
 
-### Server - Using Factory Function
+### Server - Using Payment Wrapper
 
 ```typescript
-import { createX402MCPServer } from "@x402/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { z } from "zod";
 
-// Create server with factory (simplest approach)
-const server = createX402MCPServer({
-  name: "premium-api",
-  version: "1.0.0",
-  facilitator: "https://x402.org/facilitator",
-  schemes: [{ network: "eip155:84532", server: new ExactEvmScheme() }],
+// Create standard MCP server
+const mcpServer = new McpServer({ name: "premium-api", version: "1.0.0" });
+
+// Set up x402 for payment handling
+const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
+const resourceServer = new x402ResourceServer(facilitatorClient);
+resourceServer.register("eip155:84532", new ExactEvmScheme());
+await resourceServer.initialize();
+
+// Build payment requirements
+const accepts = await resourceServer.buildPaymentRequirements({
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...", // Your wallet address
+  price: "$0.10",
 });
 
-await server.initialize();
+// Create payment wrapper with accepts array
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+});
 
-// Register a paid tool
-server.paidTool(
+// Register paid tools - wrap handler
+mcpServer.tool(
   "financial_analysis",
-  {
-    description: "Advanced AI-powered financial analysis",
-    inputSchema: { ticker: z.string() },
-  },
-  {
-    scheme: "exact",
-    network: "eip155:84532",
-    price: "$0.10",
-    payTo: "0x...",
-  },
-  async ({ ticker }) => {
-    const analysis = await performAnalysis(ticker);
+  "Advanced AI-powered financial analysis. Costs $0.10.",
+  { ticker: z.string() },
+  paid(async (args) => {
+    const analysis = await performAnalysis(args.ticker);
     return { content: [{ type: "text", text: analysis }] };
-  }
+  })
 );
 
-// Register a free tool (also through x402Server for consistency)
-server.tool("ping", "Health check", {}, async () => ({
+// Register free tools - no wrapper needed
+mcpServer.tool("ping", "Health check", {}, async () => ({
   content: [{ type: "text", text: "pong" }],
 }));
 
 // Connect to transport
-await server.server.connect(transport);
+await mcpServer.connect(transport);
 ```
 
 ### Client - Using Factory Function
@@ -86,94 +92,115 @@ if (result.paymentMade) {
 }
 ```
 
-## Integrating with Existing MCP Servers
+## Advanced Features
 
-If you have an existing MCP server and want to add payment to specific tools without adopting the full `x402MCPServer` abstraction, use `createPaymentWrapper`:
+### Production Hooks
+
+Add hooks for logging, rate limiting, receipts, and more:
 
 ```typescript
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
-import { HTTPFacilitatorClient } from "@x402/core/server";
-import { ExactEvmScheme } from "@x402/evm/exact/server";
-
-// Your existing MCP server
-const mcpServer = new McpServer({ name: "my-api", version: "1.0.0" });
-
-// Set up x402 for payment handling
-const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }));
-resourceServer.register("eip155:84532", new ExactEvmScheme());
-await resourceServer.initialize();
-
-// Create a payment wrapper with shared config
-const paid = createPaymentWrapper(resourceServer, {
+// Build payment requirements
+const accepts = await resourceServer.buildPaymentRequirements({
   scheme: "exact",
   network: "eip155:84532",
   payTo: "0x...",
+  price: "$0.10",
 });
 
-// Free tools - unchanged, use native McpServer API
-mcpServer.tool("ping", "Health check", {}, async () => ({
-  content: [{ type: "text", text: "pong" }],
-}));
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+  hooks: {
+    // Called after payment verification, before tool execution
+    // Return false to abort execution
+    onBeforeExecution: async ({ toolName, paymentPayload, paymentRequirements }) => {
+      console.log(`Executing ${toolName} for ${paymentPayload.payer}`);
+      
+      // Rate limiting example
+      if (await isRateLimited(paymentPayload.payer)) {
+        console.log("Rate limit exceeded");
+        return false; // Abort execution, don't charge
+      }
+      
+      return true; // Continue
+    },
 
-// Paid tools - wrap handlers with paid("$price", handler)
+    // Called after tool execution, before settlement
+    onAfterExecution: async ({ toolName, result, paymentPayload }) => {
+      // Log metrics
+      await metrics.record(toolName, result.isError);
+    },
+
+    // Called after successful settlement
+    onAfterSettlement: async ({ toolName, settlement, paymentPayload }) => {
+      // Send receipt to user
+      await sendReceipt(paymentPayload.payer, {
+        tool: toolName,
+        transaction: settlement.transaction,
+        network: settlement.network,
+      });
+    },
+  },
+});
+
+// All tools using this wrapper inherit the hooks
 mcpServer.tool("search", "Premium search", { query: z.string() },
-  paid("$0.10", async (args) => ({
-    content: [{ type: "text", text: "Search results..." }],
-  }))
-);
-
-mcpServer.tool("analyze", "Data analysis", { data: z.string() },
-  paid("$0.05", async (args) => ({
-    content: [{ type: "text", text: "Analysis results..." }],
-  }))
+  paid(async (args) => ({ content: [...] }))
 );
 ```
 
-### Single Tool with Full Config
+### Multiple Wrappers with Different Prices
 
-If you only have one paid tool, include the price in the config:
+Create separate wrappers for different payment tiers:
 
 ```typescript
-const paid = createPaymentWrapper(resourceServer, {
+// Build requirements for different price points
+const basicAccepts = await resourceServer.buildPaymentRequirements({
   scheme: "exact",
   network: "eip155:84532",
   payTo: "0x...",
-  price: "$0.10",  // Price included
+  price: "$0.05",
 });
 
-// Just pass the handler
-mcpServer.tool("premium_tool", "desc", {},
-  paid(async (args) => ({ content: [{ type: "text", text: "Result" }] }))
-);
+const premiumAccepts = await resourceServer.buildPaymentRequirements({
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...",
+  price: "$0.50",
+});
+
+// Create wrappers with different prices
+const paidBasic = createPaymentWrapper(resourceServer, { accepts: basicAccepts });
+const paidPremium = createPaymentWrapper(resourceServer, { accepts: premiumAccepts });
+
+// Register tools with appropriate pricing
+mcpServer.tool("basic_search", "...", {}, paidBasic(async (args) => ({ content: [...] })));
+mcpServer.tool("premium_search", "...", {}, paidPremium(async (args) => ({ content: [...] })));
 ```
 
-## Advanced Usage (Mid-Level API)
+### Multiple Payment Options
 
-### Server - Manual Setup with x402MCPServer
-
-Use `x402MCPServer` when you need hooks and server-level concerns:
+Support multiple payment methods by including multiple requirements:
 
 ```typescript
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { x402MCPServer } from "@x402/mcp";
-import { x402ResourceServer } from "@x402/core/server";
-import { ExactEvmScheme } from "@x402/evm/exact/server";
+// Build requirements for different payment schemes
+const exactPayment = await resourceServer.buildPaymentRequirements({
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...",
+  price: "$0.10",
+});
 
-// Manual setup for advanced control
-const mcpServer = new McpServer({ name: "premium-api", version: "1.0.0" });
-const resourceServer = new x402ResourceServer(facilitatorClient);
-resourceServer.register("eip155:84532", new ExactEvmScheme());
-await resourceServer.initialize();
+const subscriptionPayment = await resourceServer.buildPaymentRequirements({
+  scheme: "subscription",
+  network: "eip155:1",
+  payTo: "0x...",
+  price: "$50", // Monthly subscription
+});
 
-const x402Server = new x402MCPServer(mcpServer, resourceServer);
-
-// Register hooks (available with x402MCPServer)
-x402Server.onBeforeExecution(async (ctx) => { /* ... */ });
-x402Server.onAfterSettlement(async (ctx) => { /* ... */ });
-
-// Register tools...
-x402Server.paidTool(...);
+// Client can choose either payment method
+const paid = createPaymentWrapper(resourceServer, {
+  accepts: [exactPayment[0], subscriptionPayment[0]],
+});
 ```
 
 ### Client - Wrapper Functions
