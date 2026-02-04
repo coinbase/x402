@@ -65,6 +65,7 @@ export interface SettleContext {
 
 export interface SettleResultContext extends SettleContext {
   result: SettleResponse;
+  transportContext?: unknown; // HTTP layer sets { httpContext, responseBody }
 }
 
 export interface SettleFailureContext extends SettleContext {
@@ -427,7 +428,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -686,12 +687,14 @@ export class x402ResourceServer {
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional transport-specific context (HTTP layer sets { httpContext, responseBody })
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
+    transportContext?: unknown,
   ): Promise<SettleResponse> {
     const context: SettleContext = {
       paymentPayload,
@@ -762,6 +765,7 @@ export class x402ResourceServer {
       const resultContext: SettleResultContext = {
         ...context,
         result: settleResult,
+        transportContext,
       };
 
       for (const hook of this.afterSettleHooks) {

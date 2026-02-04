@@ -159,6 +159,9 @@ export function paymentMiddlewareFromHTTPServer(
           return;
         }
 
+        // Get response body for extensions
+        const responseBody = Buffer.from(await res.clone().arrayBuffer());
+
         // Clear the response so we can modify headers
         c.res = undefined;
 
@@ -167,6 +170,8 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
+            context,
+            responseBody,
           );
 
           if (!settleResult.success) {

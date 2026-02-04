@@ -231,10 +231,19 @@ export function paymentMiddlewareFromHTTPServer(
         }
 
         try {
+          // Build response body buffer from buffered write/end calls
+          const responseBody = Buffer.concat(
+            bufferedCalls.flatMap(([m, args]) =>
+              (m === "write" || m === "end") && args[0] ? [Buffer.from(args[0])] : [],
+            ),
+          );
+
           const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
+            context,
+            responseBody,
           );
 
           // If settlement fails, return an error and do not send the buffered response
