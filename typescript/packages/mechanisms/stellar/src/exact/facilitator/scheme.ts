@@ -11,7 +11,11 @@ import { Api } from "@stellar/stellar-sdk/rpc";
 import { STELLAR_WILDCARD_CAIP2 } from "../../constants";
 import { gatherAuthEntrySignatureStatus } from "../../shared";
 import { ExactStellarPayloadV2 } from "../../types";
-import { getRpcClient, getNetworkPassphrase } from "../../utils";
+import {
+  getEstimatedLedgerCloseTimeSeconds,
+  getRpcClient,
+  getNetworkPassphrase,
+} from "../../utils";
 import type { FacilitatorStellarSigner } from "../../signer";
 import type {
   Network,
@@ -24,7 +28,6 @@ import type {
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
-const DEFAULT_ESTIMATED_LEDGER_SECONDS = 5;
 
 /**
  * Helper to create a `VerifyResponse` with `isValid: false`.
@@ -221,7 +224,8 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const latestLedger = await server.getLatestLedger();
       const currentLedger = latestLedger.sequence;
       const maxTimeoutSeconds = requirements.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
-      const maxLedgerOffset = Math.ceil(maxTimeoutSeconds / DEFAULT_ESTIMATED_LEDGER_SECONDS);
+      const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(server);
+      const maxLedgerOffset = Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
       const maxLedger = currentLedger + maxLedgerOffset;
 
       // Step 9: Validate auth entries (structure, credential type, expiration, facilitator safety, and signature status).

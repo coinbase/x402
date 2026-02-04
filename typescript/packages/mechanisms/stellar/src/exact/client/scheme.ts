@@ -2,8 +2,9 @@ import { nativeToScVal } from "@stellar/stellar-sdk";
 import { AssembledTransaction } from "@stellar/stellar-sdk/contract";
 import { handleSimulationResult } from "../../shared";
 import {
-  getRpcUrl,
+  getEstimatedLedgerCloseTimeSeconds,
   getRpcClient,
+  getRpcUrl,
   isStellarNetwork,
   RpcConfig,
   validateStellarAssetAddress,
@@ -11,8 +12,6 @@ import {
 } from "../../utils";
 import type { ClientStellarSigner } from "../../signer";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
-
-const DEFAULT_LEDGER_CLOSE_TIME_SECONDS = 5;
 
 /**
  * Stellar client implementation for the Exact payment scheme.
@@ -58,12 +57,12 @@ export class ExactStellarScheme implements SchemeNetworkClient {
       throw new Error(`Exact scheme requires areFeesSponsored to be true`);
     }
 
-    // Fetch current ledger and calculate maxLedger
+    // Fetch current ledger and calculate maxLedger (uses RPC getLedgers for close time)
     const rpcServer = getRpcClient(network, this.rpcConfig);
     const latestLedger = await rpcServer.getLatestLedger();
     const currentLedger = latestLedger.sequence;
-    const maxLedger =
-      currentLedger + Math.ceil(maxTimeoutSeconds / DEFAULT_LEDGER_CLOSE_TIME_SECONDS);
+    const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(rpcServer);
+    const maxLedger = currentLedger + Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
 
     const tx = await AssembledTransaction.build({
       contractId: asset,

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { STELLAR_PUBNET_CAIP2, STELLAR_TESTNET_CAIP2 } from "../../src";
 import {
   convertToTokenAmount,
+  DEFAULT_ESTIMATED_LEDGER_SECONDS,
+  getEstimatedLedgerCloseTimeSeconds,
   getNetworkPassphrase,
   getRpcClient,
   getRpcUrl,
@@ -222,6 +224,70 @@ describe("Stellar RPC Helper Functions", () => {
       it("should throw error for non-Stellar network", () => {
         expect(() => getRpcClient("base" as any)).toThrow("Unknown Stellar network: base");
       });
+    });
+  });
+
+  describe("getEstimatedLedgerCloseTimeSeconds", () => {
+    it("should compute seconds per ledger from RPC getLedgers response", async () => {
+      const baseTs = 1734032457;
+      const ledgers = [100, 101, 102, 103, 104, 105].map((seq, i) => ({
+        sequence: seq,
+        ledgerCloseTime: String(baseTs + i * 3),
+      }));
+      const mockGetLedgers = vi.fn().mockResolvedValue({ ledgers });
+      const mockServer = {
+        getLatestLedger: vi.fn().mockResolvedValue({ sequence: 105 }),
+        getLedgers: mockGetLedgers,
+      } as unknown as rpc.Server;
+
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+
+      expect(result).toBe(3);
+      expect(mockGetLedgers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pagination: { limit: 20 },
+        }),
+      );
+      const callArg = mockGetLedgers.mock.calls[0][0];
+      expect(callArg.startLedger).toBeGreaterThanOrEqual(1);
+      expect(callArg.startLedger).toBeLessThanOrEqual(105);
+    });
+
+    it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLatestLedger throws", async () => {
+      const mockGetLedgers = vi.fn();
+      const mockServer = {
+        getLatestLedger: vi.fn().mockRejectedValue(new Error("RPC error")),
+        getLedgers: mockGetLedgers,
+      } as unknown as rpc.Server;
+
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+
+      expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
+      expect(mockGetLedgers).not.toHaveBeenCalled();
+    });
+
+    it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLedgers throws", async () => {
+      const mockServer = {
+        getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100 }),
+        getLedgers: vi.fn().mockRejectedValue(new Error("Network error")),
+      } as unknown as rpc.Server;
+
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+
+      expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
+    });
+
+    it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLedgers returns fewer than 2 records", async () => {
+      const mockServer = {
+        getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100 }),
+        getLedgers: vi.fn().mockResolvedValue({
+          ledgers: [{ sequence: 100, ledgerCloseTime: "1734032457" }],
+        }),
+      } as unknown as rpc.Server;
+
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+
+      expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
     });
   });
 

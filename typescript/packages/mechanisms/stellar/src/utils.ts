@@ -12,6 +12,9 @@ import {
 } from "./constants";
 import type { Network } from "@x402/core/types";
 
+export const DEFAULT_ESTIMATED_LEDGER_SECONDS = 5;
+const RPC_LEDGERS_SAMPLE_SIZE = 20;
+
 /**
  * Configuration for RPC client connections
  */
@@ -103,6 +106,31 @@ export function getRpcClient(network: Network, rpcConfig?: RpcConfig): rpc.Serve
   return new rpc.Server(rpcUrl, {
     allowHttp: network === STELLAR_TESTNET_CAIP2, // Allow HTTP for testnet
   });
+}
+
+/**
+ * Fetches the estimated ledger close time (seconds per ledger) from RPC getLedgers.
+ *
+ * @param server - The Soroban RPC Server instance
+ * @returns Estimated seconds per ledger, or DEFAULT_ESTIMATED_LEDGER_SECONDS (5) on error
+ */
+export async function getEstimatedLedgerCloseTimeSeconds(server: rpc.Server): Promise<number> {
+  try {
+    const latestLedger = await server.getLatestLedger();
+    const startLedger = latestLedger.sequence;
+    const { ledgers } = await server.getLedgers({
+      startLedger,
+      pagination: { limit: RPC_LEDGERS_SAMPLE_SIZE },
+    });
+    if (!ledgers || ledgers.length < 2) return DEFAULT_ESTIMATED_LEDGER_SECONDS;
+
+    const oldestTs = parseInt(ledgers[0].ledgerCloseTime);
+    const newestTs = parseInt(ledgers[ledgers.length - 1].ledgerCloseTime);
+    const intervals = ledgers.length - 1;
+    return Math.ceil((newestTs - oldestTs) / intervals);
+  } catch {
+    return DEFAULT_ESTIMATED_LEDGER_SECONDS;
+  }
 }
 
 /**
