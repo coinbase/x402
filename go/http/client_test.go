@@ -67,7 +67,10 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 				t.Fatalf("Failed to marshal payload: %v", err)
 			}
 
-			headers := client.EncodePaymentSignatureHeader(payloadBytes)
+			headers, err := client.EncodePaymentSignatureHeader(payloadBytes)
+			if err != nil {
+				t.Fatalf("Failed to encode payment signature header: %v", err)
+			}
 			if _, exists := headers[tt.expected]; !exists {
 				t.Errorf("Expected header %s not found", tt.expected)
 			}
