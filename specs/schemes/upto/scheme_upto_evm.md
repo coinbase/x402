@@ -224,7 +224,7 @@ The `upto` scheme uses the following `PaymentRequirements` schema:
 
 ## 3. SettlementResponse Schema Extension
 
-The `upto` scheme extends the base `SettlementResponse` with the actual settled amount:
+The `upto` scheme extends the base [`SettlementResponse`](../../x402-specification-v2.md#53-settlementresponse-schema) with the actual settled amount:
 
 | Field Name      | Type      | Required | Description                                                           |
 | --------------- | --------- | -------- | --------------------------------------------------------------------- |
@@ -239,30 +239,13 @@ The `upto` scheme extends the base `SettlementResponse` with the actual settled 
 
 ## 4. Error Codes
 
-### Standard Error Codes
+The `upto` scheme uses the standard x402 error codes defined in the [x402 specification](../../x402-specification-v2.md#9-error-handling).
 
-The `upto` scheme uses the following standard x402 error codes (defined in the [x402 specification](../../x402-specification-v2.md)):
+### Scheme-Specific Error Code
 
-- **`insufficient_funds`**: Client does not have enough tokens to cover `amount`
-- **`invalid_network`**: Specified blockchain network is not supported
-- **`invalid_payload`**: Payment payload is malformed or contains invalid data
-- **`invalid_scheme`**: Specified payment scheme is not supported
-- **`unsupported_scheme`**: Payment scheme is not supported by the facilitator
-- **`invalid_x402_version`**: Protocol version is not supported
-- **`invalid_transaction_state`**: Blockchain transaction failed or was rejected
-- **`unexpected_verify_error`**: Unexpected error occurred during payment verification
-- **`unexpected_settle_error`**: Unexpected error occurred during payment settlement
+The `upto` scheme defines one additional error code:
 
-### Scheme-Specific Error Codes
-
-The `upto` scheme on EVM defines the following additional error codes:
-
-- **`invalid_upto_evm_payload_signature`**: Payment authorization signature is invalid or does not recover to the expected address
-- **`invalid_upto_evm_payload_amount_mismatch`**: The signed `permit.permitted.amount` doesn't match the required `amount`
 - **`invalid_upto_evm_payload_settlement_exceeds_amount`**: Attempted to settle for more than the authorized `amount`
-- **`invalid_upto_evm_payload_recipient_mismatch`**: The `witness.to` address does not match the required `payTo` address
-- **`invalid_upto_evm_payload_authorization_valid_before`**: Authorization has expired (current time >= `deadline`)
-- **`invalid_upto_evm_payload_authorization_valid_after`**: Authorization is not yet valid (current time < `validAfter`)
 
 ---
 
