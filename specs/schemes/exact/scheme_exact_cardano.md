@@ -58,7 +58,7 @@ sequenceDiagram
 
     %% Final Response
     Server->>Client: 8. HTTP 200 OK + Resource<br/>Header: PAYMENT-RESPONSE
-    Note left of Server: Returns requested resource<br/>with transaction confirmation:<br/>- txHash<br/>- network: "cardano-mainnet"<br/>- status: "x confirmed" or "mempool"
+    Note left of Server: Returns requested resource<br/>with transaction confirmation:<br/>- transaction: "2f9a7b3c..."<br/>- network: "cardano:mainnet"<br/>- success: true
 ```
 
 The protocol flow for `exact` on Cardano is client-driven. 
