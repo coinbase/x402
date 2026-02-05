@@ -39,8 +39,8 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.22.0",
-    "@x402/core": "workspace:^",
-    "@x402/extensions": "workspace:^",
+    "@x402/core": "workspace:~",
+    "@x402/extensions": "workspace:~",
     "zod": "^3.24.2"
   },
   "peerDependencies": {

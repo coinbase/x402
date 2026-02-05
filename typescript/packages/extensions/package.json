@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@scure/base": "^1.2.6",
-    "@x402/core": "workspace:^",
+    "@x402/core": "workspace:~",
     "ajv": "^8.17.1",
     "siwe": "^2.3.2",
     "tweetnacl": "^1.0.3",
