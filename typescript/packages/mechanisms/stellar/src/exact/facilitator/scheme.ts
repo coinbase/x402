@@ -29,7 +29,7 @@ import type {
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
-
+const DEFAULT_MAX_TRANSACTION_FEE_STROOPS = 50_000;
 /**
  * Helper to create a `VerifyResponse` with `isValid: false`.
  *
@@ -65,12 +65,14 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    * @param rpcConfig - Optional RPC configuration with custom RPC URL
    * @param rpcConfig.url - Custom RPC URL to use instead of defaults
    * @param areFeesSponsored - Indicates if fees are sponsored (default: true)
+   * @param maxTransactionFeeStroops - Maximum fee in stroops the facilitator will pay (default: 50_000)
    * @returns ExactStellarScheme instance
    */
   constructor(
     private readonly signer: FacilitatorStellarSigner,
     private readonly rpcConfig?: { url?: string },
     private readonly areFeesSponsored: boolean = true,
+    private readonly maxTransactionFeeStroops: number = DEFAULT_MAX_TRANSACTION_FEE_STROOPS,
   ) {}
 
   /**
@@ -212,7 +214,24 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         );
       }
 
-      // Step 8: Validate simulation events for expected transfer only.
+      // Step 8: Validate if the resource fees are within acceptable bounds
+      const clientFeeStroops = parseInt(transaction.fee, 10);
+      const minResourceFee = parseInt(simResponse.minResourceFee, 10);
+
+      // Fee must be at least the minimum required by simulation
+      if (clientFeeStroops < minResourceFee) {
+        return invalidVerifyResponse(
+          "invalid_exact_stellar_payload_fee_below_minimum",
+          fromAddress,
+        );
+      }
+
+      // Fee must not exceed the facilitator's maximum
+      if (clientFeeStroops > this.maxTransactionFeeStroops) {
+        return invalidVerifyResponse("invalid_exact_stellar_payload_fee_exceeds_maximum");
+      }
+
+      // Step 9: Validate simulation events for expected transfer only.
       const eventValidation = this.validateSimulationEvents(
         simResponse.events,
         fromAddress,
@@ -231,7 +250,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const maxLedgerOffset = Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
       const maxLedger = currentLedger + maxLedgerOffset;
 
-      // Step 9: Validate auth entries (structure, credential type, expiration, facilitator safety, and signature status).
+      // Step 10: Validate auth entries (structure, credential type, expiration, facilitator safety, and signature status).
       const authValidation = this.validateAuthEntries(
         invokeOp,
         facilitatorAddress,
@@ -303,12 +322,16 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       // Step 3: Extract operation
       const invokeOp = transaction.operations[0] as Operation.InvokeHostFunction;
 
-      // Step 4: Rebuild transaction with facilitator as source
+      // Step 4: Rebuild transaction with facilitator as source and facilitator-chosen fee
       const facilitatorAddress = this.signer.address;
       const facilitatorAccount = await server.getAccount(facilitatorAddress);
 
+      // Use the minimum of the client's fee and the maximum cap
+      const clientFeeStroops = parseInt(transaction.fee, 10);
+      const maxFeeStroops = Math.min(clientFeeStroops, this.maxTransactionFeeStroops);
+
       const rebuiltTx = new TransactionBuilder(facilitatorAccount, {
-        fee: transaction.fee,
+        fee: maxFeeStroops.toString(),
         networkPassphrase,
         ledgerbounds: transaction.ledgerBounds,
         memo: transaction.memo,

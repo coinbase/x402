@@ -297,6 +297,62 @@ describe("ExactStellarScheme#Verify", () => {
       expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
     });
 
+    it("should reject transactions with fees exceeding the maximum", async () => {
+      const lowMaxFeeFacilitator = new ExactStellarScheme(
+        facilitatorSigner,
+        undefined,
+        true,
+        1000, // 1000 stroops max
+      );
+
+      vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockServer as rpc.Server);
+      vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
+
+      const result = await lowMaxFeeFacilitator.verify(validPayload, validRequirements);
+      expect(result).toEqual(
+        invalidVerifyResponse("invalid_exact_stellar_payload_fee_exceeds_maximum"),
+      );
+    });
+
+    it("should reject transactions with fees below simulation minimum", async () => {
+      const expectedAssetHashForFeeTest = new Address(ASSET).toScAddress().contractId();
+      const mockTransferEventForFeeTest = createMockContractEvent({
+        from: CLIENT_PUBLIC,
+        to: TRANSACTION_RECIPIENT,
+        amount: BigInt("10000"),
+        contractId: expectedAssetHashForFeeTest,
+      });
+
+      const originalSimulate = vi.mocked(stellarUtils.getRpcClient).getMockImplementation();
+      const mockServerWithHighMinFee = {
+        ...mockServer,
+        simulateTransaction: vi.fn().mockResolvedValue({
+          id: "test",
+          latestLedger: 123,
+          events: [mockTransferEventForFeeTest],
+          _parsed: true,
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: "999999999",
+          cost: { cpuInsns: "0", memBytes: "0" },
+          results: [],
+        } as Api.SimulateTransactionSuccessResponse),
+      };
+
+      vi.mocked(stellarUtils.getRpcClient).mockReturnValue(
+        mockServerWithHighMinFee as unknown as rpc.Server,
+      );
+      vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
+
+      try {
+        const result = await facilitator.verify(validPayload, validRequirements);
+        expect(result).toEqual(
+          invalidVerifyResponse("invalid_exact_stellar_payload_fee_below_minimum", CLIENT_PUBLIC),
+        );
+      } finally {
+        vi.mocked(stellarUtils.getRpcClient).mockImplementation(originalSimulate!);
+      }
+    });
+
     describe("mismatching networks", () => {
       it("should reject mismatching requirement<>payload networks", async () => {
         const requirements: PaymentRequirements = {
