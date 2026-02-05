@@ -307,8 +307,8 @@ describe("ExactStellarScheme#Verify", () => {
         expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
       });
 
-      it("should reject when facilitator network differs from payload's and requirements'", async () => {
-        const wrongNetwork = "eip155:84532" as never; // ❌ signer network != payload/requirements
+      it("should reject when network is not a Stellar network", async () => {
+        const wrongNetwork = "eip155:84532" as never; // ❌ non-Stellar network
         const requirements: PaymentRequirements = {
           ...validRequirements,
           network: wrongNetwork,
@@ -318,7 +318,7 @@ describe("ExactStellarScheme#Verify", () => {
           accepted: { ...validPayload.accepted, network: wrongNetwork },
         };
         const result = await facilitator.verify(payload, requirements);
-        expect(result).toEqual(invalidVerifyResponse("network_mismatch"));
+        expect(result).toEqual(invalidVerifyResponse("invalid_network"));
       });
     });
 

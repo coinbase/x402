@@ -15,6 +15,7 @@ import {
   getEstimatedLedgerCloseTimeSeconds,
   getRpcClient,
   getNetworkPassphrase,
+  isStellarNetwork,
 } from "../../utils";
 import type { FacilitatorStellarSigner } from "../../signer";
 import type {
@@ -119,13 +120,15 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         return invalidVerifyResponse("unsupported_scheme");
       }
 
-      const signerNetwork = (await this.signer.getNetwork()).network;
-      if (signerNetwork !== requirements.network || signerNetwork !== payload.accepted.network) {
+      if (requirements.network !== payload.accepted.network) {
         return invalidVerifyResponse("network_mismatch");
       }
+      if (!isStellarNetwork(requirements.network)) {
+        return invalidVerifyResponse("invalid_network");
+      }
 
-      const server = getRpcClient(signerNetwork, this.rpcConfig);
-      const networkPassphrase = getNetworkPassphrase(signerNetwork);
+      const networkPassphrase = getNetworkPassphrase(requirements.network);
+      const server = getRpcClient(requirements.network, this.rpcConfig);
 
       // Step 2: Parse and decode transaction
       const stellarPayload = payload.payload as ExactStellarPayloadV2;
@@ -322,9 +325,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       // Step 5: Sign transaction with facilitator's key
       const { signedTxXdr, error: signError } = await this.signer.signTransaction(
         rebuiltTx.toXDR(),
-        {
-          networkPassphrase,
-        },
+        { networkPassphrase },
       );
 
       if (signError) {

@@ -31,7 +31,7 @@ This package provides three main components for handling x402 payments on Stella
 **Client:**
 
 - `ExactStellarScheme` - Client implementation using Soroban token transfers
-- `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-43)
+- `createEd25519Signer(privateKey, defaultNetwork)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-43)
 - `ClientStellarSigner` - TypeScript type for client signers
 
 **Facilitator:**

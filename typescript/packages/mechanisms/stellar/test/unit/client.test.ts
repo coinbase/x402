@@ -32,10 +32,6 @@ describe("ExactStellarScheme", () => {
   const mockSigner: ClientStellarSigner = {
     address: mockSignerAddress,
     signAuthEntry: vi.fn().mockResolvedValue({ signedAuthEntry: "signed" }),
-    getNetwork: vi.fn().mockResolvedValue({
-      network: STELLAR_TESTNET_CAIP2,
-      networkPassphrase: "Test SDF Network ; September 2015",
-    }),
   };
 
   const validPaymentReq: PaymentRequirements = {
@@ -124,10 +120,6 @@ describe("ExactStellarScheme", () => {
         ...validPaymentReq,
         network: STELLAR_PUBNET_CAIP2,
       } as PaymentRequirements;
-      vi.mocked(mockSigner.getNetwork).mockResolvedValueOnce({
-        network: STELLAR_PUBNET_CAIP2,
-        networkPassphrase: "Public Global Stellar Network ; September 2015",
-      });
       vi.mocked(stellarUtils.getRpcUrl).mockReturnValueOnce("https://mainnet-rpc.example.com");
       setupSuccessfulTransaction();
 
@@ -169,10 +161,6 @@ describe("ExactStellarScheme", () => {
         ...validPaymentReq,
         network: STELLAR_PUBNET_CAIP2,
       } as PaymentRequirements;
-      vi.mocked(mockSigner.getNetwork).mockResolvedValueOnce({
-        network: STELLAR_PUBNET_CAIP2,
-        networkPassphrase: "Public Global Stellar Network ; September 2015",
-      });
       vi.mocked(stellarUtils.getRpcUrl).mockImplementation(
         (network: string, rpcConfig?: RpcConfig) => {
           if (network === STELLAR_PUBNET_CAIP2 && !rpcConfig?.url) {
@@ -231,10 +219,6 @@ describe("ExactStellarScheme", () => {
         const client = new ExactStellarScheme(mockSigner, rpcConfig);
         setupSuccessfulTransaction();
         const req = { ...validPaymentReq, network } as PaymentRequirements;
-        vi.mocked(mockSigner.getNetwork).mockResolvedValueOnce({
-          network,
-          networkPassphrase: passphrase,
-        });
         vi.mocked(stellarUtils.getRpcUrl).mockReturnValue(rpcUrl);
 
         const result = await client.createPaymentPayload(2, req);
