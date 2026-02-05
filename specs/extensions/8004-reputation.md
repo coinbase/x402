@@ -282,7 +282,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
   "payer": "ClientWallet...",
   "extensions": {
     "8004-reputation": {
-      "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "agentRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
       "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
       "taskRef": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREGntKZu8f2...",
       "dataHash": "0x9f86d081884c...",
@@ -299,8 +299,8 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `networkId` | string | Yes | CAIP-2 payment network |
-| `agentId` | string | Yes | Agent identifier on this network |
+| `agentRegistry` | string | Yes | CAIP-10 identity registry address |
+| `agentId` | string | Yes | Agent identifier on this registry |
 | `taskRef` | string | Yes | CAIP-220 payment transaction reference |
 | `dataHash` | string | Yes | `keccak256(requestBodyBytes \|\| responseBodyBytes)` |
 | `interactionHash` | string | Yes | `keccak256(taskRefBytes \|\| dataHash)` |
@@ -367,8 +367,8 @@ if not isValid:
 
 ### 5. Additional Checks
 
-- **taskRef format**: Valid CAIP-220 matching `networkId`
-- **Network matching**: `networkId` matches agent's declared identity
+- **taskRef format**: Valid CAIP-220 matching the network in `agentRegistry`
+- **Registry matching**: `agentRegistry` matches agent's declared registration
 - **Transaction matching**: `taskRef` references actual payment transaction
 - **dataHash**: Recompute `keccak256(requestBodyBytes || responseBodyBytes)` and verify it matches
 - **interactionHash**: Recompute `keccak256(taskRefBytes || dataHash)` and verify it matches
