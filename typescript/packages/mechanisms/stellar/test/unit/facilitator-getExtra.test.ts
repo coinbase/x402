@@ -23,7 +23,7 @@ describe("ExactStellarScheme - getExtra", () => {
     vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockRpcClient as never);
   });
 
-  it("should return areFeesSponsored", async () => {
+  it("should return areFeesSponsored", () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
@@ -31,13 +31,13 @@ describe("ExactStellarScheme - getExtra", () => {
 
     scheme = new ExactStellarScheme(signer);
 
-    const result = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
+    const result = scheme.getExtra(STELLAR_TESTNET_CAIP2);
 
     expect(result).toEqual({ areFeesSponsored: true });
     expect(mockRpcClient.getLatestLedger).not.toHaveBeenCalled();
   });
 
-  it("should return consistent areFeesSponsored on each call", async () => {
+  it("should return consistent areFeesSponsored on each call", () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
@@ -45,16 +45,16 @@ describe("ExactStellarScheme - getExtra", () => {
 
     scheme = new ExactStellarScheme(signer);
 
-    const result1 = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
+    const result1 = scheme.getExtra(STELLAR_TESTNET_CAIP2);
     expect(result1).toEqual({ areFeesSponsored: true });
 
-    const result2 = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
+    const result2 = scheme.getExtra(STELLAR_TESTNET_CAIP2);
     expect(result2).toEqual({ areFeesSponsored: true });
 
     expect(mockRpcClient.getLatestLedger).not.toHaveBeenCalled();
   });
 
-  it("should use custom areFeesSponsored", async () => {
+  it("should use custom areFeesSponsored", () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
@@ -62,7 +62,7 @@ describe("ExactStellarScheme - getExtra", () => {
 
     scheme = new ExactStellarScheme(signer, undefined, false);
 
-    const result = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
+    const result = scheme.getExtra(STELLAR_TESTNET_CAIP2);
     expect(result).toEqual({ areFeesSponsored: false });
   });
 });
