@@ -187,7 +187,8 @@ describe("ExactStellarScheme#Verify", () => {
       STELLAR_TESTNET_CAIP2,
     );
 
-    facilitator = new ExactStellarScheme(facilitatorSigner);
+    // Use a high max fee for tests to avoid fee validation errors in tests that check other validations
+    facilitator = new ExactStellarScheme(facilitatorSigner, undefined, true, 1_000_000);
 
     // Create valid requirements (V2 format)
     // Note: Values must match the transaction XDR from shared test
