@@ -16,12 +16,14 @@ import (
  *
  * This package demonstrates advanced patterns for production-ready x402 clients:
  *
+ * - all-networks: All supported networks with optional chain configuration
  * - custom-transport: Custom HTTP transport with retry logic and circuit breaker
  * - error-recovery: Advanced error handling and automatic recovery strategies
  * - multi-network-priority: Network selection with priority and fallback
  * - hooks: Payment lifecycle hooks for custom logic at different stages
  *
  * Usage:
+ *   go run . all-networks
  *   go run . custom-transport
  *   go run . error-recovery
  *   go run . multi-network-priority
@@ -43,8 +45,17 @@ func main() {
 
 	// Get configuration
 	evmPrivateKey := os.Getenv("EVM_PRIVATE_KEY")
-	if evmPrivateKey == "" {
+	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
+
+	// For all-networks, at least one key is required
+	// For other examples, EVM key is required
+	if pattern != "all-networks" && evmPrivateKey == "" {
 		fmt.Println("❌ EVM_PRIVATE_KEY environment variable is required")
+		os.Exit(1)
+	}
+
+	if pattern == "all-networks" && evmPrivateKey == "" && svmPrivateKey == "" {
+		fmt.Println("❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required")
 		os.Exit(1)
 	}
 
@@ -57,6 +68,12 @@ func main() {
 	ctx := context.Background()
 
 	switch pattern {
+	case "all-networks":
+		if err := runAllNetworksExample(ctx, evmPrivateKey, svmPrivateKey, url); err != nil {
+			fmt.Printf("❌ Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "custom-transport":
 		if err := runCustomTransportExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
@@ -83,7 +100,7 @@ func main() {
 
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
-		fmt.Println("Available patterns: custom-transport, error-recovery, multi-network-priority, hooks")
+		fmt.Println("Available patterns: all-networks, custom-transport, error-recovery, multi-network-priority, hooks")
 		os.Exit(1)
 	}
 }
