@@ -26,7 +26,10 @@ export function encodePaymentSignatureHeader(paymentPayload: PaymentPayload): st
  */
 export function decodePaymentSignatureHeader(paymentSignatureHeader: string): PaymentPayload {
   if (!Base64EncodedRegex.test(paymentSignatureHeader)) {
-    throw new Error("Invalid payment signature header");
+    throw new Error(
+      `Invalid payment signature header: expected base64-encoded JSON, got "${paymentSignatureHeader.slice(0, 50)}${paymentSignatureHeader.length > 50 ? "..." : ""}". ` +
+        `Ensure the X-PAYMENT header contains a valid base64-encoded PaymentPayload object.`,
+    );
   }
   return JSON.parse(safeBase64Decode(paymentSignatureHeader)) as PaymentPayload;
 }
@@ -49,7 +52,10 @@ export function encodePaymentRequiredHeader(paymentRequired: PaymentRequired): s
  */
 export function decodePaymentRequiredHeader(paymentRequiredHeader: string): PaymentRequired {
   if (!Base64EncodedRegex.test(paymentRequiredHeader)) {
-    throw new Error("Invalid payment required header");
+    throw new Error(
+      `Invalid payment required header: expected base64-encoded JSON, got "${paymentRequiredHeader.slice(0, 50)}${paymentRequiredHeader.length > 50 ? "..." : ""}". ` +
+        `Ensure the X-PAYMENT-REQUIRED header contains a valid base64-encoded PaymentRequired object.`,
+    );
   }
   return JSON.parse(safeBase64Decode(paymentRequiredHeader)) as PaymentRequired;
 }
@@ -72,7 +78,10 @@ export function encodePaymentResponseHeader(paymentResponse: SettleResponse): st
  */
 export function decodePaymentResponseHeader(paymentResponseHeader: string): SettleResponse {
   if (!Base64EncodedRegex.test(paymentResponseHeader)) {
-    throw new Error("Invalid payment response header");
+    throw new Error(
+      `Invalid payment response header: expected base64-encoded JSON, got "${paymentResponseHeader.slice(0, 50)}${paymentResponseHeader.length > 50 ? "..." : ""}". ` +
+        `Ensure the X-PAYMENT-RESPONSE header contains a valid base64-encoded SettleResponse object.`,
+    );
   }
   return JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse;
 }
