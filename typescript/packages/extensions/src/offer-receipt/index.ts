@@ -82,3 +82,15 @@ export {
   verifyReceiptMatchesOffer,
   type DecodedOffer,
 } from "./client";
+
+// Verification utilities (exported from signing.ts)
+export {
+  verifyOfferSignatureEIP712,
+  verifyReceiptSignatureEIP712,
+  verifyOfferSignatureJWS,
+  verifyReceiptSignatureJWS,
+  type EIP712VerificationResult,
+} from "./signing";
+
+// DID resolution utilities
+export { extractPublicKeyFromKid } from "./did";

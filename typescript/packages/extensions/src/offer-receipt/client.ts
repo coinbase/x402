@@ -5,7 +5,7 @@
  * from x402 payment flows. Useful for verified reviews, audit trails, and dispute resolution.
  *
  * @see README.md for usage examples (raw and wrapper flows)
- * @see examples/typescript/clients/receipt-attestation/ for complete attestation example
+ * @see examples/typescript/clients/offer-receipt/ for complete example
  */
 
 import { decodePaymentResponseHeader } from "@x402/core/http";
@@ -50,7 +50,7 @@ interface OfferReceiptExtensionInfo {
  * - issuedAt is recent (within maxAgeSeconds)
  *
  * NOTE: This does NOT verify the signature or key binding. See the comment
- * in the receipt-attestation example for guidance on full verification.
+ * in the offer-receipt example for guidance on full verification.
  *
  * @param receipt - The signed receipt from the server
  * @param offer - The decoded offer that was accepted

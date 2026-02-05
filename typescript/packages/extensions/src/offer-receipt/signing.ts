@@ -6,12 +6,13 @@
  * - JWS (JSON Web Signature) signing and extraction
  * - EIP-712 typed data signing
  * - Offer/Receipt creation utilities
+ * - Signature verification utilities
  *
  * Based on: x402/specs/extensions/extension-offer-and-receipt.md (v1.0) §3
  */
 
 import * as jose from "jose";
-import { hashTypedData, type Hex, type TypedDataDomain } from "viem";
+import { hashTypedData, recoverTypedDataAddress, type Hex, type TypedDataDomain } from "viem";
 import type {
   JWSSigner,
   OfferPayload,
@@ -31,6 +32,7 @@ import {
   type JWSSignedReceipt,
   type EIP712SignedReceipt,
 } from "./types";
+import { extractPublicKeyFromKid } from "./did";
 
 // ============================================================================
 // JCS Canonicalization (RFC 8785)
@@ -699,4 +701,144 @@ export function extractReceiptPayload(receipt: SignedReceipt): ReceiptPayload {
     return receipt.payload;
   }
   throw new Error(`Unknown receipt format: ${(receipt as SignedReceipt).format}`);
+}
+
+// ============================================================================
+// Signature Verification
+// ============================================================================
+
+/**
+ * Result of EIP-712 signature verification
+ */
+export interface EIP712VerificationResult<T> {
+  signer: Hex;
+  payload: T;
+}
+
+/**
+ * Verify an EIP-712 signed offer and recover the signer address.
+ * Does NOT verify signer authorization for the resourceUrl - see spec §4.5.1.
+ *
+ * @param offer - The EIP-712 signed offer
+ * @returns The recovered signer address and payload
+ */
+export async function verifyOfferSignatureEIP712(
+  offer: EIP712SignedOffer,
+): Promise<EIP712VerificationResult<OfferPayload>> {
+  if (offer.format !== "eip712") {
+    throw new Error(`Expected eip712 format, got ${offer.format}`);
+  }
+  if (!offer.payload || !("scheme" in offer.payload)) {
+    throw new Error("Invalid offer: missing or malformed payload");
+  }
+
+  const signer = await recoverTypedDataAddress({
+    domain: createOfferDomain(),
+    types: OFFER_TYPES,
+    primaryType: "Offer",
+    message: prepareOfferForEIP712(offer.payload),
+    signature: offer.signature as Hex,
+  });
+
+  return { signer, payload: offer.payload };
+}
+
+/**
+ * Verify an EIP-712 signed receipt and recover the signer address.
+ * Does NOT verify signer authorization for the resourceUrl - see spec §4.5.1.
+ *
+ * @param receipt - The EIP-712 signed receipt
+ * @returns The recovered signer address and payload
+ */
+export async function verifyReceiptSignatureEIP712(
+  receipt: EIP712SignedReceipt,
+): Promise<EIP712VerificationResult<ReceiptPayload>> {
+  if (receipt.format !== "eip712") {
+    throw new Error(`Expected eip712 format, got ${receipt.format}`);
+  }
+  if (!receipt.payload || !("payer" in receipt.payload)) {
+    throw new Error("Invalid receipt: missing or malformed payload");
+  }
+
+  const signer = await recoverTypedDataAddress({
+    domain: createReceiptDomain(),
+    types: RECEIPT_TYPES,
+    primaryType: "Receipt",
+    message: prepareReceiptForEIP712(receipt.payload),
+    signature: receipt.signature as Hex,
+  });
+
+  return { signer, payload: receipt.payload };
+}
+
+/**
+ * Verify a JWS signed offer.
+ * Does NOT verify signer authorization for the resourceUrl - see spec §4.5.1.
+ * If no publicKey provided, extracts from kid (supports did:key, did:jwk, did:web).
+ *
+ * @param offer - The JWS signed offer
+ * @param publicKey - Optional public key (JWK or KeyLike). If not provided, extracted from kid.
+ * @returns The verified payload
+ */
+export async function verifyOfferSignatureJWS(
+  offer: JWSSignedOffer,
+  publicKey?: jose.KeyLike | jose.JWK,
+): Promise<OfferPayload> {
+  if (offer.format !== "jws") {
+    throw new Error(`Expected jws format, got ${offer.format}`);
+  }
+  const key = await resolveVerificationKey(offer.signature, publicKey);
+  const { payload } = await jose.compactVerify(offer.signature, key);
+  return JSON.parse(new TextDecoder().decode(payload)) as OfferPayload;
+}
+
+/**
+ * Verify a JWS signed receipt.
+ * Does NOT verify signer authorization for the resourceUrl - see spec §4.5.1.
+ * If no publicKey provided, extracts from kid (supports did:key, did:jwk, did:web).
+ *
+ * @param receipt - The JWS signed receipt
+ * @param publicKey - Optional public key (JWK or KeyLike). If not provided, extracted from kid.
+ * @returns The verified payload
+ */
+export async function verifyReceiptSignatureJWS(
+  receipt: JWSSignedReceipt,
+  publicKey?: jose.KeyLike | jose.JWK,
+): Promise<ReceiptPayload> {
+  if (receipt.format !== "jws") {
+    throw new Error(`Expected jws format, got ${receipt.format}`);
+  }
+  const key = await resolveVerificationKey(receipt.signature, publicKey);
+  const { payload } = await jose.compactVerify(receipt.signature, key);
+  return JSON.parse(new TextDecoder().decode(payload)) as ReceiptPayload;
+}
+
+/**
+ * Resolve the verification key for JWS verification
+ *
+ * @param jws - The JWS compact serialization string
+ * @param providedKey - Optional explicit public key
+ * @returns The resolved public key
+ */
+async function resolveVerificationKey(
+  jws: string,
+  providedKey?: jose.KeyLike | jose.JWK,
+): Promise<jose.KeyLike> {
+  if (providedKey) {
+    if ("kty" in providedKey) {
+      const key = await jose.importJWK(providedKey);
+      if (key instanceof Uint8Array) {
+        throw new Error("Symmetric keys are not supported for JWS verification");
+      }
+      return key;
+    }
+    return providedKey;
+  }
+
+  const header = extractJWSHeader(jws);
+  if (!header.kid) {
+    throw new Error("No public key provided and JWS header missing kid");
+  }
+
+  return extractPublicKeyFromKid(header.kid);
 }

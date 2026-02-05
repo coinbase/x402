@@ -117,4 +117,4 @@ The `extensions` field includes signed offers:
 ## Related
 
 - [Extension Specification](../../../../typescript/packages/extensions/src/offer-receipt/README.md)
-- [Receipt Attestation Client Example](../../clients/receipt-attestation/)
+- [Offer/Receipt Client Example](../../clients/offer-receipt/)

@@ -19,6 +19,12 @@ import {
   extractReceiptFromResponse,
   extractReceiptPayload,
   verifyReceiptMatchesOffer,
+  verifyOfferSignatureJWS,
+  verifyOfferSignatureEIP712,
+  verifyReceiptSignatureJWS,
+  verifyReceiptSignatureEIP712,
+  isJWSSignedOffer,
+  isJWSSignedReceipt,
 } from "@x402/extensions/offer-receipt";
 
 config();
@@ -80,10 +86,38 @@ async function main(): Promise<void> {
   });
 
   // =========================================================================
-  // Step 3: Select offer and find matching accepts entry
+  // Step 3: Verify offer signatures and select a verified offer
   // =========================================================================
-  // Select the first offer (could filter by network, sort by amount, etc.)
-  const selected = decodedOffers[0];
+  // Only consider offers that pass signature verification
+  console.log("\nVerifying offer signatures...");
+
+  let selected = null;
+  for (const decoded of decodedOffers) {
+    try {
+      if (isJWSSignedOffer(decoded.signedOffer)) {
+        await verifyOfferSignatureJWS(decoded.signedOffer);
+        console.log(`  [${decoded.acceptIndex}] JWS: ✓ Valid`);
+      } else {
+        const { signer } = await verifyOfferSignatureEIP712(decoded.signedOffer);
+        console.log(`  [${decoded.acceptIndex}] EIP-712: ✓ Valid (signer: ${signer})`);
+      }
+      selected = decoded;
+      break;
+    } catch (err) {
+      console.log(
+        `  [${decoded.acceptIndex}] ✗ FAILED - ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  if (!selected) {
+    console.log("\nNo offers passed signature verification");
+    return;
+  }
+
+  // =========================================================================
+  // Step 4: Find matching accepts entry for selected offer
+  // =========================================================================
   const matchingAccept = findAcceptsObjectFromSignedOffer(selected, paymentRequired.accepts);
 
   if (!matchingAccept) {
@@ -94,7 +128,7 @@ async function main(): Promise<void> {
   console.log(`\nSelected: ${selected.scheme} on ${selected.network}`);
 
   // =========================================================================
-  // Step 4: Create payment and retry
+  // Step 5: Create payment and retry
   // =========================================================================
   console.log("Making payment...");
 
@@ -115,7 +149,7 @@ async function main(): Promise<void> {
   console.log("Response:", responseBody);
 
   // =========================================================================
-  // Step 5: Extract signed receipt from success response
+  // Step 6: Extract signed receipt from success response
   // =========================================================================
   const signedReceipt = extractReceiptFromResponse(paidResponse);
 
@@ -135,19 +169,34 @@ async function main(): Promise<void> {
   }
 
   // =========================================================================
-  // Step 6: Verify receipt matches offer
+  // Step 7: Verify receipt signature
+  // =========================================================================
+  if (signedReceipt) {
+    console.log("\nReceipt Signature Verification:");
+    try {
+      if (isJWSSignedReceipt(signedReceipt)) {
+        const verifiedPayload = await verifyReceiptSignatureJWS(signedReceipt);
+        console.log(`  JWS: ✓ Valid - payer: ${verifiedPayload.payer}`);
+      } else {
+        const { signer } = await verifyReceiptSignatureEIP712(signedReceipt);
+        console.log(`  EIP-712: ✓ Valid - signer: ${signer}`);
+      }
+    } catch (err) {
+      console.log(`  ✗ FAILED - ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // =========================================================================
+  // Step 8: Verify receipt matches offer (payload field verification)
   // =========================================================================
 
   if (signedReceipt) {
-    // Basic payload field verification (does NOT verify signature or key binding)
     const payerAddresses = [evmSigner.address, svmSigner.address];
     const verified = verifyReceiptMatchesOffer(signedReceipt, selected, payerAddresses);
 
     console.log(`\nPayload Verification: ${verified ? "✓ PASSED" : "✗ FAILED"}`);
-    console.log(`  (Note: Signature and key binding verification not shown in this example)`);
 
     if (!verified) {
-      // For debugging, show individual checks
       const receiptPayload = extractReceiptPayload(signedReceipt);
       console.log(
         `  resourceUrl: ${receiptPayload.resourceUrl === selected.resourceUrl ? "✓" : "✗"}`,
@@ -163,7 +212,7 @@ async function main(): Promise<void> {
   }
 
   // =========================================================================
-  // Step 7: Summary - Proofs available for downstream use
+  // Step 9: Summary - Proofs available for downstream use
   // =========================================================================
   console.log("\n--- Proofs Available ---");
   if (signedReceipt) {

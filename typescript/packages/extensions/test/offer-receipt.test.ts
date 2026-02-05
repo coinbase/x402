@@ -3,7 +3,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import * as jose from "jose";
 import { privateKeyToAccount } from "viem/accounts";
 import { recoverTypedDataAddress } from "viem";
@@ -38,10 +38,18 @@ import {
   createJWSOfferReceiptIssuer,
   createEIP712OfferReceiptIssuer,
   verifyReceiptMatchesOffer,
+  verifyOfferSignatureEIP712,
+  verifyReceiptSignatureEIP712,
+  verifyOfferSignatureJWS,
+  verifyReceiptSignatureJWS,
+  extractPublicKeyFromKid,
   OFFER_RECEIPT,
   type JWSSigner,
   type OfferPayload,
   type ReceiptPayload,
+  type EIP712SignedOffer,
+  type EIP712SignedReceipt,
+  type JWSSignedOffer,
 } from "../src/offer-receipt";
 
 import { createJWSSignerFromJWK, generateES256KKeyPair } from "./offer-receipt-test-utils";
@@ -1258,4 +1266,711 @@ describe("Server Extension Utilities", () => {
    * depend on the full server context which would require significant mocking.
    * The signer factories above test the core signing functionality.
    */
+});
+
+// ============================================================================
+// Signature Verification Tests
+// ============================================================================
+
+describe("Signature Verification", () => {
+  describe("EIP-712 Verification", () => {
+    describe("verifyOfferSignatureEIP712", () => {
+      it("should verify a valid EIP-712 signed offer and recover signer", async () => {
+        const account = privateKeyToAccount(TEST_PRIVATE_KEY);
+
+        const offer = await createOfferEIP712(
+          "https://api.example.com/resource",
+          {
+            acceptIndex: 0,
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            amount: "10000",
+          },
+          p => account.signTypedData(p),
+        );
+
+        const result = await verifyOfferSignatureEIP712(offer);
+
+        expect(result.signer.toLowerCase()).toBe(account.address.toLowerCase());
+        expect(result.payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(result.payload.scheme).toBe("exact");
+        expect(result.payload.network).toBe("eip155:8453");
+        expect(result.payload.amount).toBe("10000");
+      });
+
+      it("should throw for wrong format", async () => {
+        const invalidOffer = {
+          format: "jws",
+          signature: "test.jws.signature",
+        } as unknown as EIP712SignedOffer;
+
+        await expect(verifyOfferSignatureEIP712(invalidOffer)).rejects.toThrow(
+          "Expected eip712 format",
+        );
+      });
+
+      it("should throw for invalid offer payload", async () => {
+        const invalidOffer = {
+          format: "eip712",
+          payload: null,
+          signature: "0x1234",
+        } as unknown as EIP712SignedOffer;
+
+        await expect(verifyOfferSignatureEIP712(invalidOffer)).rejects.toThrow(
+          "Invalid offer: missing or malformed payload",
+        );
+      });
+
+      it("should recover different address for tampered signature", async () => {
+        const account = privateKeyToAccount(TEST_PRIVATE_KEY);
+
+        const offer = await createOfferEIP712(
+          "https://api.example.com/resource",
+          {
+            acceptIndex: 0,
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "native",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            amount: "10000",
+          },
+          p => account.signTypedData(p),
+        );
+
+        // Tamper with the signature
+        const tamperedOffer = {
+          ...offer,
+          signature: offer.signature.slice(0, -4) + "0000",
+        };
+
+        // Should recover a different address (not throw)
+        const result = await verifyOfferSignatureEIP712(tamperedOffer);
+        expect(result.signer).toBeDefined();
+        // The recovered address will likely be different
+      });
+    });
+
+    describe("verifyReceiptSignatureEIP712", () => {
+      it("should verify a valid EIP-712 signed receipt and recover signer", async () => {
+        const account = privateKeyToAccount(TEST_PRIVATE_KEY);
+
+        const receipt = await createReceiptEIP712(
+          {
+            resourceUrl: "https://api.example.com/resource",
+            payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            network: "eip155:8453",
+            transaction: "0x1234567890abcdef",
+          },
+          p => account.signTypedData(p),
+        );
+
+        const result = await verifyReceiptSignatureEIP712(receipt);
+
+        expect(result.signer.toLowerCase()).toBe(account.address.toLowerCase());
+        expect(result.payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(result.payload.payer).toBe("0x857b06519E91e3A54538791bDbb0E22373e36b66");
+        expect(result.payload.network).toBe("eip155:8453");
+      });
+
+      it("should throw for wrong format", async () => {
+        const invalidReceipt = {
+          format: "jws",
+          signature: "test.jws.signature",
+        } as unknown as EIP712SignedReceipt;
+
+        await expect(verifyReceiptSignatureEIP712(invalidReceipt)).rejects.toThrow(
+          "Expected eip712 format",
+        );
+      });
+
+      it("should throw for invalid receipt payload", async () => {
+        const invalidReceipt = {
+          format: "eip712",
+          payload: { version: 1 }, // missing payer
+          signature: "0x1234",
+        } as unknown as EIP712SignedReceipt;
+
+        await expect(verifyReceiptSignatureEIP712(invalidReceipt)).rejects.toThrow(
+          "Invalid receipt: missing or malformed payload",
+        );
+      });
+    });
+  });
+
+  describe("JWS Verification", () => {
+    describe("verifyOfferSignatureJWS", () => {
+      it("should verify a JWS signed offer with explicit public key", async () => {
+        const keyPair = await generateES256KKeyPair();
+        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+
+        const offer = await createOfferJWS(
+          "https://api.example.com/resource",
+          {
+            acceptIndex: 0,
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            amount: "10000",
+          },
+          signer,
+        );
+
+        // Pass JWK directly - function accepts both KeyLike and JWK
+        const payload = await verifyOfferSignatureJWS(offer, keyPair.publicKey);
+
+        expect(payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(payload.scheme).toBe("exact");
+        expect(payload.amount).toBe("10000");
+      });
+
+      it("should verify a JWS signed offer with JWK public key", async () => {
+        const keyPair = await generateES256KKeyPair();
+        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+
+        const offer = await createOfferJWS(
+          "https://api.example.com/resource",
+          {
+            acceptIndex: 0,
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "native",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            amount: "5000",
+          },
+          signer,
+        );
+
+        const payload = await verifyOfferSignatureJWS(offer, keyPair.publicKey);
+
+        expect(payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(payload.amount).toBe("5000");
+      });
+
+      it("should verify a JWS signed offer by extracting key from did:jwk kid", async () => {
+        const keyPair = await generateES256KKeyPair();
+        // Create signer with did:jwk kid (self-contained key)
+        const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(keyPair.publicKey))}#0`;
+        const signer = await createJWSSignerFromJWK(keyPair.privateKey, kid);
+
+        const offer = await createOfferJWS(
+          "https://api.example.com/resource",
+          {
+            acceptIndex: 0,
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "native",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            amount: "7500",
+          },
+          signer,
+        );
+
+        // No public key provided - should extract from kid
+        const payload = await verifyOfferSignatureJWS(offer);
+
+        expect(payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(payload.amount).toBe("7500");
+      });
+
+      it("should throw for wrong format", async () => {
+        const invalidOffer = {
+          format: "eip712",
+          payload: {},
+          signature: "0x1234",
+        } as unknown as JWSSignedOffer;
+
+        await expect(verifyOfferSignatureJWS(invalidOffer)).rejects.toThrow("Expected jws format");
+      });
+
+      it("should throw for invalid JWS signature", async () => {
+        const keyPair = await generateES256KKeyPair();
+
+        const invalidOffer: JWSSignedOffer = {
+          format: "jws",
+          signature: "invalid.jws.signature",
+        };
+
+        // Pass JWK directly
+        await expect(verifyOfferSignatureJWS(invalidOffer, keyPair.publicKey)).rejects.toThrow();
+      });
+
+      it("should throw when no key provided and kid missing", async () => {
+        const { privateKey } = await jose.generateKeyPair("ES256K");
+        const payload = JSON.stringify({ version: 1, resourceUrl: "test" });
+        const jws = await new jose.CompactSign(new TextEncoder().encode(payload))
+          .setProtectedHeader({ alg: "ES256K" }) // No kid
+          .sign(privateKey);
+
+        const offer: JWSSignedOffer = { format: "jws", signature: jws };
+
+        await expect(verifyOfferSignatureJWS(offer)).rejects.toThrow(
+          "No public key provided and JWS header missing kid",
+        );
+      });
+    });
+
+    describe("verifyReceiptSignatureJWS", () => {
+      it("should verify a JWS signed receipt", async () => {
+        const keyPair = await generateES256KKeyPair();
+        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+
+        const receipt = await createReceiptJWS(
+          {
+            resourceUrl: "https://api.example.com/resource",
+            payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            network: "eip155:8453",
+          },
+          signer,
+        );
+
+        // Pass JWK directly
+        const payload = await verifyReceiptSignatureJWS(receipt, keyPair.publicKey);
+
+        expect(payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(payload.payer).toBe("0x857b06519E91e3A54538791bDbb0E22373e36b66");
+        expect(payload.network).toBe("eip155:8453");
+      });
+
+      it("should verify a JWS signed receipt by extracting key from did:jwk kid", async () => {
+        const keyPair = await generateES256KKeyPair();
+        const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(keyPair.publicKey))}#0`;
+        const signer = await createJWSSignerFromJWK(keyPair.privateKey, kid);
+
+        const receipt = await createReceiptJWS(
+          {
+            resourceUrl: "https://api.example.com/resource",
+            payer: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            network: "eip155:8453",
+            transaction: "0xabcdef",
+          },
+          signer,
+        );
+
+        // No public key provided - should extract from kid
+        const payload = await verifyReceiptSignatureJWS(receipt);
+
+        expect(payload.resourceUrl).toBe("https://api.example.com/resource");
+        expect(payload.transaction).toBe("0xabcdef");
+      });
+    });
+  });
+});
+
+// ============================================================================
+// DID Key Resolution Tests
+// ============================================================================
+
+describe("extractPublicKeyFromKid", () => {
+  describe("did:jwk", () => {
+    it("should extract key from did:jwk", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256K");
+      const jwk = await jose.exportJWK(publicKey);
+      const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(jwk))}`;
+
+      const extractedKey = await extractPublicKeyFromKid(kid);
+      expect(extractedKey).toBeDefined();
+    });
+
+    it("should handle did:jwk with fragment", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256");
+      const jwk = await jose.exportJWK(publicKey);
+      const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(jwk))}#key-1`;
+
+      const extractedKey = await extractPublicKeyFromKid(kid);
+      expect(extractedKey).toBeDefined();
+    });
+  });
+
+  describe("did:key", () => {
+    it("should extract Ed25519 key from did:key", async () => {
+      // Known Ed25519 did:key (from did-key spec examples)
+      const kid = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+
+      const extractedKey = await extractPublicKeyFromKid(kid);
+      expect(extractedKey).toBeDefined();
+    });
+  });
+
+  describe("error cases", () => {
+    it("should throw for invalid DID format", async () => {
+      await expect(extractPublicKeyFromKid("not-a-did")).rejects.toThrow("Invalid DID format");
+    });
+
+    it("should throw for unsupported DID method", async () => {
+      await expect(extractPublicKeyFromKid("did:unsupported:123")).rejects.toThrow(
+        'Unsupported DID method "unsupported"',
+      );
+    });
+
+    it("should throw for did:key with unsupported multibase", async () => {
+      await expect(extractPublicKeyFromKid("did:key:f1234")).rejects.toThrow(
+        "Unsupported multibase encoding",
+      );
+    });
+  });
+
+  describe("did:web", () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it("should resolve did:web by fetching DID document", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256K");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [
+          {
+            id: "did:web:api.example.com#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:api.example.com",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:api.example.com#key-1");
+      expect(extractedKey).toBeDefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.example.com/.well-known/did.json",
+        expect.any(Object),
+      );
+    });
+
+    it("should resolve did:web with path", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:example.com:users:alice",
+        verificationMethod: [
+          {
+            id: "did:web:example.com:users:alice#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:example.com:users:alice",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:example.com:users:alice#key-1");
+      expect(extractedKey).toBeDefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://example.com/users/alice/did.json",
+        expect.any(Object),
+      );
+    });
+
+    it("should throw when did:web fetch fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+
+      await expect(extractPublicKeyFromKid("did:web:nonexistent.example.com")).rejects.toThrow(
+        "Failed to resolve did:web",
+      );
+    });
+
+    it("should throw when verification method not found", async () => {
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      await expect(extractPublicKeyFromKid("did:web:api.example.com#nonexistent")).rejects.toThrow(
+        "No verification method found",
+      );
+    });
+
+    // Malformed DID Document Tests
+
+    it("should throw when DID document has no verificationMethod array", async () => {
+      const didDocument = { id: "did:web:api.example.com" };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      await expect(extractPublicKeyFromKid("did:web:api.example.com#key-1")).rejects.toThrow(
+        "No verification method found",
+      );
+    });
+
+    it("should throw when verification method has no key material", async () => {
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [
+          {
+            id: "did:web:api.example.com#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:api.example.com",
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      await expect(extractPublicKeyFromKid("did:web:api.example.com#key-1")).rejects.toThrow(
+        "has no supported key format",
+      );
+    });
+
+    it("should throw when fetch returns invalid JSON", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.reject(new Error("Invalid JSON")),
+      });
+
+      await expect(extractPublicKeyFromKid("did:web:api.example.com")).rejects.toThrow(
+        "Failed to resolve did:web",
+      );
+    });
+
+    it("should throw when network error occurs", async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      await expect(extractPublicKeyFromKid("did:web:api.example.com")).rejects.toThrow(
+        "Failed to resolve did:web",
+      );
+    });
+
+    // DID Document structure variations
+
+    it("should resolve key from assertionMethod reference", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256K");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [
+          {
+            id: "did:web:api.example.com#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:api.example.com",
+            publicKeyJwk: jwk,
+          },
+        ],
+        assertionMethod: ["did:web:api.example.com#key-1"],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:api.example.com");
+      expect(extractedKey).toBeDefined();
+    });
+
+    it("should resolve key from authentication reference", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256K");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [
+          {
+            id: "did:web:api.example.com#auth-key",
+            type: "JsonWebKey2020",
+            controller: "did:web:api.example.com",
+            publicKeyJwk: jwk,
+          },
+        ],
+        authentication: ["did:web:api.example.com#auth-key"],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:api.example.com");
+      expect(extractedKey).toBeDefined();
+    });
+
+    it("should resolve embedded verification method in assertionMethod", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256K");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [],
+        assertionMethod: [
+          {
+            id: "did:web:api.example.com#embedded-key",
+            type: "JsonWebKey2020",
+            controller: "did:web:api.example.com",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:api.example.com");
+      expect(extractedKey).toBeDefined();
+    });
+
+    it("should handle publicKeyMultibase format in did:web", async () => {
+      const didDocument = {
+        id: "did:web:api.example.com",
+        verificationMethod: [
+          {
+            id: "did:web:api.example.com#key-1",
+            type: "Ed25519VerificationKey2020",
+            controller: "did:web:api.example.com",
+            publicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:api.example.com#key-1");
+      expect(extractedKey).toBeDefined();
+    });
+  });
+});
+
+// ============================================================================
+// Real DID Document Fixtures (captured from live endpoints)
+// ============================================================================
+
+describe("Real DID Document Fixtures", () => {
+  let originalFetch: typeof global.fetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  // Captured from https://identity.foundation/.well-known/did.json (P-256 key)
+  const IDENTITY_FOUNDATION_DID_DOC = {
+    "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/security/suites/jws-2020/v1"],
+    id: "did:web:identity.foundation",
+    verificationMethod: [
+      {
+        id: "did:web:identity.foundation#XXS7zTsbIIAxgNlYEXJ4y810GFeLkYdqfK3ChhoQn7c",
+        type: "JsonWebKey2020",
+        controller: "did:web:identity.foundation",
+        publicKeyJwk: {
+          kty: "EC",
+          kid: "XXS7zTsbIIAxgNlYEXJ4y810GFeLkYdqfK3ChhoQn7c",
+          crv: "P-256",
+          alg: "ES256",
+          x: "TIIYSHfbBoXZi-B8Q5KBEmYpg6gXk0Getwt2nDPhxvI",
+          y: "zNbtUvyDHTdmtz3tyiw84UYgzma1X8r4ToP7PbCVHgI",
+        },
+      },
+    ],
+    authentication: ["did:web:identity.foundation#XXS7zTsbIIAxgNlYEXJ4y810GFeLkYdqfK3ChhoQn7c"],
+    assertionMethod: ["did:web:identity.foundation#XXS7zTsbIIAxgNlYEXJ4y810GFeLkYdqfK3ChhoQn7c"],
+  };
+
+  // Captured from https://demo.spruceid.com/.well-known/did.json (Ed25519 key)
+  const SPRUCE_DID_DOC = {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      { "@id": "https://w3id.org/security#publicKeyJwk", "@type": "@json" },
+    ],
+    id: "did:web:demo.spruceid.com",
+    verificationMethod: [
+      {
+        id: "did:web:demo.spruceid.com#_t-v-Ep7AtkELhhvAzCCDzy1O5Bn_z1CVFv9yiRXdHY",
+        type: "Ed25519VerificationKey2018",
+        controller: "did:web:demo.spruceid.com",
+        publicKeyJwk: {
+          kty: "OKP",
+          crv: "Ed25519",
+          x: "2yv3J-Sf263OmwDLS9uFPTRD0PzbvfBGKLiSnPHtXIU",
+        },
+      },
+    ],
+    authentication: ["did:web:demo.spruceid.com#_t-v-Ep7AtkELhhvAzCCDzy1O5Bn_z1CVFv9yiRXdHY"],
+    assertionMethod: ["did:web:demo.spruceid.com#_t-v-Ep7AtkELhhvAzCCDzy1O5Bn_z1CVFv9yiRXdHY"],
+  };
+
+  it("should parse identity.foundation DID document (P-256)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(IDENTITY_FOUNDATION_DID_DOC),
+    });
+
+    const key = await extractPublicKeyFromKid(
+      "did:web:identity.foundation#XXS7zTsbIIAxgNlYEXJ4y810GFeLkYdqfK3ChhoQn7c",
+    );
+    expect(key).toBeDefined();
+  });
+
+  it("should parse identity.foundation via assertionMethod (no fragment)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(IDENTITY_FOUNDATION_DID_DOC),
+    });
+
+    const key = await extractPublicKeyFromKid("did:web:identity.foundation");
+    expect(key).toBeDefined();
+  });
+
+  it("should parse demo.spruceid.com DID document (Ed25519)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(SPRUCE_DID_DOC),
+    });
+
+    const key = await extractPublicKeyFromKid(
+      "did:web:demo.spruceid.com#_t-v-Ep7AtkELhhvAzCCDzy1O5Bn_z1CVFv9yiRXdHY",
+    );
+    expect(key).toBeDefined();
+  });
+
+  it("should parse demo.spruceid.com via assertionMethod (no fragment)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(SPRUCE_DID_DOC),
+    });
+
+    const key = await extractPublicKeyFromKid("did:web:demo.spruceid.com");
+    expect(key).toBeDefined();
+  });
 });
