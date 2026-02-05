@@ -46,6 +46,7 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 ```
 
 - `asset`: The Hedera entity ID of the HTS fungible token. For HBAR, use `"0.0.0"`.
+- `amount`: The amount to be transferred. For HBAR (`asset` `"0.0.0"`), the amount MUST be expressed in **tinybars** (1 HBAR = 10⁸ tinybars). For HTS fungible tokens, the amount is in the token’s smallest unit (as defined by the token’s decimals).
 - `payTo`: The Hedera account ID of the resource server receiving the funds.
 - `extra.feePayer`: The Hedera account ID that will pay the transaction fees. This is typically the facilitator’s account; this account must also sign the transaction as the fee payer.
 
@@ -110,12 +111,12 @@ A facilitator verifying an `exact`‑scheme Hedera payment MUST enforce all of t
 
 ### 1. Transaction layout
 
-- The decompiled transaction MUST:
-  1. Be a `TransferTransaction` (no other transaction types are allowed).
-  2. Have `transactionId.accountId == extra.feePayer` from the `PaymentRequirements`. This ensures the facilitator’s account is the fee payer at the network level.
-  3. Contain **only** transfer operations (HBAR or HTS FT transfers) necessary to implement the requested payment. No additional transfers or non‑transfer operations are allowed.
-  4. Have the net sum of all HBAR transfers equal zero.
-  5. Have the net sum of all transfers for the specified `asset` equal zero.
+- The decompiled transaction MUST be a `TransferTransaction` **directly**. It MUST NOT be wrapped in a `ScheduleCreateTransaction` or any other transaction type.
+- The transaction MUST:
+  1. Have `transactionId.accountId == extra.feePayer` from the `PaymentRequirements`. This ensures the facilitator’s account is the fee payer at the network level.
+  2. Contain **only** transfer operations (HBAR or HTS FT transfers) necessary to implement the requested payment. No additional transfers or non‑transfer operations are allowed.
+  3. Have the net sum of all HBAR transfers equal zero.
+  4. Have the net sum of all transfers for the specified `asset` equal zero.
 
 ### 2. Fee payer safety
 
@@ -157,5 +158,11 @@ A facilitator verifying an `exact`‑scheme Hedera payment MUST enforce all of t
   - The transaction is expected to succeed on chain (no obvious `INSUFFICIENT_BALANCE`, invalid token association, or similar failures).
 
 These checks are security‑critical to ensure the fee payer cannot be tricked into transferring their own funds or sponsoring unintended actions. Implementations MAY introduce stricter limits (e.g., additional policy around max fee, max amount, or allowed token lists) but MUST NOT relax the above constraints.
+
+### Account aliases and auto-account creation
+
+When the resource server’s `payTo` is specified as an **account alias** (e.g. an EVM address or public key alias) rather than an existing account ID, a transfer of HBAR to that alias can trigger **auto-account creation** on Hedera. In that case, the facilitator effectively funds the creation of the new account (the first transfer to the alias creates the account and credits it). A malicious or poorly configured resource server could use this to have facilitators pay for account creation on its behalf.
+
+This specification does **not** require facilitators to forbid such transfers. Facilitators MAY handle this in whatever way they see fit: for example, they MAY require that `payTo` resolve to an existing account and reject transactions that would trigger auto-account creation, or they MAY allow it and accept the cost. Implementations SHOULD document their policy and, if they allow transfers to aliases, consider the associated cost and abuse potential.
 
 
