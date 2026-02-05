@@ -1,5 +1,10 @@
 export { x402ResourceServer } from "./x402ResourceServer";
-export type { ResourceConfig, ResourceInfo, SettleResultContext } from "./x402ResourceServer";
+export type {
+  ResourceConfig,
+  ResourceInfo,
+  SettleResultContext,
+  SettleContext,
+} from "./x402ResourceServer";
 
 export { HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 export type { FacilitatorClient, FacilitatorConfig } from "../http/httpFacilitatorClient";

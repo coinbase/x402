@@ -81,6 +81,16 @@
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
         "default": "./dist/cjs/sign-in-with-x/index.js"
       }
+    },
+    "./reputation": {
+      "import": {
+        "types": "./dist/esm/reputation/index.d.mts",
+        "default": "./dist/esm/reputation/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/reputation/index.d.ts",
+        "default": "./dist/cjs/reputation/index.js"
+      }
     }
   },
   "files": [
