@@ -33,6 +33,7 @@ Each example demonstrates a specific advanced pattern:
 
 | Example | Command | Description |
 |---------|---------|-------------|
+| `all-networks` | `go run . all-networks` | All supported networks with optional chain configuration |
 | `custom-transport` | `go run . custom-transport` | Custom HTTP transport with retry logic |
 | `error-recovery` | `go run . error-recovery` | Error classification and recovery |
 | `multi-network-priority` | `go run . multi-network-priority` | Network-specific signer registration |

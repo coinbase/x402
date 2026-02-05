@@ -140,8 +140,8 @@ Because different chains have different best practices, a scheme may have a diff
 Open a PR with specs for one payment scheme implementation.
 
 - Add `specs/schemes/<scheme>/scheme_<scheme>_<chain>.md`
-- Follow existing spec format — see [`scheme_exact_evm.md`](specs/schemes/exact/scheme_exact_evm.md)
-- Include: summary, payload structure, verification logic, settlement logic
+- Follow existing spec format, see [`scheme_exact_evm.md`](specs/schemes/exact/scheme_exact_evm.md)
+- Must include: payload structure, verification logic and settlement logic, see [specs/CONTRIBUTING.md](specs/CONTRIBUTING.md) for further spec writing guidelines
 
 ### PR 2: Reference Implementation
 
@@ -157,7 +157,7 @@ After spec approval, implement in a **single SDK** (TypeScript, Python OR Go).
 |-----|------------|
 | TypeScript (`@x402/core`) | `SchemeNetworkClient`, `SchemeNetworkServer`, `SchemeNetworkFacilitator` |
 | Go (`github.com/coinbase/x402/go`) | `ClientScheme`, `ServerScheme`, `FacilitatorScheme` |
-| Python (`x402`) | Implement in `src/x402/<chain>.py`, integrate with `src/x402/clients/base.py` |
+| Python (`x402`) | `SchemeNetworkClient`, `SchemeNetworkServer`, `SchemeNetworkFacilitator` |
 
 **Required tests:**
 
@@ -169,15 +169,16 @@ After spec approval, implement in a **single SDK** (TypeScript, Python OR Go).
 
 **Examples:**
 - Keep existing user-facing examples minimal
-- Add your chain to `examples/<sdk>/*/advanced/` for server, client and facilitor 
+- Add your chain (in alphabetic order by network prefix) to `examples/<sdk>/*/advanced/all_networks` for server, client and facilitator
+
+**Further steps:**
+- Add package publishing workflow in [`.github/workflows/`](.github/workflows/) following existing patterns
+- Add READMEs for new packages, see [`typescript/packages/mechanisms/evm/README.md`](typescript/packages/mechanisms/evm/README.md)
+- Gitdocs in [`docs/`](docs/) will be automatically updated by Mintlify
 
 ### PR 3: Additional SDK Implementations
 
-After the reference implementation is merged, follow up with other SDK implementations:
-- Each SDK follows the same test requirements as PR 2
-- May be submitted as separate PRs per SDK
-
-See [specs/CONTRIBUTING.md](specs/CONTRIBUTING.md) for spec writing guidelines.
+After the reference implementation is merged, you may follow up with other SDK implementations.
 
 ## Middleware and HTTP Integrations
 
