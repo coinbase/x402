@@ -236,14 +236,18 @@ async function runTest() {
   // Load configuration from environment
   const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
+  const serverStellarAddress = process.env.SERVER_STELLAR_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
+  const clientStellarPrivateKey = process.env.CLIENT_STELLAR_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
+  const facilitatorStellarPrivateKey = process.env.FACILITATOR_STELLAR_PRIVATE_KEY;
 
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
     errorLog(' SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
+    errorLog(' Optional: SERVER_STELLAR_ADDRESS, CLIENT_STELLAR_PRIVATE_KEY, FACILITATOR_STELLAR_PRIVATE_KEY for Stellar support');
     process.exit(1);
   }
 
@@ -316,6 +320,7 @@ async function runTest() {
   log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
+  log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
 
   if (networkMode === 'mainnet') {
     log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
@@ -391,8 +396,18 @@ async function runTest() {
   log('\n🔍 Validating facilitator environment variables...\n');
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
 
-  // Environment variables managed by the test framework (don't require user to set)
-  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL']);
+  const systemManagedVars = new Set([
+    'PORT',
+    'EVM_PRIVATE_KEY',
+    'SVM_PRIVATE_KEY',
+    'STELLAR_PRIVATE_KEY',
+    'EVM_NETWORK',
+    'SVM_NETWORK',
+    'STELLAR_NETWORK',
+    'EVM_RPC_URL',
+    'SVM_RPC_URL',
+    'STELLAR_RPC_URL',
+  ]);
 
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
@@ -546,6 +561,7 @@ async function runTest() {
     const clientConfig: ClientConfig = {
       evmPrivateKey: clientEvmPrivateKey!,
       svmPrivateKey: clientSvmPrivateKey!,
+      stellarPrivateKey: clientStellarPrivateKey,
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
     };
@@ -627,6 +643,7 @@ async function runTest() {
       port,
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
+      stellarPayTo: serverStellarAddress,
       networks,
       facilitatorUrl,
     };

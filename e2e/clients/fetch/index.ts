@@ -1,11 +1,13 @@
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
+import { wrapFetchWithPayment } from "@x402/fetch";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { registerExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
@@ -16,7 +18,9 @@ const baseURL = process.env.RESOURCE_SERVER_URL as string;
 const endpointPath = process.env.ENDPOINT_PATH as string;
 const url = `${baseURL}${endpointPath}`;
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
-const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+const svmSigner = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
 
 // Create a public client for on-chain reads (needed for EIP-2612 extension)
 const publicClient = createPublicClient({
@@ -32,13 +36,21 @@ const client = new x402Client();
 registerExactEvmScheme(client, { signer: evmSigner });
 registerExactSvmScheme(client, { signer: svmSigner });
 
+// Conditionally register Stellar scheme if private key is provided
+if (process.env.STELLAR_PRIVATE_KEY) {
+  const stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
+  registerExactStellarScheme(client, { signer: stellarSigner });
+}
+
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 fetchWithPayment(url, {
   method: "GET",
 }).then(async response => {
   const data = await response.json();
-  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse((name) => response.headers.get(name));
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    response.headers.get(name),
+  );
 
   if (!paymentResponse) {
     // No payment was required
