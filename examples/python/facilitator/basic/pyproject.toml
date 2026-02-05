@@ -24,7 +24,7 @@ dev = [
 package = false
 
 [tool.uv.sources]
-x402 = { path = "../../../python/x402", editable = true }
+x402 = { path = "../../../../python/x402", editable = true }
 
 [tool.ruff]
 line-length = 100
