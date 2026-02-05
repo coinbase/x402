@@ -5,7 +5,7 @@
  */
 
 import type { SIWxStorage } from "./storage";
-import type { SIWxExtension, SIWxVerifyOptions } from "./types";
+import type { SIWxExtension, SIWxVerifyOptions, SignatureType } from "./types";
 import type { SIWxSigner } from "./sign";
 import { SIGN_IN_WITH_X } from "./types";
 import { parseSIWxHeader } from "./parse";
@@ -13,6 +13,7 @@ import { validateSIWxMessage } from "./validate";
 import { verifySIWxSignature } from "./verify";
 import { createSIWxPayload } from "./client";
 import { encodeSIWxHeader } from "./encode";
+import { isSolanaSigner } from "./solana";
 
 /**
  * Options for creating server-side SIWX hooks.
@@ -156,8 +157,9 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
 /**
  * Creates an onPaymentRequired hook for client-side SIWX authentication.
  *
- * Uses the network from payment requirements to select the appropriate chain
- * from the server's supportedChains.
+ * Matches the signer type to a compatible chain in supportedChains.
+ * For EVM signers: matches any eip191 chain
+ * For Solana signers: matches any ed25519 chain
  *
  * @param signer - Wallet signer for creating SIWX proofs
  * @returns Hook function for x402HTTPClient.onPaymentRequired()
@@ -169,6 +171,10 @@ export function createSIWxRequestHook(options: CreateSIWxHookOptions) {
  * ```
  */
 export function createSIWxClientHook(signer: SIWxSigner) {
+  // Determine signer type once at hook creation
+  const signerIsSolana = isSolanaSigner(signer);
+  const expectedSignatureType: SignatureType = signerIsSolana ? "ed25519" : "eip191";
+
   return async (context: {
     paymentRequired: { accepts?: Array<{ network: string }>; extensions?: Record<string, unknown> };
   }): Promise<{ headers: Record<string, string> } | void> => {
@@ -178,17 +184,13 @@ export function createSIWxClientHook(signer: SIWxSigner) {
     if (!siwxExtension?.supportedChains) return;
 
     try {
-      // Get network from payment requirements
-      const paymentNetwork = context.paymentRequired.accepts?.[0]?.network;
-      if (!paymentNetwork) return;
-
-      // Find matching chain in supportedChains
+      // Find a chain that matches the signer's signature type
       const matchingChain = siwxExtension.supportedChains.find(
-        chain => chain.chainId === paymentNetwork,
+        chain => chain.type === expectedSignatureType,
       );
 
       if (!matchingChain) {
-        // Payment network not in SIWX supportedChains
+        // No chain compatible with this signer type
         return;
       }
 
