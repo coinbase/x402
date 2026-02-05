@@ -188,6 +188,7 @@ export async function verifyEIP3009(
       return {
         isValid: false,
         invalidReason: "insufficient_funds",
+        invalidMessage: `Insufficient funds to complete the payment. Required: ${requirements.amount} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
         payer,
       };
     }

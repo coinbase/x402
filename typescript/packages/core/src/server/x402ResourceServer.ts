@@ -22,6 +22,7 @@ export interface ResourceConfig {
   price: Price;
   network: Network;
   maxTimeoutSeconds?: number;
+  extra?: Record<string, unknown>; // Scheme-specific additional data
 }
 
 /**
@@ -453,6 +454,7 @@ export class x402ResourceServer {
       maxTimeoutSeconds: resourceConfig.maxTimeoutSeconds || 300, // Default 5 minutes
       extra: {
         ...parsedPrice.extra,
+        ...resourceConfig.extra, // Merge user-provided extra
       },
     };
 
