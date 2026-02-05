@@ -3,6 +3,7 @@ import { AssembledTransaction } from "@stellar/stellar-sdk/contract";
 import { handleSimulationResult } from "../../shared";
 import {
   getEstimatedLedgerCloseTimeSeconds,
+  getNetworkPassphrase,
   getRpcClient,
   getRpcUrl,
   isStellarNetwork,
@@ -50,7 +51,7 @@ export class ExactStellarScheme implements SchemeNetworkClient {
 
     const sourcePublicKey = this.signer.address;
     const { network, payTo, asset, amount, extra, maxTimeoutSeconds } = paymentRequirements;
-    const { networkPassphrase } = await this.signer.getNetwork();
+    const networkPassphrase = getNetworkPassphrase(network);
     const rpcUrl = getRpcUrl(network, this.rpcConfig);
 
     if (!extra.areFeesSponsored) {

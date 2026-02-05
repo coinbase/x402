@@ -55,7 +55,6 @@ console.info(`SVM Facilitator account: ${svmAccount.address}`);
 // Initialize the Stellar signer from private key
 const stellarSigner = createEd25519Signer(
   process.env.STELLAR_PRIVATE_KEY as string,
-  "stellar:testnet",
 );
 console.info(`Stellar Facilitator account: ${stellarSigner.address}`);
 

@@ -19,13 +19,6 @@ describe("Stellar Ed25519 Signer", () => {
       expect(signer.address).toBe(validPublicKey);
       expect(signer.signAuthEntry).toBeInstanceOf(Function);
       expect(signer.signTransaction).toBeInstanceOf(Function);
-      expect(signer.getNetwork).toBeInstanceOf(Function);
-      const network = await signer.getNetwork();
-      const wantNetwork = {
-        network: STELLAR_TESTNET_CAIP2,
-        networkPassphrase: StellarNetworks.TESTNET,
-      };
-      expect(network).toEqual(wantNetwork);
     });
 
     it("should create different signers for different keys", async () => {
@@ -113,7 +106,6 @@ describe("Stellar Ed25519 Signer", () => {
     it("should return true for client but false for facilitator when signTransaction missing", () => {
       const mockSigner = {
         address: validPublicKey,
-        getNetwork: async () => ({ network: STELLAR_TESTNET_CAIP2, networkPassphrase: "" }),
         signAuthEntry: async () => ({ signedAuthEntry: "" }),
       };
       expect(isFacilitatorStellarSigner(mockSigner)).toBe(false);
@@ -142,7 +134,6 @@ describe("Stellar Ed25519 Signer", () => {
       // false for similar object with non-string address
       const invalidSigner = {
         address: 123,
-        getNetwork: () => {},
         signAuthEntry: () => {},
         signTransaction: () => {},
       };

@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     registerExactSvmScheme(client, { signer: svmSigner });
   }
   if (stellarPrivateKey) {
-    const stellarSigner = createEd25519Signer(stellarPrivateKey, "stellar:testnet");
+    const stellarSigner = createEd25519Signer(stellarPrivateKey);
     registerExactStellarScheme(client, { signer: stellarSigner });
   }
 
