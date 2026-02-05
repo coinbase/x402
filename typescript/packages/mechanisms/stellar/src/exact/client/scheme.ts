@@ -1,5 +1,6 @@
-import { nativeToScVal } from "@stellar/stellar-sdk";
+import { nativeToScVal, TransactionBuilder } from "@stellar/stellar-sdk";
 import { AssembledTransaction } from "@stellar/stellar-sdk/contract";
+import { Api } from "@stellar/stellar-sdk/rpc";
 import { handleSimulationResult } from "../../shared";
 import {
   getEstimatedLedgerCloseTimeSeconds,
@@ -13,6 +14,9 @@ import {
 } from "../../utils";
 import type { ClientStellarSigner } from "../../signer";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
+
+/** Base fee in stroops (0.001 XLM) used when building the final tx fee after auth signing. */
+const DEFAULT_BASE_FEE_STROOPS = 10_000;
 
 /**
  * Stellar client implementation for the Exact payment scheme.
@@ -100,10 +104,19 @@ export class ExactStellarScheme implements SchemeNetworkClient {
       throw new Error(`unexpected signer(s) required: [${missingSigners.join(", ")}]`);
     }
 
+    const finalTx =
+      tx.simulation && Api.isSimulationSuccess(tx.simulation)
+        ? TransactionBuilder.cloneFrom(tx.built!, {
+            fee: (DEFAULT_BASE_FEE_STROOPS + parseInt(tx.simulation.minResourceFee, 10)).toString(),
+            sorobanData: tx.simulationData.transactionData,
+            networkPassphrase,
+          }).build()
+        : tx.built!;
+
     return {
       x402Version,
       payload: {
-        transaction: tx.built!.toXDR(),
+        transaction: finalTx.toXDR(),
       },
     };
   }
