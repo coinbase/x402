@@ -4,7 +4,8 @@
   "language": "typescript",
   "protocolFamilies": [
     "evm",
-    "svm"
+    "svm",
+    "stellar"
   ],
   "x402Versions": [
     1,
@@ -21,7 +22,9 @@
     ],
     "optional": [
       "EVM_NETWORK",
-      "SVM_NETWORK"
+      "SVM_NETWORK",
+      "STELLAR_PRIVATE_KEY",
+      "STELLAR_NETWORK"
     ]
   }
 }

@@ -4,6 +4,7 @@ import { paymentMiddleware } from "@x402/hono";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { registerExactStellarScheme } from "@x402/stellar/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
@@ -18,9 +19,12 @@ dotenv.config();
 
 const PORT = process.env.PORT || "4023";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const STELLAR_NETWORK = (process.env.STELLAR_NETWORK || "stellar:testnet") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -32,6 +36,9 @@ if (!SVM_PAYEE_ADDRESS) {
   console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
+
+// Stellar is optional - only validate if provided
+const hasStellarSupport = !!STELLAR_PAYEE_ADDRESS;
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -50,6 +57,9 @@ const x402Server = new x402ResourceServer(facilitatorClient);
 // Register server schemes
 registerExactEvmScheme(x402Server);
 registerExactSvmScheme(x402Server);
+if (hasStellarSupport) {
+  registerExactStellarScheme(x402Server);
+}
 
 // Register Bazaar discovery extension
 x402Server.registerExtension(bazaarResourceServerExtension);
@@ -65,6 +75,38 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
  * This middleware protects endpoints with $0.001 USDC payment requirements
  * on Base Sepolia and Solana Devnet with bazaar discovery extension.
  */
+
+// Optional Stellar route config - only included if STELLAR_PAYEE_ADDRESS is set
+const stellarRouteConfig = hasStellarSupport
+  ? {
+      "GET /protected-stellar": {
+        accepts: {
+          payTo: STELLAR_PAYEE_ADDRESS!,
+          scheme: "exact",
+          price: "$0.001",
+          network: STELLAR_NETWORK,
+        },
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Protected Stellar endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
+      },
+    }
+  : {};
+
 app.use(
   "*",
   paymentMiddleware(
@@ -120,6 +162,8 @@ app.use(
           }),
         },
       },
+      // Stellar route - conditionally included
+      ...stellarRouteConfig,
     },
     x402Server, // Pass pre-configured server instance
   ),
@@ -152,6 +196,22 @@ app.get("/protected-svm", (c) => {
 });
 
 /**
+ * Protected Stellar endpoint - requires payment to access (optional)
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for Stellar.
+ * Clients must provide a valid payment signature to access this endpoint.
+ * Only available when STELLAR_PAYEE_ADDRESS is configured.
+ */
+if (hasStellarSupport) {
+  app.get("/protected-stellar", c => {
+    return c.json({
+      message: "Protected Stellar endpoint accessed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  });
+}
+
+/**
  * Health check endpoint - no payment required
  *
  * Used to verify the server is running and responsive.
@@ -182,25 +242,32 @@ app.post("/close", (c) => {
 });
 
 // Start the server
-const server = serve({
+serve({
   fetch: app.fetch,
   port: parseInt(PORT),
 });
 
+const stellarStatus = hasStellarSupport ? STELLAR_NETWORK : "disabled";
+const stellarPayee = hasStellarSupport ? STELLAR_PAYEE_ADDRESS : "N/A";
+const stellarEndpoint = hasStellarSupport
+  ? "║  • GET  /protected-stellar (requires USDC payment)     ║\n"
+  : "";
 console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Hono E2E Test Server                    ║
 ╠════════════════════════════════════════════════════════╣
 ║  Server:         http://localhost:${PORT}              ║
-║  EVM Network:    ${EVM_NETWORK}                         ║
-║  SVM Network:    ${SVM_NETWORK}                         ║
-║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
-║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
+║  EVM Network:     ${EVM_NETWORK}                       ║
+║  SVM Network:     ${SVM_NETWORK}                       ║
+║  Stellar Network: ${stellarStatus.toString().padEnd(37)}║
+║  EVM Payee:       ${EVM_PAYEE_ADDRESS}                 ║
+║  SVM Payee:       ${SVM_PAYEE_ADDRESS}                 ║
+║  Stellar Payee:   ${stellarPayee?.toString().padEnd(37)}║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected     (requires $0.001 USDC payment) ║
-║  • GET  /protected-svm (requires $0.001 USDC payment) ║
-║  • GET  /health        (no payment required)          ║
-║  • POST /close         (shutdown server)              ║
+║  • GET  /protected     (requires $0.001 USDC payment)  ║
+║  • GET  /protected-svm (requires $0.001 USDC payment)  ║
+${stellarEndpoint}║  • GET  /health        (no payment required)           ║
+║  • POST /close         (shutdown server)               ║
 ╚════════════════════════════════════════════════════════╝
-  `);
+`);

@@ -53,6 +53,7 @@ export interface FacilitatorConfig {
   port: number;
   evmPrivateKey?: string;
   svmPrivateKey?: string;
+  stellarPrivateKey?: string;
   networks: NetworkSet;
 }
 
@@ -112,12 +113,15 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
       PORT: config.port.toString(),
       EVM_PRIVATE_KEY: config.evmPrivateKey || '',
       SVM_PRIVATE_KEY: config.svmPrivateKey || '',
+      STELLAR_PRIVATE_KEY: config.stellarPrivateKey || '',
 
       // Network configs from NetworkSet
       EVM_NETWORK: config.networks.evm.caip2,
       EVM_RPC_URL: config.networks.evm.rpcUrl,
       SVM_NETWORK: config.networks.svm.caip2,
       SVM_RPC_URL: config.networks.svm.rpcUrl,
+      STELLAR_NETWORK: config.networks.stellar.caip2,
+      STELLAR_RPC_URL: config.networks.stellar.rpcUrl,
     };
 
     // Pass through any additional environment variables required by the facilitator
