@@ -9,6 +9,7 @@ import { verifyMessage } from "viem";
 import { SiweMessage } from "siwe";
 import type { EVMMessageVerifier } from "./types";
 import type { CompleteSIWxInfo } from "./client";
+import type { SIWxSigner } from "./sign";
 
 /**
  * Extract numeric chain ID from CAIP-2 EVM chainId.
@@ -131,4 +132,40 @@ export async function verifyEVMSignature(
 
   // Fallback to standalone verifyMessage (EOA only, no RPC)
   return verifyMessage(args);
+}
+
+/**
+ * Detect if a signer is EVM-compatible.
+ * Checks for EVM-specific properties.
+ *
+ * @param signer - The signer to check
+ * @returns true if the signer is an EVM signer
+ */
+export function isEVMSigner(signer: SIWxSigner): boolean {
+  // Check for Solana-specific properties first (to exclude them)
+  // signMessages (plural) is only on @solana/kit signers
+  if ("signMessages" in signer && typeof signer.signMessages === "function") {
+    return false;
+  }
+  // Check for Solana wallet adapter publicKey (has toBase58 or is non-hex string)
+  if ("publicKey" in signer && signer.publicKey) {
+    const pk = signer.publicKey;
+    if (typeof pk === "object" && pk !== null && "toBase58" in pk) {
+      return false;
+    }
+    if (typeof pk === "string" && !pk.startsWith("0x")) {
+      return false;
+    }
+  }
+  // EVM signers have account.address or direct address property (hex format)
+  if ("account" in signer && signer.account && typeof signer.account === "object") {
+    const account = signer.account as { address?: string };
+    if (account.address && account.address.startsWith("0x")) {
+      return true;
+    }
+  }
+  if ("address" in signer && typeof signer.address === "string" && signer.address.startsWith("0x")) {
+    return true;
+  }
+  return false;
 }
