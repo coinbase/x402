@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -69,5 +71,42 @@ func runAllNetworksExample(ctx context.Context, evmPrivateKey, svmPrivateKey, ur
 	defer resp.Body.Close()
 
 	printDuration(start, "Request")
-	return printResponse(resp, "Response with all networks")
+	if err := printResponse(resp, "Response with all networks"); err != nil {
+		return err
+	}
+
+	// Extract and print payment details from headers
+	printPaymentDetails(resp.Header)
+
+	return nil
+}
+
+// printPaymentDetails extracts and prints payment settlement details from response headers
+func printPaymentDetails(headers http.Header) {
+	// Try v2 header first, then v1
+	paymentHeader := headers.Get("PAYMENT-RESPONSE")
+	if paymentHeader == "" {
+		paymentHeader = headers.Get("X-PAYMENT-RESPONSE")
+	}
+
+	if paymentHeader == "" {
+		return
+	}
+
+	// Decode base64
+	decoded, err := base64.StdEncoding.DecodeString(paymentHeader)
+	if err != nil {
+		return
+	}
+
+	// Parse settlement response
+	var settleResp x402.SettleResponse
+	if err := json.Unmarshal(decoded, &settleResp); err != nil {
+		return
+	}
+
+	fmt.Println("💰 Payment Details:")
+	fmt.Printf("  Transaction: %s\n", settleResp.Transaction)
+	fmt.Printf("  Network: %s\n", settleResp.Network)
+	fmt.Printf("  Payer: %s\n", settleResp.Payer)
 }

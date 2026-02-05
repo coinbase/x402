@@ -3130,7 +3130,7 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "0.1.0"
+version = "2.0.0"
 source = { editable = "../../../../python/x402" }
 dependencies = [
     { name = "pydantic" },
@@ -3200,11 +3200,12 @@ dev = [
     { name = "solana", specifier = ">=0.36.0" },
     { name = "solders", specifier = ">=0.27.0" },
     { name = "starlette", specifier = ">=0.27.0" },
+    { name = "towncrier", specifier = ">=24.8.0,<25" },
     { name = "web3", specifier = ">=7.0.0" },
 ]
 
 [[package]]
-name = "x402-facilitator-example"
+name = "x402-facilitator-advanced-example"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

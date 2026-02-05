@@ -15,9 +15,9 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { extractDiscoveryInfo, DiscoveryInfo } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 import express from "express";
@@ -175,11 +175,10 @@ if (evmPrivateKey) {
       viemClient.waitForTransactionReceipt(args),
   });
 
-  registerExactEvmScheme(facilitator, {
-    signer: evmSigner,
-    networks: EVM_NETWORK,
-    deployERC4337WithEIP6492: true,
-  });
+  facilitator.register(
+    EVM_NETWORK,
+    new ExactEvmScheme(evmSigner, { deployERC4337WithEIP6492: true }),
+  );
 }
 
 // Register SVM scheme if private key is provided
@@ -191,10 +190,7 @@ if (svmPrivateKey) {
 
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
-  registerExactSvmScheme(facilitator, {
-    signer: svmSigner,
-    networks: SVM_NETWORK,
-  });
+  facilitator.register(SVM_NETWORK, new ExactSvmScheme(svmSigner));
 }
 
 // Initialize Express app

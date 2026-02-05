@@ -32,9 +32,7 @@ const url = `${baseURL}${endpointPath}`;
 async function main(): Promise<void> {
   // Validate at least one private key is provided
   if (!evmPrivateKey && !svmPrivateKey) {
-    console.error(
-      "❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required",
-    );
+    console.error("❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required");
     process.exit(1);
   }
 
@@ -50,9 +48,7 @@ async function main(): Promise<void> {
 
   // Register SVM scheme if private key is provided
   if (svmPrivateKey) {
-    const svmSigner = await createKeyPairSignerFromBytes(
-      base58.decode(svmPrivateKey),
-    );
+    const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
     registerExactSvmScheme(client, { signer: svmSigner });
     console.log(`Initialized SVM account: ${svmSigner.address}`);
   }
@@ -69,8 +65,8 @@ async function main(): Promise<void> {
 
   // Extract payment response if present
   if (response.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
-      name => response.headers.get(name),
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+      response.headers.get(name),
     );
     console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
   } else {

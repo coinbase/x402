@@ -37,7 +37,7 @@ Use the CLI to run specific examples:
 
 ```bash
 # Run a specific example
-uv run python index.py all_networks
+uv run python all_networks.py
 uv run python index.py hooks
 uv run python index.py preferred_network
 uv run python index.py builder_pattern

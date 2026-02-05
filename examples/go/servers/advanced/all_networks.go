@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -80,7 +78,7 @@ func main() {
 		paymentOptions = append(paymentOptions, x402http.PaymentOption{
 			Scheme:  "exact",
 			Price:   "$0.001",
-			Network: string(evmNetwork),
+			Network: evmNetwork,
 			PayTo:   evmAddress,
 		})
 	}
@@ -88,7 +86,7 @@ func main() {
 		paymentOptions = append(paymentOptions, x402http.PaymentOption{
 			Scheme:  "exact",
 			Price:   "$0.001",
-			Network: string(svmNetwork),
+			Network: svmNetwork,
 			PayTo:   svmAddress,
 		})
 	}
@@ -106,13 +104,13 @@ func main() {
 	schemes := []ginmw.SchemeConfig{}
 	if evmAddress != "" {
 		schemes = append(schemes, ginmw.SchemeConfig{
-			Network: string(evmNetwork),
+			Network: evmNetwork,
 			Server:  evm.NewExactEvmScheme(),
 		})
 	}
 	if svmAddress != "" {
 		schemes = append(schemes, ginmw.SchemeConfig{
-			Network: string(svmNetwork),
+			Network: svmNetwork,
 			Server:  svm.NewExactSvmScheme(),
 		})
 	}

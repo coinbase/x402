@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -7,16 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
-	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 /**
@@ -33,19 +27,7 @@ const (
 	defaultPort = "4022"
 )
 
-func main() {
-	godotenv.Load()
-
-	// Configuration - optional per network
-	evmPrivateKey := os.Getenv("EVM_PRIVATE_KEY")
-	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
-
-	// Validate at least one private key is provided
-	if evmPrivateKey == "" && svmPrivateKey == "" {
-		fmt.Println("❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required")
-		os.Exit(1)
-	}
-
+func runAllNetworksExample(evmPrivateKey, svmPrivateKey string) error {
 	// Network configuration
 	evmNetwork := x402.Network("eip155:84532")                            // Base Sepolia
 	svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") // Solana Devnet
@@ -58,40 +40,31 @@ func main() {
 	if evmPrivateKey != "" {
 		evmSigner, err = newFacilitatorEvmSigner(evmPrivateKey, DefaultEvmRPC)
 		if err != nil {
-			fmt.Printf("❌ Failed to create EVM signer: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to create EVM signer: %w", err)
 		}
 	}
 
 	if svmPrivateKey != "" {
 		svmSigner, err = newFacilitatorSvmSigner(svmPrivateKey, DefaultSvmRPC)
 		if err != nil {
-			fmt.Printf("❌ Failed to create SVM signer: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to create SVM signer: %w", err)
 		}
 	}
 
 	// Create facilitator
 	facilitator := x402.Newx402Facilitator()
 
-	// Register EVM scheme if signer is available
+	// Register EVM scheme if signer is available (only explicitly specified networks)
 	if evmSigner != nil {
 		evmConfig := &evm.ExactEvmSchemeConfig{
 			DeployERC4337WithEIP6492: true,
 		}
 		facilitator.Register([]x402.Network{evmNetwork}, evm.NewExactEvmScheme(evmSigner, evmConfig))
-
-		// Register V1 EVM scheme
-		evmV1Config := &evmv1.ExactEvmSchemeV1Config{
-			DeployERC4337WithEIP6492: true,
-		}
-		facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config))
 	}
 
-	// Register SVM scheme if signer is available
+	// Register SVM scheme if signer is available (only explicitly specified networks)
 	if svmSigner != nil {
 		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))
-		facilitator.RegisterV1([]x402.Network{"solana-devnet"}, svmv1.NewExactSvmSchemeV1(svmSigner))
 	}
 
 	// Add lifecycle hooks
@@ -179,8 +152,5 @@ func main() {
 	}
 	fmt.Println()
 
-	if err := r.Run(":" + defaultPort); err != nil {
-		fmt.Printf("Error starting server: %v\n", err)
-		os.Exit(1)
-	}
+	return r.Run(":" + defaultPort)
 }

@@ -17,9 +17,9 @@ from solders.keypair import Keypair
 
 from x402 import x402Facilitator
 from x402.mechanisms.evm import FacilitatorWeb3Signer
-from x402.mechanisms.evm.exact import register_exact_evm_facilitator
+from x402.mechanisms.evm.exact.facilitator import ExactEvmScheme, ExactEvmSchemeConfig
 from x402.mechanisms.svm import FacilitatorKeypairSigner
-from x402.mechanisms.svm.exact import register_exact_svm_facilitator
+from x402.mechanisms.svm.exact.facilitator import ExactSvmScheme
 
 # Load environment variables
 load_dotenv()
@@ -95,19 +95,11 @@ facilitator = (
 
 # Register schemes based on available signers
 if evm_signer:
-    register_exact_evm_facilitator(
-        facilitator,
-        evm_signer,
-        networks=EVM_NETWORK,
-        deploy_erc4337_with_eip6492=True,
-    )
+    config = ExactEvmSchemeConfig(deploy_erc4337_with_eip6492=True)
+    facilitator.register([EVM_NETWORK], ExactEvmScheme(evm_signer, config))
 
 if svm_signer:
-    register_exact_svm_facilitator(
-        facilitator,
-        svm_signer,
-        networks=SVM_NETWORK,
-    )
+    facilitator.register([SVM_NETWORK], ExactSvmScheme(svm_signer))
 
 
 # Pydantic models for request/response
@@ -198,9 +190,7 @@ async def settle(request: SettleRequest):
             return {
                 "success": False,
                 "errorReason": str(e),
-                "network": request.paymentPayload.get("accepted", {}).get(
-                    "network", "unknown"
-                ),
+                "network": request.paymentPayload.get("accepted", {}).get("network", "unknown"),
                 "transaction": "",
             }
 

@@ -59,12 +59,12 @@ pnpm dev
 
 Each example demonstrates a specific advanced pattern:
 
-| Example             | Command                      | Description                                          |
-| ------------------- | ---------------------------- | ---------------------------------------------------- |
-| `all-networks`      | `pnpm dev:all-networks`      | All supported networks with optional chain configuration |
-| `builder-pattern`   | `pnpm dev:builder-pattern`   | Fine-grained network registration                    |
-| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks                              |
-| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences                      |
+| Example | Command | Description |
+| --- | --- | --- |
+| `all-networks` | `pnpm dev:all-networks` | All supported networks with optional chain configuration |
+| `builder-pattern` | `pnpm dev:builder-pattern` | Fine-grained network registration |
+| `hooks` | `pnpm dev:hooks` | Payment lifecycle hooks |
+| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences |
 
 ## Testing the Examples
 

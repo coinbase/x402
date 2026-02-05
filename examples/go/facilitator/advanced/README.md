@@ -23,8 +23,9 @@ Facilitators allow clients to create payments without needing to interact with t
 
 ## Files in This Example
 
-- **`all_networks.go`** - Facilitator with all supported networks (`go run all_networks.go`)
-- **`bazaar.go`** - Facilitator with bazaar discovery extension (`go run bazaar.go`)
+- **`main.go`** - Entry point dispatcher
+- **`all_networks.go`** - Facilitator with all supported networks (`go run . all-networks`)
+- **`bazaar.go`** - Facilitator with bazaar discovery extension (`go run . bazaar`)
 - **`signer.go`** - Facilitator signer implementations for EVM and SVM
 - **`README.md`** - This file
 
