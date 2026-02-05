@@ -2132,6 +2132,7 @@ dev = [
     { name = "solana", specifier = ">=0.36.0" },
     { name = "solders", specifier = ">=0.27.0" },
     { name = "starlette", specifier = ">=0.27.0" },
+    { name = "towncrier", specifier = ">=24.8.0,<25" },
     { name = "web3", specifier = ">=7.0.0" },
 ]
 
