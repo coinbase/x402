@@ -2,6 +2,8 @@ import { config } from "dotenv";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { registerExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -10,6 +12,7 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const stellarPrivateKey = process.env.STELLAR_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
@@ -25,12 +28,25 @@ const url = `${baseURL}${endpointPath}`;
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
  */
 async function main(): Promise<void> {
-  const evmSigner = privateKeyToAccount(evmPrivateKey);
-  const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
+  if (!evmPrivateKey && !svmPrivateKey && !stellarPrivateKey) {
+    console.error("At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, STELLAR_PRIVATE_KEY required");
+    process.exit(1);
+  }
 
   const client = new x402Client();
-  registerExactEvmScheme(client, { signer: evmSigner });
-  registerExactSvmScheme(client, { signer: svmSigner });
+
+  if (evmPrivateKey) {
+    registerExactEvmScheme(client, { signer: privateKeyToAccount(evmPrivateKey) });
+  }
+  if (svmPrivateKey) {
+    const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
+    registerExactSvmScheme(client, { signer: svmSigner });
+  }
+  if (stellarPrivateKey) {
+    registerExactStellarScheme(client, {
+      signer: createEd25519Signer(stellarPrivateKey),
+    });
+  }
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
@@ -40,7 +56,7 @@ async function main(): Promise<void> {
   console.log("Response body:", body);
 
   if (response.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse((name: string) =>
       response.headers.get(name),
     );
     console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
