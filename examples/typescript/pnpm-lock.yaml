@@ -373,7 +373,7 @@ importers:
         version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.5.2)
       hono:
         specifier: ^4.7.1
-        version: 4.9.2
+        version: 4.10.7
       prettier:
         specifier: 3.5.2
         version: 3.5.2
@@ -907,7 +907,7 @@ importers:
         version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       hono:
         specifier: ^4.7.1
-        version: 4.9.2
+        version: 4.10.7
       viem:
         specifier: ^2.21.26
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1463,6 +1463,9 @@ importers:
       '@x402/fetch':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/fetch
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2054,7 +2057,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.13.8
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       axios:
         specifier: ^1.7.9
         version: 1.13.2
@@ -2063,7 +2066,7 @@ importers:
         version: 16.6.1
       hono:
         specifier: ^4.7.2
-        version: 4.9.2
+        version: 4.10.7
       viem:
         specifier: ^2.23.5
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
@@ -2128,7 +2131,7 @@ importers:
         version: 0.39.0(encoding@0.1.13)
       '@hono/node-server':
         specifier: ^1.14.1
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       '@llamaindex/anthropic':
         specifier: ^0.3.3
         version: 0.3.23(@llamaindex/core@0.6.5)(@llamaindex/env@0.1.30)
@@ -2140,7 +2143,7 @@ importers:
         version: 1.13.2
       hono:
         specifier: ^4.7.7
-        version: 4.9.2
+        version: 4.10.7
       llamaindex:
         specifier: ^0.10.2
         version: 0.10.6(encoding@0.1.13)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
@@ -2241,13 +2244,13 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.11.2
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
       hono:
         specifier: ^4.4.0
-        version: 4.9.2
+        version: 4.10.7
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
@@ -2284,7 +2287,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.14.0
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       axios:
         specifier: ^1.10.0
         version: 1.13.2
@@ -2293,7 +2296,7 @@ importers:
         version: 16.6.1
       hono:
         specifier: ^4.6.17
-        version: 4.9.2
+        version: 4.10.7
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -2762,13 +2765,13 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.13.8
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       hono:
         specifier: ^4.7.1
-        version: 4.9.2
+        version: 4.10.7
       x402-hono:
         specifier: workspace:*
         version: link:../../../../../typescript/packages/legacy/x402-hono
@@ -2987,7 +2990,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.14.0
-        version: 1.19.0(hono@4.9.2)
+        version: 1.19.0(hono@4.10.7)
       '@x402/core':
         specifier: workspace:*
         version: link:../../../../typescript/packages/core
@@ -3000,6 +3003,9 @@ importers:
       '@x402/hono':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/hono
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -3008,7 +3014,7 @@ importers:
         version: 16.6.1
       hono:
         specifier: ^4.7.1
-        version: 4.9.2
+        version: 4.10.7
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -9646,10 +9652,6 @@ packages:
     resolution: {integrity: sha512-icXIITfw/07Q88nLSkB9aiUrd8rYzSweK681Kjo/TSggaGbOX4RRyxxm71v+3PC8C/j+4rlxGeoTRxQDkaJkUw==}
     engines: {node: '>=16.9.0'}
 
-  hono@4.9.2:
-    resolution: {integrity: sha512-UG2jXGS/gkLH42l/1uROnwXpkjvvxkl3kpopL3LBo27NuaDPI6xHNfuUSilIHcrBkPfl4y0z6y2ByI455TjNRw==}
-    engines: {node: '>=16.9.0'}
-
   hosted-git-info@4.1.0:
     resolution: {integrity: sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA==}
     engines: {node: '>=10'}
@@ -14992,9 +14994,9 @@ snapshots:
     dependencies:
       react: 19.2.3
 
-  '@hono/node-server@1.19.0(hono@4.9.2)':
+  '@hono/node-server@1.19.0(hono@4.10.7)':
     dependencies:
-      hono: 4.9.2
+      hono: 4.10.7
 
   '@hpke/chacha20poly1305@1.7.1':
     dependencies:
@@ -25265,8 +25267,6 @@ snapshots:
       minimalistic-crypto-utils: 1.0.1
 
   hono@4.10.7: {}
-
-  hono@4.9.2: {}
 
   hosted-git-info@4.1.0:
     dependencies:
