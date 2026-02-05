@@ -194,31 +194,35 @@ A resource server advertises reputation support by including the `8004-reputatio
 
 **Best Practice:** Clients SHOULD verify the payment address before sending payment to prevent fraud from compromised servers.
 
-### Step 1: Choose Payment Option and Find Matching Registration
+### Step 1: Choose Payment Option
 
 ```
 // Client chooses payment option (based on wallet balance, fees, preference)
 chosenAccept = paymentRequired.accepts[selectedIndex]
 paymentNetwork = chosenAccept.network   // e.g., "eip155:8453" or "solana:5eykt4..."
 payToAddress = chosenAccept.payTo
-
-// Find registration matching the chosen payment network
-// Extract network prefix from CAIP-10 agentRegistry:
-//   "eip155:8453:0x8004A818..." → "eip155:8453"
-//   "solana:5eykt4...:satiRkx..." → "solana:5eykt4..."
-
-registration = registrations.find where:
-  agentRegistry.networkPrefix() == paymentNetwork
-
-if not found:
-  error "Agent not registered on chosen payment network"
 ```
 
-### Step 2: Fetch On-Chain Agent Wallet
+### Step 2: Resolve Expected Wallet Address
 
 ```
-// registry.getAgentWallet() - ERC-8004 compliant interface (EVM and SATI)
-agentWallet = registry.getAgentWallet(registration.agentId)
+// First, check registration file services for an agentWallet matching the payment network.
+// agentWallet service entries use CAIP-10 format: "namespace:chainId:address"
+walletEntry = registrationFile.services.find where:
+  name == "agentWallet" AND endpoint.startsWith(paymentNetwork + ":")
+
+if walletEntry:
+  // Extract address from CAIP-10 endpoint
+  expectedAddress = walletEntry.endpoint.addressPart()
+else:
+  // Fallback: if payment is on the identity chain, query on-chain agentWallet
+  registration = registrations.find where:
+    agentRegistry.networkPrefix() == paymentNetwork
+
+  if not found:
+    error "No wallet declared for chosen payment network"
+
+  expectedAddress = registry.getAgentWallet(registration.agentId)
 ```
 
 ### Step 3: Verify Payment Address
@@ -229,11 +233,11 @@ agentWallet = registry.getAgentWallet(registration.agentId)
 // - Solana: case-sensitive (exact match)
 
 if paymentNetwork.startsWith("eip155:"):
-  if lowercase(payToAddress) != lowercase(agentWallet):
+  if lowercase(payToAddress) != lowercase(expectedAddress):
     error "Payment address mismatch - potential fraud. ABORTING."
 
 if paymentNetwork.startsWith("solana:"):
-  if payToAddress != agentWallet:
+  if payToAddress != expectedAddress:
     error "Payment address mismatch - potential fraud. ABORTING."
 
 // Verification passed - safe to proceed with payment
@@ -248,6 +252,8 @@ A compromised agent server (or MITM attacker) can change the `payTo` field in th
 3. Money is gone (even if signature verification later fails)
 
 This check prevents payment theft and should happen before any blockchain transaction.
+
+**Trust model for cross-chain wallets:** The on-chain `agentWallet` (set via `setAgentWallet()` with EIP-712/ERC-1271 signature verification) is the most trusted source for the identity chain. For other chains, the `agentWallet` service entries in the registration file are trusted to the same degree as the registration file itself (verified via on-chain `tokenURI`/`agentURI` pointer).
 
 ---
 
@@ -391,6 +397,12 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
   "x402Support": true,
   "supportedTrust": ["reputation"],
 
+  "services": [
+    { "name": "MCP", "endpoint": "https://mcp.agent.example/", "version": "2025-06-18" },
+    { "name": "agentWallet", "endpoint": "eip155:8453:0xBaseWallet..." },
+    { "name": "agentWallet", "endpoint": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:SolanaWallet..." }
+  ],
+
   "registrations": [
     {
       "agentId": "7xKXtg2CW87...",
@@ -420,6 +432,8 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
   ]
 }
 ```
+
+**Cross-chain payment addresses:** Agents accepting payments on multiple chains advertise wallet addresses as `agentWallet` service entries using CAIP-10 format. This follows the pattern established by the [ERC-8004 best practices](https://github.com/erc-8004/best-practices/blob/main/Registration.md#and-if-you-plan-to-receive-payments). Agents MAY advertise wallets on any chain, even chains where they are not registered. The on-chain `agentWallet` (set via `setAgentWallet()` with signature verification) serves as the trusted anchor on the identity chain; additional `agentWallet` service entries extend payment acceptance to other networks.
 
 **Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields). The `signers` array is a **top-level field** added by x402 8004-reputation extension.
 
@@ -597,8 +611,8 @@ ERC-8004 uses a **two-tag model**:
 
 ### Recommended Practices (SHOULD)
 
-- ✅ Verify `payTo` address matches on-chain `agentWallet` BEFORE payment (prevents theft from compromised servers)
-- ✅ See "Pre-Payment Verification" section for implementation details
+- ✅ Verify `payTo` address matches declared `agentWallet` BEFORE payment (prevents theft from compromised servers)
+- ✅ See "Pre-Payment Verification" section for implementation details (supports cross-chain wallets via `agentWallet` service entries)
 - ✅ Blockchain transactions are irreversible - verify before money moves
 
 ### Key Rotation
@@ -610,10 +624,11 @@ ERC-8004 uses a **two-tag model**:
 
 ### agentWallet vs signers Separation
 
-- **agentWallet** (ERC-8004 metadata): Payment address (cold wallet, set on-chain with EIP-712 signature)
+- **agentWallet** (on-chain): Signature-verified payment address on the identity chain (set via `setAgentWallet()`)
+- **agentWallet** (service entries): Payment addresses on additional chains ([ERC-8004 best practices](https://github.com/erc-8004/best-practices/blob/main/Registration.md#and-if-you-plan-to-receive-payments)), trusted via registration file integrity
 - **signers** (registration file): Response signing keys (hot wallet for automation)
 
-This separation enables secure payment reception while allowing operational signing with hot wallets.
+This separation enables secure payment reception on multiple chains while allowing operational signing with hot wallets.
 
 ---
 
