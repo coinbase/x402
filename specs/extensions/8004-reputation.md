@@ -7,7 +7,6 @@ The `8004-reputation` extension enables **on-chain reputation and proof-of-servi
 **Key features:**
 - Agents sign every response before knowing client feedback (blind commitment)
 - Multi-chain identity support (ERC-8004 compliant registries on EVM and Solana)
-- Bidirectional rating (agent ↔ client when both are registered)
 - Separate identity and reputation registries (ERC-8004 two-registry model)
 - Payment address verification (prevent fraud from compromised servers)
 
@@ -260,14 +259,16 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 **Agents MUST:**
 1. Complete the service and construct the response
-2. Compute: `interactionHash = keccak256(UTF8(taskRef) || UTF8(requestBody) || UTF8(responseBody))`
-3. Sign the `interactionHash` with an authorized key from their registration file
-4. Include signature WITH every response (blind commitment - before knowing client feedback)
+2. Compute: `dataHash = keccak256(requestBodyBytes || responseBodyBytes)`
+3. Compute: `interactionHash = keccak256(taskRefBytes || dataHash)`
+4. Sign the `interactionHash` with an authorized key from their registration file
+5. Include signature WITH every response (blind commitment - before knowing client feedback)
 
 **Components:**
-- `taskRef`: CAIP-220 payment transaction reference
-- `requestBody`: UTF-8 encoded HTTP request body (empty string if no body)
-- `responseBody`: UTF-8 encoded HTTP response body
+- `taskRef`: CAIP-220 payment transaction reference (UTF-8 encoded)
+- `requestBodyBytes`: Raw bytes of HTTP request body (empty if no body). Text bodies UTF-8 encoded; binary bodies (images, files) used as-is.
+- `responseBodyBytes`: Raw bytes of HTTP response body. Same encoding rules.
+- `dataHash`: Intermediate hash binding request and response content
 
 ### Example PAYMENT-RESPONSE
 
@@ -284,9 +285,11 @@ After successful payment settlement, agents MUST sign the interaction and includ
       "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
       "taskRef": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREGntKZu8f2...",
+      "dataHash": "0x9f86d081884c...",
       "interactionHash": "0x123abc456def...",
+      "agentSignerPublicKey": "a1b2c3d4...",
       "agentSignature": "a1b2c3d4e5f6...",
-      "timestamp": 1737763200
+      "agentSignatureAlgorithm": "ed25519"
     }
   }
 }
@@ -296,12 +299,14 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `networkId` | string | Yes | CAIP-2 payment network (convenience field, embedded in taskRef) |
-| `agentId` | string | Yes | Agent identifier on this network (convenience field) |
+| `networkId` | string | Yes | CAIP-2 payment network |
+| `agentId` | string | Yes | Agent identifier on this network |
 | `taskRef` | string | Yes | CAIP-220 payment transaction reference |
-| `interactionHash` | string | Yes | Hex-encoded keccak256(taskRef \|\| requestBody \|\| responseBody) |
-| `agentSignature` | string | Yes | Hex-encoded signature bytes (algorithm from registration file) |
-| `timestamp` | number | Yes | Unix timestamp (metadata, NOT part of signed message) |
+| `dataHash` | string | Yes | `keccak256(requestBodyBytes \|\| responseBodyBytes)` |
+| `interactionHash` | string | Yes | `keccak256(taskRefBytes \|\| dataHash)` |
+| `agentSignerPublicKey` | string | Yes | Hex-encoded public key that produced the signature |
+| `agentSignature` | string | Yes | Hex-encoded signature over `interactionHash` |
+| `agentSignatureAlgorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
 
 ---
 
@@ -332,8 +337,14 @@ if not found:
 ```
 // signers array is TOP-LEVEL (not per-registration) per ERC-8004 compliance
 now = currentUnixTimestamp()
-validSigners = registrationFile.signers.filter where:
-  validFrom <= now AND (validUntil == null OR validUntil > now)
+
+if registrationFile.signers is empty or missing:
+  // Fallback: use agentWallet as signer (ERC-8004 default)
+  agentWallet = registry.getAgentWallet(agentId)
+  validSigners = [{ publicKey: agentWallet }]
+else:
+  validSigners = registrationFile.signers.filter where:
+    validFrom <= now AND (validUntil == null OR validUntil > now)
 
 if validSigners is empty:
   error "No valid signers found"
@@ -347,7 +358,7 @@ isValid = validSigners.any where:
     message: interactionData.interactionHash,
     signature: interactionData.agentSignature,
     publicKey: signer.publicKey,
-    algorithm: signer.algorithm
+    algorithm: interactionData.agentSignatureAlgorithm
   )
 
 if not isValid:
@@ -359,7 +370,8 @@ if not isValid:
 - **taskRef format**: Valid CAIP-220 matching `networkId`
 - **Network matching**: `networkId` matches agent's declared identity
 - **Transaction matching**: `taskRef` references actual payment transaction
-- **Interaction hash**: Recompute and verify it matches `interactionHash`
+- **dataHash**: Recompute `keccak256(requestBodyBytes || responseBodyBytes)` and verify it matches
+- **interactionHash**: Recompute `keccak256(taskRefBytes || dataHash)` and verify it matches
 - **Payment address** (recommended): Verify `payTo` matches on-chain `agentWallet`
 
 ---
@@ -394,7 +406,6 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
     {
       "publicKey": "a1b2c3d4...",
       "algorithm": "ed25519",
-      "role": "owner",
       "validFrom": 1737763200,
       "validUntil": null,
       "comment": "Hot wallet for Solana signing"
@@ -402,7 +413,6 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
     {
       "publicKey": "04abc123def456...",
       "algorithm": "secp256k1",
-      "role": "owner",
       "validFrom": 1737763200,
       "validUntil": null,
       "comment": "Signing key for EVM chains"
@@ -419,12 +429,13 @@ The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8
 |-------|------|----------|-------------|
 | `publicKey` | string | Yes | Hex-encoded public key (no 0x prefix) |
 | `algorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
-| `role` | string | Yes | `"owner"` or `"delegate"` |
 | `validFrom` | number | Yes | Unix timestamp when key becomes valid |
 | `validUntil` | number\|null | Yes | Unix timestamp when key expires (null = no expiry) |
 | `comment` | string | No | Human-readable description |
 
-**Note:** Multi-chain agents use the same signing keys across all registrations. Single `signers` array serves all networks. Recommended: use secp256k1 for all chains (works natively on EVM, stored for future verification on SATI).
+**Note:** `role` is intentionally omitted -- owner/delegate status is self-declared and unverifiable in the registration file. Check on-chain if role distinction matters. If no `signers` are specified, the agent's on-chain `agentWallet` is used as fallback signer (ERC-8004 default behavior).
+
+Multi-chain agents use the same signing keys across all registrations. Single `signers` array serves all networks.
 
 ---
 
@@ -438,20 +449,31 @@ Clients MAY submit feedback to the reputation registry using data from `PAYMENT-
 {
   "agentRegistry": "solana:5eykt4...:satiRkx...",
   "agentId": "7xKXtg2CW87...",
-  "clientAddress": "solana:5eykt4...:ClientWallet...",
   "createdAt": "2026-01-26T12:00:00Z",
   "value": 95,
   "valueDecimals": 0,
 
-  "taskRef": "solana:5eykt4...:5A2CSREG...",
-  "interactionHash": "0x123abc456def...",
-  "agentSignature": "a1b2c3d4e5f6...",
-  "clientSignature": "fedcba987654...",
+  "proofOfParticipation": {
+    "taskRef": "solana:5eykt4...:5A2CSREG...",
+    "dataHash": "0x9f86d081884c...",
+    "agentSignerPublicKey": "a1b2c3d4...",
+    "agentSignature": "a1b2c3d4e5f6...",
+    "agentSignatureAlgorithm": "ed25519",
+    "reviewerAddress": "solana:5eykt4...:ClientWallet...",
+    "reviewerSignature": "fedcba987654...",
+    "reviewerSignatureAlgorithm": "ed25519"
+  },
 
   "tags": ["x402-resource-delivered", "proof-of-participation"],
   "comment": "Excellent service"
 }
 ```
+
+**Why `proofOfParticipation`:** Payment proof is already in `taskRef` (CAIP-220 contains chain + txHash). What x402 uniquely provides is proof of **participation** -- that the client actually received service, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery.
+
+**Why `reviewerAddress` + `reviewerSignature`:** ERC-8004's `giveFeedback()` hardcodes `clientAddress = msg.sender`. When an aggregator submits on behalf of a client, on-chain `clientAddress` becomes the aggregator's address. The actual reviewer must be identified and verified in feedbackURI so consumers know who left the feedback.
+
+**Note:** `interactionHash` is not stored in feedbackURI -- it is computable from `taskRef + dataHash`.
 
 ### feedbackURI Fields
 
@@ -459,22 +481,31 @@ Clients MAY submit feedback to the reputation registry using data from `PAYMENT-
 |-------|------|--------|----------|-------------|
 | `agentRegistry` | string | ERC-8004 | Yes | CAIP-10 registry address |
 | `agentId` | string | ERC-8004 | Yes | Agent identifier |
-| `clientAddress` | string | ERC-8004 | Yes | CAIP-10 client wallet address |
 | `createdAt` | string | ERC-8004 | Yes | ISO 8601 timestamp |
 | `value` | number | ERC-8004 | Yes | Feedback score (0-100) |
 | `valueDecimals` | number | ERC-8004 | Yes | Decimal places (0 = integer) |
-| `taskRef` | string | x402 | Yes | CAIP-220 payment transaction |
-| `interactionHash` | string | x402 | Yes | From PAYMENT-RESPONSE |
-| `agentSignature` | string | x402 | Yes | From PAYMENT-RESPONSE |
-| `clientSignature` | string | x402 | Yes | Client signs feedback content |
+| `proofOfParticipation` | object | x402 | Yes | Proof-of-service object (see below) |
 | `tags` | array | Both | No | Structured tags (two-tag model) |
 | `comment` | string | Both | No | Free-form text |
 
-### Client Signature
+### proofOfParticipation Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `taskRef` | string | Yes | CAIP-220 payment transaction reference |
+| `dataHash` | string | Yes | `keccak256(requestBodyBytes \|\| responseBodyBytes)` |
+| `agentSignerPublicKey` | string | Yes | Hex-encoded public key that signed |
+| `agentSignature` | string | Yes | Signature over `keccak256(taskRefBytes \|\| dataHash)` |
+| `agentSignatureAlgorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
+| `reviewerAddress` | string | Yes | CAIP-10 address of actual reviewer |
+| `reviewerSignature` | string | Yes | Reviewer signs feedback content |
+| `reviewerSignatureAlgorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
+
+### Reviewer Signature
 
 ```
-clientMessage = keccak256(UTF8(agentRegistry) || UTF8(agentId) || UTF8(taskRef) || uint8(value))
-clientSignature = sign(clientMessage, clientPrivateKey)
+reviewerMessage = keccak256(UTF8(agentRegistry) || UTF8(agentId) || UTF8(taskRef) || uint8(value))
+reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 ```
 
 ### feedbackHash Computation
@@ -510,15 +541,20 @@ registry.giveFeedback(
 ```typescript
 await satiClient.createFeedback({
   agentId: "7xKXtg2CW87...",
-  clientAddress: "ClientWallet...",
+  reviewerAddress: "ClientWallet...",
   taskRef: "solana:5eykt4...:5A2CSREG...",
   value: 95,
   valueDecimals: 0,
   tags: ["x402-resource-delivered", "proof-of-participation"],
   feedbackURI: "ipfs://QmX...",
-  agentSignature: "a1b2c3d4e5f6...",
-  clientSignature: "fedcba987654...",
-  interactionHash: "0x123abc456def..."
+  proofOfParticipation: {
+    dataHash: "0x9f86d081884c...",
+    agentSignerPublicKey: "a1b2c3d4...",
+    agentSignature: "a1b2c3d4e5f6...",
+    agentSignatureAlgorithm: "ed25519",
+    reviewerSignature: "fedcba987654...",
+    reviewerSignatureAlgorithm: "ed25519"
+  }
 });
 ```
 
@@ -545,28 +581,6 @@ ERC-8004 uses a **two-tag model**:
 - `uptime` / `high`
 - `successRate` / `95`
 - `response-time` / `fast`
-
----
-
-## Bidirectional Rating (Optional)
-
-Clients who are also registered agents MAY declare their identity in the payment request to enable agent-to-agent mutual rating.
-
-### Client Identity in PaymentPayload
-
-```json
-{
-  "x402PaymentPayload": { /* standard fields */ },
-  "extensions": {
-    "8004-reputation": {
-      "clientAgentRegistry": "eip155:8453:0x8004A818...",
-      "clientAgentId": "99"
-    }
-  }
-}
-```
-
-Per ERC-8004 spec (line 229), when submitting feedback where the client is an agent, use their on-chain `agentWallet` as the `clientAddress` to facilitate reputation aggregation.
 
 ---
 
