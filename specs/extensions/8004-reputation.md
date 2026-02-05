@@ -455,7 +455,9 @@ Multi-chain agents use the same signing keys across all registrations. Single `s
 
 ## Feedback Submission
 
-Clients MAY submit feedback to the reputation registry using data from `PAYMENT-RESPONSE`.
+Clients MAY submit feedback to the reputation registry using data from `PAYMENT-RESPONSE`. Feedback submission is optional.
+
+When a `feedbackAggregator` URL is declared in the `8004-reputation` extension, clients SHOULD submit feedback via the aggregator (gas-free). Clients MAY always choose to submit directly on-chain instead.
 
 ### feedbackURI JSON Structure
 
@@ -528,7 +530,63 @@ reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 feedbackHash = keccak256(JSON.stringify(feedbackURIContent))
 ```
 
-### Backend Submission Examples
+### Aggregator Submission (Default)
+
+When a `feedbackAggregator` URL is declared, clients POST a lightweight payload containing the PAYMENT-RESPONSE interaction data, their review, and their signature. The aggregator assembles the full feedbackURI, uploads it to content-addressed storage, and submits on-chain.
+
+**Request:**
+
+```
+POST {feedbackAggregator}
+Content-Type: application/json
+```
+
+```json
+{
+  "interactionData": {
+    "agentRegistry": "solana:5eykt4...:satiRkx...",
+    "agentId": "7xKXtg2CW87...",
+    "taskRef": "solana:5eykt4...:5A2CSREG...",
+    "dataHash": "0x9f86d081884c...",
+    "interactionHash": "0x123abc456def...",
+    "agentSignerPublicKey": "a1b2c3d4...",
+    "agentSignature": "a1b2c3d4e5f6...",
+    "agentSignatureAlgorithm": "ed25519"
+  },
+  "review": {
+    "value": 95,
+    "valueDecimals": 0,
+    "tags": ["x402-resource-delivered", "proof-of-participation"],
+    "comment": "Excellent service"
+  },
+  "reviewerAddress": "solana:5eykt4...:ClientWallet...",
+  "reviewerSignature": "fedcba987654...",
+  "reviewerSignatureAlgorithm": "ed25519"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "submitted",
+  "txHash": "0x...",
+  "feedbackURI": "ipfs://QmX..."
+}
+```
+
+The aggregator MUST:
+- Validate `agentSignature` and `reviewerSignature` before submitting
+- Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfParticipation`)
+- Upload feedbackURI to IPFS or equivalent content-addressed storage
+- Call `giveFeedback()` on the appropriate reputation registry
+- Submit all valid feedback regardless of sentiment
+
+The aggregator is a general-purpose service -- it may be operated by a facilitator, a reputation aggregator, or any third-party infrastructure provider. The agent is responsible for funding the aggregator (deposit, subscription, or per-feedback fee).
+
+### Direct Submission (Fallback)
+
+If no `feedbackAggregator` is specified, or if the client prefers direct submission, the client constructs the feedbackURI JSON, uploads it, and calls `giveFeedback()` on-chain.
 
 **ERC-8004:**
 
