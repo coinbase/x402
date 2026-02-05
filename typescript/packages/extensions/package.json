@@ -81,6 +81,16 @@
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
         "default": "./dist/cjs/sign-in-with-x/index.js"
       }
+    },
+    "./payment-identifier": {
+      "import": {
+        "types": "./dist/esm/payment-identifier/index.d.mts",
+        "default": "./dist/esm/payment-identifier/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/payment-identifier/index.d.ts",
+        "default": "./dist/cjs/payment-identifier/index.js"
+      }
     }
   },
   "files": [
