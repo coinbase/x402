@@ -53,9 +53,7 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, httpClient);
  */
 function logPaymentResponse(response: Response): boolean {
   try {
-    const paymentResponse = httpClient.getPaymentSettleResponse(name =>
-      response.headers.get(name),
-    );
+    const paymentResponse = httpClient.getPaymentSettleResponse(name => response.headers.get(name));
     if (paymentResponse) {
       console.log("   ✓ Paid via payment settlement");
       console.log("   Payment details:", JSON.stringify(paymentResponse, null, 2));

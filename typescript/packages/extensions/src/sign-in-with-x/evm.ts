@@ -164,7 +164,11 @@ export function isEVMSigner(signer: SIWxSigner): boolean {
       return true;
     }
   }
-  if ("address" in signer && typeof signer.address === "string" && signer.address.startsWith("0x")) {
+  if (
+    "address" in signer &&
+    typeof signer.address === "string" &&
+    signer.address.startsWith("0x")
+  ) {
     return true;
   }
   return false;

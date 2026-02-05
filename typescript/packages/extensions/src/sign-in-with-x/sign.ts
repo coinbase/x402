@@ -32,14 +32,16 @@ export interface WalletAdapterSigner {
 }
 
 /**
- * @solana/kit KeyPairSigner style.
- * Compatible with createKeyPairSignerFromBytes and generateKeyPairSigner.
+ * Solana Kit KeyPairSigner style.
+ * Compatible with createKeyPairSignerFromBytes and generateKeyPairSigner from @solana/kit.
  */
 export type SolanaKitSigner = {
   /** Solana address (Base58 encoded string) */
   address: string;
-  /** Sign messages - accepts any signMessages function */
-  signMessages: Function;
+  /** Sign messages - accepts messages with content and signatures */
+  signMessages: (
+    messages: Array<{ content: Uint8Array; signatures: Record<string, unknown> }>,
+  ) => Promise<Array<Record<string, Uint8Array>>>;
 };
 
 /**

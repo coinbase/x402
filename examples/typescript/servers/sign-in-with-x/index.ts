@@ -67,11 +67,21 @@ function routeConfig(path: string) {
   }> = [];
 
   if (evmAddress) {
-    acceptOptions.push({ scheme: "exact" as const, price: "$0.001", network: EVM_NETWORK, payTo: evmAddress });
+    acceptOptions.push({
+      scheme: "exact" as const,
+      price: "$0.001",
+      network: EVM_NETWORK,
+      payTo: evmAddress,
+    });
   }
 
   if (svmAddress) {
-    acceptOptions.push({ scheme: "exact" as const, price: "$0.001", network: SVM_NETWORK, payTo: svmAddress });
+    acceptOptions.push({
+      scheme: "exact" as const,
+      price: "$0.001",
+      network: SVM_NETWORK,
+      payTo: svmAddress,
+    });
   }
 
   return {
