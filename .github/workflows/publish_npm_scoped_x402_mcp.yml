@@ -49,7 +49,21 @@ jobs:
           # Check if running on main branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Publishing to NPM (main branch)"
-            pnpm publish --provenance --access public
+            
+            # Check if version is a prerelease (contains -alpha, -beta, -rc, etc.)
+            if [[ "$PACKAGE_VERSION" =~ -[a-zA-Z] ]]; then
+              # Extract prerelease tag (e.g., "alpha" from "2.3.0-alpha")
+              PRERELEASE_TAG=$(echo "$PACKAGE_VERSION" | sed -n 's/.*-\([a-zA-Z][a-zA-Z0-9]*\).*/\1/p')
+              if [ -z "$PRERELEASE_TAG" ]; then
+                # Fallback: use "pre" if we can't extract a tag
+                PRERELEASE_TAG="pre"
+              fi
+              echo "Detected prerelease version, publishing with tag: $PRERELEASE_TAG"
+              pnpm publish --provenance --access public --tag "$PRERELEASE_TAG"
+            else
+              echo "Publishing stable version"
+              pnpm publish --provenance --access public
+            fi
           else
             echo "Dry run only (non-main branch: ${{ github.ref }})"
             pnpm publish --dry-run --no-git-checks
