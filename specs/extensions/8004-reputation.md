@@ -541,7 +541,7 @@ registry.giveFeedback(
 ```typescript
 await satiClient.createFeedback({
   agentId: "7xKXtg2CW87...",
-  reviewerAddress: "ClientWallet...",
+  clientAddress: "ClientWallet...",
   taskRef: "solana:5eykt4...:5A2CSREG...",
   value: 95,
   valueDecimals: 0,
@@ -552,6 +552,7 @@ await satiClient.createFeedback({
     agentSignerPublicKey: "a1b2c3d4...",
     agentSignature: "a1b2c3d4e5f6...",
     agentSignatureAlgorithm: "ed25519",
+    reviewerAddress: "ClientWallet...",
     reviewerSignature: "fedcba987654...",
     reviewerSignatureAlgorithm: "ed25519"
   }
