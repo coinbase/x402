@@ -87,7 +87,7 @@ from .types import (
 )
 from .utils import generate_payment_id, is_valid_payment_id
 from .validation import (
-    ValidationResult,
+    PaymentIdentifierValidationResult,
     extract_and_validate_payment_identifier,
     extract_payment_identifier,
     has_payment_identifier,
@@ -126,5 +126,5 @@ __all__ = [
     "has_payment_identifier",
     "is_payment_identifier_required",
     "validate_payment_identifier_requirement",
-    "ValidationResult",
+    "PaymentIdentifierValidationResult",
 ]

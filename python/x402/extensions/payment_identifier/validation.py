@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ValidationResult:
+class PaymentIdentifierValidationResult:
     """Result of payment identifier validation.
 
     Attributes:
@@ -77,7 +77,7 @@ def is_payment_identifier_extension(extension: Any) -> bool:
     return True
 
 
-def validate_payment_identifier(extension: Any) -> ValidationResult:
+def validate_payment_identifier(extension: Any) -> PaymentIdentifierValidationResult:
     """Validate a payment-identifier extension object.
 
     Checks both the structure (using JSON Schema) and the ID format.
@@ -98,7 +98,7 @@ def validate_payment_identifier(extension: Any) -> ValidationResult:
         ```
     """
     if not extension or not isinstance(extension, (dict, PaymentIdentifierExtension)):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension must be an object"],
         )
@@ -112,7 +112,7 @@ def validate_payment_identifier(extension: Any) -> ValidationResult:
     # Check info exists
     info = ext_dict.get("info")
     if not info or not isinstance(info, (dict, PaymentIdentifierInfo)):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension must have an 'info' property"],
         )
@@ -125,7 +125,7 @@ def validate_payment_identifier(extension: Any) -> ValidationResult:
 
     # Check required field exists and is a boolean
     if not isinstance(info_dict.get("required"), bool):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension info must have a 'required' boolean property"],
         )
@@ -133,14 +133,14 @@ def validate_payment_identifier(extension: Any) -> ValidationResult:
     # Check id exists and is a string (if provided)
     id_value = info_dict.get("id")
     if id_value is not None and not isinstance(id_value, str):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension info 'id' must be a string if provided"],
         )
 
     # Validate ID format if provided
     if id_value is not None and not is_valid_payment_id(id_value):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=[
                 "Invalid payment ID format. ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores."
@@ -154,17 +154,17 @@ def validate_payment_identifier(extension: Any) -> ValidationResult:
             jsonschema.validate(instance=info_dict, schema=schema)
         except jsonschema.ValidationError as e:
             path = "/".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
-            return ValidationResult(
+            return PaymentIdentifierValidationResult(
                 valid=False,
                 errors=[f"{path}: {e.message}"],
             )
         except Exception as e:
-            return ValidationResult(
+            return PaymentIdentifierValidationResult(
                 valid=False,
                 errors=[f"Schema validation failed: {e!s}"],
             )
 
-    return ValidationResult(valid=True)
+    return PaymentIdentifierValidationResult(valid=True)
 
 
 def extract_payment_identifier(
@@ -227,7 +227,7 @@ def extract_payment_identifier(
 
 def extract_and_validate_payment_identifier(
     payment_payload: PaymentPayload,
-) -> tuple[str | None, ValidationResult]:
+) -> tuple[str | None, PaymentIdentifierValidationResult]:
     """Extract and validate the payment identifier from a PaymentPayload.
 
     Args:
@@ -248,12 +248,12 @@ def extract_and_validate_payment_identifier(
         ```
     """
     if not payment_payload.extensions:
-        return None, ValidationResult(valid=True)
+        return None, PaymentIdentifierValidationResult(valid=True)
 
     extension = payment_payload.extensions.get(PAYMENT_IDENTIFIER)
 
     if not extension:
-        return None, ValidationResult(valid=True)
+        return None, PaymentIdentifierValidationResult(valid=True)
 
     validation = validate_payment_identifier(extension)
 
@@ -262,7 +262,7 @@ def extract_and_validate_payment_identifier(
 
     # Extract the ID
     id_value = extract_payment_identifier(payment_payload, validate=False)
-    return id_value, ValidationResult(valid=True)
+    return id_value, PaymentIdentifierValidationResult(valid=True)
 
 
 def has_payment_identifier(payment_payload: PaymentPayload) -> bool:
@@ -314,7 +314,7 @@ def is_payment_identifier_required(extension: Any) -> bool:
 
 def validate_payment_identifier_requirement(
     payment_payload: PaymentPayload, server_required: bool
-) -> ValidationResult:
+) -> PaymentIdentifierValidationResult:
     """Validate that a payment identifier is provided when required.
 
     Use this to check if a client's PaymentPayload satisfies the server's requirement.
@@ -336,23 +336,23 @@ def validate_payment_identifier_requirement(
         ```
     """
     if not server_required:
-        return ValidationResult(valid=True)
+        return PaymentIdentifierValidationResult(valid=True)
 
     id_value = extract_payment_identifier(payment_payload, validate=False)
 
     if not id_value:
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Server requires a payment identifier but none was provided"],
         )
 
     # Validate the ID format
     if not is_valid_payment_id(id_value):
-        return ValidationResult(
+        return PaymentIdentifierValidationResult(
             valid=False,
             errors=[
                 "Invalid payment ID format. ID must be 16-128 characters and contain only alphanumeric characters, hyphens, and underscores."
             ],
         )
 
-    return ValidationResult(valid=True)
+    return PaymentIdentifierValidationResult(valid=True)

@@ -38,7 +38,7 @@ from .payment_identifier import (
     PaymentIdentifierExtension,
     PaymentIdentifierInfo,
     PaymentIdentifierSchema,
-    ValidationResult,
+    PaymentIdentifierValidationResult,
     append_payment_identifier_to_extensions,
     declare_payment_identifier_extension,
     extract_and_validate_payment_identifier,
@@ -78,8 +78,9 @@ __all__ = [
     "DeclareBodyDiscoveryConfig",
     "OutputConfig",
     # Result types
-    "ValidationResult",  # From payment_identifier (structurally compatible with bazaar's ValidationResult)
-    "BazaarValidationResult",  # From bazaar (for explicit bazaar usage)
+    "ValidationResult",  # From bazaar (for backward compatibility)
+    "BazaarValidationResult",  # From bazaar (alias for explicit usage)
+    "PaymentIdentifierValidationResult",  # From payment_identifier
     "DiscoveredResource",
     # Server extension
     "bazaar_resource_server_extension",
@@ -116,5 +117,6 @@ __all__ = [
     "has_payment_identifier",
     "is_payment_identifier_required",
     "validate_payment_identifier_requirement",
+    "PaymentIdentifierValidationResult",
     "BazaarValidationResult",
 ]
