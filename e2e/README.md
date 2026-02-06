@@ -93,15 +93,30 @@ Required environment variables (set in `.env` file):
 # Client wallets
 CLIENT_EVM_PRIVATE_KEY=0x...        # EVM private key for client payments
 CLIENT_SVM_PRIVATE_KEY=...          # Solana private key for client payments
+CLIENT_STELLAR_PRIVATE_KEY=...      # Stellar private key for client payments
 
 # Server payment addresses
 SERVER_EVM_ADDRESS=0x...            # Where servers receive EVM payments
 SERVER_SVM_ADDRESS=...              # Where servers receive Solana payments
+SERVER_STELLAR_ADDRESS=...          # Where servers receive Stellar payments
 
 # Facilitator wallets (for payment verification/settlement)
 FACILITATOR_EVM_PRIVATE_KEY=0x...   # EVM private key for facilitator
 FACILITATOR_SVM_PRIVATE_KEY=...     # Solana private key for facilitator
+FACILITATOR_STELLAR_PRIVATE_KEY=... # Stellar private key for facilitator
 ```
+
+### Account Setup Instructions
+
+#### Stellar Testnet
+
+You need **three separate Stellar accounts** for e2e tests (client, server, facilitator):
+
+1. Go to [Stellar Laboratory](https://lab.stellar.org/account/create) ➡️ Generate keypair ➡️ Fund account with Friendbot, then copy the `Secret` and `Public` keys so you can use them.
+2. Add USDC trustline (required for client and server): go to [Fund Account](https://lab.stellar.org/account/fund) ➡️ Paste your `Public Key` ➡️ Add USDC Trustline ➡️ paste your `Secret key` ➡️ Sign transaction ➡️ Add Trustline.
+3. Get testnet USDC from [Circle Faucet](https://faucet.circle.com/) (select Stellar network).
+
+> **Note:** The facilitator account only needs XLM (step 1). Client and server accounts need all three steps.
 
 ## Example Session
 
@@ -115,7 +130,7 @@ $ pnpm test --min
 ✔ Select servers › express, hono, legacy-express
 ✔ Select clients › axios, fetch, httpx
 ✔ Select extensions › bazaar
-✔ Select protocol families › EVM, SVM
+✔ Select protocol families › EVM, SVM, Stellar
 
 📊 Coverage-Based Minimization
 Total scenarios: 156
