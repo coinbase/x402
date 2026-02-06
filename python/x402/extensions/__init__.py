@@ -22,7 +22,6 @@ from .bazaar import (
     QueryDiscoveryInfo,
     QueryInput,
     QueryParamMethods,
-    ValidationResult as BazaarValidationResult,
     bazaar_resource_server_extension,
     declare_discovery_extension,
     extract_discovery_info,
@@ -30,15 +29,18 @@ from .bazaar import (
     validate_and_extract,
     validate_discovery_extension,
 )
+from .bazaar import (
+    ValidationResult as BazaarValidationResult,
+)
 
 # Create alias for backward compatibility
 ValidationResult = BazaarValidationResult
 
-from .payment_identifier import (
-    PAYMENT_IDENTIFIER,
+from .payment_identifier import (  # noqa: E402
     PAYMENT_ID_MAX_LENGTH,
     PAYMENT_ID_MIN_LENGTH,
     PAYMENT_ID_PATTERN,
+    PAYMENT_IDENTIFIER,
     PaymentIdentifierExtension,
     PaymentIdentifierInfo,
     PaymentIdentifierSchema,

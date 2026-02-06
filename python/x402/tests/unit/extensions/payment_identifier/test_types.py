@@ -1,10 +1,10 @@
 """Tests for Payment-Identifier extension types."""
 
 from x402.extensions.payment_identifier.types import (
-    PAYMENT_IDENTIFIER,
     PAYMENT_ID_MAX_LENGTH,
     PAYMENT_ID_MIN_LENGTH,
     PAYMENT_ID_PATTERN,
+    PAYMENT_IDENTIFIER,
     PaymentIdentifierExtension,
     PaymentIdentifierInfo,
 )
@@ -76,7 +76,6 @@ class TestPaymentIdentifierExtension:
 
     def test_extension_schema_alias(self) -> None:
         """Test PaymentIdentifierExtension with camelCase schema alias."""
-        info = PaymentIdentifierInfo(required=False)
         schema = {"type": "object"}
         ext = PaymentIdentifierExtension.model_validate(
             {"info": {"required": False}, "schema": schema}
