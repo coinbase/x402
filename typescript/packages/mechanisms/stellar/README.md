@@ -128,7 +128,7 @@ const scheme = new ExactStellarScheme().registerMoneyParser(async (amount, netwo
 
 // Facilitator with custom ledger offset
 registerExactStellarScheme(facilitator, {
-  signer,
+  signers: [signer],
   networks: ["stellar:testnet"],
   maxLedgerOffset: 20, // ~100 second validity window
 });

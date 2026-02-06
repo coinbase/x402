@@ -194,7 +194,7 @@ describe("Stellar Integration Tests", () => {
       const stellarClient = new ExactStellarClient(clientSigner);
       client = new x402Client().register(STELLAR_TESTNET_CAIP2, stellarClient);
 
-      const stellarFacilitator = new ExactStellarFacilitator(facilitatorSigner);
+      const stellarFacilitator = new ExactStellarFacilitator([facilitatorSigner]);
       const facilitator = new x402Facilitator().register(STELLAR_TESTNET_CAIP2, stellarFacilitator);
 
       facilitatorClient = new StellarFacilitatorClient(facilitator);
@@ -285,7 +285,7 @@ describe("Stellar Integration Tests", () => {
     };
 
     beforeEach(async () => {
-      const stellarFacilitator = new ExactStellarFacilitator(facilitatorSigner);
+      const stellarFacilitator = new ExactStellarFacilitator([facilitatorSigner]);
       const facilitator = new x402Facilitator().register(STELLAR_TESTNET_CAIP2, stellarFacilitator);
 
       const facilitatorClient = new StellarFacilitatorClient(facilitator);
@@ -393,7 +393,7 @@ describe("Stellar Integration Tests", () => {
     beforeEach(async () => {
       const facilitator = new x402Facilitator().register(
         STELLAR_TESTNET_CAIP2,
-        new ExactStellarFacilitator(facilitatorSigner),
+        new ExactStellarFacilitator([facilitatorSigner]),
       );
 
       const facilitatorClient = new StellarFacilitatorClient(facilitator);

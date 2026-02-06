@@ -139,7 +139,7 @@ registerExactSvmScheme(facilitator, {
   networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
 });
 registerExactStellarScheme(facilitator, {
-  signer: stellarSigner,
+  signers: [stellarSigner],
   networks: "stellar:testnet",
 });
 

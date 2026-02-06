@@ -27,7 +27,7 @@ import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import { EIP2612_GAS_SPONSORING } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
-import { createEd25519Signer, Ed25519Signer, FacilitatorStellarSigner } from "@x402/stellar";
+import { createEd25519Signer, type FacilitatorStellarSigner } from "@x402/stellar";
 import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
@@ -173,7 +173,7 @@ registerExactSvmScheme(facilitator, {
 // Register Stellar scheme only if configured
 if (stellarSigner) {
   registerExactStellarScheme(facilitator, {
-    signer: stellarSigner,
+    signers: [stellarSigner],
     networks: STELLAR_NETWORK as Network,
     rpcConfig: STELLAR_RPC_URL ? { url: STELLAR_RPC_URL } : undefined,
   });
@@ -281,7 +281,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
