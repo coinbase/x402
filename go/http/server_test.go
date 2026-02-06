@@ -156,7 +156,7 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	_ = server.Initialize(ctx)
 
 	// Request to protected path without payment
 	adapter := &mockHTTPAdapter{
@@ -213,7 +213,7 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	_ = server.Initialize(ctx)
 
 	// Browser request
 	adapter := &mockHTTPAdapter{
@@ -304,7 +304,7 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	_ = server.Initialize(ctx)
 
 	// Create payment payload that matches the route requirements exactly
 	acceptedRequirements := x402.PaymentRequirements{
@@ -387,7 +387,7 @@ func TestProcessSettlement(t *testing.T) {
 		RoutesConfig{},
 		x402.WithFacilitatorClient(mockClient),
 	)
-	server.Initialize(ctx)
+	_ = server.Initialize(ctx)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",

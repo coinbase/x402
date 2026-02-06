@@ -222,7 +222,11 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 
 	var verifyResponse x402.VerifyResponse
 	if err := json.Unmarshal(responseBody, &verifyResponse); err != nil {
-		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
+		return nil, x402.NewVerifyError(
+			x402.ErrInvalidResponse,
+			"",
+			fmt.Sprintf("failed to unmarshal verify response: %s", err.Error()),
+		)
 	}
 
 	// For non-200 responses, return an error with the details from the response
@@ -231,8 +235,7 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 			return nil, x402.NewVerifyError(
 				verifyResponse.InvalidReason,
 				verifyResponse.Payer,
-				"",
-				fmt.Errorf("facilitator returned %d", resp.StatusCode),
+				verifyResponse.InvalidMessage,
 			)
 		}
 		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
@@ -306,7 +309,7 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 				settleResponse.Payer,
 				settleResponse.Network,
 				settleResponse.Transaction,
-				fmt.Errorf("facilitator returned %d", resp.StatusCode),
+				fmt.Sprintf("facilitator returned %d", resp.StatusCode),
 			)
 		}
 		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(responseBody))

@@ -3,21 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx index.ts",
+    "dev": "tsx index.ts simple",
+    "dev:advanced": "tsx index.ts advanced",
+    "dev:chatbot": "tsx chatbot.ts",
+    "dev:openai-chatbot": "tsx openai-chatbot.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.9.0",
-    "@scure/base": "^1.2.6",
-    "@solana/kit": "^2.1.1",
-    "@x402/axios": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
-    "@x402/svm": "workspace:*",
-    "axios": "^1.13.2",
+    "@x402/mcp": "workspace:*",
     "dotenv": "^16.5.0",
+    "openai": "^4.77.3",
     "viem": "^2.39.0"
   },
   "devDependencies": {

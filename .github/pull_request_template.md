@@ -29,6 +29,19 @@ For Go: Run `go test ./...` from the `/go` directory
 - [ ] I have formatted and linted my code
 - [ ] All new and existing tests pass
 - [ ] My commits are signed (required for merge) -- you may need to rebase if you initially pushed unsigned commits
+- [ ] I added a changelog fragment for user-facing changes (docs-only changes can skip)
+
+<!--
+Changelog fragments (required for user-facing changes):
+
+- TypeScript: add a Changesets file under `typescript/.changeset/*.md`
+  - Create: `pnpm -C typescript changeset`
+  - Select only publishable `@x402/*` packages
+- Go: add a Changie fragment under `go/.changes/unreleased/*`
+  - Create: `make -C go changelog-new`
+- Python (python/x402 v2): add a Towncrier fragment under `python/x402/changelog.d/<PR>.<type>.md`
+  - Create: `cd python/x402 && uv run towncrier create --content "Fixed ..." 123.bugfix.md`
+-->
 
 <!--
 For TypeScript: Run `pnpm format && pnpm lint` from `/typescript` and/or `/examples/typescript`

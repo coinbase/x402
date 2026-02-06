@@ -7,6 +7,7 @@ x402 welcomes contributions of schemes, middleware, new chain support, and more.
 - [Repository Structure](#repository-structure)
 - [Language-Specific Guides](#language-specific-guides)
 - [Contributing Workflow](#contributing-workflow)
+- [Changelog Tooling](#changelog-tooling)
 - [Commit Signing](#commit-signing)
 - [Getting Help](#getting-help)
 
@@ -79,6 +80,17 @@ cd go && make test
 - Link related issues
 - Ensure CI passes
 
+## Changelog Tooling
+
+For **user-facing changes** (behavior changes, bug fixes, new features, breaking changes), add a changelog fragment for the SDK(s) you modified. Docs-only changes and internal refactors that do not affect users can skip fragments.
+
+- **TypeScript**: Changesets fragments in `typescript/.changeset/*.md`
+  - Create: `pnpm -C typescript changeset`
+- **Go**: Changie fragments in `go/.changes/unreleased/*`
+  - Create: `make -C go changelog-new`
+- **Python (python/x402 v2)**: Towncrier fragments in `python/x402/changelog.d/<PR>.<type>.md`
+  - Create (example): `cd python/x402 && uv run towncrier create --content "Fixed ..." 123.bugfix.md`
+
 ## Commit Signing
 
 All commits must be [signed](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits). Configure commit signing before submitting:
@@ -123,25 +135,50 @@ x402 aims to be chain-agnostic. New chain implementations are welcome.
 
 Because different chains have different best practices, a scheme may have a different mechanism on a new chain than it does on EVM. If the scheme mechanism varies from the reference implementation, the x402 Foundation will re-audit the scheme for that chain before accepting.
 
-### Required Interfaces
+### PR 1: Specification Only
 
-Each language SDK defines interfaces that chain mechanisms must implement:
+Open a PR with specs for one payment scheme implementation.
 
-**TypeScript** (`@x402/core`):
-- `SchemeNetworkClient` - Signs payment payloads
-- `SchemeNetworkServer` - Validates payment requirements  
-- `SchemeNetworkFacilitator` - Verifies and settles payments
+- Add `specs/schemes/<scheme>/scheme_<scheme>_<chain>.md`
+- Follow existing spec format, see [`scheme_exact_evm.md`](specs/schemes/exact/scheme_exact_evm.md)
+- Must include: payload structure, verification logic and settlement logic, see [specs/CONTRIBUTING.md](specs/CONTRIBUTING.md) for further spec writing guidelines
 
-**Go** (`github.com/coinbase/x402/go`):
-- `ClientScheme` - Signs payment payloads
-- `ServerScheme` - Validates payment requirements
-- `FacilitatorScheme` - Verifies and settles payments
+### PR 2: Reference Implementation
 
-**Python** (`x402`):
-- Implement signing in `src/x402/your_chain.py`
-- Integrate with the base client in `src/x402/clients/base.py`
+After spec approval, implement in a **single SDK** (TypeScript, Python OR Go).
 
-See the language-specific guides for detailed implementation patterns.
+**Package structure:**
+- Create `<sdk>/packages/mechanisms/<chain>/` (TS) or `<sdk>/mechanisms/<chain>/` (Py/Go)
+- Do not modify core packages
+
+**Required interfaces per SDK:**
+
+| SDK | Interfaces |
+|-----|------------|
+| TypeScript (`@x402/core`) | `SchemeNetworkClient`, `SchemeNetworkServer`, `SchemeNetworkFacilitator` |
+| Go (`github.com/coinbase/x402/go`) | `ClientScheme`, `ServerScheme`, `FacilitatorScheme` |
+| Python (`x402`) | `SchemeNetworkClient`, `SchemeNetworkServer`, `SchemeNetworkFacilitator` |
+
+**Required tests:**
+
+| Type | Purpose | Reference |
+|------|---------|-----------|
+| Unit | Isolated component tests | [`typescript/packages/mechanisms/evm/test/unit/`](typescript/packages/mechanisms/evm/test/unit/) |
+| Integration | Client/server/facilitator flow | [`typescript/packages/mechanisms/evm/test/integrations/`](typescript/packages/mechanisms/evm/test/integrations/) |
+| E2E | Full stack across SDKs | [`e2e/`](e2e/) |
+
+**Examples:**
+- Keep existing user-facing examples minimal
+- Add your chain (in alphabetic order by network prefix) to `examples/<sdk>/*/advanced/all_networks` for server, client and facilitator
+
+**Further steps:**
+- Add package publishing workflow in [`.github/workflows/`](.github/workflows/) following existing patterns
+- Add READMEs for new packages, see [`typescript/packages/mechanisms/evm/README.md`](typescript/packages/mechanisms/evm/README.md)
+- Gitdocs in [`docs/`](docs/) will be automatically updated by Mintlify
+
+### PR 3: Additional SDK Implementations
+
+After the reference implementation is merged, you may follow up with other SDK implementations.
 
 ## Middleware and HTTP Integrations
 

@@ -21,7 +21,19 @@ const (
 	MaxComputeUnitPriceMicrolamports = 5_000_000
 
 	// DefaultComputeUnitLimit is the default compute unit limit for transactions
-	DefaultComputeUnitLimit uint32 = 8000
+	// Set to 20000 to accommodate: transfer (~6200 CUs) + memo (~8500 CUs without signer) + budget instructions (~300 CUs) + headroom
+	DefaultComputeUnitLimit uint32 = 20000
+
+	// LighthouseProgramAddress is the Phantom/Solflare Lighthouse program address
+	// Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
+	// - Phantom adds 1 Lighthouse instruction (4th instruction)
+	// - Solflare adds 2 Lighthouse instructions (4th and 5th instructions)
+	// We allow these as optional instructions to support these wallets.
+	// See: https://github.com/coinbase/x402/issues/828
+	LighthouseProgramAddress = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
+
+	// MemoProgramAddress is the SPL Memo program address
+	MemoProgramAddress = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed

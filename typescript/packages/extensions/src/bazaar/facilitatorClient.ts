@@ -3,6 +3,7 @@
  */
 
 import { HTTPFacilitatorClient } from "@x402/core/http";
+import type { PaymentRequirements } from "@x402/core/types";
 import { WithExtensions } from "../types";
 
 /**
@@ -31,10 +32,16 @@ export interface ListDiscoveryResourcesParams {
  * A discovered x402 resource from the bazaar.
  */
 export interface DiscoveryResource {
-  /** The URL of the discovered resource */
-  url: string;
-  /** The protocol type of the resource */
+  /** The URL or identifier of the discovered resource */
+  resource: string;
+  /** The protocol type of the resource (e.g., "http") */
   type: string;
+  /** The x402 protocol version supported by this resource */
+  x402Version: number;
+  /** Array of accepted payment methods for this resource */
+  accepts: PaymentRequirements[];
+  /** ISO 8601 timestamp of when the resource was last updated */
+  lastUpdated: string;
   /** Additional metadata about the resource */
   metadata?: Record<string, unknown>;
 }
@@ -43,14 +50,19 @@ export interface DiscoveryResource {
  * Response from listing discovery resources.
  */
 export interface DiscoveryResourcesResponse {
+  /** The x402 protocol version of this response */
+  x402Version: number;
   /** The list of discovered resources */
-  resources: DiscoveryResource[];
-  /** Total count of resources matching the query */
-  total?: number;
-  /** The limit used for this query */
-  limit?: number;
-  /** The offset used for this query */
-  offset?: number;
+  items: DiscoveryResource[];
+  /** Pagination information for the response */
+  pagination: {
+    /** Maximum number of results returned */
+    limit: number;
+    /** Number of results skipped */
+    offset: number;
+    /** Total count of resources matching the query */
+    total: number;
+  };
 }
 
 /**

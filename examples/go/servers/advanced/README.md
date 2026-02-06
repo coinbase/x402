@@ -39,6 +39,7 @@ Each example demonstrates a specific advanced pattern:
 
 | Example | Command | Description |
 | --- | --- | --- |
+| `all-networks` | `go run all_networks.go` | All supported networks with optional chain configuration |
 | `bazaar` | `go run bazaar.go` | API discoverability via Bazaar |
 | `hooks` | `go run hooks.go` | Payment lifecycle hooks |
 | `dynamic-price` | `go run dynamic-price.go` | Context-based pricing |
