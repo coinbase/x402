@@ -17,9 +17,8 @@ This scheme uses the **Permit2** asset transfer method exclusively, leveraging t
 ## Use Cases
 
 - **LLM Token Generation**: Client authorizes up to $5, actual charge based on tokens generated
-- **Bandwidth/Data Transfer**: Pay per byte transferred, up to a cap
-- **Time-Based Access**: Authorize hourly max, charge for actual minutes used
-- **API Rate Metering**: Pay for actual API calls made, up to a budget
+- **Bandwidth/Data Transfer**: Pay per byte transferred in a single request, up to a cap
+- **Dynamic Compute**: Authorize max cost, charge based on actual compute resources consumed
 
 ---
 

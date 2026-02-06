@@ -9,28 +9,54 @@ This scheme is ideal for usage-based pricing models where the final cost is not 
 ## Example Use Cases
 
 - Paying for LLM token generation (charge per token generated)
-- Bandwidth or data transfer metering (charge per byte)
-- Time-based API access (charge per minute/second of usage)
+- Bandwidth or data transfer metering (charge per byte transferred in a single request)
 - Dynamic compute pricing (charge based on actual resources consumed)
-- Streaming media consumption (charge based on content delivered)
 
-## Appendix
+## Core Properties (MUST)
 
-## Critical Validation Requirements
+The `upto` scheme MUST enforce the following properties across ALL network implementations:
 
-While implementation details vary by network, facilitators MUST enforce security constraints:
+### 1. Single-Use Authorization
 
-### EVM
+Each authorization MUST be settled at most once. After settlement (regardless of amount), the authorization is consumed and cannot be reused.
 
-- Permit2 Only: The `upto` scheme uses Permit2 exclusively
-- Maximum enforcement: `settledAmount` MUST be `<= amount`
-- Destination correctness: the receiver MUST match the `witness.to` address
-- Balance verification: client MUST have balance >= `amount` at verification time
+- Rationale: Provides a clear audit trail, simpler mental model, and matches x402's request-response pattern.
+- Implementation: On EVM, Permit2's nonce mechanism enforces this. Other networks MUST implement equivalent replay protection.
 
-### Settlement Amount Rules
+### 2. Time-Bound Authorization
 
-- The settled amount MAY be 0 (no charge for zero usage)
-- The settled amount is determined by the resource server
-- Clients must trust servers to charge fair amounts based on actual usage
+Each authorization MUST have explicit validity time constraints:
 
-Network-specific rules and implementation details are defined in the per-network scheme documents. For EVM chains, see `scheme_upto_evm.md`.
+- **Start time** (`validAfter`): Authorization is not valid before this timestamp
+- **End time** (`deadline`): Authorization expires after this timestamp
+
+- Rationale: Limits exposure window for unused authorizations and ensures timely settlement.
+- Implementation: On EVM, Permit2's `deadline` and witness `validAfter` enforce this. Other networks MUST implement equivalent time bounds.
+
+### 3. Recipient Binding
+
+The authorization MUST cryptographically bind the recipient address. The server/facilitator cannot redirect funds to a different address than what the client signed.
+
+- Rationale: Prevents malicious facilitators from stealing funds.
+- Implementation: On EVM, the Permit2 witness pattern binds `witness.to`. Other networks MUST implement equivalent recipient binding.
+
+### 4. Maximum Amount Enforcement
+
+The settled amount MUST be less than or equal to the authorized maximum (`amount`).
+
+- `settledAmount` MUST be `<= amount`
+- `settledAmount` MAY be `0` (no charge if no usage occurred)
+
+## Out of Scope
+
+The following patterns are NOT supported by `upto` and would require different schemes:
+
+- **Multi-settlement / streaming**: Settling the same authorization multiple times (e.g., pay-per-chunk streaming)
+- **Recurring payments**: Automatic periodic charges without new authorizations
+- **Open-ended allowances**: Authorizations without time bounds or single-use constraints
+
+## Network-Specific Implementation
+
+Network-specific rules and implementation details are defined in the per-network scheme documents:
+
+- EVM chains: See [`scheme_upto_evm.md`](./scheme_upto_evm.md)
