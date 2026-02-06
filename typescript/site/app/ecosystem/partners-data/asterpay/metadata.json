@@ -1,0 +1,7 @@
+{
+  "name": "AsterPay",
+  "description": "EUR settlement infrastructure for x402 payments. AsterPay enables merchants and AI agents to convert x402 USDC payments to EUR via SEPA Instant, with full MiCA compliance. The only EU-native x402 facilitator with fiat off-ramp.",
+  "logoUrl": "/logos/asterpay.png",
+  "websiteUrl": "https://asterpay.io",
+  "category": "Infrastructure & Tooling"
+}
