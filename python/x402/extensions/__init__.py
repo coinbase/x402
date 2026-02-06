@@ -22,7 +22,7 @@ from .bazaar import (
     QueryDiscoveryInfo,
     QueryInput,
     QueryParamMethods,
-    ValidationResult,
+    ValidationResult as BazaarValidationResult,
     bazaar_resource_server_extension,
     declare_discovery_extension,
     extract_discovery_info,
@@ -38,6 +38,7 @@ from .payment_identifier import (
     PaymentIdentifierExtension,
     PaymentIdentifierInfo,
     PaymentIdentifierSchema,
+    ValidationResult,
     append_payment_identifier_to_extensions,
     declare_payment_identifier_extension,
     extract_and_validate_payment_identifier,
@@ -77,7 +78,8 @@ __all__ = [
     "DeclareBodyDiscoveryConfig",
     "OutputConfig",
     # Result types
-    "ValidationResult",
+    "ValidationResult",  # From payment_identifier (structurally compatible with bazaar's ValidationResult)
+    "BazaarValidationResult",  # From bazaar (for explicit bazaar usage)
     "DiscoveredResource",
     # Server extension
     "bazaar_resource_server_extension",
@@ -114,4 +116,5 @@ __all__ = [
     "has_payment_identifier",
     "is_payment_identifier_required",
     "validate_payment_identifier_requirement",
+    "BazaarValidationResult",
 ]
