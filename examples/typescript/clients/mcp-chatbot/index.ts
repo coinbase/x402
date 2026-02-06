@@ -99,7 +99,10 @@ export async function main(): Promise<void> {
   const anthropicTools: Tool[] = mcpTools.map(tool => ({
     name: tool.name,
     description: tool.description || "",
-    input_schema: tool.inputSchema as Record<string, unknown>,
+    input_schema: {
+      ...tool.inputSchema,
+      type: "object",
+    } as Tool.InputSchema,
   }));
 
   console.log(`✅ Ready! Found ${mcpTools.length} tool(s):`);
