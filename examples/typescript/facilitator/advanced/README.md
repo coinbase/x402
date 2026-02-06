@@ -8,6 +8,7 @@ Express.js facilitator service demonstrating advanced x402 patterns including al
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - EVM private key with Base Sepolia ETH for transaction fees
 - SVM private key with Solana Devnet SOL for transaction fees
+- Stellar private key with testnet XLM for transaction fees (fund via [Stellar Laboratory](https://lab.stellar.org/account/create) ➡️ Generate keypair ➡️ Fund account with Friendbot)
 
 ## Setup
 
@@ -21,6 +22,7 @@ and fill required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key
 - `SVM_PRIVATE_KEY` - Solana private key
+- `STELLAR_PRIVATE_KEY` - Stellar secret key (starts with `S`)
 - `PORT` - Server port (optional, defaults to 4022)
 
 2. Install and build all packages from the typescript examples root:

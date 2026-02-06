@@ -151,6 +151,26 @@ pnpm lint
 pnpm format
 ```
 
+## Integration Tests
+
+Integration tests require four funded Stellar testnet accounts:
+
+```bash
+CLIENT_PRIVATE_KEY=S...           # Client's secret key
+FACILITATOR_PRIVATE_KEY=S...      # Facilitator's secret key
+FACILITATOR_ADDRESS=G...          # Facilitator's public address
+RESOURCE_SERVER_ADDRESS=G...      # Resource server's public address
+```
+
+### Stellar Testnet Account Setup
+
+1. Go to [Stellar Laboratory](https://lab.stellar.org/account/create) ➡️ Generate keypair ➡️ Fund account with Friendbot, then copy the `Secret` and `Public` keys so you can use them.
+2. Add USDC trustline (required for client and resource server): go to [Fund Account](https://lab.stellar.org/account/fund) ➡️ Paste your `Public Key` ➡️ Add USDC Trustline ➡️ paste your `Secret key` ➡️ Sign transaction ➡️ Add Trustline.
+3. Get testnet USDC from [Circle Faucet](https://faucet.circle.com/) (select Stellar network).
+
+> [!NOTE]
+> The facilitator account only needs XLM (step 1). Client and resource server accounts need all three steps.
+
 ## Related Packages
 
 - `@x402/core` - Core protocol types and client
