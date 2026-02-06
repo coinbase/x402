@@ -1,4 +1,4 @@
-import type { RoutesConfig } from '@x402/core/server';
+import type { RoutesConfig, FacilitatorConfig } from '@x402/core/server';
 import { x402ResourceServer, x402HTTPResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
 import { ExactEvmScheme } from '@x402/evm/exact/server';
 
@@ -12,6 +12,8 @@ export interface X402ServerConfig {
   network: string;
   /** Route configuration defining which paths require payment */
   routes: RoutesConfig;
+  /** Optional facilitator config with auth headers (for facilitators that require authentication) */
+  facilitatorConfig?: FacilitatorConfig;
 }
 
 /**
@@ -19,21 +21,28 @@ export interface X402ServerConfig {
  * 
  * @example
  * ```typescript
+ * // Testnet (no auth)
  * const server = await createX402Server({
  *   facilitatorUrl: 'https://x402.org/facilitator',
  *   network: 'eip155:84532',
- *   routes: {
- *     '/api/*': {
- *       accepts: { scheme: 'exact', network: 'eip155:84532', payTo: '0x...', price: '$0.01' }
- *     }
- *   }
+ *   routes: { ... },
+ * });
+ * 
+ * // Mainnet with auth (pass a facilitator config from your facilitator package)
+ * const server = await createX402Server({
+ *   facilitatorUrl: 'https://your-facilitator-url',
+ *   network: 'eip155:8453',
+ *   routes: { ... },
+ *   facilitatorConfig: createFacilitatorConfig('api-key-id', 'api-key-secret'),
  * });
  * ```
  */
 export async function createX402Server(config: X402ServerConfig): Promise<x402HTTPResourceServer> {
-  const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+  const facilitator = new HTTPFacilitatorClient(
+    config.facilitatorConfig ?? { url: config.facilitatorUrl },
+  );
   const resourceServer = new x402ResourceServer(facilitator)
-    .register(config.network, new ExactEvmScheme());
+    .register(config.network as `${string}:${string}`, new ExactEvmScheme());
 
   const httpServer = new x402HTTPResourceServer(resourceServer, config.routes);
   await httpServer.initialize();
