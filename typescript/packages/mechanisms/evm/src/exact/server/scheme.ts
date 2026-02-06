@@ -201,6 +201,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         version: "2",
         decimals: 6,
       }, // Base Sepolia USDC
+      "eip155:4326": {
+        address: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+        name: "MegaUSD",
+        version: "1",
+        decimals: 18,
+      }, // MegaETH mainnet USDM
     };
 
     const assetInfo = stablecoins[network];

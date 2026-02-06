@@ -111,7 +111,9 @@ class TestFacilitatorKeypairSigner:
         # CompactU16(1) = 0x01, then 64 zero bytes for signature, then legacy message header
         legacy_tx_bytes = bytes([0x01])  # 1 signature
         legacy_tx_bytes += bytes(64)  # Empty signature
-        legacy_tx_bytes += bytes([0x01, 0x00, 0x00])  # Legacy header: numReqSigs=1, numReadonlySigned=0, numReadonlyUnsigned=0
+        legacy_tx_bytes += bytes(
+            [0x01, 0x00, 0x00]
+        )  # Legacy header: numReqSigs=1, numReadonlySigned=0, numReadonlyUnsigned=0
         legacy_tx_bytes += bytes([0x01])  # 1 account key
         legacy_tx_bytes += bytes(32)  # Account key
         legacy_tx_bytes += bytes(32)  # Recent blockhash
