@@ -1762,6 +1762,93 @@ describe("extractPublicKeyFromKid", () => {
       );
     });
 
+    it("should use http:// for did:web:localhost", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:localhost%3A3000",
+        verificationMethod: [
+          {
+            id: "did:web:localhost%3A3000#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:localhost%3A3000",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:localhost%3A3000#key-1");
+      expect(extractedKey).toBeDefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "http://localhost:3000/.well-known/did.json",
+        expect.any(Object),
+      );
+    });
+
+    it("should use http:// for did:web:127.0.0.1", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:127.0.0.1%3A8080",
+        verificationMethod: [
+          {
+            id: "did:web:127.0.0.1%3A8080#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:127.0.0.1%3A8080",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:127.0.0.1%3A8080#key-1");
+      expect(extractedKey).toBeDefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/.well-known/did.json",
+        expect.any(Object),
+      );
+    });
+
+    it("should still use https:// for non-localhost domains", async () => {
+      const { publicKey } = await jose.generateKeyPair("ES256");
+      const jwk = await jose.exportJWK(publicKey);
+
+      const didDocument = {
+        id: "did:web:example.com",
+        verificationMethod: [
+          {
+            id: "did:web:example.com#key-1",
+            type: "JsonWebKey2020",
+            controller: "did:web:example.com",
+            publicKeyJwk: jwk,
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(didDocument),
+      });
+
+      const extractedKey = await extractPublicKeyFromKid("did:web:example.com#key-1");
+      expect(extractedKey).toBeDefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://example.com/.well-known/did.json",
+        expect.any(Object),
+      );
+    });
+
     it("should throw when did:web fetch fails", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,

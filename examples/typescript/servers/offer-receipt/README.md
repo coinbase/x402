@@ -4,6 +4,7 @@ Express.js server demonstrating the offer-receipt extension for x402. This exten
 
 - **Signed offers** — cryptographic proof of payment terms from the server
 - **Signed receipts** — proof of service delivery after payment
+- **DID document** — serves `/.well-known/did.json` for JWS signature verification
 
 ## Quick Start
 
@@ -47,7 +48,7 @@ Required variables:
 - `FACILITATOR_URL` — Facilitator endpoint
 - `EVM_ADDRESS` — Address to receive payments
 - `SIGNING_PRIVATE_KEY` — Base64-encoded PKCS#8 private key (ES256/P-256)
-- `SERVER_DOMAIN` — Domain for DID construction
+- `SERVER_DOMAIN` — DID identifier for your domain (e.g., `api.example.com` or `localhost%3A4021` for local dev)
 
 2. Generate a signing key:
 
@@ -63,6 +64,18 @@ pnpm install && pnpm build
 cd servers/offer-receipt
 pnpm dev
 ```
+
+## DID Document
+
+The server exposes a DID document at `/.well-known/did.json` for JWS signature verification:
+
+```bash
+curl http://localhost:4021/.well-known/did.json
+```
+
+This enables clients to verify signed offers and receipts by resolving the `did:web:localhost%3A4021#key-1` key identifier to the server's public key.
+
+For local development, the library's `resolveDidWeb` function automatically uses HTTP for `localhost` and `127.0.0.1` domains.
 
 ## Configuration Options
 

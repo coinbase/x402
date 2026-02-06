@@ -124,9 +124,13 @@ async function resolveDidWeb(identifier: string, fragment?: string): Promise<jos
   const domain = decodeURIComponent(parts[0]);
   const path = parts.slice(1).map(decodeURIComponent).join("/");
 
+  // did:web spec allows HTTP for localhost (https://w3c-ccg.github.io/did-method-web/#read-resolve)
+  const host = domain.split(":")[0];
+  const scheme = host === "localhost" || host === "127.0.0.1" ? "http" : "https";
+
   const url = path
-    ? `https://${domain}/${path}/did.json`
-    : `https://${domain}/.well-known/did.json`;
+    ? `${scheme}://${domain}/${path}/did.json`
+    : `${scheme}://${domain}/.well-known/did.json`;
 
   let didDocument: DIDDocument;
   try {

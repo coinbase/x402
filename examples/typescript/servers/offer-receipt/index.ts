@@ -37,9 +37,30 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 // Create a JWS signer for signing offers and receipts
 // The kid (key identifier) should be a DID URL that resolves to the public key
-const kid = `did:web:${process.env.SERVER_DOMAIN || "localhost"}#key-1`;
-const jwsSigner = createJWSSignerFromPrivateKey(signingPrivateKey, kid);
+const serverDomain = process.env.SERVER_DOMAIN;
+if (!serverDomain) {
+  console.error("❌ SERVER_DOMAIN environment variable is required (e.g., localhost%3A4021)");
+  process.exit(1);
+}
+const did = `did:web:${serverDomain}`;
+const kid = `${did}#key-1`;
+const { signer: jwsSigner, publicKeyJwk } = createJWSSignerFromPrivateKey(signingPrivateKey, kid);
 const offerReceiptIssuer = createJWSOfferReceiptIssuer(kid, jwsSigner);
+
+// Build DID document for /.well-known/did.json
+const didDocument = {
+  "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/security/suites/jws-2020/v1"],
+  id: did,
+  verificationMethod: [
+    {
+      id: kid,
+      type: "JsonWebKey2020",
+      controller: did,
+      publicKeyJwk,
+    },
+  ],
+  assertionMethod: [kid],
+};
 
 const app = express();
 
@@ -91,7 +112,16 @@ app.get("/weather", (req, res) => {
   });
 });
 
+// Serve DID document for JWS verification
+// did:web resolves to /.well-known/did.json
+app.get("/.well-known/did.json", (req, res) => {
+  res.setHeader("Content-Type", "application/did+json");
+  res.json(didDocument);
+});
+
 app.listen(4021, () => {
   console.log(`Server listening at http://localhost:${4021}`);
   console.log("Offer-receipt extension enabled - responses will include signed offers/receipts");
+  console.log(`DID document available at http://localhost:4021/.well-known/did.json`);
+  console.log(`Key ID: ${kid}`);
 });

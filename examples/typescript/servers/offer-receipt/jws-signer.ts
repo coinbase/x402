@@ -1,6 +1,11 @@
 import * as crypto from "crypto";
 import type { JWSSigner } from "@x402/extensions/offer-receipt";
 
+export interface SignerWithPublicKey {
+  signer: JWSSigner;
+  publicKeyJwk: JsonWebKey;
+}
+
 /**
  * Create a JWS signer from a base64-encoded PKCS#8 private key
  *
@@ -9,12 +14,19 @@ import type { JWSSigner } from "@x402/extensions/offer-receipt";
  *
  * @param privateKeyBase64 - Base64-encoded PKCS#8 private key
  * @param kid - Key identifier DID URL
- * @returns JWSSigner for use with createJWSOfferReceiptIssuer
+ * @returns SignerWithPublicKey containing the signer and public key JWK
  */
-export function createJWSSignerFromPrivateKey(privateKeyBase64: string, kid: string): JWSSigner {
+export function createJWSSignerFromPrivateKey(
+  privateKeyBase64: string,
+  kid: string,
+): SignerWithPublicKey {
   const privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${privateKeyBase64}\n-----END PRIVATE KEY-----`;
+  const keyObject = crypto.createPrivateKey(privateKeyPem);
+  const publicKeyJwk = keyObject.export({ format: "jwk" }) as JsonWebKey;
+  // Remove private key component
+  delete (publicKeyJwk as Record<string, unknown>).d;
 
-  return {
+  const signer: JWSSigner = {
     kid,
     format: "jws",
     algorithm: "ES256",
@@ -27,6 +39,8 @@ export function createJWSSignerFromPrivateKey(privateKeyBase64: string, kid: str
       return Buffer.from(rawSignature).toString("base64url");
     },
   };
+
+  return { signer, publicKeyJwk };
 }
 
 /**
