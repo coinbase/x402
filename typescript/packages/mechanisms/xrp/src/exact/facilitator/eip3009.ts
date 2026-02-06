@@ -15,7 +15,7 @@ import {
   FacilitatorXrpSigner,
   ExactXrpPayloadV2,
   isXrpPayload,
-} from "../types";
+} from "../../types";
 import { dropsToXrp } from "xrpl";
 
 export interface XrpVerifyContext {

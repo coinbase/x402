@@ -11,7 +11,7 @@ import {
   VerifyResponse,
   SettleResponse,
 } from "@x402/core/types";
-import { FacilitatorXrpSigner, ExactXrpPayloadV2, isXrpPayload } from "../types";
+import { FacilitatorXrpSigner, ExactXrpPayloadV2, isXrpPayload } from "../../types";
 import { verifyXrp, settleXrp } from "./eip3009";
 
 export interface ExactXrpSchemeConfig {

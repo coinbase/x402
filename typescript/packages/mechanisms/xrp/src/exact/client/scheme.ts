@@ -5,10 +5,10 @@
  */
 
 import { PaymentRequirements, SchemeNetworkClient, PaymentPayload, PaymentPayloadResult } from "@x402/core/types";
-import { ClientXrpSigner, XrpPaymentTransaction, ExactXrpPayloadV2 } from "../types";
+import { ClientXrpSigner, XrpPaymentTransaction, ExactXrpPayloadV2 } from "../../types";
 import { Client, Wallet, xAddressToClassicAddress, isValidAddress } from "xrpl";
-import { getNetworkUrl, validateXrpNetwork } from "../utils/network";
-import { buildPaymentTransaction } from "../utils/transaction";
+import { getNetworkUrl, validateXrpNetwork } from "../../utils/network";
+import { buildPaymentTransaction } from "../../utils/transaction";
 
 export interface ExactXrpSchemeConfig {
   /** XRPL server URL (auto-detected from network if not provided) */
