@@ -9,7 +9,6 @@ import {
   defaultRetryPolicy,
   createRetryPolicy,
   defaultBackoffConfig,
-  defaultCircuitBreakerConfig,
   type RetryPolicy,
 } from "../src/index";
 
@@ -48,10 +47,10 @@ const aggressivePolicy = createRetryPolicy({
 });
 
 console.log(
-  `Max attempts: ${aggressivePolicy.maxAttempts} (default: ${defaultRetryPolicy.maxAttempts})`
+  `Max attempts: ${aggressivePolicy.maxAttempts} (default: ${defaultRetryPolicy.maxAttempts})`,
 );
 console.log(
-  `Initial backoff: ${aggressivePolicy.backoff.initialMs}ms (default: ${defaultBackoffConfig.initialMs}ms)`
+  `Initial backoff: ${aggressivePolicy.backoff.initialMs}ms (default: ${defaultBackoffConfig.initialMs}ms)`,
 );
 console.log();
 
@@ -69,7 +68,7 @@ const circuitBreakerPolicy = createRetryPolicy({
     resetTimeoutMs: 30000,
   },
   hooks: {
-    onCircuitOpen: (failures) => {
+    onCircuitOpen: failures => {
       console.log(`Circuit breaker opened after ${failures} consecutive failures`);
       console.log("Subsequent requests will fail fast until circuit resets");
     },
@@ -80,14 +79,10 @@ const circuitBreakerPolicy = createRetryPolicy({
 });
 
 console.log(
-  `Circuit breaker: ${circuitBreakerPolicy.circuitBreaker?.enabled ? "enabled" : "disabled"}`
+  `Circuit breaker: ${circuitBreakerPolicy.circuitBreaker?.enabled ? "enabled" : "disabled"}`,
 );
-console.log(
-  `Failure threshold: ${circuitBreakerPolicy.circuitBreaker?.failureThreshold}`
-);
-console.log(
-  `Reset timeout: ${circuitBreakerPolicy.circuitBreaker?.resetTimeoutMs}ms`
-);
+console.log(`Failure threshold: ${circuitBreakerPolicy.circuitBreaker?.failureThreshold}`);
+console.log(`Reset timeout: ${circuitBreakerPolicy.circuitBreaker?.resetTimeoutMs}ms`);
 console.log();
 
 // ============================================================================
@@ -100,20 +95,14 @@ console.log("===============================");
 const observablePolicy = createRetryPolicy({
   hooks: {
     onRetry: (attempt, error, backoffMs) => {
-      console.log(
-        `Retry attempt ${attempt}: ${error.message} (waiting ${backoffMs}ms)`
-      );
+      console.log(`Retry attempt ${attempt}: ${error.message} (waiting ${backoffMs}ms)`);
     },
     onSuccess: (attempts, totalTimeMs) => {
-      console.log(
-        `Success after ${attempts} attempt(s) in ${totalTimeMs}ms`
-      );
+      console.log(`Success after ${attempts} attempt(s) in ${totalTimeMs}ms`);
     },
     onFailure: (attempts, errors, totalTimeMs) => {
-      console.log(
-        `Failed after ${attempts} attempt(s) in ${totalTimeMs}ms`
-      );
-      console.log(`Errors: ${errors.map((e) => e.message).join(", ")}`);
+      console.log(`Failed after ${attempts} attempt(s) in ${totalTimeMs}ms`);
+      console.log(`Errors: ${errors.map(e => e.message).join(", ")}`);
     },
   },
 });
@@ -150,14 +139,12 @@ const productionPolicy: RetryPolicy = createRetryPolicy({
     onRetry: (attempt, error, backoff) => {
       // Log to monitoring service
       console.error(
-        `[RETRY] Attempt ${attempt} failed, retrying in ${backoff}ms: ${error.message}`
+        `[RETRY] Attempt ${attempt} failed, retrying in ${backoff}ms: ${error.message}`,
       );
     },
     onFailure: (attempts, errors, time) => {
       // Alert on-call
-      console.error(
-        `[ALERT] Payment failed after ${attempts} retries in ${time}ms`
-      );
+      console.error(`[ALERT] Payment failed after ${attempts} retries in ${time}ms`);
     },
   },
 });
@@ -175,10 +162,14 @@ console.log();
 console.log("Example 6: Backoff Delay Calculations");
 console.log("======================================");
 
-function calculateBackoff(
-  attempt: number,
-  config: typeof defaultBackoffConfig
-): number {
+/**
+ * Calculate exponential backoff delay
+ *
+ * @param attempt - Retry attempt number
+ * @param config - Backoff configuration
+ * @returns Calculated backoff delay in milliseconds
+ */
+function calculateBackoff(attempt: number, config: typeof defaultBackoffConfig): number {
   const exponential = config.initialMs * Math.pow(config.multiplier, attempt - 1);
   return Math.min(exponential, config.maxMs);
 }

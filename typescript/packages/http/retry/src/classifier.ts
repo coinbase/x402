@@ -3,11 +3,11 @@
  */
 export enum ErrorCategory {
   /** Error is retryable (transient failure) */
-  RETRYABLE = 'retryable',
+  RETRYABLE = "retryable",
   /** Error is not retryable (permanent failure) */
-  NON_RETRYABLE = 'non_retryable',
+  NON_RETRYABLE = "non_retryable",
   /** Error category is unknown */
-  UNKNOWN = 'unknown'
+  UNKNOWN = "unknown",
 }
 
 /**
@@ -52,7 +52,7 @@ export class DefaultErrorClassifier implements ErrorClassifier {
     405, // Method Not Allowed
     409, // Conflict
     410, // Gone
-    422  // Unprocessable Entity
+    422, // Unprocessable Entity
   ]);
 
   /**
@@ -96,15 +96,18 @@ export class DefaultErrorClassifier implements ErrorClassifier {
 
   /**
    * Check if error is an HTTP error
+   *
+   * @param error - The error to check
+   * @returns true if error is an HTTP error with status code
    */
   private isHttpError(error: unknown): boolean {
     // Standard fetch Response with !ok status
-    if (this.hasProperty(error, 'status') && typeof (error as any).status === 'number') {
+    if (this.hasProperty(error, "status") && typeof error.status === "number") {
       return true;
     }
 
     // Axios error
-    if (this.hasProperty(error, 'response') && this.hasProperty((error as any).response, 'status')) {
+    if (this.hasProperty(error, "response") && this.hasProperty(error.response, "status")) {
       return true;
     }
 
@@ -113,16 +116,23 @@ export class DefaultErrorClassifier implements ErrorClassifier {
 
   /**
    * Extract HTTP status code from error
+   *
+   * @param error - The error to extract status from
+   * @returns HTTP status code or 0 if not found
    */
   private getHttpStatus(error: unknown): number {
     // Direct status property
-    if (this.hasProperty(error, 'status') && typeof (error as any).status === 'number') {
-      return (error as any).status;
+    if (this.hasProperty(error, "status") && typeof error.status === "number") {
+      return error.status;
     }
 
     // Axios response.status
-    if (this.hasProperty(error, 'response') && this.hasProperty((error as any).response, 'status')) {
-      return (error as any).response.status;
+    if (
+      this.hasProperty(error, "response") &&
+      this.hasProperty(error.response, "status") &&
+      typeof error.response.status === "number"
+    ) {
+      return error.response.status;
     }
 
     return 0;
@@ -130,6 +140,9 @@ export class DefaultErrorClassifier implements ErrorClassifier {
 
   /**
    * Check if error is explicitly non-retryable
+   *
+   * @param error - The error to check
+   * @returns true if error is explicitly non-retryable
    */
   private isNonRetryableError(error: unknown): boolean {
     // Non-retryable HTTP codes
@@ -143,12 +156,13 @@ export class DefaultErrorClassifier implements ErrorClassifier {
 
   /**
    * Type-safe property check
+   *
+   * @param obj - Object to check
+   * @param key - Property key to check for
+   * @returns true if object has the property
    */
-  private hasProperty<K extends string>(
-    obj: unknown,
-    key: K
-  ): obj is Record<K, unknown> {
-    return typeof obj === 'object' && obj !== null && key in obj;
+  private hasProperty<K extends string>(obj: unknown, key: K): obj is Record<K, unknown> {
+    return typeof obj === "object" && obj !== null && key in obj;
   }
 }
 
@@ -156,8 +170,9 @@ export class DefaultErrorClassifier implements ErrorClassifier {
  * Create a custom error classifier with additional retryable/non-retryable rules
  *
  * @param options - Configuration options
+ * @param options.retryableHttpCodes - Additional HTTP codes to treat as retryable
+ * @param options.nonRetryableHttpCodes - Additional HTTP codes to treat as non-retryable
  * @returns A configured ErrorClassifier instance
- *
  * @example
  * ```typescript
  * // Add custom retryable HTTP codes
@@ -175,13 +190,13 @@ export function createErrorClassifier(options?: {
 
   if (options?.retryableHttpCodes) {
     for (const code of options.retryableHttpCodes) {
-      classifier['retryableHttpCodes'].add(code);
+      classifier["retryableHttpCodes"].add(code);
     }
   }
 
   if (options?.nonRetryableHttpCodes) {
     for (const code of options.nonRetryableHttpCodes) {
-      classifier['nonRetryableHttpCodes'].add(code);
+      classifier["nonRetryableHttpCodes"].add(code);
     }
   }
 

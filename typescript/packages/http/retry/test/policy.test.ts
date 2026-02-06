@@ -24,6 +24,7 @@ describe("RetryPolicy", () => {
 
       // Attempting to modify (TypeScript would prevent this, but testing at runtime)
       expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (defaultBackoffConfig as any).initialMs = 500;
       }).not.toThrow();
 
@@ -70,9 +71,7 @@ describe("RetryPolicy", () => {
     });
 
     it("should include error classifier", () => {
-      expect(defaultRetryPolicy.errorClassifier).toBeInstanceOf(
-        DefaultErrorClassifier
-      );
+      expect(defaultRetryPolicy.errorClassifier).toBeInstanceOf(DefaultErrorClassifier);
     });
 
     it("should not include hooks by default", () => {
@@ -84,9 +83,7 @@ describe("RetryPolicy", () => {
     });
 
     it("should use same circuit breaker config instance", () => {
-      expect(defaultRetryPolicy.circuitBreaker).toBe(
-        defaultCircuitBreakerConfig
-      );
+      expect(defaultRetryPolicy.circuitBreaker).toBe(defaultCircuitBreakerConfig);
     });
   });
 
@@ -120,6 +117,7 @@ describe("RetryPolicy", () => {
       const policy = createRetryPolicy({
         backoff: {
           initialMs: 500,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any, // Partial type
       });
 
@@ -136,6 +134,7 @@ describe("RetryPolicy", () => {
       const policy = createRetryPolicy({
         circuitBreaker: {
           enabled: true,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any, // Partial type
       });
 
@@ -217,7 +216,9 @@ describe("RetryPolicy", () => {
       const originalCircuitBreaker = { ...defaultCircuitBreakerConfig };
 
       createRetryPolicy({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         backoff: { initialMs: 5000 } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         circuitBreaker: { enabled: true } as any,
       });
 
@@ -337,7 +338,7 @@ describe("RetryPolicy", () => {
           resetTimeoutMs: 120000,
         },
         hooks: {
-          onCircuitOpen: (failures) => {
+          onCircuitOpen: failures => {
             console.log(`Circuit opened after ${failures} failures`);
           },
         },
@@ -365,7 +366,7 @@ describe("RetryPolicy", () => {
           },
           onFailure: (attempts, errors, time) => {
             logger.error(
-              `Failed after ${attempts} attempts in ${time}ms: ${errors.map((e) => e.message).join(", ")}`
+              `Failed after ${attempts} attempts in ${time}ms: ${errors.map(e => e.message).join(", ")}`,
             );
           },
         },

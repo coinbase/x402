@@ -17,11 +17,7 @@ export {
 
 // Error Classification
 export type { ErrorClassifier } from "./classifier";
-export {
-  ErrorCategory,
-  DefaultErrorClassifier,
-  createErrorClassifier,
-} from "./classifier";
+export { ErrorCategory, DefaultErrorClassifier, createErrorClassifier } from "./classifier";
 
 // Retry Policy
 export {

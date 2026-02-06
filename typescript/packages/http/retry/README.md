@@ -22,16 +22,15 @@ pnpm install @x402/retry
 ## Quick Start
 
 ```typescript
-import { RetryExecutor, defaultRetryPolicy } from '@x402/retry';
-import { wrapFetchWithPayment } from '@x402/fetch';
-import { x402Client } from '@x402/core';
-import { ExactEvmScheme } from '@x402/evm';
-import { privateKeyToAccount } from 'viem/accounts';
+import { RetryExecutor, defaultRetryPolicy } from "@x402/retry";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core";
+import { ExactEvmScheme } from "@x402/evm";
+import { privateKeyToAccount } from "viem/accounts";
 
 // Setup x402 client
-const account = privateKeyToAccount('0xYourPrivateKey');
-const client = new x402Client()
-  .register('eip155:8453', new ExactEvmScheme(account));
+const account = privateKeyToAccount("0xYourPrivateKey");
+const client = new x402Client().register("eip155:8453", new ExactEvmScheme(account));
 
 // Create retry executor
 const executor = new RetryExecutor();
@@ -39,8 +38,8 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 // Execute with automatic retry on transient failures
 const response = await executor.execute(
-  () => fetchWithPayment('https://api.example.com/paid-endpoint'),
-  defaultRetryPolicy
+  () => fetchWithPayment("https://api.example.com/paid-endpoint"),
+  defaultRetryPolicy,
 );
 
 const data = await response.json();
@@ -66,6 +65,7 @@ A `RetryPolicy` defines how retries should behave:
 ### Error Classification
 
 By default, the following HTTP errors are considered **retryable**:
+
 - `429` - Rate Limiting
 - `500` - Internal Server Error
 - `502` - Bad Gateway
@@ -87,35 +87,35 @@ The package includes utilities to generate deterministic idempotency keys from p
 Executes an async operation with retry logic.
 
 **Parameters:**
+
 - `operation`: The async function to execute
 - `policy`: Retry policy configuration
 
 **Returns:** Result of the successful operation
 
 **Throws:**
+
 - `RetryExhaustedError` - when all retry attempts fail
 - `CircuitBreakerOpenError` - when circuit breaker blocks the request
 - `RetryTimeoutError` - when operation timeout is exceeded
 - Original error - when a non-retryable error occurs
 
 **Example:**
+
 ```typescript
 const executor = new RetryExecutor();
 
 try {
-  const result = await executor.execute(
-    async () => {
-      const response = await fetch('https://api.example.com/data');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    },
-    defaultRetryPolicy
-  );
-  console.log('Success:', result);
+  const result = await executor.execute(async () => {
+    const response = await fetch("https://api.example.com/data");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }, defaultRetryPolicy);
+  console.log("Success:", result);
 } catch (error) {
   if (error instanceof RetryExhaustedError) {
     console.error(`Failed after ${error.attempts} attempts`);
-    console.error('Errors:', error.retriedErrors);
+    console.error("Errors:", error.retriedErrors);
   }
 }
 ```
@@ -137,6 +137,7 @@ Get the count of consecutive failures.
 #### `defaultRetryPolicy`
 
 Pre-configured policy with safe defaults:
+
 - 3 retry attempts
 - 60 second timeout
 - Exponential backoff: 1s, 2s, 4s (with 10% jitter)
@@ -148,8 +149,9 @@ Pre-configured policy with safe defaults:
 Create a custom retry policy by overriding defaults.
 
 **Example:**
+
 ```typescript
-import { createRetryPolicy } from '@x402/retry';
+import { createRetryPolicy } from "@x402/retry";
 
 const customPolicy = createRetryPolicy({
   maxAttempts: 5,
@@ -159,13 +161,13 @@ const customPolicy = createRetryPolicy({
     maxMs: 10000,
     multiplier: 1.5,
     jitter: true,
-    jitterFactor: 0.2
+    jitterFactor: 0.2,
   },
   hooks: {
     onRetry: (attempt, error, backoffMs) => {
       console.log(`Retry ${attempt}: ${error.message} (waiting ${backoffMs}ms)`);
-    }
-  }
+    },
+  },
 });
 ```
 
@@ -180,12 +182,13 @@ Built-in classifier that identifies retryable errors based on HTTP status codes.
 Create a custom error classifier with additional rules.
 
 **Example:**
+
 ```typescript
-import { createErrorClassifier } from '@x402/retry';
+import { createErrorClassifier } from "@x402/retry";
 
 const classifier = createErrorClassifier({
   retryableHttpCodes: [418, 425], // Add custom retryable codes
-  nonRetryableHttpCodes: [451]    // Add custom non-retryable codes
+  nonRetryableHttpCodes: [451], // Add custom non-retryable codes
 });
 ```
 
@@ -200,10 +203,11 @@ Generates deterministic idempotency keys from payment payloads using SHA-256 has
 Create a custom key generator.
 
 **Example:**
-```typescript
-import { createIdempotencyKeyGenerator } from '@x402/retry';
 
-const generator = createIdempotencyKeyGenerator((payload) => {
+```typescript
+import { createIdempotencyKeyGenerator } from "@x402/retry";
+
+const generator = createIdempotencyKeyGenerator(payload => {
   return `custom_${payload.scheme}_${payload.network}_${Date.now()}`;
 });
 ```
@@ -213,62 +217,62 @@ const generator = createIdempotencyKeyGenerator((payload) => {
 ### Basic Usage with Fetch
 
 ```typescript
-import { RetryExecutor, defaultRetryPolicy } from '@x402/retry';
-import { wrapFetchWithPayment } from '@x402/fetch';
+import { RetryExecutor, defaultRetryPolicy } from "@x402/retry";
+import { wrapFetchWithPayment } from "@x402/fetch";
 
 const executor = new RetryExecutor();
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 // Automatically retries on 429, 500, 502, 503, 504 errors
 const response = await executor.execute(
-  () => fetchWithPayment('https://api.example.com/resource'),
-  defaultRetryPolicy
+  () => fetchWithPayment("https://api.example.com/resource"),
+  defaultRetryPolicy,
 );
 ```
 
 ### Basic Usage with Axios
 
 ```typescript
-import axios from 'axios';
-import { wrapAxiosWithPayment } from '@x402/axios';
-import { RetryExecutor, defaultRetryPolicy } from '@x402/retry';
+import axios from "axios";
+import { wrapAxiosWithPayment } from "@x402/axios";
+import { RetryExecutor, defaultRetryPolicy } from "@x402/retry";
 
 const api = wrapAxiosWithPayment(axios.create(), client);
 const executor = new RetryExecutor();
 
 const response = await executor.execute(
-  () => api.get('https://api.example.com/resource'),
-  defaultRetryPolicy
+  () => api.get("https://api.example.com/resource"),
+  defaultRetryPolicy,
 );
 ```
 
 ### Custom Retry Policy
 
 ```typescript
-import { createRetryPolicy } from '@x402/retry';
+import { createRetryPolicy } from "@x402/retry";
 
 const aggressivePolicy = createRetryPolicy({
   maxAttempts: 5,
   timeoutMs: 120000, // 2 minutes
   backoff: {
-    initialMs: 500,      // Start with 500ms
-    maxMs: 10000,        // Cap at 10s
-    multiplier: 1.5,     // Slower exponential growth
+    initialMs: 500, // Start with 500ms
+    maxMs: 10000, // Cap at 10s
+    multiplier: 1.5, // Slower exponential growth
     jitter: true,
-    jitterFactor: 0.2    // ±20% randomization
-  }
+    jitterFactor: 0.2, // ±20% randomization
+  },
 });
 
 const response = await executor.execute(
-  () => fetchWithPayment('https://api.example.com/resource'),
-  aggressivePolicy
+  () => fetchWithPayment("https://api.example.com/resource"),
+  aggressivePolicy,
 );
 ```
 
 ### With Observability Hooks
 
 ```typescript
-import { createRetryPolicy } from '@x402/retry';
+import { createRetryPolicy } from "@x402/retry";
 
 const observablePolicy = createRetryPolicy({
   hooks: {
@@ -282,10 +286,13 @@ const observablePolicy = createRetryPolicy({
     },
     onFailure: (attempts, errors, totalTimeMs) => {
       console.error(`Payment failed after ${attempts} attempts in ${totalTimeMs}ms`);
-      console.error('Errors:', errors.map(e => e.message));
+      console.error(
+        "Errors:",
+        errors.map(e => e.message),
+      );
       // Alert on-call engineer
-    }
-  }
+    },
+  },
 });
 ```
 
@@ -294,25 +301,25 @@ const observablePolicy = createRetryPolicy({
 Circuit breaker is useful for high-volume production systems to prevent cascade failures.
 
 ```typescript
-import { createRetryPolicy } from '@x402/retry';
+import { createRetryPolicy } from "@x402/retry";
 
 const productionPolicy = createRetryPolicy({
   maxAttempts: 3,
   circuitBreaker: {
     enabled: true,
-    failureThreshold: 5,    // Open circuit after 5 consecutive failures
-    resetTimeoutMs: 60000   // Try again after 60 seconds
+    failureThreshold: 5, // Open circuit after 5 consecutive failures
+    resetTimeoutMs: 60000, // Try again after 60 seconds
   },
   hooks: {
-    onCircuitOpen: (failureCount) => {
+    onCircuitOpen: failureCount => {
       console.error(`Circuit breaker opened after ${failureCount} failures`);
       // Show user-friendly error message
       // Switch to fallback behavior
     },
     onCircuitClose: () => {
-      console.log('Circuit breaker closed - service recovered');
-    }
-  }
+      console.log("Circuit breaker closed - service recovered");
+    },
+  },
 });
 ```
 
@@ -322,26 +329,23 @@ const productionPolicy = createRetryPolicy({
 // Conservative policy for critical operations
 const criticalPolicy = createRetryPolicy({
   maxAttempts: 5,
-  backoff: { initialMs: 2000, maxMs: 30000, multiplier: 2, jitter: true, jitterFactor: 0.1 }
+  backoff: { initialMs: 2000, maxMs: 30000, multiplier: 2, jitter: true, jitterFactor: 0.1 },
 });
 
 // Fast-fail policy for non-critical operations
 const fastFailPolicy = createRetryPolicy({
   maxAttempts: 2,
-  backoff: { initialMs: 500, maxMs: 5000, multiplier: 2, jitter: false, jitterFactor: 0 }
+  backoff: { initialMs: 500, maxMs: 5000, multiplier: 2, jitter: false, jitterFactor: 0 },
 });
 
 // Critical payment - more retries
 const paymentResponse = await executor.execute(
-  () => fetchWithPayment('/api/payment'),
-  criticalPolicy
+  () => fetchWithPayment("/api/payment"),
+  criticalPolicy,
 );
 
 // Non-critical metadata - fail fast
-const metadataResponse = await executor.execute(
-  () => fetch('/api/metadata'),
-  fastFailPolicy
-);
+const metadataResponse = await executor.execute(() => fetch("/api/metadata"), fastFailPolicy);
 ```
 
 ## Error Handling
@@ -349,7 +353,7 @@ const metadataResponse = await executor.execute(
 ### Handling Retry Exhausted
 
 ```typescript
-import { RetryExhaustedError } from '@x402/retry';
+import { RetryExhaustedError } from "@x402/retry";
 
 try {
   const result = await executor.execute(operation, defaultRetryPolicy);
@@ -357,10 +361,10 @@ try {
   if (error instanceof RetryExhaustedError) {
     console.error(`Failed after ${error.attempts} attempts`);
     console.error(`Total time: ${error.totalTimeMs}ms`);
-    console.error('All errors:', error.retriedErrors);
+    console.error("All errors:", error.retriedErrors);
 
     // Show user-friendly error message
-    alert('Payment failed after multiple attempts. Please try again later.');
+    alert("Payment failed after multiple attempts. Please try again later.");
   }
 }
 ```
@@ -368,17 +372,17 @@ try {
 ### Handling Circuit Breaker
 
 ```typescript
-import { CircuitBreakerOpenError } from '@x402/retry';
+import { CircuitBreakerOpenError } from "@x402/retry";
 
 try {
   const result = await executor.execute(operation, policy);
 } catch (error) {
   if (error instanceof CircuitBreakerOpenError) {
-    console.error('Service is currently unavailable');
+    console.error("Service is currently unavailable");
     console.error(`Failed after ${error.failureCount} consecutive failures`);
 
     // Show maintenance message
-    alert('Service is temporarily unavailable. Please try again in a few minutes.');
+    alert("Service is temporarily unavailable. Please try again in a few minutes.");
   }
 }
 ```
@@ -386,7 +390,7 @@ try {
 ### Handling Timeout
 
 ```typescript
-import { RetryTimeoutError } from '@x402/retry';
+import { RetryTimeoutError } from "@x402/retry";
 
 try {
   const result = await executor.execute(operation, policy);
@@ -441,15 +445,15 @@ Always use hooks to monitor retry behavior:
 const policy = createRetryPolicy({
   hooks: {
     onRetry: (attempt, error, backoff) => {
-      metrics.increment('payment.retry', { attempt });
-      logger.warn('Payment retry', { attempt, error: error.message, backoff });
+      metrics.increment("payment.retry", { attempt });
+      logger.warn("Payment retry", { attempt, error: error.message, backoff });
     },
     onFailure: (attempts, errors, time) => {
-      metrics.increment('payment.failure', { attempts });
-      logger.error('Payment failed', { attempts, time, errors });
-      alerts.notify('Payment failure', { attempts, time });
-    }
-  }
+      metrics.increment("payment.failure", { attempts });
+      logger.error("Payment failed", { attempts, time, errors });
+      alerts.notify("Payment failure", { attempts, time });
+    },
+  },
 });
 ```
 
@@ -461,9 +465,9 @@ Enable circuit breaker in production systems with high request volumes:
 const productionPolicy = createRetryPolicy({
   circuitBreaker: {
     enabled: true,
-    failureThreshold: 10,  // Higher threshold for production
-    resetTimeoutMs: 120000  // 2 minute recovery window
-  }
+    failureThreshold: 10, // Higher threshold for production
+    resetTimeoutMs: 120000, // 2 minute recovery window
+  },
 });
 ```
 
@@ -475,7 +479,7 @@ For applications with few payment requests, circuit breaker adds unnecessary com
 // For most users - circuit breaker not needed
 const simplePolicy = createRetryPolicy({
   maxAttempts: 3,
-  circuitBreaker: { enabled: false }  // Default
+  circuitBreaker: { enabled: false }, // Default
 });
 ```
 
@@ -484,6 +488,7 @@ const simplePolicy = createRetryPolicy({
 ### From Manual Retry Logic
 
 **Before:**
+
 ```typescript
 async function fetchWithRetry(url: string, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
@@ -498,8 +503,9 @@ async function fetchWithRetry(url: string, maxRetries = 3) {
 ```
 
 **After:**
+
 ```typescript
-import { RetryExecutor, defaultRetryPolicy } from '@x402/retry';
+import { RetryExecutor, defaultRetryPolicy } from "@x402/retry";
 
 const executor = new RetryExecutor();
 
@@ -511,24 +517,26 @@ async function fetchWithRetry(url: string) {
 ### Adding to Existing x402 Integration
 
 **Before:**
+
 ```typescript
-import { wrapFetchWithPayment } from '@x402/fetch';
+import { wrapFetchWithPayment } from "@x402/fetch";
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
-const response = await fetchWithPayment('https://api.example.com/resource');
+const response = await fetchWithPayment("https://api.example.com/resource");
 ```
 
 **After (with retry):**
+
 ```typescript
-import { RetryExecutor, defaultRetryPolicy } from '@x402/retry';
-import { wrapFetchWithPayment } from '@x402/fetch';
+import { RetryExecutor, defaultRetryPolicy } from "@x402/retry";
+import { wrapFetchWithPayment } from "@x402/fetch";
 
 const executor = new RetryExecutor();
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 const response = await executor.execute(
-  () => fetchWithPayment('https://api.example.com/resource'),
-  defaultRetryPolicy
+  () => fetchWithPayment("https://api.example.com/resource"),
+  defaultRetryPolicy,
 );
 ```
 
@@ -543,8 +551,8 @@ import type {
   CircuitBreakerConfig,
   RetryHooks,
   ErrorClassifier,
-  IdempotencyKeyGenerator
-} from '@x402/retry';
+  IdempotencyKeyGenerator,
+} from "@x402/retry";
 ```
 
 ## Performance

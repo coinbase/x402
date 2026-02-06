@@ -26,18 +26,21 @@ export interface IdempotencyKeyGenerator {
 export interface BackoffConfig {
   /**
    * Initial backoff delay in milliseconds
+   *
    * @default 1000
    */
   initialMs: number;
 
   /**
    * Maximum backoff delay in milliseconds
+   *
    * @default 30000
    */
   maxMs: number;
 
   /**
    * Multiplier for exponential backoff (e.g., 2 doubles the delay each retry)
+   *
    * @default 2
    */
   multiplier: number;
@@ -45,6 +48,7 @@ export interface BackoffConfig {
   /**
    * Enable jitter to randomize backoff delays
    * Helps prevent thundering herd problem
+   *
    * @default true
    */
   jitter: boolean;
@@ -52,6 +56,7 @@ export interface BackoffConfig {
   /**
    * Jitter randomization factor (0-1)
    * Applied as: backoff * (1 + random(-jitterFactor, +jitterFactor))
+   *
    * @default 0.1
    */
   jitterFactor: number;
@@ -66,12 +71,14 @@ export interface BackoffConfig {
 export interface CircuitBreakerConfig {
   /**
    * Enable circuit breaker functionality
+   *
    * @default false
    */
   enabled: boolean;
 
   /**
    * Number of consecutive failures before opening the circuit
+   *
    * @default 5
    */
   failureThreshold: number;
@@ -79,6 +86,7 @@ export interface CircuitBreakerConfig {
   /**
    * Time in milliseconds before attempting to close the circuit
    * After this timeout, circuit transitions from open to half-open
+   *
    * @default 60000
    */
   resetTimeoutMs: number;
@@ -136,6 +144,7 @@ export interface RetryHooks {
 export interface RetryPolicy {
   /**
    * Maximum number of retry attempts
+   *
    * @default 3
    */
   maxAttempts: number;
@@ -143,6 +152,7 @@ export interface RetryPolicy {
   /**
    * Overall operation timeout in milliseconds
    * Prevents infinite retry loops
+   *
    * @default 60000
    */
   timeoutMs?: number;
@@ -154,6 +164,7 @@ export interface RetryPolicy {
 
   /**
    * Circuit breaker configuration
+   *
    * @default { enabled: false }
    */
   circuitBreaker?: CircuitBreakerConfig;

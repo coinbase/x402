@@ -5,11 +5,11 @@ import type { RetryPolicy, BackoffConfig } from "./types";
  */
 enum CircuitState {
   /** Normal operation - requests allowed */
-  CLOSED = 'closed',
+  CLOSED = "closed",
   /** Too many failures - requests blocked */
-  OPEN = 'open',
+  OPEN = "open",
   /** Testing if service recovered - limited requests allowed */
-  HALF_OPEN = 'half-open'
+  HALF_OPEN = "half-open",
 }
 
 /**
@@ -23,12 +23,19 @@ export class RetryExhaustedError extends Error {
   /** Total time spent retrying in milliseconds */
   public readonly totalTimeMs: number;
 
+  /**
+   * Create retry exhausted error
+   *
+   * @param attempts - Number of attempts made
+   * @param errors - All errors encountered
+   * @param totalTimeMs - Total time spent in milliseconds
+   */
   constructor(attempts: number, errors: Error[], totalTimeMs: number) {
     const lastError = errors[errors.length - 1];
     super(
-      `Payment failed after ${attempts} attempts in ${totalTimeMs}ms. Last error: ${lastError?.message || 'Unknown error'}`
+      `Payment failed after ${attempts} attempts in ${totalTimeMs}ms. Last error: ${lastError?.message || "Unknown error"}`,
     );
-    this.name = 'RetryExhaustedError';
+    this.name = "RetryExhaustedError";
     this.retriedErrors = errors;
     this.attempts = attempts;
     this.totalTimeMs = totalTimeMs;
@@ -45,9 +52,14 @@ export class CircuitBreakerOpenError extends Error {
   /** Number of consecutive failures that caused circuit to open */
   public readonly failureCount: number;
 
+  /**
+   * Create circuit breaker open error
+   *
+   * @param failureCount - Number of consecutive failures
+   */
   constructor(failureCount: number) {
     super(`Circuit breaker is open after ${failureCount} consecutive failures`);
-    this.name = 'CircuitBreakerOpenError';
+    this.name = "CircuitBreakerOpenError";
     this.failureCount = failureCount;
 
     Object.setPrototypeOf(this, CircuitBreakerOpenError.prototype);
@@ -63,9 +75,15 @@ export class RetryTimeoutError extends Error {
   /** Number of attempts made before timeout */
   public readonly attempts: number;
 
+  /**
+   * Create retry timeout error
+   *
+   * @param timeoutMs - Configured timeout in milliseconds
+   * @param attempts - Number of attempts made before timeout
+   */
   constructor(timeoutMs: number, attempts: number) {
     super(`Operation timed out after ${timeoutMs}ms (${attempts} attempts)`);
-    this.name = 'RetryTimeoutError';
+    this.name = "RetryTimeoutError";
     this.timeoutMs = timeoutMs;
     this.attempts = attempts;
 
@@ -112,10 +130,7 @@ export class RetryExecutor {
    * @throws {RetryTimeoutError} When operation timeout is exceeded
    * @throws {Error} When a non-retryable error occurs
    */
-  async execute<T>(
-    operation: () => Promise<T>,
-    policy: RetryPolicy
-  ): Promise<T> {
+  async execute<T>(operation: () => Promise<T>, policy: RetryPolicy): Promise<T> {
     const startTime = Date.now();
     const errors: Error[] = [];
     let attempt = 0;
@@ -147,7 +162,7 @@ export class RetryExecutor {
         if (!policy.errorClassifier.isRetryable(error)) {
           this.onFailure(policy, attempt, errors, Date.now() - startTime);
           // Throw original error if it's an Error or has HTTP properties, otherwise throw normalized
-          if (error instanceof Error || (error && typeof error === 'object' && 'status' in error)) {
+          if (error instanceof Error || (error && typeof error === "object" && "status" in error)) {
             throw error;
           }
           throw err;
@@ -170,6 +185,35 @@ export class RetryExecutor {
     // Should never reach here, but for type safety
     this.onFailure(policy, attempt, errors, Date.now() - startTime);
     throw new RetryExhaustedError(attempt, errors, Date.now() - startTime);
+  }
+
+  /**
+   * Reset circuit breaker state
+   *
+   * Useful for testing or manual intervention.
+   */
+  public resetCircuit(): void {
+    this.circuitState = CircuitState.CLOSED;
+    this.consecutiveFailures = 0;
+    this.circuitOpenedAt = undefined;
+  }
+
+  /**
+   * Get current circuit breaker state
+   *
+   * @returns Current circuit state
+   */
+  public getCircuitState(): string {
+    return this.circuitState;
+  }
+
+  /**
+   * Get consecutive failure count
+   *
+   * @returns Number of consecutive failures
+   */
+  public getConsecutiveFailures(): number {
+    return this.consecutiveFailures;
   }
 
   /**
@@ -200,6 +244,7 @@ export class RetryExecutor {
    * Sleep for specified milliseconds
    *
    * @param ms - Milliseconds to sleep
+   * @returns Promise that resolves after delay
    */
   private async sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -267,7 +312,7 @@ export class RetryExecutor {
     policy: RetryPolicy,
     attempts: number,
     errors: Error[],
-    totalTimeMs: number
+    totalTimeMs: number,
   ): void {
     this.consecutiveFailures++;
 
@@ -293,7 +338,7 @@ export class RetryExecutor {
   private callHook(hookFn: () => void): void {
     try {
       hookFn();
-    } catch (error) {
+    } catch {
       // Silently ignore hook errors to prevent them from breaking retry logic
       // Hooks are for observability only and should not affect operation
     }
@@ -310,43 +355,14 @@ export class RetryExecutor {
       return error;
     }
 
-    if (typeof error === 'string') {
+    if (typeof error === "string") {
       return new Error(error);
     }
 
-    if (error && typeof error === 'object' && 'message' in error) {
+    if (error && typeof error === "object" && "message" in error) {
       return new Error(String(error.message));
     }
 
-    return new Error('Unknown error occurred');
-  }
-
-  /**
-   * Reset circuit breaker state
-   *
-   * Useful for testing or manual intervention.
-   */
-  public resetCircuit(): void {
-    this.circuitState = CircuitState.CLOSED;
-    this.consecutiveFailures = 0;
-    this.circuitOpenedAt = undefined;
-  }
-
-  /**
-   * Get current circuit breaker state
-   *
-   * @returns Current circuit state
-   */
-  public getCircuitState(): string {
-    return this.circuitState;
-  }
-
-  /**
-   * Get consecutive failure count
-   *
-   * @returns Number of consecutive failures
-   */
-  public getConsecutiveFailures(): number {
-    return this.consecutiveFailures;
+    return new Error("Unknown error occurred");
   }
 }

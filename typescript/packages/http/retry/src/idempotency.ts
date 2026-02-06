@@ -34,9 +34,7 @@ export class DefaultIdempotencyKeyGenerator implements IdempotencyKeyGenerator {
     };
 
     // Create deterministic hash
-    const hash = createHash("sha256")
-      .update(JSON.stringify(params))
-      .digest("base64url");
+    const hash = createHash("sha256").update(JSON.stringify(params)).digest("base64url");
 
     return `idk_${hash}`;
   }
@@ -56,7 +54,7 @@ export class DefaultIdempotencyKeyGenerator implements IdempotencyKeyGenerator {
  * ```
  */
 export function createIdempotencyKeyGenerator(
-  generatorFn: KeyGeneratorFn
+  generatorFn: KeyGeneratorFn,
 ): IdempotencyKeyGenerator {
   return {
     generateKey: generatorFn,

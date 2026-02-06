@@ -14,7 +14,12 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   },
-  "keywords": ["x402", "retry", "idempotency", "payment"],
+  "keywords": [
+    "x402",
+    "retry",
+    "idempotency",
+    "payment"
+  ],
   "license": "Apache-2.0",
   "author": "Coinbase Inc.",
   "repository": "https://github.com/coinbase/x402",
