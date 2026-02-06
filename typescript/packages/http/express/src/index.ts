@@ -242,8 +242,7 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
-            context,
-            responseBody,
+            { request: context, responseBody },
           );
 
           // If settlement fails, return an error and do not send the buffered response

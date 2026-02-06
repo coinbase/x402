@@ -145,8 +145,7 @@ export async function handleSettlement(
       paymentPayload,
       paymentRequirements,
       declaredExtensions,
-      httpContext,
-      responseBody,
+      { request: httpContext, responseBody },
     );
 
     if (!result.success) {

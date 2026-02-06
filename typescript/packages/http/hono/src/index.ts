@@ -170,8 +170,7 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
-            context,
-            responseBody,
+            { request: context, responseBody },
           );
 
           if (!settleResult.success) {

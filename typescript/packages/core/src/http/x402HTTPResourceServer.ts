@@ -189,6 +189,17 @@ export interface HTTPRequestContext {
 }
 
 /**
+ * HTTP transport context passed to extensions for transport-aware enrichment.
+ * Contains both request context and optional response data.
+ */
+export interface HTTPTransportContext {
+  /** The HTTP request context */
+  request: HTTPRequestContext;
+  /** The response body buffer (if available for extension processing) */
+  responseBody?: Buffer;
+}
+
+/**
  * HTTP response instructions for the framework middleware
  */
 export interface HTTPResponseInstructions {
@@ -526,19 +537,16 @@ export class x402HTTPResourceServer {
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
-   * @param httpContext - Optional HTTP request context
-   * @param responseBody - Optional response body buffer for extensions
+   * @param transportContext - Optional HTTP transport context for extension enrichment
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
-    httpContext?: HTTPRequestContext,
-    responseBody?: Buffer,
+    transportContext?: HTTPTransportContext,
   ): Promise<ProcessSettleResultResponse> {
     try {
-      const transportContext = httpContext ? { httpContext, responseBody } : undefined;
 
       const settleResponse = await this.ResourceServer.settlePayment(
         paymentPayload,

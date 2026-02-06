@@ -65,7 +65,7 @@ export interface SettleContext {
 
 export interface SettleResultContext extends SettleContext {
   result: SettleResponse;
-  transportContext?: unknown; // HTTP layer sets { httpContext, responseBody }
+  transportContext?: unknown;
 }
 
 export interface SettleFailureContext extends SettleContext {
@@ -687,7 +687,7 @@ export class x402ResourceServer {
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
-   * @param transportContext - Optional transport-specific context (HTTP layer sets { httpContext, responseBody })
+   * @param transportContext - Optional transport-specific context for extension enrichment (e.g., HTTP request/response, MCP tool context)
    * @returns Settlement response
    */
   async settlePayment(
