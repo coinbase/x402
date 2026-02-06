@@ -1,8 +1,8 @@
 /**
- * OpenAI Chatbot with MCP Tools + x402 Payments
+ * Anthropic Claude Chatbot with MCP Tools + x402 Payments
  *
  * A complete chatbot implementation showing how to integrate:
- * - OpenAI GPT (the LLM)
+ * - Anthropic Claude (the LLM)
  * - MCP Client (tool discovery and execution)
  * - x402 Payment Protocol (automatic payment for paid tools)
  *
@@ -11,15 +11,13 @@
 
 import { config } from "dotenv";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { createx402MCPClient } from "@x402/mcp";
 import { privateKeyToAccount } from "viem/accounts";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import * as readline from "readline";
-import type {
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from "openai/resources/chat/completions";
+import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
 
 config();
 
@@ -27,10 +25,10 @@ config();
 // Configuration
 // ============================================================================
 
-const openaiKey = process.env.OPENAI_API_KEY;
-if (!openaiKey) {
-  console.error("❌ OPENAI_API_KEY environment variable is required");
-  console.error("   Get your API key from: https://platform.openai.com/api-keys");
+const anthropicKey = process.env.ANTHROPIC_API_KEY;
+if (!anthropicKey) {
+  console.error("❌ ANTHROPIC_API_KEY environment variable is required");
+  console.error("   Get your API key from: https://console.anthropic.com/");
   process.exit(1);
 }
 
@@ -51,32 +49,28 @@ const serverUrl = process.env.MCP_SERVER_URL || "http://localhost:4022";
  * Main chatbot loop - demonstrates real MCP client usage patterns
  */
 export async function main(): Promise<void> {
-  console.log("\n🤖 OpenAI + MCP Chatbot with x402 Payments");
+  const MODEL_NAME = "claude-3-haiku-20240307";
+  console.log("\n🤖 Anthropic Claude + MCP Chatbot with x402 Payments");
+  console.log(`   Model: ${MODEL_NAME}`);
   console.log("━".repeat(70));
 
-  // ========================================================================
-  // SETUP 1: Initialize OpenAI (the LLM)
-  // ========================================================================
-  const openai = new OpenAI({ apiKey: openaiKey });
-  console.log("✅ OpenAI client initialized");
+  // Initialize Anthropic (the LLM)
+  const anthropic = new Anthropic({ apiKey: anthropicKey });
 
-  // ========================================================================
-  // SETUP 2: Initialize MCP client (connects to tool servers)
-  // ========================================================================
+  // Initialize MCP client (connects to tool servers)
   const evmSigner = privateKeyToAccount(evmPrivateKey);
-  console.log(`💳 Wallet address: ${evmSigner.address}`);
 
   const mcpClient = createx402MCPClient({
-    name: "openai-mcp-chatbot",
+    name: "claude-mcp-chatbot",
     version: "1.0.0",
     schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(evmSigner) }],
     autoPayment: true,
     onPaymentRequested: async context => {
       const price = context.paymentRequired.accepts[0];
-      console.log(`\n💰 Payment requested for tool: ${context.toolName}`);
-      console.log(`   Amount: ${price.amount} (${price.asset})`);
+      console.log(`\n💰 Payment required for tool: ${context.toolName}`);
+      console.log(`   Amount: ${price.amount} ${price.asset?.slice(0, 10)}...`);
       console.log(`   Network: ${price.network}`);
-      console.log(`   ✅ Approving payment...\n`);
+      console.log(`💳 Processing payment...`);
       return true; // Auto-approve
     },
   });
@@ -85,39 +79,36 @@ export async function main(): Promise<void> {
   // MCP TOUCHPOINT #1: connect()
   // Establish connection to MCP server
   // ========================================================================
-  console.log(`🔌 Connecting to MCP server: ${serverUrl}`);
-  const transport = new SSEClientTransport(new URL(`${serverUrl}/sse`));
-  await mcpClient.connect(transport);
-  console.log("✅ Connected to MCP server");
+  // Handle facilitator-proxied MCP endpoints (e.g., /v2/x402/discovery/mcp)
+  // Facilitators use HTTP POST JSON-RPC (stateless), not SSE
+  // Direct MCP servers use SSE transport
+  let transport;
+  if (serverUrl.includes("/v2/x402/discovery/mcp")) {
+    transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+  } else {
+    const sseUrl = `${serverUrl}/sse`;
+    transport = new SSEClientTransport(new URL(sseUrl));
+  }
 
-  // ========================================================================
-  // MCP TOUCHPOINT #2: listTools()
+  await mcpClient.connect(transport);
+
   // Discover available tools from MCP server
-  // ========================================================================
-  console.log("\n📋 Discovering tools from MCP server...");
   const { tools: mcpTools } = await mcpClient.listTools();
-  console.log(`Found ${mcpTools.length} tools:`);
-  for (const tool of mcpTools) {
+
+  // Convert MCP tools to Anthropic format
+  const anthropicTools: Tool[] = mcpTools.map(tool => ({
+    name: tool.name,
+    description: tool.description || "",
+    input_schema: tool.inputSchema as Record<string, unknown>,
+  }));
+
+  console.log(`✅ Ready! Found ${mcpTools.length} tool(s):`);
+  mcpTools.forEach(tool => {
     const isPaid =
       tool.description?.toLowerCase().includes("payment") ||
       tool.description?.toLowerCase().includes("$");
-    console.log(`   ${isPaid ? "💰" : "🆓"} ${tool.name}: ${tool.description}`);
-  }
-
-  // ========================================================================
-  // HOST LOGIC: Convert MCP tools to OpenAI format
-  // This is not an MCP client method - it's host application logic
-  // ========================================================================
-  const openaiTools: ChatCompletionTool[] = mcpTools.map(tool => ({
-    type: "function" as const,
-    function: {
-      name: tool.name,
-      description: tool.description || "",
-      parameters: tool.inputSchema as Record<string, unknown>,
-    },
-  }));
-
-  console.log(`✅ Converted to OpenAI tool format`);
+    console.log(`   ${isPaid ? "💰" : "🆓"} ${tool.name}`);
+  });
   console.log("━".repeat(70));
 
   // ========================================================================
@@ -128,10 +119,10 @@ export async function main(): Promise<void> {
   console.log("   - 'Can you ping the server?'");
   console.log("   - 'quit' to exit\n");
 
-  const conversationHistory: ChatCompletionMessageParam[] = [
+  const conversationHistory: MessageParam[] = [
     {
-      role: "system",
-      content: `You are a helpful assistant with access to MCP tools. When users ask about weather, use the get_weather tool. Be concise and friendly.`,
+      role: "user",
+      content: `You are a helpful assistant with access to MCP tools. Be concise and friendly.`,
     },
   ];
 
@@ -153,54 +144,81 @@ export async function main(): Promise<void> {
     });
 
     // ========================================================================
-    // OPENAI CALL: Send conversation + tools to LLM
+    // ANTHROPIC CALL: Send conversation + tools to LLM
     // ========================================================================
-    let response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    let response = await anthropic.messages.create({
+      model: MODEL_NAME,
+      max_tokens: 1024,
       messages: conversationHistory,
-      tools: openaiTools,
-      tool_choice: "auto", // Let LLM decide when to use tools
+      tools: anthropicTools,
     });
-
-    let assistantMessage = response.choices[0].message;
 
     // ========================================================================
     // TOOL EXECUTION LOOP
     // This is where MCP client is actually used!
     // ========================================================================
-    let toolCallCount = 0;
-    while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-      toolCallCount++;
-      console.log(
-        `\n🔧 [Turn ${toolCallCount}] LLM is calling ${assistantMessage.tool_calls.length} tool(s)...`,
-      );
-
-      // Add assistant message with tool calls to history
-      conversationHistory.push(assistantMessage);
+    while (response.stop_reason === "tool_use") {
+      // Add assistant message to history
+      conversationHistory.push({
+        role: "assistant",
+        content: response.content,
+      });
 
       // Execute each tool call
-      const toolResults: ChatCompletionMessageParam[] = [];
+      const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
 
-      for (const toolCall of assistantMessage.tool_calls) {
-        const toolName = toolCall.function.name;
-        const toolArgs = JSON.parse(toolCall.function.arguments);
+      for (const contentBlock of response.content) {
+        if (contentBlock.type !== "tool_use") continue;
 
-        console.log(`\n   📞 Calling: ${toolName}`);
-        console.log(`   📝 Args: ${JSON.stringify(toolArgs)}`);
+        const toolName = contentBlock.name;
+        const toolArgs = contentBlock.input as Record<string, unknown>;
+
+        // Log tool selection
+        if (toolName === "search_resources") {
+          console.log(`\n🔍 Searching for available tools...`);
+        } else if (toolName === "proxy_tool_call") {
+          // Show which tool was selected from search results
+          const selectedToolName = (toolArgs as { toolName?: string })?.toolName;
+          if (selectedToolName) {
+            console.log(`\n🔧 Selected tool: ${selectedToolName}`);
+          } else {
+            console.log(`\n🔧 Selected tool: ${toolName}`);
+          }
+        } else {
+          console.log(`\n🔧 Selected tool: ${toolName}`);
+        }
 
         try {
-          // ====================================================================
-          // MCP TOUCHPOINT #3: callTool()
-          // THIS IS THE MAIN TOUCHPOINT - Execute tool via MCP
-          // Payment is handled automatically by x402MCPClient
-          // ====================================================================
-          const mcpResult = await mcpClient.callTool(toolName, toolArgs);
+          // Extract _meta from arguments if present (LLM may include it)
+          // _meta is protocol-level metadata, not part of tool arguments
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { _meta, ...cleanArgs } = toolArgs as Record<string, unknown> & { _meta?: unknown };
 
-          // Show payment info if payment was made
+          // Execute tool via MCP (payment handled automatically)
+          const mcpResult = await mcpClient.callTool(toolName, cleanArgs);
+
+          // Show search results if this was a search
+          if (toolName === "search_resources") {
+            try {
+              const resultText = mcpResult.content[0]?.text || JSON.stringify(mcpResult.content[0]);
+              const searchResult =
+                typeof resultText === "string" ? JSON.parse(resultText) : resultText;
+              if (searchResult?.tools && Array.isArray(searchResult.tools)) {
+                console.log(`   Found ${searchResult.tools.length} tool(s):`);
+                searchResult.tools.forEach((tool: { name?: string }) => {
+                  if (tool.name) {
+                    console.log(`      • ${tool.name}`);
+                  }
+                });
+              }
+            } catch {
+              // If parsing fails, just continue
+            }
+          }
+
+          // Show payment transaction if payment was made
           if (mcpResult.paymentMade && mcpResult.paymentResponse) {
-            console.log(`   💳 Payment settled!`);
-            console.log(`      Transaction: ${mcpResult.paymentResponse.transaction}`);
-            console.log(`      Network: ${mcpResult.paymentResponse.network}`);
+            console.log(`✅ Payment transaction: ${mcpResult.paymentResponse.transaction}`);
           }
 
           // Extract text content from MCP result
@@ -209,50 +227,57 @@ export async function main(): Promise<void> {
             JSON.stringify(mcpResult.content[0]) ||
             "No content returned";
 
-          console.log(
-            `   ✅ Result: ${resultText.substring(0, 200)}${resultText.length > 200 ? "..." : ""}`,
-          );
-
-          // Format for OpenAI
+          // Format for Anthropic
           toolResults.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: resultText,
+            type: "tool_result",
+            tool_use_id: contentBlock.id,
+            content: typeof resultText === "string" ? resultText : JSON.stringify(resultText),
           });
         } catch (error) {
-          console.log(`   ❌ Error: ${error instanceof Error ? error.message : error}`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.log(`   ❌ Error: ${errorMessage}`);
 
-          // Send error to OpenAI so it can handle it
+          // Send error to Anthropic so it can handle it
           toolResults.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: `Error executing tool: ${error instanceof Error ? error.message : error}`,
+            type: "tool_result",
+            tool_use_id: contentBlock.id,
+            content: `Error: ${errorMessage}`,
           });
         }
       }
 
       // Add tool results to conversation
-      conversationHistory.push(...toolResults);
+      conversationHistory.push({
+        role: "user",
+        content: toolResults,
+      });
 
       // ========================================================================
       // Get LLM's response after seeing tool results
       // ========================================================================
-      response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      response = await anthropic.messages.create({
+        model: MODEL_NAME,
+        max_tokens: 1024,
         messages: conversationHistory,
-        tools: openaiTools,
-        tool_choice: "auto",
+        tools: anthropicTools,
       });
-
-      assistantMessage = response.choices[0].message;
     }
 
     // ========================================================================
     // Display final assistant response
     // ========================================================================
-    if (assistantMessage.content) {
-      conversationHistory.push(assistantMessage);
-      console.log(`\n🤖 Bot: ${assistantMessage.content}\n`);
+    // Extract text from Anthropic's content blocks
+    const textContent = response.content
+      .filter(block => block.type === "text")
+      .map(block => (block as { type: "text"; text: string }).text)
+      .join("\n");
+
+    if (textContent) {
+      conversationHistory.push({
+        role: "assistant",
+        content: response.content,
+      });
+      console.log(`\n🤖 Bot: ${textContent}\n`);
     }
   };
 

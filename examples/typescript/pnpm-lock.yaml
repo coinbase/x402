@@ -1503,6 +1503,9 @@ importers:
 
   clients/mcp-chatbot:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.39.0
+        version: 0.39.0(encoding@0.1.13)
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.1
         version: 1.17.3
@@ -1518,9 +1521,6 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
-      openai:
-        specifier: ^4.77.3
-        version: 4.104.0(encoding@0.1.13)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
       viem:
         specifier: ^2.39.0
         version: 2.43.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
