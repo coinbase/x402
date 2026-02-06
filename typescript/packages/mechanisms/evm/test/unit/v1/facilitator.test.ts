@@ -9,10 +9,11 @@ describe("ExactEvmSchemeV1", () => {
 
   beforeEach(() => {
     mockSigner = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      getAddresses: vi.fn().mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"]),
       readContract: vi.fn().mockResolvedValue(BigInt("10000000")), // 10 USDC
       verifyTypedData: vi.fn().mockResolvedValue(true),
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
+      sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       getCode: vi.fn().mockResolvedValue("0x"),
     };
@@ -360,6 +361,175 @@ describe("ExactEvmSchemeV1", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe("invalid_exact_evm_payload_signature");
+    });
+  });
+
+  describe("network-specific timeout configuration", () => {
+    it("should use default timeout for Base networks", async () => {
+      const timeoutCapture = vi.fn().mockImplementation(({ hash: _hash, timeout }) => {
+        expect(timeout).toBe(60000); // Base should get 60s timeout
+        return Promise.resolve({ status: "success" });
+      });
+      mockSigner.waitForTransactionReceipt = timeoutCapture;
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:8453", // Base mainnet
+        payload: {
+          signature:
+            "0xvalidsignature123456789012345678901234567890123456789012345678901234567890abcdef123456789012345678901234567890123456789012345678901234",
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: (Math.floor(Date.now() / 1000) - 300).toString(),
+            validBefore: (Math.floor(Date.now() / 1000) + 3600).toString(),
+            nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "eip155:8453",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      await facilitator.settle(payload as never, requirements as never);
+    });
+
+    it("should use default timeout for Ethereum networks", async () => {
+      const timeoutCapture = vi.fn().mockImplementation(({ hash: _hash, timeout }) => {
+        expect(timeout).toBe(30000); // Ethereum should get 30s timeout
+        return Promise.resolve({ status: "success" });
+      });
+      mockSigner.waitForTransactionReceipt = timeoutCapture;
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:1", // Ethereum mainnet
+        payload: {
+          signature:
+            "0xvalidsignature123456789012345678901234567890123456789012345678901234567890abcdef123456789012345678901234567890123456789012345678901234",
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: (Math.floor(Date.now() / 1000) - 300).toString(),
+            validBefore: (Math.floor(Date.now() / 1000) + 3600).toString(),
+            nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "eip155:1",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      await facilitator.settle(payload as never, requirements as never);
+    });
+
+    it("should use fallback timeout for unknown networks", async () => {
+      const timeoutCapture = vi.fn().mockImplementation(({ hash: _hash, timeout }) => {
+        expect(timeout).toBe(15000); // Unknown network should get default 15s timeout
+        return Promise.resolve({ status: "success" });
+      });
+      mockSigner.waitForTransactionReceipt = timeoutCapture;
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:9999", // Unknown network
+        payload: {
+          signature:
+            "0xvalidsignature123456789012345678901234567890123456789012345678901234567890abcdef123456789012345678901234567890123456789012345678901234",
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: (Math.floor(Date.now() / 1000) - 300).toString(),
+            validBefore: (Math.floor(Date.now() / 1000) + 3600).toString(),
+            nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "eip155:9999",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      await facilitator.settle(payload as never, requirements as never);
+    });
+
+    it("should allow custom timeout configuration", async () => {
+      const customTimeouts = {
+        "eip155:8453": 120000, // Custom 2 minute timeout for Base
+        "eip155:1": 45000, // Custom 45s timeout for Ethereum
+      };
+
+      const timeoutCapture = vi.fn().mockImplementation(({ hash: _hash, timeout }) => {
+        expect(timeout).toBe(120000); // Should use custom Base timeout
+        return Promise.resolve({ status: "success" });
+      });
+      mockSigner.waitForTransactionReceipt = timeoutCapture;
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner, {
+        networkTimeouts: customTimeouts,
+      });
+
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:8453",
+        payload: {
+          signature:
+            "0xvalidsignature123456789012345678901234567890123456789012345678901234567890abcdef123456789012345678901234567890123456789012345678901234",
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: (Math.floor(Date.now() / 1000) - 300).toString(),
+            validBefore: (Math.floor(Date.now() / 1000) + 3600).toString(),
+            nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "eip155:8453",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      await facilitator.settle(payload as never, requirements as never);
     });
   });
 });

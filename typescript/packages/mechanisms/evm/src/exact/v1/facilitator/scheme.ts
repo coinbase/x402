@@ -22,7 +22,31 @@ export interface ExactEvmSchemeV1Config {
    * @default false
    */
   deployERC4337WithEIP6492?: boolean;
+  /**
+   * Network-specific timeout configurations for transaction confirmation.
+   * Key is the network identifier (e.g., "eip155:8453"), value is timeout in milliseconds.
+   *
+   * @default Uses DEFAULT_NETWORK_TIMEOUTS
+   */
+  networkTimeouts?: Record<string, number>;
 }
+
+/**
+ * Default network-specific timeout configurations (in milliseconds).
+ * Networks with slower block times need longer timeouts to avoid race conditions.
+ */
+const DEFAULT_NETWORK_TIMEOUTS: Record<string, number> = {
+  "eip155:8453": 60000, // Base: 60s (blocks: 10-28s + variance)
+  "eip155:84532": 60000, // Base Sepolia: 60s (same as Base)
+  "eip155:1": 30000, // Ethereum Mainnet: 30s (blocks: ~12s + variance)
+  "eip155:11155111": 30000, // Sepolia: 30s (same as Ethereum)
+  // Default fallback for unlisted networks
+} as const;
+
+/**
+ * Default timeout for networks not explicitly configured (in milliseconds).
+ */
+const DEFAULT_TIMEOUT_MS = 15000; // 15 seconds
 
 /**
  * EVM facilitator implementation for the Exact payment scheme (V1).
@@ -30,7 +54,9 @@ export interface ExactEvmSchemeV1Config {
 export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = "eip155:*";
-  private readonly config: Required<ExactEvmSchemeV1Config>;
+  private readonly config: Required<ExactEvmSchemeV1Config> & {
+    networkTimeouts: Record<string, number>;
+  };
 
   /**
    * Creates a new ExactEvmFacilitatorV1 instance.
@@ -44,6 +70,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
   ) {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
+      networkTimeouts: config?.networkTimeouts ?? DEFAULT_NETWORK_TIMEOUTS,
     };
   }
 
@@ -387,8 +414,12 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         });
       }
 
-      // Wait for transaction confirmation
-      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
+      // Wait for transaction confirmation with network-specific timeout
+      const timeoutMs = this.getNetworkTimeout(payloadV1.network);
+      const receipt = await this.signer.waitForTransactionReceipt({
+        hash: tx,
+        timeout: timeoutMs,
+      });
 
       if (receipt.status !== "success") {
         return {
@@ -416,5 +447,17 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         payer: exactEvmPayload.authorization.from,
       };
     }
+  }
+
+  /**
+   * Get the transaction timeout for a specific network.
+   * Networks with slower block times (like Base) need longer timeouts.
+   *
+   * @param network - The network identifier (e.g., "eip155:8453")
+   * @returns Timeout in milliseconds
+   * @private
+   */
+  private getNetworkTimeout(network: string): number {
+    return this.config.networkTimeouts[network] ?? DEFAULT_TIMEOUT_MS;
   }
 }
