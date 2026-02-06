@@ -30,3 +30,11 @@ export {
   defaultRetryPolicy,
   createRetryPolicy,
 } from "./policy";
+
+// Retry Executor
+export {
+  RetryExecutor,
+  RetryExhaustedError,
+  CircuitBreakerOpenError,
+  RetryTimeoutError,
+} from "./executor";
