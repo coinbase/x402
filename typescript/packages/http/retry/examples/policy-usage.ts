@@ -70,11 +70,11 @@ const circuitBreakerPolicy = createRetryPolicy({
   },
   hooks: {
     onCircuitOpen: (failures) => {
-      console.log(`⚠️  Circuit breaker opened after ${failures} consecutive failures`);
-      console.log("   Subsequent requests will fail fast until circuit resets");
+      console.log(`Circuit breaker opened after ${failures} consecutive failures`);
+      console.log("Subsequent requests will fail fast until circuit resets");
     },
     onCircuitClose: () => {
-      console.log("✅ Circuit breaker closed - normal operation resumed");
+      console.log("Circuit breaker closed - normal operation resumed");
     },
   },
 });
@@ -101,19 +101,19 @@ const observablePolicy = createRetryPolicy({
   hooks: {
     onRetry: (attempt, error, backoffMs) => {
       console.log(
-        `🔄 Retry attempt ${attempt}: ${error.message} (waiting ${backoffMs}ms)`
+        `Retry attempt ${attempt}: ${error.message} (waiting ${backoffMs}ms)`
       );
     },
     onSuccess: (attempts, totalTimeMs) => {
       console.log(
-        `✅ Success after ${attempts} attempt(s) in ${totalTimeMs}ms`
+        `Success after ${attempts} attempt(s) in ${totalTimeMs}ms`
       );
     },
     onFailure: (attempts, errors, totalTimeMs) => {
       console.log(
-        `❌ Failed after ${attempts} attempt(s) in ${totalTimeMs}ms`
+        `Failed after ${attempts} attempt(s) in ${totalTimeMs}ms`
       );
-      console.log(`   Errors: ${errors.map((e) => e.message).join(", ")}`);
+      console.log(`Errors: ${errors.map((e) => e.message).join(", ")}`);
     },
   },
 });
@@ -213,12 +213,9 @@ const policies = {
 };
 
 console.log("Policy comparison:");
-console.log("┌─────────────┬──────────┬───────────┬────────────┐");
-console.log("│ Policy      │ Attempts │ Initial   │ Multiplier │");
-console.log("├─────────────┼──────────┼───────────┼────────────┤");
 for (const [name, policy] of Object.entries(policies)) {
-  console.log(
-    `│ ${name.padEnd(11)} │ ${policy.maxAttempts.toString().padEnd(8)} │ ${policy.backoff.initialMs.toString().padEnd(9)} │ ${policy.backoff.multiplier.toString().padEnd(10)} │`
-  );
+  console.log(`  ${name}:`);
+  console.log(`    Max attempts: ${policy.maxAttempts}`);
+  console.log(`    Initial backoff: ${policy.backoff.initialMs}ms`);
+  console.log(`    Multiplier: ${policy.backoff.multiplier}`);
 }
-console.log("└─────────────┴──────────┴───────────┴────────────┘");
