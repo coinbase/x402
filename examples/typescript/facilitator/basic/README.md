@@ -28,7 +28,7 @@ and fill required environment variables:
 ```bash
 cd ../../
 pnpm install && pnpm build
-cd facilitator
+cd facilitator/basic
 ```
 
 3. Run the server:

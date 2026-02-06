@@ -1,6 +1,6 @@
 {
   "name": "@x402/hono",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -39,8 +39,8 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@x402/core": "workspace:^",
-    "@x402/extensions": "workspace:^",
+    "@x402/core": "workspace:~",
+    "@x402/extensions": "workspace:~",
     "zod": "^3.24.2"
   },
   "peerDependencies": {

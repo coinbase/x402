@@ -232,5 +232,6 @@ app.get("/supported", async (req, res) => {
 
 // Start the server
 app.listen(parseInt(PORT), () => {
-  console.log("Facilitator listening");
+  console.log(`🚀 Facilitator listening on http://localhost:${PORT}`);
+  console.log();
 });
