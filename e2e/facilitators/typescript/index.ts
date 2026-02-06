@@ -3,7 +3,7 @@
  *
  * This facilitator provides HTTP endpoints for payment verification and settlement
  * using the x402 TypeScript SDK.
- * 
+ *
  * Features:
  * - Payment verification and settlement
  * - Bazaar discovery extension support
@@ -26,6 +26,11 @@ import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import {
+  createEd25519Signer,
+  type FacilitatorStellarSigner,
+} from "@x402/stellar";
+import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -39,9 +44,12 @@ dotenv.config();
 // Configuration
 const PORT = process.env.PORT || "4022";
 const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
-const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const SVM_NETWORK =
+  process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const STELLAR_NETWORK = process.env.STELLAR_NETWORK || "stellar:testnet";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
+const STELLAR_RPC_URL = process.env.STELLAR_RPC_URL;
 
 // Map CAIP-2 network IDs to viem chains
 function getEvmChain(network: string): Chain {
@@ -56,8 +64,10 @@ function getEvmChain(network: string): Chain {
 
 console.log(`🌐 EVM Network: ${EVM_NETWORK}`);
 console.log(`🌐 SVM Network: ${SVM_NETWORK}`);
+console.log(`🌐 Stellar Network: ${STELLAR_NETWORK}`);
 if (EVM_RPC_URL) console.log(`🌐 EVM RPC URL: ${EVM_RPC_URL}`);
 if (SVM_RPC_URL) console.log(`🌐 SVM RPC URL: ${SVM_RPC_URL}`);
+if (STELLAR_RPC_URL) console.log(`🌐 Stellar RPC URL: ${STELLAR_RPC_URL}`);
 
 // Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
@@ -70,14 +80,32 @@ if (!process.env.SVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
-// Initialize the EVM account from private key
-const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
-console.info(`EVM Facilitator account: ${evmAccount.address}`);
-
+// Stellar is optional
+const hasStellarSupport = !!process.env.STELLAR_PRIVATE_KEY;
 
 // Initialize the EVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
+
+// Initialize the SVM account from private key
+const svmAccount = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
+console.info(`SVM Facilitator account: ${svmAccount.address}`);
+
+// Initialize the Stellar signer from private key (optional)
+let stellarSigner: FacilitatorStellarSigner | null = null;
+if (hasStellarSupport) {
+  stellarSigner = createEd25519Signer(
+    process.env.STELLAR_PRIVATE_KEY as string,
+    STELLAR_NETWORK as Network,
+  );
+  console.info(`Stellar Facilitator enabled`);
+} else {
+  console.info(`Stellar Facilitator disabled (no STELLAR_PRIVATE_KEY)`);
+}
 
 // Create a Viem client with both wallet and public capabilities
 const evmChain = getEvmChain(EVM_NETWORK);
@@ -128,7 +156,10 @@ const evmSigner = toFacilitatorEvmSigner({
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
+const svmSigner = toFacilitatorSvmSigner(
+  svmAccount,
+  SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined,
+);
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -152,7 +183,17 @@ registerExactSvmScheme(facilitator, {
   networks: SVM_NETWORK as Network,
 });
 
-facilitator.registerExtension(BAZAAR)
+// Register Stellar scheme only if configured
+if (stellarSigner) {
+  registerExactStellarScheme(facilitator, {
+    signers: [stellarSigner],
+    networks: STELLAR_NETWORK as Network,
+    rpcConfig: STELLAR_RPC_URL ? { url: STELLAR_RPC_URL } : undefined,
+  });
+}
+
+facilitator
+  .registerExtension(BAZAAR)
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation
@@ -161,7 +202,10 @@ facilitator.registerExtension(BAZAAR)
       verifiedPayments.set(paymentHash, Date.now());
 
       // Hook 2: Extract and catalog bazaar discovery info
-      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
+      const discovered = extractDiscoveryInfo(
+        context.paymentPayload,
+        context.requirements,
+      );
       if (discovered) {
         bazaarCatalog.catalogResource(
           discovered.resourceUrl,
@@ -170,7 +214,9 @@ facilitator.registerExtension(BAZAAR)
           discovered.discoveryInfo,
           context.requirements,
         );
-        console.log(`📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`);
+        console.log(
+          `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
+        );
       }
     }
   })
@@ -220,12 +266,15 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
- * 
+ *
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -253,7 +302,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
@@ -280,7 +329,10 @@ app.post("/settle", async (req, res) => {
     console.error("Settle error:", error);
 
     // Check if this was an abort from hook
-    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Settlement aborted:")
+    ) {
       // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,
@@ -335,6 +387,7 @@ app.get("/health", (req, res) => {
     status: "ok",
     evmNetwork: EVM_NETWORK,
     svmNetwork: SVM_NETWORK,
+    ...(hasStellarSupport && { stellarNetwork: STELLAR_NETWORK }),
     facilitator: "typescript",
     version: "2.0.0",
     extensions: [BAZAAR],
@@ -363,8 +416,9 @@ app.listen(parseInt(PORT), () => {
 ║           x402 TypeScript Facilitator                  ║
 ╠════════════════════════════════════════════════════════╣
 ║  Server:     http://localhost:${PORT}                  ║
-║  EVM Network:    ${EVM_NETWORK}                        ║
-║  SVM Network:    ${SVM_NETWORK}                        ║
+║  EVM Network:     ${EVM_NETWORK}                       ║
+║  SVM Network:     ${SVM_NETWORK}                       ║
+║  Stellar Network: ${hasStellarSupport ? STELLAR_NETWORK : "disabled"}║
 ║  Address:    ${evmAccount.address}                        ║
 ║  Extensions: bazaar                                    ║
 ║                                                        ║

@@ -1,8 +1,10 @@
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
+import { wrapFetchWithPayment } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { registerExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
@@ -19,6 +21,12 @@ const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.S
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: evmAccount });
 registerExactSvmScheme(client, { signer: svmSigner });
+
+// Conditionally register Stellar scheme if private key is provided
+if (process.env.STELLAR_PRIVATE_KEY) {
+  const stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
+  registerExactStellarScheme(client, { signer: stellarSigner });
+}
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 

@@ -1,6 +1,6 @@
 import type { NetworkSet } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm';
+export type ProtocolFamily = 'evm' | 'svm' | 'stellar';
 
 export interface ClientResult {
   success: boolean;
@@ -13,6 +13,7 @@ export interface ClientResult {
 export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
+  stellarPrivateKey?: string;
   serverUrl: string;
   endpointPath: string;
 }
@@ -21,6 +22,7 @@ export interface ServerConfig {
   port: number;
   evmPayTo: string;
   svmPayTo: string;
+  stellarPayTo?: string;
   networks: NetworkSet;
   facilitatorUrl?: string;
 }
