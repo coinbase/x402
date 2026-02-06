@@ -36,7 +36,7 @@ export {
   hashCanonical,
   getCanonicalBytes,
   // JWS
-  signJWS,
+  createJWS,
   extractJWSHeader,
   extractJWSPayload,
   // EIP-712

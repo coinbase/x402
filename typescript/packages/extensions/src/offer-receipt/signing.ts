@@ -167,16 +167,24 @@ export function getCanonicalBytes(obj: unknown): Uint8Array {
 // ============================================================================
 
 /**
- * Sign a payload using JWS Compact Serialization
+ * Create a JWS Compact Serialization from a payload
+ *
+ * Assembles the full JWS structure (header.payload.signature) using the
+ * signer's algorithm and kid. The signer only needs to sign bytes and
+ * return the base64url-encoded signature.
  *
  * @param payload - The payload object to sign
  * @param signer - The JWS signer
  * @returns The JWS compact serialization string
  */
-export async function signJWS<T extends object>(payload: T, signer: JWSSigner): Promise<string> {
+export async function createJWS<T extends object>(payload: T, signer: JWSSigner): Promise<string> {
+  const headerObj = { alg: signer.algorithm, kid: signer.kid };
+  const headerB64 = jose.base64url.encode(new TextEncoder().encode(JSON.stringify(headerObj)));
   const canonical = canonicalize(payload);
-  const payloadBytes = new TextEncoder().encode(canonical);
-  return signer.sign(payloadBytes);
+  const payloadB64 = jose.base64url.encode(new TextEncoder().encode(canonical));
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signatureB64 = await signer.sign(signingInput);
+  return `${headerB64}.${payloadB64}.${signatureB64}`;
 }
 
 /**
@@ -551,7 +559,7 @@ export async function createOfferJWS(
   signer: JWSSigner,
 ): Promise<JWSSignedOffer> {
   const payload = createOfferPayload(resourceUrl, input);
-  const jws = await signJWS(payload, signer);
+  const jws = await createJWS(payload, signer);
   return {
     format: "jws",
     acceptIndex: input.acceptIndex,
@@ -663,7 +671,7 @@ export async function createReceiptJWS(
   signer: JWSSigner,
 ): Promise<JWSSignedReceipt> {
   const payload = createReceiptPayloadForJWS(input);
-  const jws = await signJWS(payload, signer);
+  const jws = await createJWS(payload, signer);
   return { format: "jws", signature: jws };
 }
 

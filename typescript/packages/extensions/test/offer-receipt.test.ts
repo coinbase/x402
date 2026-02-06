@@ -13,6 +13,9 @@ import {
   canonicalize,
   hashCanonical,
   getCanonicalBytes,
+  createJWS,
+  extractJWSHeader,
+  extractJWSPayload,
   createOfferJWS,
   createOfferEIP712,
   extractOfferPayload,
@@ -52,10 +55,88 @@ import {
   type JWSSignedOffer,
 } from "../src/offer-receipt";
 
-import { createJWSSignerFromJWK, generateES256KKeyPair } from "./offer-receipt-test-utils";
+import {
+  createES256Signer,
+  generateES256KeyPair,
+  createES256KSigner,
+  generateES256KKeyPair,
+} from "./offer-receipt-test-utils";
 
 const TEST_PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
+
+// ============================================================================
+// Core JWS Assembly Tests (Layer 1)
+// These tests verify createJWS produces valid JWS compact serialization.
+// Higher-level tests (createOfferJWS, createReceiptJWS) depend on this.
+// ============================================================================
+
+describe("createJWS (Core JWS Assembly)", () => {
+  let signer: JWSSigner;
+  let publicKeyJWK: jose.JWK;
+
+  beforeAll(async () => {
+    const keyPair = await generateES256KeyPair();
+    publicKeyJWK = keyPair.publicKeyJWK;
+    signer = createES256Signer(keyPair.privateKey, "did:web:example.com#key-1");
+  });
+
+  it("produces valid JWS compact serialization (header.payload.signature)", async () => {
+    const payload = { test: "data", number: 42 };
+    const jws = await createJWS(payload, signer);
+
+    // Must be three dot-separated parts
+    const parts = jws.split(".");
+    expect(parts).toHaveLength(3);
+    expect(parts[0].length).toBeGreaterThan(0); // header
+    expect(parts[1].length).toBeGreaterThan(0); // payload
+    expect(parts[2].length).toBeGreaterThan(0); // signature
+  });
+
+  it("includes alg and kid in JWS header", async () => {
+    const payload = { test: "data" };
+    const jws = await createJWS(payload, signer);
+
+    const header = extractJWSHeader(jws);
+    expect(header.alg).toBe("ES256");
+    expect(header.kid).toBe("did:web:example.com#key-1");
+  });
+
+  it("encodes payload as canonicalized JSON", async () => {
+    // Keys in different order should produce same canonical form
+    const payload = { z: 1, a: 2 };
+    const jws = await createJWS(payload, signer);
+
+    const decoded = extractJWSPayload<typeof payload>(jws);
+    expect(decoded).toEqual({ a: 2, z: 1 }); // Canonicalized order
+  });
+
+  it("produces signature verifiable with jose.compactVerify", async () => {
+    const payload = { resourceUrl: "https://example.com", amount: "1000" };
+    const jws = await createJWS(payload, signer);
+
+    const key = await jose.importJWK(publicKeyJWK);
+    const { payload: verifiedPayload } = await jose.compactVerify(jws, key);
+    const decoded = JSON.parse(new TextDecoder().decode(verifiedPayload));
+
+    expect(decoded.resourceUrl).toBe("https://example.com");
+    expect(decoded.amount).toBe("1000");
+  });
+
+  it("round-trips through extractJWSHeader and extractJWSPayload", async () => {
+    const payload = { version: 1, data: "test" };
+    const jws = await createJWS(payload, signer);
+
+    // Should be able to extract header and payload
+    const header = extractJWSHeader(jws);
+    const extractedPayload = extractJWSPayload<typeof payload>(jws);
+
+    expect(header.alg).toBe("ES256");
+    expect(header.kid).toBe("did:web:example.com#key-1");
+    expect(extractedPayload.version).toBe(1);
+    expect(extractedPayload.data).toBe("test");
+  });
+});
 
 describe("x402 Offer/Receipt Extension", () => {
   describe("§3.1 Common Object Shape", () => {
@@ -63,7 +144,7 @@ describe("x402 Offer/Receipt Extension", () => {
       let signer: JWSSigner;
       beforeAll(async () => {
         const keyPair = await generateES256KKeyPair();
-        signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+        signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       });
 
       it("JWS offer has format='jws', signature field, no payload field", async () => {
@@ -169,7 +250,7 @@ describe("x402 Offer/Receipt Extension", () => {
     it("JWS header MUST include alg and kid", async () => {
       const keyPair = await generateES256KKeyPair();
       const expectedKid = "did:web:api.example.com#key-1";
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, expectedKid);
+      const signer = await createES256KSigner(keyPair.privateKey, expectedKid);
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
         {
@@ -193,7 +274,7 @@ describe("x402 Offer/Receipt Extension", () => {
   describe("§4.2 Offer Payload Fields", () => {
     it("Offer payload includes all required fields per spec v1.0", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const beforeCreate = Math.floor(Date.now() / 1000);
       const offer = await createOfferJWS(
         "https://api.example.com/premium",
@@ -226,7 +307,7 @@ describe("x402 Offer/Receipt Extension", () => {
   describe("§5.2 Receipt Payload Fields (Privacy-Minimal)", () => {
     it("JWS receipt omits transaction when not provided (privacy-minimal)", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const receipt = await createReceiptJWS(
         {
           resourceUrl: "https://api.example.com/resource",
@@ -248,7 +329,7 @@ describe("x402 Offer/Receipt Extension", () => {
 
     it("JWS receipt includes transaction when provided", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const receipt = await createReceiptJWS(
         {
           resourceUrl: "https://api.example.com/resource",
@@ -296,7 +377,7 @@ describe("x402 Offer/Receipt Extension", () => {
   describe("Cryptographic Verification", () => {
     it("JWS signature verifies with jose.compactVerify", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const publicKey = await jose.importJWK(keyPair.publicKey);
 
       const offer = await createOfferJWS(
@@ -396,7 +477,7 @@ describe("Attestation Helper", () => {
   describe("extractReceiptPayload", () => {
     it("extracts payload from JWS receipt", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const receipt = await createReceiptJWS(
         {
           resourceUrl: "https://api.example.com/resource",
@@ -434,7 +515,7 @@ describe("Client Utilities", () => {
   describe("extractOffersFromPaymentRequired", () => {
     it("extracts offers from PaymentRequired extensions", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer1 = await createOfferJWS(
         "https://api.example.com/resource",
@@ -496,7 +577,7 @@ describe("Client Utilities", () => {
   describe("decodeSignedOffers", () => {
     it("decodes JWS offers with payload fields at top level", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -552,7 +633,7 @@ describe("Client Utilities", () => {
   describe("findAcceptsObjectFromSignedOffer", () => {
     it("finds matching accepts entry using acceptIndex hint", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -585,7 +666,7 @@ describe("Client Utilities", () => {
 
     it("finds matching accepts entry with DecodedOffer", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -619,7 +700,7 @@ describe("Client Utilities", () => {
 
     it("falls back to searching all accepts when hint misses", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -652,7 +733,7 @@ describe("Client Utilities", () => {
 
     it("returns undefined when no match found", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -686,7 +767,7 @@ describe("Client Utilities", () => {
   describe("extractReceiptFromResponse", () => {
     it("extracts receipt from PAYMENT-RESPONSE header", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const receipt = await createReceiptJWS(
         {
@@ -718,7 +799,7 @@ describe("Client Utilities", () => {
 
     it("extracts receipt from X-PAYMENT-RESPONSE header", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const receipt = await createReceiptJWS(
         {
@@ -772,7 +853,7 @@ describe("Client Utilities", () => {
   describe("verifyReceiptMatchesOffer", () => {
     it("returns true when receipt matches offer and payer", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const payerAddress = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
       const offer = await createOfferJWS(
@@ -804,7 +885,7 @@ describe("Client Utilities", () => {
 
     it("returns true with case-insensitive payer address match", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -838,7 +919,7 @@ describe("Client Utilities", () => {
 
     it("returns false when resourceUrl does not match", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const payerAddress = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
       const offer = await createOfferJWS(
@@ -870,7 +951,7 @@ describe("Client Utilities", () => {
 
     it("returns false when network does not match", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const payerAddress = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
       const offer = await createOfferJWS(
@@ -902,7 +983,7 @@ describe("Client Utilities", () => {
 
     it("returns false when payer does not match any address", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
       const offer = await createOfferJWS(
         "https://api.example.com/resource",
@@ -936,7 +1017,7 @@ describe("Client Utilities", () => {
 
     it("returns true when payer matches one of multiple addresses", async () => {
       const keyPair = await generateES256KKeyPair();
-      const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+      const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
       const payerAddress = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
       const offer = await createOfferJWS(
@@ -1154,7 +1235,7 @@ describe("Server Extension Utilities", () => {
   describe("createJWSOfferReceiptIssuer", () => {
     it("creates issuer with correct properties", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(
+      const jwsSigner = await createES256KSigner(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
@@ -1169,7 +1250,7 @@ describe("Server Extension Utilities", () => {
 
     it("issueOffer creates valid JWS offer", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(
+      const jwsSigner = await createES256KSigner(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
@@ -1190,7 +1271,7 @@ describe("Server Extension Utilities", () => {
 
     it("issueReceipt creates valid JWS receipt", async () => {
       const keyPair = await generateES256KKeyPair();
-      const jwsSigner = await createJWSSignerFromJWK(
+      const jwsSigner = await createES256KSigner(
         keyPair.privateKey,
         "did:web:api.example.com#key-1",
       );
@@ -1403,7 +1484,7 @@ describe("Signature Verification", () => {
     describe("verifyOfferSignatureJWS", () => {
       it("should verify a JWS signed offer with explicit public key", async () => {
         const keyPair = await generateES256KKeyPair();
-        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+        const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
         const offer = await createOfferJWS(
           "https://api.example.com/resource",
@@ -1428,7 +1509,7 @@ describe("Signature Verification", () => {
 
       it("should verify a JWS signed offer with JWK public key", async () => {
         const keyPair = await generateES256KKeyPair();
-        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+        const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
         const offer = await createOfferJWS(
           "https://api.example.com/resource",
@@ -1453,7 +1534,7 @@ describe("Signature Verification", () => {
         const keyPair = await generateES256KKeyPair();
         // Create signer with did:jwk kid (self-contained key)
         const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(keyPair.publicKey))}#0`;
-        const signer = await createJWSSignerFromJWK(keyPair.privateKey, kid);
+        const signer = await createES256KSigner(keyPair.privateKey, kid);
 
         const offer = await createOfferJWS(
           "https://api.example.com/resource",
@@ -1515,7 +1596,7 @@ describe("Signature Verification", () => {
     describe("verifyReceiptSignatureJWS", () => {
       it("should verify a JWS signed receipt", async () => {
         const keyPair = await generateES256KKeyPair();
-        const signer = await createJWSSignerFromJWK(keyPair.privateKey, "did:web:example.com");
+        const signer = await createES256KSigner(keyPair.privateKey, "did:web:example.com");
 
         const receipt = await createReceiptJWS(
           {
@@ -1537,7 +1618,7 @@ describe("Signature Verification", () => {
       it("should verify a JWS signed receipt by extracting key from did:jwk kid", async () => {
         const keyPair = await generateES256KKeyPair();
         const kid = `did:jwk:${jose.base64url.encode(JSON.stringify(keyPair.publicKey))}#0`;
-        const signer = await createJWSSignerFromJWK(keyPair.privateKey, kid);
+        const signer = await createES256KSigner(keyPair.privateKey, kid);
 
         const receipt = await createReceiptJWS(
           {
