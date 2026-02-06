@@ -1,0 +1,7 @@
+{
+  "name": "V402Pay",
+  "description": "Payment gateway for x402—like Stripe for crypto. Enterprise-grade infrastructure: instant settlement, paywalls, refunds, reconciliation, and webhooks. Built on x402 with v402 application layer for gasless payments; merchants integrate without running facilitators.",
+  "logoUrl": "/logos/v402pay.png",
+  "websiteUrl": "https://v402pay.onvoyage.ai/",
+  "category": "Infrastructure & Tooling"
+}
