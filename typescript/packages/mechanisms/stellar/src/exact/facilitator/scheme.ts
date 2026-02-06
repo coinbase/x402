@@ -16,6 +16,7 @@ import {
   getRpcClient,
   getNetworkPassphrase,
   isStellarNetwork,
+  RpcConfig,
 } from "../../utils";
 import type { FacilitatorStellarSigner } from "../../signer";
 import type {
@@ -30,6 +31,18 @@ import type {
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
 const DEFAULT_MAX_TRANSACTION_FEE_STROOPS = 50_000;
+
+/**
+ * Returns a round-robin selector for choosing which signer to use.
+ * Each invocation returns a new selector with its own counter.
+ *
+ * @returns A function that selects the next address from the given array on each call
+ */
+const roundRobinSelectSigner = (): ((addresses: readonly string[]) => string) => {
+  let index = 0;
+  return addrs => addrs[index++ % addrs.length];
+};
+
 /**
  * Helper to create a `VerifyResponse` with `isValid: false`.
  *
@@ -58,22 +71,55 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = STELLAR_WILDCARD_CAIP2;
 
+  public readonly signingAddresses: ReadonlySet<string>;
+  public readonly areFeesSponsored: boolean;
+  public readonly rpcConfig?: RpcConfig;
+  public readonly maxTransactionFeeStroops: number;
+  private readonly signerMap: Map<string, FacilitatorStellarSigner>;
+  private readonly selectSigner: (addresses: readonly string[]) => string;
+
   /**
    * Creates a new ExactStellarScheme instance.
    *
-   * @param signer - The Stellar signer managed by the facilitator
-   * @param rpcConfig - Optional RPC configuration with custom RPC URL
-   * @param rpcConfig.url - Custom RPC URL to use instead of defaults
-   * @param areFeesSponsored - Indicates if fees are sponsored (default: true)
-   * @param maxTransactionFeeStroops - Maximum fee in stroops the facilitator will pay (default: 50_000)
+   * @param signers - One or more Stellar signers managed by the facilitator for settlement
+   * @param options - Configuration options
+   * @param options.rpcConfig - Optional RPC configuration with custom RPC URL
+   * @param options.areFeesSponsored - Indicates if fees are sponsored (default: true)
+   * @param options.maxTransactionFeeStroops - Maximum fee in stroops the facilitator will pay (default: 50_000)
+   * @param options.selectSigner - Callback to select which signer to use (default: round-robin)
    * @returns ExactStellarScheme instance
    */
   constructor(
-    private readonly signer: FacilitatorStellarSigner,
-    private readonly rpcConfig?: { url?: string },
-    private readonly areFeesSponsored: boolean = true,
-    private readonly maxTransactionFeeStroops: number = DEFAULT_MAX_TRANSACTION_FEE_STROOPS,
-  ) {}
+    signers: FacilitatorStellarSigner[],
+    {
+      rpcConfig,
+      areFeesSponsored = true,
+      maxTransactionFeeStroops = DEFAULT_MAX_TRANSACTION_FEE_STROOPS,
+      selectSigner = roundRobinSelectSigner(),
+    }: {
+      /** Optional RPC configuration with custom RPC URL */
+      rpcConfig?: RpcConfig;
+      /** Indicates if fees are sponsored (default: true) */
+      areFeesSponsored?: boolean;
+      /** Maximum fee in stroops the facilitator will pay (default: 50_000) */
+      maxTransactionFeeStroops?: number;
+      /** Optional callback to select which signer to use. Receives addresses array, returns selected address. Defaults to round-robin. */
+      selectSigner?: (addresses: readonly string[]) => string;
+    } = {},
+  ) {
+    // Validate signers and store their data
+    if (!signers || signers.length === 0) {
+      throw new Error("At least one signer is required");
+    }
+    this.signerMap = new Map(signers.map(s => [s.address, s]));
+    this.signingAddresses = new Set(this.signerMap.keys());
+
+    // Apply configuration options (with defaults)
+    this.rpcConfig = rpcConfig;
+    this.areFeesSponsored = areFeesSponsored ?? true;
+    this.maxTransactionFeeStroops = maxTransactionFeeStroops ?? DEFAULT_MAX_TRANSACTION_FEE_STROOPS;
+    this.selectSigner = selectSigner ?? roundRobinSelectSigner();
+  }
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
@@ -91,13 +137,13 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get signer addresses used by this facilitator.
-   * For Stellar, returns the facilitator's address.
+   * For Stellar, returns all facilitator addresses.
    *
    * @param _ - The network identifier (unused for Stellar)
-   * @returns Array containing the facilitator's address
+   * @returns Array containing all facilitator addresses
    */
   getSigners(_: string): string[] {
-    return [this.signer.address];
+    return [...this.signingAddresses];
   }
 
   /**
@@ -156,8 +202,10 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         return invalidVerifyResponse("invalid_exact_stellar_payload_wrong_operation");
       }
 
-      const facilitatorAddress = this.signer.address;
-      if (operation.source === facilitatorAddress || transaction.source === facilitatorAddress) {
+      if (
+        this.signingAddresses.has(operation.source ?? "") ||
+        this.signingAddresses.has(transaction.source)
+      ) {
         return invalidVerifyResponse("invalid_exact_stellar_payload_unsafe_tx_or_op_source");
       }
 
@@ -190,7 +238,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const toAddress = scValToNative(args[1]) as string;
       const amount = scValToNative(args[2]) as bigint;
 
-      if (fromAddress === facilitatorAddress) {
+      if (this.signingAddresses.has(fromAddress)) {
         return invalidVerifyResponse("invalid_exact_stellar_payload_facilitator_is_payer");
       }
 
@@ -253,7 +301,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       // Step 10: Validate auth entries (structure, credential type, expiration, facilitator safety, and signature status).
       const authValidation = this.validateAuthEntries(
         invokeOp,
-        facilitatorAddress,
+        this.signingAddresses,
         fromAddress,
         maxLedger,
         transaction,
@@ -323,8 +371,17 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const invokeOp = transaction.operations[0] as Operation.InvokeHostFunction;
 
       // Step 4: Rebuild transaction with facilitator as source and facilitator-chosen fee
-      const facilitatorAddress = this.signer.address;
-      const facilitatorAccount = await server.getAccount(facilitatorAddress);
+      const signer = this.signerMap.get(this.selectSigner([...this.signingAddresses]));
+      if (!signer) {
+        return {
+          success: false,
+          network: payload.accepted.network,
+          transaction: "",
+          errorReason: "settle_exact_stellar_signer_selection_failed",
+          payer,
+        };
+      }
+      const facilitatorAccount = await server.getAccount(signer.address);
 
       // Use the minimum of the client's fee and the maximum cap
       const clientFeeStroops = parseInt(transaction.fee, 10);
@@ -346,10 +403,9 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         .build();
 
       // Step 5: Sign transaction with facilitator's key
-      const { signedTxXdr, error: signError } = await this.signer.signTransaction(
-        rebuiltTx.toXDR(),
-        { networkPassphrase },
-      );
+      const { signedTxXdr, error: signError } = await signer.signTransaction(rebuiltTx.toXDR(), {
+        networkPassphrase,
+      });
 
       if (signError) {
         return {
@@ -577,7 +633,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    * no other signatures are pending (per simulation).
    *
    * @param invokeOp - The invoke host function operation
-   * @param facilitatorAddress - The facilitator's address
+   * @param facilitatorAddresses - Set of all facilitator addresses
    * @param fromAddress - The payer's address (for error reporting)
    * @param maxLedger - The maximum allowed expiration ledger
    * @param transaction - The full transaction (for signature status)
@@ -586,7 +642,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    */
   private validateAuthEntries(
     invokeOp: Operation.InvokeHostFunction,
-    facilitatorAddress: string,
+    facilitatorAddresses: ReadonlySet<string>,
     fromAddress: string,
     maxLedger: number,
     transaction: Transaction,
@@ -612,7 +668,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const authAddress = Address.fromScAddress(addressCredentials.address()).toString();
 
       // Facilitator must not appear in auth entries
-      if (authAddress === facilitatorAddress) {
+      if (facilitatorAddresses.has(authAddress)) {
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_facilitator_in_auth",
           fromAddress,

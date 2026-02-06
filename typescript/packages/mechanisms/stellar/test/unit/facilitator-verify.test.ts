@@ -137,7 +137,7 @@ vi.mock("../../src/utils", async () => {
   };
 });
 
-describe("ExactStellarScheme#Verify", () => {
+describe("ExactStellarScheme#Verify (randomly using 1-2 facilitator signers)", () => {
   const mockServer = {
     simulateTransaction: vi.fn(),
     getLatestLedger: vi.fn(),
@@ -150,13 +150,22 @@ describe("ExactStellarScheme#Verify", () => {
   const networkPassphrase = StellarNetworks.TESTNET;
   const account = new Account(CLIENT_PUBLIC, "100");
 
+  const facilitatorSigner1 = createEd25519Signer(
+    "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV",
+    STELLAR_TESTNET_CAIP2,
+  );
+  const facilitatorSigner2 = createEd25519Signer(
+    "SA6LFVPCYMDQILBRXQ2B2HRPK6DV2TX4FTQQQHWFPSCSY4H2RTCD3XAK",
+    STELLAR_TESTNET_CAIP2,
+  );
+
   let stellarPayload: { transaction: string };
   let baseTransaction: Transaction;
   let baseSorobanData: xdr.SorobanTransactionData | undefined;
   let baseOperation: Operation.InvokeHostFunction;
   let baseFunc: xdr.HostFunction;
   let baseInvokeContractArgs: xdr.InvokeContractArgs;
-  let facilitatorSigner: FacilitatorStellarSigner;
+  let facilitatorSigners: FacilitatorStellarSigner[];
   let facilitator: ExactStellarScheme;
   let validPayload: PaymentPayload;
   let validRequirements: PaymentRequirements;
@@ -176,19 +185,6 @@ describe("ExactStellarScheme#Verify", () => {
     vi.mocked(mockServer.getLatestLedger).mockResolvedValue({
       sequence: txSignatureExpiration - 10,
     } as Api.GetLatestLedgerResponse);
-
-    // Create signers
-    // Use a different secret for facilitator that does NOT appear in mock transaction auth entries.
-    // The mock transaction has auth entries from CLIENT_PUBLIC (the payer).
-    // This ensures the facilitator address doesn't appear in auth entries.
-    // Using a separate keypair: GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P
-    facilitatorSigner = createEd25519Signer(
-      "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV",
-      STELLAR_TESTNET_CAIP2,
-    );
-
-    // Use a high max fee for tests to avoid fee validation errors in tests that check other validations
-    facilitator = new ExactStellarScheme(facilitatorSigner, undefined, true, 1_000_000);
 
     // Create valid requirements (V2 format)
     // Note: Values must match the transaction XDR from shared test
@@ -251,6 +247,18 @@ describe("ExactStellarScheme#Verify", () => {
   }
 
   beforeEach(() => {
+    // Random selection for 1-2 facilitators
+    const useTwoFacilitators = Math.random() > 0.5;
+    facilitatorSigners = useTwoFacilitators
+      ? [facilitatorSigner1, facilitatorSigner2]
+      : [facilitatorSigner1];
+
+    // Use a high max fee for tests to avoid fee validation errors in tests that check other validations
+    facilitator = new ExactStellarScheme(facilitatorSigners, {
+      areFeesSponsored: true,
+      maxTransactionFeeStroops: 1_000_000,
+    });
+
     const expectedAssetHash = new Address(ASSET).toScAddress().contractId();
     const defaultTransferEvent = createMockContractEvent({
       from: CLIENT_PUBLIC,
@@ -299,12 +307,10 @@ describe("ExactStellarScheme#Verify", () => {
     });
 
     it("should reject transactions with fees exceeding the maximum", async () => {
-      const lowMaxFeeFacilitator = new ExactStellarScheme(
-        facilitatorSigner,
-        undefined,
-        true,
-        1000, // 1000 stroops max
-      );
+      const lowMaxFeeFacilitator = new ExactStellarScheme(facilitatorSigners, {
+        areFeesSponsored: true,
+        maxTransactionFeeStroops: 1000, // 1000 stroops max
+      });
 
       vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockServer as rpc.Server);
       vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
@@ -471,7 +477,7 @@ describe("ExactStellarScheme#Verify", () => {
 
     describe("Authorization entries and facilitator safety", () => {
       it("should reject when facilitator is the payer (from address)", async () => {
-        const facilitatorAddress = facilitatorSigner.address;
+        const facilitatorAddress = facilitatorSigner1.address;
 
         if (!baseSorobanData || !baseOperation.auth?.length) {
           throw new Error("Missing sorobanData or auth in test transaction");
@@ -695,7 +701,7 @@ describe("ExactStellarScheme#Verify", () => {
             throw new Error("Missing sorobanData or auth in test transaction");
           }
 
-          const facilitatorAddress = facilitatorSigner.address;
+          const facilitatorAddress = facilitatorSigner1.address;
           const originalAuth = baseOperation.auth[0];
           const originalAddressCredentials = originalAuth.credentials().address();
 
@@ -730,7 +736,7 @@ describe("ExactStellarScheme#Verify", () => {
 
       describe("should reject when source is unauthorized", () => {
         it("should reject operation.source == facilitatorAccount", async () => {
-          const facilitatorAddress = facilitatorSigner.address;
+          const facilitatorAddress = facilitatorSigner1.address;
 
           if (!baseSorobanData) {
             throw new Error("Missing sorobanData in test transaction");
@@ -748,7 +754,7 @@ describe("ExactStellarScheme#Verify", () => {
         });
 
         it("should reject transaction.source == facilitatorAccount", async () => {
-          const facilitatorAddress = facilitatorSigner.address;
+          const facilitatorAddress = facilitatorSigner1.address;
 
           if (!baseSorobanData) {
             throw new Error("Missing sorobanData in test transaction");

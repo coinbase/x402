@@ -27,7 +27,7 @@ This e2e facilitator showcases **production-ready lifecycle hook patterns**:
 ```typescript
 const facilitator = new x402Facilitator()
   .register("eip155:*", new ExactEvmFacilitator(evmSigner))
-  .register("stellar:*", new ExactStellarScheme(stellarSigner))
+  .register("stellar:*", new ExactStellarScheme([stellarSigner]))
   .registerExtension(BAZAAR)
   // Hook 1: Track verified payments + extract discovery info
   .onAfterVerify(async (context) => {

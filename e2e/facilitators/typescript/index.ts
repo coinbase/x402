@@ -26,7 +26,10 @@ import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
-import { createEd25519Signer } from "@x402/stellar";
+import {
+  createEd25519Signer,
+  type FacilitatorStellarSigner,
+} from "@x402/stellar";
 import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
@@ -93,7 +96,7 @@ const svmAccount = await createKeyPairSignerFromBytes(
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
 // Initialize the Stellar signer from private key (optional)
-let stellarSigner: ReturnType<typeof createEd25519Signer> | null = null;
+let stellarSigner: FacilitatorStellarSigner | null = null;
 if (hasStellarSupport) {
   stellarSigner = createEd25519Signer(
     process.env.STELLAR_PRIVATE_KEY as string,
@@ -183,7 +186,7 @@ registerExactSvmScheme(facilitator, {
 // Register Stellar scheme only if configured
 if (stellarSigner) {
   registerExactStellarScheme(facilitator, {
-    signer: stellarSigner,
+    signers: [stellarSigner],
     networks: STELLAR_NETWORK as Network,
     rpcConfig: STELLAR_RPC_URL ? { url: STELLAR_RPC_URL } : undefined,
   });
@@ -299,7 +302,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {

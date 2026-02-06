@@ -6,7 +6,7 @@ import {
   SorobanDataBuilder,
 } from "@stellar/stellar-sdk";
 import { Api } from "@stellar/stellar-sdk/rpc";
-import { beforeEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { STELLAR_TESTNET_CAIP2 } from "../../src/constants";
 import { ExactStellarScheme } from "../../src/exact/facilitator/scheme";
 import { createEd25519Signer } from "../../src/signer";
@@ -24,10 +24,12 @@ vi.mock("../../src/utils", async () => {
   };
 });
 
-describe("ExactStellarScheme - Settle", () => {
+describe("ExactStellarScheme - Settle (randomly using 1-2 facilitator signers)", () => {
   const CLIENT_PUBLIC = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
-  const FACILITATOR_SECRET = "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV";
-  const FACILITATOR_PUBLIC = "GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P";
+  const FACILITATOR_SECRET_1 = "SCKB3ECHCPVM4HJPNCQWTQWJJ5XRL6UNKLTTCIH4B7TB22NKJ5GUFMIV";
+  const FACILITATOR_PUBLIC_1 = "GCQAXB2D77Y4C66CTGVH25H2RMUKMQJGOWUPK7UXGG5MAQBONUEKFQ4P";
+  const FACILITATOR_SECRET_2 = "SA6LFVPCYMDQILBRXQ2B2HRPK6DV2TX4FTQQQHWFPSCSY4H2RTCD3XAK";
+  const FACILITATOR_PUBLIC_2 = "GDEDUVINLPX4AN7HYK3MZGY6YDQSNVJT657CVWHEM3QMAH4QHSGLIHVI";
   // The transaction's recipient (different from facilitator signer address)
   const TRANSACTION_RECIPIENT = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
   const ASSET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
@@ -44,8 +46,11 @@ describe("ExactStellarScheme - Settle", () => {
     },
   };
 
+  const facilitatorSigner1 = createEd25519Signer(FACILITATOR_SECRET_1, STELLAR_TESTNET_CAIP2);
+  const facilitatorSigner2 = createEd25519Signer(FACILITATOR_SECRET_2, STELLAR_TESTNET_CAIP2);
+
+  let facilitatorSigners: FacilitatorStellarSigner[];
   let validPayload: PaymentPayload;
-  let facilitatorSigner: FacilitatorStellarSigner;
   let facilitator: ExactStellarScheme;
   let mockSignedTxXdr: string;
   let mockServer: rpc.Server;
@@ -60,9 +65,6 @@ describe("ExactStellarScheme - Settle", () => {
   beforeAll(async () => {
     vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
     vi.mocked(stellarUtils.getRpcUrl).mockReturnValue("https://soroban-testnet.stellar.org");
-
-    // Create signers
-    facilitatorSigner = createEd25519Signer(FACILITATOR_SECRET, STELLAR_TESTNET_CAIP2);
 
     // Build full V2 PaymentPayload with mocked transaction
     validPayload = {
@@ -80,14 +82,19 @@ describe("ExactStellarScheme - Settle", () => {
 
     // Use the same XDR for signed transaction
     mockSignedTxXdr = mockTransactionXDR;
-
-    facilitator = new ExactStellarScheme(facilitatorSigner);
   });
 
   beforeEach(() => {
+    // Random selection for 1-2 facilitators
+    const useTwoFacilitators = Math.random() > 0.5;
+    facilitatorSigners = useTwoFacilitators
+      ? [facilitatorSigner1, facilitatorSigner2]
+      : [facilitatorSigner1];
+    facilitator = new ExactStellarScheme(facilitatorSigners);
+
     // Create a fresh mock server for each test
     mockServer = {
-      getAccount: vi.fn().mockResolvedValue(new Account(FACILITATOR_PUBLIC, "100")),
+      getAccount: vi.fn().mockImplementation(async addr => new Account(addr, "100")),
       sendTransaction: vi.fn().mockResolvedValue({
         status: "PENDING",
         hash: "test-tx-hash-123",
@@ -122,8 +129,12 @@ describe("ExactStellarScheme - Settle", () => {
       payer: CLIENT_PUBLIC,
     }));
 
-    // Mock signTransaction to return the mock signed XDR
-    vi.spyOn(facilitatorSigner, "signTransaction").mockResolvedValue({
+    // Mock signTransaction for all signers to return the mock signed XDR
+    vi.spyOn(facilitatorSigner1, "signTransaction").mockResolvedValue({
+      signedTxXdr: mockSignedTxXdr,
+      error: undefined,
+    });
+    vi.spyOn(facilitatorSigner2, "signTransaction").mockResolvedValue({
       signedTxXdr: mockSignedTxXdr,
       error: undefined,
     });
@@ -149,7 +160,7 @@ describe("ExactStellarScheme - Settle", () => {
     });
 
     it("should return error when signing fails", async () => {
-      vi.spyOn(facilitatorSigner, "signTransaction").mockResolvedValue({
+      vi.spyOn(facilitatorSigner1, "signTransaction").mockResolvedValue({
         signedTxXdr: "",
         error: { code: 1, message: "Signing failed" },
       });
@@ -259,9 +270,10 @@ describe("ExactStellarScheme - Settle", () => {
         network: STELLAR_TESTNET_CAIP2,
       });
 
-      // Get the actual facilitator address from the signer
-      const facilitatorAddress = facilitatorSigner.address;
-      expect(mockServer.getAccount).toHaveBeenCalledWith(facilitatorAddress);
+      // Verify getAccount was called with one of the facilitator addresses
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(1);
+      const calledWithAddress = vi.mocked(mockServer.getAccount).mock.calls[0][0];
+      expect(facilitator.signingAddresses).toContain(calledWithAddress);
       expect(mockServer.sendTransaction).toHaveBeenCalled();
       expect(mockServer.getTransaction).toHaveBeenCalledWith("test-tx-hash-123");
     });
@@ -296,6 +308,53 @@ describe("ExactStellarScheme - Settle", () => {
 
       expect(result.success).toBe(true);
       expect(mockServer.getTransaction).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("multi-signer tests", () => {
+    const multiSigners: FacilitatorStellarSigner[] = [facilitatorSigner1, facilitatorSigner2];
+
+    it("should use custom selectSigner callback", async () => {
+      const customFacilitator = new ExactStellarScheme(multiSigners, {
+        selectSigner: addrs => addrs[1],
+      });
+
+      vi.spyOn(customFacilitator, "verify").mockResolvedValue({
+        isValid: true,
+        payer: CLIENT_PUBLIC,
+      });
+
+      const result = await customFacilitator.settle(validPayload, validRequirements);
+
+      expect(result.success).toBe(true);
+      expect(mockServer.getAccount).toHaveBeenCalledWith(FACILITATOR_PUBLIC_2);
+      expect(facilitatorSigner2.signTransaction).toHaveBeenCalled();
+      expect(facilitatorSigner1.signTransaction).not.toHaveBeenCalled();
+    });
+
+    it("should use round-robin by default with multiple signers", async () => {
+      const roundRobinFacilitator = new ExactStellarScheme(multiSigners);
+
+      vi.spyOn(roundRobinFacilitator, "verify").mockResolvedValue({
+        isValid: true,
+        payer: CLIENT_PUBLIC,
+      });
+
+      const calledAddresses: string[] = [];
+
+      for (let i = 0; i < 4; i++) {
+        await roundRobinFacilitator.settle(validPayload, validRequirements);
+        const callArgs = vi.mocked(mockServer.getAccount).mock.calls[i];
+        calledAddresses.push(callArgs[0]);
+      }
+
+      // Verify round-robin pattern: [addr1, addr2, addr1, addr2]
+      expect(calledAddresses).toEqual([
+        FACILITATOR_PUBLIC_1,
+        FACILITATOR_PUBLIC_2,
+        FACILITATOR_PUBLIC_1,
+        FACILITATOR_PUBLIC_2,
+      ]);
     });
   });
 });
