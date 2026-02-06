@@ -52,7 +52,7 @@ Required variables:
 2. Generate a signing key:
 
 ```bash
-openssl ecparam -genkey -name prime256v1 -noout | openssl pkcs8 -topk8 -nocrypt | base64 -w0
+openssl ecparam -genkey -name prime256v1 -noout | openssl pkcs8 -topk8 -nocrypt -outform DER | openssl base64 -A
 ```
 
 3. Install and run:
