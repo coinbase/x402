@@ -12,8 +12,8 @@ export interface X402ServerConfig {
   network: string;
   /** Route configuration defining which paths require payment */
   routes: RoutesConfig;
-  /** Optional function to create auth headers for the facilitator (required for CDP mainnet) */
-  createAuthHeaders?: FacilitatorConfig['createAuthHeaders'];
+  /** Optional facilitator config with auth headers (for facilitators that require authentication) */
+  facilitatorConfig?: FacilitatorConfig;
 }
 
 /**
@@ -25,27 +25,22 @@ export interface X402ServerConfig {
  * const server = await createX402Server({
  *   facilitatorUrl: 'https://x402.org/facilitator',
  *   network: 'eip155:84532',
- *   routes: {
- *     '/api/*': {
- *       accepts: { scheme: 'exact', network: 'eip155:84532', payTo: '0x...', price: '$0.01' }
- *     }
- *   }
+ *   routes: { ... },
  * });
  * 
- * // Mainnet with CDP (requires auth)
+ * // Mainnet with auth (pass a facilitator config from your facilitator package)
  * const server = await createX402Server({
- *   facilitatorUrl: 'https://api.cdp.coinbase.com/platform/v2/x402',
+ *   facilitatorUrl: 'https://your-facilitator-url',
  *   network: 'eip155:8453',
  *   routes: { ... },
- *   createAuthHeaders: createCDPAuthHeaders({ apiKeyId, apiKeySecret })
+ *   facilitatorConfig: createFacilitatorConfig('api-key-id', 'api-key-secret'),
  * });
  * ```
  */
 export async function createX402Server(config: X402ServerConfig): Promise<x402HTTPResourceServer> {
-  const facilitator = new HTTPFacilitatorClient({
-    url: config.facilitatorUrl,
-    createAuthHeaders: config.createAuthHeaders,
-  });
+  const facilitator = new HTTPFacilitatorClient(
+    config.facilitatorConfig ?? { url: config.facilitatorUrl },
+  );
   const resourceServer = new x402ResourceServer(facilitator)
     .register(config.network as `${string}:${string}`, new ExactEvmScheme());
 

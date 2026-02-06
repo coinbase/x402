@@ -7,23 +7,13 @@
 
 import type { CloudFrontRequestEvent, CloudFrontRequestResult } from 'aws-lambda';
 import { createX402Middleware, MiddlewareResultType, type LambdaEdgeResponse } from './lib';
-import { FACILITATOR_URL, NETWORK, ROUTES, getAuthHeaders } from './config';
+import { FACILITATOR_URL, NETWORK, ROUTES } from './config';
 
-// Lazy initialization to support async auth
-let x402Promise: ReturnType<typeof createX402Middleware> | null = null;
-
-async function getMiddleware() {
-  if (!x402Promise) {
-    const authHeaders = await getAuthHeaders();
-    x402Promise = createX402Middleware({
-      facilitatorUrl: FACILITATOR_URL,
-      network: NETWORK,
-      routes: ROUTES,
-      createAuthHeaders: authHeaders,
-    });
-  }
-  return x402Promise;
-}
+const x402 = createX402Middleware({
+  facilitatorUrl: FACILITATOR_URL,
+  network: NETWORK,
+  routes: ROUTES,
+});
 
 export const handler = async (
   event: CloudFrontRequestEvent
@@ -38,7 +28,6 @@ export const handler = async (
   // }
 
   // x402 payment verification
-  const x402 = await getMiddleware();
   const result = await x402.processOriginRequest(request, distributionDomain);
 
   if (result.type === MiddlewareResultType.RESPOND) {

@@ -27,12 +27,12 @@ flowchart LR
 
 The example files are ready for you to add your business logic:
 
-| File                                                                 | Purpose                                           |
-| -------------------------------------------------------------------- | ------------------------------------------------- |
-| [`lambda/src/config.ts`](./lambda/src/config.ts)                     | Configure facilitator, routes, pricing, addresses |
-| [`lambda/src/origin-request.ts`](./lambda/src/origin-request.ts)     | Customize the origin-request handler              |
-| [`lambda/src/origin-response.ts`](./lambda/src/origin-response.ts)   | Customize the origin-response handler             |
-| [`lambda/src/facilitator-auth.ts`](./lambda/src/facilitator-auth.ts) | CDP authentication (for mainnet)                  |
+| File                                                               | Purpose                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------ |
+| [`lambda/src/config.ts`](./lambda/src/config.ts)                   | Configure routes, pricing, and payment addresses |
+| [`lambda/src/origin-request.ts`](./lambda/src/origin-request.ts)   | Customize the origin-request handler             |
+| [`lambda/src/origin-response.ts`](./lambda/src/origin-response.ts) | Customize the origin-response handler            |
+| [`lambda/src/index.ts`](./lambda/src/index.ts)                     | Main exports for both handlers                   |
 
 Copy these into your project and integrate with your existing setup.
 
@@ -76,26 +76,17 @@ Copy `lambda/src/` into your project and adapt the build to your tooling.
 > "@x402/evm": "^2.2.0"
 > ```
 
-### 2. Configure Your Facilitator
+### 2. Configure Payment Settings
 
-Edit `config.ts` to set your facilitator URL:
+Edit `config.ts`:
 
 ```typescript
-// Testnet (no auth required)
 export const FACILITATOR_URL = 'https://x402.org/facilitator';
-
-// Or mainnet with CDP (requires auth - see facilitator-auth.ts)
-// export const FACILITATOR_URL = 'https://api.cdp.coinbase.com/platform/v2/x402';
-```
-
-### 3. Configure Payment Settings
-
-```typescript
+export const PAY_TO = '0xYourPaymentAddressHere';  // Your wallet address
 export const NETWORK = 'eip155:84532';              // Base Sepolia (testnet)
-export const PAY_TO = '0xYourPaymentAddressHere';   // Your wallet address
 ```
 
-### 4. Configure Routes
+### 3. Configure Routes
 
 Define which routes require payment:
 
@@ -113,7 +104,7 @@ export const ROUTES: RoutesConfig = {
 };
 ```
 
-### 5. Deploy
+### 4. Deploy
 
 Bundle and deploy both Lambda functions:
 
@@ -141,37 +132,37 @@ import { originRequestHandler, originResponseHandler } from './index';
 
 ## Running on Mainnet
 
-To accept real USDC payments, you need to:
-1. Use a mainnet facilitator (e.g., CDP)
-2. Configure authentication if required by the facilitator
-3. Use a mainnet network and wallet address
+To accept real payments, you need a mainnet facilitator. Each facilitator may have different authentication requirements. Browse available facilitators at the [x402 Ecosystem — Facilitators](https://www.x402.org/ecosystem?filter=facilitators).
 
-### Using CDP Facilitator
-
-1. Get API keys at [cdp.coinbase.com](https://cdp.coinbase.com)
-2. Update `config.ts`:
+Update `config.ts` with your chosen facilitator, a mainnet network, and your wallet address:
 
 ```typescript
-// Change facilitator type to CDP
-export const FACILITATOR_TYPE: FacilitatorType = 'cdp';
-export const FACILITATOR_URL = 'https://api.cdp.coinbase.com/platform/v2/x402';
+export const FACILITATOR_URL = 'https://your-facilitator-url';
 export const NETWORK = 'eip155:8453'; // Base mainnet
 export const PAY_TO = '0xYourMainnetWalletAddress';
-
-// Configure your CDP credentials
-export const CDP_API_KEY_ID = 'your-cdp-api-key-id';
-export const CDP_API_KEY_SECRET = 'your-cdp-api-key-secret-here';
 ```
 
-The `getAuthHeaders()` function in `config.ts` automatically uses `createCDPAuthHeaders()` from `facilitator-auth.ts` when `FACILITATOR_TYPE` is set to `'cdp'`.
+If your facilitator requires authentication, you can pass a `facilitatorConfig` object (with `url` and `createAuthHeaders`) via the middleware config. Update `config.ts`:
 
-### Production Secrets Management
+```typescript
+// Example: using a facilitator package that provides a config with auth
+import { createFacilitatorConfig } from 'your-facilitator-package';
 
-⚠️ **Lambda@Edge does not support environment variables**
+export const FACILITATOR_CONFIG = createFacilitatorConfig('api-key-id', 'api-key-secret');
+```
 
-**For demos**: Credentials are bundled in `facilitator-auth.ts` (not secure)
+Then pass it in `origin-request.ts` and `origin-response.ts`:
 
-**For production**: Use AWS Secrets Manager (see comments in `facilitator-auth.ts`)
+```typescript
+const x402 = createX402Middleware({
+  facilitatorUrl: FACILITATOR_URL,
+  network: NETWORK,
+  routes: ROUTES,
+  facilitatorConfig: FACILITATOR_CONFIG, // overrides facilitatorUrl when provided
+});
+```
+
+> **Note**: Lambda@Edge does not support environment variables. If your facilitator reads credentials from `process.env`, you can pass them explicitly via the config function, or fetch them from AWS Secrets Manager at runtime.
 
 ---
 
@@ -180,17 +171,16 @@ The `getAuthHeaders()` function in `config.ts` automatically uses `createCDPAuth
 ```
 cloudfront-lambda-edge/
 ├── lambda/src/
-│   ├── index.ts              # Main exports
-│   ├── config.ts             # Facilitator, routes, network config
-│   ├── facilitator-auth.ts   # CDP authentication helpers
-│   ├── origin-request.ts     # Handler for origin-request event
-│   ├── origin-response.ts    # Handler for origin-response event
-│   └── lib/                  # Reusable x402 middleware (future @x402/lambda-edge)
-│       ├── index.ts          # Package exports
-│       ├── middleware.ts     # createX402Middleware factory
-│       ├── server.ts         # createX402Server factory
-│       ├── adapter.ts        # CloudFrontHTTPAdapter
-│       └── responses.ts      # Lambda@Edge response helpers
+│   ├── index.ts           # Main exports
+│   ├── origin-request.ts  # Handler for origin-request event
+│   ├── origin-response.ts # Handler for origin-response event
+│   ├── config.ts          # Routes, addresses, network config
+│   └── lib/               # Reusable x402 middleware
+│       ├── index.ts       # Package exports
+│       ├── middleware.ts   # createX402Middleware factory
+│       ├── server.ts      # createX402Server factory
+│       ├── adapter.ts     # CloudFrontHTTPAdapter
+│       └── responses.ts   # Lambda@Edge response helpers
 ```
 
 ---
@@ -212,8 +202,6 @@ const x402 = createX402Middleware({
       description: 'API access',
     },
   },
-  // For mainnet with CDP:
-  // createAuthHeaders: createCDPAuthHeaders({ apiKeyId, apiKeySecret }),
 });
 
 // Use in handlers
