@@ -24,7 +24,7 @@ const response = await fetchWithPayment("http://localhost:4021/weather");
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Valid EVM and/or SVM private keys for making payments
+- Valid EVM, SVM, and/or Stellar private keys for making payments
 - A running x402 server (see [server examples](../../servers/))
 - Familiarity with the [basic fetch client](../fetch/)
 
@@ -90,6 +90,7 @@ Use the builder pattern for fine-grained control over which networks are support
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 
 const evmSigner = privateKeyToAccount(evmPrivateKey);
@@ -100,6 +101,7 @@ const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(evmSigner)) // All EVM networks
   .register("eip155:1", new ExactEvmScheme(mainnetSigner)) // Ethereum mainnet override
   .register("solana:*", new ExactSvmScheme(svmSigner)); // All Solana networks
+  .register("stellar:*", new ExactStellarScheme(stellarSigner)); // All Stellar networks
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 const response = await fetchWithPayment("http://localhost:4021/weather");
@@ -162,9 +164,10 @@ Configure client-side network preferences with automatic fallback:
 import { x402Client, wrapFetchWithPayment, type PaymentRequirements } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
 
 // Define network preference order (most preferred first)
-const networkPreferences = ["solana:", "eip155:"];
+const networkPreferences = ["eip155:", "solana:", "stellar:"];
 
 const preferredNetworkSelector = (
   _x402Version: number,
@@ -181,7 +184,8 @@ const preferredNetworkSelector = (
 
 const client = new x402Client(preferredNetworkSelector)
   .register("eip155:*", new ExactEvmScheme(evmSigner))
-  .register("solana:*", new ExactSvmScheme(svmSigner));
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .register("stellar:*", new ExactStellarScheme(stellarSigner));
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 const response = await fetchWithPayment("http://localhost:4021/weather");

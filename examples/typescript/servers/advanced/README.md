@@ -5,10 +5,12 @@ Express.js server demonstrating advanced x402 patterns including dynamic pricing
 ```typescript
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 
 const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
   .register("eip155:84532", new ExactEvmScheme())
+  .register("stellar:*", new ExactStellarScheme())
   .onBeforeVerify(async ctx => console.log("Verifying payment..."))
   .onAfterSettle(async ctx => console.log("Settled:", ctx.result.transaction));
 
@@ -21,6 +23,14 @@ app.use(
           price: ctx => (ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001"),
           network: "eip155:84532",
           payTo: evmAddress,
+        },
+      },
+      "GET /weather-stellar": {
+        accepts: {
+          scheme: "exact",
+          price: ctx => (ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001"),
+          network: "stellar:*",
+          payTo: stellarAddress,
         },
       },
     },
