@@ -4,7 +4,6 @@ This test ensures that the public API contract is maintained - everything
 listed in __all__ must be importable from the top-level x402.extensions module.
 """
 
-import importlib
 
 import pytest
 
@@ -33,7 +32,7 @@ class TestExtensionExports:
 
         if missing_exports:
             pytest.fail(
-                f"The following exports from __all__ are not importable:\n"
+                "The following exports from __all__ are not importable:\n"
                 + "\n".join(f"  - {name}" for name in missing_exports)
             )
 
@@ -64,6 +63,6 @@ class TestExtensionExports:
         missing = [name for name in exported_names if name not in namespace]
         if missing:
             pytest.fail(
-                f"The following exports are missing from 'import *':\n"
+                "The following exports are missing from 'import *':\n"
                 + "\n".join(f"  - {name}" for name in missing)
             )

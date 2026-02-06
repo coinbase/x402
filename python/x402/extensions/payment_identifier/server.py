@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from x402.schemas.extensions import ResourceServerExtension
-
 from .schema import payment_identifier_schema
 from .types import PAYMENT_IDENTIFIER
 

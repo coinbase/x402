@@ -11,8 +11,8 @@ from x402.extensions.payment_identifier import (
     validate_payment_identifier,
     validate_payment_identifier_requirement,
 )
-from x402.extensions.payment_identifier.validation import PaymentIdentifierValidationResult
 from x402.extensions.payment_identifier.utils import generate_payment_id
+from x402.extensions.payment_identifier.validation import PaymentIdentifierValidationResult
 from x402.schemas.payments import PaymentPayload, PaymentRequirements
 
 
@@ -20,7 +20,9 @@ def create_extension_with_id(id: str | None = None, required: bool = False) -> d
     """Helper to create an extension with ID appended."""
     extensions = {PAYMENT_IDENTIFIER: declare_payment_identifier_extension(required)}
     if id:
-        from x402.extensions.payment_identifier.client import append_payment_identifier_to_extensions
+        from x402.extensions.payment_identifier.client import (
+            append_payment_identifier_to_extensions,
+        )
 
         try:
             append_payment_identifier_to_extensions(extensions, id)
@@ -35,7 +37,9 @@ def create_extension_with_id(id: str | None = None, required: bool = False) -> d
                 ext_dict["info"]["id"] = id
                 extensions[PAYMENT_IDENTIFIER] = ext_dict
     else:
-        from x402.extensions.payment_identifier.client import append_payment_identifier_to_extensions
+        from x402.extensions.payment_identifier.client import (
+            append_payment_identifier_to_extensions,
+        )
 
         append_payment_identifier_to_extensions(extensions)
     return extensions[PAYMENT_IDENTIFIER]

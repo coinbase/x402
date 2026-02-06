@@ -77,10 +77,10 @@ from .server import (
     payment_identifier_resource_server_extension,
 )
 from .types import (
-    PAYMENT_IDENTIFIER,
     PAYMENT_ID_MAX_LENGTH,
     PAYMENT_ID_MIN_LENGTH,
     PAYMENT_ID_PATTERN,
+    PAYMENT_IDENTIFIER,
     PaymentIdentifierExtension,
     PaymentIdentifierInfo,
     PaymentIdentifierSchema,

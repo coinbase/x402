@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .schema import payment_identifier_schema
 from .types import PAYMENT_IDENTIFIER, PaymentIdentifierExtension, PaymentIdentifierInfo
 from .utils import is_valid_payment_id
 
@@ -146,7 +145,7 @@ def validate_payment_identifier(extension: Any) -> PaymentIdentifierValidationRe
         # Lazy import jsonschema only when schema validation is needed
         try:
             import jsonschema
-        except ImportError as e:
+        except ImportError:
             return PaymentIdentifierValidationResult(
                 valid=False,
                 errors=[
