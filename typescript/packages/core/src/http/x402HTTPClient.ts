@@ -118,7 +118,11 @@ export class x402HTTPClient {
       return body as PaymentRequired;
     }
 
-    throw new Error("Invalid payment required response");
+    throw new Error(
+      "Invalid payment required response: could not find valid payment requirements. " +
+        "Expected either a PAYMENT-REQUIRED header (v2) or a response body with x402Version: 1 (v1). " +
+        "Check that the server is returning a proper 402 response with payment requirements.",
+    );
   }
 
   /**
@@ -140,7 +144,11 @@ export class x402HTTPClient {
       return decodePaymentResponseHeader(xPaymentResponse);
     }
 
-    throw new Error("Payment response header not found");
+    throw new Error(
+      "Payment response header not found: the server did not return a settlement response. " +
+        "Expected either a PAYMENT-RESPONSE header (v2) or an X-PAYMENT-RESPONSE header (v1). " +
+        "This may indicate the payment was not processed or the server is not configured correctly.",
+    );
   }
 
   /**

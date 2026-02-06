@@ -234,7 +234,11 @@ export class x402Client {
   ): Promise<PaymentPayload> {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(paymentRequired.x402Version);
     if (!clientSchemesByNetwork) {
-      throw new Error(`No client registered for x402 version: ${paymentRequired.x402Version}`);
+      throw new Error(
+        `No client registered for x402 version ${paymentRequired.x402Version}. ` +
+        `Available versions: [${Array.from(this.registeredClientSchemes.keys()).join(", ") || "none"}]. ` +
+        `Register a client using .register() or .registerV1() before making requests.`
+      );
     }
 
     const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);
@@ -255,7 +259,11 @@ export class x402Client {
     try {
       const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
       if (!schemeNetworkClient) {
-        throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
+        throw new Error(
+          `No client registered for scheme "${requirements.scheme}" on network "${requirements.network}". ` +
+          `This scheme/network combination was selected from the payment requirements but no matching client is registered. ` +
+          `Register a client for this network using .register("${requirements.network}", client).`
+        );
       }
 
       const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
@@ -318,7 +326,11 @@ export class x402Client {
   private selectPaymentRequirements(x402Version: number, paymentRequirements: PaymentRequirements[]): PaymentRequirements {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
-      throw new Error(`No client registered for x402 version: ${x402Version}`);
+      throw new Error(
+        `No client registered for x402 version ${x402Version}. ` +
+        `Available versions: [${Array.from(this.registeredClientSchemes.keys()).join(", ") || "none"}]. ` +
+        `Register a client using .register() or .registerV1() before making requests.`
+      );
     }
 
     // Step 1: Filter by registered schemes
@@ -347,7 +359,11 @@ export class x402Client {
       filteredRequirements = policy(x402Version, filteredRequirements);
 
       if (filteredRequirements.length === 0) {
-        throw new Error(`All payment requirements were filtered out by policies for x402 version: ${x402Version}`);
+        throw new Error(
+          `All payment requirements were filtered out by policies for x402 version ${x402Version}. ` +
+          `Your registered policies rejected all ${supportedPaymentRequirements.length} supported payment options. ` +
+          `Review your policies registered via .registerPolicy() or adjust the server's payment requirements.`
+        );
       }
     }
 
