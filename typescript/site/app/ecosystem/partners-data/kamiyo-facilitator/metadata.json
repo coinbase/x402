@@ -1,0 +1,14 @@
+{
+  "name": "KAMIYO Facilitator",
+  "description": "x402 payment facilitator on Solana, powering autonomous agent transactions with ShadowWire privacy-preserving transfers.",
+  "logoUrl": "/logos/kamiyo.png",
+  "websiteUrl": "https://kamiyo.ai",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402.kamiyo.ai",
+    "networks": ["solana"],
+    "schemes": ["exact"],
+    "assets": ["SPL"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
