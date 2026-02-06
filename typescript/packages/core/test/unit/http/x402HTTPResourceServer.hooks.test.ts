@@ -435,6 +435,143 @@ describe("x402HTTPResourceServer Hooks", () => {
           }
         }
       });
+
+      it("should pass transportContext to enrichPaymentRequiredResponse hook", async () => {
+        let receivedContext: PaymentRequiredContext | undefined;
+
+        const transportAwareExtension: ResourceServerExtension = {
+          key: "transport-aware-402",
+          enrichPaymentRequiredResponse: async (
+            _declaration: unknown,
+            context: PaymentRequiredContext,
+          ) => {
+            receivedContext = context;
+            return { transportAware: true };
+          },
+        };
+
+        extensionResourceServer.registerExtension(transportAwareExtension);
+
+        const routes = {
+          "/api/test": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+            extensions: {
+              "transport-aware-402": { config: "value" },
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/api/test",
+          method: "GET",
+        };
+
+        const result = await httpServer.processHTTPRequest(context);
+
+        expect(result.type).toBe("payment-error");
+        expect(receivedContext).toBeDefined();
+        expect(receivedContext?.transportContext).toBeDefined();
+        // The transport context should contain the request
+        const transportCtx = receivedContext?.transportContext as { request: HTTPRequestContext };
+        expect(transportCtx.request).toBeDefined();
+        expect(transportCtx.request.path).toBe("/api/test");
+        expect(transportCtx.request.method).toBe("GET");
+      });
+
+      it("should pass transportContext in all PaymentRequired error scenarios", async () => {
+        let receivedContexts: PaymentRequiredContext[] = [];
+
+        const contextCapturingExtension: ResourceServerExtension = {
+          key: "context-capturer",
+          enrichPaymentRequiredResponse: async (
+            _declaration: unknown,
+            context: PaymentRequiredContext,
+          ) => {
+            receivedContexts.push(context);
+            return { captured: true };
+          },
+        };
+
+        extensionResourceServer.registerExtension(contextCapturingExtension);
+
+        const routes = {
+          "/api/test": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+            extensions: {
+              "context-capturer": {},
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
+
+        // Test 1: No payment provided (main call)
+        const adapter1 = new MockHTTPAdapter();
+        const context1: HTTPRequestContext = {
+          adapter: adapter1,
+          path: "/api/test",
+          method: "GET",
+        };
+
+        await httpServer.processHTTPRequest(context1);
+        expect(receivedContexts.length).toBe(1);
+        expect(receivedContexts[0].transportContext).toBeDefined();
+
+        // Test 2: Invalid payment (verification failure)
+        // The hook is called twice: once to build the base paymentRequired object,
+        // and once when verification fails to generate the error response
+        receivedContexts = [];
+        extensionMockFacilitator.setVerifyResponse(
+          buildVerifyResponse({ isValid: false, invalidReason: "invalid_signature" }),
+        );
+
+        const paymentRequired = await extensionResourceServer.createPaymentRequiredResponse(
+          await extensionResourceServer.buildPaymentRequirements({
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          }),
+          { url: "/api/test", description: "", mimeType: "" },
+        );
+
+        const payload = buildPaymentPayload({
+          accepted: paymentRequired.accepts[0],
+          resource: paymentRequired.resource,
+        });
+        const paymentHeader = encodePaymentSignatureHeader(payload);
+
+        const adapter2 = new MockHTTPAdapter({
+          "payment-signature": paymentHeader,
+        });
+
+        const context2: HTTPRequestContext = {
+          adapter: adapter2,
+          path: "/api/test",
+          method: "GET",
+        };
+
+        await httpServer.processHTTPRequest(context2);
+        // Called twice: once for base paymentRequired, once for error response
+        expect(receivedContexts.length).toBe(2);
+        // Both should have transportContext
+        expect(receivedContexts[0].transportContext).toBeDefined();
+        expect(receivedContexts[1].transportContext).toBeDefined();
+      });
     });
 
     describe("Integration: All hooks together", () => {

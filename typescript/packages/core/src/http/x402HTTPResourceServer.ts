@@ -189,13 +189,12 @@ export interface HTTPRequestContext {
 }
 
 /**
- * HTTP transport context passed to extensions for transport-aware enrichment.
- * Contains both request context and optional response data.
+ * HTTP transport context contains both request context and optional response data.
  */
 export interface HTTPTransportContext {
   /** The HTTP request context */
   request: HTTPRequestContext;
-  /** The response body buffer (if available for extension processing) */
+  /** The response body buffer */
   responseBody?: Buffer;
 }
 
@@ -446,11 +445,13 @@ export class x402HTTPResourceServer {
     }
 
     // createPaymentRequiredResponse already handles extension enrichment in the core layer
+    const transportContext: HTTPTransportContext = { request: context };
     const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
       extensions,
+      transportContext,
     );
 
     // If no payment provided
@@ -485,6 +486,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           "No matching payment requirements",
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -503,6 +505,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           verifyResult.invalidReason,
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -523,6 +526,7 @@ export class x402HTTPResourceServer {
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
         routeConfig.extensions,
+        transportContext,
       );
       return {
         type: "payment-error",
@@ -537,7 +541,7 @@ export class x402HTTPResourceServer {
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
-   * @param transportContext - Optional HTTP transport context for extension enrichment
+   * @param transportContext - Optional HTTP transport context
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(

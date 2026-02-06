@@ -43,6 +43,7 @@ export interface PaymentRequiredContext {
   resourceInfo: ResourceInfo;
   error?: string;
   paymentRequiredResponse: PaymentRequired;
+  transportContext?: unknown;
 }
 
 export interface VerifyContext {
@@ -524,6 +525,7 @@ export class x402ResourceServer {
    * @param resourceInfo - Resource information
    * @param error - Error message
    * @param extensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional transport-specific context (e.g., HTTP request, MCP tool context)
    * @returns Payment required response object
    */
   async createPaymentRequiredResponse(
@@ -531,6 +533,7 @@ export class x402ResourceServer {
     resourceInfo: ResourceInfo,
     error?: string,
     extensions?: Record<string, unknown>,
+    transportContext?: unknown,
   ): Promise<PaymentRequired> {
     // V2 response with resource at top level
     let response: PaymentRequired = {
@@ -556,6 +559,7 @@ export class x402ResourceServer {
               resourceInfo,
               error,
               paymentRequiredResponse: response,
+              transportContext,
             };
             const extensionData = await extension.enrichPaymentRequiredResponse(
               declaration,
