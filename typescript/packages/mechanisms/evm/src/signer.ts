@@ -48,7 +48,10 @@ export type FacilitatorEvmSigner = {
     args: readonly unknown[];
   }): Promise<`0x${string}`>;
   sendTransaction(args: { to: `0x${string}`; data: `0x${string}` }): Promise<`0x${string}`>;
-  waitForTransactionReceipt(args: { hash: `0x${string}` }): Promise<{ status: string }>;
+  waitForTransactionReceipt(args: {
+    hash: `0x${string}`;
+    timeout?: number;
+  }): Promise<{ status: string }>;
   getCode(args: { address: `0x${string}` }): Promise<`0x${string}` | undefined>;
 };
 
