@@ -256,6 +256,10 @@ describe("handleSettlement", () => {
       mockPaymentPayload,
       mockRequirements,
       undefined,
+      expect.objectContaining({
+        request: undefined,
+        responseBody: expect.any(Buffer),
+      }),
     );
   });
 

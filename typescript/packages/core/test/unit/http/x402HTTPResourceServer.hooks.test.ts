@@ -273,6 +273,110 @@ describe("x402HTTPResourceServer Hooks", () => {
 
         expect(result.success).toBe(true);
       });
+
+      it("should pass transportContext to enrichSettlementResponse hook", async () => {
+        let receivedContext: SettleResultContext | undefined;
+
+        const transportAwareExtension: ResourceServerExtension = {
+          key: "transport-aware",
+          enrichSettlementResponse: async (_declaration: unknown, context: SettleResultContext) => {
+            receivedContext = context;
+            return { transportAware: true };
+          },
+        };
+
+        extensionResourceServer.registerExtension(transportAwareExtension);
+
+        const routes = {
+          "/api/test": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+            extensions: {
+              "transport-aware": { config: "value" },
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+        });
+
+        extensionMockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        const transportContext = {
+          request: { path: "/api/test", method: "POST" },
+          responseBody: Buffer.from("test response body"),
+        };
+
+        const result = await httpServer.processSettlement(
+          payload,
+          requirements,
+          routes["/api/test"].extensions,
+          transportContext,
+        );
+
+        expect(result.success).toBe(true);
+        expect(receivedContext).toBeDefined();
+        expect(receivedContext?.transportContext).toBeDefined();
+        expect(receivedContext?.transportContext).toEqual(transportContext);
+      });
+
+      it("should have undefined transportContext when not provided", async () => {
+        let receivedContext: SettleResultContext | undefined;
+
+        const extension: ResourceServerExtension = {
+          key: "context-checker",
+          enrichSettlementResponse: async (_declaration: unknown, context: SettleResultContext) => {
+            receivedContext = context;
+            return { checked: true };
+          },
+        };
+
+        extensionResourceServer.registerExtension(extension);
+
+        const routes = {
+          "/api/test": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+            extensions: {
+              "context-checker": {},
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+        });
+
+        extensionMockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        // Call without transportContext
+        const result = await httpServer.processSettlement(
+          payload,
+          requirements,
+          routes["/api/test"].extensions,
+        );
+
+        expect(result.success).toBe(true);
+        expect(receivedContext).toBeDefined();
+        expect(receivedContext?.transportContext).toBeUndefined();
+      });
     });
 
     describe("enrichPaymentRequiredResponse", () => {

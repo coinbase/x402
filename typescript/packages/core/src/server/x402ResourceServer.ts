@@ -428,7 +428,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -687,7 +687,7 @@ export class x402ResourceServer {
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
-   * @param transportContext - Optional transport-specific context for extension enrichment (e.g., HTTP request/response, MCP tool context)
+   * @param transportContext - Optional transport-specific context (e.g., HTTP request/response, MCP tool context)
    * @returns Settlement response
    */
   async settlePayment(

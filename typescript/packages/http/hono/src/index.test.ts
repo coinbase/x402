@@ -294,11 +294,14 @@ describe("paymentMiddleware", () => {
     );
     const context = createMockContext();
 
-    // Create a proper Response mock with headers
+    // Create a proper Response mock with headers and clone method
     const responseHeaders = new Headers();
     const mockResponse = {
       status: 200,
       headers: responseHeaders,
+      clone: () => ({
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }),
     } as unknown as Response;
 
     const next = vi.fn().mockImplementation(async () => {
@@ -312,6 +315,13 @@ describe("paymentMiddleware", () => {
       mockPaymentPayload,
       mockPaymentRequirements,
       undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/api/test",
+          method: "GET",
+        }),
+        responseBody: expect.any(Buffer),
+      }),
     );
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");
   });
@@ -367,6 +377,9 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
@@ -405,6 +418,9 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
