@@ -61,7 +61,6 @@ export const GET = withX402(
           },
         },
       }),
-      "transport-context-demo": {},
     },
   },
   server,
