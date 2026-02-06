@@ -68,12 +68,21 @@ Returns payment schemes and networks this facilitator supports.
       "extra": {
         "feePayer": "..."
       }
+    },
+    {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "stellar:testnet",
+      "extra": {
+        "areFeesSponsored": true
+      }
     }
   ],
   "extensions": [],
   "signers": {
     "eip155": ["0x..."],
-    "solana": ["..."]
+    "solana": ["..."],
+    "stellar": ["G..."]
   }
 }
 ```
@@ -180,6 +189,7 @@ Register additional schemes for other networks:
 ```typescript
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
 
 const facilitator = new x402Facilitator();
 
@@ -191,6 +201,11 @@ registerExactEvmScheme(facilitator, {
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+});
+
+registerExactStellarScheme(facilitator, {
+  signers: [stellarSigner],
+  networks: "stellar:testnet",
 });
 ```
 
@@ -229,3 +244,5 @@ Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/cai
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `stellar:testnet` — Stellar Testnet
+- `stellar:pubnet` — Stellar Mainnet

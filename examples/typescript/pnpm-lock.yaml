@@ -1295,6 +1295,9 @@ importers:
       '@x402/fetch':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/fetch
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -1350,9 +1353,6 @@ importers:
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
-      '@x402/stellar':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -1466,9 +1466,6 @@ importers:
       '@x402/fetch':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/fetch
-      '@x402/stellar':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2827,6 +2824,9 @@ importers:
       '@x402/extensions':
         specifier: workspace:*
         version: link:../../../../typescript/packages/extensions
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2942,9 +2942,6 @@ importers:
       '@x402/extensions':
         specifier: workspace:*
         version: link:../../../../typescript/packages/extensions
-      '@x402/stellar':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -3009,9 +3006,6 @@ importers:
       '@x402/hono':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/hono
-      '@x402/stellar':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -24075,7 +24069,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
