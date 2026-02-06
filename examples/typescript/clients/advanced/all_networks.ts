@@ -35,7 +35,9 @@ const url = `${baseURL}${endpointPath}`;
 async function main(): Promise<void> {
   // Validate at least one private key is provided
   if (!evmPrivateKey && !svmPrivateKey && !stellarPrivateKey) {
-    console.error("❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required");
+    console.error(
+      "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required",
+    );
     process.exit(1);
   }
 
