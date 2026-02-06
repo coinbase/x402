@@ -5,6 +5,7 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx index.ts builder-pattern",
+    "dev:all-networks": "tsx all_networks.ts",
     "dev:builder-pattern": "tsx index.ts builder-pattern",
     "dev:hooks": "tsx index.ts hooks",
     "dev:preferred-network": "tsx index.ts preferred-network",

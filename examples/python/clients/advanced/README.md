@@ -37,6 +37,7 @@ Use the CLI to run specific examples:
 
 ```bash
 # Run a specific example
+uv run python all_networks.py
 uv run python index.py hooks
 uv run python index.py preferred_network
 uv run python index.py builder_pattern
@@ -51,12 +52,17 @@ uv run python index.py --list
 Or run individual files directly:
 
 ```bash
+uv run python all_networks.py
 uv run python hooks.py
 uv run python preferred_network.py
 uv run python builder_pattern.py
 ```
 
 ## Examples Overview
+
+### 0. All Networks (`all_networks.py`)
+
+Demonstrates how to add all supported networks with optional chain configuration
 
 ### 1. Hooks (`hooks.py`)
 

@@ -16,6 +16,7 @@ const url = `${baseURL}${endpointPath}`;
  *
  * This package demonstrates advanced patterns for production-ready x402 clients:
  *
+ * - all-networks: All supported networks with optional chain configuration
  * - builder-pattern: Fine-grained control over network registration
  * - hooks: Payment lifecycle hooks for custom logic at different stages
  * - preferred-network: Client-side payment network preferences
@@ -25,6 +26,7 @@ const url = `${baseURL}${endpointPath}`;
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
  *
  * Usage:
+ *   pnpm start all-networks
  *   pnpm start builder-pattern
  *   pnpm start hooks
  *   pnpm start preferred-network
@@ -40,6 +42,10 @@ async function main(): Promise<void> {
   }
 
   switch (pattern) {
+    case "all-networks":
+      await import("./all_networks.js");
+      return;
+
     case "builder-pattern":
       if (!svmPrivateKey) {
         console.error("❌ SVM_PRIVATE_KEY environment variable is required for builder-pattern");
@@ -62,7 +68,7 @@ async function main(): Promise<void> {
 
     default:
       console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: builder-pattern, hooks, preferred-network");
+      console.error("Available patterns: all-networks, builder-pattern, hooks, preferred-network");
       process.exit(1);
   }
 }

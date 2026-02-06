@@ -8,6 +8,7 @@
 import { base58 } from "@scure/base";
 import nacl from "tweetnacl";
 import type { CompleteSIWxInfo } from "./client";
+import type { SIWxSigner } from "./sign";
 
 /**
  * Common Solana network CAIP-2 identifiers.
@@ -152,4 +153,34 @@ export function decodeBase58(encoded: string): Uint8Array {
  */
 export function encodeBase58(bytes: Uint8Array): string {
   return base58.encode(bytes);
+}
+
+/**
+ * Detect if a signer is Solana-compatible.
+ * Checks for Solana-specific properties that don't exist on EVM signers.
+ *
+ * @param signer - The signer to check
+ * @returns true if the signer is a Solana signer
+ */
+export function isSolanaSigner(signer: SIWxSigner): boolean {
+  // SolanaKitSigner has signMessages method (plural) - only Solana has this
+  if ("signMessages" in signer && typeof signer.signMessages === "function") {
+    return true;
+  }
+  // WalletAdapterSigner has publicKey property
+  // But viem also has publicKey (as hex string), so we need to distinguish:
+  // - Solana wallet adapter: publicKey has toBase58() method OR is a non-hex string
+  // - viem: publicKey is a hex string starting with 0x
+  if ("publicKey" in signer && signer.publicKey) {
+    const pk = signer.publicKey;
+    // Check for toBase58 method (Solana PublicKey object)
+    if (typeof pk === "object" && pk !== null && "toBase58" in pk) {
+      return true;
+    }
+    // Check for non-hex string (Solana base58 address)
+    if (typeof pk === "string" && !pk.startsWith("0x")) {
+      return true;
+    }
+  }
+  return false;
 }

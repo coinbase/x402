@@ -98,7 +98,7 @@ importers:
         specifier: ^1.2.6
         version: 1.2.6
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../core
       ajv:
         specifier: ^8.17.1
@@ -165,7 +165,7 @@ importers:
   ../typescript/packages/http/axios:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       axios:
         specifier: ^1.7.9
@@ -229,10 +229,10 @@ importers:
         specifier: ^2.1.1
         version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -299,7 +299,7 @@ importers:
   ../typescript/packages/http/fetch:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -357,10 +357,10 @@ importers:
   ../typescript/packages/http/hono:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -424,10 +424,10 @@ importers:
         specifier: ^1.22.0
         version: 1.38.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -527,7 +527,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -561,10 +561,10 @@ importers:
         specifier: ^8.29.1
         version: 8.46.2(eslint@9.38.0(jiti@1.21.7))(typescript@5.8.3)
       '@x402/evm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../mechanisms/evm
       '@x402/svm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../mechanisms/svm
       buffer:
         specifier: ^6.0.3
@@ -1059,7 +1059,7 @@ importers:
         specifier: ^1.12.1
         version: 1.25.3(hono@4.10.2)(zod@3.25.71)
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../core
       zod:
         specifier: ^3.24.2
@@ -1078,7 +1078,7 @@ importers:
         specifier: ^8.29.1
         version: 8.48.0(eslint@9.38.0(jiti@1.21.7))(typescript@5.8.3)
       '@x402/evm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../mechanisms/evm
       eslint:
         specifier: ^9.24.0
@@ -1123,7 +1123,7 @@ importers:
   ../typescript/packages/mechanisms/evm:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -1193,7 +1193,7 @@ importers:
         specifier: ^5.1.0
         version: 5.3.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
     devDependencies:
       '@eslint/js':
