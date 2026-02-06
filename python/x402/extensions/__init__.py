@@ -30,6 +30,10 @@ from .bazaar import (
     validate_and_extract,
     validate_discovery_extension,
 )
+
+# Create alias for backward compatibility
+ValidationResult = BazaarValidationResult
+
 from .payment_identifier import (
     PAYMENT_IDENTIFIER,
     PAYMENT_ID_MAX_LENGTH,
