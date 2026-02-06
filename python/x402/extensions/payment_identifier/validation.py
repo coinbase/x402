@@ -9,13 +9,6 @@ from .schema import payment_identifier_schema
 from .types import PAYMENT_IDENTIFIER, PaymentIdentifierExtension, PaymentIdentifierInfo
 from .utils import is_valid_payment_id
 
-try:
-    import jsonschema
-except ImportError as e:
-    raise ImportError(
-        "Extensions validation requires jsonschema. Install with: pip install x402[extensions]"
-    ) from e
-
 if TYPE_CHECKING:
     from x402.schemas.payments import PaymentPayload
 
@@ -150,6 +143,17 @@ def validate_payment_identifier(extension: Any) -> PaymentIdentifierValidationRe
     # If schema is provided, validate against it
     schema = ext_dict.get("schema")
     if schema:
+        # Lazy import jsonschema only when schema validation is needed
+        try:
+            import jsonschema
+        except ImportError as e:
+            return PaymentIdentifierValidationResult(
+                valid=False,
+                errors=[
+                    "Schema validation requires jsonschema. Install with: pip install x402[extensions]"
+                ],
+            )
+
         try:
             jsonschema.validate(instance=info_dict, schema=schema)
         except jsonschema.ValidationError as e:
