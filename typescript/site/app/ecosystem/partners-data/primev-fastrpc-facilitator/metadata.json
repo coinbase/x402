@@ -13,7 +13,7 @@
       "verify": true,
       "settle": true,
       "supported": true,
-      "list": false
+      "list": true
     }
   }
 }
