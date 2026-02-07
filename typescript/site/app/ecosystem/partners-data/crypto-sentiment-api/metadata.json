@@ -1,7 +1,7 @@
 {
-  "name": "GenVox Crypto Sentiment API",
-  "description": "Real-time crypto sentiment analysis powered by Reddit...",
+  "name": "Crypto Sentiment API",
+  "description": "Real-time Reddit sentiment analysis for cryptocurrencies- BTC, ETH, SOL, DOGE, XRP, ADA, AVAX, MATIC, LINK, DOT, SHIB, LTC. Returns sentiment score, confidence, and top posts.",
   "logoUrl": "/logos/crypto-sentiment-api-logo.png",
-  "websiteUrl": "https://api.genvox.io",  // Updated
+  "websiteUrl": "https://api.genvox.io",
   "category": "Services/Endpoints"
 }
