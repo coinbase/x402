@@ -22,6 +22,13 @@
       "protocolFamily": "svm"
     },
     {
+      "path": "/api/protected-aptos-proxy",
+      "method": "GET",
+      "description": "Protected endpoint using proxy middleware on Aptos",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
+    },
+    {
       "path": "/api/protected-withx402",
       "method": "GET",
       "description": "Protected endpoint using withX402 wrapper",
@@ -55,6 +62,8 @@
       "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PAYEE_ADDRESS"
+    ]
   }
 }
