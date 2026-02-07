@@ -22,6 +22,13 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | Server | Express, Hono, Next.js | Gin | FastAPI, Flask |
 | Client | Fetch, Axios | net/http | httpx, requests |
 
+### MCP Integration
+
+| Role | TypeScript | Go | Python |
+|------|------------|-----|--------|
+| Server | ✅ | ❌ | ❌ |
+| Client | ✅ | ❌ | ❌ |
+
 ## Networks
 
 | Network | TypeScript | Go | Python |
