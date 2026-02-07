@@ -20,7 +20,19 @@ export function createJWSSignerFromPrivateKey(
   privateKeyBase64: string,
   kid: string,
 ): SignerWithPublicKey {
-  const privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${privateKeyBase64}\n-----END PRIVATE KEY-----`;
+  // Decode base64 and check if it's PEM or DER format
+  const decoded = Buffer.from(privateKeyBase64, "base64").toString("utf8");
+  const isPem = decoded.includes("-----BEGIN");
+
+  let privateKeyPem: string;
+  if (isPem) {
+    // Already PEM format (base64-encoded PEM)
+    privateKeyPem = decoded;
+  } else {
+    // Raw DER format, wrap in PEM headers
+    privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${privateKeyBase64}\n-----END PRIVATE KEY-----`;
+  }
+
   const keyObject = crypto.createPrivateKey(privateKeyPem);
   const publicKeyJwk = keyObject.export({ format: "jwk" }) as JsonWebKey;
   // Remove private key component
