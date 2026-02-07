@@ -1,0 +1,19 @@
+{
+  "name": "Primev FastRPC Facilitator",
+  "description": "Fee-free x402 facilitator on Ethereum mainnet powered by mev-commit FastRPC preconfirmations. Sub-200ms settlement via preconfirmed transaction inclusion. Zero gas fees for agents.",
+  "logoUrl": "/logos/primev.svg",
+  "websiteUrl": "https://primev.xyz",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402-facilitator-gold.vercel.app",
+    "networks": ["ethereum"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
