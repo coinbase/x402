@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="20" fill="#0A0F1E"/>
+  <path d="M35 40h50a5 5 0 015 5v30a5 5 0 01-5 5H35a5 5 0 01-5-5V45a5 5 0 015-5z" stroke="#3B82F6" stroke-width="3" fill="none"/>
+  <circle cx="60" cy="57" r="10" stroke="#3B82F6" stroke-width="2.5" fill="none"/>
+  <path d="M57.5 54v6.5h5" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 50h-5v20h5M90 50h5v20h-5" stroke="#60A5FA" stroke-width="2" stroke-linecap="round"/>
+  <rect x="42" y="72" width="36" height="3" rx="1.5" fill="#3B82F6" opacity="0.5"/>
+  <text x="60" y="95" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="#E2E8F0" letter-spacing="2">PAYSENTRY</text>
+</svg>
