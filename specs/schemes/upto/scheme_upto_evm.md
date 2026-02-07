@@ -171,9 +171,9 @@ The server determines the actual amount based on resource consumption during the
 
 **Settlement Amount Rules:**
 
-- `settledAmount` MUST be `<= amount` (the signed permitted amount)
-- `settledAmount` MAY be `0` (no charge if no usage occurred)
-- `settledAmount` is determined by the resource server, not the client
+- The settled `amount` MUST be `<=` the authorized maximum
+- The settled `amount` MAY be `0` (no charge if no usage occurred)
+- The settled `amount` is determined by the resource server, not the client
 
 **Settlement Process:**
 
@@ -187,7 +187,7 @@ The server determines the actual amount based on resource consumption during the
     If `eip2612GasSponsoring` is used, call `x402Permit2Proxy.settleWithPermit`.
 
 4.  **Zero Settlement:**
-    If `settledAmount = 0`, no on-chain transaction is required. The authorization simply expires unused.
+    If the settled `amount = 0`, no on-chain transaction is required. The authorization simply expires unused.
 
 **Example SettlementResponse:**
 
@@ -197,7 +197,7 @@ The server determines the actual amount based on resource consumption during the
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
   "network": "eip155:84532",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-  "settledAmount": "2350000"
+  "amount": "2350000"
 }
 ```
 
@@ -232,7 +232,7 @@ The `upto` scheme extends the base [`SettlementResponse`](../../x402-specificati
 | `payer`         | `string`  | Optional | Address of the payer's wallet                                         |
 | `transaction`   | `string`  | Required | Blockchain transaction hash (empty string if $0 settlement)           |
 | `network`       | `string`  | Required | Blockchain network identifier in CAIP-2 format                        |
-| `settledAmount` | `string`  | Required | Actual amount charged in atomic token units (may be 0)                |
+| `amount`        | `string`  | Required | Actual amount charged in atomic token units (may be 0)                |
 
 ---
 

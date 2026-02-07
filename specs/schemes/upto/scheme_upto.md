@@ -42,10 +42,10 @@ The authorization MUST cryptographically bind the recipient address. The server/
 
 ### 4. Maximum Amount Enforcement
 
-The settled amount MUST be less than or equal to the authorized maximum (`amount`).
+The settled amount MUST be less than or equal to the authorized maximum.
 
-- `settledAmount` MUST be `<= amount`
-- `settledAmount` MAY be `0` (no charge if no usage occurred)
+- The settled `amount` MUST be `<=` the authorized maximum
+- The settled `amount` MAY be `0` (no charge if no usage occurred)
 
 ## Out of Scope
 
