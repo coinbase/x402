@@ -1,12 +1,14 @@
 """Unit tests for MCP server payment wrapper."""
 
-from unittest.mock import Mock, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, Mock
 
 from x402.mcp import (
-    SyncPaymentWrapperConfig as PaymentWrapperConfig,
     ResourceInfo,
+)
+from x402.mcp import (
+    SyncPaymentWrapperConfig as PaymentWrapperConfig,
+)
+from x402.mcp import (
     create_payment_wrapper_sync as create_payment_wrapper,
 )
 from x402.schemas import PaymentPayload, PaymentRequirements, SettleResponse
@@ -20,7 +22,9 @@ class MockResourceServer:
         self.verify_payment = Mock()
         self.settle_payment = Mock()
         # Create a Mock that wraps the real method so we can track calls
-        self._create_payment_required_response_impl = self._create_payment_required_response_real
+        self._create_payment_required_response_impl = (
+            self._create_payment_required_response_real
+        )
         self.create_payment_required_response = MagicMock(
             side_effect=self._create_payment_required_response_real
         )
@@ -111,7 +115,9 @@ def test_create_payment_wrapper_basic_flow():
     args = {"test": "value"}
     extra = {
         "_meta": {
-            "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+            "x402/payment": (
+                payload.model_dump() if hasattr(payload, "model_dump") else payload
+            )
         },
         "toolName": "test",
     }
@@ -200,7 +206,9 @@ def test_create_payment_wrapper_verification_failure():
     args = {}
     extra = {
         "_meta": {
-            "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+            "x402/payment": (
+                payload.model_dump() if hasattr(payload, "model_dump") else payload
+            )
         },
         "toolName": "test",
     }
@@ -262,7 +270,9 @@ def test_create_payment_wrapper_hooks():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
@@ -304,7 +314,11 @@ def test_create_payment_wrapper_abort_on_before_execution():
     wrapped = paid(handler)
     result = wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}}},
+        {
+            "_meta": {
+                "x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}
+            }
+        },
     )
 
     assert len(handler_called) == 0, "Handler should not be called when hook aborts"
@@ -337,11 +351,18 @@ def test_create_payment_wrapper_settlement_failure():
     wrapped = paid(handler)
     result = wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}}},
+        {
+            "_meta": {
+                "x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}
+            }
+        },
     )
 
     assert result.is_error is True
-    assert "settlement" in str(result.content).lower() or result.structured_content is not None
+    assert (
+        "settlement" in str(result.content).lower()
+        or result.structured_content is not None
+    )
 
 
 def test_create_payment_wrapper_handler_error_no_settlement():
@@ -384,7 +405,9 @@ def test_create_payment_wrapper_handler_error_no_settlement():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
@@ -446,7 +469,9 @@ def test_create_payment_wrapper_hook_errors_non_fatal():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
@@ -503,7 +528,9 @@ def test_create_payment_wrapper_find_matching_requirement():
         {},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
@@ -563,7 +590,9 @@ def test_create_payment_wrapper_hooks_order():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )

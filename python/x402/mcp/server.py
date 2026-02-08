@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
-from ..schemas import PaymentPayload, PaymentRequirements, ResourceInfo, SettleResponse
+from ..schemas import ResourceInfo
 from ..server import x402ResourceServerSync
 from .types import (
     AfterExecutionContext,
@@ -14,18 +15,14 @@ from .types import (
     ServerHookContext,
     SettlementContext,
     SyncPaymentWrapperConfig,
-    SyncPaymentWrapperHooks,
 )
 from .utils import (
     create_tool_resource_url,
     extract_payment_from_meta,
 )
 
-
 # Type alias for tool handler
-ToolHandler = Callable[
-    [dict[str, Any], MCPToolContext], MCPToolResult | dict[str, Any]
-]
+ToolHandler = Callable[[dict[str, Any], MCPToolContext], MCPToolResult | dict[str, Any]]
 
 
 # ============================================================================
@@ -171,7 +168,9 @@ def create_payment_wrapper_sync(
         ```
     """
     if not config.accepts:
-        raise ValueError("PaymentWrapperConfig.accepts must have at least one payment requirement")
+        raise ValueError(
+            "PaymentWrapperConfig.accepts must have at least one payment requirement"
+        )
 
     # Return wrapper function that takes a handler and returns a wrapped handler
     def wrapper(handler: ToolHandler) -> ToolHandler:
@@ -198,11 +197,16 @@ def create_payment_wrapper_sync(
             )
 
             # Extract payment from _meta
-            payment_payload = extract_payment_from_meta({"name": tool_name, "arguments": args, "_meta": meta})
+            payment_payload = extract_payment_from_meta(
+                {"name": tool_name, "arguments": args, "_meta": meta}
+            )
 
             if payment_payload is None:
                 return _create_payment_required_result(
-                    resource_server, tool_name, config, "Payment required to access this tool"
+                    resource_server,
+                    tool_name,
+                    config,
+                    "Payment required to access this tool",
                 )
 
             # Match the client's chosen payment method against config.accepts
@@ -212,11 +216,16 @@ def create_payment_wrapper_sync(
 
             if payment_requirements is None:
                 return _create_payment_required_result(
-                    resource_server, tool_name, config, "No matching payment requirements found"
+                    resource_server,
+                    tool_name,
+                    config,
+                    "No matching payment requirements found",
                 )
 
             # Verify payment
-            verify_result = resource_server.verify_payment(payment_payload, payment_requirements)
+            verify_result = resource_server.verify_payment(
+                payment_payload, payment_requirements
+            )
 
             if not verify_result.is_valid:
                 reason = verify_result.invalid_reason or "Payment verification failed"
@@ -340,8 +349,12 @@ def _create_payment_required_result(
         Structured 402 error result with payment requirements
     """
     resource_info = ResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=config.resource.description if config.resource else f"Tool: {tool_name}",
+        url=create_tool_resource_url(
+            tool_name, config.resource.url if config.resource else None
+        ),
+        description=(
+            config.resource.description if config.resource else f"Tool: {tool_name}"
+        ),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 
@@ -386,8 +399,12 @@ def _create_settlement_failed_result(
         Structured 402 error result with settlement failure details
     """
     resource_info = ResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=config.resource.description if config.resource else f"Tool: {tool_name}",
+        url=create_tool_resource_url(
+            tool_name, config.resource.url if config.resource else None
+        ),
+        description=(
+            config.resource.description if config.resource else f"Tool: {tool_name}"
+        ),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 

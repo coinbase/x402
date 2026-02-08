@@ -1,7 +1,7 @@
 """Utility functions for MCP payment handling."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from ..schemas import PaymentPayload, PaymentRequired, SettleResponse
 from .types import (
@@ -9,10 +9,11 @@ from .types import (
     MCP_PAYMENT_REQUIRED_CODE,
     MCP_PAYMENT_RESPONSE_META_KEY,
     MCPToolResult,
+    PaymentRequiredError,
 )
 
 
-def extract_payment_from_meta(params: dict[str, Any]) -> Optional[PaymentPayload]:
+def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:
     """Extract payment payload from MCP request _meta field.
 
     Args:
@@ -57,15 +58,19 @@ def attach_payment_to_meta(
         New params dict with payment in _meta
     """
     result = params.copy()
-    meta = result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
-    meta[MCP_PAYMENT_META_KEY] = payload.model_dump(by_alias=True) if hasattr(payload, "model_dump") else payload
+    meta = (
+        result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
+    )
+    meta[MCP_PAYMENT_META_KEY] = (
+        payload.model_dump(by_alias=True) if hasattr(payload, "model_dump") else payload
+    )
     result["_meta"] = meta
     return result
 
 
 def extract_payment_response_from_meta(
     result: MCPToolResult,
-) -> Optional[SettleResponse]:
+) -> SettleResponse | None:
     """Extract settlement response from MCP result _meta.
 
     Args:
@@ -107,9 +112,11 @@ def attach_payment_response_to_meta(
     Returns:
         New MCPToolResult with response in _meta (does not mutate the original)
     """
-    new_meta = (result.meta.copy() if result.meta else {})
+    new_meta = result.meta.copy() if result.meta else {}
     new_meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
-        response.model_dump(by_alias=True) if hasattr(response, "model_dump") else response
+        response.model_dump(by_alias=True)
+        if hasattr(response, "model_dump")
+        else response
     )
     return MCPToolResult(
         content=result.content,
@@ -121,7 +128,7 @@ def attach_payment_response_to_meta(
 
 def extract_payment_required_from_result(
     result: MCPToolResult,
-) -> Optional[PaymentRequired]:
+) -> PaymentRequired | None:
     """Extract PaymentRequired from tool result (dual format).
 
     Handles both structuredContent (preferred) and content[0].text (fallback).
@@ -159,7 +166,9 @@ def extract_payment_required_from_result(
     return None
 
 
-def _extract_payment_required_from_object(obj: dict[str, Any]) -> Optional[PaymentRequired]:
+def _extract_payment_required_from_object(
+    obj: dict[str, Any],
+) -> PaymentRequired | None:
     """Extract PaymentRequired from object.
 
     Args:
@@ -178,13 +187,15 @@ def _extract_payment_required_from_object(obj: dict[str, Any]) -> Optional[Payme
 
     try:
         # Normalize camelCase to snake_case for Pydantic
-        normalized = {("x402_version" if k == "x402Version" else k): v for k, v in obj.items()}
+        normalized = {
+            ("x402_version" if k == "x402Version" else k): v for k, v in obj.items()
+        }
         return PaymentRequired(**normalized)
     except (TypeError, ValueError, KeyError):
         return None
 
 
-def create_tool_resource_url(tool_name: str, custom_url: Optional[str] = None) -> str:
+def create_tool_resource_url(tool_name: str, custom_url: str | None = None) -> str:
     """Create a resource URL for an MCP tool.
 
     Args:
@@ -213,8 +224,8 @@ def is_object(value: Any) -> bool:
 
 def create_payment_required_error(
     payment_required: PaymentRequired,
-    message: Optional[str] = None,
-) -> "PaymentRequiredError":
+    message: str | None = None,
+) -> PaymentRequiredError:
     """Create a PaymentRequiredError with the given message and payment required data.
 
     Args:
@@ -240,7 +251,7 @@ def create_payment_required_error(
     )
 
 
-def extract_payment_required_from_error(error: Any) -> Optional[PaymentRequired]:
+def extract_payment_required_from_error(error: Any) -> PaymentRequired | None:
     """Extract PaymentRequired from an MCP JSON-RPC error.
 
     This function checks if the error is a 402 payment required error and extracts
@@ -279,7 +290,9 @@ def extract_payment_required_from_error(error: Any) -> Optional[PaymentRequired]
         return None
 
     # Normalize camelCase to snake_case for Pydantic
-    normalized_data = {("x402_version" if k == "x402Version" else k): v for k, v in data.items()}
+    normalized_data = {
+        ("x402_version" if k == "x402Version" else k): v for k, v in data.items()
+    }
     return _extract_payment_required_from_object(normalized_data)
 
 

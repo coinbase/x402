@@ -11,8 +11,8 @@ from .types import (
     MCPToolCallResult,
     MCPToolResult,
     PaymentRequiredContext,
-    PaymentRequiredHookResult,
     PaymentRequiredError,
+    PaymentRequiredHookResult,
 )
 from .utils import (
     attach_payment_to_meta,
@@ -27,12 +27,8 @@ PaymentRequiredHook = Callable[
     [PaymentRequiredContext],
     PaymentRequiredHookResult | Awaitable[PaymentRequiredHookResult],
 ]
-BeforePaymentHook = Callable[
-    [PaymentRequiredContext], None | Awaitable[None]
-]
-AfterPaymentHook = Callable[
-    [AfterPaymentContext], None | Awaitable[None]
-]
+BeforePaymentHook = Callable[[PaymentRequiredContext], None | Awaitable[None]]
+AfterPaymentHook = Callable[[AfterPaymentContext], None | Awaitable[None]]
 
 
 class x402MCPClient:
@@ -68,10 +64,9 @@ class x402MCPClient:
         payment_client: Any,  # x402ClientAsync
         *,
         auto_payment: bool = True,
-        on_payment_requested: Callable[
-            [PaymentRequiredContext], bool | Awaitable[bool]
-        ]
-        | None = None,
+        on_payment_requested: (
+            Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
+        ) = None,
     ):
         """Initialize async x402 MCP client.
 
@@ -99,9 +94,7 @@ class x402MCPClient:
         """Get underlying x402 payment client."""
         return self._payment_client
 
-    def on_payment_required(
-        self, hook: PaymentRequiredHook
-    ) -> x402MCPClient:
+    def on_payment_required(self, hook: PaymentRequiredHook) -> x402MCPClient:
         """Register a hook for payment required events.
 
         Args:
@@ -113,9 +106,7 @@ class x402MCPClient:
         self._payment_required_hooks.append(hook)
         return self
 
-    def on_before_payment(
-        self, hook: BeforePaymentHook
-    ) -> x402MCPClient:
+    def on_before_payment(self, hook: BeforePaymentHook) -> x402MCPClient:
         """Register a hook before payment creation.
 
         Args:
@@ -127,9 +118,7 @@ class x402MCPClient:
         self._before_payment_hooks.append(hook)
         return self
 
-    def on_after_payment(
-        self, hook: AfterPaymentHook
-    ) -> x402MCPClient:
+    def on_after_payment(self, hook: AfterPaymentHook) -> x402MCPClient:
         """Register a hook after payment submission.
 
         Args:
@@ -199,9 +188,7 @@ class x402MCPClient:
 
         # No hook handled it, proceed with normal flow
         if not self._auto_payment:
-            raise PaymentRequiredError(
-                "Payment required", payment_required
-            )
+            raise PaymentRequiredError("Payment required", payment_required)
 
         # Check if payment is approved
         if self._on_payment_requested:
@@ -209,9 +196,7 @@ class x402MCPClient:
             if hasattr(approved, "__await__"):
                 approved = await approved
             if not approved:
-                raise PaymentRequiredError(
-                    "Payment request denied", payment_required
-                )
+                raise PaymentRequiredError("Payment request denied", payment_required)
 
         # Run before payment hooks
         for hook in self._before_payment_hooks:
@@ -247,9 +232,7 @@ class x402MCPClient:
             Tool call result with payment metadata
         """
         # Build call params with payment in _meta
-        call_params = attach_payment_to_meta(
-            {"name": name, "arguments": args}, payload
-        )
+        call_params = attach_payment_to_meta({"name": name, "arguments": args}, payload)
 
         # Call with payment
         result = await self._call_mcp_tool(call_params, **kwargs)
@@ -364,7 +347,9 @@ class x402MCPClient:
         if hasattr(self._mcp_client, "unsubscribe_resource"):
             await self._mcp_client.unsubscribe_resource(uri)
         else:
-            raise NotImplementedError("MCP client does not support unsubscribe_resource")
+            raise NotImplementedError(
+                "MCP client does not support unsubscribe_resource"
+            )
 
     async def list_prompts(self) -> Any:
         """List available prompts from the server."""
@@ -421,7 +406,9 @@ class x402MCPClient:
         if hasattr(self._mcp_client, "send_roots_list_changed"):
             await self._mcp_client.send_roots_list_changed()
         else:
-            raise NotImplementedError("MCP client does not support send_roots_list_changed")
+            raise NotImplementedError(
+                "MCP client does not support send_roots_list_changed"
+            )
 
 
 # ============================================================================
@@ -434,10 +421,9 @@ def create_x402_mcp_client(
     payment_client: Any,
     *,
     auto_payment: bool = True,
-    on_payment_requested: Callable[
-        [PaymentRequiredContext], bool | Awaitable[bool]
-    ]
-    | None = None,
+    on_payment_requested: (
+        Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
+    ) = None,
 ) -> x402MCPClient:
     """Create a new async x402MCPClient instance.
 
@@ -465,10 +451,9 @@ def wrap_mcp_client_with_payment(
     payment_client: Any,
     *,
     auto_payment: bool = True,
-    on_payment_requested: Callable[
-        [PaymentRequiredContext], bool | Awaitable[bool]
-    ]
-    | None = None,
+    on_payment_requested: (
+        Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
+    ) = None,
 ) -> x402MCPClient:
     """Wrap an existing async MCP client with x402 payment handling.
 
@@ -513,10 +498,9 @@ def wrap_mcp_client_with_payment_from_config(
     schemes: list[dict[str, Any]],
     *,
     auto_payment: bool = True,
-    on_payment_requested: Callable[
-        [PaymentRequiredContext], bool | Awaitable[bool]
-    ]
-    | None = None,
+    on_payment_requested: (
+        Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
+    ) = None,
 ) -> x402MCPClient:
     """Wrap an existing async MCP client with x402 payment handling using scheme registrations.
 

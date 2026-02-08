@@ -2,10 +2,12 @@
 
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-import pytest
-
-from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
-
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    SettleResponse,
+)
 
 # ============================================================================
 # Shared constants
@@ -55,7 +57,9 @@ SAMPLE_SETTLE_RESPONSE_DICT = {
 class MockMCPResult:
     """Configurable mock MCP result for testing."""
 
-    def __init__(self, content=None, is_error=False, meta=None, structured_content=None):
+    def __init__(
+        self, content=None, is_error=False, meta=None, structured_content=None
+    ):
         self.content = content or [{"type": "text", "text": "pong"}]
         self.isError = is_error
         self._meta = meta or {}
@@ -114,7 +118,9 @@ class MockResourceServer:
 class MockAsyncMCPResult:
     """Configurable mock MCP result for async testing."""
 
-    def __init__(self, content=None, is_error=False, meta=None, structured_content=None):
+    def __init__(
+        self, content=None, is_error=False, meta=None, structured_content=None
+    ):
         self.content = content or [{"type": "text", "text": "pong"}]
         self.isError = is_error
         self._meta = meta or {}
@@ -156,7 +162,9 @@ class MockAsyncResourceServer:
             side_effect=self._create_payment_required_response_real
         )
 
-    async def _create_payment_required_response_real(self, accepts, resource_info, error_msg):
+    async def _create_payment_required_response_real(
+        self, accepts, resource_info, error_msg
+    ):
         return PaymentRequired(
             x402_version=2,
             accepts=accepts,

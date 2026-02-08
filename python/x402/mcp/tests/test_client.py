@@ -5,8 +5,6 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from x402.mcp import PaymentRequiredError, x402MCPClientSync
-from x402.mcp.types import MCPToolResult
-from x402.mcp.utils import extract_payment_required_from_result
 from x402.schemas import PaymentPayload, PaymentRequired
 
 
@@ -61,18 +59,6 @@ def test_x402_mcp_client_payment_required_auto_payment():
     mock_payment = MockPaymentClient()
 
     # First call returns payment required
-    payment_required = PaymentRequired(
-        x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "pay_to": "0xrecipient",
-            "max_timeout_seconds": 300,
-        }],
-    )
-    
     class MockMCPResultPaymentRequired:
         def __init__(self):
             self.content = [
@@ -84,7 +70,7 @@ def test_x402_mcp_client_payment_required_auto_payment():
             self.isError = True
             self._meta = {}
             self.structuredContent = None
-    
+
     class MockMCPResultSuccess:
         def __init__(self):
             self.content = [{"type": "text", "text": "success"}]
@@ -97,7 +83,7 @@ def test_x402_mcp_client_payment_required_auto_payment():
                 }
             }
             self.structuredContent = None
-    
+
     mock_mcp.call_tool.side_effect = [
         MockMCPResultPaymentRequired(),
         MockMCPResultSuccess(),
@@ -141,7 +127,7 @@ def test_x402_mcp_client_payment_required_no_auto_payment():
             self.isError = True
             self._meta = {}
             self.structuredContent = None
-    
+
     mock_mcp.call_tool.return_value = MockMCPResultPaymentRequired()
 
     client = x402MCPClientSync(mock_mcp, mock_payment, auto_payment=False)
@@ -170,14 +156,14 @@ def test_x402_mcp_client_hooks():
             self.isError = True
             self._meta = {}
             self.structuredContent = None
-    
+
     class MockMCPResultSuccess:
         def __init__(self):
             self.content = [{"type": "text", "text": "success"}]
             self.isError = False
             self._meta = {"x402/payment-response": {"success": True}}
             self.structuredContent = None
-    
+
     mock_mcp.call_tool.side_effect = [
         MockMCPResultPaymentRequired(),
         MockMCPResultSuccess(),
@@ -216,7 +202,9 @@ def test_wrap_mcp_client_with_payment():
     mock_mcp = MockMCPClient()
     mock_payment = MockPaymentClient()
 
-    client = wrap_mcp_client_with_payment_sync(mock_mcp, mock_payment, auto_payment=True)
+    client = wrap_mcp_client_with_payment_sync(
+        mock_mcp, mock_payment, auto_payment=True
+    )
     assert isinstance(client, x402MCPClientSync)
     assert client.client == mock_mcp
     assert client.payment_client == mock_payment
@@ -232,7 +220,9 @@ def test_wrap_mcp_client_with_payment_from_config():
 
     client = wrap_mcp_client_with_payment_from_config_sync(
         mock_mcp,
-        schemes=[{"network": "eip155:84532", "client": ExactEvmClientScheme(mock_signer)}],
+        schemes=[
+            {"network": "eip155:84532", "client": ExactEvmClientScheme(mock_signer)}
+        ],
         auto_payment=True,
     )
 
@@ -371,9 +361,8 @@ def test_x402_mcp_client_hook_abort():
 
     # Register hook that aborts
     from x402.mcp.types import PaymentRequiredHookResult
-    client.on_payment_required(
-        lambda ctx: PaymentRequiredHookResult(abort=True)
-    )
+
+    client.on_payment_required(lambda ctx: PaymentRequiredHookResult(abort=True))
 
     with pytest.raises(PaymentRequiredError) as exc_info:
         client.call_tool("paid_tool", {})
@@ -433,6 +422,7 @@ def test_x402_mcp_client_hook_custom_payment():
     client = x402MCPClientSync(mock_mcp, mock_payment, auto_payment=True)
 
     from x402.mcp.types import PaymentRequiredHookResult
+
     client.on_payment_required(
         lambda ctx: PaymentRequiredHookResult(payment=custom_payload)
     )
@@ -464,7 +454,8 @@ def test_x402_mcp_client_on_payment_requested_denied():
     mock_mcp.call_tool.return_value = MockMCPResultPaymentRequired()
 
     client = x402MCPClientSync(
-        mock_mcp, mock_payment,
+        mock_mcp,
+        mock_payment,
         auto_payment=True,
         on_payment_requested=lambda ctx: False,  # Deny
     )
@@ -519,7 +510,8 @@ def test_x402_mcp_client_on_payment_requested_approved():
 
     approval_called = []
     client = x402MCPClientSync(
-        mock_mcp, mock_payment,
+        mock_mcp,
+        mock_payment,
         auto_payment=True,
         on_payment_requested=lambda ctx: approval_called.append(True) or True,
     )
@@ -536,20 +528,24 @@ def test_x402_mcp_client_get_tool_payment_requirements():
 
     payment_required = PaymentRequired(
         x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "payTo": "0xrecipient",
-            "maxTimeoutSeconds": 300,
-        }],
+        accepts=[
+            {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "amount": "1000",
+                "asset": "USDC",
+                "payTo": "0xrecipient",
+                "maxTimeoutSeconds": 300,
+            }
+        ],
     )
 
     import json
 
     payment_required_json = json.dumps(
-        payment_required.model_dump() if hasattr(payment_required, "model_dump") else payment_required
+        payment_required.model_dump()
+        if hasattr(payment_required, "model_dump")
+        else payment_required
     )
 
     class MockMCPResult:

@@ -27,7 +27,9 @@ class MockAsyncResourceServer:
             )
         )
         # Create an AsyncMock that wraps the real method so we can track calls
-        self._create_payment_required_response_impl = self._create_payment_required_response_real
+        self._create_payment_required_response_impl = (
+            self._create_payment_required_response_real
+        )
         self.create_payment_required_response = AsyncMock(
             side_effect=self._create_payment_required_response_real
         )
@@ -48,7 +50,9 @@ class MockAsyncResourceServer:
                 return req
         return None
 
-    async def _create_payment_required_response_real(self, accepts, resource_info, error_msg):
+    async def _create_payment_required_response_real(
+        self, accepts, resource_info, error_msg
+    ):
         """Real implementation of create payment required response."""
         from x402.schemas import PaymentRequired
 
@@ -106,7 +110,11 @@ async def test_create_payment_wrapper_async_basic_flow():
 
     args = {"test": "value"}
     extra = {
-        "_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload},
+        "_meta": {
+            "x402/payment": (
+                payload.model_dump() if hasattr(payload, "model_dump") else payload
+            )
+        },
         "toolName": "test",
     }
 
@@ -195,7 +203,11 @@ async def test_create_payment_wrapper_async_verification_failure():
 
     args = {}
     extra = {
-        "_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload},
+        "_meta": {
+            "x402/payment": (
+                payload.model_dump() if hasattr(payload, "model_dump") else payload
+            )
+        },
         "toolName": "test",
     }
 
@@ -253,7 +265,13 @@ async def test_create_payment_wrapper_async_hooks():
     )
     await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert len(before_called) > 0
@@ -306,7 +324,9 @@ async def test_create_payment_wrapper_async_abort_on_before_execution():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
@@ -356,13 +376,18 @@ async def test_create_payment_wrapper_async_settlement_failure():
         {"test": "value"},
         {
             "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
             }
         },
     )
 
     assert result.is_error is True
-    assert "settlement" in str(result.content).lower() or result.structured_content is not None
+    assert (
+        "settlement" in str(result.content).lower()
+        or result.structured_content is not None
+    )
 
 
 @pytest.mark.asyncio
@@ -404,7 +429,13 @@ async def test_create_payment_wrapper_async_handler_error_no_settlement():
     )
     result = await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert result.is_error is True
@@ -418,12 +449,20 @@ async def test_create_payment_wrapper_async_find_matching_requirement():
 
     accepts = [
         PaymentRequirements(
-            scheme="exact", network="eip155:84532", amount="1000",
-            asset="USDC", pay_to="0xA", max_timeout_seconds=300,
+            scheme="exact",
+            network="eip155:84532",
+            amount="1000",
+            asset="USDC",
+            pay_to="0xA",
+            max_timeout_seconds=300,
         ),
         PaymentRequirements(
-            scheme="exact", network="eip155:1", amount="2000",
-            asset="USDC", pay_to="0xB", max_timeout_seconds=300,
+            scheme="exact",
+            network="eip155:1",
+            amount="2000",
+            asset="USDC",
+            pay_to="0xB",
+            max_timeout_seconds=300,
         ),
     ]
 
@@ -439,14 +478,24 @@ async def test_create_payment_wrapper_async_find_matching_requirement():
     payload = PaymentPayload(
         x402_version=2,
         accepted={
-            "scheme": "exact", "network": "eip155:1", "amount": "2000",
-            "asset": "USDC", "pay_to": "0xB", "max_timeout_seconds": 300,
+            "scheme": "exact",
+            "network": "eip155:1",
+            "amount": "2000",
+            "asset": "USDC",
+            "pay_to": "0xB",
+            "max_timeout_seconds": 300,
         },
         payload={"signature": "0x123"},
     )
     result = await wrapped(
         {},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert result.is_error is False
@@ -501,7 +550,13 @@ async def test_create_payment_wrapper_async_hooks_order():
     )
     await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert call_order == ["before", "handler", "after", "settlement"]
@@ -563,7 +618,13 @@ async def test_create_payment_wrapper_async_async_hooks():
     )
     await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert len(before_called) > 0
@@ -616,11 +677,14 @@ async def test_create_payment_wrapper_async_hook_error_swallowed():
     # Should not raise exception
     result = await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+        {
+            "_meta": {
+                "x402/payment": (
+                    payload.model_dump() if hasattr(payload, "model_dump") else payload
+                )
+            }
+        },
     )
 
     assert result.is_error is False
     assert server.settle_payment.called
-
-
-

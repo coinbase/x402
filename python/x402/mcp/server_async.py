@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Optional, Awaitable, Union
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from ..schemas import PaymentPayload, PaymentRequirements, ResourceInfo, SettleResponse
+from ..schemas import PaymentRequirements, ResourceInfo
 from ..server import x402ResourceServer as x402ResourceServerAsync
 from .types import (
     AfterExecutionContext,
@@ -19,23 +20,16 @@ from .utils import (
     extract_payment_from_meta,
 )
 
-
 # Async tool handler type
 AsyncToolHandler = Callable[
     [dict[str, Any], MCPToolContext],
-    Union[MCPToolResult, dict[str, Any], Awaitable[MCPToolResult], Awaitable[dict[str, Any]]],
+    MCPToolResult | dict[str, Any] | Awaitable[MCPToolResult] | Awaitable[dict[str, Any]],
 ]
 
 # Async hook types for the server wrapper
-BeforeExecutionHook = Callable[
-    [ServerHookContext], Union[bool, Awaitable[bool]]
-]
-AfterExecutionHook = Callable[
-    [AfterExecutionContext], Union[None, Awaitable[None]]
-]
-AfterSettlementHook = Callable[
-    [SettlementContext], Union[None, Awaitable[None]]
-]
+BeforeExecutionHook = Callable[[ServerHookContext], bool | Awaitable[bool]]
+AfterExecutionHook = Callable[[AfterExecutionContext], None | Awaitable[None]]
+AfterSettlementHook = Callable[[SettlementContext], None | Awaitable[None]]
 
 
 class PaymentWrapperHooks:
@@ -43,9 +37,9 @@ class PaymentWrapperHooks:
 
     def __init__(
         self,
-        on_before_execution: Optional[BeforeExecutionHook] = None,
-        on_after_execution: Optional[AfterExecutionHook] = None,
-        on_after_settlement: Optional[AfterSettlementHook] = None,
+        on_before_execution: BeforeExecutionHook | None = None,
+        on_after_execution: AfterExecutionHook | None = None,
+        on_after_settlement: AfterSettlementHook | None = None,
     ):
         """Initialize async payment wrapper hooks.
 
@@ -65,8 +59,8 @@ class PaymentWrapperConfig:
     def __init__(
         self,
         accepts: list[PaymentRequirements],
-        resource: Optional["ResourceInfo"] = None,
-        hooks: Optional[PaymentWrapperHooks] = None,
+        resource: ResourceInfo | None = None,
+        hooks: PaymentWrapperHooks | None = None,
     ):
         """Initialize async payment wrapper config.
 
@@ -98,7 +92,10 @@ def wrap_fastmcp_tool(
     Returns:
         An async function ``(args, fastmcp_context) -> CallToolResult``
     """
-    from .server import _extract_meta_from_fastmcp_context, _mcp_tool_result_to_call_tool_result
+    from .server import (
+        _extract_meta_from_fastmcp_context,
+        _mcp_tool_result_to_call_tool_result,
+    )
 
     wrapped = payment_wrapper(handler)
 
@@ -155,7 +152,9 @@ def create_payment_wrapper(
         ```
     """
     if not config.accepts:
-        raise ValueError("PaymentWrapperConfig.accepts must have at least one payment requirement")
+        raise ValueError(
+            "PaymentWrapperConfig.accepts must have at least one payment requirement"
+        )
 
     # Return wrapper function that takes a handler and returns a wrapped handler
     def wrapper(handler: AsyncToolHandler) -> AsyncToolHandler:
@@ -172,7 +171,7 @@ def create_payment_wrapper(
             if config.resource and config.resource.url:
                 # Try to extract from URL
                 if config.resource.url.startswith("mcp://tool/"):
-                    tool_name = config.resource.url[len("mcp://tool/"):]
+                    tool_name = config.resource.url[len("mcp://tool/") :]
 
             # Build tool context
             tool_context = MCPToolContext(
@@ -182,11 +181,16 @@ def create_payment_wrapper(
             )
 
             # Extract payment from _meta
-            payment_payload = extract_payment_from_meta({"name": tool_name, "arguments": args, "_meta": meta})
+            payment_payload = extract_payment_from_meta(
+                {"name": tool_name, "arguments": args, "_meta": meta}
+            )
 
             if payment_payload is None:
                 return await _create_payment_required_result_async(
-                    resource_server, tool_name, config, "Payment required to access this tool"
+                    resource_server,
+                    tool_name,
+                    config,
+                    "Payment required to access this tool",
                 )
 
             # Match the client's chosen payment method against config.accepts
@@ -196,11 +200,16 @@ def create_payment_wrapper(
 
             if payment_requirements is None:
                 return await _create_payment_required_result_async(
-                    resource_server, tool_name, config, "No matching payment requirements found"
+                    resource_server,
+                    tool_name,
+                    config,
+                    "No matching payment requirements found",
                 )
 
             # Verify payment (async)
-            verify_result = await resource_server.verify_payment(payment_payload, payment_requirements)
+            verify_result = await resource_server.verify_payment(
+                payment_payload, payment_requirements
+            )
 
             if not verify_result.is_valid:
                 reason = verify_result.invalid_reason or "Payment verification failed"
@@ -334,8 +343,12 @@ async def _create_payment_required_result_async(
     from ..schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=config.resource.description if config.resource else f"Tool: {tool_name}",
+        url=create_tool_resource_url(
+            tool_name, config.resource.url if config.resource else None
+        ),
+        description=(
+            config.resource.description if config.resource else f"Tool: {tool_name}"
+        ),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 
@@ -382,8 +395,12 @@ async def _create_settlement_failed_result_async(
     from ..schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=config.resource.description if config.resource else f"Tool: {tool_name}",
+        url=create_tool_resource_url(
+            tool_name, config.resource.url if config.resource else None
+        ),
+        description=(
+            config.resource.description if config.resource else f"Tool: {tool_name}"
+        ),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 

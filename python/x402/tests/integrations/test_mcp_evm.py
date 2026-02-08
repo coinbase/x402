@@ -20,12 +20,19 @@ import threading
 import time
 
 import pytest
-from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp import FastMCP
-from mcp.types import CallToolResult, TextContent
 
+from mcp import ClientSession
+from mcp.types import TextContent
 from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
+from x402.mcp import (
+    PaymentWrapperConfig,
+    ResourceInfo,
+    create_payment_wrapper,
+    x402MCPClient,
+)
+from x402.mcp.types import MCPToolResult
 from x402.mechanisms.evm.exact import (
     ExactEvmClientScheme,
     ExactEvmFacilitatorScheme,
@@ -33,13 +40,6 @@ from x402.mechanisms.evm.exact import (
     ExactEvmServerScheme,
 )
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
-from x402.mcp import (
-    PaymentWrapperConfig,
-    ResourceInfo,
-    create_payment_wrapper,
-    x402MCPClient,
-)
-from x402.mcp.types import MCPToolContext, MCPToolResult
 from x402.schemas import ResourceConfig
 
 # Environment variables
@@ -104,10 +104,10 @@ class MCPClientAdapter:
     def call_tool(self, params, **kwargs):
         """Call tool via MCP session."""
         import nest_asyncio
-        
+
         # Allow nested event loops
         nest_asyncio.apply()
-        
+
         name = params.get("name", "")
         arguments = params.get("arguments", {})
         # _meta can be in params dict or passed via kwargs
@@ -133,7 +133,9 @@ class MCPClientAdapter:
             if isinstance(item, TextContent):
                 content.append({"type": "text", "text": item.text})
             else:
-                content.append({"type": getattr(item, "type", "text"), "text": str(item)})
+                content.append(
+                    {"type": getattr(item, "type", "text"), "text": str(item)}
+                )
 
         return type(
             "MCPResult",
@@ -142,15 +144,20 @@ class MCPClientAdapter:
                 "content": content,
                 "isError": result.isError,  # MCP SDK uses camelCase
                 "_meta": result.meta if hasattr(result, "meta") and result.meta else {},
-                "structuredContent": result.structuredContent if hasattr(result, "structuredContent") else None,
+                "structuredContent": (
+                    result.structuredContent
+                    if hasattr(result, "structuredContent")
+                    else None
+                ),
             },
         )()
 
     def list_tools(self):
         """List tools via MCP session."""
         import nest_asyncio
+
         nest_asyncio.apply()
-        
+
         result = asyncio.run(self._session.list_tools())
         tools = []
         for tool in result.tools:
@@ -199,7 +206,9 @@ class TestMCPEVMIntegration:
     def test_free_tool_works_without_payment(self):
         """Test that free tools work without payment."""
         # Create FastMCP server with port configuration
-        mcp_server = FastMCP("x402-test-server", json_response=True, port=TEST_PORT_FREE)
+        mcp_server = FastMCP(
+            "x402-test-server", json_response=True, port=TEST_PORT_FREE
+        )
 
         # Register free tool
         @mcp_server.tool()
@@ -213,7 +222,7 @@ class TestMCPEVMIntegration:
             daemon=True,
         )
         server_thread.start()
-        
+
         # Wait for server to be ready
         max_wait = 5.0
         start_time = time.time()
@@ -229,12 +238,16 @@ class TestMCPEVMIntegration:
                 pass
             time.sleep(0.1)
         else:
-            raise RuntimeError(f"Server failed to start on port {TEST_PORT_FREE} within {max_wait}s")
+            raise RuntimeError(
+                f"Server failed to start on port {TEST_PORT_FREE} within {max_wait}s"
+            )
 
         try:
             # Connect client
             async def run_client():
-                async with streamable_http_client(f"http://localhost:{TEST_PORT_FREE}/mcp") as (
+                async with streamable_http_client(
+                    f"http://localhost:{TEST_PORT_FREE}/mcp"
+                ) as (
                     read_stream,
                     write_stream,
                     _,
@@ -308,7 +321,9 @@ class TestMCPEVMIntegration:
         )
 
         # Create FastMCP server with port configuration
-        mcp_server = FastMCP("x402-test-server", json_response=True, port=TEST_PORT_PAID)
+        mcp_server = FastMCP(
+            "x402-test-server", json_response=True, port=TEST_PORT_PAID
+        )
 
         # Free tool handler
         def free_handler(args, tool_context):
@@ -330,15 +345,10 @@ class TestMCPEVMIntegration:
         @mcp_server.tool()
         async def get_weather(city: str) -> str:
             """Get weather for a city. Requires payment of $0.001."""
-            # Build tool context
-            tool_context = MCPToolContext(
-                tool_name="get_weather",
-                arguments={"city": city},
-                meta={},
-            )
-
             # Call paid handler
-            result = paid_tool_handler({"city": city}, {"_meta": {}, "toolName": "get_weather"})
+            result = paid_tool_handler(
+                {"city": city}, {"_meta": {}, "toolName": "get_weather"}
+            )
 
             if result.is_error:
                 # Extract payment required from result
@@ -346,7 +356,11 @@ class TestMCPEVMIntegration:
                     return result.content[0].get("text", "Payment required")
                 return "Payment required"
 
-            return result.content[0].get("text", "Weather data") if result.content else "No data"
+            return (
+                result.content[0].get("text", "Weather data")
+                if result.content
+                else "No data"
+            )
 
         # Start server in background
         server_thread = threading.Thread(
@@ -354,7 +368,7 @@ class TestMCPEVMIntegration:
             daemon=True,
         )
         server_thread.start()
-        
+
         # Wait for server to be ready
         max_wait = 5.0
         start_time = time.time()
@@ -370,12 +384,16 @@ class TestMCPEVMIntegration:
                 pass
             time.sleep(0.1)
         else:
-            raise RuntimeError(f"Server failed to start on port {TEST_PORT_PAID} within {max_wait}s")
+            raise RuntimeError(
+                f"Server failed to start on port {TEST_PORT_PAID} within {max_wait}s"
+            )
 
         try:
             # Connect client
             async def run_client():
-                async with streamable_http_client(f"http://localhost:{TEST_PORT_PAID}/mcp") as (
+                async with streamable_http_client(
+                    f"http://localhost:{TEST_PORT_PAID}/mcp"
+                ) as (
                     read_stream,
                     write_stream,
                     _,
@@ -393,7 +411,9 @@ class TestMCPEVMIntegration:
                         )
 
                         # Call paid tool - this makes a REAL blockchain transaction!
-                        print("\n🔄 Starting paid tool call with real blockchain settlement...\n")
+                        print(
+                            "\n🔄 Starting paid tool call with real blockchain settlement...\n"
+                        )
 
                         result = x402_mcp.call_tool("get_weather", {"city": "New York"})
 

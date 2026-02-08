@@ -16,7 +16,9 @@ class VerifyError(PaymentError):
         payer: The payer's address (if known).
     """
 
-    def __init__(self, reason: str, message: str | None = None, payer: str | None = None):
+    def __init__(
+        self, reason: str, message: str | None = None, payer: str | None = None
+    ):
         self.invalid_reason = reason
         self.invalid_message = message
         self.reason = reason

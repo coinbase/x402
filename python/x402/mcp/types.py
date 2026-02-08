@@ -1,11 +1,13 @@
 """Type definitions for MCP transport integration."""
 
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Optional
 
 from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
+from ..schemas.base import Price
 
 if TYPE_CHECKING:
-    from ..schemas import PaymentRequired
+    pass
 
 # Protocol constants for MCP x402 payment integration.
 MCP_PAYMENT_REQUIRED_CODE = 402
@@ -19,8 +21,8 @@ class ResourceInfo:
     def __init__(
         self,
         url: str,
-        description: Optional[str] = None,
-        mime_type: Optional[str] = None,
+        description: str | None = None,
+        mime_type: str | None = None,
     ):
         """Initialize resource info.
 
@@ -60,7 +62,7 @@ class PaymentRequiredHookResult:
 
     def __init__(
         self,
-        payment: Optional[PaymentPayload] = None,
+        payment: PaymentPayload | None = None,
         abort: bool = False,
     ):
         """Initialize hook result.
@@ -87,7 +89,7 @@ class AfterPaymentContext:
         tool_name: str,
         payment_payload: PaymentPayload,
         result: "MCPToolResult",  # type: ignore
-        settle_response: Optional[SettleResponse] = None,
+        settle_response: SettleResponse | None = None,
     ):
         """Initialize after payment context.
 
@@ -110,7 +112,7 @@ class MCPToolContext:
         self,
         tool_name: str,
         arguments: dict[str, Any],
-        meta: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ):
         """Initialize tool context.
 
@@ -131,8 +133,8 @@ class MCPToolResult:
         self,
         content: list[dict[str, Any]],
         is_error: bool = False,
-        meta: Optional[dict[str, Any]] = None,
-        structured_content: Optional[dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
+        structured_content: dict[str, Any] | None = None,
     ):
         """Initialize tool result.
 
@@ -155,7 +157,7 @@ class MCPToolCallResult:
         self,
         content: list[dict[str, Any]],
         is_error: bool = False,
-        payment_response: Optional[SettleResponse] = None,
+        payment_response: SettleResponse | None = None,
         payment_made: bool = False,
     ):
         """Initialize tool call result.
@@ -178,7 +180,7 @@ class SyncPaymentWrapperConfig:
     def __init__(
         self,
         accepts: list[PaymentRequirements],
-        resource: Optional[ResourceInfo] = None,
+        resource: ResourceInfo | None = None,
         hooks: Optional["SyncPaymentWrapperHooks"] = None,  # type: ignore
     ):
         """Initialize payment wrapper config.
@@ -272,9 +274,9 @@ class SyncPaymentWrapperHooks:
 
     def __init__(
         self,
-        on_before_execution: Optional[Callable[[ServerHookContext], bool]] = None,
-        on_after_execution: Optional[Callable[[AfterExecutionContext], None]] = None,
-        on_after_settlement: Optional[Callable[[SettlementContext], None]] = None,
+        on_before_execution: Callable[[ServerHookContext], bool] | None = None,
+        on_after_execution: Callable[[AfterExecutionContext], None] | None = None,
+        on_after_settlement: Callable[[SettlementContext], None] | None = None,
     ):
         """Initialize payment wrapper hooks.
 
@@ -298,8 +300,6 @@ SyncAfterSettlementHook = Callable[[SettlementContext], None]
 # Dynamic Pricing Types
 # ============================================================================
 
-from ..schemas.base import Network, Price
-
 DynamicPayTo = Callable[[MCPToolContext], str]
 """Function type that resolves a payTo address dynamically based on tool call context."""
 
@@ -313,7 +313,7 @@ class PaymentRequiredError(Exception):
     def __init__(
         self,
         message: str,
-        payment_required: Optional[Any] = None,  # PaymentRequired
+        payment_required: Any | None = None,  # PaymentRequired
     ):
         """Initialize payment required error.
 

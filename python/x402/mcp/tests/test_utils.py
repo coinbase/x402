@@ -2,8 +2,7 @@
 
 import json
 
-import pytest
-
+from x402.mcp.types import MCPToolResult
 from x402.mcp.utils import (
     attach_payment_to_meta,
     create_tool_resource_url,
@@ -12,7 +11,6 @@ from x402.mcp.utils import (
     extract_payment_response_from_meta,
 )
 from x402.schemas import PaymentPayload, PaymentRequired, SettleResponse
-from x402.mcp.types import MCPToolResult
 
 
 def test_extract_payment_from_meta_no_meta():
@@ -45,7 +43,9 @@ def test_extract_payment_from_meta_valid():
     )
     params = {
         "_meta": {
-            "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+            "x402/payment": (
+                payload.model_dump() if hasattr(payload, "model_dump") else payload
+            )
         }
     }
     result = extract_payment_from_meta(params)
@@ -77,14 +77,16 @@ def test_extract_payment_required_from_result_structured():
     """Test extraction from structuredContent."""
     payment_required = PaymentRequired(
         x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "payTo": "0xrecipient",
-            "maxTimeoutSeconds": 300,
-        }],
+        accepts=[
+            {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "amount": "1000",
+                "asset": "USDC",
+                "payTo": "0xrecipient",
+                "maxTimeoutSeconds": 300,
+            }
+        ],
     )
     structured_content = (
         payment_required.model_dump()
@@ -105,14 +107,16 @@ def test_extract_payment_required_from_result_text():
     """Test extraction from content[0].text."""
     payment_required = PaymentRequired(
         x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "payTo": "0xrecipient",
-            "maxTimeoutSeconds": 300,
-        }],
+        accepts=[
+            {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "amount": "1000",
+                "asset": "USDC",
+                "payTo": "0xrecipient",
+                "maxTimeoutSeconds": 300,
+            }
+        ],
     )
     text = json.dumps(
         payment_required.model_dump()
@@ -147,43 +151,40 @@ def test_create_payment_required_error():
 
     payment_required = PaymentRequired(
         x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "payTo": "0xrecipient",
-            "maxTimeoutSeconds": 300,
-        }],
+        accepts=[
+            {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "amount": "1000",
+                "asset": "USDC",
+                "payTo": "0xrecipient",
+                "maxTimeoutSeconds": 300,
+            }
+        ],
     )
 
     # Test default message
     error = create_payment_required_error(payment_required)
     assert error.code == 402
-    assert str(error) == "Payment required" or (hasattr(error, 'args') and len(error.args) > 0 and error.args[0] == "Payment required")
+    assert str(error) == "Payment required" or (
+        hasattr(error, "args")
+        and len(error.args) > 0
+        and error.args[0] == "Payment required"
+    )
     assert error.payment_required == payment_required
 
     # Test custom message
     error = create_payment_required_error(payment_required, "Custom error")
-    assert str(error) == "Custom error" or (hasattr(error, 'args') and len(error.args) > 0 and error.args[0] == "Custom error")
+    assert str(error) == "Custom error" or (
+        hasattr(error, "args")
+        and len(error.args) > 0
+        and error.args[0] == "Custom error"
+    )
 
 
 def test_extract_payment_required_from_error():
     """Test extract_payment_required_from_error utility."""
     from x402.mcp import extract_payment_required_from_error
-    from x402.schemas import PaymentRequired
-
-    payment_required = PaymentRequired(
-        x402_version=2,
-        accepts=[{
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "payTo": "0xrecipient",
-            "maxTimeoutSeconds": 300,
-        }],
-    )
 
     # Test valid 402 error
     json_rpc_error = {
@@ -191,14 +192,16 @@ def test_extract_payment_required_from_error():
         "message": "Payment required",
         "data": {
             "x402Version": 2,
-            "accepts": [{
-                "scheme": "exact",
-                "network": "eip155:84532",
-                "amount": "1000",
-                "asset": "USDC",
-                "payTo": "0xrecipient",
-                "maxTimeoutSeconds": 300,
-            }],
+            "accepts": [
+                {
+                    "scheme": "exact",
+                    "network": "eip155:84532",
+                    "amount": "1000",
+                    "asset": "USDC",
+                    "payTo": "0xrecipient",
+                    "maxTimeoutSeconds": 300,
+                }
+            ],
         },
     }
 
@@ -231,7 +234,6 @@ def test_create_tool_resource_url():
 
 def test_extract_payment_response_from_meta_no_meta():
     """Test extraction when meta is missing."""
-    from x402.mcp.utils import extract_payment_response_from_meta
 
     result = MCPToolResult(content=[], is_error=False, meta=None)
     response = extract_payment_response_from_meta(result)
@@ -240,7 +242,6 @@ def test_extract_payment_response_from_meta_no_meta():
 
 def test_extract_payment_response_from_meta_no_response():
     """Test extraction when payment response is not in meta."""
-    from x402.mcp.utils import extract_payment_response_from_meta
 
     result = MCPToolResult(content=[], is_error=False, meta={})
     response = extract_payment_response_from_meta(result)
@@ -249,7 +250,6 @@ def test_extract_payment_response_from_meta_no_response():
 
 def test_extract_payment_response_from_meta_valid():
     """Test extraction of valid payment response."""
-    from x402.mcp.utils import extract_payment_response_from_meta
 
     settle_response = SettleResponse(
         success=True,
@@ -278,7 +278,9 @@ def test_extract_payment_response_from_meta_valid():
 
 def test_attach_payment_response_to_meta():
     """Test attaching payment response to result."""
-    from x402.mcp.utils import attach_payment_response_to_meta, extract_payment_response_from_meta
+    from x402.mcp.utils import (
+        attach_payment_response_to_meta,
+    )
 
     settle_response = SettleResponse(
         success=True,
@@ -286,7 +288,9 @@ def test_attach_payment_response_to_meta():
         network="eip155:84532",
     )
 
-    result = MCPToolResult(content=[{"type": "text", "text": "success"}], is_error=False, meta=None)
+    result = MCPToolResult(
+        content=[{"type": "text", "text": "success"}], is_error=False, meta=None
+    )
 
     updated = attach_payment_response_to_meta(result, settle_response)
 
@@ -377,8 +381,8 @@ def test_extract_payment_from_meta_json_string():
 
 def test_is_payment_required_error():
     """Test is_payment_required_error type guard."""
-    from x402.mcp.utils import is_payment_required_error
     from x402.mcp.types import PaymentRequiredError
+    from x402.mcp.utils import is_payment_required_error
 
     pr_error = PaymentRequiredError("test", payment_required=None)
     assert is_payment_required_error(pr_error) is True

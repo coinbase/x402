@@ -28,69 +28,68 @@ Convenience Re-exports:
 """
 
 # Async client (default)
+# Sync client
+from .client import (
+    create_x402_mcp_client_from_config_sync,
+    create_x402_mcp_client_sync,
+    wrap_mcp_client_with_payment_from_config_sync,
+    wrap_mcp_client_with_payment_sync,
+    x402MCPClientSync,
+)
 from .client_async import (
+    AfterPaymentHook,
+    BeforePaymentHook,
+    # Async hook types (accept both sync and async callables)
+    PaymentRequiredHook,
     create_x402_mcp_client,
     create_x402_mcp_client_from_config,
     wrap_mcp_client_with_payment,
     wrap_mcp_client_with_payment_from_config,
     x402MCPClient,
-    # Async hook types (accept both sync and async callables)
-    PaymentRequiredHook,
-    BeforePaymentHook,
-    AfterPaymentHook,
-)
-
-# Sync client
-from .client import (
-    create_x402_mcp_client_sync,
-    create_x402_mcp_client_from_config_sync,
-    wrap_mcp_client_with_payment_sync,
-    wrap_mcp_client_with_payment_from_config_sync,
-    x402MCPClientSync,
-)
-
-# Async server (default)
-from .server_async import (
-    create_payment_wrapper,
-    wrap_fastmcp_tool,
-    PaymentWrapperConfig,
-    PaymentWrapperHooks,
-    # Async server hook types (accept both sync and async callables)
-    BeforeExecutionHook,
-    AfterExecutionHook,
-    AfterSettlementHook,
 )
 
 # Sync server
 from .server import create_payment_wrapper_sync, wrap_fastmcp_tool_sync
 
+# Async server (default)
+from .server_async import (
+    AfterExecutionHook,
+    AfterSettlementHook,
+    # Async server hook types (accept both sync and async callables)
+    BeforeExecutionHook,
+    PaymentWrapperConfig,
+    PaymentWrapperHooks,
+    create_payment_wrapper,
+    wrap_fastmcp_tool,
+)
+
 # Types
 from .types import (
-    AfterExecutionContext,
-    AfterPaymentContext,
-    ResourceInfo,
-    DynamicPayTo,
-    DynamicPrice,
     MCP_PAYMENT_META_KEY,
     MCP_PAYMENT_REQUIRED_CODE,
     MCP_PAYMENT_RESPONSE_META_KEY,
+    AfterExecutionContext,
+    AfterPaymentContext,
+    DynamicPayTo,
+    DynamicPrice,
     MCPToolCallResult,
     MCPToolContext,
     MCPToolResult,
     PaymentRequiredContext,
     PaymentRequiredError,
     PaymentRequiredHookResult,
+    ResourceInfo,
     ServerHookContext,
     SettlementContext,
+    SyncAfterExecutionHook,
+    SyncAfterPaymentHook,
+    SyncAfterSettlementHook,
+    SyncBeforeExecutionHook,
+    SyncBeforePaymentHook,
+    SyncPaymentRequiredHook,
     # Sync hook types
     SyncPaymentWrapperConfig,
     SyncPaymentWrapperHooks,
-    SyncPaymentRequiredHook,
-    SyncBeforePaymentHook,
-    SyncAfterPaymentHook,
-    SyncBeforeExecutionHook,
-    SyncAfterExecutionHook,
-    SyncAfterSettlementHook,
 )
 
 # Utilities
@@ -184,45 +183,69 @@ __all__ = [
 
 # Re-export client classes
 try:
-    from .. import x402ClientSync
-    from .. import x402Client as x402ClientAsync  # async is the default
+    from .. import x402Client as x402ClientAsync  # noqa: F401 (re-export)
+    from .. import x402ClientSync  # noqa: F401 (re-export)
+
     __all__.extend(["x402ClientSync", "x402ClientAsync"])
 except ImportError:
     pass
 
 # Re-export server classes
 try:
-    from ..server import x402ResourceServerSync
-    from ..server import x402ResourceServer as x402ResourceServerAsync  # async is the default
+    from ..server import (  # noqa: F401 (re-export)
+        x402ResourceServer as x402ResourceServerAsync,
+    )
+    from ..server import x402ResourceServerSync  # noqa: F401 (re-export)
+
     __all__.extend(["x402ResourceServerSync", "x402ResourceServerAsync"])
 except ImportError:
     pass
 
 # Re-export core types from schemas
-from ..schemas import (
+from ..schemas import (  # noqa: F401 (re-export)
+    Network,
     PaymentPayload,
     PaymentRequired,
     PaymentRequirements,
     SettleResponse,
-    Network,
+)
+
+__all__.extend(
+    [
+        "Network",
+        "PaymentPayload",
+        "PaymentRequired",
+        "PaymentRequirements",
+        "SettleResponse",
+    ]
 )
 
 # Re-export interfaces (Protocol types for type hints)
 try:
-    from ..interfaces import SchemeNetworkClient, SchemeNetworkClientV1, SchemeNetworkServer, SchemeNetworkServerV1
-    __all__.extend([
-        "SchemeNetworkClient",
-        "SchemeNetworkClientV1",
-        "SchemeNetworkServer",
-        "SchemeNetworkServerV1",
-    ])
+    from ..interfaces import (  # noqa: F401 (re-export)
+        SchemeNetworkClient,
+        SchemeNetworkClientV1,
+        SchemeNetworkServer,
+        SchemeNetworkServerV1,
+    )
+
+    __all__.extend(
+        [
+            "SchemeNetworkClient",
+            "SchemeNetworkClientV1",
+            "SchemeNetworkServer",
+            "SchemeNetworkServerV1",
+        ]
+    )
 except ImportError:
     pass
 
-__all__.extend([
-    "PaymentPayload",
-    "PaymentRequired",
-    "PaymentRequirements",
-    "SettleResponse",
-    "Network",
-])
+__all__.extend(
+    [
+        "PaymentPayload",
+        "PaymentRequired",
+        "PaymentRequirements",
+        "SettleResponse",
+        "Network",
+    ]
+)
