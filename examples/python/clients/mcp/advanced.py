@@ -20,14 +20,13 @@ import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
 from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.sse import sse_client
 
 from x402 import x402ClientSync
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 from x402.mcp import (
     AfterPaymentContext,
-    MCPContentItem,
     MCPToolResult,
     PaymentRequiredContext,
     x402MCPClient,
@@ -70,9 +69,9 @@ class MCPClientAdapter:
         content = []
         for item in result.content:
             if hasattr(item, "text"):
-                content.append(MCPContentItem(type="text", text=item.text))
+                content.append({"type": "text", "text": item.text})
             elif isinstance(item, dict):
-                content.append(MCPContentItem(type=item.get("type", "text"), text=item.get("text", "")))
+                content.append(item)
 
         return MCPToolResult(
             content=content,
@@ -105,10 +104,9 @@ async def run_advanced_async() -> None:
     # ========================================================================
 
     # Connect to REAL MCP server using streamable HTTP transport
-    async with streamable_http_client(f"{MCP_SERVER_URL}/mcp") as (
+    async with sse_client(f"{MCP_SERVER_URL}/sse") as (
         read_stream,
         write_stream,
-        _,
     ):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
@@ -176,7 +174,9 @@ async def run_advanced_async() -> None:
 
             ping_result = await x402_mcp.call_tool("ping", {})
             if ping_result.content:
-                print(f"Response: {ping_result.content[0].text}")
+                first = ping_result.content[0]
+                text = first.get("text", str(first)) if isinstance(first, dict) else getattr(first, "text", str(first))
+                print(f"Response: {text}")
             print(f"Payment made: {ping_result.payment_made}\n")
 
             # Test paid tool
@@ -186,7 +186,9 @@ async def run_advanced_async() -> None:
 
             weather_result = await x402_mcp.call_tool("get_weather", {"city": "San Francisco"})
             if weather_result.content:
-                print(f"Response: {weather_result.content[0].text}")
+                first = weather_result.content[0]
+                text = first.get("text", str(first)) if isinstance(first, dict) else getattr(first, "text", str(first))
+                print(f"Response: {text}")
             print(f"Payment made: {weather_result.payment_made}")
 
             if weather_result.payment_response:
