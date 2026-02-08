@@ -5,7 +5,7 @@
   "websiteUrl": "https://primev.xyz",
   "category": "Facilitators",
   "facilitator": {
-    "baseUrl": "https://x402-facilitator-gold.vercel.app",
+    "baseUrl": "https://facilitator.primev.xyz",
     "networks": ["ethereum"],
     "schemes": ["exact"],
     "assets": ["EIP-3009"],
