@@ -1,13 +1,21 @@
 package main
 
+// MCP Server with x402 Paid Tools - Simple Example
+//
+// This example demonstrates creating an MCP server with payment-wrapped tools
+// using the MCP SDK (github.com/modelcontextprotocol/go-sdk/mcp).
+// Uses the CreatePaymentWrapper function to add x402 payment to individual tools.
+//
+// The getWeatherData helper is defined in helpers.go and shared across examples.
+//
+// Run with: go run . simple
+
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
@@ -17,31 +25,6 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-/**
- * MCP Server with x402 Paid Tools - Simple Example
- *
- * This example demonstrates creating an MCP server with payment-wrapped tools
- * using the REAL MCP SDK (github.com/modelcontextprotocol/go-sdk/mcp).
- * Uses the CreatePaymentWrapper function to add x402 payment to individual tools.
- *
- * Run with: go run . simple
- */
-
-// getWeatherData simulates fetching weather data for a city
-func getWeatherData(city string) map[string]interface{} {
-	conditions := []string{"sunny", "cloudy", "rainy", "snowy", "windy"}
-	weather := conditions[rand.Intn(len(conditions))]
-	temperature := rand.Intn(40) + 40
-	return map[string]interface{}{
-		"city":        city,
-		"weather":     weather,
-		"temperature": temperature,
-	}
-}
-
-/**
- * Main entry point - demonstrates the payment wrapper API with REAL MCP SDK.
- */
 func runSimple() error {
 	fmt.Println("\n📦 Using Payment Wrapper API with REAL MCP SDK\n")
 
@@ -98,10 +81,6 @@ func runSimple() error {
 		Network: "eip155:84532",
 		PayTo:   evmAddress,
 		Price:   "$0.001",
-		Extra: map[string]interface{}{
-			"name":    "USDC",
-			"version": "2",
-		},
 	}
 
 	accepts, err := resourceServer.BuildPaymentRequirementsFromConfig(ctx, config)
@@ -129,23 +108,30 @@ func runSimple() error {
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name:        "ping",
 		Description: "A free health check tool",
-	}, func(ctx context.Context, req *mcpsdk.CallToolRequest, _ any) (*mcpsdk.CallToolResult, any, error) {
+		InputSchema: map[string]interface{}{"type": "object"},
+	}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return &mcpsdk.CallToolResult{
 			Content: []mcpsdk.Content{
 				&mcpsdk.TextContent{Text: "pong"},
 			},
-		}, nil, nil
+		}, nil
 	})
 
 	// Paid tool - wrap handler with payment
 	mcpServer.AddTool(&mcpsdk.Tool{
 		Name:        "get_weather",
 		Description: "Get current weather for a city. Requires payment of $0.001.",
-	}, func(ctx context.Context, req *mcpsdk.CallToolRequest, _ any) (*mcpsdk.CallToolResult, any, error) {
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"city": map[string]interface{}{"type": "string", "description": "The city name"},
+			},
+		},
+	}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := make(map[string]interface{})
 		if req.Params.Arguments != nil {
-			if argsMap, ok := req.Params.Arguments.(map[string]interface{}); ok {
-				args = argsMap
+			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+				args = make(map[string]interface{})
 			}
 		}
 		meta := make(map[string]interface{})
@@ -183,7 +169,7 @@ func runSimple() error {
 				Content: []mcpsdk.Content{
 					&mcpsdk.TextContent{Text: err.Error()},
 				},
-			}, nil, nil
+			}, nil
 		}
 
 		content := make([]mcpsdk.Content, len(result.Content))
@@ -200,30 +186,22 @@ func runSimple() error {
 			callResult.Meta = mcpsdk.Meta(result.Meta)
 		}
 
-		return callResult, nil, nil
+		return callResult, nil
 	})
 
 	// Start HTTP server with SSE transport
 	return startHTTPServer(mcpServer, port)
 }
 
-/**
- * Helper to start HTTP server with REAL MCP SDK SSE transport
- */
 func startHTTPServer(mcpServer *mcpsdk.Server, port string) error {
-	// Use SSEHandler to manage SSE connections
 	sseHandler := mcpsdk.NewSSEHandler(func(req *http.Request) *mcpsdk.Server {
 		return mcpServer
-	}, &mcpsdk.SSEOptions{
-		Endpoint: "/messages",
-	})
+	}, nil)
 
-	// Create HTTP mux
 	mux := http.NewServeMux()
 	mux.Handle("/sse", sseHandler)
 	mux.Handle("/messages", sseHandler)
 
-	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

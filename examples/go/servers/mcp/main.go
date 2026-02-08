@@ -5,16 +5,15 @@ import (
 	"os"
 )
 
-/**
- * MCP Server Example Entry Point
- *
- * Routes to simple, advanced, or existing-server example based on CLI arguments.
- *
- * Usage:
- *   go run . simple           - Run simple example (CreatePaymentWrapper)
- *   go run . advanced         - Run advanced example (CreatePaymentWrapper with hooks)
- *   go run . existing         - Run existing server example (CreatePaymentWrapper with existing server)
- */
+// MCP Server Example Entry Point
+//
+// Routes to simple, advanced, or existing-server example based on CLI arguments.
+//
+// Usage:
+//
+//	go run . simple           - Run simple example (CreatePaymentWrapper)
+//	go run . advanced         - Run advanced example (CreatePaymentWrapper with hooks)
+//	go run . existing         - Run existing server example (CreatePaymentWrapper with existing server)
 
 func main() {
 	mode := "simple"

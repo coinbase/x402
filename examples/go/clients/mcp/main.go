@@ -5,15 +5,14 @@ import (
 	"os"
 )
 
-/**
- * MCP Client Example Entry Point
- *
- * Routes to either simple or advanced example based on CLI arguments.
- *
- * Usage:
- *   go run . simple           - Run simple example (CreateX402MCPClient factory)
- *   go run . advanced         - Run advanced example (X402MCPClient with manual setup)
- */
+// MCP Client Example Entry Point
+//
+// Routes to either simple or advanced example based on CLI arguments.
+//
+// Usage:
+//
+//	go run . simple           - Run simple example (NewX402MCPClientFromConfig factory)
+//	go run . advanced         - Run advanced example (X402MCPClient with manual setup)
 
 func main() {
 	mode := "simple"

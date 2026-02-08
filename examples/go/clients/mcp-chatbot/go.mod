@@ -1,4 +1,4 @@
-module github.com/coinbase/x402/examples/go/clients/mcp
+module github.com/coinbase/x402/examples/go/clients/mcp-chatbot
 
 go 1.24.0
 
@@ -10,6 +10,7 @@ require (
 	github.com/coinbase/x402/go v0.0.0-00010101000000-000000000000
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.2.0
+	github.com/sashabaranov/go-openai v1.38.1
 )
 
 require (
