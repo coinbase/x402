@@ -25,6 +25,15 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice The Permit2 contract address (set via initialize)
     ISignatureTransfer public PERMIT2;
 
+    /// @notice The original deployer address (set in constructor)
+    /// @dev Used to gate initialize() calls and prevent frontrunning
+    address private immutable _deployer;
+
+    /// @notice Returns the deployer address (for testing/debugging)
+    function deployer() external view returns (address) {
+        return _deployer;
+    }
+
     /// @notice Whether the contract has been initialized
     bool private _initialized;
 
@@ -61,6 +70,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Thrown when EIP-2612 permit value doesn't match Permit2 permitted amount
     error Permit2612AmountMismatch();
 
+    /// @notice Thrown when initialize is called by unauthorized address
+    error UnauthorizedInitializer();
+
     /**
      * @notice Witness data structure for payment authorization
      * @param to Destination address (immutable once signed)
@@ -91,14 +103,26 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     }
 
     /**
+     * @notice Constructor that stores the original deployer address
+     * @dev Uses tx.origin to capture the deployer multisig, preventing frontrunning
+     *      of initialize() calls. This maintains CREATE2 determinism since tx.origin
+     *      is a runtime value and doesn't affect bytecode.
+     */
+    constructor() {
+        _deployer = tx.origin;
+    }
+
+    /**
      * @notice Initializes the proxy with the Permit2 contract address
      * @param _permit2 Address of the Permit2 contract for this chain
-     * @dev Can only be called once. Should be called immediately after deployment.
-     *      Reverts if _permit2 is the zero address or if already initialized.
+     * @dev Can only be called once by the original deployer. Should be called immediately
+     *      after deployment. Reverts if _permit2 is the zero address, if already initialized,
+     *      or if called by unauthorized address.
      */
     function initialize(
         address _permit2
     ) external {
+        if (msg.sender != _deployer) revert UnauthorizedInitializer();
         if (_initialized) revert AlreadyInitialized();
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         _initialized = true;
