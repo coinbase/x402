@@ -77,9 +77,9 @@ func BoolPtr(b bool) *bool {
 
 // MCPToolResult represents an MCP tool call result
 type MCPToolResult struct {
-	Content          []MCPContentItem
-	IsError          bool
-	Meta             map[string]interface{}
+	Content           []MCPContentItem
+	IsError           bool
+	Meta              map[string]interface{}
 	StructuredContent map[string]interface{}
 }
 
@@ -149,8 +149,8 @@ type AfterSettlementHook func(context SettlementContext) error
 
 // PaymentRequiredError represents a payment required error
 type PaymentRequiredError struct {
-	Code           int
-	Message        string
+	Code            int
+	Message         string
 	PaymentRequired *types.PaymentRequired
 }
 

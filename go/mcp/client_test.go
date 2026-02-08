@@ -148,11 +148,13 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 	// Create result with payment required
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResult: MCPToolResult{
-			IsError:          true,
+			IsError:           true,
 			StructuredContent: structuredContent,
 		},
 	}
@@ -161,7 +163,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 	// Register a mock scheme client so SelectPaymentRequirements doesn't fail
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
-	
+
 	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
 		AutoPayment: BoolPtr(false),
 	})
@@ -477,7 +479,9 @@ func TestX402MCPClient_CallTool_AutoPaymentE2E(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResults: []MCPToolResult{
@@ -545,7 +549,9 @@ func TestX402MCPClient_CallTool_HookAbort(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResult: MCPToolResult{
@@ -595,7 +601,9 @@ func TestX402MCPClient_CallTool_HookCustomPayment(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResults: []MCPToolResult{
@@ -670,7 +678,9 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedApproved(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResults: []MCPToolResult{
@@ -727,7 +737,9 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedDenied(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResult: MCPToolResult{
@@ -775,7 +787,9 @@ func TestX402MCPClient_CallTool_BeforePaymentHookCalled(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResults: []MCPToolResult{
@@ -836,7 +850,9 @@ func TestX402MCPClient_CallTool_BeforePaymentHookError(t *testing.T) {
 
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	mockClient := &mockMCPClient{
 		callToolResult: MCPToolResult{

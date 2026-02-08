@@ -7,11 +7,13 @@
 // - Real x402 payment processing (NO mocks for payment verification or settlement)
 //
 // To run these tests, ensure the MCP SDK is installed:
-//   go get github.com/modelcontextprotocol/go-sdk/mcp
-//   go mod tidy
+//
+//	go get github.com/modelcontextprotocol/go-sdk/mcp
+//	go mod tidy
 //
 // Then run tests with the mcp build tag:
-//   go test -tags=mcp ./test/integration
+//
+//	go test -tags=mcp ./test/integration
 //
 // Required environment variables:
 // - EVM_CLIENT_PRIVATE_KEY: Private key for the client wallet (payer)
@@ -31,18 +33,18 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/mcp"
 	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
 	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
-	"github.com/coinbase/x402/go/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
-	TEST_NETWORK = "eip155:84532" // Base Sepolia
+	TEST_NETWORK = "eip155:84532"                               // Base Sepolia
 	TEST_ASSET   = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" // USDC on Base Sepolia
-	TEST_PRICE   = "1000"                                         // 0.001 USDC
+	TEST_PRICE   = "1000"                                       // 0.001 USDC
 	TEST_PORT    = 4099
 )
 
@@ -537,8 +539,8 @@ func (a *mcpClientAdapter) CallTool(ctx context.Context, params map[string]inter
 	}
 
 	mcpResult := mcp.MCPToolResult{
-		Content:  content,
-		IsError:  result.IsError,
+		Content: content,
+		IsError: result.IsError,
 	}
 
 	// Preserve StructuredContent if present (needed for payment required responses)

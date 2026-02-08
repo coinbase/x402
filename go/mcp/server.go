@@ -75,10 +75,10 @@ func CreatePaymentWrapper(
 
 			// Build hook context
 			hookContext := ServerHookContext{
-				ToolName:           toolName,
-				Arguments:          args,
+				ToolName:            toolName,
+				Arguments:           args,
 				PaymentRequirements: paymentRequirements,
-				PaymentPayload:     *paymentPayload,
+				PaymentPayload:      *paymentPayload,
 			}
 
 			// Run onBeforeExecution hook if present

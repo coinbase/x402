@@ -69,17 +69,17 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 	// Use cash mock for simplicity - it doesn't require real blockchain
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
-	
+
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(mockFacilitator),
 		x402.WithSchemeServer("x402:cash", mockSchemeServer),
 	)
-	
+
 	ctx := context.Background()
 	if err := server.Initialize(ctx); err != nil {
 		t.Fatalf("Failed to initialize server: %v", err)
 	}
-	
+
 	config := PaymentWrapperConfig{
 		Accepts: []types.PaymentRequirements{
 			{
@@ -154,17 +154,17 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 func TestCreatePaymentWrapper_NoPayment(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
-	
+
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(mockFacilitator),
 		x402.WithSchemeServer("x402:cash", mockSchemeServer),
 	)
-	
+
 	ctx := context.Background()
 	if err := server.Initialize(ctx); err != nil {
 		t.Fatalf("Failed to initialize server: %v", err)
 	}
-	
+
 	config := PaymentWrapperConfig{
 		Accepts: []types.PaymentRequirements{
 			{
@@ -256,12 +256,12 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
-	
+
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(mockFacilitator),
 		x402.WithSchemeServer("x402:cash", mockSchemeServer),
 	)
-	
+
 	ctx := context.Background()
 	if err := server.Initialize(ctx); err != nil {
 		t.Fatalf("Failed to initialize server: %v", err)
@@ -348,12 +348,12 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
-	
+
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(mockFacilitator),
 		x402.WithSchemeServer("x402:cash", mockSchemeServer),
 	)
-	
+
 	ctx := context.Background()
 	if err := server.Initialize(ctx); err != nil {
 		t.Fatalf("Failed to initialize server: %v", err)
@@ -554,12 +554,12 @@ func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
 		},
 	}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
-	
+
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(mockFacilitator),
 		x402.WithSchemeServer("x402:cash", mockSchemeServer),
 	)
-	
+
 	ctx := context.Background()
 	if err := server.Initialize(ctx); err != nil {
 		t.Fatalf("Failed to initialize server: %v", err)

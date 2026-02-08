@@ -37,4 +37,3 @@ type MCPClientInterface interface {
 	SetLoggingLevel(ctx context.Context, level string) error
 	SendRootsListChanged(ctx context.Context) error
 }
-

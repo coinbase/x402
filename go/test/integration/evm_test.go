@@ -218,7 +218,7 @@ func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-		for {
+	for {
 		receipt, err := s.ethClient.TransactionReceipt(ctx, hash)
 		if err == nil && receipt != nil {
 			status := uint64(evm.TxStatusSuccess)
@@ -858,7 +858,7 @@ func (s *permit2FacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Cont
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-		for {
+	for {
 		receipt, err := s.ethClient.TransactionReceipt(ctx, hash)
 		if err == nil && receipt != nil {
 			status := uint64(evm.TxStatusSuccess)

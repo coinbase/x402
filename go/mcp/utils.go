@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	x402 "github.com/coinbase/x402/go"
@@ -28,7 +29,7 @@ func ExtractPaymentFromMeta(params map[string]interface{}) (*types.PaymentPayloa
 
 	var payload types.PaymentPayload
 	if err := json.Unmarshal(paymentBytes, &payload); err != nil {
-		return nil, nil // Invalid structure
+		return nil, nil //nolint:nilerr // Invalid structure is not an error condition; nil signals "no payment"
 	}
 
 	// Validate structure
@@ -197,8 +198,8 @@ func IsObject(value interface{}) bool {
 //	return nil, err
 func CreatePaymentRequiredError(message string, paymentRequired *types.PaymentRequired) *PaymentRequiredError {
 	return &PaymentRequiredError{
-		Code:           MCP_PAYMENT_REQUIRED_CODE,
-		Message:        message,
+		Code:            MCP_PAYMENT_REQUIRED_CODE,
+		Message:         message,
 		PaymentRequired: paymentRequired,
 	}
 }
@@ -209,15 +210,16 @@ func CreatePaymentRequiredError(message string, paymentRequired *types.PaymentRe
 //
 //	err := client.CallTool(ctx, "tool", args)
 //	if mcp.IsPaymentRequiredError(err) {
-//	    paymentErr := err.(*mcp.PaymentRequiredError)
+//	    var paymentErr *mcp.PaymentRequiredError
+//	    errors.As(err, &paymentErr)
 //	    // Handle payment required
 //	}
 func IsPaymentRequiredError(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := err.(*PaymentRequiredError)
-	return ok
+	var target *PaymentRequiredError
+	return errors.As(err, &target)
 }
 
 // ExtractPaymentRequiredFromError extracts PaymentRequired from an MCP JSON-RPC error.

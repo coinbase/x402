@@ -47,7 +47,7 @@ func TestExtractPaymentFromMeta(t *testing.T) {
 		},
 	}
 
-		for _, tt := range tests {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ExtractPaymentFromMeta(tt.params)
 			if tt.wantNil {
@@ -60,10 +60,8 @@ func TestExtractPaymentFromMeta(t *testing.T) {
 				if !tt.wantErr && err != nil {
 					t.Errorf("Expected no error, got %v", err)
 				}
-			} else {
-				if result == nil || err != nil {
-					t.Errorf("Expected non-nil result, got %v, %v", result, err)
-				}
+			} else if result == nil || err != nil {
+				t.Errorf("Expected non-nil result, got %v, %v", result, err)
 			}
 		})
 	}
@@ -109,10 +107,12 @@ func TestExtractPaymentRequiredFromResult(t *testing.T) {
 	// Test structuredContent format
 	structuredBytes, _ := json.Marshal(paymentRequired)
 	var structuredContent map[string]interface{}
-	json.Unmarshal(structuredBytes, &structuredContent)
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("Failed to unmarshal structured content: %v", err)
+	}
 
 	result := MCPToolResult{
-		IsError:          true,
+		IsError:           true,
 		StructuredContent: structuredContent,
 	}
 
@@ -372,21 +372,18 @@ func TestExtractPaymentResponseFromMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ExtractPaymentResponseFromMeta(tt.result)
-			if tt.wantNil {
+			switch {
+			case tt.wantNil:
 				if result != nil {
 					t.Errorf("Expected nil result, got %v", result)
 				}
 				if tt.wantError && err == nil {
 					t.Error("Expected error, got nil")
 				}
-			} else {
-				if result == nil {
-					t.Errorf("Expected non-nil result, got nil (err: %v)", err)
-				} else {
-					if result.Transaction == "" {
-						t.Error("Expected transaction to be set")
-					}
-				}
+			case result == nil:
+				t.Errorf("Expected non-nil result, got nil (err: %v)", err)
+			case result.Transaction == "":
+				t.Error("Expected transaction to be set")
 			}
 		})
 	}
@@ -435,15 +432,11 @@ func TestAttachPaymentResponseToMeta(t *testing.T) {
 		responseMap2, ok2 := responseData.(map[string]interface{})
 		if !ok2 {
 			t.Errorf("Unexpected response data type: %T", responseData)
-		} else {
-			if responseMap2["transaction"] != settleResponse.Transaction {
-				t.Errorf("Expected transaction %s in map, got %v", settleResponse.Transaction, responseMap2["transaction"])
-			}
+		} else if responseMap2["transaction"] != settleResponse.Transaction {
+			t.Errorf("Expected transaction %s in map, got %v", settleResponse.Transaction, responseMap2["transaction"])
 		}
-	} else {
-		if responseMap.Transaction != settleResponse.Transaction {
-			t.Errorf("Expected transaction %s, got %s", settleResponse.Transaction, responseMap.Transaction)
-		}
+	} else if responseMap.Transaction != settleResponse.Transaction {
+		t.Errorf("Expected transaction %s, got %s", settleResponse.Transaction, responseMap.Transaction)
 	}
 }
 
