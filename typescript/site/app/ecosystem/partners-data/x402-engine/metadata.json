@@ -1,0 +1,7 @@
+{
+  "name": "x402 Engine",
+  "description": "A pay-per-call AI API gateway powered by HTTP 402 micropayments. Offers image generation, code execution, audio transcription, crypto prices, blockchain data, and IPFS pinning across Base, Solana, and MegaETH networks. Includes an MCP server for AI agent integration.",
+  "logoUrl": "/logos/x402-engine.svg",
+  "websiteUrl": "https://x402engine.app",
+  "category": "Services/Endpoints"
+}
