@@ -1,21 +1,18 @@
-"""Sync MCP client wrapper with x402 payment handling."""
+"""MCP client wrapper with x402 payment handling (async, default)."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from ..schemas import PaymentPayload, PaymentRequired, SettleResponse
+from ..schemas import PaymentPayload, PaymentRequired
 from .types import (
     AfterPaymentContext,
     MCPToolCallResult,
-    MCPToolContext,
     MCPToolResult,
     PaymentRequiredContext,
     PaymentRequiredHookResult,
     PaymentRequiredError,
-    SyncAfterPaymentHook,
-    SyncBeforePaymentHook,
-    SyncPaymentRequiredHook,
 )
 from .utils import (
     attach_payment_to_meta,
@@ -25,56 +22,72 @@ from .utils import (
     register_schemes,
 )
 
+# Async hook type aliases
+PaymentRequiredHook = Callable[
+    [PaymentRequiredContext],
+    PaymentRequiredHookResult | Awaitable[PaymentRequiredHookResult],
+]
+BeforePaymentHook = Callable[
+    [PaymentRequiredContext], None | Awaitable[None]
+]
+AfterPaymentHook = Callable[
+    [AfterPaymentContext], None | Awaitable[None]
+]
 
-class x402MCPClientSync:
-    """x402-enabled MCP client that handles payment for tool calls.
 
-    Wraps an MCP client to automatically detect 402 (payment required) errors
-    from tool calls, create payment payloads, and retry with payment attached.
+class x402MCPClient:
+    """Async x402-enabled MCP client that handles payment for tool calls.
+
+    Wraps an async MCP client to automatically detect 402 (payment required)
+    errors from tool calls, create payment payloads, and retry with payment attached.
+
+    This is the async counterpart to x402MCPClientSync, designed for use with
+    asyncio-based MCP clients (which is the default for the Python MCP SDK).
 
     Example:
         ```python
-        from x402 import x402ClientSync
+        from x402 import x402ClientAsync
         from x402.mcp import x402MCPClient
         from x402.mechanisms.evm.exact import ExactEvmClientScheme
 
-        # Create x402 payment client
-        payment_client = x402ClientSync()
+        # Create async x402 payment client
+        payment_client = x402ClientAsync()
         payment_client.register("eip155:84532", ExactEvmClientScheme(signer))
 
-        # Wrap MCP client
+        # Wrap async MCP client
         x402_mcp = x402MCPClient(mcp_client, payment_client, auto_payment=True)
 
         # Call tools - payment handled automatically
-        result = x402_mcp.call_tool("get_weather", {"city": "NYC"})
+        result = await x402_mcp.call_tool("get_weather", {"city": "NYC"})
         ```
     """
 
     def __init__(
         self,
-        mcp_client: Any,  # MCP SDK client
-        payment_client: Any,  # x402Client or x402ClientSync
+        mcp_client: Any,  # Async MCP SDK client
+        payment_client: Any,  # x402ClientAsync
         *,
         auto_payment: bool = True,
-        on_payment_requested: Optional[
-            Callable[[PaymentRequiredContext], bool]
-        ] = None,
+        on_payment_requested: Callable[
+            [PaymentRequiredContext], bool | Awaitable[bool]
+        ]
+        | None = None,
     ):
-        """Initialize x402 MCP client.
+        """Initialize async x402 MCP client.
 
         Args:
-            mcp_client: Underlying MCP SDK client
-            payment_client: x402 payment client (sync or async)
+            mcp_client: Underlying async MCP SDK client
+            payment_client: x402 async payment client
             auto_payment: Whether to automatically create and submit payment
-            on_payment_requested: Optional callback for payment approval
+            on_payment_requested: Optional async callback for payment approval
         """
         self._mcp_client = mcp_client
         self._payment_client = payment_client
         self._auto_payment = auto_payment
         self._on_payment_requested = on_payment_requested
-        self._payment_required_hooks: list[SyncPaymentRequiredHook] = []
-        self._before_payment_hooks: list[SyncBeforePaymentHook] = []
-        self._after_payment_hooks: list[SyncAfterPaymentHook] = []
+        self._payment_required_hooks: list[PaymentRequiredHook] = []
+        self._before_payment_hooks: list[BeforePaymentHook] = []
+        self._after_payment_hooks: list[AfterPaymentHook] = []
 
     @property
     def client(self) -> Any:
@@ -87,12 +100,12 @@ class x402MCPClientSync:
         return self._payment_client
 
     def on_payment_required(
-        self, hook: SyncPaymentRequiredHook
-    ) -> "x402MCPClientSync":
+        self, hook: PaymentRequiredHook
+    ) -> x402MCPClient:
         """Register a hook for payment required events.
 
         Args:
-            hook: Hook function
+            hook: Async hook function
 
         Returns:
             Self for chaining
@@ -100,11 +113,13 @@ class x402MCPClientSync:
         self._payment_required_hooks.append(hook)
         return self
 
-    def on_before_payment(self, hook: SyncBeforePaymentHook) -> "x402MCPClientSync":
+    def on_before_payment(
+        self, hook: BeforePaymentHook
+    ) -> x402MCPClient:
         """Register a hook before payment creation.
 
         Args:
-            hook: Hook function
+            hook: Async hook function
 
         Returns:
             Self for chaining
@@ -112,11 +127,13 @@ class x402MCPClientSync:
         self._before_payment_hooks.append(hook)
         return self
 
-    def on_after_payment(self, hook: SyncAfterPaymentHook) -> "x402MCPClientSync":
+    def on_after_payment(
+        self, hook: AfterPaymentHook
+    ) -> x402MCPClient:
         """Register a hook after payment submission.
 
         Args:
-            hook: Hook function
+            hook: Async hook function
 
         Returns:
             Self for chaining
@@ -124,7 +141,7 @@ class x402MCPClientSync:
         self._after_payment_hooks.append(hook)
         return self
 
-    def call_tool(
+    async def call_tool(
         self,
         name: str,
         args: dict[str, Any],
@@ -145,7 +162,7 @@ class x402MCPClientSync:
         """
         # First attempt without payment
         call_params = {"name": name, "arguments": args}
-        result = self._call_mcp_tool(call_params, **kwargs)
+        result = await self._call_mcp_tool(call_params, **kwargs)
 
         # Check if this is a payment required response
         payment_required = extract_payment_required_from_result(result)
@@ -168,13 +185,15 @@ class x402MCPClientSync:
         # Run payment required hooks
         for hook in self._payment_required_hooks:
             hook_result = hook(payment_required_context)
+            if hasattr(hook_result, "__await__"):
+                hook_result = await hook_result
             if hook_result:
                 if hook_result.abort:
                     raise PaymentRequiredError(
                         "Payment aborted by hook", payment_required
                     )
                 if hook_result.payment:
-                    return self.call_tool_with_payment(
+                    return await self.call_tool_with_payment(
                         name, args, hook_result.payment, **kwargs
                     )
 
@@ -187,6 +206,8 @@ class x402MCPClientSync:
         # Check if payment is approved
         if self._on_payment_requested:
             approved = self._on_payment_requested(payment_required_context)
+            if hasattr(approved, "__await__"):
+                approved = await approved
             if not approved:
                 raise PaymentRequiredError(
                     "Payment request denied", payment_required
@@ -194,17 +215,20 @@ class x402MCPClientSync:
 
         # Run before payment hooks
         for hook in self._before_payment_hooks:
-            hook(payment_required_context)
+            result_or_coro = hook(payment_required_context)
+            if hasattr(result_or_coro, "__await__"):
+                await result_or_coro
 
-        # Create payment payload
-        payment_payload = self._payment_client.create_payment_payload(
-            payment_required
-        )
+        # Create payment payload (async)
+        create_method = self._payment_client.create_payment_payload
+        payment_payload = create_method(payment_required)
+        if hasattr(payment_payload, "__await__"):
+            payment_payload = await payment_payload
 
         # Retry with payment
-        return self.call_tool_with_payment(name, args, payment_payload, **kwargs)
+        return await self.call_tool_with_payment(name, args, payment_payload, **kwargs)
 
-    def call_tool_with_payment(
+    async def call_tool_with_payment(
         self,
         name: str,
         args: dict[str, Any],
@@ -228,7 +252,7 @@ class x402MCPClientSync:
         )
 
         # Call with payment
-        result = self._call_mcp_tool(call_params, **kwargs)
+        result = await self._call_mcp_tool(call_params, **kwargs)
 
         # Extract payment response
         settle_response = extract_payment_response_from_meta(result)
@@ -241,7 +265,9 @@ class x402MCPClientSync:
             settle_response=settle_response,
         )
         for hook in self._after_payment_hooks:
-            hook(after_context)
+            result_or_coro = hook(after_context)
+            if hasattr(result_or_coro, "__await__"):
+                await result_or_coro
 
         return MCPToolCallResult(
             content=result.content,
@@ -250,12 +276,12 @@ class x402MCPClientSync:
             payment_made=True,
         )
 
-    def get_tool_payment_requirements(
+    async def get_tool_payment_requirements(
         self,
         name: str,
         args: dict[str, Any],
         **kwargs: Any,
-    ) -> Optional[PaymentRequired]:
+    ) -> PaymentRequired | None:
         """Probe a tool to discover its payment requirements.
 
         WARNING: This actually calls the tool, so it may have side effects.
@@ -269,13 +295,13 @@ class x402MCPClientSync:
             PaymentRequired if found, None otherwise
         """
         call_params = {"name": name, "arguments": args}
-        result = self._call_mcp_tool(call_params, **kwargs)
+        result = await self._call_mcp_tool(call_params, **kwargs)
         return extract_payment_required_from_result(result)
 
-    def _call_mcp_tool(
+    async def _call_mcp_tool(
         self, params: dict[str, Any], **kwargs: Any
     ) -> MCPToolResult:
-        """Call underlying MCP client tool method.
+        """Call underlying async MCP client tool method.
 
         Args:
             params: Tool call parameters
@@ -284,142 +310,149 @@ class x402MCPClientSync:
         Returns:
             MCP tool result
         """
-        # Call the underlying MCP client's call_tool method
-        # This assumes the MCP SDK has a call_tool method
-        mcp_result = self._mcp_client.call_tool(params, **kwargs)
+        # Call the underlying MCP client's call_tool method (async)
+        mcp_result = await self._mcp_client.call_tool(params, **kwargs)
 
         # Convert to our MCPToolResult format
         return convert_mcp_result(mcp_result)
 
-    # Passthrough methods - forward to underlying MCP client
+    # Passthrough methods - forward to underlying async MCP client
 
-    def connect(self, transport: Any) -> None:
+    async def connect(self, transport: Any) -> None:
         """Connect to an MCP server transport."""
         if hasattr(self._mcp_client, "connect"):
-            self._mcp_client.connect(transport)
+            await self._mcp_client.connect(transport)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the MCP connection."""
         if hasattr(self._mcp_client, "close"):
-            self._mcp_client.close()
+            await self._mcp_client.close()
 
-    def list_tools(self) -> Any:
+    async def list_tools(self) -> Any:
         """List available tools from the server."""
         if hasattr(self._mcp_client, "list_tools"):
-            return self._mcp_client.list_tools()
+            return await self._mcp_client.list_tools()
         raise NotImplementedError("MCP client does not support list_tools")
 
-    def list_resources(self) -> Any:
+    async def list_resources(self) -> Any:
         """List available resources from the server."""
         if hasattr(self._mcp_client, "list_resources"):
-            return self._mcp_client.list_resources()
+            return await self._mcp_client.list_resources()
         raise NotImplementedError("MCP client does not support list_resources")
 
-    def read_resource(self, uri: str) -> Any:
+    async def read_resource(self, uri: str) -> Any:
         """Read a resource from the server."""
         if hasattr(self._mcp_client, "read_resource"):
-            return self._mcp_client.read_resource(uri)
+            return await self._mcp_client.read_resource(uri)
         raise NotImplementedError("MCP client does not support read_resource")
 
-    def list_resource_templates(self) -> Any:
+    async def list_resource_templates(self) -> Any:
         """List resource templates from the server."""
         if hasattr(self._mcp_client, "list_resource_templates"):
-            return self._mcp_client.list_resource_templates()
+            return await self._mcp_client.list_resource_templates()
         raise NotImplementedError("MCP client does not support list_resource_templates")
 
-    def subscribe_resource(self, uri: str) -> None:
+    async def subscribe_resource(self, uri: str) -> None:
         """Subscribe to resource updates."""
         if hasattr(self._mcp_client, "subscribe_resource"):
-            self._mcp_client.subscribe_resource(uri)
+            await self._mcp_client.subscribe_resource(uri)
         else:
             raise NotImplementedError("MCP client does not support subscribe_resource")
 
-    def unsubscribe_resource(self, uri: str) -> None:
+    async def unsubscribe_resource(self, uri: str) -> None:
         """Unsubscribe from resource updates."""
         if hasattr(self._mcp_client, "unsubscribe_resource"):
-            self._mcp_client.unsubscribe_resource(uri)
+            await self._mcp_client.unsubscribe_resource(uri)
         else:
             raise NotImplementedError("MCP client does not support unsubscribe_resource")
 
-    def list_prompts(self) -> Any:
+    async def list_prompts(self) -> Any:
         """List available prompts from the server."""
         if hasattr(self._mcp_client, "list_prompts"):
-            return self._mcp_client.list_prompts()
+            return await self._mcp_client.list_prompts()
         raise NotImplementedError("MCP client does not support list_prompts")
 
-    def get_prompt(self, name: str) -> Any:
+    async def get_prompt(self, name: str) -> Any:
         """Get a specific prompt from the server."""
         if hasattr(self._mcp_client, "get_prompt"):
-            return self._mcp_client.get_prompt(name)
+            return await self._mcp_client.get_prompt(name)
         raise NotImplementedError("MCP client does not support get_prompt")
 
-    def ping(self) -> None:
+    async def ping(self) -> None:
         """Ping the server."""
         if hasattr(self._mcp_client, "ping"):
-            self._mcp_client.ping()
+            await self._mcp_client.ping()
         else:
             raise NotImplementedError("MCP client does not support ping")
 
-    def complete(self, prompt: str, cursor: int) -> Any:
+    async def complete(self, prompt: str, cursor: int) -> Any:
         """Request completion suggestions."""
         if hasattr(self._mcp_client, "complete"):
-            return self._mcp_client.complete(prompt, cursor)
+            return await self._mcp_client.complete(prompt, cursor)
         raise NotImplementedError("MCP client does not support complete")
 
-    def set_logging_level(self, level: str) -> None:
+    async def set_logging_level(self, level: str) -> None:
         """Set the logging level on the server."""
         if hasattr(self._mcp_client, "set_logging_level"):
-            self._mcp_client.set_logging_level(level)
+            await self._mcp_client.set_logging_level(level)
         else:
             raise NotImplementedError("MCP client does not support set_logging_level")
 
-    def get_server_capabilities(self) -> Any:
+    async def get_server_capabilities(self) -> Any:
         """Get server capabilities after initialization."""
         if hasattr(self._mcp_client, "get_server_capabilities"):
-            return self._mcp_client.get_server_capabilities()
+            return await self._mcp_client.get_server_capabilities()
         raise NotImplementedError("MCP client does not support get_server_capabilities")
 
-    def get_server_version(self) -> Any:
+    async def get_server_version(self) -> Any:
         """Get server version information after initialization."""
         if hasattr(self._mcp_client, "get_server_version"):
-            return self._mcp_client.get_server_version()
+            return await self._mcp_client.get_server_version()
         raise NotImplementedError("MCP client does not support get_server_version")
 
-    def get_instructions(self) -> str:
+    async def get_instructions(self) -> str:
         """Get server instructions after initialization."""
         if hasattr(self._mcp_client, "get_instructions"):
-            return self._mcp_client.get_instructions()
+            return await self._mcp_client.get_instructions()
         raise NotImplementedError("MCP client does not support get_instructions")
 
-    def send_roots_list_changed(self) -> None:
+    async def send_roots_list_changed(self) -> None:
         """Send notification that roots list has changed."""
         if hasattr(self._mcp_client, "send_roots_list_changed"):
-            self._mcp_client.send_roots_list_changed()
+            await self._mcp_client.send_roots_list_changed()
         else:
             raise NotImplementedError("MCP client does not support send_roots_list_changed")
 
 
-def create_x402_mcp_client_sync(
+# ============================================================================
+# Async Factory Functions
+# ============================================================================
+
+
+def create_x402_mcp_client(
     mcp_client: Any,
     payment_client: Any,
     *,
     auto_payment: bool = True,
-    on_payment_requested: Optional[
-        Callable[[PaymentRequiredContext], bool]
-    ] = None,
-) -> x402MCPClientSync:
-    """Create a new x402MCPClientSync instance.
+    on_payment_requested: Callable[
+        [PaymentRequiredContext], bool | Awaitable[bool]
+    ]
+    | None = None,
+) -> x402MCPClient:
+    """Create a new async x402MCPClient instance.
+
+    Note: This is a sync factory function -- the returned client has async methods.
 
     Args:
-        mcp_client: Underlying MCP SDK client
-        payment_client: x402 payment client
+        mcp_client: Underlying async MCP SDK client
+        payment_client: x402 async payment client
         auto_payment: Whether to automatically create and submit payment
-        on_payment_requested: Optional callback for payment approval
+        on_payment_requested: Optional async callback for payment approval
 
     Returns:
         x402MCPClient instance
     """
-    return x402MCPClientSync(
+    return x402MCPClient(
         mcp_client,
         payment_client,
         auto_payment=auto_payment,
@@ -427,18 +460,119 @@ def create_x402_mcp_client_sync(
     )
 
 
-def create_x402_mcp_client_from_config_sync(
+def wrap_mcp_client_with_payment(
     mcp_client: Any,
-    config: dict[str, Any],
-) -> x402MCPClientSync:
-    """Create a fully configured x402 MCP client from a config object.
+    payment_client: Any,
+    *,
+    auto_payment: bool = True,
+    on_payment_requested: Callable[
+        [PaymentRequiredContext], bool | Awaitable[bool]
+    ]
+    | None = None,
+) -> x402MCPClient:
+    """Wrap an existing async MCP client with x402 payment handling.
 
-    This factory function provides the simplest way to create an x402-enabled MCP client.
-    It handles creation of the x402Client from scheme registrations, making it
-    easy to get started with paid tool calls.
+    This is a convenience function that creates an x402MCPClient from an
+    existing async MCP client and payment client.
 
     Args:
-        mcp_client: Underlying MCP SDK client (must be created separately)
+        mcp_client: Existing async MCP SDK client
+        payment_client: x402 async payment client
+        auto_payment: Whether to automatically create and submit payment
+        on_payment_requested: Optional async callback for payment approval
+
+    Returns:
+        x402MCPClient instance
+
+    Example:
+        ```python
+        from x402 import x402ClientAsync
+        from x402.mcp import wrap_mcp_client_with_payment
+
+        mcp_client = # ... existing async MCP client
+        payment_client = x402ClientAsync()
+        payment_client.register("eip155:84532", evm_scheme)
+
+        x402_mcp = wrap_mcp_client_with_payment(
+            mcp_client,
+            payment_client,
+            auto_payment=True,
+        )
+        ```
+    """
+    return x402MCPClient(
+        mcp_client,
+        payment_client,
+        auto_payment=auto_payment,
+        on_payment_requested=on_payment_requested,
+    )
+
+
+def wrap_mcp_client_with_payment_from_config(
+    mcp_client: Any,
+    schemes: list[dict[str, Any]],
+    *,
+    auto_payment: bool = True,
+    on_payment_requested: Callable[
+        [PaymentRequiredContext], bool | Awaitable[bool]
+    ]
+    | None = None,
+) -> x402MCPClient:
+    """Wrap an existing async MCP client with x402 payment handling using scheme registrations.
+
+    Similar to wrap_mcp_client_with_payment but uses scheme registrations directly.
+
+    Args:
+        mcp_client: Existing async MCP SDK client
+        schemes: List of scheme registrations, each with 'network' and 'client' keys
+        auto_payment: Whether to automatically create and submit payment
+        on_payment_requested: Optional async callback for payment approval
+
+    Returns:
+        x402MCPClient instance
+
+    Example:
+        ```python
+        from x402.mcp import wrap_mcp_client_with_payment_from_config
+        from x402.mechanisms.evm.exact import ExactEvmClientScheme
+
+        mcp_client = # ... existing async MCP client
+
+        x402_mcp = wrap_mcp_client_with_payment_from_config(
+            mcp_client,
+            schemes=[
+                {"network": "eip155:84532", "client": ExactEvmClientScheme(signer)},
+            ],
+            auto_payment=True,
+        )
+        ```
+    """
+    from .. import x402Client as x402ClientAsync
+
+    payment_client = x402ClientAsync()
+    register_schemes(payment_client, schemes)
+
+    return x402MCPClient(
+        mcp_client,
+        payment_client,
+        auto_payment=auto_payment,
+        on_payment_requested=on_payment_requested,
+    )
+
+
+def create_x402_mcp_client_from_config(
+    mcp_client: Any,
+    config: dict[str, Any],
+) -> x402MCPClient:
+    """Create a fully configured async x402 MCP client from a config object.
+
+    This factory function provides the simplest way to create an async x402-enabled MCP client.
+    It handles creation of the x402Client from scheme registrations.
+
+    Note: This is a sync factory function -- the returned client has async methods.
+
+    Args:
+        mcp_client: Underlying async MCP SDK client
         config: Configuration dictionary with:
             - schemes: List of scheme registrations (required)
             - auto_payment: Whether to automatically create and submit payment (default: True)
@@ -452,7 +586,7 @@ def create_x402_mcp_client_from_config_sync(
         from x402.mcp import create_x402_mcp_client_from_config
         from x402.mechanisms.evm.exact import ExactEvmClientScheme
 
-        mcp_client = # ... create MCP client from SDK
+        mcp_client = # ... create async MCP client from SDK
 
         x402_mcp = create_x402_mcp_client_from_config(
             mcp_client,
@@ -461,120 +595,20 @@ def create_x402_mcp_client_from_config_sync(
                     {"network": "eip155:84532", "client": ExactEvmClientScheme(signer)},
                 ],
                 "auto_payment": True,
-                "on_payment_requested": lambda ctx: True,  # Auto-approve
             },
         )
         ```
     """
-    from .. import x402ClientSync
+    from .. import x402Client as x402ClientAsync
 
     schemes = config.get("schemes", [])
     auto_payment = config.get("auto_payment", True)
     on_payment_requested = config.get("on_payment_requested")
 
-    payment_client = x402ClientSync()
+    payment_client = x402ClientAsync()
     register_schemes(payment_client, schemes)
 
-    return x402MCPClientSync(
-        mcp_client,
-        payment_client,
-        auto_payment=auto_payment,
-        on_payment_requested=on_payment_requested,
-    )
-
-
-def wrap_mcp_client_with_payment_sync(
-    mcp_client: Any,
-    payment_client: Any,
-    *,
-    auto_payment: bool = True,
-    on_payment_requested: Optional[
-        Callable[[PaymentRequiredContext], bool]
-    ] = None,
-) -> x402MCPClientSync:
-    """Wrap an existing MCP client with x402 payment handling (sync).
-
-    This is a convenience function that creates an x402MCPClientSync from an existing
-    MCP client and payment client.
-
-    Args:
-        mcp_client: Existing MCP SDK client
-        payment_client: x402 payment client (sync or async)
-        auto_payment: Whether to automatically create and submit payment
-        on_payment_requested: Optional callback for payment approval
-
-    Returns:
-        x402MCPClient instance
-
-    Example:
-        ```python
-        from x402 import x402ClientSync
-        from x402.mcp import wrap_mcp_client_with_payment
-
-        mcp_client = # ... existing MCP client
-        payment_client = x402ClientSync()
-        payment_client.register("eip155:84532", evm_scheme)
-
-        x402_mcp = wrap_mcp_client_with_payment(
-            mcp_client,
-            payment_client,
-            auto_payment=True,
-        )
-        ```
-    """
-    return x402MCPClientSync(
-        mcp_client,
-        payment_client,
-        auto_payment=auto_payment,
-        on_payment_requested=on_payment_requested,
-    )
-
-
-def wrap_mcp_client_with_payment_from_config_sync(
-    mcp_client: Any,
-    schemes: list[dict[str, Any]],
-    *,
-    auto_payment: bool = True,
-    on_payment_requested: Optional[
-        Callable[[PaymentRequiredContext], bool]
-    ] = None,
-) -> x402MCPClientSync:
-    """Wrap an existing sync MCP client with x402 payment handling using scheme registrations.
-
-    Similar to wrap_mcp_client_with_payment_sync but uses scheme registrations directly.
-
-    Args:
-        mcp_client: Existing MCP SDK client
-        schemes: List of scheme registrations, each with 'network' and 'client' keys
-        auto_payment: Whether to automatically create and submit payment
-        on_payment_requested: Optional callback for payment approval
-
-    Returns:
-        x402MCPClient instance
-
-    Example:
-        ```python
-        from x402 import x402ClientSync
-        from x402.mcp import wrap_mcp_client_with_payment_from_config
-        from x402.mechanisms.evm.exact import ExactEvmClientScheme
-
-        mcp_client = # ... existing MCP client
-
-        x402_mcp = wrap_mcp_client_with_payment_from_config(
-            mcp_client,
-            schemes=[
-                {"network": "eip155:84532", "client": ExactEvmClientScheme(signer)},
-            ],
-            auto_payment=True,
-        )
-        ```
-    """
-    from .. import x402ClientSync
-
-    payment_client = x402ClientSync()
-    register_schemes(payment_client, schemes)
-
-    return x402MCPClientSync(
+    return x402MCPClient(
         mcp_client,
         payment_client,
         auto_payment=auto_payment,

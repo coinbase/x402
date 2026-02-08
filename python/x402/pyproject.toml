@@ -125,6 +125,7 @@ exclude = [
 "http" = "x402/http"
 "mechanisms" = "x402/mechanisms"
 "extensions" = "x402/extensions"
+"mcp" = "x402/mcp"
 
 [tool.ruff]
 line-length = 100

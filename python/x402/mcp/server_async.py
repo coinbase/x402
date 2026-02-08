@@ -1,20 +1,18 @@
-"""Sync MCP server payment wrapper for x402 integration."""
+"""MCP server payment wrapper for x402 integration (async, default)."""
 
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Awaitable, Union
 
 from ..schemas import PaymentPayload, PaymentRequirements, ResourceInfo, SettleResponse
-from ..server import x402ResourceServerSync
+from ..server import x402ResourceServer as x402ResourceServerAsync
 from .types import (
     AfterExecutionContext,
     MCPToolContext,
     MCPToolResult,
     ServerHookContext,
     SettlementContext,
-    SyncPaymentWrapperConfig,
-    SyncPaymentWrapperHooks,
 )
 from .utils import (
     create_tool_resource_url,
@@ -22,151 +20,137 @@ from .utils import (
 )
 
 
-# Type alias for tool handler
-ToolHandler = Callable[
-    [dict[str, Any], MCPToolContext], MCPToolResult | dict[str, Any]
+# Async tool handler type
+AsyncToolHandler = Callable[
+    [dict[str, Any], MCPToolContext],
+    Union[MCPToolResult, dict[str, Any], Awaitable[MCPToolResult], Awaitable[dict[str, Any]]],
+]
+
+# Async hook types for the server wrapper
+BeforeExecutionHook = Callable[
+    [ServerHookContext], Union[bool, Awaitable[bool]]
+]
+AfterExecutionHook = Callable[
+    [AfterExecutionContext], Union[None, Awaitable[None]]
+]
+AfterSettlementHook = Callable[
+    [SettlementContext], Union[None, Awaitable[None]]
 ]
 
 
-# ============================================================================
-# FastMCP Integration Helper
-# ============================================================================
+class PaymentWrapperHooks:
+    """Async server-side hooks for payment wrapper."""
+
+    def __init__(
+        self,
+        on_before_execution: Optional[BeforeExecutionHook] = None,
+        on_after_execution: Optional[AfterExecutionHook] = None,
+        on_after_settlement: Optional[AfterSettlementHook] = None,
+    ):
+        """Initialize async payment wrapper hooks.
+
+        Args:
+            on_before_execution: Async hook called before execution (can abort)
+            on_after_execution: Async hook called after execution
+            on_after_settlement: Async hook called after settlement
+        """
+        self.on_before_execution = on_before_execution
+        self.on_after_execution = on_after_execution
+        self.on_after_settlement = on_after_settlement
 
 
-def _extract_meta_from_fastmcp_context(ctx: Any) -> dict[str, Any]:
-    """Extract _meta dict from an MCP SDK Context object.
+class PaymentWrapperConfig:
+    """Configuration for async payment wrapper."""
 
-    The MCP SDK (both FastMCP and low-level Server) stores request metadata
-    on ``ctx.request_context.meta`` (a ``RequestParams.Meta`` Pydantic model).
-    This helper extracts it as a plain dict.
-    """
-    try:
-        req_ctx = getattr(ctx, "request_context", None)
-        if req_ctx is None:
-            return {}
-        raw_meta = getattr(req_ctx, "meta", None)
-        if raw_meta is None:
-            return {}
-        if hasattr(raw_meta, "model_dump"):
-            return raw_meta.model_dump()
-        if isinstance(raw_meta, dict):
-            return raw_meta
-        return dict(raw_meta)
-    except Exception:
-        return {}
+    def __init__(
+        self,
+        accepts: list[PaymentRequirements],
+        resource: Optional["ResourceInfo"] = None,
+        hooks: Optional[PaymentWrapperHooks] = None,
+    ):
+        """Initialize async payment wrapper config.
 
-
-def _mcp_tool_result_to_call_tool_result(result: MCPToolResult) -> Any:
-    """Convert an MCPToolResult to an MCP SDK CallToolResult.
-
-    Imports MCP SDK types lazily to avoid hard dependency.
-    """
-    from mcp.types import CallToolResult, TextContent
-
-    content = []
-    for item in result.content:
-        if isinstance(item, dict):
-            content.append(TextContent(type="text", text=item.get("text", "")))
-        else:
-            content.append(TextContent(type="text", text=str(item)))
-
-    call_result = CallToolResult(content=content, isError=result.is_error)
-    if result.meta:
-        call_result.meta = result.meta
-    return call_result
+        Args:
+            accepts: List of payment requirements
+            resource: Optional resource info
+            hooks: Optional async server-side hooks
+        """
+        if not accepts:
+            raise ValueError("accepts must have at least one payment requirement")
+        self.accepts = accepts
+        self.resource = resource
+        self.hooks = hooks
 
 
-def wrap_fastmcp_tool_sync(
-    payment_wrapper: Callable[[ToolHandler], Any],
-    handler: ToolHandler,
+def wrap_fastmcp_tool(
+    payment_wrapper: Callable[[AsyncToolHandler], Any],
+    handler: AsyncToolHandler,
 ) -> Callable[[dict[str, Any], Any], Any]:
-    """Bridge a payment-wrapped tool handler to work with FastMCP.
+    """Bridge an async payment-wrapped tool handler to work with FastMCP.
 
-    This helper handles the mismatch between FastMCP (which provides a Context
-    object) and the x402 payment wrapper (which expects ``(args, extra)``).
-    It extracts ``_meta`` from the FastMCP Context, calls the payment wrapper,
-    and converts the MCPToolResult back to an MCP SDK CallToolResult.
-
-    Usage with FastMCP::
-
-        paid_weather = create_payment_wrapper_sync(resource_server, config)
-
-        @mcp_server.tool()
-        def get_weather(city: str, ctx: Context) -> CallToolResult:
-            return paid_weather_tool({"city": city}, ctx)
-
-        paid_weather_tool = wrap_fastmcp_tool_sync(paid_weather, my_handler)
-
-    Or more concisely::
-
-        paid_weather = create_payment_wrapper_sync(resource_server, config)
-        paid_weather_tool = wrap_fastmcp_tool_sync(
-            paid_weather,
-            lambda args, _: MCPToolResult(
-                content=[{"type": "text", "text": json.dumps(get_data(args["city"]))}],
-            ),
-        )
-
-        @mcp_server.tool()
-        def get_weather(city: str, ctx: Context) -> CallToolResult:
-            return paid_weather_tool({"city": city}, ctx)
+    Async counterpart to ``wrap_fastmcp_tool_sync``. See that function for
+    full documentation.
 
     Args:
-        payment_wrapper: The result of ``create_payment_wrapper_sync(resource_server, config)``
-        handler: Your tool handler ``(args, MCPToolContext) -> MCPToolResult``
+        payment_wrapper: The result of ``create_payment_wrapper(resource_server, config)``
+        handler: Your async tool handler ``(args, MCPToolContext) -> MCPToolResult``
 
     Returns:
-        A function ``(args, fastmcp_context) -> CallToolResult`` suitable for
-        calling inside a FastMCP ``@tool()`` handler.
+        An async function ``(args, fastmcp_context) -> CallToolResult``
     """
+    from .server import _extract_meta_from_fastmcp_context, _mcp_tool_result_to_call_tool_result
+
     wrapped = payment_wrapper(handler)
 
-    def fastmcp_bridge(args: dict[str, Any], ctx: Any) -> Any:
+    async def fastmcp_bridge(args: dict[str, Any], ctx: Any) -> Any:
         meta = _extract_meta_from_fastmcp_context(ctx)
         extra = {"_meta": meta, "toolName": "paid_tool"}
         result = wrapped(args, extra)
+        if hasattr(result, "__await__"):
+            result = await result
         return _mcp_tool_result_to_call_tool_result(result)
 
     return fastmcp_bridge
 
 
-def create_payment_wrapper_sync(
-    resource_server: x402ResourceServerSync,
-    config: SyncPaymentWrapperConfig,
-) -> Callable[[ToolHandler], ToolHandler]:
-    """Create a payment wrapper for MCP tool handlers.
+def create_payment_wrapper(
+    resource_server: x402ResourceServerAsync,
+    config: PaymentWrapperConfig,
+) -> Callable[[AsyncToolHandler], AsyncToolHandler]:
+    """Create an async payment wrapper for MCP tool handlers.
 
-    Returns a function that wraps tool handlers with payment logic.
+    Returns a function that wraps async tool handlers with payment logic.
+    This is the async counterpart to create_payment_wrapper_sync.
 
     Args:
-        resource_server: The x402 resource server for payment verification/settlement
+        resource_server: The async x402 resource server for payment verification/settlement
         config: Payment configuration with accepts array
 
     Returns:
-        A function that wraps tool handlers with payment logic
+        A function that wraps async tool handlers with payment logic
 
     Example:
         ```python
-        from x402 import x402ResourceServerSync
+        from x402 import x402ResourceServerAsync
         from x402.mcp import create_payment_wrapper, PaymentWrapperConfig
 
-        # Create resource server
-        resource_server = x402ResourceServerSync(facilitator_client)
+        # Create async resource server
+        resource_server = x402ResourceServerAsync(facilitator_client)
         resource_server.register("eip155:84532", evm_server_scheme)
 
         # Build payment requirements
-        accepts = resource_server.build_payment_requirements_from_config(config)
+        accepts = await resource_server.build_payment_requirements_from_config(config)
 
-        # Create payment wrapper
+        # Create async payment wrapper
         paid = create_payment_wrapper(
             resource_server,
             PaymentWrapperConfig(accepts=accepts),
         )
 
-        # Use with MCP server
+        # Use with async MCP server
         @mcp_server.tool("get_weather", "Get weather", schema)
         @paid
-        def handler(args, context):
+        async def handler(args, context):
             return {"content": [{"type": "text", "text": "Sunny"}]}
         ```
     """
@@ -174,8 +158,8 @@ def create_payment_wrapper_sync(
         raise ValueError("PaymentWrapperConfig.accepts must have at least one payment requirement")
 
     # Return wrapper function that takes a handler and returns a wrapped handler
-    def wrapper(handler: ToolHandler) -> ToolHandler:
-        def wrapped_handler(
+    def wrapper(handler: AsyncToolHandler) -> AsyncToolHandler:
+        async def wrapped_handler(
             args: dict[str, Any], extra: dict[str, Any]
         ) -> MCPToolResult:
             # Extract _meta from extra
@@ -188,7 +172,7 @@ def create_payment_wrapper_sync(
             if config.resource and config.resource.url:
                 # Try to extract from URL
                 if config.resource.url.startswith("mcp://tool/"):
-                    tool_name = config.resource.url[len("mcp://tool/") :]
+                    tool_name = config.resource.url[len("mcp://tool/"):]
 
             # Build tool context
             tool_context = MCPToolContext(
@@ -201,7 +185,7 @@ def create_payment_wrapper_sync(
             payment_payload = extract_payment_from_meta({"name": tool_name, "arguments": args, "_meta": meta})
 
             if payment_payload is None:
-                return _create_payment_required_result(
+                return await _create_payment_required_result_async(
                     resource_server, tool_name, config, "Payment required to access this tool"
                 )
 
@@ -211,16 +195,16 @@ def create_payment_wrapper_sync(
             )
 
             if payment_requirements is None:
-                return _create_payment_required_result(
+                return await _create_payment_required_result_async(
                     resource_server, tool_name, config, "No matching payment requirements found"
                 )
 
-            # Verify payment
-            verify_result = resource_server.verify_payment(payment_payload, payment_requirements)
+            # Verify payment (async)
+            verify_result = await resource_server.verify_payment(payment_payload, payment_requirements)
 
             if not verify_result.is_valid:
                 reason = verify_result.invalid_reason or "Payment verification failed"
-                return _create_payment_required_result(
+                return await _create_payment_required_result_async(
                     resource_server, tool_name, config, reason
                 )
 
@@ -235,13 +219,17 @@ def create_payment_wrapper_sync(
             # Run onBeforeExecution hook if present
             if config.hooks and config.hooks.on_before_execution:
                 proceed = config.hooks.on_before_execution(hook_context)
+                if hasattr(proceed, "__await__"):
+                    proceed = await proceed
                 if not proceed:
-                    return _create_payment_required_result(
+                    return await _create_payment_required_result_async(
                         resource_server, tool_name, config, "Execution blocked by hook"
                     )
 
             # Execute the tool handler
             handler_result = handler(args, tool_context)
+            if hasattr(handler_result, "__await__"):
+                handler_result = await handler_result
 
             # Convert handler result to MCPToolResult if needed
             if isinstance(handler_result, dict):
@@ -272,7 +260,9 @@ def create_payment_wrapper_sync(
             # Run onAfterExecution hook if present
             if config.hooks and config.hooks.on_after_execution:
                 try:
-                    config.hooks.on_after_execution(after_exec_context)
+                    coro = config.hooks.on_after_execution(after_exec_context)
+                    if hasattr(coro, "__await__"):
+                        await coro
                 except Exception:
                     # Log but continue
                     pass
@@ -281,13 +271,13 @@ def create_payment_wrapper_sync(
             if result.is_error:
                 return result
 
-            # Settle payment
+            # Settle payment (async)
             try:
-                settle_result = resource_server.settle_payment(
+                settle_result = await resource_server.settle_payment(
                     payment_payload, payment_requirements
                 )
             except Exception as e:
-                return _create_settlement_failed_result(
+                return await _create_settlement_failed_result_async(
                     resource_server, tool_name, config, str(e)
                 )
 
@@ -301,7 +291,9 @@ def create_payment_wrapper_sync(
                     settlement=settle_result,
                 )
                 try:
-                    config.hooks.on_after_settlement(settlement_context)
+                    coro = config.hooks.on_after_settlement(settlement_context)
+                    if hasattr(coro, "__await__"):
+                        await coro
                 except Exception:
                     # Log but continue
                     pass
@@ -322,16 +314,16 @@ def create_payment_wrapper_sync(
     return wrapper
 
 
-def _create_payment_required_result(
-    resource_server: x402ResourceServerSync,
+async def _create_payment_required_result_async(
+    resource_server: x402ResourceServerAsync,
     tool_name: str,
-    config: SyncPaymentWrapperConfig,
+    config: PaymentWrapperConfig,
     error_message: str,
 ) -> MCPToolResult:
-    """Create a 402 payment required result.
+    """Create a 402 payment required result (async).
 
     Args:
-        resource_server: Resource server for creating payment required response
+        resource_server: Async resource server for creating payment required response
         tool_name: Name of the tool for resource URL
         config: Payment wrapper configuration
         error_message: Error message describing why payment is required
@@ -339,19 +331,21 @@ def _create_payment_required_result(
     Returns:
         Structured 402 error result with payment requirements
     """
-    resource_info = ResourceInfo(
+    from ..schemas import ResourceInfo as CoreResourceInfo
+
+    resource_info = CoreResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
         description=config.resource.description if config.resource else f"Tool: {tool_name}",
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 
-    payment_required = resource_server.create_payment_required_response(
+    payment_required = await resource_server.create_payment_required_response(
         config.accepts,
         resource_info,
         error_message,
     )
 
-    # Convert to dict for structuredContent (camelCase for wire format)
+    # Convert to dict for structuredContent
     payment_required_dict = (
         payment_required.model_dump(by_alias=True)
         if hasattr(payment_required, "model_dump")
@@ -368,16 +362,16 @@ def _create_payment_required_result(
     )
 
 
-def _create_settlement_failed_result(
-    resource_server: x402ResourceServerSync,
+async def _create_settlement_failed_result_async(
+    resource_server: x402ResourceServerAsync,
     tool_name: str,
-    config: SyncPaymentWrapperConfig,
+    config: PaymentWrapperConfig,
     error_message: str,
 ) -> MCPToolResult:
-    """Create a 402 settlement failed result.
+    """Create a 402 settlement failed result (async).
 
     Args:
-        resource_server: Resource server for creating payment required response
+        resource_server: Async resource server for creating payment required response
         tool_name: Name of the tool for resource URL
         config: Payment wrapper configuration
         error_message: Error message describing settlement failure
@@ -385,13 +379,15 @@ def _create_settlement_failed_result(
     Returns:
         Structured 402 error result with settlement failure details
     """
-    resource_info = ResourceInfo(
+    from ..schemas import ResourceInfo as CoreResourceInfo
+
+    resource_info = CoreResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
         description=config.resource.description if config.resource else f"Tool: {tool_name}",
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 
-    payment_required = resource_server.create_payment_required_response(
+    payment_required = await resource_server.create_payment_required_response(
         config.accepts,
         resource_info,
         f"Payment settlement failed: {error_message}",

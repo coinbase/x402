@@ -7,7 +7,7 @@ from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
 if TYPE_CHECKING:
     from ..schemas import PaymentRequired
 
-# Constants matching TypeScript implementation
+# Protocol constants for MCP x402 payment integration.
 MCP_PAYMENT_REQUIRED_CODE = 402
 MCP_PAYMENT_META_KEY = "x402/payment"
 MCP_PAYMENT_RESPONSE_META_KEY = "x402/payment-response"
@@ -73,10 +73,10 @@ class PaymentRequiredHookResult:
         self.abort = abort
 
 
-# Type aliases for hooks (defined after classes)
-PaymentRequiredHook = Callable[[PaymentRequiredContext], PaymentRequiredHookResult]
-BeforePaymentHook = Callable[[PaymentRequiredContext], None]
-AfterPaymentHook = Callable[["AfterPaymentContext"], None]  # type: ignore
+# Sync hook type aliases
+SyncPaymentRequiredHook = Callable[[PaymentRequiredContext], PaymentRequiredHookResult]
+SyncBeforePaymentHook = Callable[[PaymentRequiredContext], None]
+SyncAfterPaymentHook = Callable[["AfterPaymentContext"], None]  # type: ignore
 
 
 class AfterPaymentContext:
@@ -172,14 +172,14 @@ class MCPToolCallResult:
         self.payment_made = payment_made
 
 
-class PaymentWrapperConfig:
+class SyncPaymentWrapperConfig:
     """Configuration for payment wrapper."""
 
     def __init__(
         self,
         accepts: list[PaymentRequirements],
         resource: Optional[ResourceInfo] = None,
-        hooks: Optional["PaymentWrapperHooks"] = None,  # type: ignore
+        hooks: Optional["SyncPaymentWrapperHooks"] = None,  # type: ignore
     ):
         """Initialize payment wrapper config.
 
@@ -267,7 +267,7 @@ class SettlementContext(ServerHookContext):
         self.settlement = settlement
 
 
-class PaymentWrapperHooks:
+class SyncPaymentWrapperHooks:
     """Server-side hooks for payment wrapper."""
 
     def __init__(
@@ -288,164 +288,23 @@ class PaymentWrapperHooks:
         self.on_after_settlement = on_after_settlement
 
 
-# Server hook type aliases (defined after classes)
-BeforeExecutionHook = Callable[[ServerHookContext], bool]
-AfterExecutionHook = Callable[[AfterExecutionContext], None]
-AfterSettlementHook = Callable[[SettlementContext], None]
+# Sync server hook type aliases
+SyncBeforeExecutionHook = Callable[[ServerHookContext], bool]
+SyncAfterExecutionHook = Callable[[AfterExecutionContext], None]
+SyncAfterSettlementHook = Callable[[SettlementContext], None]
 
 
 # ============================================================================
-# Advanced Types (for future dynamic pricing features)
+# Dynamic Pricing Types
 # ============================================================================
 
 from ..schemas.base import Network, Price
 
-# Dynamic function types
 DynamicPayTo = Callable[[MCPToolContext], str]
-"""Function type that resolves payTo address based on tool call context."""
+"""Function type that resolves a payTo address dynamically based on tool call context."""
 
 DynamicPrice = Callable[[MCPToolContext], Price]
-"""Function type that resolves price based on tool call context."""
-
-
-class MCPToolPaymentConfig:
-    """Payment configuration for a paid MCP tool."""
-
-    def __init__(
-        self,
-        scheme: str,
-        network: Network,
-        price: Price | DynamicPrice,
-        pay_to: str | DynamicPayTo,
-        max_timeout_seconds: Optional[int] = None,
-        extra: Optional[dict[str, Any]] = None,
-        resource: Optional[ResourceInfo] = None,
-    ):
-        """Initialize payment config.
-
-        Args:
-            scheme: Payment scheme identifier (e.g., "exact")
-            network: Blockchain network identifier in CAIP-2 format
-            price: Price for the tool call or dynamic resolver
-            pay_to: Recipient wallet address or dynamic resolver
-            max_timeout_seconds: Maximum time for payment completion
-            extra: Scheme-specific additional information
-            resource: Resource metadata for the tool
-        """
-        self.scheme = scheme
-        self.network = network
-        self.price = price
-        self.pay_to = pay_to
-        self.max_timeout_seconds = max_timeout_seconds
-        self.extra = extra or {}
-        self.resource = resource
-
-
-# Advanced types (matching TypeScript exports)
-# These are type hints for future dynamic pricing features
-
-class MCPPaymentError:
-    """MCP payment error structure for JSON-RPC error responses."""
-
-    def __init__(self, code: int, message: str, data: Optional[Any] = None):
-        self.code = code
-        self.message = message
-        self.data = data
-
-
-class MCPToolResultWithPayment:
-    """Result of a tool call that includes payment response metadata."""
-
-    def __init__(
-        self,
-        content: list[dict[str, Any]],
-        is_error: bool = False,
-        payment_response: Optional[SettleResponse] = None,
-    ):
-        self.content = content
-        self.is_error = is_error
-        self.payment_response = payment_response
-
-
-class ToolContentItem:
-    """Tool content item type."""
-
-    def __init__(self, type: str, text: Optional[str] = None, **kwargs: Any):
-        self.type = type
-        self.text = text
-        self.data = kwargs
-
-
-class MCPRequestParamsWithMeta:
-    """MCP request params with optional _meta field for payment."""
-
-    def __init__(
-        self,
-        name: str,
-        arguments: Optional[dict[str, Any]] = None,
-        meta: Optional["MCPMetaWithPayment"] = None,
-    ):
-        self.name = name
-        self.arguments = arguments or {}
-        self.meta = meta
-
-
-class MCPMetaWithPayment:
-    """MCP metadata with payment."""
-
-    def __init__(self, payment_payload: Optional[PaymentPayload] = None, **kwargs: Any):
-        self.payment_payload = payment_payload
-        self.other = kwargs
-
-
-class MCPResultWithMeta:
-    """MCP result with optional _meta field for payment response."""
-
-    def __init__(
-        self,
-        content: Optional[list[dict[str, Any]]] = None,
-        is_error: bool = False,
-        meta: Optional["MCPMetaWithPaymentResponse"] = None,
-    ):
-        self.content = content or []
-        self.is_error = is_error
-        self.meta = meta
-
-
-class MCPMetaWithPaymentResponse:
-    """MCP metadata with payment response."""
-
-    def __init__(self, payment_response: Optional[SettleResponse] = None, **kwargs: Any):
-        self.payment_response = payment_response
-        self.other = kwargs
-
-
-# Additional advanced types for type hints
-class MCPPaymentProcessResult:
-    """Result of processing an MCP tool request for payment."""
-    pass
-
-
-class NoPaymentRequiredResult:
-    """Indicates no payment is required."""
-    type: str = "no-payment-required"
-
-
-class PaymentVerifiedResult:
-    """Indicates payment was verified."""
-
-    def __init__(self, payment_payload: PaymentPayload, payment_requirements: PaymentRequirements):
-        self.type = "payment-verified"
-        self.payment_payload = payment_payload
-        self.payment_requirements = payment_requirements
-
-
-class PaymentErrorResult:
-    """Indicates a payment error occurred."""
-
-    def __init__(self, error: MCPPaymentError):
-        self.type = "payment-error"
-        self.error = error
+"""Function type that resolves a price dynamically based on tool call context."""
 
 
 class PaymentRequiredError(Exception):

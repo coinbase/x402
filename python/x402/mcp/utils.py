@@ -58,7 +58,7 @@ def attach_payment_to_meta(
     """
     result = params.copy()
     meta = result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
-    meta[MCP_PAYMENT_META_KEY] = payload.model_dump() if hasattr(payload, "model_dump") else payload
+    meta[MCP_PAYMENT_META_KEY] = payload.model_dump(by_alias=True) if hasattr(payload, "model_dump") else payload
     result["_meta"] = meta
     return result
 
@@ -105,14 +105,18 @@ def attach_payment_response_to_meta(
         response: Settlement response to attach
 
     Returns:
-        New result with response in _meta
+        New MCPToolResult with response in _meta (does not mutate the original)
     """
-    if result.meta is None:
-        result.meta = {}
-    result.meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
-        response.model_dump() if hasattr(response, "model_dump") else response
+    new_meta = (result.meta.copy() if result.meta else {})
+    new_meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
+        response.model_dump(by_alias=True) if hasattr(response, "model_dump") else response
     )
-    return result
+    return MCPToolResult(
+        content=result.content,
+        is_error=result.is_error,
+        meta=new_meta,
+        structured_content=result.structured_content,
+    )
 
 
 def extract_payment_required_from_result(
@@ -277,6 +281,66 @@ def extract_payment_required_from_error(error: Any) -> Optional[PaymentRequired]
     # Normalize camelCase to snake_case for Pydantic
     normalized_data = {("x402_version" if k == "x402Version" else k): v for k, v in data.items()}
     return _extract_payment_required_from_object(normalized_data)
+
+
+def convert_mcp_result(mcp_result: Any) -> "MCPToolResult":
+    """Convert an MCP SDK result to our MCPToolResult format.
+
+    This shared helper is used by both the sync and async clients to avoid
+    duplicating the attribute-extraction logic.
+
+    Args:
+        mcp_result: Raw MCP SDK result object
+
+    Returns:
+        MCPToolResult
+    """
+    # Extract content
+    content = getattr(mcp_result, "content", [])
+    if not isinstance(content, list):
+        content = []
+
+    # Extract is_error (handle both camelCase and snake_case)
+    is_error = getattr(mcp_result, "isError", None)
+    if is_error is None:
+        is_error = getattr(mcp_result, "is_error", False)
+
+    # Extract meta
+    meta = getattr(mcp_result, "_meta", {})
+    if not isinstance(meta, dict):
+        meta = {}
+
+    # Extract structuredContent
+    structured_content = getattr(mcp_result, "structuredContent", None)
+
+    return MCPToolResult(
+        content=content,
+        is_error=is_error,
+        meta=meta,
+        structured_content=structured_content,
+    )
+
+
+def register_schemes(payment_client: Any, schemes: list[dict[str, Any]]) -> None:
+    """Register payment schemes on a payment client.
+
+    Shared helper used by factory functions in both sync and async clients
+    to avoid duplicating scheme registration logic.
+
+    Args:
+        payment_client: x402 payment client (sync or async)
+        schemes: List of scheme registrations, each with 'network' and 'client' keys,
+                 and optional 'x402_version' (defaults to 2)
+    """
+    for scheme in schemes:
+        network = scheme["network"]
+        client_scheme = scheme["client"]
+        x402_version = scheme.get("x402_version", 2)
+
+        if x402_version == 1:
+            payment_client.register_v1(network, client_scheme)
+        else:
+            payment_client.register(network, client_scheme)
 
 
 def is_payment_required_error(error: Exception) -> bool:

@@ -1,40 +1,35 @@
-"""Unit tests for MCP server payment wrapper."""
+"""Unit tests for MCP async server payment wrapper."""
 
-from unittest.mock import Mock, MagicMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from x402.mcp import (
-    SyncPaymentWrapperConfig as PaymentWrapperConfig,
-    ResourceInfo,
-    create_payment_wrapper_sync as create_payment_wrapper,
+from x402.mcp.server_async import (
+    PaymentWrapperConfig,
+    PaymentWrapperHooks,
+    create_payment_wrapper,
 )
+from x402.mcp.types import ResourceInfo
 from x402.schemas import PaymentPayload, PaymentRequirements, SettleResponse
 
 
-class MockResourceServer:
-    """Mock resource server for testing."""
+class MockAsyncResourceServer:
+    """Mock async resource server for testing."""
 
     def __init__(self):
-        """Initialize mock server."""
-        self.verify_payment = Mock()
-        self.settle_payment = Mock()
-        # Create a Mock that wraps the real method so we can track calls
-        self._create_payment_required_response_impl = self._create_payment_required_response_real
-        self.create_payment_required_response = MagicMock(
-            side_effect=self._create_payment_required_response_real
+        """Initialize mock async server."""
+        self.verify_payment = AsyncMock(return_value=Mock(is_valid=True))
+        self.settle_payment = AsyncMock(
+            return_value=SettleResponse(
+                success=True,
+                transaction="0xtx123",
+                network="eip155:84532",
+            )
         )
-
-    def verify_payment(self, payload, requirements):
-        """Mock verify payment."""
-        return Mock(is_valid=True)
-
-    def settle_payment(self, payload, requirements):
-        """Mock settle payment."""
-        return SettleResponse(
-            success=True,
-            transaction="0xtx123",
-            network="eip155:84532",
+        # Create an AsyncMock that wraps the real method so we can track calls
+        self._create_payment_required_response_impl = self._create_payment_required_response_real
+        self.create_payment_required_response = AsyncMock(
+            side_effect=self._create_payment_required_response_real
         )
 
     def find_matching_requirements(self, available, payload):
@@ -53,7 +48,7 @@ class MockResourceServer:
                 return req
         return None
 
-    def _create_payment_required_response_real(self, accepts, resource_info, error_msg):
+    async def _create_payment_required_response_real(self, accepts, resource_info, error_msg):
         """Real implementation of create payment required response."""
         from x402.schemas import PaymentRequired
 
@@ -65,9 +60,10 @@ class MockResourceServer:
         )
 
 
-def test_create_payment_wrapper_basic_flow():
-    """Test basic payment wrapper flow."""
-    server = MockResourceServer()
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_basic_flow():
+    """Test basic async payment wrapper flow."""
+    server = MockAsyncResourceServer()
     config = PaymentWrapperConfig(
         accepts=[
             PaymentRequirements(
@@ -88,8 +84,8 @@ def test_create_payment_wrapper_basic_flow():
 
     paid = create_payment_wrapper(server, config)
 
-    # Create handler
-    def handler(args, context):
+    # Create async handler
+    async def handler(args, context):
         return {"content": [{"type": "text", "text": "success"}], "isError": False}
 
     wrapped = paid(handler)
@@ -110,13 +106,11 @@ def test_create_payment_wrapper_basic_flow():
 
     args = {"test": "value"}
     extra = {
-        "_meta": {
-            "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-        },
+        "_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload},
         "toolName": "test",
     }
 
-    result = wrapped(args, extra)
+    result = await wrapped(args, extra)
 
     assert result.is_error is False
     assert "x402/payment-response" in result.meta
@@ -124,9 +118,10 @@ def test_create_payment_wrapper_basic_flow():
     assert server.settle_payment.called
 
 
-def test_create_payment_wrapper_no_payment():
-    """Test payment wrapper when no payment provided."""
-    server = MockResourceServer()
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_no_payment():
+    """Test async payment wrapper when no payment provided."""
+    server = MockAsyncResourceServer()
     config = PaymentWrapperConfig(
         accepts=[
             PaymentRequirements(
@@ -142,7 +137,7 @@ def test_create_payment_wrapper_no_payment():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [], "isError": False}
 
     wrapped = paid(handler)
@@ -150,17 +145,18 @@ def test_create_payment_wrapper_no_payment():
     args = {}
     extra = {"_meta": {}, "toolName": "test"}
 
-    result = wrapped(args, extra)
+    result = await wrapped(args, extra)
 
     # Should return payment required error
     assert result.is_error is True
     assert server.create_payment_required_response.called
 
 
-def test_create_payment_wrapper_verification_failure():
-    """Test payment wrapper when verification fails."""
-    server = MockResourceServer()
-    server.verify_payment = Mock(
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_verification_failure():
+    """Test async payment wrapper when verification fails."""
+    server = MockAsyncResourceServer()
+    server.verify_payment = AsyncMock(
         return_value=Mock(is_valid=False, invalid_reason="Invalid signature")
     )
 
@@ -179,7 +175,7 @@ def test_create_payment_wrapper_verification_failure():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [], "isError": False}
 
     wrapped = paid(handler)
@@ -199,13 +195,11 @@ def test_create_payment_wrapper_verification_failure():
 
     args = {}
     extra = {
-        "_meta": {
-            "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-        },
+        "_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload},
         "toolName": "test",
     }
 
-    result = wrapped(args, extra)
+    result = await wrapped(args, extra)
 
     # Should return payment required error
     assert result.is_error is True
@@ -213,11 +207,10 @@ def test_create_payment_wrapper_verification_failure():
     assert not server.settle_payment.called
 
 
-def test_create_payment_wrapper_hooks():
-    """Test payment wrapper hooks."""
-    from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
-
-    server = MockResourceServer()
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_hooks():
+    """Test async payment wrapper hooks."""
+    server = MockAsyncResourceServer()
     before_called = []
     after_called = []
     settlement_called = []
@@ -242,7 +235,7 @@ def test_create_payment_wrapper_hooks():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [{"type": "text", "text": "success"}]}
 
     wrapped = paid(handler)
@@ -258,13 +251,9 @@ def test_create_payment_wrapper_hooks():
         },
         payload={"signature": "0x123"},
     )
-    wrapped(
+    await wrapped(
         {"test": "value"},
-        {
-            "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-            }
-        },
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
     )
 
     assert len(before_called) > 0
@@ -272,11 +261,10 @@ def test_create_payment_wrapper_hooks():
     assert len(settlement_called) > 0
 
 
-def test_create_payment_wrapper_abort_on_before_execution():
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_abort_on_before_execution():
     """Test that onBeforeExecution can abort execution."""
-    from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
-
-    server = MockResourceServer()
+    server = MockAsyncResourceServer()
     handler_called = []
 
     config = PaymentWrapperConfig(
@@ -297,23 +285,40 @@ def test_create_payment_wrapper_abort_on_before_execution():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         handler_called.append(True)
         return {"content": [{"type": "text", "text": "success"}]}
 
     wrapped = paid(handler)
-    result = wrapped(
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    result = await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}}},
+        {
+            "_meta": {
+                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+            }
+        },
     )
 
     assert len(handler_called) == 0, "Handler should not be called when hook aborts"
     assert result.is_error is True
 
 
-def test_create_payment_wrapper_settlement_failure():
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_settlement_failure():
     """Test handling of settlement failure."""
-    server = MockResourceServer()
+    server = MockAsyncResourceServer()
     server.settle_payment.side_effect = Exception("Settlement failed")
 
     config = PaymentWrapperConfig(
@@ -331,23 +336,40 @@ def test_create_payment_wrapper_settlement_failure():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [{"type": "text", "text": "success"}]}
 
     wrapped = paid(handler)
-    result = wrapped(
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    result = await wrapped(
         {"test": "value"},
-        {"_meta": {"x402/payment": {"x402Version": 2, "payload": {"signature": "0x123"}}}},
+        {
+            "_meta": {
+                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
+            }
+        },
     )
 
     assert result.is_error is True
     assert "settlement" in str(result.content).lower() or result.structured_content is not None
 
 
-def test_create_payment_wrapper_handler_error_no_settlement():
-    """Test that settlement is NOT called when handler returns an error."""
-    server = MockResourceServer()
-    server.settle_payment = Mock()  # Track calls
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_handler_error_no_settlement():
+    """Test that settlement is NOT called when async handler returns an error."""
+    server = MockAsyncResourceServer()
+    server.settle_payment = AsyncMock()  # Track calls
 
     config = PaymentWrapperConfig(
         accepts=[
@@ -364,7 +386,7 @@ def test_create_payment_wrapper_handler_error_no_settlement():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [{"type": "text", "text": "tool error"}], "isError": True}
 
     wrapped = paid(handler)
@@ -380,108 +402,35 @@ def test_create_payment_wrapper_handler_error_no_settlement():
         },
         payload={"signature": "0x123"},
     )
-    result = wrapped(
+    result = await wrapped(
         {"test": "value"},
-        {
-            "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-            }
-        },
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
     )
 
     assert result.is_error is True
     server.settle_payment.assert_not_called()
 
 
-def test_create_payment_wrapper_hook_errors_non_fatal():
-    """Test that on_after_execution errors are swallowed and don't propagate."""
-    from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
-
-    server = MockResourceServer()
-
-    def error_after_hook(ctx):
-        raise Exception("after execution hook error")
-
-    def error_settlement_hook(ctx):
-        raise Exception("after settlement hook error")
-
-    config = PaymentWrapperConfig(
-        accepts=[
-            PaymentRequirements(
-                scheme="exact",
-                network="eip155:84532",
-                amount="1000",
-                asset="USDC",
-                pay_to="0xrecipient",
-                max_timeout_seconds=300,
-            )
-        ],
-        hooks=PaymentWrapperHooks(
-            on_after_execution=error_after_hook,
-            on_after_settlement=error_settlement_hook,
-        ),
-    )
-
-    paid = create_payment_wrapper(server, config)
-
-    def handler(args, context):
-        return {"content": [{"type": "text", "text": "success"}]}
-
-    wrapped = paid(handler)
-    payload = PaymentPayload(
-        x402_version=2,
-        accepted={
-            "scheme": "exact",
-            "network": "eip155:84532",
-            "amount": "1000",
-            "asset": "USDC",
-            "pay_to": "0xrecipient",
-            "max_timeout_seconds": 300,
-        },
-        payload={"signature": "0x123"},
-    )
-
-    # Should not raise despite hook errors
-    result = wrapped(
-        {"test": "value"},
-        {
-            "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-            }
-        },
-    )
-
-    assert result.is_error is False
-    assert "x402/payment-response" in result.meta
-
-
-def test_create_payment_wrapper_find_matching_requirement():
-    """Test that payment matching selects the correct requirement from accepts."""
-    server = MockResourceServer()
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_find_matching_requirement():
+    """Test that payment matching selects the correct requirement from accepts (async)."""
+    server = MockAsyncResourceServer()
 
     accepts = [
         PaymentRequirements(
-            scheme="exact",
-            network="eip155:84532",
-            amount="1000",
-            asset="USDC",
-            pay_to="0xA",
-            max_timeout_seconds=300,
+            scheme="exact", network="eip155:84532", amount="1000",
+            asset="USDC", pay_to="0xA", max_timeout_seconds=300,
         ),
         PaymentRequirements(
-            scheme="exact",
-            network="eip155:1",
-            amount="2000",
-            asset="USDC",
-            pay_to="0xB",
-            max_timeout_seconds=300,
+            scheme="exact", network="eip155:1", amount="2000",
+            asset="USDC", pay_to="0xB", max_timeout_seconds=300,
         ),
     ]
 
     config = PaymentWrapperConfig(accepts=accepts)
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         return {"content": [{"type": "text", "text": "success"}]}
 
     wrapped = paid(handler)
@@ -490,22 +439,14 @@ def test_create_payment_wrapper_find_matching_requirement():
     payload = PaymentPayload(
         x402_version=2,
         accepted={
-            "scheme": "exact",
-            "network": "eip155:1",
-            "amount": "2000",
-            "asset": "USDC",
-            "pay_to": "0xB",
-            "max_timeout_seconds": 300,
+            "scheme": "exact", "network": "eip155:1", "amount": "2000",
+            "asset": "USDC", "pay_to": "0xB", "max_timeout_seconds": 300,
         },
         payload={"signature": "0x123"},
     )
-    result = wrapped(
+    result = await wrapped(
         {},
-        {
-            "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-            }
-        },
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
     )
 
     assert result.is_error is False
@@ -515,11 +456,10 @@ def test_create_payment_wrapper_find_matching_requirement():
     assert matched_req.network == "eip155:1"
 
 
-def test_create_payment_wrapper_hooks_order():
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_hooks_order():
     """Test that hooks are called in correct order."""
-    from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
-
-    server = MockResourceServer()
+    server = MockAsyncResourceServer()
     call_order = []
 
     config = PaymentWrapperConfig(
@@ -542,7 +482,7 @@ def test_create_payment_wrapper_hooks_order():
 
     paid = create_payment_wrapper(server, config)
 
-    def handler(args, context):
+    async def handler(args, context):
         call_order.append("handler")
         return {"content": [{"type": "text", "text": "success"}]}
 
@@ -559,13 +499,128 @@ def test_create_payment_wrapper_hooks_order():
         },
         payload={"signature": "0x123"},
     )
-    wrapped(
+    await wrapped(
         {"test": "value"},
-        {
-            "_meta": {
-                "x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload
-            }
-        },
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
     )
 
     assert call_order == ["before", "handler", "after", "settlement"]
+
+
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_async_hooks():
+    """Test with truly async hooks (async def callbacks)."""
+    server = MockAsyncResourceServer()
+    before_called = []
+    after_called = []
+    settlement_called = []
+
+    async def async_before_hook(ctx):
+        before_called.append(ctx)
+        return True
+
+    async def async_after_hook(ctx):
+        after_called.append(ctx)
+
+    async def async_settlement_hook(ctx):
+        settlement_called.append(ctx)
+
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+        hooks=PaymentWrapperHooks(
+            on_before_execution=async_before_hook,
+            on_after_execution=async_after_hook,
+            on_after_settlement=async_settlement_hook,
+        ),
+    )
+
+    paid = create_payment_wrapper(server, config)
+
+    async def handler(args, context):
+        return {"content": [{"type": "text", "text": "success"}]}
+
+    wrapped = paid(handler)
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    await wrapped(
+        {"test": "value"},
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+    )
+
+    assert len(before_called) > 0
+    assert len(after_called) > 0
+    assert len(settlement_called) > 0
+
+
+@pytest.mark.asyncio
+async def test_create_payment_wrapper_async_hook_error_swallowed():
+    """Test that on_after_execution errors don't propagate."""
+    server = MockAsyncResourceServer()
+
+    def error_hook(ctx):
+        raise Exception("Hook error")
+
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+        hooks=PaymentWrapperHooks(
+            on_after_execution=error_hook,
+        ),
+    )
+
+    paid = create_payment_wrapper(server, config)
+
+    async def handler(args, context):
+        return {"content": [{"type": "text", "text": "success"}]}
+
+    wrapped = paid(handler)
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    # Should not raise exception
+    result = await wrapped(
+        {"test": "value"},
+        {"_meta": {"x402/payment": payload.model_dump() if hasattr(payload, "model_dump") else payload}},
+    )
+
+    assert result.is_error is False
+    assert server.settle_payment.called
+
+
+
