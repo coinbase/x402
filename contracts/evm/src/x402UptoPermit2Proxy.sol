@@ -66,7 +66,7 @@ contract x402UptoPermit2Proxy is x402BasePermit2Proxy {
         bytes calldata signature
     ) external nonReentrant {
         if (amount > permit.permitted.amount) revert AmountExceedsPermitted();
-        _executePermit(permit.permitted.token, owner, permit2612);
+        _executePermit(permit.permitted.token, owner, permit2612, permit.permitted.amount);
         _settle(permit, amount, owner, witness, signature);
         emit SettledWithPermit();
     }

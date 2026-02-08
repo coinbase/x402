@@ -58,6 +58,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Thrown when owner address is zero
     error InvalidOwner();
 
+    /// @notice Thrown when EIP-2612 permit value doesn't match Permit2 permitted amount
+    error Permit2612AmountMismatch();
+
     /**
      * @notice Witness data structure for payment authorization
      * @param to Destination address (immutable once signed)
@@ -138,14 +141,23 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     }
 
     /**
-     * @notice Attempts to execute an EIP-2612 permit to approve Permit2
-     * @dev Does not revert on failure because the approval might already exist
-     *      or the token might not support EIP-2612
+     * @notice Validates and attempts to execute an EIP-2612 permit to approve Permit2
+     * @dev Reverts if permit2612.value does not match permittedAmount.
+     *      The actual permit call does not revert on failure because the approval
+     *      might already exist or the token might not support EIP-2612.
      * @param token The token address
      * @param owner The token owner
      * @param permit2612 The EIP-2612 permit parameters
+     * @param permittedAmount The Permit2 permitted amount
      */
-    function _executePermit(address token, address owner, EIP2612Permit calldata permit2612) internal {
+    function _executePermit(
+        address token,
+        address owner,
+        EIP2612Permit calldata permit2612,
+        uint256 permittedAmount
+    ) internal {
+        if (permit2612.value != permittedAmount) revert Permit2612AmountMismatch();
+
         try IERC20Permit(token).permit(
             owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
         ) {

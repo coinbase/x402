@@ -200,7 +200,7 @@ contract X402UptoPermit2ProxyTest is Test {
         });
 
         x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
-            value: type(uint256).max,
+            value: TRANSFER_AMOUNT,
             deadline: t + 3600,
             v: 27,
             r: bytes32(uint256(1)),
@@ -231,7 +231,7 @@ contract X402UptoPermit2ProxyTest is Test {
         });
 
         x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
-            value: type(uint256).max,
+            value: TRANSFER_AMOUNT,
             deadline: t + 3600,
             v: 27,
             r: bytes32(uint256(1)),
@@ -241,6 +241,104 @@ contract X402UptoPermit2ProxyTest is Test {
         proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
+    }
+
+    function test_settleWithPermit_revertsWhenAmountExceedsPermitted() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: 100e6}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: 100e6,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
+        proxy.settleWithPermit(permit2612, permit, 150e6, payer, _witness(recipient, t - 60), _sig());
+    }
+
+    function test_settleWithPermit_revertsWhenPermit2612ValueTooSmall() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: TRANSFER_AMOUNT}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: TRANSFER_AMOUNT - 1,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectRevert(x402BasePermit2Proxy.Permit2612AmountMismatch.selector);
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
+    }
+
+    function test_settleWithPermit_revertsWhenPermit2612ValueTooLarge() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: TRANSFER_AMOUNT}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: TRANSFER_AMOUNT + 1,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectRevert(x402BasePermit2Proxy.Permit2612AmountMismatch.selector);
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
+    }
+
+    function test_settleWithPermit_partialAmountWithMatchingPermit() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+        vm.prank(payer);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
+
+        uint256 t = block.timestamp;
+        uint256 permitted = TRANSFER_AMOUNT; // 100e6
+        uint256 requested = TRANSFER_AMOUNT / 2; // 50e6
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: permitted}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: permitted,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        proxy.settleWithPermit(permit2612, permit, requested, payer, _witness(recipient, t - 60), _sig());
+
+        assertEq(permitToken.balanceOf(recipient), requested);
     }
 
     // --- Fuzz: Time window ---

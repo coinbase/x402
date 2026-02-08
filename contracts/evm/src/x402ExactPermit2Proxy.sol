@@ -58,7 +58,7 @@ contract x402ExactPermit2Proxy is x402BasePermit2Proxy {
         Witness calldata witness,
         bytes calldata signature
     ) external nonReentrant {
-        _executePermit(permit.permitted.token, owner, permit2612);
+        _executePermit(permit.permitted.token, owner, permit2612, permit.permitted.amount);
         _settle(permit, permit.permitted.amount, owner, witness, signature);
         emit SettledWithPermit();
     }
