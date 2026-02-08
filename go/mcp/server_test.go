@@ -418,6 +418,134 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 	}
 }
 
+func TestCreatePaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
+	// When the tool handler returns IsError=true, settlement should NOT happen
+	settleCalled := false
+	mockFacilitator := &mockFacilitatorClient{
+		settleFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			settleCalled = true
+			return &x402.SettleResponse{Success: true, Transaction: "tx", Network: "x402:cash", Payer: "p"}, nil
+		},
+	}
+	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
+
+	server := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockFacilitator),
+		x402.WithSchemeServer("x402:cash", mockSchemeServer),
+	)
+
+	ctx := context.Background()
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	config := PaymentWrapperConfig{
+		Accepts: []types.PaymentRequirements{
+			{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
+		},
+	}
+
+	paid := CreatePaymentWrapper(server, config)
+	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
+		return MCPToolResult{
+			Content: []MCPContentItem{{Type: "text", Text: "tool error"}},
+			IsError: true,
+		}, nil
+	}
+
+	wrapped := paid(handler)
+
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
+		Payload:     map[string]interface{}{"signature": "~test-payer"},
+	}
+	toolContext := MCPToolContext{
+		ToolName:  "test",
+		Arguments: map[string]interface{}{},
+		Meta:      map[string]interface{}{MCP_PAYMENT_META_KEY: payload},
+	}
+
+	result, err := wrapped(ctx, map[string]interface{}{}, toolContext)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !result.IsError {
+		t.Error("Expected error result from handler")
+	}
+	if settleCalled {
+		t.Error("Settlement should NOT be called when handler returns an error")
+	}
+}
+
+func TestCreatePaymentWrapper_HookErrors_NonFatal(t *testing.T) {
+	// OnAfterExecution and OnAfterSettlement errors should be swallowed
+	mockFacilitator := &mockFacilitatorClient{}
+	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
+
+	server := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockFacilitator),
+		x402.WithSchemeServer("x402:cash", mockSchemeServer),
+	)
+
+	ctx := context.Background()
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	var afterExecHook AfterExecutionHook = func(context AfterExecutionContext) error {
+		return fmt.Errorf("after execution hook error")
+	}
+	var afterSettlementHook AfterSettlementHook = func(context SettlementContext) error {
+		return fmt.Errorf("after settlement hook error")
+	}
+
+	config := PaymentWrapperConfig{
+		Accepts: []types.PaymentRequirements{
+			{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
+		},
+		Hooks: &PaymentWrapperHooks{
+			OnAfterExecution:  &afterExecHook,
+			OnAfterSettlement: &afterSettlementHook,
+		},
+	}
+
+	paid := CreatePaymentWrapper(server, config)
+	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
+		return MCPToolResult{
+			Content: []MCPContentItem{{Type: "text", Text: "success"}},
+		}, nil
+	}
+
+	wrapped := paid(handler)
+
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
+		Payload:     map[string]interface{}{"signature": "~test-payer"},
+	}
+	toolContext := MCPToolContext{
+		ToolName:  "test",
+		Arguments: map[string]interface{}{},
+		Meta:      map[string]interface{}{MCP_PAYMENT_META_KEY: payload},
+	}
+
+	result, err := wrapped(ctx, map[string]interface{}{}, toolContext)
+	if err != nil {
+		t.Fatalf("Hook errors should not propagate, got: %v", err)
+	}
+
+	if result.IsError {
+		t.Error("Expected success result despite hook errors")
+	}
+
+	// Verify settlement still happened (payment response in meta)
+	if result.Meta == nil || result.Meta[MCP_PAYMENT_RESPONSE_META_KEY] == nil {
+		t.Error("Expected payment response in meta despite hook errors")
+	}
+}
+
 func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
 	// Create a facilitator that fails settlement
 	mockFacilitator := &mockFacilitatorClient{

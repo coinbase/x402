@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
@@ -12,8 +13,11 @@ import (
 
 // Mock MCP client for testing
 type mockMCPClient struct {
-	callToolResult MCPToolResult
-	callToolError  error
+	callToolResult  MCPToolResult
+	callToolError   error
+	callToolResults []MCPToolResult // For multi-call scenarios
+	callToolErrors  []error         // For multi-call scenarios
+	callCount       int
 }
 
 func (m *mockMCPClient) Connect(ctx context.Context, transport interface{}) error {
@@ -25,6 +29,17 @@ func (m *mockMCPClient) Close(ctx context.Context) error {
 }
 
 func (m *mockMCPClient) CallTool(ctx context.Context, params map[string]interface{}) (MCPToolResult, error) {
+	if len(m.callToolResults) > 0 {
+		idx := m.callCount
+		m.callCount++
+		if idx < len(m.callToolResults) {
+			var err error
+			if idx < len(m.callToolErrors) {
+				err = m.callToolErrors[idx]
+			}
+			return m.callToolResults[idx], err
+		}
+	}
 	return m.callToolResult, m.callToolError
 }
 
@@ -148,7 +163,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 	
 	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
-		AutoPayment: false,
+		AutoPayment: BoolPtr(false),
 	})
 
 	ctx := context.Background()
@@ -171,30 +186,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 // Factory Function Tests
 // ============================================================================
 
-func TestWrapMCPClientWithPayment(t *testing.T) {
-	mockClient := &mockMCPClient{
-		callToolResult: MCPToolResult{
-			Content: []MCPContentItem{
-				{Type: "text", Text: "pong"},
-			},
-			IsError: false,
-		},
-	}
-
-	paymentClient := x402.Newx402Client()
-	x402Mcp := WrapMCPClientWithPayment(mockClient, paymentClient, Options{
-		AutoPayment: true,
-	})
-
-	if x402Mcp == nil {
-		t.Fatal("Expected non-nil client")
-	}
-	if x402Mcp.Client() != mockClient {
-		t.Error("Expected client to wrap mockClient")
-	}
-}
-
-func TestWrapMCPClientWithPaymentFromConfig(t *testing.T) {
+func TestNewX402MCPClientFromConfig(t *testing.T) {
 	mockClient := &mockMCPClient{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
@@ -207,14 +199,17 @@ func TestWrapMCPClientWithPaymentFromConfig(t *testing.T) {
 	// Create a mock scheme client that implements SchemeNetworkClient
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 
-	x402Mcp := WrapMCPClientWithPaymentFromConfig(mockClient, []SchemeRegistration{
+	x402Mcp := NewX402MCPClientFromConfig(mockClient, []SchemeRegistration{
 		{Network: "eip155:84532", Client: mockSchemeClient},
 	}, Options{
-		AutoPayment: true,
+		AutoPayment: BoolPtr(true),
 	})
 
 	if x402Mcp == nil {
 		t.Fatal("Expected non-nil client")
+	}
+	if x402Mcp.Client() != mockClient {
+		t.Error("Expected client to wrap mockClient")
 	}
 }
 
@@ -233,29 +228,6 @@ func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, requ
 		Accepted:    requirements,
 		Payload:     map[string]interface{}{"signature": "0xmock"},
 	}, nil
-}
-
-func TestCreateX402MCPClient(t *testing.T) {
-	mockClient := &mockMCPClient{
-		callToolResult: MCPToolResult{
-			Content: []MCPContentItem{
-				{Type: "text", Text: "pong"},
-			},
-			IsError: false,
-		},
-	}
-
-	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
-
-	x402Mcp := CreateX402MCPClient(mockClient, []SchemeRegistration{
-		{Network: "eip155:84532", Client: mockSchemeClient},
-	}, Options{
-		AutoPayment: true,
-	})
-
-	if x402Mcp == nil {
-		t.Fatal("Expected non-nil client")
-	}
 }
 
 // ============================================================================
@@ -480,5 +452,435 @@ func TestX402MCPClient_GetToolPaymentRequirements(t *testing.T) {
 
 	if len(result.Accepts) != 1 {
 		t.Errorf("Expected 1 accept, got %d", len(result.Accepts))
+	}
+}
+
+// ============================================================================
+// Auto-Payment End-to-End Tests
+// ============================================================================
+
+func TestX402MCPClient_CallTool_AutoPaymentE2E(t *testing.T) {
+	// First call returns 402 payment required, second call returns success
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:            "exact",
+				Network:           "eip155:84532",
+				Amount:            "1000",
+				Asset:             "USDC",
+				PayTo:             "0xrecipient",
+				MaxTimeoutSeconds: 300,
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResults: []MCPToolResult{
+			{
+				IsError:           true,
+				StructuredContent: structuredContent,
+				Content: []MCPContentItem{
+					{Type: "text", Text: string(structuredBytes)},
+				},
+			},
+			{
+				Content: []MCPContentItem{
+					{Type: "text", Text: "success"},
+				},
+				IsError: false,
+				Meta: map[string]interface{}{
+					MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
+						"success":     true,
+						"transaction": "0xtxhash",
+						"network":     "eip155:84532",
+					},
+				},
+			},
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+	})
+
+	ctx := context.Background()
+	result, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !result.PaymentMade {
+		t.Error("Expected PaymentMade to be true")
+	}
+	if result.PaymentResponse == nil {
+		t.Error("Expected PaymentResponse to be set")
+	}
+	if mockClient.callCount != 2 {
+		t.Errorf("Expected 2 calls to CallTool, got %d", mockClient.callCount)
+	}
+}
+
+func TestX402MCPClient_CallTool_HookAbort(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResult: MCPToolResult{
+			IsError:           true,
+			StructuredContent: structuredContent,
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+	})
+
+	// Register a hook that aborts
+	x402Client.OnPaymentRequired(func(ctx PaymentRequiredContext) (*PaymentRequiredHookResult, error) {
+		return &PaymentRequiredHookResult{Abort: true}, nil
+	})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err == nil {
+		t.Fatal("Expected error from hook abort")
+	}
+
+	var paymentErr *PaymentRequiredError
+	if !errors.As(err, &paymentErr) {
+		t.Fatalf("Expected PaymentRequiredError, got %T: %v", err, err)
+	}
+}
+
+func TestX402MCPClient_CallTool_HookCustomPayment(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResults: []MCPToolResult{
+			{
+				IsError:           true,
+				StructuredContent: structuredContent,
+			},
+			{
+				Content: []MCPContentItem{
+					{Type: "text", Text: "success from custom payment"},
+				},
+				IsError: false,
+				Meta: map[string]interface{}{
+					MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
+						"success":     true,
+						"transaction": "0xcustom",
+						"network":     "eip155:84532",
+					},
+				},
+			},
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+	})
+
+	// Register a hook that provides custom payment
+	customPayload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted: types.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:84532",
+			Amount:  "1000",
+			Asset:   "USDC",
+			PayTo:   "0xrecipient",
+		},
+		Payload: map[string]interface{}{"signature": "0xcustom_sig"},
+	}
+	x402Client.OnPaymentRequired(func(ctx PaymentRequiredContext) (*PaymentRequiredHookResult, error) {
+		return &PaymentRequiredHookResult{Payment: &customPayload}, nil
+	})
+
+	ctx := context.Background()
+	result, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !result.PaymentMade {
+		t.Error("Expected PaymentMade to be true")
+	}
+}
+
+func TestX402MCPClient_CallTool_OnPaymentRequestedApproved(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResults: []MCPToolResult{
+			{
+				IsError:           true,
+				StructuredContent: structuredContent,
+			},
+			{
+				Content: []MCPContentItem{
+					{Type: "text", Text: "success"},
+				},
+				IsError: false,
+			},
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	approvalCalled := false
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+		OnPaymentRequested: func(ctx PaymentRequiredContext) (bool, error) {
+			approvalCalled = true
+			return true, nil // Approve
+		},
+	})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !approvalCalled {
+		t.Error("Expected OnPaymentRequested to be called")
+	}
+}
+
+func TestX402MCPClient_CallTool_OnPaymentRequestedDenied(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResult: MCPToolResult{
+			IsError:           true,
+			StructuredContent: structuredContent,
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+		OnPaymentRequested: func(ctx PaymentRequiredContext) (bool, error) {
+			return false, nil // Deny
+		},
+	})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err == nil {
+		t.Fatal("Expected error when payment denied")
+	}
+
+	var paymentErr *PaymentRequiredError
+	if !errors.As(err, &paymentErr) {
+		t.Fatalf("Expected PaymentRequiredError, got %T: %v", err, err)
+	}
+}
+
+func TestX402MCPClient_CallTool_BeforePaymentHookCalled(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResults: []MCPToolResult{
+			{
+				IsError:           true,
+				StructuredContent: structuredContent,
+			},
+			{
+				Content: []MCPContentItem{
+					{Type: "text", Text: "success"},
+				},
+				IsError: false,
+			},
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+	})
+
+	beforeCalled := false
+	x402Client.OnBeforePayment(func(ctx PaymentRequiredContext) error {
+		beforeCalled = true
+		if ctx.ToolName != "paid_tool" {
+			t.Errorf("Expected tool name 'paid_tool', got '%s'", ctx.ToolName)
+		}
+		return nil
+	})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !beforeCalled {
+		t.Error("Expected BeforePayment hook to be called")
+	}
+}
+
+func TestX402MCPClient_CallTool_BeforePaymentHookError(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{
+			{
+				Scheme:  "exact",
+				Network: "eip155:84532",
+				Amount:  "1000",
+				Asset:   "USDC",
+				PayTo:   "0xrecipient",
+			},
+		},
+	}
+
+	structuredBytes, _ := json.Marshal(paymentRequired)
+	var structuredContent map[string]interface{}
+	json.Unmarshal(structuredBytes, &structuredContent)
+
+	mockClient := &mockMCPClient{
+		callToolResult: MCPToolResult{
+			IsError:           true,
+			StructuredContent: structuredContent,
+		},
+	}
+
+	paymentClient := x402.Newx402Client()
+	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
+	paymentClient.Register("eip155:84532", mockSchemeClient)
+
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+		AutoPayment: BoolPtr(true),
+	})
+
+	x402Client.OnBeforePayment(func(ctx PaymentRequiredContext) error {
+		return fmt.Errorf("before payment hook failed")
+	})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "paid_tool", map[string]interface{}{})
+	if err == nil {
+		t.Fatal("Expected error from before payment hook")
+	}
+	if err.Error() != "before payment hook error: before payment hook failed" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestX402MCPClient_CallTool_UnderlyingError(t *testing.T) {
+	mockClient := &mockMCPClient{
+		callToolError: fmt.Errorf("connection refused"),
+	}
+
+	paymentClient := x402.Newx402Client()
+	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+
+	ctx := context.Background()
+	_, err := x402Client.CallTool(ctx, "test_tool", map[string]interface{}{})
+	if err == nil {
+		t.Fatal("Expected error from underlying client")
+	}
+	if !errors.Is(err, mockClient.callToolError) {
+		t.Errorf("Expected wrapped connection error, got: %v", err)
 	}
 }

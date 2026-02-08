@@ -66,6 +66,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "github.com/coinbase/x402/go/mcp"
     x402 "github.com/coinbase/x402/go"
 )
@@ -74,29 +75,24 @@ func main() {
     // Create MCP client (from MCP SDK)
     mcpClient := // ... create MCP client
 
-    // Create x402 MCP client with config
-    x402Mcp, err := mcp.CreateX402MCPClient(mcpClient, mcp.X402MCPClientConfig{
-        Name:    "my-agent",
-        Version: "1.0.0",
-        Schemes: []mcp.SchemeRegistration{
-            {Network: "eip155:84532", Client: evmClientScheme},
-        },
-        AutoPayment: true,
-    })
-    if err != nil {
-        panic(err)
-    }
+    // Create x402 MCP client with scheme registrations
+    // AutoPayment defaults to true
+    x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
+        {Network: "eip155:84532", Client: evmClientScheme},
+    }, mcp.Options{})
 
     // Connect to server
     // x402Mcp.Connect(ctx, transport)
 
     // Call tools - payment handled automatically
+    ctx := context.Background()
     result, err := x402Mcp.CallTool(ctx, "get_weather", map[string]interface{}{
         "city": "NYC",
     })
     if err != nil {
         panic(err)
     }
+    fmt.Println(result)
 }
 ```
 
@@ -104,69 +100,56 @@ func main() {
 
 ### Client
 
-#### `CreateX402MCPClient`
+#### `NewX402MCPClient`
 
-Creates a fully configured x402 MCP client from a config object.
-
-```go
-x402Mcp, err := mcp.CreateX402MCPClient(mcpClient, mcp.X402MCPClientConfig{
-    Name:    "my-agent",
-    Version: "1.0.0",
-    Schemes: []mcp.SchemeRegistration{
-        {Network: "eip155:84532", Client: evmClientScheme},
-    },
-    AutoPayment: true,
-})
-```
-
-#### `WrapMCPClientWithPayment`
-
-Wraps an existing MCP client with x402 payment handling.
+Creates an x402 MCP client from an existing MCP client and payment client.
 
 ```go
-paymentClient := x402.NewX402Client()
+paymentClient := x402.Newx402Client()
 paymentClient.Register("eip155:84532", evmClientScheme)
 
-x402Mcp := mcp.WrapMCPClientWithPayment(mcpClient, paymentClient, mcp.Options{
-    AutoPayment: true,
-})
+x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{})
 ```
 
-#### `WrapMCPClientWithPaymentFromConfig`
+#### `NewX402MCPClientFromConfig`
 
-Wraps an MCP client using scheme registrations directly.
+Creates a fully configured x402 MCP client with scheme registrations.
 
 ```go
-x402Mcp := mcp.WrapMCPClientWithPaymentFromConfig(mcpClient, []mcp.SchemeRegistration{
+x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
     {Network: "eip155:84532", Client: evmClientScheme},
-}, mcp.Options{
-    AutoPayment: true,
-})
+}, mcp.Options{}) // AutoPayment defaults to true
 ```
 
 ### Server
 
 #### `CreatePaymentWrapper`
 
-Creates a payment wrapper for MCP tool handlers.
+Creates a payment wrapper for MCP tool handlers. Supports multiple payment
+requirements in the `Accepts` array -- the wrapper matches the client's chosen
+payment method against the correct requirement automatically.
 
 ```go
+beforeExecHook := mcp.BeforeExecutionHook(func(ctx mcp.ServerHookContext) (bool, error) {
+    // Called after payment verification, before tool execution
+    // Return false to abort execution
+    return true, nil
+})
+afterExecHook := mcp.AfterExecutionHook(func(ctx mcp.AfterExecutionContext) error {
+    // Called after tool execution, before settlement
+    return nil
+})
+afterSettleHook := mcp.AfterSettlementHook(func(ctx mcp.SettlementContext) error {
+    // Called after successful settlement
+    return nil
+})
+
 paid := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
     Accepts: accepts,
     Hooks: &mcp.PaymentWrapperHooks{
-        OnBeforeExecution: func(ctx mcp.ServerHookContext) (bool, error) {
-            // Called after payment verification, before tool execution
-            // Return false to abort execution
-            return true, nil
-        },
-        OnAfterExecution: func(ctx mcp.AfterExecutionContext) error {
-            // Called after tool execution, before settlement
-            return nil
-        },
-        OnAfterSettlement: func(ctx mcp.SettlementContext) error {
-            // Called after successful settlement
-            return nil
-        },
+        OnBeforeExecution: &beforeExecHook,
+        OnAfterExecution:  &afterExecHook,
+        OnAfterSettlement: &afterSettleHook,
     },
 })
 ```
@@ -210,8 +193,8 @@ if mcp.IsObject(value) {
 ### Client Types
 
 - `X402MCPClient` - x402-enabled MCP client
-- `X402MCPClientConfig` - Configuration for creating x402 MCP client
-- `Options` - Options for x402 MCP client behavior
+- `Options` - Options for x402 MCP client behavior (AutoPayment defaults to true)
+- `SchemeRegistration` - Payment scheme registration for factory functions
 - `MCPToolCallResult` - Result of a tool call with payment metadata
 - `PaymentRequiredContext` - Context provided to payment required hooks
 - `PaymentRequiredHookResult` - Result from payment required hook

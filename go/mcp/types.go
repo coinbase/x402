@@ -5,7 +5,7 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// Constants matching TypeScript implementation
+// Protocol constants for MCP x402 payment integration.
 const (
 	// MCP_PAYMENT_REQUIRED_CODE is the JSON-RPC error code for payment required (x402)
 	MCP_PAYMENT_REQUIRED_CODE = 402
@@ -56,8 +56,23 @@ type AfterPaymentContext struct {
 
 // Options configures x402MCPClient behavior
 type Options struct {
-	AutoPayment        bool
+	// AutoPayment enables automatic payment handling when a tool requires payment.
+	// Defaults to true. When nil, defaults to true. Set to BoolPtr(false) to disable.
+	AutoPayment *bool
+
+	// OnPaymentRequested is called before creating a payment, allowing the caller
+	// to approve or deny. Return (true, nil) to approve, (false, nil) to deny.
 	OnPaymentRequested func(context PaymentRequiredContext) (bool, error)
+}
+
+// BoolPtr returns a pointer to the given bool value.
+// This is a convenience helper for setting Options.AutoPayment.
+//
+// Example:
+//
+//	options := mcp.Options{AutoPayment: mcp.BoolPtr(false)}
+func BoolPtr(b bool) *bool {
+	return &b
 }
 
 // MCPToolResult represents an MCP tool call result
@@ -72,7 +87,6 @@ type MCPToolResult struct {
 type MCPContentItem struct {
 	Type string
 	Text string
-	Data map[string]interface{}
 }
 
 // MCPToolCallResult represents the result of a tool call with payment metadata
@@ -144,26 +158,13 @@ func (e *PaymentRequiredError) Error() string {
 	return e.Message
 }
 
-// ============================================================================
-// Advanced Types (for future dynamic pricing features)
-// ============================================================================
-
-// DynamicPayTo resolves payTo address based on tool call context
+// DynamicPayTo resolves a payTo address dynamically based on tool call context.
+// Use this type for custom server implementations that need per-request recipient resolution.
 type DynamicPayTo func(context MCPToolContext) (string, error)
 
-// DynamicPrice resolves price based on tool call context
+// DynamicPrice resolves a price dynamically based on tool call context.
+// Use this type for custom server implementations that need per-request pricing.
 type DynamicPrice func(context MCPToolContext) (x402.Price, error)
-
-// MCPToolPaymentConfig represents payment configuration for a paid MCP tool
-type MCPToolPaymentConfig struct {
-	Scheme           string
-	Network          x402.Network
-	Price            interface{} // x402.Price or DynamicPrice
-	PayTo            interface{} // string or DynamicPayTo
-	MaxTimeoutSeconds *int
-	Extra            map[string]interface{}
-	Resource         *ResourceInfo
-}
 
 // SchemeRegistration represents a payment scheme registration
 type SchemeRegistration struct {

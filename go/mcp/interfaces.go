@@ -38,19 +38,3 @@ type MCPClientInterface interface {
 	SendRootsListChanged(ctx context.Context) error
 }
 
-// MCPServerInterface defines the interface expected from an MCP SDK server
-// This allows us to work with any MCP SDK implementation
-type MCPServerInterface interface {
-	// Tool registration
-	Tool(name string, description string, inputSchema interface{}, handler interface{}) error
-
-	// Resource registration
-	Resource(uri string, name string, description string, mimeType string) error
-
-	// Prompt registration
-	Prompt(name string, description string, args []interface{}) error
-
-	// Connection management
-	Connect(ctx context.Context, transport interface{}) error
-	Close(ctx context.Context) error
-}

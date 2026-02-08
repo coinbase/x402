@@ -16,10 +16,8 @@
 //	paymentClient := x402.Newx402Client()
 //	paymentClient.Register("eip155:84532", evmClientScheme)
 //
-//	// Wrap MCP client
-//	x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{
-//	    AutoPayment: true,
-//	})
+//	// Wrap MCP client (AutoPayment defaults to true)
+//	x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{})
 //
 //	// Call tools - payment handled automatically
 //	result, err := x402Mcp.CallTool(ctx, "get_weather", map[string]interface{}{"city": "NYC"})
@@ -51,17 +49,11 @@
 //
 // # Factory Functions
 //
-// WrapMCPClientWithPayment wraps an existing MCP client:
+// NewX402MCPClientFromConfig creates a client with scheme registrations:
 //
-//	x402Mcp := mcp.WrapMCPClientWithPayment(mcpClient, paymentClient, mcp.Options{
-//	    AutoPayment: true,
-//	})
-//
-// WrapMCPClientWithPaymentFromConfig wraps with scheme registrations:
-//
-//	x402Mcp := mcp.WrapMCPClientWithPaymentFromConfig(mcpClient, []mcp.SchemeRegistration{
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
-//	}, mcp.Options{AutoPayment: true})
+//	}, mcp.Options{})
 //
 // # Convenience Re-exports
 //

@@ -18,14 +18,17 @@ type X402MCPClient struct {
 	afterPaymentHooks    []AfterPaymentHook
 }
 
-// NewX402MCPClient creates a new x402MCPClient instance
+// NewX402MCPClient creates a new x402MCPClient instance.
+// AutoPayment defaults to true if not explicitly set.
 func NewX402MCPClient(
 	mcpClient MCPClientInterface,
 	paymentClient *x402.X402Client,
 	options Options,
 ) *X402MCPClient {
-	// Note: AutoPayment defaults to false if not explicitly set
-	// The caller should set it explicitly if they want auto-payment
+	// Default AutoPayment to true if not explicitly set
+	if options.AutoPayment == nil {
+		options.AutoPayment = BoolPtr(true)
+	}
 
 	return &X402MCPClient{
 		mcpClient:     mcpClient,
@@ -86,23 +89,6 @@ func (c *X402MCPClient) CallTool(
 	}
 
 	if paymentRequired == nil {
-		// Check if this is a successful paid tool call (has payment response in meta)
-		// Note: We check this even for IsError=false because successful paid calls
-		// have payment response in meta, not in StructuredContent
-		settleResponse, err := ExtractPaymentResponseFromMeta(result)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract payment response: %w", err)
-		}
-		if settleResponse != nil {
-			// This was a paid tool call that succeeded
-			return &MCPToolCallResult{
-				Content:         result.Content,
-				IsError:         result.IsError,
-				PaymentResponse: settleResponse,
-				PaymentMade:     true,
-			}, nil
-		}
-		
 		// Free tool - return as-is
 		return &MCPToolCallResult{
 			Content:     result.Content,
@@ -135,7 +121,7 @@ func (c *X402MCPClient) CallTool(
 	}
 
 	// No hook handled it, proceed with normal flow
-	if !c.options.AutoPayment {
+	if c.options.AutoPayment != nil && !*c.options.AutoPayment {
 		return nil, CreatePaymentRequiredError("Payment required", paymentRequired)
 	}
 
@@ -206,7 +192,7 @@ func (c *X402MCPClient) CallToolWithPayment(
 		return nil, fmt.Errorf("failed to extract payment response: %w", err)
 	}
 
-	// Run after payment hooks
+	// Run after payment hooks (errors are non-fatal)
 	afterContext := AfterPaymentContext{
 		ToolName:       name,
 		PaymentPayload: payload,
@@ -214,9 +200,7 @@ func (c *X402MCPClient) CallToolWithPayment(
 		SettleResponse: settleResponse,
 	}
 	for _, hook := range c.afterPaymentHooks {
-		if err := hook(afterContext); err != nil {
-			// Log but don't fail
-		}
+		_ = hook(afterContext)
 	}
 
 	return &MCPToolCallResult{
@@ -338,70 +322,18 @@ func (c *X402MCPClient) SendRootsListChanged(ctx context.Context) error {
 // Factory Functions
 // ============================================================================
 
-// WrapMCPClientWithPayment wraps an existing MCP client with x402 payment handling.
+// NewX402MCPClientFromConfig creates a fully configured x402 MCP client from scheme registrations.
 //
-// This is a convenience function that creates an X402MCPClient from an existing
-// MCP client and payment client.
-//
-// Example:
-//
-//	mcpClient := // ... existing MCP client
-//	paymentClient := x402.Newx402Client()
-//	paymentClient.Register("eip155:84532", evmClientScheme)
-//
-//	x402Mcp := mcp.WrapMCPClientWithPayment(mcpClient, paymentClient, mcp.Options{
-//	    AutoPayment: true,
-//	})
-func WrapMCPClientWithPayment(
-	mcpClient MCPClientInterface,
-	paymentClient *x402.X402Client,
-	options Options,
-) *X402MCPClient {
-	return NewX402MCPClient(mcpClient, paymentClient, options)
-}
-
-// WrapMCPClientWithPaymentFromConfig wraps an existing MCP client with x402 payment handling
-// using scheme registrations.
-//
-// Similar to WrapMCPClientWithPayment but accepts scheme registrations directly.
-//
-// Example:
-//
-//	mcpClient := // ... existing MCP client
-//
-//	x402Mcp := mcp.WrapMCPClientWithPaymentFromConfig(mcpClient, []mcp.SchemeRegistration{
-//	    {Network: "eip155:84532", Client: evmClientScheme},
-//	}, mcp.Options{
-//	    AutoPayment: true,
-//	})
-func WrapMCPClientWithPaymentFromConfig(
-	mcpClient MCPClientInterface,
-	schemes []SchemeRegistration,
-	options Options,
-) *X402MCPClient {
-	paymentClient := x402.Newx402Client()
-	for _, scheme := range schemes {
-		if scheme.X402Version == 1 {
-			paymentClient.RegisterV1(scheme.Network, scheme.ClientV1)
-		} else {
-			paymentClient.Register(scheme.Network, scheme.Client)
-		}
-	}
-	return NewX402MCPClient(mcpClient, paymentClient, options)
-}
-
-// CreateX402MCPClient creates a fully configured x402 MCP client.
-//
-// This factory function provides the simplest way to create an x402-enabled MCP client.
-// It handles creation of the x402Client and scheme registration.
+// This is a convenience factory that handles creation of the x402Client and scheme
+// registration, providing the simplest way to create an x402-enabled MCP client.
 //
 // Example:
 //
 //	mcpClient := // ... create MCP client from SDK
-//	x402Mcp := mcp.CreateX402MCPClient(mcpClient, []mcp.SchemeRegistration{
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
-//	}, mcp.Options{AutoPayment: true})
-func CreateX402MCPClient(
+//	}, mcp.Options{})
+func NewX402MCPClientFromConfig(
 	mcpClient MCPClientInterface,
 	schemes []SchemeRegistration,
 	options Options,
