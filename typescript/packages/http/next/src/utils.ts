@@ -151,7 +151,7 @@ export async function handleSettlement(
         }),
         {
           status: 402,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...result.headers },
         },
       );
     }

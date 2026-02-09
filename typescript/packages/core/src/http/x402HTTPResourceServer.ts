@@ -224,6 +224,7 @@ export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
   errorMessage?: string;
+  headers: Record<string, string>;
 };
 
 export type ProcessSettleResultResponse =
@@ -547,6 +548,7 @@ export class x402HTTPResourceServer {
           errorReason: settleResponse.errorReason || "Settlement failed",
           errorMessage:
             settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
+          headers: this.createSettlementHeaders(settleResponse),
         };
       }
 
@@ -558,21 +560,35 @@ export class x402HTTPResourceServer {
       };
     } catch (error) {
       if (error instanceof SettleError) {
-        return {
+        const errorReason = error.errorReason || error.message;
+        const settleResponse: SettleResponse = {
           success: false,
-          errorReason: error.errorReason || error.message,
-          errorMessage: error.errorMessage || error.errorReason || error.message,
+          errorReason,
+          errorMessage: error.errorMessage || errorReason,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
         };
+        return {
+          ...settleResponse,
+          success: false as const,
+          errorReason,
+          headers: this.createSettlementHeaders(settleResponse),
+        };
       }
-      return {
+      const errorReason = error instanceof Error ? error.message : "Settlement failed";
+      const settleResponse: SettleResponse = {
         success: false,
-        errorReason: error instanceof Error ? error.message : "Settlement failed",
-        errorMessage: error instanceof Error ? error.message : "Settlement failed",
+        errorReason,
+        errorMessage: errorReason,
         network: requirements.network as Network,
         transaction: "",
+      };
+      return {
+        ...settleResponse,
+        success: false as const,
+        errorReason,
+        headers: this.createSettlementHeaders(settleResponse),
       };
     }
   }
