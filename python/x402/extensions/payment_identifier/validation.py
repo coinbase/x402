@@ -277,9 +277,7 @@ def has_payment_identifier(payment_payload: PaymentPayload) -> bool:
     Returns:
         True if the extension is present.
     """
-    return bool(
-        payment_payload.extensions and PAYMENT_IDENTIFIER in payment_payload.extensions
-    )
+    return bool(payment_payload.extensions and PAYMENT_IDENTIFIER in payment_payload.extensions)
 
 
 def is_payment_identifier_required(extension: Any) -> bool:

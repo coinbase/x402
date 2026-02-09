@@ -4,7 +4,6 @@ This test ensures that the public API contract is maintained - everything
 listed in __all__ must be importable from the top-level x402.extensions module.
 """
 
-
 import pytest
 
 # Import the module to get access to __all__

@@ -33,7 +33,9 @@ def create_extension_with_id(id: str | None = None, required: bool = False) -> d
             if isinstance(ext, dict):
                 ext["info"]["id"] = id
             else:
-                ext_dict = ext.model_dump(by_alias=True) if hasattr(ext, "model_dump") else dict(ext)
+                ext_dict = (
+                    ext.model_dump(by_alias=True) if hasattr(ext, "model_dump") else dict(ext)
+                )
                 ext_dict["info"]["id"] = id
                 extensions[PAYMENT_IDENTIFIER] = ext_dict
     else:
@@ -89,14 +91,19 @@ class TestValidatePaymentIdentifier:
 
     def test_reject_extension_without_required(self) -> None:
         """Test rejecting extension without required in info."""
-        result = validate_payment_identifier({"info": {"id": "pay_valid_id_12345678"}, "schema": {}})
+        result = validate_payment_identifier(
+            {"info": {"id": "pay_valid_id_12345678"}, "schema": {}}
+        )
         assert result.valid is False
         assert any("required" in error.lower() for error in result.errors)
 
     def test_validate_extension_without_id(self) -> None:
         """Test validating extension with required but no id."""
         result = validate_payment_identifier(
-            {"info": {"required": False}, "schema": declare_payment_identifier_extension()["schema"]}
+            {
+                "info": {"required": False},
+                "schema": declare_payment_identifier_extension()["schema"],
+            }
         )
         assert result.valid is True
 

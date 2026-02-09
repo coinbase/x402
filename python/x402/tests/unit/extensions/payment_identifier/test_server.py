@@ -61,7 +61,9 @@ class TestPaymentIdentifierResourceServerExtension:
     def test_enrich_with_none_context(self) -> None:
         """Test enriching with None context."""
         declaration = declare_payment_identifier_extension()
-        enriched = payment_identifier_resource_server_extension.enrich_declaration(declaration, None)
+        enriched = payment_identifier_resource_server_extension.enrich_declaration(
+            declaration, None
+        )
         assert enriched == declaration
 
     def test_enrich_preserves_structure(self) -> None:
