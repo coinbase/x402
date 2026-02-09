@@ -87,7 +87,7 @@ func (a *x402SDKAdapter) CallTool(ctx context.Context, params map[string]interfa
 
 	// Preserve Meta — critical for payment responses
 	if result.Meta != nil {
-		metaMap := result.Meta.GetMeta()
+		metaMap := result.GetMeta()
 		if len(metaMap) > 0 {
 			mcpResult.Meta = make(map[string]interface{}, len(metaMap))
 			for k, v := range metaMap {
