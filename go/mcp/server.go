@@ -12,15 +12,16 @@ import (
 // ToolHandler is the signature for MCP tool handlers
 type ToolHandler func(ctx context.Context, args map[string]interface{}, context MCPToolContext) (MCPToolResult, error)
 
-// CreatePaymentWrapper creates a payment wrapper for MCP tool handlers
-// Returns a function that wraps tool handlers with payment logic
+// CreatePaymentWrapper creates a payment wrapper for MCP tool handlers.
+// Returns a function that wraps tool handlers with payment logic, or an error
+// if the configuration is invalid.
 func CreatePaymentWrapper(
 	resourceServer *x402.X402ResourceServer,
 	config PaymentWrapperConfig,
-) func(handler ToolHandler) ToolHandler {
+) (func(handler ToolHandler) ToolHandler, error) {
 	// Validate accepts array
 	if len(config.Accepts) == 0 {
-		panic("PaymentWrapperConfig.accepts must have at least one payment requirement")
+		return nil, fmt.Errorf("PaymentWrapperConfig.Accepts must have at least one payment requirement")
 	}
 
 	// Return wrapper function that takes a handler and returns a wrapped handler
@@ -134,7 +135,7 @@ func CreatePaymentWrapper(
 
 			return result, nil
 		}
-	}
+	}, nil
 }
 
 // buildResourceInfo creates a ResourceInfo from the config and tool name.

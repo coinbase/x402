@@ -64,6 +64,22 @@ func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context
 	return enhanced, nil
 }
 
+func TestCreatePaymentWrapper_EmptyAccepts(t *testing.T) {
+	server := x402.Newx402ResourceServer()
+
+	_, err := CreatePaymentWrapper(server, PaymentWrapperConfig{
+		Accepts: []types.PaymentRequirements{},
+	})
+	if err == nil {
+		t.Fatal("Expected error for empty accepts")
+	}
+
+	_, err = CreatePaymentWrapper(server, PaymentWrapperConfig{})
+	if err == nil {
+		t.Fatal("Expected error for nil accepts")
+	}
+}
+
 func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 	// Create a real resource server instance with cash mock scheme
 	// Use cash mock for simplicity - it doesn't require real blockchain
@@ -96,7 +112,10 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	// Create a handler
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
@@ -176,7 +195,10 @@ func TestCreatePaymentWrapper_NoPayment(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{}, nil
 	}
@@ -217,7 +239,10 @@ func TestCreatePaymentWrapper_VerificationFailure(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{}, nil
 	}
@@ -296,7 +321,10 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{
 			Content: []MCPContentItem{
@@ -377,7 +405,10 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handlerCalled := false
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		handlerCalled = true
@@ -445,7 +476,10 @@ func TestCreatePaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{
 			Content: []MCPContentItem{{Type: "text", Text: "tool error"}},
@@ -511,7 +545,10 @@ func TestCreatePaymentWrapper_HookErrors_NonFatal(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{
 			Content: []MCPContentItem{{Type: "text", Text: "success"}},
@@ -576,7 +613,10 @@ func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
 		},
 	}
 
-	paid := CreatePaymentWrapper(server, config)
+	paid, err := CreatePaymentWrapper(server, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
 		return MCPToolResult{
 			Content: []MCPContentItem{

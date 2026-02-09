@@ -148,7 +148,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}, nil)
 
 		// Create payment wrapper
-		paidHandler := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+		paidHandler, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 			Accepts: accepts,
 			Resource: &mcp.ResourceInfo{
 				URL:         "mcp://tool/get_weather",
@@ -156,6 +156,9 @@ func TestMCPEVMIntegration(t *testing.T) {
 				MimeType:    "application/json",
 			},
 		})
+		if err != nil {
+			t.Fatalf("Failed to create payment wrapper: %v", err)
+		}
 
 		// Free tool handler
 		freeHandler := func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
@@ -339,12 +342,10 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}
 		defer clientSession.Close()
 
-		// Wrap with x402 - create adapter that wraps the session
-		x402McpClient := mcp.NewX402MCPClient(&mcpClientAdapter{
-			client:  mcpClient,
-			session: clientSession,
-		}, paymentClient, mcp.Options{
-			AutoPayment: true,
+		// Wrap with x402 - use SDK adapter to bridge MCP SDK with x402
+		adapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
+		x402McpClient := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{
+			AutoPayment: mcp.BoolPtr(true),
 			OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
 				t.Logf("💰 Payment requested: %s atomic units", context.PaymentRequired.Accepts[0].Amount)
 				return true, nil // Auto-approve for tests
@@ -380,8 +381,9 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 2: Paid tool returns 402 without payment (manual test)
 		// ========================================================================
 		t.Run("Paid tool returns 402 without payment", func(t *testing.T) {
-			manualClient := mcp.NewX402MCPClient(&mcpClientAdapter{session: clientSession}, paymentClient, mcp.Options{
-				AutoPayment: false,
+			manualAdapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
+			manualClient := mcp.NewX402MCPClient(manualAdapter, paymentClient, mcp.Options{
+				AutoPayment: mcp.BoolPtr(false),
 			})
 
 			_, err := manualClient.CallTool(ctx, "get_weather", map[string]interface{}{"city": "San Francisco"})
@@ -494,182 +496,3 @@ func TestMCPEVMIntegration(t *testing.T) {
 	})
 }
 
-// mcpClientAdapter adapts mcpsdk.Client and ClientSession to mcp.MCPClientInterface
-type mcpClientAdapter struct {
-	client  *mcpsdk.Client
-	session *mcpsdk.ClientSession
-}
-
-func (a *mcpClientAdapter) Connect(ctx context.Context, transport interface{}) error {
-	// Already connected via session - this is called during initialization
-	// but we're already connected, so just return nil
-	return nil
-}
-
-func (a *mcpClientAdapter) Close(ctx context.Context) error {
-	return a.session.Close()
-}
-
-func (a *mcpClientAdapter) CallTool(ctx context.Context, params map[string]interface{}) (mcp.MCPToolResult, error) {
-	name, _ := params["name"].(string)
-	args, _ := params["arguments"].(map[string]interface{})
-	meta, _ := params["_meta"].(map[string]interface{})
-
-	callParams := &mcpsdk.CallToolParams{
-		Name:      name,
-		Arguments: args,
-	}
-	if meta != nil {
-		callParams.Meta = mcpsdk.Meta(meta)
-	}
-
-	result, err := a.session.CallTool(ctx, callParams)
-	if err != nil {
-		return mcp.MCPToolResult{}, err
-	}
-
-	content := make([]mcp.MCPContentItem, len(result.Content))
-	for i, item := range result.Content {
-		if textContent, ok := item.(*mcpsdk.TextContent); ok {
-			content[i] = mcp.MCPContentItem{
-				Type: "text",
-				Text: textContent.Text,
-			}
-		}
-	}
-
-	mcpResult := mcp.MCPToolResult{
-		Content: content,
-		IsError: result.IsError,
-	}
-
-	// Preserve StructuredContent if present (needed for payment required responses)
-	if result.StructuredContent != nil {
-		if structuredMap, ok := result.StructuredContent.(map[string]interface{}); ok {
-			mcpResult.StructuredContent = structuredMap
-		}
-	}
-
-	// Preserve Meta - critical for payment responses
-	// GetMeta() returns the underlying map, so we need to copy it to avoid sharing
-	if result.Meta != nil {
-		metaMap := result.Meta.GetMeta()
-		if metaMap != nil && len(metaMap) > 0 {
-			mcpResult.Meta = make(map[string]interface{}, len(metaMap))
-			for k, v := range metaMap {
-				mcpResult.Meta[k] = v
-			}
-		}
-	}
-
-	return mcpResult, nil
-}
-
-func (a *mcpClientAdapter) ListTools(ctx context.Context) (interface{}, error) {
-	result, err := a.session.ListTools(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	tools := make([]map[string]interface{}, len(result.Tools))
-	for i, tool := range result.Tools {
-		tools[i] = map[string]interface{}{
-			"name":        tool.Name,
-			"description": tool.Description,
-		}
-	}
-
-	return map[string]interface{}{
-		"tools": tools,
-	}, nil
-}
-
-func (a *mcpClientAdapter) ListResources(ctx context.Context) (interface{}, error) {
-	result, err := a.session.ListResources(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (a *mcpClientAdapter) ReadResource(ctx context.Context, uri string) (interface{}, error) {
-	result, err := a.session.ReadResource(ctx, &mcpsdk.ReadResourceParams{URI: uri})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (a *mcpClientAdapter) ListResourceTemplates(ctx context.Context) (interface{}, error) {
-	result, err := a.session.ListResourceTemplates(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (a *mcpClientAdapter) SubscribeResource(ctx context.Context, uri string) error {
-	return a.session.Subscribe(ctx, &mcpsdk.SubscribeParams{URI: uri})
-}
-
-func (a *mcpClientAdapter) UnsubscribeResource(ctx context.Context, uri string) error {
-	return a.session.Unsubscribe(ctx, &mcpsdk.UnsubscribeParams{URI: uri})
-}
-
-func (a *mcpClientAdapter) ListPrompts(ctx context.Context) (interface{}, error) {
-	result, err := a.session.ListPrompts(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (a *mcpClientAdapter) GetPrompt(ctx context.Context, name string) (interface{}, error) {
-	result, err := a.session.GetPrompt(ctx, &mcpsdk.GetPromptParams{Name: name})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (a *mcpClientAdapter) GetServerCapabilities(ctx context.Context) (interface{}, error) {
-	initResult := a.session.InitializeResult()
-	if initResult == nil {
-		return nil, fmt.Errorf("session not initialized")
-	}
-	return initResult.Capabilities, nil
-}
-
-func (a *mcpClientAdapter) GetServerVersion(ctx context.Context) (interface{}, error) {
-	initResult := a.session.InitializeResult()
-	if initResult == nil {
-		return nil, fmt.Errorf("session not initialized")
-	}
-	return initResult.ServerInfo.Version, nil
-}
-
-func (a *mcpClientAdapter) GetInstructions(ctx context.Context) (string, error) {
-	initResult := a.session.InitializeResult()
-	if initResult == nil {
-		return "", fmt.Errorf("session not initialized")
-	}
-	return initResult.Instructions, nil
-}
-
-func (a *mcpClientAdapter) Ping(ctx context.Context) error {
-	return a.session.Ping(ctx, &mcpsdk.PingParams{})
-}
-
-func (a *mcpClientAdapter) Complete(ctx context.Context, prompt string, cursor int) (interface{}, error) {
-	// Not implemented for this test
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (a *mcpClientAdapter) SetLoggingLevel(ctx context.Context, level string) error {
-	return a.session.SetLoggingLevel(ctx, &mcpsdk.SetLoggingLevelParams{Level: mcpsdk.LoggingLevel(level)})
-}
-
-func (a *mcpClientAdapter) SendRootsListChanged(ctx context.Context) error {
-	// Not applicable for client
-	return nil
-}

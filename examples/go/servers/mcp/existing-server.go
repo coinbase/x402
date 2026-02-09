@@ -103,7 +103,7 @@ func runExisting() error {
 	// ========================================================================
 	// STEP 4: Create payment wrappers with accepts arrays
 	// ========================================================================
-	paidWeather := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paidWeather, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: weatherAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_weather",
@@ -111,8 +111,11 @@ func runExisting() error {
 			MimeType:    "application/json",
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create weather payment wrapper: %w", err)
+	}
 
-	paidForecast := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paidForecast, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: forecastAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_forecast",
@@ -120,6 +123,9 @@ func runExisting() error {
 			MimeType:    "application/json",
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create forecast payment wrapper: %w", err)
+	}
 
 	// ========================================================================
 	// STEP 5: Register tools using REAL MCP SDK NATIVE tool registration API

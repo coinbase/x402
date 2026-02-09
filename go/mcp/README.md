@@ -17,9 +17,9 @@ package main
 
 import (
     "context"
+    "log"
     "github.com/coinbase/x402/go/mcp"
     x402 "github.com/coinbase/x402/go"
-    "github.com/coinbase/x402/go/types"
 )
 
 func main() {
@@ -29,20 +29,18 @@ func main() {
     resourceServer.Register("eip155:84532", evmServerScheme)
     
     // Build payment requirements
-    accepts, err := resourceServer.BuildPaymentRequirements(context.Background(), types.PaymentConfig{
-        Scheme: "exact",
-        Network: "eip155:84532",
-        PayTo: "0x...", // Your wallet address
-        Price: "$0.10",
-    })
+    accepts, err := resourceServer.BuildPaymentRequirements(context.Background(), config)
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
 
     // Create payment wrapper
-    paid := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+    paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
         Accepts: accepts,
     })
+    if err != nil {
+        log.Fatal(err)
+    }
 
     // Register paid tool - wrap handler
     toolHandler := func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
@@ -59,7 +57,7 @@ func main() {
 }
 ```
 
-### Client - Using Factory Function
+### Client - Using SDK Adapter + Factory Function
 
 ```go
 package main
@@ -67,22 +65,30 @@ package main
 import (
     "context"
     "fmt"
+    "log"
     "github.com/coinbase/x402/go/mcp"
-    x402 "github.com/coinbase/x402/go"
+    mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
-    // Create MCP client (from MCP SDK)
-    mcpClient := // ... create MCP client
+    // Connect to MCP server using the official SDK
+    mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{
+        Name: "my-agent", Version: "1.0.0",
+    }, nil)
+    session, err := mcpClient.Connect(ctx, transport, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer session.Close()
+
+    // Create adapter to bridge MCP SDK with x402
+    adapter := mcp.NewMCPClientAdapter(mcpClient, session)
 
     // Create x402 MCP client with scheme registrations
     // AutoPayment defaults to true
-    x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
+    x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
         {Network: "eip155:84532", Client: evmClientScheme},
     }, mcp.Options{})
-
-    // Connect to server
-    // x402Mcp.Connect(ctx, transport)
 
     // Call tools - payment handled automatically
     ctx := context.Background()
@@ -90,7 +96,7 @@ func main() {
         "city": "NYC",
     })
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
     fmt.Println(result)
 }
@@ -100,6 +106,15 @@ func main() {
 
 ### Client
 
+#### `NewMCPClientAdapter`
+
+Creates an `MCPClientInterface` from the official Go MCP SDK types. This is the
+recommended way to bridge the official MCP SDK with x402.
+
+```go
+adapter := mcp.NewMCPClientAdapter(mcpClient, session)
+```
+
 #### `NewX402MCPClient`
 
 Creates an x402 MCP client from an existing MCP client and payment client.
@@ -108,7 +123,8 @@ Creates an x402 MCP client from an existing MCP client and payment client.
 paymentClient := x402.Newx402Client()
 paymentClient.Register("eip155:84532", evmClientScheme)
 
-x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{})
+adapter := mcp.NewMCPClientAdapter(mcpClient, session)
+x402Mcp := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{})
 ```
 
 #### `NewX402MCPClientFromConfig`
@@ -116,7 +132,8 @@ x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{})
 Creates a fully configured x402 MCP client with scheme registrations.
 
 ```go
-x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
+adapter := mcp.NewMCPClientAdapter(mcpClient, session)
+x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
     {Network: "eip155:84532", Client: evmClientScheme},
 }, mcp.Options{}) // AutoPayment defaults to true
 ```
@@ -125,7 +142,8 @@ x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
 
 #### `CreatePaymentWrapper`
 
-Creates a payment wrapper for MCP tool handlers. Supports multiple payment
+Creates a payment wrapper for MCP tool handlers. Returns an error if the
+configuration is invalid (e.g. empty `Accepts`). Supports multiple payment
 requirements in the `Accepts` array -- the wrapper matches the client's chosen
 payment method against the correct requirement automatically.
 
@@ -144,7 +162,7 @@ afterSettleHook := mcp.AfterSettlementHook(func(ctx mcp.SettlementContext) error
     return nil
 })
 
-paid := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
     Accepts: accepts,
     Hooks: &mcp.PaymentWrapperHooks{
         OnBeforeExecution: &beforeExecHook,
@@ -152,6 +170,9 @@ paid := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
         OnAfterSettlement: &afterSettleHook,
     },
 })
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### Utilities

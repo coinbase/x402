@@ -4,20 +4,23 @@
 //
 // # Client Usage
 //
-// Wrap an MCP client with payment handling:
+// Wrap an MCP client with payment handling using the built-in SDK adapter:
 //
 //	import (
 //	    "context"
-//	    x402 "github.com/coinbase/x402/go"
 //	    "github.com/coinbase/x402/go/mcp"
+//	    mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 //	)
 //
-//	// Create x402 payment client
-//	paymentClient := x402.Newx402Client()
-//	paymentClient.Register("eip155:84532", evmClientScheme)
+//	// Connect to MCP server using the official SDK
+//	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "my-agent", Version: "1.0.0"}, nil)
+//	session, _ := mcpClient.Connect(ctx, transport, nil)
 //
-//	// Wrap MCP client (AutoPayment defaults to true)
-//	x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{})
+//	// Create adapter and wrap with x402 (AutoPayment defaults to true)
+//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+//	    {Network: "eip155:84532", Client: evmClientScheme},
+//	}, mcp.Options{})
 //
 //	// Call tools - payment handled automatically
 //	result, err := x402Mcp.CallTool(ctx, "get_weather", map[string]interface{}{"city": "NYC"})
@@ -40,9 +43,10 @@
 //	accepts, _ := resourceServer.BuildPaymentRequirements(ctx, config)
 //
 //	// Create payment wrapper
-//	paid := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+//	paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 //	    Accepts: accepts,
 //	})
+//	if err != nil { ... }
 //
 //	// Register paid tool
 //	mcpServer.Tool("get_weather", "Get weather", schema, paid(handler))
@@ -51,7 +55,8 @@
 //
 // NewX402MCPClientFromConfig creates a client with scheme registrations:
 //
-//	x402Mcp := mcp.NewX402MCPClientFromConfig(mcpClient, []mcp.SchemeRegistration{
+//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
 //	}, mcp.Options{})
 //

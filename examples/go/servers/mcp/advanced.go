@@ -141,7 +141,7 @@ func runAdvanced() error {
 		OnAfterSettlement: &settlementHook,
 	}
 
-	paidWeather := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paidWeather, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: weatherAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_weather",
@@ -150,8 +150,11 @@ func runAdvanced() error {
 		},
 		Hooks: sharedHooks,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create weather payment wrapper: %w", err)
+	}
 
-	paidForecast := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paidForecast, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: forecastAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_forecast",
@@ -160,6 +163,9 @@ func runAdvanced() error {
 		},
 		Hooks: sharedHooks,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create forecast payment wrapper: %w", err)
+	}
 
 	// ========================================================================
 	// STEP 5: Register tools using REAL MCP SDK
