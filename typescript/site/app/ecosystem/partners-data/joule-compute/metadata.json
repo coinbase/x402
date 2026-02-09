@@ -1,0 +1,7 @@
+{
+  "name": "JOULE Compute",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/joule-compute.jpg",
+  "description": "Pay-per-request AI inference API with 7 open-source LLMs. Accepts USDC on Base and JOULE on Stellar via x402. OpenAI-compatible, no API keys required.",
+  "websiteUrl": "https://compute.lumenbro.com/docs"
+}
