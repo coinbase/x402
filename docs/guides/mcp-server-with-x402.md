@@ -37,6 +37,9 @@ This lets you (or your agent) access paid APIs programmatically, with no manual 
 
 ### Quick Start
 
+<Tabs>
+<Tab title="TypeScript">
+
 #### 1. Install and Build
 
 ```bash
@@ -90,6 +93,75 @@ pnpm dev
 #### 4. Restart Claude Desktop
 
 Restart Claude Desktop to load the new MCP server, then ask Claude to use the `get-data-from-resource-server` tool.
+
+</Tab>
+<Tab title="Go">
+
+#### 1. Install and Build
+
+```bash
+# Clone the x402 repository
+git clone https://github.com/coinbase/x402.git
+cd x402/examples/go/clients/mcp
+
+# Install dependencies
+go mod download
+```
+
+#### 2. Configure Environment
+
+Create a `.env` file in the `examples/go/clients/mcp` directory:
+
+```bash
+EVM_PRIVATE_KEY=<private key of a wallet with USDC on Base Sepolia>
+SVM_PRIVATE_KEY=<base58-encoded private key of a Solana wallet with USDC on Devnet>
+RESOURCE_SERVER_URL=http://localhost:4021
+ENDPOINT_PATH=/weather
+```
+
+#### 3. Build the MCP Client
+
+```bash
+go build -o mcp-client
+```
+
+#### 4. Configure Claude Desktop
+
+Add the MCP server to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "demo": {
+      "command": "<absolute path to this repo>/examples/go/clients/mcp/mcp-client",
+      "args": [],
+      "env": {
+        "EVM_PRIVATE_KEY": "<private key of a wallet with USDC on Base Sepolia>",
+        "SVM_PRIVATE_KEY": "<base58-encoded private key of a Solana wallet with USDC on Devnet>",
+        "RESOURCE_SERVER_URL": "http://localhost:4021",
+        "ENDPOINT_PATH": "/weather"
+      }
+    }
+  }
+}
+```
+
+#### 5. Start the x402 Server
+
+Make sure your x402-compatible server is running at the URL specified in `RESOURCE_SERVER_URL`:
+
+```bash
+# In another terminal, from the examples/typescript directory
+cd examples/typescript/servers/express
+pnpm install && pnpm build && pnpm dev
+```
+
+#### 6. Restart Claude Desktop
+
+Restart Claude Desktop to load the new MCP server, then ask Claude to use the `get-data-from-resource-server` tool.
+
+</Tab>
+</Tabs>
 
 ***
 
