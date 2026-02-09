@@ -110,7 +110,7 @@ async def main() -> None:
                 settle_response = http_client.get_payment_settle_response(
                     lambda name: response2.headers.get(name)
                 )
-                print(f"\nPayment settled (unexpected - should have been cached)")
+                print("\nPayment settled (unexpected - should have been cached)")
             except ValueError:
                 print("\nNo payment processed - response served from cache!")
 

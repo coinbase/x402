@@ -208,14 +208,14 @@ if __name__ == "__main__":
     import uvicorn
 
     print("\nPayment-Identifier Example Server")
-    print(f"   Listening at http://localhost:4022")
-    print(f"\nIdempotency Configuration:")
-    print(f"   - Cache TTL: 1 hour")
-    print(f"   - Payment ID: optional (required: false)")
-    print(f"\nHow it works:")
-    print(f"   1. Client sends payment with a unique payment ID")
-    print(f"   2. Server caches the response keyed by payment ID")
-    print(f"   3. If same payment ID is seen within 1 hour, cached response is returned")
-    print(f"   4. No duplicate payment processing occurs\n")
+    print("   Listening at http://localhost:4022")
+    print("\nIdempotency Configuration:")
+    print("   - Cache TTL: 1 hour")
+    print("   - Payment ID: optional (required: false)")
+    print("\nHow it works:")
+    print("   1. Client sends payment with a unique payment ID")
+    print("   2. Server caches the response keyed by payment ID")
+    print("   3. If same payment ID is seen within 1 hour, cached response is returned")
+    print("   4. No duplicate payment processing occurs\n")
 
     uvicorn.run(app, host="0.0.0.0", port=4022)

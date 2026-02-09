@@ -44,7 +44,7 @@ def is_payment_identifier_extension(extension: Any) -> bool:
             print(extension.info.required)
         ```
     """
-    if not extension or not isinstance(extension, (dict, PaymentIdentifierExtension)):
+    if not extension or not isinstance(extension, dict | PaymentIdentifierExtension):
         return False
 
     if isinstance(extension, PaymentIdentifierExtension):
@@ -55,7 +55,7 @@ def is_payment_identifier_extension(extension: Any) -> bool:
         return False
 
     info = ext.get("info")
-    if not info or not isinstance(info, (dict, PaymentIdentifierInfo)):
+    if not info or not isinstance(info, dict | PaymentIdentifierInfo):
         return False
 
     if isinstance(info, PaymentIdentifierInfo):
@@ -89,7 +89,7 @@ def validate_payment_identifier(extension: Any) -> PaymentIdentifierValidationRe
             print("Invalid payment identifier:", result.errors)
         ```
     """
-    if not extension or not isinstance(extension, (dict, PaymentIdentifierExtension)):
+    if not extension or not isinstance(extension, dict | PaymentIdentifierExtension):
         return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension must be an object"],
@@ -103,7 +103,7 @@ def validate_payment_identifier(extension: Any) -> PaymentIdentifierValidationRe
 
     # Check info exists
     info = ext_dict.get("info")
-    if not info or not isinstance(info, (dict, PaymentIdentifierInfo)):
+    if not info or not isinstance(info, dict | PaymentIdentifierInfo):
         return PaymentIdentifierValidationResult(
             valid=False,
             errors=["Extension must have an 'info' property"],
@@ -289,7 +289,7 @@ def is_payment_identifier_required(extension: Any) -> bool:
     Returns:
         True if the server requires a payment identifier.
     """
-    if not extension or not isinstance(extension, (dict, PaymentIdentifierExtension)):
+    if not extension or not isinstance(extension, dict | PaymentIdentifierExtension):
         return False
 
     # Convert to dict if it's a Pydantic model

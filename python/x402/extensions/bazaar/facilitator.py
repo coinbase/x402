@@ -127,8 +127,8 @@ def _get_method_from_info(info: DiscoveryInfo | dict[str, Any]) -> str:
         input_data = info.get("input", {})
         return input_data.get("method", "UNKNOWN")
 
-    if isinstance(info, (QueryDiscoveryInfo, BodyDiscoveryInfo)):
-        if isinstance(info.input, (QueryInput, BodyInput)):
+    if isinstance(info, QueryDiscoveryInfo | BodyDiscoveryInfo):
+        if isinstance(info.input, QueryInput | BodyInput):
             return info.input.method or "UNKNOWN"
 
     return "UNKNOWN"

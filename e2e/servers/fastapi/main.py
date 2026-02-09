@@ -8,14 +8,12 @@ from typing import Any, Dict
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
 # Import from new x402 package
 from x402 import x402ResourceServer
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient
 from x402.http.middleware.fastapi import payment_middleware
 from x402.mechanisms.evm.exact import (
-    ExactEvmServerScheme,
     register_exact_evm_server,
 )
 from x402.mechanisms.svm.exact import register_exact_svm_server
