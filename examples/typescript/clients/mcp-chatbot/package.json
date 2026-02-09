@@ -14,6 +14,7 @@
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
     "@x402/mcp": "workspace:*",
+    "@coinbase/cdp-sdk": "^1.44.0",
     "@anthropic-ai/sdk": "^0.39.0",
     "dotenv": "^16.5.0",
     "viem": "^2.39.0"

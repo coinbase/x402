@@ -15,6 +15,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { createx402MCPClient } from "@x402/mcp";
 import { privateKeyToAccount } from "viem/accounts";
+import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import Anthropic from "@anthropic-ai/sdk";
 import * as readline from "readline";
 import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
@@ -39,7 +40,9 @@ if (!evmPrivateKey) {
   process.exit(1);
 }
 
-const serverUrl = process.env.MCP_SERVER_URL || "http://localhost:4022";
+const serverUrl = "https://api.cdp.coinbase.com/platform/v2/x402/discovery/mcp";
+const cdpApiKeyId = process.env.CDP_API_KEY_ID;
+const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
 
 // ============================================================================
 // Chatbot Implementation
@@ -83,12 +86,29 @@ export async function main(): Promise<void> {
   // Facilitators use HTTP POST JSON-RPC (stateless), not SSE
   // Direct MCP servers use SSE transport
   let transport;
-  if (serverUrl.includes("/v2/x402/discovery/mcp")) {
-    transport = new StreamableHTTPClientTransport(new URL(serverUrl));
-  } else {
-    const sseUrl = `${serverUrl}/sse`;
-    transport = new SSEClientTransport(new URL(sseUrl));
+  const url = new URL(serverUrl);
+
+  // Generate CDP JWT for authenticating with the facilitator discovery endpoint
+  if (!cdpApiKeyId || !cdpApiKeySecret) {
+    console.error("❌ CDP_API_KEY_ID and CDP_API_KEY_SECRET are required for discovery endpoints");
+    process.exit(1);
   }
+
+  const jwt = await generateJwt({
+    apiKeyId: cdpApiKeyId,
+    apiKeySecret: cdpApiKeySecret,
+    requestMethod: "POST",
+    requestHost: url.host,
+    requestPath: url.pathname,
+  });
+
+  transport = new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    },
+  });
 
   await mcpClient.connect(transport);
 
