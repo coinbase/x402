@@ -17,11 +17,21 @@ This lets you (or your agent) access paid APIs programmatically, with no manual 
 
 ### Prerequisites
 
+<Tabs>
+<Tab title="TypeScript">
 * Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 * pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 * An x402-compatible server to connect to (for this demo, we'll use the [sample express server with weather data](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/express) from the x402 repo, or any external x402 API)
 * An Ethereum wallet with USDC (on Base Sepolia or Base Mainnet) and/or a Solana wallet with USDC (on Devnet or Mainnet)
 * [Claude Desktop with MCP support](https://claude.ai/download)
+</Tab>
+<Tab title="Go">
+* Go 1.23+ (install via [go.dev](https://go.dev/doc/install))
+* An x402-compatible server to connect to (for this demo, we'll use the [sample express server with weather data](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/express) from the x402 repo, or any external x402 API)
+* An Ethereum wallet with USDC (on Base Sepolia or Base Mainnet) and/or a Solana wallet with USDC (on Devnet or Mainnet)
+* [Claude Desktop with MCP support](https://claude.ai/download)
+</Tab>
+</Tabs>
 
 ***
 
