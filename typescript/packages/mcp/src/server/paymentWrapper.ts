@@ -174,9 +174,6 @@ export function createPaymentWrapper(
         _meta,
       });
 
-      // Use first payment requirement (typically only one)
-      const paymentRequirements = config.accepts[0];
-
       // If no payment provided, return 402 error
       if (!paymentPayload) {
         return createPaymentRequiredResult(
@@ -184,6 +181,21 @@ export function createPaymentWrapper(
           toolName,
           config,
           "Payment required to access this tool",
+        );
+      }
+
+      // Match the client's chosen payment method against config.accepts
+      const paymentRequirements = resourceServer.findMatchingRequirements(
+        config.accepts,
+        paymentPayload,
+      );
+
+      if (!paymentRequirements) {
+        return createPaymentRequiredResult(
+          resourceServer,
+          toolName,
+          config,
+          "No matching payment requirements found",
         );
       }
 
