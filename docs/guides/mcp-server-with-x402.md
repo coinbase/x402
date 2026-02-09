@@ -178,6 +178,9 @@ Restart Claude Desktop to load the new MCP server, then ask Claude to use the `g
 
 ### Implementation
 
+<Tabs>
+<Tab title="TypeScript">
+
 The MCP server uses `@x402/axios` to wrap axios with automatic payment handling:
 
 ```typescript
