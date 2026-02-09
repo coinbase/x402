@@ -3,6 +3,7 @@
  *
  * This package demonstrates advanced patterns for production-ready x402 servers:
  *
+ * - all-networks: All supported networks with optional chain configuration
  * - bazaar: Bazaar discovery extension for API discoverability
  * - hooks: Payment lifecycle hooks for verification and settlement
  * - dynamic-price: Dynamic pricing based on request context
@@ -10,6 +11,7 @@
  * - custom-money-definition: Use alternative tokens for payments
  *
  * Usage:
+ *   npm start all-networks
  *   npm start bazaar
  *   npm start hooks
  *   npm start dynamic-price
@@ -22,6 +24,9 @@ const example = process.argv[2] || "bazaar";
 console.log(`\n🚀 Running advanced server example: ${example}\n`);
 
 switch (example) {
+  case "all-networks":
+    await import("./all_networks.js");
+    break;
   case "bazaar":
     await import("./bazaar.js");
     break;
@@ -40,7 +45,7 @@ switch (example) {
   default:
     console.error(`❌ Unknown example: ${example}`);
     console.error(
-      "Available examples: bazaar, hooks, dynamic-price, dynamic-pay-to, custom-money-definition",
+      "Available examples: all-networks, bazaar, hooks, dynamic-price, dynamic-pay-to, custom-money-definition",
     );
     process.exit(1);
 }

@@ -1,5 +1,5 @@
 [project]
-name = "x402-advanced-examples"
+name = "x402-advanced-client-example"
 version = "0.1.0"
 description = "Advanced x402 client examples demonstrating hooks, custom selectors, and builder patterns"
 readme = "README.md"

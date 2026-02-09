@@ -63,6 +63,7 @@ uv sync
 4. Run the server:
 
 ```bash
+uv run python all_networks.py       # All supported networks with optional chain configuration
 uv run python hooks.py              # Payment lifecycle hooks
 uv run python dynamic_price.py      # Dynamic pricing
 uv run python dynamic_pay_to.py     # Dynamic payment routing

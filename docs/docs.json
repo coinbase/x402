@@ -65,7 +65,9 @@
       {
         "group": "Extensions",
         "pages": [
-          "extensions/bazaar"
+          "extensions/bazaar",
+          "extensions/sign-in-with-x",
+          "extensions/payment-identifier"
         ]
       },
       {

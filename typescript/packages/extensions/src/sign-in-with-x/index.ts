@@ -114,7 +114,7 @@ export {
 } from "./sign";
 
 // Chain utilities - EVM
-export { formatSIWEMessage, verifyEVMSignature, extractEVMChainId } from "./evm";
+export { formatSIWEMessage, verifyEVMSignature, extractEVMChainId, isEVMSigner } from "./evm";
 
 // Chain utilities - Solana
 export {
@@ -123,6 +123,7 @@ export {
   decodeBase58,
   encodeBase58,
   extractSolanaChainReference,
+  isSolanaSigner,
 } from "./solana";
 
 // Storage
