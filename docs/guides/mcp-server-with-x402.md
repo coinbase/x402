@@ -373,6 +373,9 @@ The MCP server exposes a tool that, when called, fetches data from a paid API en
 
 ### Multi-Network Support
 
+<Tabs>
+<Tab title="TypeScript">
+
 The example supports both EVM (Base, Ethereum) and Solana networks. The x402 client automatically selects the appropriate scheme based on the payment requirements:
 
 ```typescript
@@ -391,6 +394,38 @@ registerExactSvmScheme(client, { signer: svmSigner });
 // Now handles both EVM and Solana networks automatically
 const httpClient = wrapAxiosWithPayment(axios.create({ baseURL }), client);
 ```
+
+</Tab>
+<Tab title="Go">
+
+The Go example supports both EVM (Base, Ethereum) and Solana networks. The x402 client automatically selects the appropriate scheme based on the payment requirements:
+
+```go
+import (
+    "github.com/coinbase/x402/go"
+    evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
+)
+
+client := x402.NewX402Client()
+
+// Register EVM scheme for Base/Ethereum payments
+evmScheme, _ := evmclient.NewExactEvmClientScheme(evmclient.ExactEvmClientSchemeConfig{
+    PrivateKey: evmPrivateKey,
+})
+client.Register("eip155:84532", evmScheme)
+
+// Register SVM scheme for Solana payments
+svmScheme, _ := svmclient.NewExactSvmClientScheme(svmclient.ExactSvmClientSchemeConfig{
+    PrivateKey: svmPrivateKey,
+})
+client.Register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmScheme)
+
+// Now handles both EVM and Solana networks automatically
+```
+
+</Tab>
+</Tabs>
 
 When the server returns a 402 response, the client checks the `network` field in the payment requirements:
 - `eip155:*` networks use the EVM scheme
