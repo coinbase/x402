@@ -1,0 +1,7 @@
+{
+  "name": "emoji.today",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/emoji-today.png",
+  "description": "Daily emoji election where the world votes on which emoji defines the day. Humans vote free, agents pay $0.01 USDC on Base via x402. Building a permanent onchain record of how the world feels, one day at a time.",
+  "websiteUrl": "https://emoji.today"
+}
