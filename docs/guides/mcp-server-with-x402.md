@@ -259,6 +259,104 @@ main().catch(error => {
 });
 ```
 
+</Tab>
+<Tab title="Go">
+
+The Go MCP client uses the `github.com/coinbase/x402/go/mcp` package to wrap MCP tool calls with automatic payment handling:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/mcp"
+    evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
+    mcpsdk "github.com/mark3labs/mcp-go/mcp"
+    "github.com/mark3labs/mcp-go/server"
+)
+
+func main() {
+    evmPrivateKey := os.Getenv("EVM_PRIVATE_KEY")
+    svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
+    baseURL := os.Getenv("RESOURCE_SERVER_URL")
+    endpointPath := os.Getenv("ENDPOINT_PATH")
+
+    if evmPrivateKey == "" && svmPrivateKey == "" {
+        log.Fatal("At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY must be provided")
+    }
+
+    // Create x402 client
+    client := x402.NewX402Client()
+
+    // Register EVM scheme if private key is provided
+    if evmPrivateKey != "" {
+        evmScheme, err := evmclient.NewExactEvmClientScheme(evmclient.ExactEvmClientSchemeConfig{
+            PrivateKey: evmPrivateKey,
+        })
+        if err != nil {
+            log.Fatal(err)
+        }
+        client.Register("eip155:84532", evmScheme)
+    }
+
+    // Register SVM scheme if private key is provided
+    if svmPrivateKey != "" {
+        svmScheme, err := svmclient.NewExactSvmClientScheme(svmclient.ExactSvmClientSchemeConfig{
+            PrivateKey: svmPrivateKey,
+        })
+        if err != nil {
+            log.Fatal(err)
+        }
+        client.Register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmScheme)
+    }
+
+    // Create MCP server
+    mcpServer := server.NewMCPServer(
+        "x402 MCP Client Demo",
+        "2.0.0",
+    )
+
+    // Add tool that calls the paid API
+    mcpServer.AddTool(mcpsdk.Tool{
+        Name:        "get-data-from-resource-server",
+        Description: "Get data from the resource server (in this example, the weather)",
+        InputSchema: mcpsdk.ToolInputSchema{
+            Type:       "object",
+            Properties: map[string]interface{}{},
+        },
+    }, func(ctx context.Context, request mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+        // Make HTTP request with automatic payment handling
+        resp, err := client.Get(ctx, baseURL+endpointPath)
+        if err != nil {
+            return nil, err
+        }
+
+        return &mcpsdk.CallToolResult{
+            Content: []interface{}{
+                mcpsdk.TextContent{
+                    Type: "text",
+                    Text: string(resp),
+                },
+            },
+        }, nil
+    })
+
+    // Start server
+    if err := mcpServer.Serve(); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+</Tab>
+</Tabs>
+
 ***
 
 ### How It Works
