@@ -495,6 +495,9 @@ After payment is processed, the MCP server returns:
 
 ### Dependencies
 
+<Tabs>
+<Tab title="TypeScript">
+
 The example uses these x402 v2 packages:
 
 ```json
@@ -511,6 +514,22 @@ The example uses these x402 v2 packages:
   }
 }
 ```
+
+</Tab>
+<Tab title="Go">
+
+The example uses these Go packages:
+
+```go
+require (
+    github.com/coinbase/x402/go v0.2.0
+    github.com/coinbase/x402/go/mcp v0.1.0
+    github.com/mark3labs/mcp-go v0.6.1
+)
+```
+
+</Tab>
+</Tabs>
 
 ***
 
