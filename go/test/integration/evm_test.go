@@ -11,9 +11,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
@@ -114,10 +117,54 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	functionName string,
 	args ...interface{},
 ) (string, error) {
-	// For integration tests, we'll return a mock transaction hash
-	// In production, this would actually call the contract
-	// The real verification happens in the VerifyTypedData call
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(functionName, args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Get nonce
+	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction
+	to := common.HexToAddress(contractAddress)
+	tx := ethtypes.NewTransaction(
+		nonce,
+		to,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.ethClient.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
 }
 
 func (s *realFacilitatorEvmSigner) SendTransaction(
@@ -125,17 +172,77 @@ func (s *realFacilitatorEvmSigner) SendTransaction(
 	to string,
 	data []byte,
 ) (string, error) {
-	// For integration tests, return a mock transaction hash
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+	// Get nonce
+	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction with raw data
+	toAddr := common.HexToAddress(to)
+	tx := ethtypes.NewTransaction(
+		nonce,
+		toAddr,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.ethClient.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
 }
 
 func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
-	// For integration tests, assume success
-	return &evm.TransactionReceipt{
-		Status:      evm.TxStatusSuccess,
-		BlockNumber: 1,
-		TxHash:      txHash,
-	}, nil
+	hash := common.HexToHash(txHash)
+
+	// Poll for receipt with timeout (5 minutes for integration tests)
+	deadline := time.Now().Add(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		receipt, err := s.ethClient.TransactionReceipt(ctx, hash)
+		if err == nil && receipt != nil {
+			status := uint64(evm.TxStatusSuccess)
+			if receipt.Status == 0 {
+				status = uint64(evm.TxStatusFailed)
+			}
+			return &evm.TransactionReceipt{
+				Status:      status,
+				BlockNumber: receipt.BlockNumber.Uint64(),
+				TxHash:      receipt.TxHash.Hex(),
+			}, nil
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("transaction receipt not found after 5 minutes: %s", txHash)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			// Continue polling
+		}
+	}
 }
 
 func (s *realFacilitatorEvmSigner) VerifyTypedData(
@@ -650,8 +757,54 @@ func (s *permit2FacilitatorEvmSigner) WriteContract(
 	functionName string,
 	args ...interface{},
 ) (string, error) {
-	// For integration tests, return a mock transaction hash
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(functionName, args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Get nonce
+	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction
+	to := common.HexToAddress(contractAddress)
+	tx := ethtypes.NewTransaction(
+		nonce,
+		to,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.ethClient.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
 }
 
 func (s *permit2FacilitatorEvmSigner) SendTransaction(
@@ -659,15 +812,77 @@ func (s *permit2FacilitatorEvmSigner) SendTransaction(
 	to string,
 	data []byte,
 ) (string, error) {
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+	// Get nonce
+	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction with raw data
+	toAddr := common.HexToAddress(to)
+	tx := ethtypes.NewTransaction(
+		nonce,
+		toAddr,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.ethClient.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
 }
 
 func (s *permit2FacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
-	return &evm.TransactionReceipt{
-		Status:      evm.TxStatusSuccess,
-		BlockNumber: 1,
-		TxHash:      txHash,
-	}, nil
+	hash := common.HexToHash(txHash)
+
+	// Poll for receipt with timeout (5 minutes for integration tests)
+	deadline := time.Now().Add(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		receipt, err := s.ethClient.TransactionReceipt(ctx, hash)
+		if err == nil && receipt != nil {
+			status := uint64(evm.TxStatusSuccess)
+			if receipt.Status == 0 {
+				status = uint64(evm.TxStatusFailed)
+			}
+			return &evm.TransactionReceipt{
+				Status:      status,
+				BlockNumber: receipt.BlockNumber.Uint64(),
+				TxHash:      receipt.TxHash.Hex(),
+			}, nil
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("transaction receipt not found after 5 minutes: %s", txHash)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			// Continue polling
+		}
+	}
 }
 
 func (s *permit2FacilitatorEvmSigner) VerifyTypedData(
