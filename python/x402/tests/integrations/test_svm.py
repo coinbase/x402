@@ -205,7 +205,9 @@ class TestSvmIntegrationV2:
             description="Premium API Access",
             mime_type="application/json",
         )
-        payment_required = self.server.create_payment_required_response(accepts, resource)
+        payment_required = self.server.create_payment_required_response(
+            accepts, resource
+        )
 
         # Verify V2
         assert payment_required.x402_version == 2

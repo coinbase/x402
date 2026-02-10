@@ -143,12 +143,16 @@ class FacilitatorConfig:
 class HTTPFacilitatorClientBase:
     """Base class with shared logic for HTTP facilitator clients."""
 
-    def __init__(self, config: FacilitatorConfig | dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, config: FacilitatorConfig | dict[str, Any] | None = None
+    ) -> None:
         """Create HTTP facilitator client."""
         if isinstance(config, dict):
             url = config.get("url", DEFAULT_FACILITATOR_URL)
             create_headers = config.get("create_headers")
-            auth_provider = CreateHeadersAuthProvider(create_headers) if create_headers else None
+            auth_provider = (
+                CreateHeadersAuthProvider(create_headers) if create_headers else None
+            )
 
             self._url = url.rstrip("/")
             self._timeout = 30.0
