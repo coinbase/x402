@@ -1,3 +1,10 @@
+// Package mcp provides MCP (Model Context Protocol) integration for x402.
+//
+// Server-side: Use NewPaymentWrapper to wrap MCP tool handlers with
+// automatic x402 payment verification and settlement.
+//
+// Client-side: Use CallPaidTool to make MCP tool calls with automatic
+// x402 payment handling.
 package mcp
 
 import (
@@ -7,231 +14,169 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/types"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ToolHandler is the signature for MCP tool handlers
-type ToolHandler func(ctx context.Context, args map[string]interface{}, context MCPToolContext) (MCPToolResult, error)
+// PaymentWrapperConfig configures the payment wrapper for an MCP tool.
+type PaymentWrapperConfig struct {
+	// Accepts is the list of accepted payment requirements.
+	// The first entry is used for verification and settlement.
+	Accepts []types.PaymentRequirements
 
-// CreatePaymentWrapper creates a payment wrapper for MCP tool handlers.
-// Returns a function that wraps tool handlers with payment logic, or an error
-// if the configuration is invalid.
-func CreatePaymentWrapper(
-	resourceServer *x402.X402ResourceServer,
-	config PaymentWrapperConfig,
-) (func(handler ToolHandler) ToolHandler, error) {
-	// Validate accepts array
+	// Resource is optional metadata about the tool being protected.
+	// Defaults to mcp://tool/{toolName} if not provided.
+	Resource *types.ResourceInfo
+}
+
+// ToolHandler is the function signature for MCP tool handlers.
+// This is an alias for the official MCP SDK's mcp.ToolHandler type.
+type ToolHandler = mcp.ToolHandler
+
+// PaymentWrapper wraps MCP tool handlers with x402 payment verification and settlement.
+type PaymentWrapper struct {
+	server *x402.X402ResourceServer
+	config PaymentWrapperConfig
+}
+
+// NewPaymentWrapper creates a new payment wrapper for MCP tool handlers.
+//
+// Example:
+//
+//	wrapper := mcp402.NewPaymentWrapper(resourceServer, mcp402.PaymentWrapperConfig{
+//	    Accepts:  weatherAccepts,
+//	    Resource: &types.ResourceInfo{URL: "mcp://tool/get_weather", Description: "Get weather"},
+//	})
+//
+//	wrappedHandler := wrapper.Wrap(func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//	    // extract args from request.Params.Arguments
+//	    return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "result"}}}, nil
+//	})
+func NewPaymentWrapper(server *x402.X402ResourceServer, config PaymentWrapperConfig) *PaymentWrapper {
 	if len(config.Accepts) == 0 {
-		return nil, fmt.Errorf("PaymentWrapperConfig.Accepts must have at least one payment requirement")
+		panic("PaymentWrapperConfig.Accepts must have at least one payment requirement")
 	}
+	return &PaymentWrapper{server: server, config: config}
+}
 
-	// Return wrapper function that takes a handler and returns a wrapped handler
-	return func(handler ToolHandler) ToolHandler {
-		return func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-			// Extract _meta from toolContext
-			meta := toolContext.Meta
-			if meta == nil {
-				meta = make(map[string]interface{})
-			}
+// Wrap wraps a tool handler with x402 payment verification and settlement.
+// The returned handler can be used directly with mcpServer.AddTool().
+//
+// Flow:
+//  1. Extracts x402/payment from request _meta
+//  2. If no payment, returns 402 payment required error
+//  3. Verifies payment via facilitator
+//  4. Executes the original handler
+//  5. Settles payment via facilitator
+//  6. Returns result with settlement info in _meta
+func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
+	return func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Extract payment from _meta
+		paymentData := extractPaymentFromRequest(request)
 
-			// Derive toolName from context or resource URL
-			toolName := toolContext.ToolName
-			if toolName == "" {
-				toolName = "paid_tool"
-				if config.Resource != nil && config.Resource.URL != "" {
-					// Try to extract from URL
-					if len(config.Resource.URL) > len("mcp://tool/") {
-						toolName = config.Resource.URL[len("mcp://tool/"):]
-					}
-				}
-			}
+		if paymentData == nil {
+			return w.paymentRequiredResult("Payment Required"), nil
+		}
 
-			// Extract payment from _meta
-			paymentPayload, err := ExtractPaymentFromMeta(map[string]interface{}{
-				"_meta": meta,
-			})
-			if err != nil || paymentPayload == nil {
-				return createPaymentRequiredResult(ctx, resourceServer, toolName, config, "Payment required to access this tool")
-			}
+		// Marshal/unmarshal to convert to PaymentPayload
+		payloadBytes, err := json.Marshal(paymentData)
+		if err != nil {
+			return w.paymentRequiredResult(fmt.Sprintf("Invalid payment: %v", err)), nil
+		}
 
-			// Match the client's chosen payment method against config.Accepts
-			matchedRequirements := resourceServer.FindMatchingRequirements(config.Accepts, *paymentPayload)
-			if matchedRequirements == nil {
-				return createPaymentRequiredResult(ctx, resourceServer, toolName, config, "No matching payment requirements found")
-			}
-			paymentRequirements := *matchedRequirements
+		var payload types.PaymentPayload
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return w.paymentRequiredResult(fmt.Sprintf("Invalid payment payload: %v", err)), nil
+		}
 
-			// Verify payment
-			verifyResult, err := resourceServer.VerifyPayment(ctx, *paymentPayload, paymentRequirements)
-			if err != nil {
-				return createPaymentRequiredResult(ctx, resourceServer, toolName, config, fmt.Sprintf("Payment verification error: %v", err))
-			}
+		// Verify payment -- return tool error result, NOT Go error
+		verifyResp, err := w.server.VerifyPayment(ctx, payload, w.config.Accepts[0])
+		if err != nil {
+			return w.paymentRequiredResult(
+				fmt.Sprintf("Payment verification error: %v", err)), nil
+		}
+		if !verifyResp.IsValid {
+			return w.paymentRequiredResult(
+				fmt.Sprintf("Payment verification failed: %s", verifyResp.InvalidReason)), nil
+		}
 
-			if !verifyResult.IsValid {
-				reason := verifyResult.InvalidReason
-				if reason == "" {
-					reason = "Payment verification failed"
-				}
-				return createPaymentRequiredResult(ctx, resourceServer, toolName, config, reason)
-			}
+		// Execute the original handler
+		result, err := handler(ctx, request)
+		if err != nil {
+			return nil, err
+		}
 
-			// Build hook context
-			hookContext := ServerHookContext{
-				ToolName:            toolName,
-				Arguments:           args,
-				PaymentRequirements: paymentRequirements,
-				PaymentPayload:      *paymentPayload,
-			}
-
-			// Run onBeforeExecution hook if present
-			if config.Hooks != nil && config.Hooks.OnBeforeExecution != nil {
-				proceed, err := (*config.Hooks.OnBeforeExecution)(hookContext)
-				if err != nil {
-					return createPaymentRequiredResult(ctx, resourceServer, toolName, config, err.Error())
-				}
-				if !proceed {
-					return createPaymentRequiredResult(ctx, resourceServer, toolName, config, "Execution blocked by hook")
-				}
-			}
-
-			// Execute the tool handler
-			result, err := handler(ctx, args, toolContext)
-			if err != nil {
-				return result, err
-			}
-
-			// Build after execution context
-			afterExecContext := AfterExecutionContext{
-				ServerHookContext: hookContext,
-				Result:            result,
-			}
-
-			// Run onAfterExecution hook if present (errors are non-fatal)
-			if config.Hooks != nil && config.Hooks.OnAfterExecution != nil {
-				_ = (*config.Hooks.OnAfterExecution)(afterExecContext)
-			}
-
-			// If tool returned error, don't settle
-			if result.IsError {
-				return result, nil
-			}
-
-			// Settle payment
-			settleResult, err := resourceServer.SettlePayment(ctx, *paymentPayload, paymentRequirements)
-			if err != nil {
-				return createSettlementFailedResult(ctx, resourceServer, toolName, config, err.Error())
-			}
-
-			// Run onAfterSettlement hook if present
-			if config.Hooks != nil && config.Hooks.OnAfterSettlement != nil {
-				settlementContext := SettlementContext{
-					ServerHookContext: hookContext,
-					Settlement:        *settleResult,
-				}
-				_ = (*config.Hooks.OnAfterSettlement)(settlementContext)
-			}
-
-			// Return result with settlement in _meta
-			result = AttachPaymentResponseToMeta(result, *settleResult)
-
+		// If handler returned an error result, don't settle
+		if result.IsError {
 			return result, nil
 		}
-	}, nil
+
+		// Settle payment -- return tool error result, NOT Go error
+		settleResp, err := w.server.SettlePayment(ctx, payload, w.config.Accepts[0])
+		if err != nil {
+			return w.settlementFailedResult(
+				fmt.Sprintf("Settlement error: %v", err)), nil
+		}
+		if !settleResp.Success {
+			return w.settlementFailedResult(
+				fmt.Sprintf("Settlement failed: %s", settleResp.ErrorReason)), nil
+		}
+
+		// Attach payment response to result _meta
+		if result.Meta == nil {
+			result.Meta = mcp.Meta{}
+		}
+		result.Meta[PaymentResponseMetaKey] = settleResp
+
+		return result, nil
+	}
 }
 
-// buildResourceInfo creates a ResourceInfo from the config and tool name.
-// Shared helper used by both payment required and settlement failed results.
-func buildResourceInfo(toolName string, config PaymentWrapperConfig) *types.ResourceInfo {
-	if config.Resource != nil {
-		return &types.ResourceInfo{
-			URL:         CreateToolResourceUrl(toolName, config.Resource.URL),
-			Description: config.Resource.Description,
-			MimeType:    config.Resource.MimeType,
+// paymentRequiredResult creates an MCP error result with payment required info.
+// Per spec, sets both structuredContent and content[0].text with isError: true.
+func (w *PaymentWrapper) paymentRequiredResult(errorMsg string) *mcp.CallToolResult {
+	resource := w.config.Resource
+	if resource == nil {
+		resource = &types.ResourceInfo{
+			URL:         "mcp://tool/unknown",
+			Description: "Unknown tool",
+			MimeType:    "application/json",
 		}
 	}
-	return &types.ResourceInfo{
-		URL: CreateToolResourceUrl(toolName, ""),
-	}
-}
 
-// buildErrorResult builds the common error result structure from a PaymentRequired response.
-// If extraData is non-nil, its entries are merged into the structuredContent.
-func buildErrorResult(
-	resourceServer *x402.X402ResourceServer,
-	config PaymentWrapperConfig,
-	resourceInfo *types.ResourceInfo,
-	errorMessage string,
-	extraData map[string]interface{},
-) (MCPToolResult, error) {
-	paymentRequired := resourceServer.CreatePaymentRequiredResponse(
-		config.Accepts,
-		resourceInfo,
-		errorMessage,
-		nil, // extensions
-	)
-
-	paymentRequiredBytes, err := json.Marshal(paymentRequired)
-	if err != nil {
-		return MCPToolResult{}, fmt.Errorf("failed to marshal payment required: %w", err)
+	pr := types.PaymentRequired{
+		X402Version: 2,
+		Accepts:     w.config.Accepts,
+		Error:       errorMsg,
+		Resource:    resource,
 	}
 
-	var structuredContent map[string]interface{}
-	if err := json.Unmarshal(paymentRequiredBytes, &structuredContent); err != nil {
-		return MCPToolResult{}, fmt.Errorf("failed to unmarshal structured content: %w", err)
-	}
+	data, _ := json.Marshal(pr)
 
-	// Merge any extra data (e.g. settlement failure info) into structuredContent
-	for k, v := range extraData {
-		structuredContent[k] = v
-	}
+	// Unmarshal to map for structuredContent (any type)
+	var structuredContent map[string]any
+	_ = json.Unmarshal(data, &structuredContent)
 
-	contentTextBytes, err := json.Marshal(structuredContent)
-	if err != nil {
-		return MCPToolResult{}, fmt.Errorf("failed to marshal content text: %w", err)
-	}
-
-	return MCPToolResult{
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(data)},
+		},
 		StructuredContent: structuredContent,
-		Content: []MCPContentItem{
-			{Type: "text", Text: string(contentTextBytes)},
-		},
-		IsError: true,
-	}, nil
+		IsError:           true,
+	}
 }
 
-// createPaymentRequiredResult creates a 402 payment required result
-func createPaymentRequiredResult(
-	_ context.Context,
-	resourceServer *x402.X402ResourceServer,
-	toolName string,
-	config PaymentWrapperConfig,
-	errorMessage string,
-) (MCPToolResult, error) {
-	return buildErrorResult(
-		resourceServer, config,
-		buildResourceInfo(toolName, config),
-		errorMessage, nil,
-	)
+// settlementFailedResult creates a spec-compliant settlement failure result.
+// Per spec R5, settlement failure follows the same format as payment required
+// (structuredContent + content[0].text + isError: true).
+func (w *PaymentWrapper) settlementFailedResult(errorMsg string) *mcp.CallToolResult {
+	return w.paymentRequiredResult(errorMsg)
 }
 
-// createSettlementFailedResult creates a 402 settlement failed result
-func createSettlementFailedResult(
-	_ context.Context,
-	resourceServer *x402.X402ResourceServer,
-	toolName string,
-	config PaymentWrapperConfig,
-	errorMessage string,
-) (MCPToolResult, error) {
-	return buildErrorResult(
-		resourceServer, config,
-		buildResourceInfo(toolName, config),
-		fmt.Sprintf("Payment settlement failed: %s", errorMessage),
-		map[string]interface{}{
-			MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
-				"success":     false,
-				"errorReason": errorMessage,
-				"transaction": "",
-				"network":     config.Accepts[0].Network,
-			},
-		},
-	)
+// extractPaymentFromRequest extracts x402/payment from the request's _meta.
+func extractPaymentFromRequest(request *mcp.CallToolRequest) interface{} {
+	meta := request.Params.Meta
+	if meta == nil {
+		return nil
+	}
+	return meta[PaymentMetaKey]
 }
