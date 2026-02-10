@@ -62,8 +62,12 @@ V1_NETWORKS = [
 ERR_UNSUPPORTED_SCHEME = "unsupported_scheme"
 ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_INVALID_PAYLOAD = "invalid_exact_svm_payload"
-ERR_TRANSACTION_DECODE_FAILED = "invalid_exact_svm_payload_transaction_could_not_be_decoded"
-ERR_INVALID_INSTRUCTION_COUNT = "invalid_exact_svm_payload_transaction_instructions_length"
+ERR_TRANSACTION_DECODE_FAILED = (
+    "invalid_exact_svm_payload_transaction_could_not_be_decoded"
+)
+ERR_INVALID_INSTRUCTION_COUNT = (
+    "invalid_exact_svm_payload_transaction_instructions_length"
+)
 ERR_UNKNOWN_FOURTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fourth_instruction"
 ERR_UNKNOWN_FIFTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fifth_instruction"
 ERR_UNKNOWN_SIXTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_sixth_instruction"
@@ -73,16 +77,16 @@ ERR_INVALID_COMPUTE_LIMIT = (
 ERR_INVALID_COMPUTE_PRICE = (
     "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction"
 )
-ERR_COMPUTE_PRICE_TOO_HIGH = (
-    "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high"
-)
+ERR_COMPUTE_PRICE_TOO_HIGH = "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high"
 ERR_NO_TRANSFER_INSTRUCTION = "invalid_exact_svm_payload_no_transfer_instruction"
 ERR_MINT_MISMATCH = "invalid_exact_svm_payload_mint_mismatch"
 ERR_RECIPIENT_MISMATCH = "invalid_exact_svm_payload_recipient_mismatch"
 ERR_AMOUNT_INSUFFICIENT = "invalid_exact_svm_payload_amount_insufficient"
 ERR_FEE_PAYER_MISSING = "invalid_exact_svm_payload_missing_fee_payer"
 ERR_FEE_PAYER_NOT_MANAGED = "fee_payer_not_managed_by_facilitator"
-ERR_FEE_PAYER_TRANSFERRING = "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds"
+ERR_FEE_PAYER_TRANSFERRING = (
+    "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds"
+)
 ERR_SIMULATION_FAILED = "transaction_simulation_failed"
 ERR_TRANSACTION_FAILED = "transaction_failed"
 

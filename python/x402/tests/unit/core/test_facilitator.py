@@ -406,7 +406,9 @@ class TestFindFacilitatorV1:
         """Test that V1 and V2 facilitators are separate."""
         facilitator = x402Facilitator()
         facilitator.register(["eip155:8453"], MockSchemeNetworkFacilitator("exact"))
-        facilitator.register_v1(["base-sepolia"], MockSchemeNetworkFacilitatorV1("exact"))
+        facilitator.register_v1(
+            ["base-sepolia"], MockSchemeNetworkFacilitatorV1("exact")
+        )
 
         # V2 lookup shouldn't find V1
         assert facilitator._find_facilitator("exact", "base-sepolia") is None

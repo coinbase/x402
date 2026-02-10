@@ -98,16 +98,21 @@ class TestFixedBlockhashProducesDistinctTransactions:
         print(f"Transaction 2 (first 80 chars): {tx2_base64[:80]}...")
         print(f"Transactions are DISTINCT: {tx1_base64 != tx2_base64}")
 
-    def test_memo_instruction_present(self, mock_rpc_client, test_keypair, test_requirements):
+    def test_memo_instruction_present(
+        self, mock_rpc_client, test_keypair, test_requirements
+    ):
         signer = KeypairSigner(test_keypair)
         client = ExactSvmClientScheme(signer)
 
         with patch.object(client, "_get_client", return_value=mock_rpc_client):
             payload = client.create_payment_payload(test_requirements)
 
-        tx = decode_transaction_from_payload(ExactSvmPayload(transaction=payload["transaction"]))
+        tx = decode_transaction_from_payload(
+            ExactSvmPayload(transaction=payload["transaction"])
+        )
         programs = [
-            str(tx.message.account_keys[ix.program_id_index]) for ix in tx.message.instructions
+            str(tx.message.account_keys[ix.program_id_index])
+            for ix in tx.message.instructions
         ]
 
         assert MEMO_PROGRAM_ADDRESS in programs
@@ -125,7 +130,9 @@ class TestFixedBlockhashProducesDistinctTransactions:
 
             def get_blockhash():
                 call_count[0] += 1
-                blockhash = FIXED_BLOCKHASH if call_count[0] == 1 else FIXED_BLOCKHASH_ALT
+                blockhash = (
+                    FIXED_BLOCKHASH if call_count[0] == 1 else FIXED_BLOCKHASH_ALT
+                )
                 mock_resp = MagicMock()
                 mock_resp.value.blockhash = Hash.from_string(blockhash)
                 return mock_resp
@@ -147,9 +154,9 @@ class TestFixedBlockhashProducesDistinctTransactions:
         tx1_base64 = payload1["transaction"]
         tx2_base64 = payload2["transaction"]
 
-        assert tx1_base64 != tx2_base64, (
-            "CONTROL TEST PASSED: Different blockhash produces different transactions"
-        )
+        assert (
+            tx1_base64 != tx2_base64
+        ), "CONTROL TEST PASSED: Different blockhash produces different transactions"
 
         print("\n=== CONTROL TEST: DIFFERENT BLOCKHASH ===")
         print(f"Transaction 1 (first 80 chars): {tx1_base64[:80]}...")
@@ -177,7 +184,9 @@ class TestAttackScenarioSimulation:
         payments_attempted = 10
         payments_settled = 10
 
-        seller_loss_percent = ((payments_attempted - payments_settled) / payments_attempted) * 100
+        seller_loss_percent = (
+            (payments_attempted - payments_settled) / payments_attempted
+        ) * 100
 
         assert seller_loss_percent == 0
 
@@ -187,9 +196,9 @@ class TestAttackScenarioSimulation:
 
         requests_per_slot = slot_time_ms // typical_api_latency_ms
 
-        assert requests_per_slot > 1, (
-            f"Multiple requests ({requests_per_slot}) can arrive within a single slot"
-        )
+        assert (
+            requests_per_slot > 1
+        ), f"Multiple requests ({requests_per_slot}) can arrive within a single slot"
 
 
 class TestMitigationHookPoints:
@@ -240,7 +249,9 @@ class TestMemoDataIsValidUTF8:
             extra={"feePayer": str(fee_payer.pubkey())},
         )
 
-    def test_memo_data_is_valid_utf8(self, mock_rpc_client, test_keypair, test_requirements):
+    def test_memo_data_is_valid_utf8(
+        self, mock_rpc_client, test_keypair, test_requirements
+    ):
         """Verify memo data is valid UTF-8 (SPL Memo requirement)."""
         signer = KeypairSigner(test_keypair)
         client = ExactSvmClientScheme(signer)
@@ -248,7 +259,9 @@ class TestMemoDataIsValidUTF8:
         with patch.object(client, "_get_client", return_value=mock_rpc_client):
             payload = client.create_payment_payload(test_requirements)
 
-        tx = decode_transaction_from_payload(ExactSvmPayload(transaction=payload["transaction"]))
+        tx = decode_transaction_from_payload(
+            ExactSvmPayload(transaction=payload["transaction"])
+        )
 
         # Find memo instruction (index 3)
         assert len(tx.message.instructions) >= 4
@@ -267,14 +280,16 @@ class TestMemoDataIsValidUTF8:
 
         # Should be hex-encoded (32 chars for 16 bytes)
         expected_len = 32
-        assert len(memo_data) == expected_len, (
-            f"Memo should be hex-encoded (expected {expected_len} chars, got {len(memo_data)})"
-        )
+        assert (
+            len(memo_data) == expected_len
+        ), f"Memo should be hex-encoded (expected {expected_len} chars, got {len(memo_data)})"
 
         # Should only contain valid hex characters
         import re
 
-        assert re.match(r"^[0-9a-f]+$", memo_string), "Memo data should only contain hex characters"
+        assert re.match(
+            r"^[0-9a-f]+$", memo_string
+        ), "Memo data should only contain hex characters"
 
         print("\n=== UTF-8 VALIDITY CONFIRMED ===")
         print(f"Memo data: {memo_string}")
@@ -314,16 +329,23 @@ class TestMemoInstructionHasNoSigners:
             extra={"feePayer": str(Keypair.from_seed(bytes([2] * 32)).pubkey())},
         )
 
-    def test_memo_has_empty_accounts(self, mock_rpc_client, test_keypair, test_requirements):
+    def test_memo_has_empty_accounts(
+        self, mock_rpc_client, test_keypair, test_requirements
+    ):
         """Empty accounts is critical - signers break facilitator verification."""
         client = ExactSvmClientScheme(KeypairSigner(test_keypair))
 
         with patch.object(client, "_get_client", return_value=mock_rpc_client):
             payload = client.create_payment_payload(test_requirements)
 
-        tx = decode_transaction_from_payload(ExactSvmPayload(transaction=payload["transaction"]))
+        tx = decode_transaction_from_payload(
+            ExactSvmPayload(transaction=payload["transaction"])
+        )
         assert len(tx.message.instructions) >= 4
 
         memo_ix = tx.message.instructions[3]
-        assert str(tx.message.account_keys[memo_ix.program_id_index]) == MEMO_PROGRAM_ADDRESS
+        assert (
+            str(tx.message.account_keys[memo_ix.program_id_index])
+            == MEMO_PROGRAM_ADDRESS
+        )
         assert len(memo_ix.accounts) == 0, "memo must have no accounts"

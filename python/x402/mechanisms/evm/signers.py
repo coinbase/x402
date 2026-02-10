@@ -411,7 +411,10 @@ class FacilitatorWeb3Signer:
             Balance in smallest unit.
         """
         # Native balance
-        if not token_address or token_address == "0x0000000000000000000000000000000000000000":
+        if (
+            not token_address
+            or token_address == "0x0000000000000000000000000000000000000000"
+        ):
             return self._w3.eth.get_balance(Web3.to_checksum_address(address))
 
         # ERC20 balance

@@ -442,7 +442,9 @@ class TestRegisterMoneyParser:
 
             server.register_money_parser(error_parser)
 
-            with pytest.raises(RuntimeError, match="Parser error: amount exceeds limit"):
+            with pytest.raises(
+                RuntimeError, match="Parser error: amount exceeds limit"
+            ):
                 server.parse_price(50, network)
 
     class TestChainingAndFluentApi:
@@ -458,7 +460,9 @@ class TestRegisterMoneyParser:
             def parser2(amount: float, network: str) -> AssetAmount | None:
                 return None
 
-            result = server.register_money_parser(parser1).register_money_parser(parser2)
+            result = server.register_money_parser(parser1).register_money_parser(
+                parser2
+            )
 
             assert result is server
 
@@ -552,7 +556,9 @@ class TestRegisterMoneyParser:
             assert sepolia_result.asset == "0xTestToken123456789012345678901234567890"
 
             mainnet_result = server.parse_price(10, "eip155:8453")
-            assert mainnet_result.asset == get_asset_info("eip155:8453", "USDC")["address"]
+            assert (
+                mainnet_result.asset == get_asset_info("eip155:8453", "USDC")["address"]
+            )
 
         def test_should_support_tiered_pricing(self):
             """Should support tiered pricing."""

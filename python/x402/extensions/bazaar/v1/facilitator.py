@@ -153,9 +153,9 @@ def extract_discovery_info_v1(
             print("Endpoint method:", info.input.method)
         ```
     """
-    output_schema = payment_requirements.get("outputSchema") or payment_requirements.get(
-        "output_schema"
-    )
+    output_schema = payment_requirements.get(
+        "outputSchema"
+    ) or payment_requirements.get("output_schema")
 
     # Check if outputSchema exists and has the expected structure
     if not output_schema or not _has_v1_output_schema(output_schema):
@@ -178,7 +178,9 @@ def extract_discovery_info_v1(
 
     # Extract headers if present (check both camelCase and snake_case)
     headers_raw = (
-        v1_input.get("headerFields") or v1_input.get("header_fields") or v1_input.get("headers")
+        v1_input.get("headerFields")
+        or v1_input.get("header_fields")
+        or v1_input.get("headers")
     )
     headers = headers_raw if isinstance(headers_raw, dict) else None
 
@@ -203,7 +205,9 @@ def extract_discovery_info_v1(
     if is_body_method(method):
         # Body method (POST, PUT, PATCH)
         body, body_type = _extract_body_info(v1_input)
-        query_params = _extract_query_params(v1_input)  # Some POST requests also have query params
+        query_params = _extract_query_params(
+            v1_input
+        )  # Some POST requests also have query params
 
         body_input = BodyInput(
             type="http",

@@ -218,7 +218,9 @@ def with_bazaar(client: HTTPFacilitatorClient) -> BazaarExtendedClient:
     return BazaarExtendedClient(client)
 
 
-def _parse_discovery_resources_response(data: dict[str, Any]) -> DiscoveryResourcesResponse:
+def _parse_discovery_resources_response(
+    data: dict[str, Any],
+) -> DiscoveryResourcesResponse:
     """Parse discovery resources response from JSON data.
 
     Args:
