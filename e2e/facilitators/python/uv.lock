@@ -2874,6 +2874,7 @@ requires-dist = [
     { name = "flask", marker = "extra == 'flask'", specifier = ">=3.0.0" },
     { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1" },
     { name = "jsonschema", marker = "extra == 'extensions'", specifier = ">=4.0.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "requests", marker = "extra == 'requests'", specifier = ">=2.31.0" },
     { name = "solana", marker = "extra == 'svm'", specifier = ">=0.36.0" },
@@ -2884,9 +2885,9 @@ requires-dist = [
     { name = "x402", extras = ["evm", "svm"], marker = "extra == 'mechanisms'" },
     { name = "x402", extras = ["flask", "fastapi"], marker = "extra == 'servers'" },
     { name = "x402", extras = ["httpx", "requests"], marker = "extra == 'clients'" },
-    { name = "x402", extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "extensions"], marker = "extra == 'all'" },
+    { name = "x402", extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "mcp", "extensions"], marker = "extra == 'all'" },
 ]
-provides-extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "extensions", "clients", "servers", "mechanisms", "all"]
+provides-extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "mcp", "extensions", "clients", "servers", "mechanisms", "all"]
 
 [package.metadata.requires-dev]
 dev = [
