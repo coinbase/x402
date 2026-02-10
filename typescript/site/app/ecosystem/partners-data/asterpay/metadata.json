@@ -2,6 +2,6 @@
   "name": "AsterPay",
   "description": "x402-enabled Data API with 13 pay-per-call endpoints for market data, sentiment analysis, DeFi analytics, and AI services. Live on Base mainnet with CDP facilitator settlement. $0.001 USDC per call, no API keys needed. Also provides EUR settlement infrastructure for x402 payments via SEPA Instant with MiCA compliance.",
   "logoUrl": "/logos/asterpay.png",
-  "websiteUrl": "https://x402-api-production-ba87.up.railway.app/discovery/resources",
+  "websiteUrl": "https://asterpay.io",
   "category": "Services/Endpoints"
 }
