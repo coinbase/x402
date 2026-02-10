@@ -26,6 +26,7 @@ load_dotenv()
 
 
 EXAMPLES = {
+    "all_networks": "All supported networks with optional chain configuration",
     "hooks": "Payment lifecycle hooks - before, after, failure callbacks",
     "preferred_network": "Custom network preference selector",
     "builder_pattern": "Network-specific registration with builder pattern",
@@ -53,6 +54,13 @@ def validate_environment() -> tuple[str, str]:
     return private_key, f"{base_url}{endpoint_path}"
 
 
+async def run_all_networks_example(_private_key: str, _url: str) -> None:
+    """Run the all networks example (reads keys from env vars)."""
+    from all_networks import main as all_networks_main
+
+    await all_networks_main()
+
+
 async def run_hooks_example(private_key: str, url: str) -> None:
     """Run the hooks example."""
     from hooks import run_hooks_example
@@ -75,6 +83,7 @@ async def run_builder_pattern_example(private_key: str, url: str) -> None:
 
 
 EXAMPLE_RUNNERS = {
+    "all_networks": run_all_networks_example,
     "hooks": run_hooks_example,
     "preferred_network": run_preferred_network_example,
     "builder_pattern": run_builder_pattern_example,
@@ -120,6 +129,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available examples:
+  all_networks       All supported networks with optional chain configuration
   hooks              Payment lifecycle hooks (before, after, failure)
   preferred_network  Custom network preference selector
   builder_pattern    Network-specific registration with builder pattern
