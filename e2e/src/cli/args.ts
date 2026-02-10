@@ -31,6 +31,7 @@ export function parseArgs(): ParsedArgs {
 
   // Check if any filter args present -> programmatic mode
   const hasFilterArgs = args.some(arg => 
+    arg.startsWith('--transport=') ||
     arg.startsWith('--facilitators=') ||
     arg.startsWith('--servers=') ||
     arg.startsWith('--clients=') ||
@@ -59,6 +60,7 @@ export function parseArgs(): ParsedArgs {
   }
 
   // Parse filters (comma-separated lists)
+  const transports = parseListArg(args, '--transport');
   const facilitators = parseListArg(args, '--facilitators');
   const servers = parseListArg(args, '--servers');
   const clients = parseListArg(args, '--clients');
@@ -71,6 +73,7 @@ export function parseArgs(): ParsedArgs {
     verbose,
     logFile,
     filters: {
+      transports,
       facilitators,
       servers,
       clients,
@@ -104,6 +107,7 @@ export function printHelp(): void {
   console.log('  (If not specified, will prompt in interactive mode)');
   console.log('');
   console.log('Programmatic Mode (for CI/workflows):');
+  console.log('  --transport=<list>         Comma-separated transports (e.g., http,mcp)');
   console.log('  --facilitators=<list>      Comma-separated facilitator names');
   console.log('  --servers=<list>           Comma-separated server names');
   console.log('  --clients=<list>           Comma-separated client names');
@@ -122,6 +126,7 @@ export function printHelp(): void {
   console.log('  pnpm test --testnet                                 # Skip network prompt');
   console.log('  pnpm test --mainnet                                 # Use mainnet (real funds!)');
   console.log('  pnpm test --min -v                                  # Minimize with verbose');
+  console.log('  pnpm test --transport=mcp                                # MCP transport only');
   console.log('  pnpm test --mainnet --facilitators=go --servers=express  # Mainnet programmatic');
   console.log('');
   console.log('Note: --mainnet requires funded wallets with real tokens!');
