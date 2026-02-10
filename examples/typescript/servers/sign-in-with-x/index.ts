@@ -14,6 +14,7 @@ import {
   createSIWxSettleHook,
   createSIWxRequestHook,
   InMemorySIWxStorage,
+  verifySIWxHeader,
 } from "@x402/extensions/sign-in-with-x";
 config();
 
@@ -114,6 +115,31 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
 );
 
 const app = express();
+
+// Auth-only route: SIWX signature required, no payment.
+// declareSIWxExtension generates nonce/issuedAt directly (no enrichment pipeline).
+app.get("/profile", async (req, res) => {
+  const siwxHeader = req.headers["sign-in-with-x"] as string | undefined;
+  const resourceUri = `http://localhost:${PORT}/profile`;
+
+  if (!siwxHeader) {
+    return res.status(402).json({
+      extensions: declareSIWxExtension({
+        domain: `localhost:${PORT}`,
+        resourceUri,
+        network: EVM_NETWORK,
+        statement: "Sign in to view your profile",
+        expirationSeconds: 300,
+      }),
+    });
+  }
+
+  const result = await verifySIWxHeader(siwxHeader, resourceUri);
+  if (!result.valid) return res.status(401).json({ error: result.error });
+
+  res.json({ address: result.address, data: "Your profile data" });
+});
+
 app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 app.get("/weather", (_req, res) => res.json({ weather: "sunny", temperature: 72 }));
@@ -123,5 +149,5 @@ app.get("/joke", (_req, res) =>
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`Routes: GET /weather, GET /joke`);
+  console.log(`Routes: GET /weather, GET /joke, GET /profile (auth-only)`);
 });

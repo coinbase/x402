@@ -4,6 +4,7 @@
  * Helps servers declare SIWX authentication requirements in PaymentRequired responses.
  */
 
+import { randomBytes } from "crypto";
 import type {
   SIWxExtension,
   SIWxExtensionInfo,
@@ -73,12 +74,26 @@ export interface SIWxDeclaration extends SIWxExtension {
 export function declareSIWxExtension(
   options: DeclareSIWxOptions = {},
 ): Record<string, SIWxDeclaration> {
-  // Build partial info with static fields only
-  // Time-based fields (nonce, issuedAt, expirationTime) are generated
-  // per-request by enrichPaymentRequiredResponse in siwxResourceServerExtension
-  const info: Partial<SIWxExtensionInfo> & { version: string } = {
+  // Build info with time-based fields generated directly.
+  // When used through the enrichment pipeline (siwxResourceServerExtension),
+  // enrichPaymentRequiredResponse overwrites these with a fresh object per-request.
+  // For auth-only endpoints (accepts: []), these fields are used as-is.
+  const nonce = randomBytes(16).toString("hex");
+  const issuedAt = new Date().toISOString();
+  const expirationTime =
+    options.expirationSeconds !== undefined
+      ? new Date(Date.now() + options.expirationSeconds * 1000).toISOString()
+      : undefined;
+
+  const info: Partial<SIWxExtensionInfo> & { version: string; nonce: string; issuedAt: string } = {
     version: options.version ?? "1",
+    nonce,
+    issuedAt,
   };
+
+  if (expirationTime) {
+    info.expirationTime = expirationTime;
+  }
 
   // Add fields that are provided
   if (options.domain) {
@@ -91,8 +106,6 @@ export function declareSIWxExtension(
   if (options.statement) {
     info.statement = options.statement;
   }
-  // Note: expirationSeconds is stored in _options and used by
-  // enrichPaymentRequiredResponse to calculate expirationTime per-request
 
   // Build supportedChains if network is provided
   let supportedChains: SupportedChain[] = [];
