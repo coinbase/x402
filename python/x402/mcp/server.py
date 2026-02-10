@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..schemas import ResourceInfo
 from ..server import x402ResourceServerSync
 from .types import (
+    MCP_PAYMENT_RESPONSE_META_KEY,
     AfterExecutionContext,
     MCPToolContext,
     MCPToolResult,
@@ -21,6 +22,12 @@ from .utils import (
     extract_payment_from_meta,
 )
 
+if TYPE_CHECKING:
+    try:
+        from mcp.server.fastmcp import Context as FastMCPContext
+    except ImportError:  # pragma: no cover
+        FastMCPContext = Any  # type: ignore[assignment,misc]
+
 # Type alias for tool handler
 ToolHandler = Callable[[dict[str, Any], MCPToolContext], MCPToolResult | dict[str, Any]]
 
@@ -30,12 +37,20 @@ ToolHandler = Callable[[dict[str, Any], MCPToolContext], MCPToolResult | dict[st
 # ============================================================================
 
 
-def _extract_meta_from_fastmcp_context(ctx: Any) -> dict[str, Any]:
+def _extract_meta_from_fastmcp_context(ctx: FastMCPContext | Any) -> dict[str, Any]:
     """Extract _meta dict from an MCP SDK Context object.
 
     The MCP SDK (both FastMCP and low-level Server) stores request metadata
     on ``ctx.request_context.meta`` (a ``RequestParams.Meta`` Pydantic model).
     This helper extracts it as a plain dict.
+
+    Args:
+        ctx: FastMCP Context object (or any object with a
+            ``request_context.meta`` attribute chain).
+
+    Returns:
+        The extracted metadata as a plain dict, or an empty dict if
+        extraction fails for any reason.
     """
     try:
         req_ctx = getattr(ctx, "request_context", None)
@@ -76,6 +91,8 @@ def _mcp_tool_result_to_call_tool_result(result: MCPToolResult) -> Any:
 def wrap_fastmcp_tool_sync(
     payment_wrapper: Callable[[ToolHandler], Any],
     handler: ToolHandler,
+    *,
+    tool_name: str | None = None,
 ) -> Callable[[dict[str, Any], Any], Any]:
     """Bridge a payment-wrapped tool handler to work with FastMCP.
 
@@ -92,7 +109,9 @@ def wrap_fastmcp_tool_sync(
         def get_weather(city: str, ctx: Context) -> CallToolResult:
             return paid_weather_tool({"city": city}, ctx)
 
-        paid_weather_tool = wrap_fastmcp_tool_sync(paid_weather, my_handler)
+        paid_weather_tool = wrap_fastmcp_tool_sync(
+            paid_weather, my_handler, tool_name="get_weather",
+        )
 
     Or more concisely::
 
@@ -102,6 +121,7 @@ def wrap_fastmcp_tool_sync(
             lambda args, _: MCPToolResult(
                 content=[{"type": "text", "text": json.dumps(get_data(args["city"]))}],
             ),
+            tool_name="get_weather",
         )
 
         @mcp_server.tool()
@@ -111,16 +131,19 @@ def wrap_fastmcp_tool_sync(
     Args:
         payment_wrapper: The result of ``create_payment_wrapper_sync(resource_server, config)``
         handler: Your tool handler ``(args, MCPToolContext) -> MCPToolResult``
+        tool_name: Optional explicit tool name. Falls back to the handler
+            function name, then ``"paid_tool"`` as a last resort.
 
     Returns:
         A function ``(args, fastmcp_context) -> CallToolResult`` suitable for
         calling inside a FastMCP ``@tool()`` handler.
     """
     wrapped = payment_wrapper(handler)
+    resolved_name = tool_name or getattr(handler, "__name__", "paid_tool")
 
     def fastmcp_bridge(args: dict[str, Any], ctx: Any) -> Any:
         meta = _extract_meta_from_fastmcp_context(ctx)
-        extra = {"_meta": meta, "toolName": "paid_tool"}
+        extra = {"_meta": meta, "toolName": resolved_name}
         result = wrapped(args, extra)
         return _mcp_tool_result_to_call_tool_result(result)
 
@@ -318,7 +341,7 @@ def create_payment_wrapper_sync(
             # Return result with settlement in _meta
             if result.meta is None:
                 result.meta = {}
-            result.meta["x402/payment-response"] = (
+            result.meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
                 settle_result.model_dump(by_alias=True)
                 if hasattr(settle_result, "model_dump")
                 else settle_result
@@ -427,7 +450,7 @@ def _create_settlement_failed_result(
         if hasattr(payment_required, "model_dump")
         else payment_required
     )
-    error_data["x402/payment-response"] = settlement_failure
+    error_data[MCP_PAYMENT_RESPONSE_META_KEY] = settlement_failure
 
     content_text = json.dumps(error_data)
 

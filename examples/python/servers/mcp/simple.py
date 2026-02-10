@@ -100,6 +100,7 @@ def run_simple() -> None:
         lambda args, _: MCPToolResult(
             content=[{"type": "text", "text": json.dumps(get_weather_data(args["city"]))}],
         ),
+        tool_name="get_weather",
     )
 
     # Paid tool - just call the bridge with args + context

@@ -106,6 +106,7 @@ def run_existing() -> None:
         lambda args, _: MCPToolResult(
             content=[{"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}],
         ),
+        tool_name="get_weather",
     )
 
     paid_forecast_tool = wrap_fastmcp_tool_sync(
@@ -115,6 +116,7 @@ def run_existing() -> None:
                 [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)], indent=2,
             )}],
         ),
+        tool_name="get_forecast",
     )
 
     # Free tool - works exactly as before, no changes needed

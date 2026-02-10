@@ -9,6 +9,7 @@ from typing import Any
 from ..schemas import PaymentRequirements, ResourceInfo
 from ..server import x402ResourceServer as x402ResourceServerAsync
 from .types import (
+    MCP_PAYMENT_RESPONSE_META_KEY,
     AfterExecutionContext,
     MCPToolContext,
     MCPToolResult,
@@ -82,6 +83,8 @@ class PaymentWrapperConfig:
 def wrap_fastmcp_tool(
     payment_wrapper: Callable[[AsyncToolHandler], Any],
     handler: AsyncToolHandler,
+    *,
+    tool_name: str | None = None,
 ) -> Callable[[dict[str, Any], Any], Any]:
     """Bridge an async payment-wrapped tool handler to work with FastMCP.
 
@@ -91,6 +94,8 @@ def wrap_fastmcp_tool(
     Args:
         payment_wrapper: The result of ``create_payment_wrapper(resource_server, config)``
         handler: Your async tool handler ``(args, MCPToolContext) -> MCPToolResult``
+        tool_name: Optional explicit tool name. Falls back to the handler
+            function name, then ``"paid_tool"`` as a last resort.
 
     Returns:
         An async function ``(args, fastmcp_context) -> CallToolResult``
@@ -101,10 +106,11 @@ def wrap_fastmcp_tool(
     )
 
     wrapped = payment_wrapper(handler)
+    resolved_name = tool_name or getattr(handler, "__name__", "paid_tool")
 
     async def fastmcp_bridge(args: dict[str, Any], ctx: Any) -> Any:
         meta = _extract_meta_from_fastmcp_context(ctx)
-        extra = {"_meta": meta, "toolName": "paid_tool"}
+        extra = {"_meta": meta, "toolName": resolved_name}
         result = wrapped(args, extra)
         if hasattr(result, "__await__"):
             result = await result
@@ -313,7 +319,7 @@ def create_payment_wrapper(
             # Return result with settlement in _meta
             if result.meta is None:
                 result.meta = {}
-            result.meta["x402/payment-response"] = (
+            result.meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
                 settle_result.model_dump(by_alias=True)
                 if hasattr(settle_result, "model_dump")
                 else settle_result
@@ -426,7 +432,7 @@ async def _create_settlement_failed_result_async(
         if hasattr(payment_required, "model_dump")
         else payment_required
     )
-    error_data["x402/payment-response"] = settlement_failure
+    error_data[MCP_PAYMENT_RESPONSE_META_KEY] = settlement_failure
 
     content_text = json.dumps(error_data)
 

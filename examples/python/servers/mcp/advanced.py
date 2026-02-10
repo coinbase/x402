@@ -143,6 +143,7 @@ def run_advanced() -> None:
         lambda args, _: MCPToolResult(
             content=[{"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}],
         ),
+        tool_name="get_weather",
     )
 
     paid_forecast_tool = wrap_fastmcp_tool_sync(
@@ -152,6 +153,7 @@ def run_advanced() -> None:
                 [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)], indent=2,
             )}],
         ),
+        tool_name="get_forecast",
     )
 
     @mcp_server.tool()

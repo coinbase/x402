@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -83,6 +84,15 @@ class x402MCPClient:
         self._payment_required_hooks: list[PaymentRequiredHook] = []
         self._before_payment_hooks: list[BeforePaymentHook] = []
         self._after_payment_hooks: list[AfterPaymentHook] = []
+
+        if not auto_payment and on_payment_requested is None:
+            warnings.warn(
+                "x402MCPClient created with auto_payment=False and no "
+                "on_payment_requested callback. Paid tool calls will raise "
+                "PaymentRequiredError unless a payment_required hook is "
+                "registered via on_payment_required().",
+                stacklevel=2,
+            )
 
     @property
     def client(self) -> Any:
@@ -188,7 +198,12 @@ class x402MCPClient:
 
         # No hook handled it, proceed with normal flow
         if not self._auto_payment:
-            raise PaymentRequiredError("Payment required", payment_required)
+            raise PaymentRequiredError(
+                "Payment required but auto_payment is disabled and no "
+                "payment_required hook handled the request. Enable "
+                "auto_payment or register a hook via on_payment_required().",
+                payment_required,
+            )
 
         # Check if payment is approved
         if self._on_payment_requested:

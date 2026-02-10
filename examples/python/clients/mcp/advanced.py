@@ -10,12 +10,10 @@ Use this approach when you need:
 Run with: python main.py advanced
 """
 
-import json
+import asyncio
 import os
 import sys
 from typing import Any
-
-import asyncio
 
 from dotenv import load_dotenv
 from eth_account import Account
@@ -44,51 +42,63 @@ if not EVM_PRIVATE_KEY:
 
 # Adapter that wraps mcp.ClientSession to x402.mcp.MCPClientInterface
 class MCPClientAdapter:
-    """Adapter that wraps mcp.ClientSession to x402.mcp.MCPClientInterface."""
+    """Adapter that wraps mcp.ClientSession for x402MCPClient.
+
+    The x402MCPClient calls ``call_tool(params, **kwargs)`` where *params*
+    is a dict ``{"name": ..., "arguments": ..., "_meta": ...}``.  This
+    adapter unpacks that dict and forwards to the real MCP SDK session.
+    """
 
     def __init__(self, session: ClientSession):
         self._session = session
 
-    async def connect(self) -> None:
-        """Connect to the MCP server."""
-        await self._session.initialize()
+    async def connect(self, transport: Any) -> None:
+        """Connect - already connected via session context manager."""
+        pass
 
     async def close(self) -> None:
-        """Close the connection."""
-        await self._session.__aexit__(None, None, None)
+        """Close session."""
+        pass
 
-    async def call_tool(self, name: str, args: dict[str, Any], meta: dict[str, Any] | None = None) -> MCPToolResult:
-        """Call an MCP tool."""
-        from mcp.types import Tool
+    async def call_tool(
+        self, params: dict[str, Any], **kwargs: Any
+    ) -> MCPToolResult:
+        """Call tool via MCP session.
+
+        Args:
+            params: Dict with ``name``, ``arguments``, and optional ``_meta``.
+            **kwargs: Forwarded (unused by MCP SDK today).
+        """
+        name = params.get("name", "")
+        args = params.get("arguments", {})
+        meta = params.get("_meta")
 
         result = await self._session.call_tool(
             name=name,
             arguments=args or {},
+            meta=meta,
         )
 
         content = []
         for item in result.content:
             if hasattr(item, "text"):
                 content.append({"type": "text", "text": item.text})
-            elif isinstance(item, dict):
-                content.append(item)
+            else:
+                content.append({"type": getattr(item, "type", "text"), "text": str(item)})
+
+        meta_dict = {}
+        if hasattr(result, "meta") and result.meta:
+            meta_dict = dict(result.meta) if result.meta else {}
 
         return MCPToolResult(
             content=content,
-            is_error=result.isError if hasattr(result, "isError") else False,
-            meta=meta,
+            is_error=getattr(result, "isError", False) or getattr(result, "is_error", False),
+            meta=meta_dict,
         )
 
-    async def list_tools(self) -> list[dict[str, Any]]:
-        """List available tools."""
-        result = await self._session.list_tools()
-        tools = []
-        for tool in result.tools:
-            tools.append({
-                "name": tool.name,
-                "description": tool.description or "",
-            })
-        return tools
+    async def list_tools(self) -> Any:
+        """List available tools from the server."""
+        return await self._session.list_tools()
 
 
 async def run_advanced_async() -> None:
@@ -161,10 +171,10 @@ async def run_advanced_async() -> None:
 
             # List tools
             print("📋 Discovering available tools...")
-            tools = await adapter.list_tools()
+            tools_result = await adapter.list_tools()
             print("Available tools:")
-            for tool in tools:
-                print(f"   - {tool.get('name')}: {tool.get('description')}")
+            for tool in tools_result.tools:
+                print(f"   - {tool.name}: {tool.description}")
             print()
 
             # Test free tool
@@ -198,7 +208,7 @@ async def run_advanced_async() -> None:
                     print(f"   Transaction: {weather_result.payment_response.transaction}")
 
             # Test accessing underlying clients
-            print("\n━" * 50)
+            print("\n" + "━" * 50)
             print("🔧 Test 3: Accessing underlying clients")
             print("━" * 50)
             print(f"MCP Client: {type(x402_mcp.client).__name__}")
