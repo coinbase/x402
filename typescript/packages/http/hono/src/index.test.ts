@@ -388,7 +388,11 @@ describe("paymentMiddleware", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjpmYWxzZX0=" },
+      },
     );
 
     const middleware = paymentMiddleware(
@@ -410,6 +414,8 @@ describe("paymentMiddleware", () => {
 
     await middleware(context, next);
 
+    // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
+    expect(context.header).toHaveBeenCalledWith("PAYMENT-RESPONSE", "eyJzdWNjZXNzIjpmYWxzZX0=");
     expect(context.json).toHaveBeenCalledWith(
       {
         error: "Settlement failed",

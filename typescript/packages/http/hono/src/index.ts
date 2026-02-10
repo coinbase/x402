@@ -171,6 +171,10 @@ export function paymentMiddlewareFromHTTPServer(
 
           if (!settleResult.success) {
             // Settlement failed - do not return the protected resource
+            // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
+            Object.entries(settleResult.headers).forEach(([key, value]) => {
+              c.header(key, value);
+            });
             res = c.json(
               {
                 error: "Settlement failed",

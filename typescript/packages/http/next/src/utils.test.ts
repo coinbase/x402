@@ -265,6 +265,7 @@ describe("handleSettlement", () => {
       errorReason: "Insufficient funds",
       transaction: "",
       network: "eip155:84532",
+      headers: { "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjpmYWxzZX0=" },
     });
     const response = new NextResponse("OK", { status: 200 });
 
@@ -276,6 +277,8 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(402);
+    // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
+    expect(result.headers.get("PAYMENT-RESPONSE")).toBe("eyJzdWNjZXNzIjpmYWxzZX0=");
     const body = (await result.json()) as { error: string; details: string };
     expect(body.error).toBe("Settlement failed");
     expect(body.details).toBe("Insufficient funds");

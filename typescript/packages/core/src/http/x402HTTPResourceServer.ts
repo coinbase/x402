@@ -224,6 +224,7 @@ export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
   errorMessage?: string;
+  headers: Record<string, string>;
 };
 
 export type ProcessSettleResultResponse =
@@ -547,6 +548,7 @@ export class x402HTTPResourceServer {
           errorReason: settleResponse.errorReason || "Settlement failed",
           errorMessage:
             settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
+          headers: this.createSettlementHeaders(settleResponse),
         };
       }
 
@@ -558,21 +560,29 @@ export class x402HTTPResourceServer {
       };
     } catch (error) {
       if (error instanceof SettleError) {
-        return {
-          success: false,
+        const errorResponse = {
+          success: false as const,
           errorReason: error.errorReason || error.message,
           errorMessage: error.errorMessage || error.errorReason || error.message,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
         };
+        return {
+          ...errorResponse,
+          headers: this.createSettlementHeaders(errorResponse),
+        };
       }
-      return {
-        success: false,
+      const errorResponse = {
+        success: false as const,
         errorReason: error instanceof Error ? error.message : "Settlement failed",
         errorMessage: error instanceof Error ? error.message : "Settlement failed",
         network: requirements.network as Network,
         transaction: "",
+      };
+      return {
+        ...errorResponse,
+        headers: this.createSettlementHeaders(errorResponse),
       };
     }
   }

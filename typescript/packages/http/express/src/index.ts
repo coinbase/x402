@@ -240,6 +240,10 @@ export function paymentMiddlewareFromHTTPServer(
           // If settlement fails, return an error and do not send the buffered response
           if (!settleResult.success) {
             bufferedCalls = [];
+            // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
+            Object.entries(settleResult.headers).forEach(([key, value]) => {
+              res.setHeader(key, value);
+            });
             res.status(402).json({
               error: "Settlement failed",
               details: settleResult.errorReason,

@@ -274,7 +274,11 @@ describe("paymentProxy", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjpmYWxzZX0=" },
+      },
     );
     setupMockCreateHttpServer(mockServer);
 
@@ -392,7 +396,11 @@ describe("withX402", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjpmYWxzZX0=" },
+      },
     );
     setupMockCreateHttpServer(mockServer);
     const handler = vi.fn().mockResolvedValue(NextResponse.json({ data: "protected" }));

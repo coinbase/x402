@@ -144,6 +144,7 @@ export async function handleSettlement(
 
     if (!result.success) {
       // Settlement failed - do not return the protected resource
+      // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
       return new NextResponse(
         JSON.stringify({
           error: "Settlement failed",
@@ -151,7 +152,7 @@ export async function handleSettlement(
         }),
         {
           status: 402,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...result.headers },
         },
       );
     }

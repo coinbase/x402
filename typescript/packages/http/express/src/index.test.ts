@@ -389,7 +389,11 @@ describe("paymentMiddleware", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjpmYWxzZX0=" },
+      },
     );
 
     const middleware = paymentMiddleware(
@@ -409,6 +413,10 @@ describe("paymentMiddleware", () => {
     await middleware(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(402);
+    // Per v2 spec, PAYMENT-RESPONSE header must be set on both success and failure
+    const setHeaderCalls = vi.mocked(res.setHeader).mock.calls;
+    const paymentResponseHeaders = setHeaderCalls.filter(([key]) => key === "PAYMENT-RESPONSE");
+    expect(paymentResponseHeaders).toHaveLength(1);
     expect(res.json).toHaveBeenCalledWith({
       error: "Settlement failed",
       details: "Insufficient funds",
