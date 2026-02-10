@@ -66,7 +66,9 @@ class x402ClientConfig:
 
     schemes: list[SchemeRegistration]
     policies: list[PaymentPolicy] | None = None
-    payment_requirements_selector: PaymentRequirementsSelector | None = field(default=None)
+    payment_requirements_selector: PaymentRequirementsSelector | None = field(
+        default=None
+    )
 
 
 # Hook types - support both sync and async (for async class auto-detection)
@@ -207,14 +209,18 @@ class x402ClientBase:
                 supported.append(req)
 
         if not supported:
-            raise NoMatchingRequirementsError("No payment requirements match registered schemes")
+            raise NoMatchingRequirementsError(
+                "No payment requirements match registered schemes"
+            )
 
         # Apply policies
         filtered: list[RequirementsView] = list(supported)
         for policy in self._policies:
             filtered = policy(2, filtered)
             if not filtered:
-                raise NoMatchingRequirementsError("All requirements filtered out by policies")
+                raise NoMatchingRequirementsError(
+                    "All requirements filtered out by policies"
+                )
 
         # Select final
         return self._selector(2, filtered)  # type: ignore[return-value]
@@ -232,14 +238,18 @@ class x402ClientBase:
                 supported.append(req)
 
         if not supported:
-            raise NoMatchingRequirementsError("No payment requirements match registered schemes")
+            raise NoMatchingRequirementsError(
+                "No payment requirements match registered schemes"
+            )
 
         # Apply policies
         filtered: list[RequirementsView] = list(supported)
         for policy in self._policies:
             filtered = policy(1, filtered)
             if not filtered:
-                raise NoMatchingRequirementsError("All requirements filtered out by policies")
+                raise NoMatchingRequirementsError(
+                    "All requirements filtered out by policies"
+                )
 
         # Select final
         return self._selector(1, filtered)  # type: ignore[return-value]

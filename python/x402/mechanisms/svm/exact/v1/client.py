@@ -108,7 +108,9 @@ class ExactSvmSchemeV1:
         extra = requirements.extra or {}
         fee_payer_str = extra.get("feePayer")
         if not fee_payer_str:
-            raise ValueError("feePayer is required in requirements.extra for SVM transactions")
+            raise ValueError(
+                "feePayer is required in requirements.extra for SVM transactions"
+            )
         fee_payer = Pubkey.from_string(fee_payer_str)
 
         mint = Pubkey.from_string(requirements.asset)
@@ -134,8 +136,12 @@ class ExactSvmSchemeV1:
         decimals = mint_data[44]
 
         # Derive ATAs
-        source_ata_str = derive_ata(self._signer.address, requirements.asset, str(token_program))
-        dest_ata_str = derive_ata(requirements.pay_to, requirements.asset, str(token_program))
+        source_ata_str = derive_ata(
+            self._signer.address, requirements.asset, str(token_program)
+        )
+        dest_ata_str = derive_ata(
+            requirements.pay_to, requirements.asset, str(token_program)
+        )
         source_ata = Pubkey.from_string(source_ata_str)
         dest_ata = Pubkey.from_string(dest_ata_str)
 
@@ -144,7 +150,9 @@ class ExactSvmSchemeV1:
 
         # 1. SetComputeUnitLimit instruction
         # Data: [2 (discriminator), u32 units (little-endian)]
-        set_cu_limit_data = bytes([2]) + DEFAULT_COMPUTE_UNIT_LIMIT.to_bytes(4, "little")
+        set_cu_limit_data = bytes([2]) + DEFAULT_COMPUTE_UNIT_LIMIT.to_bytes(
+            4, "little"
+        )
         set_cu_limit_ix = Instruction(
             program_id=compute_budget_program,
             accounts=[],
@@ -153,9 +161,9 @@ class ExactSvmSchemeV1:
 
         # 2. SetComputeUnitPrice instruction
         # Data: [3 (discriminator), u64 microLamports (little-endian)]
-        set_cu_price_data = bytes([3]) + DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS.to_bytes(
-            8, "little"
-        )
+        set_cu_price_data = bytes(
+            [3]
+        ) + DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS.to_bytes(8, "little")
         set_cu_price_ix = Instruction(
             program_id=compute_budget_program,
             accounts=[],

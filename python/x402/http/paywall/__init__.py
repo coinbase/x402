@@ -151,7 +151,9 @@ class EvmPaywallHandler:
         current_url = config.current_url if config else ""
 
         amount = _get_display_amount(payment_required)
-        payment_required_json = payment_required.model_dump(by_alias=True, exclude_none=True)
+        payment_required_json = payment_required.model_dump(
+            by_alias=True, exclude_none=True
+        )
 
         x402_config = {
             "amount": amount,
@@ -176,7 +178,11 @@ class EvmPaywallHandler:
         """Generate fallback HTML when template not available."""
         amount = _get_display_amount(payment_required)
         app_name = config.app_name if config else ""
-        title = f"{html.escape(app_name)} - Payment Required" if app_name else "Payment Required"
+        title = (
+            f"{html.escape(app_name)} - Payment Required"
+            if app_name
+            else "Payment Required"
+        )
 
         return f"""<!DOCTYPE html>
 <html>
@@ -228,7 +234,9 @@ class SvmPaywallHandler:
         current_url = config.current_url if config else ""
 
         amount = _get_display_amount(payment_required)
-        payment_required_json = payment_required.model_dump(by_alias=True, exclude_none=True)
+        payment_required_json = payment_required.model_dump(
+            by_alias=True, exclude_none=True
+        )
 
         x402_config = {
             "amount": amount,
@@ -253,7 +261,11 @@ class SvmPaywallHandler:
         """Generate fallback HTML when template not available."""
         amount = _get_display_amount(payment_required)
         app_name = config.app_name if config else ""
-        title = f"{html.escape(app_name)} - Payment Required" if app_name else "Payment Required"
+        title = (
+            f"{html.escape(app_name)} - Payment Required"
+            if app_name
+            else "Payment Required"
+        )
 
         return f"""<!DOCTYPE html>
 <html>
@@ -385,7 +397,11 @@ class PaywallProvider:
             app_name=config.app_name if config and config.app_name else self.app_name,
             app_logo=config.app_logo if config and config.app_logo else self.app_logo,
             testnet=config.testnet if config else self.testnet,
-            current_url=config.current_url if config and config.current_url else self.current_url,
+            current_url=(
+                config.current_url
+                if config and config.current_url
+                else self.current_url
+            ),
         )
 
         # Find first handler that supports the payment requirements
@@ -393,7 +409,9 @@ class PaywallProvider:
             req_dict = requirement.model_dump(by_alias=True, exclude_none=True)
             for handler in self.handlers:
                 if handler.supports(req_dict):
-                    return handler.generate_html(req_dict, payment_required, merged_config)
+                    return handler.generate_html(
+                        req_dict, payment_required, merged_config
+                    )
 
         networks = ", ".join(
             req.network for req in payment_required.accepts if hasattr(req, "network")

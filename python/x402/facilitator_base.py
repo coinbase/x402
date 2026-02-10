@@ -40,14 +40,18 @@ from .schemas import (
 
 T = TypeVar("T")
 
-BeforeVerifyHook = Callable[[VerifyContext], Awaitable[AbortResult | None] | AbortResult | None]
+BeforeVerifyHook = Callable[
+    [VerifyContext], Awaitable[AbortResult | None] | AbortResult | None
+]
 AfterVerifyHook = Callable[[VerifyResultContext], Awaitable[None] | None]
 OnVerifyFailureHook = Callable[
     [VerifyFailureContext],
     Awaitable[RecoveredVerifyResult | None] | RecoveredVerifyResult | None,
 ]
 
-BeforeSettleHook = Callable[[SettleContext], Awaitable[AbortResult | None] | AbortResult | None]
+BeforeSettleHook = Callable[
+    [SettleContext], Awaitable[AbortResult | None] | AbortResult | None
+]
 AfterSettleHook = Callable[[SettleResultContext], Awaitable[None] | None]
 OnSettleFailureHook = Callable[
     [SettleFailureContext],
@@ -414,7 +418,9 @@ class x402FacilitatorBase:
                     requirements=requirements,
                     payload_bytes=payload_bytes,
                     requirements_bytes=requirements_bytes,
-                    error=Exception(verify_result.invalid_reason or "Verification failed"),
+                    error=Exception(
+                        verify_result.invalid_reason or "Verification failed"
+                    ),
                 )
                 for hook in self._on_verify_failure_hooks:
                     result = yield ("failure", hook, failure_context)

@@ -3,7 +3,12 @@
 import pytest
 
 from x402 import x402ResourceServer, x402ResourceServerSync
-from x402.schemas import SettleResponse, SupportedKind, SupportedResponse, VerifyResponse
+from x402.schemas import (
+    SettleResponse,
+    SupportedKind,
+    SupportedResponse,
+    VerifyResponse,
+)
 
 # =============================================================================
 # Mock Facilitator Clients

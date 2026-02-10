@@ -130,7 +130,9 @@ class TestExtractDiscoveryInfo:
 
         payload = {
             "x402Version": 2,
-            "resource": {"url": "https://api.example.com/weather?city=NYC&units=metric"},
+            "resource": {
+                "url": "https://api.example.com/weather?city=NYC&units=metric"
+            },
             "extensions": {BAZAAR: ext_dict},
             "accepted": {},
         }

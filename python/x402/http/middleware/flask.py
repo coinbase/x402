@@ -350,7 +350,8 @@ class PaymentMiddleware:
                 path=request.path,
                 method=request.method,
                 payment_header=(
-                    adapter.get_header("payment-signature") or adapter.get_header("x-payment")
+                    adapter.get_header("payment-signature")
+                    or adapter.get_header("x-payment")
                 ),
             )
 
@@ -364,7 +365,9 @@ class PaymentMiddleware:
                 self._init_done = True
 
             # Process payment request synchronously (no asyncio overhead)
-            result = self._http_server.process_http_request(context, self._paywall_config)
+            result = self._http_server.process_http_request(
+                context, self._paywall_config
+            )
 
             if result.type == "no-payment-required":
                 return self._original_wsgi(environ, start_response)

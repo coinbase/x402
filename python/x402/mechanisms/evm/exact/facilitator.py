@@ -134,7 +134,9 @@ class ExactEvmScheme:
 
         # Validate network
         if payload.accepted.network != requirements.network:
-            return VerifyResponse(is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer)
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer
+            )
 
         # Get configs
         try:
@@ -215,7 +217,9 @@ class ExactEvmScheme:
 
         # Verify signature
         if not evm_payload.signature:
-            return VerifyResponse(is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer)
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer
+            )
 
         signature = hex_to_bytes(evm_payload.signature)
         hash_bytes = hash_eip3009_authorization(

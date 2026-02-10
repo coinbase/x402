@@ -11,14 +11,22 @@ from x402.http.constants import (
     X_PAYMENT_HEADER,
     X_PAYMENT_RESPONSE_HEADER,
 )
-from x402.http.utils import encode_payment_required_header, encode_payment_response_header
+from x402.http.utils import (
+    encode_payment_required_header,
+    encode_payment_response_header,
+)
 from x402.http.x402_http_client import (
     PaymentRoundTripper,
     x402HTTPClient,
     x402HTTPClientSync,
 )
 from x402.http.x402_http_client_base import x402HTTPClientBase
-from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    SettleResponse,
+)
 from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
 
 # =============================================================================
@@ -50,7 +58,9 @@ def make_v2_payload(signature: str = "0xmock") -> PaymentPayload:
 class MockX402Client:
     """Mock async x402Client for testing."""
 
-    def __init__(self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None):
+    def __init__(
+        self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None
+    ):
         self.payload_to_return = payload_to_return or make_v2_payload()
         self.create_payment_calls: list = []
 
@@ -62,7 +72,9 @@ class MockX402Client:
 class MockX402ClientSync:
     """Mock sync x402ClientSync for testing."""
 
-    def __init__(self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None):
+    def __init__(
+        self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None
+    ):
         self.payload_to_return = payload_to_return or make_v2_payload()
         self.create_payment_calls: list = []
 
