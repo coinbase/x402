@@ -1,0 +1,7 @@
+{
+  "name": "x402engine",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402engine.png",
+  "description": "16 pay-per-call AI APIs for agents — image generation, code execution, audio transcription, crypto market data, blockchain analytics, and IPFS storage. Supports USDC on Base/Solana and USDm on MegaETH.",
+  "websiteUrl": "https://x402engine.app"
+}
