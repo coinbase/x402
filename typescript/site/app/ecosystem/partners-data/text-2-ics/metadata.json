@@ -1,0 +1,7 @@
+{
+  "name": "Text-2-ICS",
+  "description": "Convert natural language text into calendar events (.ics). Paste meeting notes, emails, or flight confirmations — get structured calendar events back. Powered by AI, paid per request via x402.",
+  "logoUrl": "/logos/text-2-ics.png",
+  "websiteUrl": "https://text-2-ics-x402.citrus-claw.workers.dev",
+  "category": "Services/Endpoints"
+}
