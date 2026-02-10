@@ -215,7 +215,3 @@ if is_object(value):
 ## Examples
 
 See the [examples directory](../../examples) for complete examples.
-
-## License
-
-Copyright (c) Coinbase, Inc.
