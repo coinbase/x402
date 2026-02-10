@@ -1,461 +1,264 @@
-"""Sync MCP server payment wrapper for x402 integration."""
+"""MCP server-side payment wrapper for x402.
+
+Provides create_payment_wrapper() to add x402 payment verification
+and settlement to FastMCP tool handlers.
+
+Example:
+    ```python
+    from mcp.server.fastmcp import FastMCP
+    from x402.mcp import create_payment_wrapper
+
+    mcp = FastMCP("my-server")
+    wrapper = create_payment_wrapper(
+        resource_server,
+        accepts=weather_accepts,
+        resource=ResourceInfo(url="mcp://tool/get_weather", description="Get weather"),
+    )
+
+    @mcp.tool(name="get_weather", description="Get current weather")
+    @wrapper
+    async def get_weather(city: str) -> str:
+        return json.dumps({"city": city, "weather": "sunny", "temperature": 72})
+    ```
+"""
 
 from __future__ import annotations
 
+import asyncio
+import functools
+import inspect
 import json
+import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from ..schemas import ResourceInfo
-from ..server import x402ResourceServerSync
-from .types import (
-    MCP_PAYMENT_RESPONSE_META_KEY,
-    AfterExecutionContext,
-    MCPToolContext,
-    MCPToolResult,
-    ServerHookContext,
-    SettlementContext,
-    SyncPaymentWrapperConfig,
-)
-from .utils import (
-    create_tool_resource_url,
-    extract_payment_from_meta,
-)
+from ..schemas.payments import PaymentPayload, PaymentRequirements, ResourceInfo
+from .constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
 
-if TYPE_CHECKING:
-    try:
-        from mcp.server.fastmcp import Context as FastMCPContext
-    except ImportError:  # pragma: no cover
-        FastMCPContext = Any  # type: ignore[assignment,misc]
+logger = logging.getLogger(__name__)
 
-# Type alias for tool handler
-ToolHandler = Callable[[dict[str, Any], MCPToolContext], MCPToolResult | dict[str, Any]]
+__all__ = ["create_payment_wrapper"]
 
 
-# ============================================================================
-# FastMCP Integration Helper
-# ============================================================================
+def create_payment_wrapper(
+    resource_server: Any,
+    *,
+    accepts: list[PaymentRequirements],
+    resource: ResourceInfo | None = None,
+) -> Callable:
+    """Create a decorator that wraps a FastMCP tool handler with x402 payment logic.
 
+    The decorated handler automatically:
+    - Returns 402 payment required when no payment is provided
+    - Verifies payment payloads against the facilitator
+    - Executes the tool handler on successful verification
+    - Settles payments after successful execution
+    - Returns settlement info in response ``_meta``
 
-def _extract_meta_from_fastmcp_context(ctx: FastMCPContext | Any) -> dict[str, Any]:
-    """Extract _meta dict from an MCP SDK Context object.
+    The original handler should return either a ``str`` (JSON text) or a ``dict``
+    (automatically serialized to JSON). The wrapper handles conversion to
+    ``CallToolResult`` and attaches payment metadata.
 
-    The MCP SDK (both FastMCP and low-level Server) stores request metadata
-    on ``ctx.request_context.meta`` (a ``RequestParams.Meta`` Pydantic model).
-    This helper extracts it as a plain dict.
+    Note: The wrapper automatically adds a ``ctx: Context`` parameter to the
+    function signature so FastMCP injects the request context. Your handler
+    does NOT need to include ``ctx`` in its parameters.
 
     Args:
-        ctx: FastMCP Context object (or any object with a
-            ``request_context.meta`` attribute chain).
+        resource_server: An async ``x402ResourceServer`` instance configured
+            with facilitator client and scheme registrations.
+        accepts: List of accepted ``PaymentRequirements``. The first entry is
+            used for verification and settlement.
+        resource: Optional ``ResourceInfo`` metadata (url, description, mimeType).
+            Defaults to ``mcp://tool/{function_name}``.
 
     Returns:
-        The extracted metadata as a plain dict, or an empty dict if
-        extraction fails for any reason.
+        A decorator to apply to a FastMCP tool handler function.
     """
-    try:
-        req_ctx = getattr(ctx, "request_context", None)
-        if req_ctx is None:
-            return {}
-        raw_meta = getattr(req_ctx, "meta", None)
-        if raw_meta is None:
-            return {}
-        if hasattr(raw_meta, "model_dump"):
-            return raw_meta.model_dump()
-        if isinstance(raw_meta, dict):
-            return raw_meta
-        return dict(raw_meta)
-    except Exception:
-        return {}
-
-
-def _mcp_tool_result_to_call_tool_result(result: MCPToolResult) -> Any:
-    """Convert an MCPToolResult to an MCP SDK CallToolResult.
-
-    Imports MCP SDK types lazily to avoid hard dependency.
-    """
+    # Lazy import mcp types so the module can be imported without mcp installed
+    from mcp.server.fastmcp import Context
     from mcp.types import CallToolResult, TextContent
 
-    content = []
-    for item in result.content:
-        if isinstance(item, dict):
-            content.append(TextContent(type="text", text=item.get("text", "")))
-        else:
-            content.append(TextContent(type="text", text=str(item)))
+    if not accepts:
+        raise ValueError("accepts must have at least one payment requirement")
 
-    call_result = CallToolResult(content=content, isError=result.is_error)
-    if result.meta:
-        call_result.meta = result.meta
-    return call_result
+    def decorator(handler: Callable) -> Callable:
+        is_async = asyncio.iscoroutinefunction(handler)
+        tool_name = handler.__name__
 
-
-def wrap_fastmcp_tool_sync(
-    payment_wrapper: Callable[[ToolHandler], Any],
-    handler: ToolHandler,
-    *,
-    tool_name: str | None = None,
-) -> Callable[[dict[str, Any], Any], Any]:
-    """Bridge a payment-wrapped tool handler to work with FastMCP.
-
-    This helper handles the mismatch between FastMCP (which provides a Context
-    object) and the x402 payment wrapper (which expects ``(args, extra)``).
-    It extracts ``_meta`` from the FastMCP Context, calls the payment wrapper,
-    and converts the MCPToolResult back to an MCP SDK CallToolResult.
-
-    Usage with FastMCP::
-
-        paid_weather = create_payment_wrapper_sync(resource_server, config)
-
-        @mcp_server.tool()
-        def get_weather(city: str, ctx: Context) -> CallToolResult:
-            return paid_weather_tool({"city": city}, ctx)
-
-        paid_weather_tool = wrap_fastmcp_tool_sync(
-            paid_weather, my_handler, tool_name="get_weather",
+        # Build resource info, defaulting to tool name
+        tool_resource = resource or ResourceInfo(
+            url=f"mcp://tool/{tool_name}",
+            description=f"Tool: {tool_name}",
+            mime_type="application/json",
         )
 
-    Or more concisely::
+        # Track whether we've warned about missing context injection
+        _ctx_warning_issued = False
 
-        paid_weather = create_payment_wrapper_sync(resource_server, config)
-        paid_weather_tool = wrap_fastmcp_tool_sync(
-            paid_weather,
-            lambda args, _: MCPToolResult(
-                content=[{"type": "text", "text": json.dumps(get_data(args["city"]))}],
-            ),
-            tool_name="get_weather",
-        )
+        @functools.wraps(handler)
+        async def wrapped(**kwargs: Any) -> CallToolResult:
+            nonlocal _ctx_warning_issued
+            # Extract context injected by FastMCP
+            ctx = kwargs.pop("ctx", None)
 
-        @mcp_server.tool()
-        def get_weather(city: str, ctx: Context) -> CallToolResult:
-            return paid_weather_tool({"city": city}, ctx)
-
-    Args:
-        payment_wrapper: The result of ``create_payment_wrapper_sync(resource_server, config)``
-        handler: Your tool handler ``(args, MCPToolContext) -> MCPToolResult``
-        tool_name: Optional explicit tool name. Falls back to the handler
-            function name, then ``"paid_tool"`` as a last resort.
-
-    Returns:
-        A function ``(args, fastmcp_context) -> CallToolResult`` suitable for
-        calling inside a FastMCP ``@tool()`` handler.
-    """
-    wrapped = payment_wrapper(handler)
-    resolved_name = tool_name or getattr(handler, "__name__", "paid_tool")
-
-    def fastmcp_bridge(args: dict[str, Any], ctx: Any) -> Any:
-        meta = _extract_meta_from_fastmcp_context(ctx)
-        extra = {"_meta": meta, "toolName": resolved_name}
-        result = wrapped(args, extra)
-        return _mcp_tool_result_to_call_tool_result(result)
-
-    return fastmcp_bridge
-
-
-def create_payment_wrapper_sync(
-    resource_server: x402ResourceServerSync,
-    config: SyncPaymentWrapperConfig,
-) -> Callable[[ToolHandler], ToolHandler]:
-    """Create a payment wrapper for MCP tool handlers.
-
-    Returns a function that wraps tool handlers with payment logic.
-
-    Args:
-        resource_server: The x402 resource server for payment verification/settlement
-        config: Payment configuration with accepts array
-
-    Returns:
-        A function that wraps tool handlers with payment logic
-
-    Example:
-        ```python
-        from x402 import x402ResourceServerSync
-        from x402.mcp import create_payment_wrapper, PaymentWrapperConfig
-
-        # Create resource server
-        resource_server = x402ResourceServerSync(facilitator_client)
-        resource_server.register("eip155:84532", evm_server_scheme)
-
-        # Build payment requirements
-        accepts = resource_server.build_payment_requirements_from_config(config)
-
-        # Create payment wrapper
-        paid = create_payment_wrapper(
-            resource_server,
-            PaymentWrapperConfig(accepts=accepts),
-        )
-
-        # Use with MCP server
-        @mcp_server.tool("get_weather", "Get weather", schema)
-        @paid
-        def handler(args, context):
-            return {"content": [{"type": "text", "text": "Sunny"}]}
-        ```
-    """
-    if not config.accepts:
-        raise ValueError(
-            "PaymentWrapperConfig.accepts must have at least one payment requirement"
-        )
-
-    # Return wrapper function that takes a handler and returns a wrapped handler
-    def wrapper(handler: ToolHandler) -> ToolHandler:
-        def wrapped_handler(
-            args: dict[str, Any], extra: dict[str, Any]
-        ) -> MCPToolResult:
-            # Extract _meta from extra
-            meta = extra.get("_meta", {})
-            if not isinstance(meta, dict):
-                meta = {}
-
-            # Derive toolName from context or resource URL
-            tool_name = extra.get("toolName", "paid_tool")
-            if config.resource and config.resource.url:
-                # Try to extract from URL
-                if config.resource.url.startswith("mcp://tool/"):
-                    tool_name = config.resource.url[len("mcp://tool/") :]
-
-            # Build tool context
-            tool_context = MCPToolContext(
-                tool_name=tool_name,
-                arguments=args,
-                meta=meta,
-            )
-
-            # Extract payment from _meta
-            payment_payload = extract_payment_from_meta(
-                {"name": tool_name, "arguments": args, "_meta": meta}
-            )
-
-            if payment_payload is None:
-                return _create_payment_required_result(
-                    resource_server,
+            # Validate context injection -- if ctx is None on every call,
+            # it means FastMCP's find_context_parameter() didn't detect
+            # our signature, and payment will never succeed.
+            if ctx is None and not _ctx_warning_issued:
+                _ctx_warning_issued = True
+                logger.warning(
+                    "x402 payment wrapper for '%s': FastMCP did not inject Context. "
+                    "Payment metadata will be unavailable. This may indicate a "
+                    "compatibility issue with the mcp SDK version.",
                     tool_name,
-                    config,
-                    "Payment required to access this tool",
                 )
 
-            # Match the client's chosen payment method against config.accepts
-            payment_requirements = resource_server.find_matching_requirements(
-                config.accepts, payment_payload
-            )
+            # Extract payment from meta
+            payment_data = _extract_payment_from_context(ctx)
 
-            if payment_requirements is None:
+            if not payment_data:
+                return _create_payment_required_result(accepts, tool_resource, "Payment Required")
+
+            # Parse payment payload
+            try:
+                if isinstance(payment_data, str):
+                    payment_data = json.loads(payment_data)
+                payload = PaymentPayload.model_validate(payment_data)
+            except Exception as e:
                 return _create_payment_required_result(
-                    resource_server,
-                    tool_name,
-                    config,
-                    "No matching payment requirements found",
+                    accepts, tool_resource, f"Invalid payment payload: {e}"
                 )
 
             # Verify payment
-            verify_result = resource_server.verify_payment(
-                payment_payload, payment_requirements
-            )
-
+            verify_result = await resource_server.verify_payment(payload, accepts[0])
             if not verify_result.is_valid:
-                reason = verify_result.invalid_reason or "Payment verification failed"
                 return _create_payment_required_result(
-                    resource_server, tool_name, config, reason
+                    accepts,
+                    tool_resource,
+                    f"Payment verification failed: {verify_result.invalid_reason}",
                 )
 
-            # Build hook context
-            hook_context = ServerHookContext(
-                tool_name=tool_name,
-                arguments=args,
-                payment_requirements=payment_requirements,
-                payment_payload=payment_payload,
-            )
-
-            # Run onBeforeExecution hook if present
-            if config.hooks and config.hooks.on_before_execution:
-                proceed = config.hooks.on_before_execution(hook_context)
-                if not proceed:
-                    return _create_payment_required_result(
-                        resource_server, tool_name, config, "Execution blocked by hook"
-                    )
-
-            # Execute the tool handler
-            handler_result = handler(args, tool_context)
-
-            # Convert handler result to MCPToolResult if needed
-            if isinstance(handler_result, dict):
-                result = MCPToolResult(
-                    content=handler_result.get("content", []),
-                    is_error=handler_result.get("isError", False),
-                    meta=handler_result.get("_meta", {}),
-                    structured_content=handler_result.get("structuredContent"),
+            # Execute the original handler
+            try:
+                if is_async:
+                    result = await handler(**kwargs)
+                else:
+                    result = handler(**kwargs)
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(type="text", text=f"Tool execution error: {e}")],
+                    isError=True,
                 )
-            elif isinstance(handler_result, MCPToolResult):
-                result = handler_result
+
+            # Convert handler result to text content
+            if isinstance(result, dict):
+                result_text = json.dumps(result)
+            elif isinstance(result, str):
+                result_text = result
+            elif isinstance(result, CallToolResult):
+                if result.isError:
+                    return result
+                result_text = result.content[0].text if result.content else ""
             else:
-                # Try to convert
-                result = MCPToolResult(
-                    content=[{"type": "text", "text": str(handler_result)}],
-                    is_error=False,
-                )
-
-            # Build after execution context
-            after_exec_context = AfterExecutionContext(
-                tool_name=tool_name,
-                arguments=args,
-                payment_requirements=payment_requirements,
-                payment_payload=payment_payload,
-                result=result,
-            )
-
-            # Run onAfterExecution hook if present
-            if config.hooks and config.hooks.on_after_execution:
-                try:
-                    config.hooks.on_after_execution(after_exec_context)
-                except Exception:
-                    # Log but continue
-                    pass
-
-            # If tool returned error, don't settle
-            if result.is_error:
-                return result
+                result_text = str(result)
 
             # Settle payment
             try:
-                settle_result = resource_server.settle_payment(
-                    payment_payload, payment_requirements
-                )
+                settle_result = await resource_server.settle_payment(payload, accepts[0])
+                if not settle_result.success:
+                    return _create_payment_required_result(
+                        accepts,
+                        tool_resource,
+                        f"Settlement failed: {settle_result.error_reason}",
+                    )
             except Exception as e:
-                return _create_settlement_failed_result(
-                    resource_server, tool_name, config, str(e)
+                return _create_payment_required_result(
+                    accepts,
+                    tool_resource,
+                    f"Settlement error: {e}",
                 )
 
-            # Run onAfterSettlement hook if present
-            if config.hooks and config.hooks.on_after_settlement:
-                settlement_context = SettlementContext(
-                    tool_name=tool_name,
-                    arguments=args,
-                    payment_requirements=payment_requirements,
-                    payment_payload=payment_payload,
-                    settlement=settle_result,
-                )
-                try:
-                    config.hooks.on_after_settlement(settlement_context)
-                except Exception:
-                    # Log but continue
-                    pass
-
-            # Return result with settlement in _meta
-            if result.meta is None:
-                result.meta = {}
-            result.meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
-                settle_result.model_dump(by_alias=True)
-                if hasattr(settle_result, "model_dump")
-                else settle_result
+            # Return result with payment response in _meta
+            payment_response = settle_result.model_dump(by_alias=True)
+            return CallToolResult(
+                content=[TextContent(type="text", text=result_text)],
+                isError=False,
+                _meta={MCP_PAYMENT_RESPONSE_META_KEY: payment_response},
             )
 
-            return result
+        # --- Signature manipulation for FastMCP context injection ---
+        #
+        # FastMCP's Tool.from_function() uses inspect.signature() and
+        # issubclass(annotation, Context) to discover which parameter
+        # should receive the request Context.  We add a synthetic
+        # ``ctx: Context`` parameter to the wrapped function so FastMCP
+        # will inject it automatically.  The wrapper pops ``ctx`` from
+        # kwargs before calling the original handler.
+        #
+        # Why not alternatives?
+        #   - context_kwarg: requires accessing FastMCP's Tool class directly,
+        #     incompatible with the @mcp.tool() decorator pattern.
+        #   - Requiring users to declare ctx: available but leaks transport
+        #     details into handler signatures.
+        #
+        # Risk: if FastMCP changes how it inspects signatures, ctx may
+        # not be injected.  The runtime warning above detects this.
+        orig_sig = inspect.signature(handler)
+        params = list(orig_sig.parameters.values())
+        ctx_param = inspect.Parameter(
+            "ctx",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Context,
+        )
+        params.append(ctx_param)
+        wrapped.__signature__ = orig_sig.replace(
+            parameters=params, return_annotation=CallToolResult
+        )
+        wrapped.__annotations__ = {
+            **handler.__annotations__,
+            "ctx": Context,
+            "return": CallToolResult,
+        }
 
-        return wrapped_handler
+        return wrapped
 
-    return wrapper
+    return decorator
+
+
+def _extract_payment_from_context(ctx: Any) -> dict | None:
+    """Extract x402/payment data from FastMCP Context.
+
+    FastMCP stores extra ``_meta`` fields in ``request_context.meta.model_extra``.
+    """
+    if ctx is None:
+        return None
+    try:
+        request_meta = ctx.request_context.meta
+        if request_meta is not None and request_meta.model_extra:
+            return request_meta.model_extra.get(MCP_PAYMENT_META_KEY)
+    except (ValueError, AttributeError):
+        pass
+    return None
 
 
 def _create_payment_required_result(
-    resource_server: x402ResourceServerSync,
-    tool_name: str,
-    config: SyncPaymentWrapperConfig,
+    accepts: list[PaymentRequirements],
+    resource: ResourceInfo,
     error_message: str,
-) -> MCPToolResult:
-    """Create a 402 payment required result.
+) -> Any:
+    """Create a payment required CallToolResult."""
+    from mcp.types import CallToolResult, TextContent
 
-    Args:
-        resource_server: Resource server for creating payment required response
-        tool_name: Name of the tool for resource URL
-        config: Payment wrapper configuration
-        error_message: Error message describing why payment is required
-
-    Returns:
-        Structured 402 error result with payment requirements
-    """
-    resource_info = ResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
-        mime_type=config.resource.mime_type if config.resource else "application/json",
-    )
-
-    payment_required = resource_server.create_payment_required_response(
-        config.accepts,
-        resource_info,
-        error_message,
-    )
-
-    # Convert to dict for structuredContent (camelCase for wire format)
-    payment_required_dict = (
-        payment_required.model_dump(by_alias=True)
-        if hasattr(payment_required, "model_dump")
-        else payment_required
-    )
-
-    # Create content text
-    content_text = json.dumps(payment_required_dict)
-
-    return MCPToolResult(
-        structured_content=payment_required_dict,
-        content=[{"type": "text", "text": content_text}],
-        is_error=True,
-    )
-
-
-def _create_settlement_failed_result(
-    resource_server: x402ResourceServerSync,
-    tool_name: str,
-    config: SyncPaymentWrapperConfig,
-    error_message: str,
-) -> MCPToolResult:
-    """Create a 402 settlement failed result.
-
-    Args:
-        resource_server: Resource server for creating payment required response
-        tool_name: Name of the tool for resource URL
-        config: Payment wrapper configuration
-        error_message: Error message describing settlement failure
-
-    Returns:
-        Structured 402 error result with settlement failure details
-    """
-    resource_info = ResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
-        mime_type=config.resource.mime_type if config.resource else "application/json",
-    )
-
-    payment_required = resource_server.create_payment_required_response(
-        config.accepts,
-        resource_info,
-        f"Payment settlement failed: {error_message}",
-    )
-
-    settlement_failure = {
-        "success": False,
-        "errorReason": error_message,
-        "transaction": "",
-        "network": config.accepts[0].network,
+    accepts_dicts = [req.model_dump(by_alias=True) for req in accepts]
+    payment_required = {
+        "x402Version": 2,
+        "accepts": accepts_dicts,
+        "error": error_message,
+        "resource": resource.model_dump(by_alias=True),
     }
-
-    # Merge paymentRequired with settlement failure (camelCase for wire format)
-    error_data = (
-        payment_required.model_dump(by_alias=True)
-        if hasattr(payment_required, "model_dump")
-        else payment_required
-    )
-    error_data[MCP_PAYMENT_RESPONSE_META_KEY] = settlement_failure
-
-    content_text = json.dumps(error_data)
-
-    return MCPToolResult(
-        structured_content=error_data,
-        content=[{"type": "text", "text": content_text}],
-        is_error=True,
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payment_required))],
+        structuredContent=payment_required,
+        isError=True,
     )
