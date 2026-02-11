@@ -1,2 +1,0 @@
-kind: added
-body: Added memo instruction with random nonce to SVM transactions to ensure uniqueness and prevent duplicate transaction attacks
