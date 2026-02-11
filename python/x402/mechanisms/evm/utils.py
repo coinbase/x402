@@ -281,7 +281,7 @@ def parse_money_to_decimal(money: str | float | int) -> float:
     Returns:
         Decimal amount as float.
     """
-    if isinstance(money, (int, float)):
+    if isinstance(money, int | float):
         return float(money)
 
     # Clean string
