@@ -21,6 +21,7 @@ export const EVM_NETWORK_CHAIN_ID_MAP = {
   megaeth: 4326,
   monad: 143,
   stable: 988,
+  telos: 40,
 } as const;
 
 export type EvmNetworkV1 = keyof typeof EVM_NETWORK_CHAIN_ID_MAP;
