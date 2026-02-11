@@ -10,7 +10,7 @@ This is implemented via one of two asset transfer methods, depending on the toke
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
-| **3. ERC-7710**      | Smart accounts with delegation support.                              | **Smart Account Option** (Requires ERC-7710 compatible account). |
+| **3. ERC-7710**      | Smart accounts with delegation support.                              | **Smart Account Option** (Paid from ERC-7710 compatible account). |
 
 If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
@@ -271,23 +271,24 @@ The `payload` field must contain:
 
 ### Phase 3: Verification Logic
 
-The verifier must execute these checks in order:
+Unlike EIP-3009 and Permit2, ERC-7710 verification is performed entirely through simulation. The `permissionContext` is opaque to the facilitator but verifiable by simulating the intended action.
 
-1. **Verify** the `delegationManager` is a known, trusted ERC-7710 implementation.
+The facilitator:
 
-2. **Verify** the `delegator` account supports ERC-7710 (is a compatible smart account).
+1. **Constructs** the `executionCallData` encoding an ERC-20 `transfer(payTo, amount)` call for the required payment.
 
-3. **Verify** the `client` (delegator) has sufficient balance of the `asset`.
+2. **Constructs** the `mode` appropriate for the execution (typically `0x00...` for single call mode per ERC-7579).
 
-4. **Verify** the `executionCallData` encodes a valid ERC-20 `transfer(to, amount)` call where:
-   - `to` matches the `payTo` address in the payment requirements.
-   - `amount` covers the required payment amount.
+3. **Simulates** `delegationManager.redeemDelegations([permissionContext], [mode], [executionCallData])` to verify:
+   - The delegation is valid and authorizes the intended transfer.
+   - The delegator has sufficient balance of the asset.
+   - The transaction will succeed when executed.
 
-5. **Verify** the `mode` is appropriate for a single token transfer (typically `0x00...` for single call mode per ERC-7579).
+If the simulation succeeds, the payment is considered valid. The simulation serves as the sole verification mechanism—no trusted list of Delegation Manager implementations is required.
 
-6. **Verify** the Token and Network match the requirement.
-
-7. **Simulation**: Simulate `delegationManager.redeemDelegations([permissionContext], [mode], [executionCallData])` to ensure the delegation is valid and the transfer will succeed.
+**Security Consideration**: A facilitator may be vulnerable to a race condition where the client invalidates their delegation between simulation and transaction execution, causing the facilitator to pay gas for a failed transaction. This risk can be mitigated by:
+- Submitting transactions via a private mempool to reduce the window for front-running.
+- Building trust signals for client accounts (e.g., reputation systems) that can be used to flag or ban abusive behavior.
 
 ### Phase 4: Settlement Logic
 
@@ -303,11 +304,6 @@ delegationManager.redeemDelegations(
 
 The Delegation Manager validates the delegation authority and calls the delegator account to execute the token transfer. The delegator account then performs `token.transfer(payTo, amount)`.
 
-**Important**: Unlike EIP-3009 and Permit2, the facilitator does NOT need to be explicitly authorized in the signature. The delegation's caveats (enforced by the Delegation Manager) ensure that:
-- Only authorized actions can be executed
-- Transfer recipients are constrained to allowed addresses
-- Amounts are within permitted limits
-
 ---
 
 ## Annex
@@ -318,7 +314,7 @@ ERC-7710 does not define a canonical Delegation Manager. Implementations may var
 
 - **MetaMask Delegation Framework**: A full-featured implementation supporting EIP-712 signed delegation chains, caveat enforcement, and batch processing. See [delegator.xyz](https://delegator.xyz/) for documentation.
 
-When using ERC-7710, facilitators should maintain a list of trusted Delegation Manager addresses for each supported network.
+Since verification is performed entirely through simulation, facilitators do not need to maintain a trusted list of Delegation Manager implementations.
 
 ### Canonical Permit2
 
