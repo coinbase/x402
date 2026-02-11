@@ -85,6 +85,7 @@ def create_payment_wrapper(
     """
     # Lazy import mcp types so the module can be imported without mcp installed
     from mcp.server.fastmcp import Context
+
     from mcp.types import CallToolResult, TextContent
 
     if not accepts:
@@ -126,7 +127,9 @@ def create_payment_wrapper(
             payment_data = _extract_payment_from_context(ctx)
 
             if not payment_data:
-                return _create_payment_required_result(accepts, tool_resource, "Payment Required")
+                return _create_payment_required_result(
+                    accepts, tool_resource, "Payment Required"
+                )
 
             # Parse payment payload
             try:
@@ -173,7 +176,9 @@ def create_payment_wrapper(
                     result = handler(**kwargs)
             except Exception as e:
                 return CallToolResult(
-                    content=[TextContent(type="text", text=f"Tool execution error: {e}")],
+                    content=[
+                        TextContent(type="text", text=f"Tool execution error: {e}")
+                    ],
                     isError=True,
                 )
 
@@ -221,7 +226,9 @@ def create_payment_wrapper(
 
             # Settle payment
             try:
-                settle_result = await resource_server.settle_payment(payload, accepts[0])
+                settle_result = await resource_server.settle_payment(
+                    payload, accepts[0]
+                )
                 if not settle_result.success:
                     return _create_payment_required_result(
                         accepts,

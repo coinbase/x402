@@ -1,7 +1,7 @@
 """Type definitions for MCP transport integration."""
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
 from ..schemas.base import Price
@@ -296,9 +296,11 @@ SyncAfterExecutionHook = Callable[[AfterExecutionContext], None]
 SyncAfterSettlementHook = Callable[[SettlementContext], None]
 
 # Async-capable server hooks (for use in async wrappers; callables may return awaitables)
-AsyncBeforeExecutionHook = Callable[[ServerHookContext], Union[bool, Awaitable[bool]]]
-AsyncAfterExecutionHook = Callable[[AfterExecutionContext], Union[None, Awaitable[None]]]
-AsyncAfterSettlementHook = Callable[[SettlementContext], Union[None, Awaitable[None]]]
+AsyncBeforeExecutionHook = Callable[[ServerHookContext], bool | Awaitable[bool]]
+AsyncAfterExecutionHook = Callable[
+    [AfterExecutionContext], None | Awaitable[None]
+]
+AsyncAfterSettlementHook = Callable[[SettlementContext], None | Awaitable[None]]
 
 
 class PaymentWrapperHooks:
