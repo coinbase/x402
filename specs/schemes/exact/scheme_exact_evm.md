@@ -223,7 +223,7 @@ The process of obtaining a delegation is outside the scope of x402. Delegations 
 - Pre-configured session keys
 - Other delegation protocols
 
-The key requirement is that the delegate (typically the x402 client or facilitator) holds a valid delegation that permits the required token transfer.
+The key requirement is that the client is able to issue a delegation to the facilitator that permits the required token transfer.
 
 ### Phase 2: `PAYMENT-SIGNATURE` Header Payload
 
