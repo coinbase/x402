@@ -122,10 +122,81 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "decimals": 6,
         },
     },
+    # Telos EVM Mainnet
+    "eip155:40": {
+        "chain_id": 40,
+        "default_asset": {
+            "address": "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+            "name": "Bridged USDC (Stargate)",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC.e": {
+                "address": "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+                "name": "Bridged USDC (Stargate)",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
-# V1 legacy constants are in x402.mechanisms.evm.v1.constants
-# (V1_NETWORKS, V1_NETWORK_CHAIN_IDS, V1_DEFAULT_ASSETS)
+# Network aliases (legacy names to CAIP-2)
+NETWORK_ALIASES: dict[str, str] = {
+    "base": "eip155:8453",
+    "base-mainnet": "eip155:8453",
+    "base-sepolia": "eip155:84532",
+    "ethereum": "eip155:1",
+    "mainnet": "eip155:1",
+    "polygon": "eip155:137",
+    "avalanche": "eip155:43114",
+    "megaeth": "eip155:4326",
+    "telos": "eip155:40",
+}
+
+# V1 supported networks (legacy name-based)
+V1_NETWORKS = [
+    "abstract",
+    "abstract-testnet",
+    "base-sepolia",
+    "base",
+    "avalanche-fuji",
+    "avalanche",
+    "iotex",
+    "sei",
+    "sei-testnet",
+    "polygon",
+    "polygon-amoy",
+    "peaq",
+    "story",
+    "educhain",
+    "skale-base-sepolia",
+    "megaeth",
+    "telos",
+]
+
+# V1 network name to chain ID mapping
+V1_NETWORK_CHAIN_IDS: dict[str, int] = {
+    "base": 8453,
+    "base-sepolia": 84532,
+    "ethereum": 1,
+    "polygon": 137,
+    "polygon-amoy": 80002,
+    "avalanche": 43114,
+    "avalanche-fuji": 43113,
+    "abstract": 2741,
+    "abstract-testnet": 11124,
+    "iotex": 4689,
+    "sei": 1329,
+    "sei-testnet": 713715,
+    "peaq": 3338,
+    "story": 1513,
+    "educhain": 656476,
+    "skale-base-sepolia": 1444673419,
+    "megaeth": 4326,
+    "telos": 40,
+}
 
 # EIP-3009 ABIs
 TRANSFER_WITH_AUTHORIZATION_VRS_ABI = [
