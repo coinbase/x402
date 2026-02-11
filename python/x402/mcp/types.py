@@ -297,9 +297,7 @@ SyncAfterSettlementHook = Callable[[SettlementContext], None]
 
 # Async-capable server hooks (for use in async wrappers; callables may return awaitables)
 AsyncBeforeExecutionHook = Callable[[ServerHookContext], bool | Awaitable[bool]]
-AsyncAfterExecutionHook = Callable[
-    [AfterExecutionContext], None | Awaitable[None]
-]
+AsyncAfterExecutionHook = Callable[[AfterExecutionContext], None | Awaitable[None]]
 AsyncAfterSettlementHook = Callable[[SettlementContext], None | Awaitable[None]]
 
 

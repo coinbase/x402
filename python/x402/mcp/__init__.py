@@ -41,14 +41,21 @@ from .constants import (
 __all__ = [
     # Server
     "create_payment_wrapper",
+    "create_payment_wrapper_sync",
+    "PaymentWrapperConfig",
     "PaymentWrapperHooks",
+    "ResourceInfo",
+    "SyncPaymentWrapperConfig",
     # Client
     "create_x402_mcp_client",
     "x402MCPSession",
+    "x402MCPClient",
+    "x402MCPClientSync",
     "MCPToolCallResult",
     # Constants
     "MCP_PAYMENT_META_KEY",
     "MCP_PAYMENT_RESPONSE_META_KEY",
+    "PaymentRequiredError",
 ]
 
 
@@ -58,12 +65,40 @@ def __getattr__(name: str):
         from .server import create_payment_wrapper
 
         return create_payment_wrapper
+    if name == "create_payment_wrapper_sync":
+        from .server_sync import create_payment_wrapper_sync
+
+        return create_payment_wrapper_sync
+    if name == "PaymentWrapperConfig":
+        from .server_async import PaymentWrapperConfig
+
+        return PaymentWrapperConfig
     if name == "PaymentWrapperHooks":
         from .types import PaymentWrapperHooks
 
         return PaymentWrapperHooks
+    if name == "ResourceInfo":
+        from .types import ResourceInfo
+
+        return ResourceInfo
+    if name == "SyncPaymentWrapperConfig":
+        from .types import SyncPaymentWrapperConfig
+
+        return SyncPaymentWrapperConfig
     if name in ("create_x402_mcp_client", "x402MCPSession", "MCPToolCallResult"):
         from . import client as _client
 
         return getattr(_client, name)
+    if name == "x402MCPClient":
+        from . import client_async as _client_async
+
+        return _client_async.x402MCPClient
+    if name == "x402MCPClientSync":
+        from . import client as _client
+
+        return _client.x402MCPClientSync
+    if name == "PaymentRequiredError":
+        from .types import PaymentRequiredError
+
+        return PaymentRequiredError
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

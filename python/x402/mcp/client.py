@@ -27,12 +27,22 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..client import x402Client
+from ..client import x402Client, x402ClientSync
 from ..schemas.payments import PaymentRequired
 from ..schemas.responses import SettleResponse
 from .constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
+from .utils import (
+    convert_mcp_result,
+    extract_payment_required_from_result,
+    extract_payment_response_from_meta,
+)
 
-__all__ = ["create_x402_mcp_client", "x402MCPSession", "MCPToolCallResult"]
+__all__ = [
+    "create_x402_mcp_client",
+    "x402MCPSession",
+    "x402MCPClientSync",
+    "MCPToolCallResult",
+]
 
 
 @dataclass
@@ -186,6 +196,94 @@ class x402MCPSession:
                     pass
 
         return None
+
+
+class x402MCPClientSync:
+    """Sync x402-enabled MCP client that handles payment for tool calls.
+
+    Wraps a sync MCP client to automatically detect 402 (payment required)
+    errors and retry with payment. Use with x402ClientSync for sync payment creation.
+    """
+
+    def __init__(
+        self,
+        mcp_client: Any,
+        payment_client: x402ClientSync,
+        *,
+        auto_payment: bool = True,
+        on_payment_requested: Any = None,
+    ) -> None:
+        """Initialize sync x402 MCP client.
+
+        Args:
+            mcp_client: Underlying sync MCP client with call_tool(params, **kwargs)
+            payment_client: x402 sync payment client
+            auto_payment: Whether to automatically create and submit payment
+            on_payment_requested: Optional callback for payment approval
+        """
+        self._mcp_client = mcp_client
+        self._payment_client = payment_client
+        self._auto_payment = auto_payment
+        self._on_payment_requested = on_payment_requested
+
+    def call_tool(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> MCPToolCallResult:
+        """Call a tool with automatic payment handling (sync).
+
+        Args:
+            name: Tool name
+            args: Tool arguments
+            **kwargs: Additional MCP client options
+
+        Returns:
+            MCPToolCallResult with content, payment info, and error status
+        """
+        args = args or {}
+        params = {"name": name, "arguments": args}
+
+        result = self._mcp_client.call_tool(params, **kwargs)
+        mcp_result = convert_mcp_result(result)
+
+        payment_required = extract_payment_required_from_result(mcp_result)
+        if payment_required is None:
+            return self._build_result(mcp_result, payment_made=False)
+
+        if not self._auto_payment:
+            return self._build_result(mcp_result, payment_made=False)
+
+        if self._on_payment_requested:
+            approved = self._on_payment_requested(
+                type("Ctx", (), {"payment_required": payment_required})()
+            )
+            if not approved:
+                return self._build_result(mcp_result, payment_made=False)
+
+        payment_payload = self._payment_client.create_payment_payload(payment_required)
+        payload_dict = payment_payload.model_dump(by_alias=True)
+
+        params_with_meta = {
+            "name": name,
+            "arguments": args,
+            "_meta": {MCP_PAYMENT_META_KEY: payload_dict},
+        }
+        result = self._mcp_client.call_tool(params_with_meta, **kwargs)
+        mcp_result = convert_mcp_result(result)
+        return self._build_result(mcp_result, payment_made=True)
+
+    def _build_result(self, mcp_result: Any, payment_made: bool) -> MCPToolCallResult:
+        """Build MCPToolCallResult from MCPToolResult."""
+        payment_response = extract_payment_response_from_meta(mcp_result)
+        return MCPToolCallResult(
+            content=mcp_result.content,
+            is_error=mcp_result.is_error,
+            payment_response=payment_response,
+            payment_made=payment_made,
+            raw_result=mcp_result,
+        )
 
 
 @asynccontextmanager

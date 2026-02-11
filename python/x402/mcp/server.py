@@ -141,8 +141,14 @@ def create_payment_wrapper(
                     accepts, tool_resource, f"Invalid payment payload: {e}"
                 )
 
-            # Verify payment
-            verify_result = await resource_server.verify_payment(payload, accepts[0])
+            if asyncio.iscoroutinefunction(resource_server.verify_payment):
+                verify_result = await resource_server.verify_payment(
+                    payload, accepts[0]
+                )
+            else:
+                verify_result = await asyncio.to_thread(
+                    resource_server.verify_payment, payload, accepts[0]
+                )
             if not verify_result.is_valid:
                 return _create_payment_required_result(
                     accepts,
@@ -224,11 +230,15 @@ def create_payment_wrapper(
                 except Exception:
                     pass
 
-            # Settle payment
             try:
-                settle_result = await resource_server.settle_payment(
-                    payload, accepts[0]
-                )
+                if asyncio.iscoroutinefunction(resource_server.settle_payment):
+                    settle_result = await resource_server.settle_payment(
+                        payload, accepts[0]
+                    )
+                else:
+                    settle_result = await asyncio.to_thread(
+                        resource_server.settle_payment, payload, accepts[0]
+                    )
                 if not settle_result.success:
                     return _create_payment_required_result(
                         accepts,
