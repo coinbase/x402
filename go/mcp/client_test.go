@@ -9,10 +9,11 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/types"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Mock MCP client for testing
-type mockMCPClient struct {
+// mockMCPCaller implements MCPCaller for testing.
+type mockMCPCaller struct {
 	callToolResult  MCPToolResult
 	callToolError   error
 	callToolResults []MCPToolResult // For multi-call scenarios
@@ -20,15 +21,8 @@ type mockMCPClient struct {
 	callCount       int
 }
 
-func (m *mockMCPClient) Connect(ctx context.Context, transport interface{}) error {
-	return nil
-}
-
-func (m *mockMCPClient) Close(ctx context.Context) error {
-	return nil
-}
-
-func (m *mockMCPClient) CallTool(ctx context.Context, params map[string]interface{}) (MCPToolResult, error) {
+func (m *mockMCPCaller) CallTool(ctx context.Context, params *mcp.CallToolParams) (*mcp.CallToolResult, error) {
+	var mcpResult MCPToolResult
 	if len(m.callToolResults) > 0 {
 		idx := m.callCount
 		m.callCount++
@@ -37,74 +31,38 @@ func (m *mockMCPClient) CallTool(ctx context.Context, params map[string]interfac
 			if idx < len(m.callToolErrors) {
 				err = m.callToolErrors[idx]
 			}
-			return m.callToolResults[idx], err
+			mcpResult = m.callToolResults[idx]
+			return mcpToolResultToCallToolResult(mcpResult), err
 		}
 	}
-	return m.callToolResult, m.callToolError
+	mcpResult = m.callToolResult
+	return mcpToolResultToCallToolResult(mcpResult), m.callToolError
 }
 
-func (m *mockMCPClient) ListTools(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) ListResources(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) ReadResource(ctx context.Context, uri string) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) ListResourceTemplates(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) SubscribeResource(ctx context.Context, uri string) error {
-	return nil
-}
-
-func (m *mockMCPClient) UnsubscribeResource(ctx context.Context, uri string) error {
-	return nil
-}
-
-func (m *mockMCPClient) ListPrompts(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) GetPrompt(ctx context.Context, name string) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) GetServerCapabilities(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) GetServerVersion(ctx context.Context) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) GetInstructions(ctx context.Context) (string, error) {
-	return "", nil
-}
-
-func (m *mockMCPClient) Ping(ctx context.Context) error {
-	return nil
-}
-
-func (m *mockMCPClient) Complete(ctx context.Context, prompt string, cursor int) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockMCPClient) SetLoggingLevel(ctx context.Context, level string) error {
-	return nil
-}
-
-func (m *mockMCPClient) SendRootsListChanged(ctx context.Context) error {
-	return nil
+// mcpToolResultToCallToolResult converts MCPToolResult to *mcp.CallToolResult for the mock.
+func mcpToolResultToCallToolResult(r MCPToolResult) *mcp.CallToolResult {
+	content := make([]mcp.Content, 0, len(r.Content))
+	for _, item := range r.Content {
+		content = append(content, &mcp.TextContent{Text: item.Text})
+	}
+	result := &mcp.CallToolResult{
+		Content: content,
+		IsError: r.IsError,
+	}
+	if len(r.Meta) > 0 {
+		result.Meta = mcp.Meta{}
+		for k, v := range r.Meta {
+			result.Meta[k] = v
+		}
+	}
+	if r.StructuredContent != nil {
+		result.StructuredContent = r.StructuredContent
+	}
+	return result
 }
 
 func TestX402MCPClient_CallTool_FreeTool(t *testing.T) {
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: "pong"},
@@ -114,7 +72,7 @@ func TestX402MCPClient_CallTool_FreeTool(t *testing.T) {
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	ctx := context.Background()
 	result, err := x402Client.CallTool(ctx, "ping", map[string]interface{}{})
@@ -152,7 +110,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			IsError:           true,
 			StructuredContent: structuredContent,
@@ -164,7 +122,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(false),
 	})
 
@@ -189,7 +147,7 @@ func TestX402MCPClient_CallTool_PaymentRequired(t *testing.T) {
 // ============================================================================
 
 func TestNewX402MCPClientFromConfig(t *testing.T) {
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: "pong"},
@@ -201,7 +159,7 @@ func TestNewX402MCPClientFromConfig(t *testing.T) {
 	// Create a mock scheme client that implements SchemeNetworkClient
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 
-	x402Mcp := NewX402MCPClientFromConfig(mockClient, []SchemeRegistration{
+	x402Mcp := NewX402MCPClientFromConfig(mockMCPCaller, []SchemeRegistration{
 		{Network: "eip155:84532", Client: mockSchemeClient},
 	}, Options{
 		AutoPayment: BoolPtr(true),
@@ -210,8 +168,8 @@ func TestNewX402MCPClientFromConfig(t *testing.T) {
 	if x402Mcp == nil {
 		t.Fatal("Expected non-nil client")
 	}
-	if x402Mcp.Client() != mockClient {
-		t.Error("Expected client to wrap mockClient")
+	if x402Mcp.Client() != mockMCPCaller {
+		t.Error("Expected client to wrap mockMCPCaller")
 	}
 }
 
@@ -237,7 +195,7 @@ func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, requ
 // ============================================================================
 
 func TestX402MCPClient_Hooks(t *testing.T) {
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: "pong"},
@@ -247,7 +205,7 @@ func TestX402MCPClient_Hooks(t *testing.T) {
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	// Test hook registration returns self for chaining
 	result := x402Client.OnPaymentRequired(func(context PaymentRequiredContext) (*PaymentRequiredHookResult, error) {
@@ -280,9 +238,9 @@ func TestX402MCPClient_Hooks(t *testing.T) {
 // ============================================================================
 
 func TestX402MCPClient_PaymentClient(t *testing.T) {
-	mockClient := &mockMCPClient{}
+	mockMCPCaller := &mockMCPCaller{}
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	if x402Client.PaymentClient() != paymentClient {
 		t.Error("Expected PaymentClient() to return the underlying payment client")
@@ -296,7 +254,7 @@ func TestX402MCPClient_CallToolWithPayment(t *testing.T) {
 		Network:     "eip155:84532",
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: "success"},
@@ -313,7 +271,7 @@ func TestX402MCPClient_CallToolWithPayment(t *testing.T) {
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	payload := types.PaymentPayload{
 		X402Version: 2,
@@ -347,7 +305,7 @@ func TestX402MCPClient_CallToolWithPayment(t *testing.T) {
 }
 
 func TestX402MCPClient_CallToolWithPayment_AfterPaymentHook(t *testing.T) {
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: "success"},
@@ -364,7 +322,7 @@ func TestX402MCPClient_CallToolWithPayment_AfterPaymentHook(t *testing.T) {
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	hookCalled := false
 	x402Client.OnAfterPayment(func(context AfterPaymentContext) error {
@@ -413,7 +371,7 @@ func TestX402MCPClient_GetToolPaymentRequirements(t *testing.T) {
 
 	paymentRequiredBytes, _ := json.Marshal(paymentRequired)
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			Content: []MCPContentItem{
 				{Type: "text", Text: string(paymentRequiredBytes)},
@@ -435,7 +393,7 @@ func TestX402MCPClient_GetToolPaymentRequirements(t *testing.T) {
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	ctx := context.Background()
 	result, err := x402Client.GetToolPaymentRequirements(ctx, "paid_tool", map[string]interface{}{})
@@ -483,7 +441,7 @@ func TestX402MCPClient_CallTool_AutoPaymentE2E(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResults: []MCPToolResult{
 			{
 				IsError:           true,
@@ -512,7 +470,7 @@ func TestX402MCPClient_CallTool_AutoPaymentE2E(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 	})
 
@@ -528,8 +486,8 @@ func TestX402MCPClient_CallTool_AutoPaymentE2E(t *testing.T) {
 	if result.PaymentResponse == nil {
 		t.Error("Expected PaymentResponse to be set")
 	}
-	if mockClient.callCount != 2 {
-		t.Errorf("Expected 2 calls to CallTool, got %d", mockClient.callCount)
+	if mockMCPCaller.callCount != 2 {
+		t.Errorf("Expected 2 calls to CallTool, got %d", mockMCPCaller.callCount)
 	}
 }
 
@@ -553,7 +511,7 @@ func TestX402MCPClient_CallTool_HookAbort(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			IsError:           true,
 			StructuredContent: structuredContent,
@@ -564,7 +522,7 @@ func TestX402MCPClient_CallTool_HookAbort(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 	})
 
@@ -605,7 +563,7 @@ func TestX402MCPClient_CallTool_HookCustomPayment(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResults: []MCPToolResult{
 			{
 				IsError:           true,
@@ -631,7 +589,7 @@ func TestX402MCPClient_CallTool_HookCustomPayment(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 	})
 
@@ -682,7 +640,7 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedApproved(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResults: []MCPToolResult{
 			{
 				IsError:           true,
@@ -702,7 +660,7 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedApproved(t *testing.T) {
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
 	approvalCalled := false
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 		OnPaymentRequested: func(ctx PaymentRequiredContext) (bool, error) {
 			approvalCalled = true
@@ -741,7 +699,7 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedDenied(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			IsError:           true,
 			StructuredContent: structuredContent,
@@ -752,7 +710,7 @@ func TestX402MCPClient_CallTool_OnPaymentRequestedDenied(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 		OnPaymentRequested: func(ctx PaymentRequiredContext) (bool, error) {
 			return false, nil // Deny
@@ -791,7 +749,7 @@ func TestX402MCPClient_CallTool_BeforePaymentHookCalled(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResults: []MCPToolResult{
 			{
 				IsError:           true,
@@ -810,7 +768,7 @@ func TestX402MCPClient_CallTool_BeforePaymentHookCalled(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 	})
 
@@ -854,7 +812,7 @@ func TestX402MCPClient_CallTool_BeforePaymentHookError(t *testing.T) {
 		t.Fatalf("Failed to unmarshal structured content: %v", err)
 	}
 
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolResult: MCPToolResult{
 			IsError:           true,
 			StructuredContent: structuredContent,
@@ -865,7 +823,7 @@ func TestX402MCPClient_CallTool_BeforePaymentHookError(t *testing.T) {
 	mockSchemeClient := &mockSchemeNetworkClient{scheme: "exact"}
 	paymentClient.Register("eip155:84532", mockSchemeClient)
 
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{
 		AutoPayment: BoolPtr(true),
 	})
 
@@ -884,19 +842,19 @@ func TestX402MCPClient_CallTool_BeforePaymentHookError(t *testing.T) {
 }
 
 func TestX402MCPClient_CallTool_UnderlyingError(t *testing.T) {
-	mockClient := &mockMCPClient{
+	mockMCPCaller := &mockMCPCaller{
 		callToolError: fmt.Errorf("connection refused"),
 	}
 
 	paymentClient := x402.Newx402Client()
-	x402Client := NewX402MCPClient(mockClient, paymentClient, Options{})
+	x402Client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
 
 	ctx := context.Background()
 	_, err := x402Client.CallTool(ctx, "test_tool", map[string]interface{}{})
 	if err == nil {
 		t.Fatal("Expected error from underlying client")
 	}
-	if !errors.Is(err, mockClient.callToolError) {
+	if !errors.Is(err, mockMCPCaller.callToolError) {
 		t.Errorf("Expected wrapped connection error, got: %v", err)
 	}
 }

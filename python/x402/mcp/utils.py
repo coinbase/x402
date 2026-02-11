@@ -132,23 +132,15 @@ def extract_payment_required_from_result(
     """Extract PaymentRequired from tool result (dual format).
 
     Handles both structuredContent (preferred) and content[0].text (fallback).
-
-    Args:
-        result: Tool result
-
-    Returns:
-        PaymentRequired if found, None otherwise
     """
     if not result.is_error:
         return None
 
-    # Try structuredContent first (preferred)
     if result.structured_content:
         pr = _extract_payment_required_from_object(result.structured_content)
         if pr:
             return pr
 
-    # Fallback to content[0].text
     if result.content and len(result.content) > 0:
         first_item = result.content[0]
         if isinstance(first_item, dict) and first_item.get("type") == "text":

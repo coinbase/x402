@@ -237,6 +237,14 @@ export class TestDiscovery {
           continue;
         }
 
+        // Check transport compatibility (default to 'http' if not specified)
+        const clientTransport = client.config.transport || 'http';
+        const serverTransport = server.config.transport || 'http';
+        if (clientTransport !== serverTransport) {
+          verboseLog(`  ⚠️  Skipping ${client.name} ↔ ${server.name}: Transport mismatch (client=${clientTransport}, server=${serverTransport})`);
+          continue;
+        }
+
         // Check if client and server have compatible versions
         if (!clientVersions.includes(serverVersion)) {
           verboseLog(`  ⚠️  Skipping ${client.name} ↔ ${server.name}: Version mismatch (client supports [${clientVersions.join(', ')}], server implements ${serverVersion})`);
@@ -301,14 +309,16 @@ export class TestDiscovery {
         server.config.endpoints?.filter(e => e.requiresPayment).map(e => e.protocolFamily || 'evm') || ['evm']
       );
       const version = server.config.x402Version || 1;
-      log(`   - ${server.name} (${server.config.language}) v${version} - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
+      const transport = server.config.transport || 'http';
+      log(`   - ${server.name} (${server.config.language}) [${transport}] v${version} - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
     });
 
     log(`📱 Clients found: ${clients.length}`);
     clients.forEach(client => {
       const protocolFamilies = client.config.protocolFamilies || ['evm'];
       const versions = client.config.x402Versions || [1];
-      log(`   - ${client.name} (${client.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+      const transport = client.config.transport || 'http';
+      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
     });
 
     log(`🏛️ Facilitators found: ${facilitators.length}`);

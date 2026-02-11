@@ -26,13 +26,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp import ClientSession
 from mcp.types import TextContent
 from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
-from x402.mcp import (
-    PaymentWrapperConfig,
-    ResourceInfo,
-    create_payment_wrapper,
-    x402MCPClient,
-)
-from x402.mcp.types import MCPToolResult
+from x402.mcp import create_payment_wrapper, x402MCPClientSync
 from x402.mechanisms.evm.exact import (
     ExactEvmClientScheme,
     ExactEvmFacilitatorScheme,
@@ -40,7 +34,7 @@ from x402.mechanisms.evm.exact import (
     ExactEvmServerScheme,
 )
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
-from x402.schemas import ResourceConfig
+from x402.schemas import ResourceConfig, ResourceInfo
 
 # Environment variables
 CLIENT_PRIVATE_KEY = os.environ.get("EVM_CLIENT_PRIVATE_KEY")
@@ -257,7 +251,7 @@ class TestMCPEVMIntegration:
 
                         # Wrap with x402
                         adapter = MCPClientAdapter(session)
-                        x402_mcp = x402MCPClient(
+                        x402_mcp = x402MCPClientSync(
                             adapter,
                             self.client,
                             auto_payment=True,
@@ -307,16 +301,14 @@ class TestMCPEVMIntegration:
         if not accepts[0].max_timeout_seconds:
             accepts[0].max_timeout_seconds = 300
 
-        # Create payment wrapper
-        paid = create_payment_wrapper(
+        # Create payment wrapper (decorator - same pattern as E2E mcp-python server)
+        weather_wrapper = create_payment_wrapper(
             self.server,
-            PaymentWrapperConfig(
-                accepts=accepts,
-                resource=ResourceInfo(
-                    url="mcp://tool/get_weather",
-                    description="Get weather for a city",
-                    mime_type="application/json",
-                ),
+            accepts=accepts,
+            resource=ResourceInfo(
+                url="mcp://tool/get_weather",
+                description="Get weather for a city",
+                mime_type="application/json",
             ),
         )
 
@@ -325,42 +317,21 @@ class TestMCPEVMIntegration:
             "x402-test-server", json_response=True, port=TEST_PORT_PAID
         )
 
-        # Free tool handler
-        def free_handler(args, tool_context):
-            return MCPToolResult(
-                content=[{"type": "text", "text": "pong"}],
-                is_error=False,
-            )
-
-        # Paid tool handler (wrapped with payment)
-        paid_tool_handler = paid(free_handler)
-
         # Register free tool
         @mcp_server.tool()
         def ping() -> str:
             """A free health check tool."""
             return "pong"
 
-        # Register paid tool
-        @mcp_server.tool()
+        # Register paid tool with decorator (returns CallToolResult with _meta)
+        @mcp_server.tool(
+            name="get_weather",
+            description="Get weather for a city. Requires payment of $0.001.",
+        )
+        @weather_wrapper
         async def get_weather(city: str) -> str:
-            """Get weather for a city. Requires payment of $0.001."""
-            # Call paid handler
-            result = paid_tool_handler(
-                {"city": city}, {"_meta": {}, "toolName": "get_weather"}
-            )
-
-            if result.is_error:
-                # Extract payment required from result
-                if result.content and len(result.content) > 0:
-                    return result.content[0].get("text", "Payment required")
-                return "Payment required"
-
-            return (
-                result.content[0].get("text", "Weather data")
-                if result.content
-                else "No data"
-            )
+            """Return weather data."""
+            return '{"city": "' + city + '", "weather": "sunny", "temperature": 72}'
 
         # Start server in background
         server_thread = threading.Thread(
@@ -403,7 +374,7 @@ class TestMCPEVMIntegration:
 
                         # Wrap with x402
                         adapter = MCPClientAdapter(session)
-                        x402_mcp = x402MCPClient(
+                        x402_mcp = x402MCPClientSync(
                             adapter,
                             self.client,
                             auto_payment=True,
