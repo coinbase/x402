@@ -318,6 +318,9 @@ Adjust `CACHE_TTL_MS` based on your use case:
 
 ## API Reference
 
+<Tabs>
+<Tab title="TypeScript">
+
 ### Client Functions
 
 #### `generatePaymentId()`
@@ -406,6 +409,100 @@ import {
   PAYMENT_ID_PATTERN,      // /^[a-zA-Z0-9_-]+$/
 } from "@x402/extensions/payment-identifier";
 ```
+
+</Tab>
+<Tab title="Python">
+
+### Client Functions
+
+#### `generate_payment_id()`
+
+Generates a cryptographically secure unique payment identifier.
+
+```python
+from x402.extensions.payment_identifier import generate_payment_id
+
+payment_id = generate_payment_id()
+# Returns: "pay_<32-character-hex-string>"
+```
+
+#### `append_payment_identifier_to_extensions(extensions, id=None)`
+
+Adds a payment identifier to the extensions object. If no payment ID is provided, one is generated automatically.
+
+```python
+from x402.extensions.payment_identifier import append_payment_identifier_to_extensions
+
+extensions = {}
+append_payment_identifier_to_extensions(extensions, "pay_custom_id")
+# extensions now contains the payment-identifier extension
+```
+
+#### `is_valid_payment_id(id)`
+
+Validates a payment identifier format.
+
+```python
+from x402.extensions.payment_identifier import is_valid_payment_id
+
+is_valid_payment_id("pay_7d5d747be160e280")  # True
+is_valid_payment_id("invalid")  # False
+```
+
+### Server Functions
+
+#### `declare_payment_identifier_extension(required=False)`
+
+Creates a payment-identifier extension declaration for resource servers.
+
+```python
+from x402.extensions.payment_identifier import declare_payment_identifier_extension
+
+# Optional payment ID
+extension = declare_payment_identifier_extension(False)
+
+# Required payment ID
+extension_required = declare_payment_identifier_extension(True)
+```
+
+#### `extract_payment_identifier(payment_payload)`
+
+Extracts the payment identifier from a payment payload.
+
+```python
+from x402.extensions.payment_identifier import extract_payment_identifier
+
+payment_id = extract_payment_identifier(payment_payload)
+if payment_id:
+    # Check cache, implement idempotency logic
+    pass
+```
+
+#### `validate_payment_identifier(payment_payload)`
+
+Validates the payment identifier in a payment payload.
+
+```python
+from x402.extensions.payment_identifier import validate_payment_identifier
+
+result = validate_payment_identifier(payment_payload)
+if not result.valid:
+    print(result.error)
+```
+
+### Constants
+
+```python
+from x402.extensions.payment_identifier import (
+    PAYMENT_IDENTIFIER,      # "payment-identifier"
+    PAYMENT_ID_MIN_LENGTH,   # 16
+    PAYMENT_ID_MAX_LENGTH,   # 128
+    PAYMENT_ID_PATTERN,      # r"^[a-zA-Z0-9_-]+$"
+)
+```
+
+</Tab>
+</Tabs>
 
 ## Examples
 
