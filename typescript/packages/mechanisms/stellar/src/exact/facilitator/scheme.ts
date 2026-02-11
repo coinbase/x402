@@ -31,6 +31,7 @@ import type {
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
 const DEFAULT_MAX_TRANSACTION_FEE_STROOPS = 50_000;
+const SIGNATURE_EXPIRATION_LEDGER_TOLERANCE = 2;
 
 /**
  * Returns a round-robin selector for choosing which signer to use.
@@ -675,9 +676,9 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         );
       }
 
-      // Check signature expiration is within allowed window
+      // Check signature expiration is within allowed window (with ledger tolerance for RPC skew)
       const expirationLedger = addressCredentials.signatureExpirationLedger();
-      if (expirationLedger > maxLedger) {
+      if (expirationLedger > maxLedger + SIGNATURE_EXPIRATION_LEDGER_TOLERANCE) {
         return invalidVerifyResponse(
           "invalid_exact_stellar_signature_expiration_too_far",
           fromAddress,
