@@ -67,13 +67,13 @@ func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context
 }
 
 // makeCallToolRequest builds a *mcp.CallToolRequest for testing.
-func makeCallToolRequest(name string, args map[string]interface{}, meta mcp.Meta) *mcp.CallToolRequest {
+func makeCallToolRequest(args map[string]interface{}, meta mcp.Meta) *mcp.CallToolRequest {
 	argsBytes, _ := json.Marshal(args)
 	if argsBytes == nil {
 		argsBytes = []byte("{}")
 	}
 	params := &mcp.CallToolParamsRaw{
-		Name:      name,
+		Name:      "test",
 		Arguments: argsBytes,
 		Meta:      meta,
 	}
@@ -144,7 +144,7 @@ func TestNewPaymentWrapper_BasicFlow(t *testing.T) {
 		},
 	}
 
-	req := makeCallToolRequest("test", map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -193,7 +193,7 @@ func TestNewPaymentWrapper_NoPayment(t *testing.T) {
 	}
 	wrapped := wrapper.Wrap(handler)
 
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -229,7 +229,7 @@ func TestNewPaymentWrapper_VerificationFailure(t *testing.T) {
 		X402Version: 2,
 		Payload:     map[string]interface{}{"signature": "0xinvalid"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -305,7 +305,7 @@ func TestNewPaymentWrapper_Hooks(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -375,7 +375,7 @@ func TestNewPaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -429,7 +429,7 @@ func TestNewPaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
 		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
 		Payload:     map[string]interface{}{"signature": "~test-payer"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -487,7 +487,7 @@ func TestNewPaymentWrapper_HookErrors_NonFatal(t *testing.T) {
 		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
 		Payload:     map[string]interface{}{"signature": "~test-payer"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Hook errors should not propagate, got: %v", err)
@@ -549,7 +549,7 @@ func TestNewPaymentWrapper_SettlementFailure(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	req := makeCallToolRequest(map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
 	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

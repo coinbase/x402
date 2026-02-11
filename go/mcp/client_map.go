@@ -15,12 +15,12 @@ import (
 
 // X402MCPClient wraps an MCPClientInterface with automatic x402 payment handling.
 type X402MCPClient struct {
-	client         MCPClientInterface
-	paymentClient  *x402.X402Client
-	options        Options
-	onPaymentReq   PaymentRequiredHook
-	onBeforePay    BeforePaymentHook
-	onAfterPay     AfterPaymentHook
+	client        MCPClientInterface
+	paymentClient *x402.X402Client
+	options       Options
+	onPaymentReq  PaymentRequiredHook
+	onBeforePay   BeforePaymentHook
+	onAfterPay    AfterPaymentHook
 }
 
 // NewX402MCPClient creates an x402-aware MCP client.
