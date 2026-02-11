@@ -1,6 +1,6 @@
 {
   "name": "@x402/axios",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
-    "@x402/core": "workspace:^",
+    "@x402/core": "workspace:~",
     "zod": "^3.24.2"
   },
   "exports": {

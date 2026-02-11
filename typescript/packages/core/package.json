@@ -1,6 +1,6 @@
 {
   "name": "@x402/core",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -120,6 +120,16 @@
       "require": {
         "types": "./dist/cjs/utils/index.d.ts",
         "default": "./dist/cjs/utils/index.js"
+      }
+    },
+    "./schemas": {
+      "import": {
+        "types": "./dist/esm/schemas/index.d.mts",
+        "default": "./dist/esm/schemas/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemas/index.d.ts",
+        "default": "./dist/cjs/schemas/index.js"
       }
     }
   },

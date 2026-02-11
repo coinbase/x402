@@ -25,7 +25,11 @@ import type {
   VerifyResponse,
 } from "@x402/core/types";
 import type { PaymentPayloadV1, PaymentRequirementsV1 } from "@x402/core/types/v1";
-import { MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../../constants";
+import {
+  LIGHTHOUSE_PROGRAM_ADDRESS,
+  MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  MEMO_PROGRAM_ADDRESS,
+} from "../../../constants";
 import type { FacilitatorSvmSigner } from "../../../signer";
 import type { ExactSvmPayloadV1 } from "../../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../../utils";
@@ -140,8 +144,13 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 
-    // 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    if (instructions.length !== 3) {
+    // Allow 3-6 instructions:
+    // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
+    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
+    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
+    // - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
+    // See: https://github.com/coinbase/x402/issues/828
+    if (instructions.length < 3 || instructions.length > 6) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
@@ -260,7 +269,33 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 5: Sign and Simulate Transaction
+    // Step 5: Verify optional instructions (if present)
+    // Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
+    const optionalInstructions = instructions.slice(3);
+    const invalidReasonByIndex = [
+      "invalid_exact_svm_payload_unknown_fourth_instruction",
+      "invalid_exact_svm_payload_unknown_fifth_instruction",
+      "invalid_exact_svm_payload_unknown_sixth_instruction",
+    ];
+
+    for (let i = 0; i < optionalInstructions.length; i += 1) {
+      const programAddress = optionalInstructions[i].programAddress.toString();
+      if (
+        programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
+        programAddress === MEMO_PROGRAM_ADDRESS
+      ) {
+        continue;
+      }
+
+      return {
+        isValid: false,
+        invalidReason:
+          invalidReasonByIndex[i] ?? "invalid_exact_svm_payload_unknown_optional_instruction",
+        payer,
+      };
+    }
+
+    // Step 6: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
       const feePayer = requirementsV1.extra.feePayer as Address;
@@ -278,7 +313,8 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         isValid: false,
-        invalidReason: `transaction_simulation_failed: ${errorMessage}`,
+        invalidReason: "transaction_simulation_failed",
+        invalidMessage: errorMessage,
         payer,
       };
     }

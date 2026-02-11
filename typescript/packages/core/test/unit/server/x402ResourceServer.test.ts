@@ -622,7 +622,7 @@ describe("x402ResourceServer", () => {
 
         await expect(
           async () => await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
-        ).rejects.toThrow("Settlement aborted: Insufficient balance");
+        ).rejects.toThrow("before_settle_hook_error: Insufficient balance");
 
         expect(mockClient.settleCalls.length).toBe(0); // Facilitator not called
       });
@@ -871,7 +871,7 @@ describe("x402ResourceServer", () => {
   });
 
   describe("createPaymentRequiredResponse", () => {
-    it("should create v2 response", () => {
+    it("should create v2 response", async () => {
       const server = new x402ResourceServer();
 
       const requirements = [buildPaymentRequirements()];
@@ -881,17 +881,17 @@ describe("x402ResourceServer", () => {
         mimeType: "application/json",
       };
 
-      const result = server.createPaymentRequiredResponse(requirements, resourceInfo);
+      const result = await server.createPaymentRequiredResponse(requirements, resourceInfo);
 
       expect(result.x402Version).toBe(2);
       expect(result.resource).toEqual(resourceInfo);
       expect(result.accepts).toEqual(requirements);
     });
 
-    it("should include error message if provided", () => {
+    it("should include error message if provided", async () => {
       const server = new x402ResourceServer();
 
-      const result = server.createPaymentRequiredResponse(
+      const result = await server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         "Payment required",
@@ -900,10 +900,10 @@ describe("x402ResourceServer", () => {
       expect(result.error).toBe("Payment required");
     });
 
-    it("should include extensions if provided", () => {
+    it("should include extensions if provided", async () => {
       const server = new x402ResourceServer();
 
-      const result = server.createPaymentRequiredResponse(
+      const result = await server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         undefined,
@@ -913,10 +913,10 @@ describe("x402ResourceServer", () => {
       expect(result.extensions).toEqual({ bazaar: true, customExt: "value" });
     });
 
-    it("should omit extensions if empty", () => {
+    it("should omit extensions if empty", async () => {
       const server = new x402ResourceServer();
 
-      const result = server.createPaymentRequiredResponse(
+      const result = await server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         undefined,

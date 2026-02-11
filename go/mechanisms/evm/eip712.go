@@ -139,10 +139,22 @@ func HashEIP3009Authorization(
 	}
 
 	// Parse values for message
-	value, _ := new(big.Int).SetString(authorization.Value, 10)
-	validAfter, _ := new(big.Int).SetString(authorization.ValidAfter, 10)
-	validBefore, _ := new(big.Int).SetString(authorization.ValidBefore, 10)
-	nonceBytes, _ := HexToBytes(authorization.Nonce)
+	value, ok := new(big.Int).SetString(authorization.Value, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid authorization value: %s", authorization.Value)
+	}
+	validAfter, ok := new(big.Int).SetString(authorization.ValidAfter, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid validAfter: %s", authorization.ValidAfter)
+	}
+	validBefore, ok := new(big.Int).SetString(authorization.ValidBefore, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid validBefore: %s", authorization.ValidBefore)
+	}
+	nonceBytes, err := HexToBytes(authorization.Nonce)
+	if err != nil {
+		return nil, fmt.Errorf("invalid nonce: %w", err)
+	}
 
 	// Ensure addresses are checksummed
 	from := common.HexToAddress(authorization.From).Hex()
@@ -159,4 +171,78 @@ func HashEIP3009Authorization(
 	}
 
 	return HashTypedData(domain, types, "TransferWithAuthorization", message)
+}
+
+// HashPermit2Authorization hashes a PermitWitnessTransferFrom message for Permit2.
+//
+// This function creates the EIP-712 hash for Permit2's PermitWitnessTransferFrom
+// with the x402 witness structure.
+//
+// Args:
+//
+//	authorization: The Permit2 authorization data
+//	chainID: The chain ID for the EIP-712 domain
+//
+// Returns:
+//
+//	32-byte hash suitable for signing or verification
+//	error if hashing fails
+func HashPermit2Authorization(
+	authorization Permit2Authorization,
+	chainID *big.Int,
+) ([]byte, error) {
+	// Create EIP-712 domain (Permit2 uses fixed name, no version)
+	domain := TypedDataDomain{
+		Name:              "Permit2",
+		ChainID:           chainID,
+		VerifyingContract: PERMIT2Address,
+	}
+
+	// Use shared EIP-712 types to ensure consistency
+	types := GetPermit2EIP712Types()
+
+	// Parse values for message
+	amount, ok := new(big.Int).SetString(authorization.Permitted.Amount, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid permitted amount: %s", authorization.Permitted.Amount)
+	}
+	nonce, ok := new(big.Int).SetString(authorization.Nonce, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid nonce: %s", authorization.Nonce)
+	}
+	deadline, ok := new(big.Int).SetString(authorization.Deadline, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid deadline: %s", authorization.Deadline)
+	}
+	validAfter, ok := new(big.Int).SetString(authorization.Witness.ValidAfter, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid validAfter: %s", authorization.Witness.ValidAfter)
+	}
+	extraBytes, err := HexToBytes(authorization.Witness.Extra)
+	if err != nil {
+		return nil, fmt.Errorf("invalid witness extra: %w", err)
+	}
+
+	// Ensure addresses are checksummed
+	token := common.HexToAddress(authorization.Permitted.Token).Hex()
+	spender := common.HexToAddress(authorization.Spender).Hex()
+	to := common.HexToAddress(authorization.Witness.To).Hex()
+
+	// Create message with nested structs
+	message := map[string]interface{}{
+		"permitted": map[string]interface{}{
+			"token":  token,
+			"amount": amount,
+		},
+		"spender":  spender,
+		"nonce":    nonce,
+		"deadline": deadline,
+		"witness": map[string]interface{}{
+			"extra":      extraBytes,
+			"to":         to,
+			"validAfter": validAfter,
+		},
+	}
+
+	return HashTypedData(domain, types, "PermitWitnessTransferFrom", message)
 }
