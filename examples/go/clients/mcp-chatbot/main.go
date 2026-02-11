@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	x402 "github.com/coinbase/x402/go"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	"github.com/coinbase/x402/go/mcp"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
@@ -102,29 +103,20 @@ func run() error {
 	defer clientSession.Close()
 	fmt.Println("Connected to MCP server")
 
-	// Create adapter and wrap with x402
-	adapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
-
-	x402Mcp := mcp.NewX402MCPClientFromConfig(
-		adapter,
-		[]mcp.SchemeRegistration{
-			{
-				Network: "eip155:84532",
-				Client:  evm.NewExactEvmScheme(evmSigner),
-			},
+	// Create x402 payment client and wrap session
+	paymentClient := x402.Newx402Client()
+	paymentClient.Register("eip155:84532", evm.NewExactEvmScheme(evmSigner))
+	x402Mcp := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
+		AutoPayment: mcp.BoolPtr(true),
+		OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
+			price := context.PaymentRequired.Accepts[0]
+			fmt.Printf("\n  Payment requested for tool: %s\n", context.ToolName)
+			fmt.Printf("   Amount: %s (%s)\n", price.Amount, price.Asset)
+			fmt.Printf("   Network: %s\n", price.Network)
+			fmt.Println("   Approving payment...\n")
+			return true, nil // Auto-approve
 		},
-		mcp.Options{
-			AutoPayment: mcp.BoolPtr(true),
-			OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
-				price := context.PaymentRequired.Accepts[0]
-				fmt.Printf("\n  Payment requested for tool: %s\n", context.ToolName)
-				fmt.Printf("   Amount: %s (%s)\n", price.Amount, price.Asset)
-				fmt.Printf("   Network: %s\n", price.Network)
-				fmt.Println("   Approving payment...\n")
-				return true, nil // Auto-approve
-			},
-		},
-	)
+	})
 
 	// ========================================================================
 	// MCP TOUCHPOINT #2: listTools()

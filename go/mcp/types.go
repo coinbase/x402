@@ -104,12 +104,8 @@ type PaymentWrapperConfig struct {
 	Hooks    *PaymentWrapperHooks
 }
 
-// ResourceInfo provides resource metadata
-type ResourceInfo struct {
-	URL         string
-	Description string
-	MimeType    string
-}
+// ResourceInfo provides resource metadata. Alias for types.ResourceInfo for compatibility.
+type ResourceInfo = types.ResourceInfo
 
 // PaymentWrapperHooks provides server-side hooks
 type PaymentWrapperHooks struct {
