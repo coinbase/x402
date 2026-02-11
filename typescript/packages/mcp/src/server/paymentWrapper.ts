@@ -342,38 +342,15 @@ async function createSettlementFailedResult(
   config: PaymentWrapperConfig,
   errorMessage: string,
 ): Promise<WrappedToolResult> {
-  const resourceInfo = {
-    url: createToolResourceUrl(toolName, config.resource?.url),
-    description: config.resource?.description || `Tool: ${toolName}`,
-    mimeType: config.resource?.mimeType || "application/json",
-  };
-
-  const paymentRequired = await resourceServer.createPaymentRequiredResponse(
-    config.accepts,
-    resourceInfo,
+  // Per spec R5, settlement failure follows the same format as payment required
+  // (structuredContent + content[0].text + isError: true) with the error message
+  // describing the settlement failure. We intentionally do NOT embed the
+  // x402/payment-response in the PaymentRequired object to avoid clients
+  // misinterpreting it as a new 402 and attempting to pay again.
+  return createPaymentRequiredResult(
+    resourceServer,
+    toolName,
+    config,
     `Payment settlement failed: ${errorMessage}`,
   );
-
-  const settlementFailure = {
-    success: false,
-    errorReason: errorMessage,
-    transaction: "",
-    network: config.accepts[0].network,
-  };
-
-  const errorData = {
-    ...paymentRequired,
-    [MCP_PAYMENT_RESPONSE_META_KEY]: settlementFailure,
-  };
-
-  return {
-    structuredContent: errorData as unknown as Record<string, unknown>,
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(errorData),
-      },
-    ],
-    isError: true,
-  };
 }
