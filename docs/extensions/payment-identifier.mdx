@@ -123,6 +123,9 @@ async with x402HttpxClient(client) as http:
 
 ## Quickstart for Sellers (Servers)
 
+<Tabs>
+<Tab title="TypeScript">
+
 ### Step 1: Advertise Extension Support
 
 Declare the payment-identifier extension in your route configuration:
@@ -199,6 +202,95 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
     }
   });
 ```
+
+</Tab>
+<Tab title="Python">
+
+### Step 1: Advertise Extension Support
+
+Declare the payment-identifier extension in your route configuration:
+
+```python
+from x402.http.servers.fastapi import x402FastAPIResourceServer
+from x402.extensions.payment_identifier import (
+    declare_payment_identifier_extension,
+    PAYMENT_IDENTIFIER,
+)
+
+routes = {
+    "GET /weather": {
+        "accepts": {
+            "scheme": "exact",
+            "price": "$0.001",
+            "network": "eip155:84532",
+            "payTo": address,
+        },
+        "extensions": {
+            PAYMENT_IDENTIFIER: declare_payment_identifier_extension(False),  # optional
+        },
+    },
+}
+```
+
+**Optional vs Required:**
+
+```python
+# Payment ID is optional (clients can omit it)
+declare_payment_identifier_extension(False)
+
+# Payment ID is required (clients must provide it or receive 400 Bad Request)
+declare_payment_identifier_extension(True)
+```
+
+### Step 2: Implement Idempotency Cache
+
+Use the `extract_payment_identifier()` utility to check for cached responses:
+
+```python
+from x402.extensions.payment_identifier import extract_payment_identifier
+import time
+
+# In-memory cache (use Redis in production)
+idempotency_cache = {}
+CACHE_TTL_MS = 60 * 60 * 1000  # 1 hour
+
+async def on_protected_request(context):
+    # Check if payment ID is in cache
+    payment_payload = context.payment_payload
+    payment_id = extract_payment_identifier(payment_payload)
+    
+    if payment_id:
+        cached = idempotency_cache.get(payment_id)
+        if cached and (time.time() * 1000 - cached["timestamp"]) < CACHE_TTL_MS:
+            return {"grant_access": True}  # Skip payment, grant access
+
+http_server = x402FastAPIResourceServer(resource_server, routes)
+http_server.on_protected_request(on_protected_request)
+```
+
+### Step 3: Cache Responses After Settlement
+
+Store responses after successful payment settlement:
+
+```python
+from x402 import x402ResourceServer
+from x402.mechanisms.evm import ExactEvmScheme
+
+async def after_settle(context):
+    payment_id = extract_payment_identifier(context.payment_payload)
+    if payment_id:
+        idempotency_cache[payment_id] = {
+            "timestamp": time.time() * 1000,
+            "response": {}  # your response data
+        }
+
+resource_server = x402ResourceServer(facilitator_client)
+resource_server.register("eip155:84532", ExactEvmScheme())
+resource_server.on_after_settle(after_settle)
+```
+
+</Tab>
+</Tabs>
 
 ### Idempotency Behavior
 
