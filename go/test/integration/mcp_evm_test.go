@@ -148,7 +148,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}, nil)
 
 		// Create payment wrapper
-		paidHandler, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+		paymentWrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 			Accepts: accepts,
 			Resource: &mcp.ResourceInfo{
 				URL:         "mcp://tool/get_weather",
@@ -156,22 +156,6 @@ func TestMCPEVMIntegration(t *testing.T) {
 				MimeType:    "application/json",
 			},
 		})
-		if err != nil {
-			t.Fatalf("Failed to create payment wrapper: %v", err)
-		}
-
-		// Free tool handler
-		freeHandler := func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-			return mcp.MCPToolResult{
-				Content: []mcp.MCPContentItem{
-					{Type: "text", Text: "pong"},
-				},
-				IsError: false,
-			}, nil
-		}
-
-		// Paid tool handler - wrap free handler with payment
-		paidToolHandler := paidHandler(freeHandler)
 
 		// Register free tool
 		mcpServer.AddTool(&mcpsdk.Tool{
@@ -179,46 +163,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 			Description: "A free health check tool",
 			InputSchema: json.RawMessage(`{"type": "object"}`),
 		}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			args := make(map[string]interface{})
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return &mcpsdk.CallToolResult{
-						IsError: true,
-						Content: []mcpsdk.Content{
-							&mcpsdk.TextContent{Text: fmt.Sprintf("failed to unmarshal arguments: %v", err)},
-						},
-					}, nil
-				}
-			}
-			meta := make(map[string]interface{})
-			if req.Params.Meta != nil {
-				meta = req.Params.Meta.GetMeta()
-			}
-
-			toolContext := mcp.MCPToolContext{
-				ToolName:  req.Params.Name,
-				Arguments: args,
-				Meta:      meta,
-			}
-
-			result, err := freeHandler(ctx, args, toolContext)
-			if err != nil {
-				return &mcpsdk.CallToolResult{
-					IsError: true,
-					Content: []mcpsdk.Content{
-						&mcpsdk.TextContent{Text: err.Error()},
-					},
-				}, nil
-			}
-
-			content := make([]mcpsdk.Content, len(result.Content))
-			for i, item := range result.Content {
-				content[i] = &mcpsdk.TextContent{Text: item.Text}
-			}
-
 			return &mcpsdk.CallToolResult{
-				Content: content,
-				IsError: result.IsError,
+				Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "pong"}},
 			}, nil
 		})
 
@@ -227,66 +173,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 			Name:        "get_weather",
 			Description: "Get current weather for a city. Requires payment of $0.001.",
 			InputSchema: json.RawMessage(`{"type": "object", "properties": {"city": {"type": "string"}}}`),
-		}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			args := make(map[string]interface{})
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return &mcpsdk.CallToolResult{
-						IsError: true,
-						Content: []mcpsdk.Content{
-							&mcpsdk.TextContent{Text: fmt.Sprintf("failed to unmarshal arguments: %v", err)},
-						},
-					}, nil
-				}
-			}
-			meta := make(map[string]interface{})
-			if req.Params.Meta != nil {
-				meta = req.Params.Meta.GetMeta()
-			}
-
-			toolContext := mcp.MCPToolContext{
-				ToolName:  req.Params.Name,
-				Arguments: args,
-				Meta:      meta,
-			}
-
-			result, err := paidToolHandler(ctx, args, toolContext)
-			if err != nil {
-				return &mcpsdk.CallToolResult{
-					IsError: true,
-					Content: []mcpsdk.Content{
-						&mcpsdk.TextContent{Text: err.Error()},
-					},
-				}, nil
-			}
-
-			content := make([]mcpsdk.Content, len(result.Content))
-			for i, item := range result.Content {
-				content[i] = &mcpsdk.TextContent{Text: item.Text}
-			}
-
-			callResult := &mcpsdk.CallToolResult{
-				Content: content,
-				IsError: result.IsError,
-			}
-
-			// Preserve StructuredContent if present (needed for payment required responses)
-			if result.StructuredContent != nil {
-				callResult.StructuredContent = result.StructuredContent
-			}
-
-			// Add _meta if present - this is critical for payment response
-			// Convert map[string]interface{} to mcpsdk.Meta (which is map[string]any)
-			if result.Meta != nil {
-				metaMap := make(mcpsdk.Meta)
-				for k, v := range result.Meta {
-					metaMap[k] = v
-				}
-				callResult.Meta = metaMap
-			}
-
-			return callResult, nil
-		})
+		}, paymentWrapper.Wrap(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+			return &mcpsdk.CallToolResult{
+				Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "pong"}},
+			}, nil
+		}))
 
 		// ========================================================================
 		// Start HTTP Server for SSE Transport

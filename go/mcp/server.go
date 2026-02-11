@@ -17,17 +17,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// PaymentWrapperConfig configures the payment wrapper for an MCP tool.
-type PaymentWrapperConfig struct {
-	// Accepts is the list of accepted payment requirements.
-	// The first entry is used for verification and settlement.
-	Accepts []types.PaymentRequirements
-
-	// Resource is optional metadata about the tool being protected.
-	// Defaults to mcp://tool/{toolName} if not provided.
-	Resource *types.ResourceInfo
-}
-
 // ToolHandler is the function signature for MCP tool handlers.
 // This is an alias for the official MCP SDK's mcp.ToolHandler type.
 type ToolHandler = mcp.ToolHandler
@@ -65,9 +54,12 @@ func NewPaymentWrapper(server *x402.X402ResourceServer, config PaymentWrapperCon
 //  1. Extracts x402/payment from request _meta
 //  2. If no payment, returns 402 payment required error
 //  3. Verifies payment via facilitator
-//  4. Executes the original handler
-//  5. Settles payment via facilitator
-//  6. Returns result with settlement info in _meta
+//  4. OnBeforeExecution hook (if configured)
+//  5. Executes the original handler
+//  6. OnAfterExecution hook (if configured)
+//  7. Settles payment via facilitator
+//  8. OnAfterSettlement hook (if configured)
+//  9. Returns result with settlement info in _meta
 func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 	return func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Extract payment from _meta
@@ -99,6 +91,26 @@ func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 				fmt.Sprintf("Payment verification failed: %s", verifyResp.InvalidReason)), nil
 		}
 
+		// Parse args from request for hooks
+		args := parseArgsFromRequest(request)
+
+		// OnBeforeExecution hook
+		if w.config.Hooks != nil && w.config.Hooks.OnBeforeExecution != nil {
+			hookCtx := ServerHookContext{
+				ToolName:            request.Params.Name,
+				Arguments:           args,
+				PaymentRequirements: w.config.Accepts[0],
+				PaymentPayload:      payload,
+			}
+			ok, err := (*w.config.Hooks.OnBeforeExecution)(hookCtx)
+			if err != nil {
+				return w.paymentRequiredResult(fmt.Sprintf("before execution hook error: %v", err)), nil
+			}
+			if !ok {
+				return w.paymentRequiredResult("Execution aborted by OnBeforeExecution hook"), nil
+			}
+		}
+
 		// Execute the original handler
 		result, err := handler(ctx, request)
 		if err != nil {
@@ -108,6 +120,21 @@ func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 		// If handler returned an error result, don't settle
 		if result.IsError {
 			return result, nil
+		}
+
+		// OnAfterExecution hook
+		if w.config.Hooks != nil && w.config.Hooks.OnAfterExecution != nil {
+			mcpResult := callToolResultToMCPToolResult(result)
+			hookCtx := AfterExecutionContext{
+				ServerHookContext: ServerHookContext{
+					ToolName:            request.Params.Name,
+					Arguments:           args,
+					PaymentRequirements: w.config.Accepts[0],
+					PaymentPayload:      payload,
+				},
+				Result: mcpResult,
+			}
+			_ = (*w.config.Hooks.OnAfterExecution)(hookCtx) // Non-fatal
 		}
 
 		// Settle payment -- return tool error result, NOT Go error
@@ -121,6 +148,20 @@ func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 				fmt.Sprintf("Settlement failed: %s", settleResp.ErrorReason)), nil
 		}
 
+		// OnAfterSettlement hook
+		if w.config.Hooks != nil && w.config.Hooks.OnAfterSettlement != nil {
+			hookCtx := SettlementContext{
+				ServerHookContext: ServerHookContext{
+					ToolName:            request.Params.Name,
+					Arguments:           args,
+					PaymentRequirements: w.config.Accepts[0],
+					PaymentPayload:      payload,
+				},
+				Settlement: *settleResp,
+			}
+			_ = (*w.config.Hooks.OnAfterSettlement)(hookCtx) // Non-fatal
+		}
+
 		// Attach payment response to result _meta
 		if result.Meta == nil {
 			result.Meta = mcp.Meta{}
@@ -129,6 +170,46 @@ func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 
 		return result, nil
 	}
+}
+
+// parseArgsFromRequest extracts arguments from the request as map[string]interface{}.
+func parseArgsFromRequest(request *mcp.CallToolRequest) map[string]interface{} {
+	args := make(map[string]interface{})
+	if request.Params.Arguments != nil {
+		if err := json.Unmarshal(request.Params.Arguments, &args); err != nil {
+			return args
+		}
+	}
+	return args
+}
+
+// callToolResultToMCPToolResult converts *mcp.CallToolResult to MCPToolResult for hooks.
+func callToolResultToMCPToolResult(result *mcp.CallToolResult) MCPToolResult {
+	content := make([]MCPContentItem, 0, len(result.Content))
+	for _, item := range result.Content {
+		if textContent, ok := item.(*mcp.TextContent); ok {
+			content = append(content, MCPContentItem{Type: "text", Text: textContent.Text})
+		}
+	}
+	mcpResult := MCPToolResult{
+		Content: content,
+		IsError: result.IsError,
+	}
+	if result.StructuredContent != nil {
+		if m, ok := result.StructuredContent.(map[string]interface{}); ok {
+			mcpResult.StructuredContent = m
+		}
+	}
+	if result.Meta != nil {
+		metaMap := result.GetMeta()
+		if len(metaMap) > 0 {
+			mcpResult.Meta = make(map[string]interface{}, len(metaMap))
+			for k, v := range metaMap {
+				mcpResult.Meta[k] = v
+			}
+		}
+	}
+	return mcpResult
 }
 
 // paymentRequiredResult creates an MCP error result with payment required info.

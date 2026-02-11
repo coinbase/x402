@@ -2,11 +2,13 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/types"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock facilitator client for testing
@@ -64,25 +66,34 @@ func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context
 	return enhanced, nil
 }
 
-func TestCreatePaymentWrapper_EmptyAccepts(t *testing.T) {
-	server := x402.Newx402ResourceServer()
-
-	_, err := CreatePaymentWrapper(server, PaymentWrapperConfig{
-		Accepts: []types.PaymentRequirements{},
-	})
-	if err == nil {
-		t.Fatal("Expected error for empty accepts")
+// makeCallToolRequest builds a *mcp.CallToolRequest for testing.
+func makeCallToolRequest(name string, args map[string]interface{}, meta mcp.Meta) *mcp.CallToolRequest {
+	argsBytes, _ := json.Marshal(args)
+	if argsBytes == nil {
+		argsBytes = []byte("{}")
 	}
-
-	_, err = CreatePaymentWrapper(server, PaymentWrapperConfig{})
-	if err == nil {
-		t.Fatal("Expected error for nil accepts")
+	params := &mcp.CallToolParamsRaw{
+		Name:      name,
+		Arguments: argsBytes,
+		Meta:      meta,
 	}
+	return &mcp.CallToolRequest{Params: params}
 }
 
-func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
-	// Create a real resource server instance with cash mock scheme
-	// Use cash mock for simplicity - it doesn't require real blockchain
+func TestNewPaymentWrapper_EmptyAccepts(t *testing.T) {
+	server := x402.Newx402ResourceServer()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic for empty accepts")
+		}
+	}()
+	NewPaymentWrapper(server, PaymentWrapperConfig{
+		Accepts: []types.PaymentRequirements{},
+	})
+}
+
+func TestNewPaymentWrapper_BasicFlow(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
 
@@ -112,24 +123,14 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	// Create a handler
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{
-			Content: []MCPContentItem{
-				{Type: "text", Text: "success"},
-			},
-			IsError: false,
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "success"}},
 		}, nil
 	}
+	wrapped := wrapper.Wrap(handler)
 
-	wrapped := paid(handler)
-
-	// Test with payment - use cash scheme format
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted: types.PaymentRequirements{
@@ -143,16 +144,8 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 		},
 	}
 
-	args := map[string]interface{}{"test": "value"}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta: map[string]interface{}{
-			MCP_PAYMENT_META_KEY: payload,
-		},
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -161,7 +154,6 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 		t.Error("Expected success result")
 	}
 
-	// Verify settlement response is in meta
 	if result.Meta == nil {
 		t.Fatal("Expected meta to be set")
 	}
@@ -170,7 +162,7 @@ func TestCreatePaymentWrapper_BasicFlow(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentWrapper_NoPayment(t *testing.T) {
+func TestNewPaymentWrapper_NoPayment(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
 
@@ -195,37 +187,24 @@ func TestCreatePaymentWrapper_NoPayment(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
 	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{}, nil
-	}
+	wrapped := wrapper.Wrap(handler)
 
-	wrapped := paid(handler)
-
-	args := map[string]interface{}{}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta:      map[string]interface{}{}, // No payment
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Should return payment required error
 	if !result.IsError {
 		t.Error("Expected error result for missing payment")
 	}
 }
 
-func TestCreatePaymentWrapper_VerificationFailure(t *testing.T) {
-	// For verification failure, we need a real server with a scheme that will fail verification
-	// Since we can't easily mock this, we'll test the error path differently
+func TestNewPaymentWrapper_VerificationFailure(t *testing.T) {
 	server := x402.Newx402ResourceServer()
 
 	config := PaymentWrapperConfig{
@@ -239,42 +218,29 @@ func TestCreatePaymentWrapper_VerificationFailure(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
 	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{}, nil
-	}
-
-	wrapped := paid(handler)
+	wrapped := wrapper.Wrap(handler)
 
 	ctx := context.Background()
-	args := map[string]interface{}{}
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Payload:     map[string]interface{}{"signature": "0xinvalid"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta: map[string]interface{}{
-			MCP_PAYMENT_META_KEY: payload,
-		},
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Should return payment required error
 	if !result.IsError {
 		t.Error("Expected error result for verification failure")
 	}
 }
 
-func TestCreatePaymentWrapper_Hooks(t *testing.T) {
+func TestNewPaymentWrapper_Hooks(t *testing.T) {
 	beforeCalled := false
 	afterCalled := false
 	settlementCalled := false
@@ -321,21 +287,14 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{
-			Content: []MCPContentItem{
-				{Type: "text", Text: "success"},
-			},
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "success"}},
 		}, nil
 	}
+	wrapped := wrapper.Wrap(handler)
 
-	wrapped := paid(handler)
-
-	args := map[string]interface{}{"test": "value"}
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted: types.PaymentRequirements{
@@ -346,15 +305,8 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta: map[string]interface{}{
-			MCP_PAYMENT_META_KEY: payload,
-		},
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{"test": "value"}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -373,7 +325,7 @@ func TestCreatePaymentWrapper_Hooks(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
+func TestNewPaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
 
@@ -388,7 +340,7 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 	}
 
 	var abortHook BeforeExecutionHook = func(context ServerHookContext) (bool, error) {
-		return false, nil // Abort execution
+		return false, nil
 	}
 
 	config := PaymentWrapperConfig{
@@ -405,19 +357,14 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	wrapper := NewPaymentWrapper(server, config)
 	handlerCalled := false
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		handlerCalled = true
-		return MCPToolResult{}, nil
+		return &mcp.CallToolResult{}, nil
 	}
+	wrapped := wrapper.Wrap(handler)
 
-	wrapped := paid(handler)
-
-	args := map[string]interface{}{}
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted: types.PaymentRequirements{
@@ -428,15 +375,8 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta: map[string]interface{}{
-			MCP_PAYMENT_META_KEY: payload,
-		},
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -449,8 +389,7 @@ func TestCreatePaymentWrapper_AbortOnBeforeExecution(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
-	// When the tool handler returns IsError=true, settlement should NOT happen
+func TestNewPaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
 	settleCalled := false
 	mockFacilitator := &mockFacilitatorClient{
 		settleFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
@@ -476,31 +415,22 @@ func TestCreatePaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{
-			Content: []MCPContentItem{{Type: "text", Text: "tool error"}},
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "tool error"}},
 			IsError: true,
 		}, nil
 	}
-
-	wrapped := paid(handler)
+	wrapped := wrapper.Wrap(handler)
 
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
 		Payload:     map[string]interface{}{"signature": "~test-payer"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: map[string]interface{}{},
-		Meta:      map[string]interface{}{MCP_PAYMENT_META_KEY: payload},
-	}
-
-	result, err := wrapped(ctx, map[string]interface{}{}, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -513,8 +443,7 @@ func TestCreatePaymentWrapper_ToolHandlerError_NoSettlement(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentWrapper_HookErrors_NonFatal(t *testing.T) {
-	// OnAfterExecution and OnAfterSettlement errors should be swallowed
+func TestNewPaymentWrapper_HookErrors_NonFatal(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{}
 	mockSchemeServer := &mockSchemeNetworkServer{scheme: "cash"}
 
@@ -545,30 +474,21 @@ func TestCreatePaymentWrapper_HookErrors_NonFatal(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{
-			Content: []MCPContentItem{{Type: "text", Text: "success"}},
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "success"}},
 		}, nil
 	}
-
-	wrapped := paid(handler)
+	wrapped := wrapper.Wrap(handler)
 
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted:    types.PaymentRequirements{Scheme: "cash", Network: "x402:cash", Amount: "1000", PayTo: "test-recipient"},
 		Payload:     map[string]interface{}{"signature": "~test-payer"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: map[string]interface{}{},
-		Meta:      map[string]interface{}{MCP_PAYMENT_META_KEY: payload},
-	}
-
-	result, err := wrapped(ctx, map[string]interface{}{}, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Hook errors should not propagate, got: %v", err)
 	}
@@ -577,14 +497,12 @@ func TestCreatePaymentWrapper_HookErrors_NonFatal(t *testing.T) {
 		t.Error("Expected success result despite hook errors")
 	}
 
-	// Verify settlement still happened (payment response in meta)
 	if result.Meta == nil || result.Meta[MCP_PAYMENT_RESPONSE_META_KEY] == nil {
 		t.Error("Expected payment response in meta despite hook errors")
 	}
 }
 
-func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
-	// Create a facilitator that fails settlement
+func TestNewPaymentWrapper_SettlementFailure(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{
 		settleFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 			return nil, fmt.Errorf("settlement failed")
@@ -613,21 +531,14 @@ func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
 		},
 	}
 
-	paid, err := CreatePaymentWrapper(server, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	handler := func(ctx context.Context, args map[string]interface{}, toolContext MCPToolContext) (MCPToolResult, error) {
-		return MCPToolResult{
-			Content: []MCPContentItem{
-				{Type: "text", Text: "success"},
-			},
+	wrapper := NewPaymentWrapper(server, config)
+	handler := func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "success"}},
 		}, nil
 	}
+	wrapped := wrapper.Wrap(handler)
 
-	wrapped := paid(handler)
-
-	args := map[string]interface{}{}
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted: types.PaymentRequirements{
@@ -638,15 +549,8 @@ func TestCreatePaymentWrapper_SettlementFailure(t *testing.T) {
 		},
 		Payload: map[string]interface{}{"signature": "~test-payer"},
 	}
-	toolContext := MCPToolContext{
-		ToolName:  "test",
-		Arguments: args,
-		Meta: map[string]interface{}{
-			MCP_PAYMENT_META_KEY: payload,
-		},
-	}
-
-	result, err := wrapped(ctx, args, toolContext)
+	req := makeCallToolRequest("test", map[string]interface{}{}, mcp.Meta{MCP_PAYMENT_META_KEY: payload})
+	result, err := wrapped(ctx, req)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

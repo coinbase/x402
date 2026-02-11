@@ -31,7 +31,7 @@ go mod download
 
 ## Running
 
-All examples use the `CreatePaymentWrapper` API - a lean, functional approach to adding payments to MCP tools.
+All examples use the `NewPaymentWrapper` API - a lean approach to adding payments to MCP tools with the official SDK.
 
 ### Simple Mode (Recommended Starting Point)
 

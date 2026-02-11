@@ -43,13 +43,14 @@
 //	accepts, _ := resourceServer.BuildPaymentRequirements(ctx, config)
 //
 //	// Create payment wrapper
-//	paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+//	wrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 //	    Accepts: accepts,
 //	})
-//	if err != nil { ... }
 //
 //	// Register paid tool
-//	mcpServer.Tool("get_weather", "Get weather", schema, paid(handler))
+//	mcpServer.AddTool(tool, wrapper.Wrap(func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//	    return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "result"}}}, nil
+//	}))
 //
 // # Factory Functions
 //
