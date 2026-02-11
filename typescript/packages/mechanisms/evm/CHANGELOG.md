@@ -1,5 +1,13 @@
 # @x402/evm Changelog
 
+## 2.3.1
+
+### Patch Changes
+
+- 0c6064d: Add MegaETH mainnet (chain ID 4326) support with USDM as the default stablecoin
+- Updated dependencies [9ec9f15]
+  - @x402/core@2.3.1
+
 ## 2.3.0
 
 ### Minor Changes
