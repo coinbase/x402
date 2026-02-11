@@ -233,7 +233,7 @@ class CashSchemeNetworkServer:
             )
 
         # Handle numeric prices
-        if isinstance(price, (int, float)):
+        if isinstance(price, int | float):
             return AssetAmount(
                 amount=str(price),
                 asset="USD",

@@ -43,8 +43,7 @@ class DiscoveredResource:
 
 
 class BazaarCatalog:
-    """Catalog for storing discovered x402 resources.
-    """
+    """Catalog for storing discovered x402 resources."""
 
     def __init__(self) -> None:
         self._resources: dict[str, DiscoveredResource] = {}
@@ -79,9 +78,7 @@ class BazaarCatalog:
             metadata={},
         )
 
-    def get_resources(
-        self, limit: int = 100, offset: int = 0
-    ) -> dict[str, Any]:
+    def get_resources(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """Get paginated list of discovered resources.
 
         Args:
@@ -108,4 +105,3 @@ class BazaarCatalog:
     def get_count(self) -> int:
         """Get total count of discovered resources."""
         return len(self._resources)
-
