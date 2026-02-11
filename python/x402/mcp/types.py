@@ -1,7 +1,7 @@
 """Type definitions for MCP transport integration."""
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
 from ..schemas.base import Price
@@ -294,6 +294,32 @@ class SyncPaymentWrapperHooks:
 SyncBeforeExecutionHook = Callable[[ServerHookContext], bool]
 SyncAfterExecutionHook = Callable[[AfterExecutionContext], None]
 SyncAfterSettlementHook = Callable[[SettlementContext], None]
+
+# Async-capable server hooks (for use in async wrappers; callables may return awaitables)
+AsyncBeforeExecutionHook = Callable[[ServerHookContext], Union[bool, Awaitable[bool]]]
+AsyncAfterExecutionHook = Callable[[AfterExecutionContext], Union[None, Awaitable[None]]]
+AsyncAfterSettlementHook = Callable[[SettlementContext], Union[None, Awaitable[None]]]
+
+
+class PaymentWrapperHooks:
+    """Server-side hooks for payment wrapper (supports sync or async hooks)."""
+
+    def __init__(
+        self,
+        on_before_execution: AsyncBeforeExecutionHook | None = None,
+        on_after_execution: AsyncAfterExecutionHook | None = None,
+        on_after_settlement: AsyncAfterSettlementHook | None = None,
+    ):
+        """Initialize payment wrapper hooks.
+
+        Args:
+            on_before_execution: Hook called before execution (can abort). May be sync or async.
+            on_after_execution: Hook called after execution. May be sync or async.
+            on_after_settlement: Hook called after settlement. May be sync or async.
+        """
+        self.on_before_execution = on_before_execution
+        self.on_after_execution = on_after_execution
+        self.on_after_settlement = on_after_settlement
 
 
 # ============================================================================

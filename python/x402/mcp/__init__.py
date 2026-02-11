@@ -41,6 +41,7 @@ from .constants import (
 __all__ = [
     # Server
     "create_payment_wrapper",
+    "PaymentWrapperHooks",
     # Client
     "create_x402_mcp_client",
     "x402MCPSession",
@@ -57,6 +58,10 @@ def __getattr__(name: str):
         from .server import create_payment_wrapper
 
         return create_payment_wrapper
+    if name == "PaymentWrapperHooks":
+        from .types import PaymentWrapperHooks
+
+        return PaymentWrapperHooks
     if name in ("create_x402_mcp_client", "x402MCPSession", "MCPToolCallResult"):
         from . import client as _client
 

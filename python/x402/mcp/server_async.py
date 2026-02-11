@@ -13,6 +13,7 @@ from .types import (
     AfterExecutionContext,
     MCPToolContext,
     MCPToolResult,
+    PaymentWrapperHooks,
     ServerHookContext,
     SettlementContext,
 )
@@ -29,32 +30,6 @@ AsyncToolHandler = Callable[
     | Awaitable[MCPToolResult]
     | Awaitable[dict[str, Any]],
 ]
-
-# Async hook types for the server wrapper
-BeforeExecutionHook = Callable[[ServerHookContext], bool | Awaitable[bool]]
-AfterExecutionHook = Callable[[AfterExecutionContext], None | Awaitable[None]]
-AfterSettlementHook = Callable[[SettlementContext], None | Awaitable[None]]
-
-
-class PaymentWrapperHooks:
-    """Async server-side hooks for payment wrapper."""
-
-    def __init__(
-        self,
-        on_before_execution: BeforeExecutionHook | None = None,
-        on_after_execution: AfterExecutionHook | None = None,
-        on_after_settlement: AfterSettlementHook | None = None,
-    ):
-        """Initialize async payment wrapper hooks.
-
-        Args:
-            on_before_execution: Async hook called before execution (can abort)
-            on_after_execution: Async hook called after execution
-            on_after_settlement: Async hook called after settlement
-        """
-        self.on_before_execution = on_before_execution
-        self.on_after_execution = on_after_execution
-        self.on_after_settlement = on_after_settlement
 
 
 class PaymentWrapperConfig:

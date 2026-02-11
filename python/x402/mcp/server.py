@@ -34,6 +34,12 @@ from typing import Any
 
 from ..schemas.payments import PaymentPayload, PaymentRequirements, ResourceInfo
 from .constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
+from .types import (
+    AfterExecutionContext,
+    PaymentWrapperHooks,
+    ServerHookContext,
+    SettlementContext,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +51,7 @@ def create_payment_wrapper(
     *,
     accepts: list[PaymentRequirements],
     resource: ResourceInfo | None = None,
+    hooks: PaymentWrapperHooks | None = None,
 ) -> Callable:
     """Create a decorator that wraps a FastMCP tool handler with x402 payment logic.
 
@@ -70,6 +77,8 @@ def create_payment_wrapper(
             used for verification and settlement.
         resource: Optional ``ResourceInfo`` metadata (url, description, mimeType).
             Defaults to ``mcp://tool/{function_name}``.
+        hooks: Optional ``PaymentWrapperHooks`` for on_before_execution,
+            on_after_execution, on_after_settlement (matches server_async).
 
     Returns:
         A decorator to apply to a FastMCP tool handler function.
@@ -138,6 +147,24 @@ def create_payment_wrapper(
                     f"Payment verification failed: {verify_result.invalid_reason}",
                 )
 
+            # OnBeforeExecution hook
+            if hooks and hooks.on_before_execution:
+                hook_ctx = ServerHookContext(
+                    tool_name=tool_name,
+                    arguments=kwargs,
+                    payment_requirements=accepts[0],
+                    payment_payload=payload,
+                )
+                proceed = hooks.on_before_execution(hook_ctx)
+                if asyncio.iscoroutine(proceed):
+                    proceed = await proceed
+                if not proceed:
+                    return _create_payment_required_result(
+                        accepts,
+                        tool_resource,
+                        "Execution blocked by on_before_execution hook",
+                    )
+
             # Execute the original handler
             try:
                 if is_async:
@@ -162,6 +189,36 @@ def create_payment_wrapper(
             else:
                 result_text = str(result)
 
+            # Build MCPToolResult for hooks
+            from .types import MCPToolResult as MCPToolResultType
+
+            mcp_result = MCPToolResultType(
+                content=(
+                    [{"type": "text", "text": result_text}]
+                    if isinstance(result_text, str)
+                    else []
+                ),
+                is_error=False,
+                meta={},
+                structured_content=None,
+            )
+
+            # OnAfterExecution hook
+            if hooks and hooks.on_after_execution:
+                after_ctx = AfterExecutionContext(
+                    tool_name=tool_name,
+                    arguments=kwargs,
+                    payment_requirements=accepts[0],
+                    payment_payload=payload,
+                    result=mcp_result,
+                )
+                try:
+                    coro = hooks.on_after_execution(after_ctx)
+                    if asyncio.iscoroutine(coro):
+                        await coro
+                except Exception:
+                    pass
+
             # Settle payment
             try:
                 settle_result = await resource_server.settle_payment(payload, accepts[0])
@@ -177,6 +234,22 @@ def create_payment_wrapper(
                     tool_resource,
                     f"Settlement error: {e}",
                 )
+
+            # OnAfterSettlement hook
+            if hooks and hooks.on_after_settlement:
+                settlement_ctx = SettlementContext(
+                    tool_name=tool_name,
+                    arguments=kwargs,
+                    payment_requirements=accepts[0],
+                    payment_payload=payload,
+                    settlement=settle_result,
+                )
+                try:
+                    coro = hooks.on_after_settlement(settlement_ctx)
+                    if asyncio.iscoroutine(coro):
+                        await coro
+                except Exception:
+                    pass
 
             # Return result with payment response in _meta
             payment_response = settle_result.model_dump(by_alias=True)

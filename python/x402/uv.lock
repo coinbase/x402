@@ -3517,6 +3517,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1" },
     { name = "jsonschema", marker = "extra == 'extensions'", specifier = ">=4.0.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
+    { name = "nest-asyncio", specifier = ">=1.6.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "requests", marker = "extra == 'requests'", specifier = ">=2.31.0" },
     { name = "solana", marker = "extra == 'svm'", specifier = ">=0.36.0" },
