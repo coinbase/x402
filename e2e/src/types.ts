@@ -1,6 +1,7 @@
 import type { NetworkSet } from './networks/networks';
 
 export type ProtocolFamily = 'evm' | 'svm';
+export type Transport = 'http' | 'mcp';
 
 export interface ClientResult {
   success: boolean;
@@ -51,6 +52,7 @@ export interface TestEndpoint {
 export interface TestConfig {
   name: string;
   type: 'server' | 'client' | 'facilitator';
+  transport?: Transport;
   language: string;
   protocolFamilies?: ProtocolFamily[];
   x402Version?: number;

@@ -4,7 +4,7 @@ package main
 //
 // This example demonstrates creating an MCP server with payment-wrapped tools
 // using the MCP SDK (github.com/modelcontextprotocol/go-sdk/mcp).
-// Uses the CreatePaymentWrapper function to add x402 payment to individual tools.
+// Uses NewPaymentWrapper to add x402 payment to individual tools.
 //
 // The getWeatherData helper is defined in helpers.go and shared across examples.
 //
@@ -91,7 +91,7 @@ func runSimple() error {
 	// ========================================================================
 	// STEP 4: Create payment wrapper with accepts array
 	// ========================================================================
-	paidWeather, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paymentWrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: accepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_weather",
@@ -99,9 +99,6 @@ func runSimple() error {
 			MimeType:    "application/json",
 		},
 	})
-	if err != nil {
-		return fmt.Errorf("failed to create payment wrapper: %w", err)
-	}
 
 	// ========================================================================
 	// STEP 5: Register tools using REAL MCP SDK with payment wrapper
@@ -130,67 +127,29 @@ func runSimple() error {
 				"city": map[string]interface{}{"type": "string", "description": "The city name"},
 			},
 		},
-	}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := make(map[string]interface{})
+	}, paymentWrapper.Wrap(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		city := ""
 		if req.Params.Arguments != nil {
-			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-				args = make(map[string]interface{})
+			var args map[string]interface{}
+			if err := json.Unmarshal(req.Params.Arguments, &args); err == nil {
+				if c, ok := args["city"].(string); ok {
+					city = c
+				}
 			}
 		}
-		meta := make(map[string]interface{})
-		if req.Params.Meta != nil {
-			meta = req.Params.Meta.GetMeta()
+		if city == "" {
+			city = "San Francisco"
 		}
 
-		toolContext := mcp.MCPToolContext{
-			ToolName:  req.Params.Name,
-			Arguments: args,
-			Meta:      meta,
-		}
+		weatherData := getWeatherData(city)
+		weatherJSON, _ := json.MarshalIndent(weatherData, "", "  ")
 
-		// Call paid handler
-		result, err := paidWeather(func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-			city, _ := args["city"].(string)
-			if city == "" {
-				city = "San Francisco"
-			}
-
-			weatherData := getWeatherData(city)
-			weatherJSON, _ := json.MarshalIndent(weatherData, "", "  ")
-
-			return mcp.MCPToolResult{
-				Content: []mcp.MCPContentItem{
-					{Type: "text", Text: string(weatherJSON)},
-				},
-				IsError: false,
-			}, nil
-		})(ctx, args, toolContext)
-
-		if err != nil {
-			return &mcpsdk.CallToolResult{
-				IsError: true,
-				Content: []mcpsdk.Content{
-					&mcpsdk.TextContent{Text: err.Error()},
-				},
-			}, nil
-		}
-
-		content := make([]mcpsdk.Content, len(result.Content))
-		for i, item := range result.Content {
-			content[i] = &mcpsdk.TextContent{Text: item.Text}
-		}
-
-		callResult := &mcpsdk.CallToolResult{
-			Content: content,
-			IsError: result.IsError,
-		}
-
-		if result.Meta != nil {
-			callResult.Meta = mcpsdk.Meta(result.Meta)
-		}
-
-		return callResult, nil
-	})
+		return &mcpsdk.CallToolResult{
+			Content: []mcpsdk.Content{
+				&mcpsdk.TextContent{Text: string(weatherJSON)},
+			},
+		}, nil
+	}))
 
 	// Start HTTP server with SSE transport
 	return startHTTPServer(mcpServer, port)
@@ -219,7 +178,7 @@ func startHTTPServer(mcpServer *mcpsdk.Server, port string) error {
 	fmt.Println("   - get_weather (paid: $0.001)")
 	fmt.Println("   - ping (free)")
 	fmt.Printf("\n🔗 Connect via SSE: http://localhost:%s/sse\n", port)
-	fmt.Println("\n💡 This example uses CreatePaymentWrapper() with REAL MCP SDK.\n")
+	fmt.Println("\n💡 This example uses NewPaymentWrapper() with REAL MCP SDK.\n")
 
 	server := &http.Server{
 		Addr:    ":" + port,

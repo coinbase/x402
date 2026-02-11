@@ -47,8 +47,8 @@ svm = [
     "solana>=0.36.0",
 ]
 
-# MCP transport - Model Context Protocol SDK
-mcp = ["mcp>=1.26.0"]
+# MCP (Model Context Protocol) integration
+mcp = ["mcp>=1.0.0"]
 
 # Extensions - optional functionality
 extensions = ["jsonschema>=4.0.0"]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	x402 "github.com/coinbase/x402/go"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/coinbase/x402/go/mcp"
@@ -15,13 +16,11 @@ import (
 // MCP Client with x402 Payment Support - Simple Example
 //
 // This example demonstrates the RECOMMENDED way to create an MCP client
-// using the high-level NewX402MCPClientFromConfig factory function with the MCP SDK.
-//
-// The mcpClientAdapter type is defined in adapter.go and shared across examples.
+// using NewX402MCPClient with an explicitly created x402 payment client.
 //
 // Run with: go run . simple
 
-// runSimple demonstrates the simple API using NewX402MCPClientFromConfig factory.
+// runSimple demonstrates the simple API using NewX402MCPClient with x402Client.
 func runSimple() error {
 	fmt.Println("\n📦 Using SIMPLE API (CreateX402MCPClient factory) with REAL MCP SDK\n")
 
@@ -72,47 +71,31 @@ func runSimple() error {
 
 	fmt.Println("✅ Connected to MCP server\n")
 
-	// Wrap with x402
-	adapter := &mcpClientAdapter{
-		client:  mcpClient,
-		session: clientSession,
-	}
-
-	x402Mcp := mcp.NewX402MCPClientFromConfig(
-		adapter,
-		[]mcp.SchemeRegistration{
-			{
-				Network: "eip155:84532",
-				Client:  evm.NewExactEvmScheme(evmSigner),
-			},
+	// Create x402 payment client and wrap session
+	paymentClient := x402.Newx402Client()
+	paymentClient.Register("eip155:84532", evm.NewExactEvmScheme(evmSigner))
+	x402Mcp := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
+		AutoPayment: mcp.BoolPtr(true),
+		OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
+			price := context.PaymentRequired.Accepts[0]
+			fmt.Printf("\n💰 Payment required for tool: %s\n", context.ToolName)
+			fmt.Printf("   Amount: %s (%s)\n", price.Amount, price.Asset)
+			fmt.Printf("   Network: %s\n", price.Network)
+			fmt.Println("   Approving payment...\n")
+			return true, nil
 		},
-		mcp.Options{
-			AutoPayment: mcp.BoolPtr(true),
-			OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
-				price := context.PaymentRequired.Accepts[0]
-				fmt.Printf("\n💰 Payment required for tool: %s\n", context.ToolName)
-				fmt.Printf("   Amount: %s (%s)\n", price.Amount, price.Asset)
-				fmt.Printf("   Network: %s\n", price.Network)
-				fmt.Println("   Approving payment...\n")
-				return true, nil
-			},
-		},
-	)
+	})
 
 	// List tools
 	fmt.Println("📋 Discovering available tools...")
-	toolsResult, err := adapter.ListTools(ctx)
+	toolsResult, err := clientSession.ListTools(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
 
-	if tools, ok := toolsResult.([]map[string]interface{}); ok {
-		fmt.Println("Available tools:")
-		for _, tool := range tools {
-			name, _ := tool["name"].(string)
-			desc, _ := tool["description"].(string)
-			fmt.Printf("   - %s: %s\n", name, desc)
-		}
+	fmt.Println("Available tools:")
+	for _, tool := range toolsResult.Tools {
+		fmt.Printf("   - %s: %s\n", tool.Name, tool.Description)
 	}
 	fmt.Println()
 

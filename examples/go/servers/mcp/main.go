@@ -11,9 +11,9 @@ import (
 //
 // Usage:
 //
-//	go run . simple           - Run simple example (CreatePaymentWrapper)
-//	go run . advanced         - Run advanced example (CreatePaymentWrapper with hooks)
-//	go run . existing         - Run existing server example (CreatePaymentWrapper with existing server)
+//	go run . simple           - Run simple example (NewPaymentWrapper)
+//	go run . advanced         - Run advanced example (NewPaymentWrapper with hooks)
+//	go run . existing         - Run existing server example (NewPaymentWrapper with existing server)
 
 func main() {
 	mode := "simple"
