@@ -4,6 +4,8 @@ unreleasedDir: unreleased
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
 kindFormat: "### {{.Kind}}"
 changeFormat: "- {{.Body}}"
+newlines:
+  afterChangelogVersion: 2
 kinds:
   - label: Added
     key: added

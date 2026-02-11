@@ -1,5 +1,13 @@
 # @x402/extensions Changelog
 
+## 2.3.1
+
+### Patch Changes
+
+- f93fc09: Added solanakit support for siwx
+- Updated dependencies [9ec9f15]
+  - @x402/core@2.3.1
+
 ## 2.3.0
 
 ### Minor Changes
