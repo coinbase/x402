@@ -52,6 +52,7 @@ __all__ = [
     "x402MCPClient",
     "x402MCPClientSync",
     "MCPToolCallResult",
+    "MCPToolResult",
     # Constants
     "MCP_PAYMENT_META_KEY",
     "MCP_PAYMENT_RESPONSE_META_KEY",
@@ -89,6 +90,10 @@ def __getattr__(name: str):
         from . import client as _client
 
         return getattr(_client, name)
+    if name == "MCPToolResult":
+        from .types import MCPToolResult
+
+        return MCPToolResult
     if name == "x402MCPClient":
         from . import client_async as _client_async
 
