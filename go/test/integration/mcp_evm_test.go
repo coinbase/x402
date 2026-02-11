@@ -233,9 +233,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}
 		defer clientSession.Close()
 
-		// Wrap with x402 - use SDK adapter to bridge MCP SDK with x402
-		adapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
-		x402McpClient := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{
+		// Wrap session with x402 payment handling
+		x402McpClient := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
 			AutoPayment: mcp.BoolPtr(true),
 			OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
 				t.Logf("💰 Payment requested: %s atomic units", context.PaymentRequired.Accepts[0].Amount)
@@ -272,8 +271,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 2: Paid tool returns 402 without payment (manual test)
 		// ========================================================================
 		t.Run("Paid tool returns 402 without payment", func(t *testing.T) {
-			manualAdapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
-			manualClient := mcp.NewX402MCPClient(manualAdapter, paymentClient, mcp.Options{
+			manualClient := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
 				AutoPayment: mcp.BoolPtr(false),
 			})
 

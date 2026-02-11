@@ -48,10 +48,6 @@ func main() {
 		return
 	}
 
-	// Create x402 client
-	x402Client := x402.Newx402Client().
-		Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
-
 	// Connect to MCP server via SSE using the official SDK
 	ctx := context.Background()
 	sseURL := serverURL + "/sse"
@@ -73,28 +69,29 @@ func main() {
 	}
 	defer session.Close()
 
-	// Call paid tool using the x402 MCP SDK helper
-	// This automatically handles: first call -> detect 402 -> create payment -> retry
-	result, err := mcp402.CallPaidTool(ctx, session, x402Client, endpointPath, map[string]any{
+	// Use X402MCPClient - payment is transparent in CallTool
+	paymentClient := x402.Newx402Client()
+	paymentClient.Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
+	x402Mcp := mcp402.NewX402MCPClient(session, paymentClient, mcp402.Options{AutoPayment: mcp402.BoolPtr(true)})
+
+	result, err := x402Mcp.CallTool(ctx, endpointPath, map[string]any{
 		"city": "San Francisco",
 	})
 	if err != nil {
-		outputError(fmt.Sprintf("CallPaidTool failed: %v", err))
+		outputError(fmt.Sprintf("CallTool failed: %v", err))
 		return
 	}
 
 	// Extract data from content
 	var data interface{}
 	for _, content := range result.Content {
-		if textContent, ok := content.(*mcp.TextContent); ok {
-			var parsed interface{}
-			if err := json.Unmarshal([]byte(textContent.Text), &parsed); err == nil {
-				data = parsed
-			} else {
-				data = map[string]interface{}{"text": textContent.Text}
-			}
-			break
+		var parsed interface{}
+		if err := json.Unmarshal([]byte(content.Text), &parsed); err == nil {
+			data = parsed
+		} else {
+			data = map[string]interface{}{"text": content.Text}
 		}
+		break
 	}
 
 	// Build payment response

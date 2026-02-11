@@ -4,7 +4,7 @@
 //
 // # Client Usage
 //
-// Wrap an MCP client with payment handling using the built-in SDK adapter:
+// Wrap an MCP session with payment handling:
 //
 //	import (
 //	    "context"
@@ -16,9 +16,8 @@
 //	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "my-agent", Version: "1.0.0"}, nil)
 //	session, _ := mcpClient.Connect(ctx, transport, nil)
 //
-//	// Create adapter and wrap with x402 (AutoPayment defaults to true)
-//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+//	// Wrap session with x402 (AutoPayment defaults to true)
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
 //	}, mcp.Options{})
 //
@@ -56,8 +55,7 @@
 //
 // NewX402MCPClientFromConfig creates a client with scheme registrations:
 //
-//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
 //	}, mcp.Options{})
 //

@@ -46,7 +46,7 @@ func main() {
 }
 ```
 
-### Client - Using SDK Adapter + Factory Function
+### Client - Wrap Session with x402
 
 ```go
 package main
@@ -70,12 +70,8 @@ func main() {
     }
     defer session.Close()
 
-    // Create adapter to bridge MCP SDK with x402
-    adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-
-    // Create x402 MCP client with scheme registrations
-    // AutoPayment defaults to true
-    x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+    // Wrap session with x402 payment handling (AutoPayment defaults to true)
+    x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
         {Network: "eip155:84532", Client: evmClientScheme},
     }, mcp.Options{})
 
@@ -95,34 +91,24 @@ func main() {
 
 ### Client
 
-#### `NewMCPClientAdapter`
-
-Creates an `MCPClientInterface` from the official Go MCP SDK types. This is the
-recommended way to bridge the official MCP SDK with x402.
-
-```go
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-```
-
 #### `NewX402MCPClient`
 
-Creates an x402 MCP client from an existing MCP client and payment client.
+Creates an x402 MCP client from an MCP session (MCPCaller) and payment client.
 
 ```go
 paymentClient := x402.Newx402Client()
 paymentClient.Register("eip155:84532", evmClientScheme)
 
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-x402Mcp := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{})
+x402Mcp := mcp.NewX402MCPClient(session, paymentClient, mcp.Options{})
 ```
 
 #### `NewX402MCPClientFromConfig`
 
 Creates a fully configured x402 MCP client with scheme registrations.
+Pass `*mcp.ClientSession` from the official MCP SDK.
 
 ```go
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
     {Network: "eip155:84532", Client: evmClientScheme},
 }, mcp.Options{}) // AutoPayment defaults to true
 ```

@@ -183,35 +183,6 @@ func parseArgsFromRequest(request *mcp.CallToolRequest) map[string]interface{} {
 	return args
 }
 
-// callToolResultToMCPToolResult converts *mcp.CallToolResult to MCPToolResult for hooks.
-func callToolResultToMCPToolResult(result *mcp.CallToolResult) MCPToolResult {
-	content := make([]MCPContentItem, 0, len(result.Content))
-	for _, item := range result.Content {
-		if textContent, ok := item.(*mcp.TextContent); ok {
-			content = append(content, MCPContentItem{Type: "text", Text: textContent.Text})
-		}
-	}
-	mcpResult := MCPToolResult{
-		Content: content,
-		IsError: result.IsError,
-	}
-	if result.StructuredContent != nil {
-		if m, ok := result.StructuredContent.(map[string]interface{}); ok {
-			mcpResult.StructuredContent = m
-		}
-	}
-	if result.Meta != nil {
-		metaMap := result.GetMeta()
-		if len(metaMap) > 0 {
-			mcpResult.Meta = make(map[string]interface{}, len(metaMap))
-			for k, v := range metaMap {
-				mcpResult.Meta[k] = v
-			}
-		}
-	}
-	return mcpResult
-}
-
 // paymentRequiredResult creates an MCP error result with payment required info.
 // Per spec, sets both structuredContent and content[0].text with isError: true.
 func (w *PaymentWrapper) paymentRequiredResult(errorMsg string) *mcp.CallToolResult {
