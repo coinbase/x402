@@ -243,7 +243,9 @@ class TestHTTPIntegration:
                 payment_required
             )
 
-        request_headers = components.http_client.encode_payment_signature_header(payment_payload)
+        request_headers = components.http_client.encode_payment_signature_header(
+            payment_payload
+        )
 
         # Retry with payment
         mock_adapter_with_payment = MockHTTPAdapter(
@@ -301,7 +303,9 @@ class TestDynamicPricing:
     """Tests for dynamic pricing - run against both sync and async implementations."""
 
     @pytest.fixture(params=["sync", "async"])
-    def components_factory(self, request: pytest.FixtureRequest) -> type[HTTPComponentsFixture]:
+    def components_factory(
+        self, request: pytest.FixtureRequest
+    ) -> type[HTTPComponentsFixture]:
         """Returns factory for creating components with custom routes."""
 
         class Factory:

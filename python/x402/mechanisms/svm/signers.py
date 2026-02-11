@@ -187,7 +187,9 @@ class FacilitatorKeypairSigner:
         """
         if fee_payer not in self._keypairs:
             available = ", ".join(self._keypairs.keys())
-            raise ValueError(f"No signer for fee payer {fee_payer}. Available: {available}")
+            raise ValueError(
+                f"No signer for fee payer {fee_payer}. Available: {available}"
+            )
 
         keypair = self._keypairs[fee_payer]
 
