@@ -26,9 +26,11 @@ export interface ResourceConfig {
 }
 
 /**
- * Resource information for PaymentRequired response
+ * Resource metadata for the PaymentRequired response.
+ * Describes the protected resource (URL, description, MIME type) that the
+ * server includes in the 402 body so clients know what they are paying for.
  */
-export interface ResourceInfo {
+export interface ResourceMetadata {
   url: string;
   description: string;
   mimeType: string;
@@ -40,7 +42,7 @@ export interface ResourceInfo {
 
 export interface PaymentRequiredContext {
   requirements: PaymentRequirements[];
-  resourceInfo: ResourceInfo;
+  resourceInfo: ResourceMetadata;
   error?: string;
   paymentRequiredResponse: PaymentRequired;
 }
@@ -527,7 +529,7 @@ export class x402ResourceServer {
    */
   async createPaymentRequiredResponse(
     requirements: PaymentRequirements[],
-    resourceInfo: ResourceInfo,
+    resourceInfo: ResourceMetadata,
     error?: string,
     extensions?: Record<string, unknown>,
   ): Promise<PaymentRequired> {
@@ -853,7 +855,7 @@ export class x402ResourceServer {
   async processPaymentRequest(
     paymentPayload: PaymentPayload | null,
     resourceConfig: ResourceConfig,
-    resourceInfo: ResourceInfo,
+    resourceInfo: ResourceMetadata,
     extensions?: Record<string, unknown>,
   ): Promise<{
     success: boolean;
