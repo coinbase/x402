@@ -53,3 +53,29 @@ jobs:
             git diff pnpm-lock.yaml
             exit 1
           fi
+
+  check-package-lock-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: ./e2e/pnpm-lock.yaml
+
+      - name: Check if pnpm-lock.yaml changed
+        working-directory: ./e2e
+        run: |
+          pnpm install
+          if [ -n "$(git diff pnpm-lock.yaml)" ]; then
+            echo "Error: pnpm-lock.yaml was modified after running pnpm install. Please commit the updated pnpm-lock.yaml file."
+            git diff pnpm-lock.yaml
+            exit 1
+          fi

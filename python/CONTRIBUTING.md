@@ -78,9 +78,10 @@ From the `python/x402/` directory:
 |---------|-------------|
 | `uv sync --dev` | Install/update dependencies |
 | `uv run pytest` | Run tests |
-| `uvx ruff check` | Lint code |
-| `uvx ruff check --fix` | Lint and fix |
-| `uvx ruff format` | Format code |
+| `uv run ruff format .` | Format code |
+| `uv run ruff format --check .` | Check formatting (CI) |
+| `uv run ruff check .` | Lint code |
+| `uv run ruff check . --fix` | Lint and fix |
 
 ### Running the Package Locally
 
@@ -225,22 +226,26 @@ async def test_async_operation():
 
 ## Code Quality
 
-### Linting
-
-The project uses [Ruff](https://docs.astral.sh/ruff/) for linting:
-
-```bash
-# Check for issues
-uvx ruff check
-
-# Fix auto-fixable issues
-uvx ruff check --fix
-```
+The project uses [Ruff](https://docs.astral.sh/ruff/) for formatting and linting. Use `uv run` (project's ruff from dev deps) not `uvx`.
 
 ### Formatting
 
 ```bash
-uvx ruff format
+# Format files
+uv run ruff format .
+
+# Check formatting (for CI)
+uv run ruff format --check .
+```
+
+### Linting
+
+```bash
+# Check for issues
+uv run ruff check .
+
+# Fix auto-fixable issues
+uv run ruff check . --fix
 ```
 
 ### Type Hints

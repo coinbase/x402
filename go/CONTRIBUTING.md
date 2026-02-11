@@ -93,8 +93,10 @@ From the `go/` directory:
 | `make test` | Run unit tests |
 | `make test-cover` | Run tests with coverage report |
 | `make test-integration` | Run integration tests |
-| `make lint` | Run golangci-lint |
 | `make fmt` | Format code (go fmt + goimports) |
+| `make format-check` | Verify formatting (CI) |
+| `make lint` | Run golangci-lint |
+| `make lint-check` | Verify lint passes (CI) |
 | `make verify` | Run fmt, lint, and test |
 | `make generate` | Generate mocks |
 | `make help` | Show all available commands |
@@ -242,21 +244,29 @@ Mocks are generated using `mockgen` and placed in `test/mocks/`.
 
 ## Code Quality
 
+### Formatting
+
+```bash
+# Format code
+make fmt
+
+# Verify formatting (for CI)
+make format-check
+```
+
+This runs both `go fmt` and `goimports`.
+
 ### Linting
 
 The project uses [golangci-lint](https://golangci-lint.run/):
 
 ```bash
+# Run linter
 make lint
+
+# Verify lint passes (for CI)
+make lint-check
 ```
-
-### Formatting
-
-```bash
-make fmt
-```
-
-This runs both `go fmt` and `goimports`.
 
 ### Code Style
 

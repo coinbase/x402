@@ -37,6 +37,18 @@ For setup instructions, development workflow, and contribution patterns for each
 - [Go Development Guide](go/CONTRIBUTING.md)
 - [Specifications Guide](specs/CONTRIBUTING.md)
 
+## Pre-commit / CI Commands
+
+Before submitting a PR, run the format and lint checks for the SDK(s) you modified. These commands match what CI runs:
+
+| SDK | Format (apply) | Format (CI) | Lint (apply) | Lint (CI) |
+|-----|---------------|-------------|--------------|-----------|
+| TypeScript | `pnpm format` | `pnpm format:check` | `pnpm lint` | `pnpm lint:check` |
+| Python | `uv run ruff format .` | `uv run ruff format --check .` | `uv run ruff check .` | `uv run ruff check .` |
+| Go | `make fmt` | `make format-check` | `make lint` | `make lint-check` |
+
+Run from `typescript/`, `python/x402/`, or `go/` respectively.
+
 ## Contributing Workflow
 
 ### 1. Find or Create an Issue

@@ -1,4 +1,4 @@
-.PHONY: all build test lint lint-fix fmt clean install help
+.PHONY: all build test lint lint-fix lint-check fmt format-check clean install help
 
 # Variables
 GOPATH := $(shell go env GOPATH)
@@ -77,6 +77,20 @@ fmt: $(GOIMPORTS)
 	@echo "Formatting code..."
 	@go fmt ./...
 	@$(GOIMPORTS) -w .
+
+## format-check: Verify code is formatted (CI)
+format-check: $(GOIMPORTS)
+	@echo "Checking format..."
+	@go fmt ./...
+	@$(GOIMPORTS) -w .
+	@if [ -n "$$(git diff --name-only)" ]; then \
+		echo "The following files are not properly formatted:"; \
+		git diff --name-only; \
+		exit 1; \
+	fi
+
+## lint-check: Verify code passes lint (CI)
+lint-check: lint
 
 ## clean: Clean build artifacts
 clean:

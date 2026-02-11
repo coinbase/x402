@@ -6,6 +6,8 @@
   "scripts": {
     "test": "tsx test.ts",
     "test:watch": "tsc --watch",
+    "format:check": "pnpm -r --filter './clients/*' --filter './servers/*' --filter './facilitators/*' --filter './legacy/servers/*' --filter './legacy/clients/*' run format:check",
+    "lint:check": "pnpm -r --filter './clients/*' --filter './servers/*' --filter './facilitators/*' --filter './legacy/servers/*' --filter './legacy/clients/*' run lint:check",
     "setup": "./setup.sh",
     "setup:legacy": "./setup.sh --legacy",
     "install:all": "pnpm install && ./setup.sh",
