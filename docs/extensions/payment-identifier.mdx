@@ -21,6 +21,9 @@ The payment-identifier extension provides an idempotency mechanism for x402 paym
 
 ## Quickstart for Buyers (Clients)
 
+<Tabs>
+<Tab title="TypeScript">
+
 ### Step 1: Generate a Payment ID
 
 Use the `generatePaymentId()` utility to create a unique identifier:
@@ -62,6 +65,54 @@ const response1 = await fetchWithPayment(url);
 // Retry with same payment ID - cached response returned (no payment)
 const response2 = await fetchWithPayment(url);
 ```
+
+</Tab>
+<Tab title="Python">
+
+### Step 1: Generate a Payment ID
+
+Use the `generate_payment_id()` utility to create a unique identifier:
+
+```python
+from x402.extensions.payment_identifier import generate_payment_id
+
+payment_id = generate_payment_id()
+# Example: "pay_7d5d747be160e280504c099d984bcfe0"
+```
+
+### Step 2: Add Payment ID to Extensions
+
+Hook into the payment flow to add the payment ID before payload creation:
+
+```python
+from x402 import x402Client
+from x402.extensions.payment_identifier import append_payment_identifier_to_extensions
+from x402.http.clients import x402HttpxClient
+
+client = x402Client()
+# ... register schemes ...
+
+# Generate a unique payment ID for this logical request
+payment_id = generate_payment_id()
+
+# Hook into payment flow to add the payment ID
+async def before_payment_creation(context):
+    extensions = context.payment_required.extensions
+    if extensions is not None:
+        append_payment_identifier_to_extensions(extensions, payment_id)
+
+client.on_before_payment_creation(before_payment_creation)
+
+async with x402HttpxClient(client) as http:
+    # First request - payment is processed
+    response1 = await http.get(url)
+    
+    # Retry with same payment ID - cached response returned (no payment)
+    response2 = await http.get(url)
+```
+
+</Tab>
+</Tabs>
 
 ### Best Practices
 
