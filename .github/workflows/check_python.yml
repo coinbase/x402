@@ -1,5 +1,7 @@
 name: Check Python
 on: [pull_request]
+permissions:
+  contents: read
 
 jobs:
   format-python:
