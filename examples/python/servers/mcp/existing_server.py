@@ -70,16 +70,20 @@ def run_existing() -> None:
     # ========================================================================
     weather_accepts = resource_server.build_payment_requirements(
         ResourceConfig(
-            scheme="exact", network="eip155:84532",
-            pay_to=EVM_ADDRESS, price="$0.001",
+            scheme="exact",
+            network="eip155:84532",
+            pay_to=EVM_ADDRESS,
+            price="$0.001",
             extra={"name": "USDC", "version": "2"},
         )
     )
 
     forecast_accepts = resource_server.build_payment_requirements(
         ResourceConfig(
-            scheme="exact", network="eip155:84532",
-            pay_to=EVM_ADDRESS, price="$0.005",
+            scheme="exact",
+            network="eip155:84532",
+            pay_to=EVM_ADDRESS,
+            price="$0.005",
             extra={"name": "USDC", "version": "2"},
         )
     )
@@ -89,12 +93,16 @@ def run_existing() -> None:
     # ========================================================================
     paid_weather = create_payment_wrapper_sync(
         resource_server,
-        SyncPaymentWrapperConfig(accepts=weather_accepts, resource=ResourceInfo(url="mcp://tool/get_weather")),
+        SyncPaymentWrapperConfig(
+            accepts=weather_accepts, resource=ResourceInfo(url="mcp://tool/get_weather")
+        ),
     )
 
     paid_forecast = create_payment_wrapper_sync(
         resource_server,
-        SyncPaymentWrapperConfig(accepts=forecast_accepts, resource=ResourceInfo(url="mcp://tool/get_forecast")),
+        SyncPaymentWrapperConfig(
+            accepts=forecast_accepts, resource=ResourceInfo(url="mcp://tool/get_forecast")
+        ),
     )
 
     # ========================================================================
@@ -104,7 +112,9 @@ def run_existing() -> None:
     paid_weather_tool = wrap_fastmcp_tool_sync(
         paid_weather,
         lambda args, _: MCPToolResult(
-            content=[{"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}],
+            content=[
+                {"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}
+            ],
         ),
         tool_name="get_weather",
     )
@@ -112,9 +122,15 @@ def run_existing() -> None:
     paid_forecast_tool = wrap_fastmcp_tool_sync(
         paid_forecast,
         lambda args, _: MCPToolResult(
-            content=[{"type": "text", "text": json.dumps(
-                [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)], indent=2,
-            )}],
+            content=[
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)],
+                        indent=2,
+                    ),
+                }
+            ],
         ),
         tool_name="get_forecast",
     )

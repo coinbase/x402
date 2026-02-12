@@ -96,7 +96,7 @@ func main() {
 			ginmw.SchemeConfig{Network: "eip155:84532", Server: evm.NewExactEvmScheme()},
 			ginmw.SchemeConfig{Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", Server: svm.NewExactSvmScheme()},
 		},
-		Timeout:    30 * time.Second,
+		Timeout: 30 * time.Second,
 	}))
 
 	/**
@@ -147,4 +147,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

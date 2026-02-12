@@ -18,7 +18,8 @@ dotenv.config();
 
 const PORT = process.env.PORT || "4023";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
@@ -131,7 +132,7 @@ app.use(
  * This endpoint demonstrates a resource protected by x402 payment middleware.
  * Clients must provide a valid payment signature to access this endpoint.
  */
-app.get("/protected", (c) => {
+app.get("/protected", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -144,7 +145,7 @@ app.get("/protected", (c) => {
  * This endpoint demonstrates a resource protected by x402 payment middleware for SVM.
  * Clients must provide a valid payment signature to access this endpoint.
  */
-app.get("/protected-svm", (c) => {
+app.get("/protected-svm", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -156,7 +157,7 @@ app.get("/protected-svm", (c) => {
  *
  * Used to verify the server is running and responsive.
  */
-app.get("/health", (c) => {
+app.get("/health", c => {
   return c.json({
     status: "ok",
     network: EVM_NETWORK,
@@ -170,7 +171,7 @@ app.get("/health", (c) => {
  *
  * Allows graceful shutdown of the server during testing.
  */
-app.post("/close", (c) => {
+app.post("/close", c => {
   console.log("Received shutdown request");
 
   // Give time for response to be sent

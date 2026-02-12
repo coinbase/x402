@@ -48,7 +48,7 @@ func main() {
 	// Create EVM scheme server
 	evmScheme := evm.NewExactEvmScheme()
 
-	// Create x402 resource server with hooks 
+	// Create x402 resource server with hooks
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(facilitatorClient),
 	).

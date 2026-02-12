@@ -56,4 +56,3 @@ export class BazaarCatalog {
     return this.discoveredResources.size;
   }
 }
-

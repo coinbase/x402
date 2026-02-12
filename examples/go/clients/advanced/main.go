@@ -123,4 +123,3 @@ func printResponse(resp *http.Response, label string) error {
 func printDuration(start time.Time, label string) {
 	fmt.Printf("⏱️  %s took %v\n\n", label, time.Since(start))
 }
-

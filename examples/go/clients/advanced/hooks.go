@@ -109,4 +109,3 @@ func runHooksExample(ctx context.Context, evmPrivateKey, url string) error {
 
 	return printResponse(resp, "Response with hooks")
 }
-

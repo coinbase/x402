@@ -3,18 +3,10 @@
   "type": "client",
   "transport": "mcp",
   "language": "typescript",
-  "protocolFamilies": [
-    "evm"
-  ],
-  "x402Versions": [
-    2
-  ],
+  "protocolFamilies": ["evm"],
+  "x402Versions": [2],
   "environment": {
-    "required": [
-      "EVM_PRIVATE_KEY",
-      "RESOURCE_SERVER_URL",
-      "ENDPOINT_PATH"
-    ],
+    "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
   }
 }

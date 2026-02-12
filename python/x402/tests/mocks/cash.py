@@ -58,9 +58,7 @@ class CashSchemeNetworkClient:
         Returns:
             Inner payload dict with signature and validity.
         """
-        valid_until = int(time.time() * 1000) + (
-            requirements.max_timeout_seconds * 1000
-        )
+        valid_until = int(time.time() * 1000) + (requirements.max_timeout_seconds * 1000)
         return {
             "signature": f"~{self._payer}",
             "validUntil": str(valid_until),

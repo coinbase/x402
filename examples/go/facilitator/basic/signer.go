@@ -606,4 +606,3 @@ func getBigIntFromInterface(v interface{}) *big.Int {
 	}
 	return big.NewInt(0)
 }
-

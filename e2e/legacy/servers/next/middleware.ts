@@ -37,6 +37,5 @@ export const middleware = paymentMiddleware(
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/api/protected"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
+  runtime: "nodejs", // TEMPORARY: Only needed until Edge runtime support is added
 };
-

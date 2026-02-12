@@ -38,10 +38,11 @@ lint-check: deps-dev
 	done
 
 ## build-all: Verify all Go examples compile
+## Note: servers/advanced has multiple standalone example programs (each with main) in one dir; skip it
 build-all:
 	@echo "Building Go examples..."
 	@for dir in clients/*/ servers/*/ facilitator/*/; do \
-		if [ -f "$$dir/go.mod" ]; then \
+		if [ -f "$$dir/go.mod" ] && [ "$$dir" != "servers/advanced/" ] && [ "$$dir" != "servers/custom/" ]; then \
 			echo "  Building $$dir"; \
 			(cd "$$dir" && go build ./...) || exit 1; \
 		fi; \

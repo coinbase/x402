@@ -58,9 +58,7 @@ def make_v2_payload(signature: str = "0xmock") -> PaymentPayload:
 class MockX402Client:
     """Mock async x402Client for testing."""
 
-    def __init__(
-        self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None
-    ):
+    def __init__(self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None):
         self.payload_to_return = payload_to_return or make_v2_payload()
         self.create_payment_calls: list = []
 
@@ -72,9 +70,7 @@ class MockX402Client:
 class MockX402ClientSync:
     """Mock sync x402ClientSync for testing."""
 
-    def __init__(
-        self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None
-    ):
+    def __init__(self, payload_to_return: PaymentPayload | PaymentPayloadV1 | None = None):
         self.payload_to_return = payload_to_return or make_v2_payload()
         self.create_payment_calls: list = []
 

@@ -7,7 +7,7 @@ config();
 
 const payTo = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const network = process.env.EVM_NETWORK as Network;
-const port = parseInt(process.env.PORT || '4021');
+const port = parseInt(process.env.PORT || "4021");
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!payTo || !network) {
@@ -46,14 +46,14 @@ app.use(
 app.get("/protected", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Health check endpoint
 app.get("/health", c => {
   return c.json({
-    status: "healthy"
+    status: "healthy",
   });
 });
 
@@ -65,7 +65,7 @@ app.post("/close", c => {
   }, 1000);
 
   return c.json({
-    message: "Shutting down gracefully"
+    message: "Shutting down gracefully",
   });
 });
 

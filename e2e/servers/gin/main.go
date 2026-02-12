@@ -150,7 +150,7 @@ func main() {
 					Network: evmNetwork,
 					// Use pre-parsed price with assetTransferMethod to force Permit2
 					Price: map[string]interface{}{
-						"amount": "1000", // 0.001 USDC (6 decimals)
+						"amount": "1000",                                       // 0.001 USDC (6 decimals)
 						"asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
 						"extra": map[string]interface{}{
 							"assetTransferMethod": "permit2",
@@ -173,7 +173,7 @@ func main() {
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
 		SyncFacilitatorOnStart: true,
-		Timeout:    30 * time.Second,
+		Timeout:                30 * time.Second,
 		ErrorHandler: func(c *ginfw.Context, err error) {
 			// Log detailed error information for debugging
 			fmt.Printf("❌ [E2E SERVER ERROR] Payment error occurred\n")

@@ -129,4 +129,3 @@ func makeRequest(client *x402.X402Client, url string) error {
 
 	return nil
 }
-

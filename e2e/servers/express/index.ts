@@ -17,7 +17,8 @@ dotenv.config();
 
 const PORT = process.env.PORT || "4021";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
@@ -53,7 +54,9 @@ registerExactSvmScheme(server);
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
 
-console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
+console.log(
+  `Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + "..." : "not configured"}`,
+);
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 /**

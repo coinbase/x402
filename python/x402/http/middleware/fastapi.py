@@ -264,8 +264,7 @@ def payment_middleware(
             path=request.url.path,
             method=request.method,
             payment_header=(
-                adapter.get_header("payment-signature")
-                or adapter.get_header("x-payment")
+                adapter.get_header("payment-signature") or adapter.get_header("x-payment")
             ),
         )
 
@@ -444,9 +443,7 @@ class PaymentMiddlewareASGI(BaseHTTPMiddleware):
             paywall_provider: Optional custom paywall provider.
         """
         super().__init__(app)
-        self._middleware = payment_middleware(
-            routes, server, paywall_config, paywall_provider
-        )
+        self._middleware = payment_middleware(routes, server, paywall_config, paywall_provider)
 
     async def dispatch(
         self,

@@ -31,7 +31,11 @@ if (!facilitatorUrl) {
 /**
  * Simulates fetching weather data for a city.
  */
-function getWeatherData(city: string): { city: string; weather: string; temperature: number } {
+function getWeatherData(city: string): {
+  city: string;
+  weather: string;
+  temperature: number;
+} {
   const conditions = ["sunny", "cloudy", "rainy", "snowy", "windy"];
   const weather = conditions[Math.floor(Math.random() * conditions.length)];
   const temperature = Math.floor(Math.random() * 40) + 40;
@@ -109,7 +113,10 @@ async function main(): Promise<void> {
   });
 
   app.get("/health", (_, res) => {
-    res.json({ status: "ok", tools: ["get_weather (paid: $0.001)", "ping (free)"] });
+    res.json({
+      status: "ok",
+      tools: ["get_weather (paid: $0.001)", "ping (free)"],
+    });
   });
 
   app.post("/close", (_, res) => {

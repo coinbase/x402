@@ -137,4 +137,3 @@ func runCustomTransportExample(ctx context.Context, evmPrivateKey, url string) e
 
 	return printResponse(resp, "Response with custom transport")
 }
-
