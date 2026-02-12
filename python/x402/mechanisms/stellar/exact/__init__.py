@@ -1,0 +1,1 @@
+"""Stellar exact scheme implementation."""

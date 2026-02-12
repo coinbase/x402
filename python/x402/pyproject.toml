@@ -46,6 +46,9 @@ svm = [
     "solders>=0.27.0",
     "solana>=0.36.0",
 ]
+stellar = [
+    "stellar-sdk>=11.0.0",
+]
 
 # MCP (Model Context Protocol) integration
 mcp = ["mcp>=1.0.0"]
@@ -56,8 +59,8 @@ extensions = ["jsonschema>=4.0.0"]
 # Convenience bundles
 clients = ["x402[httpx,requests]"]
 servers = ["x402[flask,fastapi]"]
-mechanisms = ["x402[evm,svm]"]
-all = ["x402[httpx,requests,flask,fastapi,evm,svm,mcp,extensions]"]
+mechanisms = ["x402[evm,svm,stellar]"]
+all = ["x402[httpx,requests,flask,fastapi,evm,svm,stellar,mcp,extensions]"]
 
 [dependency-groups]
 dev = [
