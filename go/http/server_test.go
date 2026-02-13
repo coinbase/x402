@@ -604,3 +604,205 @@ func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 func (m *mockFacilitatorClient) Identifier() string {
 	return "mock"
 }
+
+// ============================================================================
+// Bazaar Extension Validation Tests
+// ============================================================================
+
+func TestValidateExtensions_Valid(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api/jobs": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": map[string]interface{}{
+					"info": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":   "http",
+							"method": "GET",
+						},
+					},
+					"schema": map[string]interface{}{
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"type":    "object",
+						"properties": map[string]interface{}{
+							"input": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"type":   map[string]interface{}{"type": "string"},
+									"method": map[string]interface{}{"type": "string"},
+								},
+								"required": []interface{}{"type", "method"},
+							},
+						},
+						"required": []interface{}{"input"},
+					},
+				},
+			},
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes)
+	warnings := server.ValidateExtensions()
+
+	if len(warnings) != 0 {
+		t.Errorf("Expected no warnings, got: %v", warnings)
+	}
+}
+
+func TestValidateExtensions_Invalid(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api/jobs": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": map[string]interface{}{
+					"info": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":   "http",
+							"method": "GET",
+						},
+						// Missing "output" required by schema
+					},
+					"schema": map[string]interface{}{
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"type":    "object",
+						"properties": map[string]interface{}{
+							"input": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"type":   map[string]interface{}{"type": "string"},
+									"method": map[string]interface{}{"type": "string"},
+								},
+								"required": []interface{}{"type", "method"},
+							},
+							"output": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"jobs":  map[string]interface{}{"type": "array"},
+									"count": map[string]interface{}{"type": "number"},
+								},
+								"required": []interface{}{"jobs", "count"},
+							},
+						},
+						"required": []interface{}{"input", "output"},
+					},
+				},
+			},
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes)
+	warnings := server.ValidateExtensions()
+
+	if len(warnings) == 0 {
+		t.Fatal("Expected warnings for invalid bazaar extension")
+	}
+	if !strings.Contains(warnings[0], "Bazaar extension validation warning") {
+		t.Errorf("Expected validation warning, got: %s", warnings[0])
+	}
+}
+
+func TestValidateExtensions_NoBazaar(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api/data": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+			Description: "No bazaar extension",
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes)
+	warnings := server.ValidateExtensions()
+
+	if len(warnings) != 0 {
+		t.Errorf("Expected no warnings for routes without bazaar, got: %v", warnings)
+	}
+}
+
+func TestInitialize_WithInvalidExtension(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api/jobs": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": map[string]interface{}{
+					"info": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":   "http",
+							"method": "GET",
+						},
+					},
+					"schema": map[string]interface{}{
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"type":    "object",
+						"properties": map[string]interface{}{
+							"input": map[string]interface{}{
+								"type": "object",
+							},
+							"output": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"jobs":  map[string]interface{}{"type": "array"},
+									"count": map[string]interface{}{"type": "number"},
+								},
+								"required": []interface{}{"jobs", "count"},
+							},
+						},
+						"required": []interface{}{"input", "output"},
+					},
+				},
+			},
+		},
+	}
+
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:1", &mockSchemeServer{scheme: "exact"}),
+	)
+
+	// Initialize should succeed despite invalid bazaar extension (warnings only)
+	err := server.Initialize(ctx)
+	if err != nil {
+		t.Fatalf("Expected Initialize to succeed despite invalid extension, got: %v", err)
+	}
+}

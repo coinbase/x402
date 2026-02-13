@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
   x402HTTPResourceServer,
@@ -293,6 +293,250 @@ describe("x402HTTPResourceServer.initialize", () => {
         expect(configError.message).toContain("x402 Route Configuration Errors:");
         expect(configError.message).toContain("GET /api/test");
       }
+    });
+  });
+
+  describe("bazaar extension validation", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    // Mock the dynamic import of @x402/extensions/bazaar/facilitator
+    // Since @x402/extensions is not a dependency of @x402/core, we provide
+    // an inline validation function that performs basic JSON schema validation.
+    const mockValidateDiscoveryExtension = (ext: { info: unknown; schema: unknown }) => {
+      const schema = ext.schema as Record<string, unknown>;
+      const info = ext.info as Record<string, unknown>;
+
+      if (!schema || !info) {
+        return { valid: false, errors: ["Missing schema or info"] };
+      }
+
+      // Validate info against schema's required properties (top-level + one level deep)
+      const errors: string[] = [];
+      const required = schema.required as string[] | undefined;
+      const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
+
+      if (required) {
+        for (const key of required) {
+          if (!(key in info)) {
+            errors.push(`(root): must have required property '${key}'`);
+          }
+        }
+      }
+
+      if (properties) {
+        for (const [key, propSchema] of Object.entries(properties)) {
+          const nestedRequired = propSchema?.required as string[] | undefined;
+          const nestedObj = info[key] as Record<string, unknown> | undefined;
+          if (nestedRequired && nestedObj && typeof nestedObj === "object") {
+            for (const k of nestedRequired) {
+              if (!(k in nestedObj)) {
+                errors.push(`/${key}: must have required property '${k}'`);
+              }
+            }
+          }
+        }
+      }
+
+      return errors.length > 0 ? { valid: false, errors } : { valid: true };
+    };
+
+    beforeEach(() => {
+      mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: testScheme, network: testNetwork }],
+        }),
+      );
+      server = new x402ResourceServer(mockClient);
+      server.register(testNetwork, mockScheme);
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      // Mock the dynamic import so it resolves with our mock validator
+      vi.doMock("@x402/extensions/bazaar/facilitator", () => ({
+        validateDiscoveryExtension: mockValidateDiscoveryExtension,
+      }));
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      vi.doUnmock("@x402/extensions/bazaar/facilitator");
+    });
+
+    it("should not warn for valid bazaar extension", async () => {
+      const routes: RoutesConfig = {
+        "GET /api/jobs": {
+          accepts: {
+            scheme: testScheme,
+            payTo: "0x123",
+            price: "$0.01",
+            network: testNetwork,
+          },
+          extensions: {
+            bazaar: {
+              info: {
+                input: {
+                  type: "http",
+                  method: "GET",
+                },
+              },
+              schema: {
+                $schema: "https://json-schema.org/draft/2020-12/schema",
+                type: "object",
+                properties: {
+                  input: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", const: "http" },
+                      method: { type: "string", enum: ["GET"] },
+                    },
+                    required: ["type", "method"],
+                  },
+                },
+                required: ["input"],
+              },
+            },
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+      await httpServer.initialize();
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should warn for invalid bazaar extension but still start", async () => {
+      const routes: RoutesConfig = {
+        "GET /api/jobs": {
+          accepts: {
+            scheme: testScheme,
+            payTo: "0x123",
+            price: "$0.01",
+            network: testNetwork,
+          },
+          extensions: {
+            bazaar: {
+              info: {
+                input: {
+                  type: "http",
+                  method: "GET",
+                },
+              },
+              schema: {
+                $schema: "https://json-schema.org/draft/2020-12/schema",
+                type: "object",
+                properties: {
+                  input: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", const: "http" },
+                      method: { type: "string", enum: ["GET"] },
+                    },
+                    required: ["type", "method"],
+                  },
+                  output: {
+                    type: "object",
+                    properties: {
+                      jobs: { type: "array" },
+                      count: { type: "number" },
+                    },
+                    required: ["jobs", "count"],
+                  },
+                },
+                required: ["input", "output"],
+              },
+            },
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+
+      // Should NOT throw - warnings only
+      await expect(httpServer.initialize()).resolves.not.toThrow();
+
+      // Should have emitted a warning
+      expect(warnSpy).toHaveBeenCalled();
+      const warnMessage = warnSpy.mock.calls[0][0] as string;
+      expect(warnMessage).toContain("[x402] Bazaar extension validation warning");
+    });
+
+    it("should not validate routes without bazaar extension", async () => {
+      const routes: RoutesConfig = {
+        "GET /api/data": {
+          accepts: {
+            scheme: testScheme,
+            payTo: "0x123",
+            price: "$0.01",
+            network: testNetwork,
+          },
+          description: "No bazaar extension",
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+      await httpServer.initialize();
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should catch bug: schema requires output fields not present in info", async () => {
+      const routes: RoutesConfig = {
+        "GET /api/jobs": {
+          accepts: {
+            scheme: testScheme,
+            payTo: "0x123",
+            price: "$0.01",
+            network: testNetwork,
+          },
+          extensions: {
+            bazaar: {
+              info: {
+                input: {
+                  type: "http",
+                  method: "GET",
+                },
+                output: {
+                  jobs: [{ title: "Engineer" }],
+                  // Missing "count" field required by schema
+                },
+              },
+              schema: {
+                $schema: "https://json-schema.org/draft/2020-12/schema",
+                type: "object",
+                properties: {
+                  input: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", const: "http" },
+                      method: { type: "string", enum: ["GET"] },
+                    },
+                    required: ["type", "method"],
+                  },
+                  output: {
+                    type: "object",
+                    properties: {
+                      jobs: { type: "array" },
+                      count: { type: "number" },
+                    },
+                    required: ["jobs", "count"],
+                  },
+                },
+                required: ["input", "output"],
+              },
+            },
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+
+      // Server should still start
+      await expect(httpServer.initialize()).resolves.not.toThrow();
+
+      // But should warn about the missing "count" field
+      expect(warnSpy).toHaveBeenCalled();
+      const warnMessage = warnSpy.mock.calls[0][0] as string;
+      expect(warnMessage).toContain("[x402] Bazaar extension validation warning");
     });
   });
 });

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/types"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 // ============================================================================
@@ -201,6 +203,101 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// Initialize initializes the HTTP resource server.
+//
+// This method initializes the underlying resource server (fetching facilitator support)
+// and then validates that bazaar extensions are properly configured, logging warnings
+// for any invalid extensions. Invalid extensions do not block startup.
+func (s *x402HTTPResourceServer) Initialize(ctx context.Context) error {
+	// First, initialize the underlying resource server
+	if err := s.X402ResourceServer.Initialize(ctx); err != nil {
+		return err
+	}
+
+	// Validate bazaar extensions (warnings only)
+	warnings := s.ValidateExtensions()
+	for _, w := range warnings {
+		log.Printf("[x402] WARNING: %s", w)
+	}
+
+	return nil
+}
+
+// ValidateExtensions validates bazaar extensions on compiled routes.
+//
+// For each route with a bazaar extension containing both info and schema,
+// validates that the info matches the schema using JSON Schema validation.
+// Returns a list of warning strings for invalid extensions.
+//
+// NOTE: This method duplicates the JSON Schema validation logic from
+// bazaar.ValidateDiscoveryExtension() because importing the bazaar package
+// here would create an import cycle (bazaar/server.go -> go/http -> bazaar).
+func (s *x402HTTPResourceServer) ValidateExtensions() []string {
+	var warnings []string
+
+	for _, route := range s.compiledRoutes {
+		bazaarRaw, ok := route.Config.Extensions["bazaar"]
+		if !ok || bazaarRaw == nil {
+			continue
+		}
+
+		routePattern := fmt.Sprintf("%s %s", route.Verb, route.Regex.String())
+
+		// Marshal the bazaar extension to extract info and schema fields
+		bazaarJSON, err := json.Marshal(bazaarRaw)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to marshal: %v", routePattern, err))
+			continue
+		}
+
+		var ext struct {
+			Info   interface{}            `json:"info"`
+			Schema map[string]interface{} `json:"schema"`
+		}
+		if err := json.Unmarshal(bazaarJSON, &ext); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to unmarshal: %v", routePattern, err))
+			continue
+		}
+
+		// Skip if info or schema is not present
+		if ext.Info == nil || ext.Schema == nil {
+			continue
+		}
+
+		// Validate info against schema using JSON Schema
+		schemaJSON, err := json.Marshal(ext.Schema)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to marshal schema: %v", routePattern, err))
+			continue
+		}
+
+		infoJSON, err := json.Marshal(ext.Info)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to marshal info: %v", routePattern, err))
+			continue
+		}
+
+		schemaLoader := gojsonschema.NewBytesLoader(schemaJSON)
+		documentLoader := gojsonschema.NewBytesLoader(infoJSON)
+
+		result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: schema validation error: %v", routePattern, err))
+			continue
+		}
+
+		if !result.Valid() {
+			var errs []string
+			for _, desc := range result.Errors() {
+				errs = append(errs, fmt.Sprintf("%s: %s", desc.Context().String(), desc.Description()))
+			}
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension validation warning for route %q: %s", routePattern, strings.Join(errs, ", ")))
+		}
+	}
+
+	return warnings
 }
 
 // BuildPaymentRequirementsFromOptions builds payment requirements from multiple payment options
