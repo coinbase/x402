@@ -362,7 +362,9 @@ export class x402HTTPResourceServer {
    */
   private async validateExtensions(): Promise<void> {
     // Dynamically import to avoid hard dependency on @x402/extensions
-    let validateDiscoveryExtension: ((ext: { info: unknown; schema: unknown }) => { valid: boolean; errors?: string[] }) | undefined;
+    let validateDiscoveryExtension:
+      | ((ext: { info: unknown; schema: unknown }) => { valid: boolean; errors?: string[] })
+      | undefined;
     try {
       const bazaarModule = await import("@x402/extensions/bazaar/facilitator");
       validateDiscoveryExtension = bazaarModule.validateDiscoveryExtension;
