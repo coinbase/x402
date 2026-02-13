@@ -191,16 +191,14 @@ jobs:
       - name: Create .env file
         working-directory: ./e2e
         run: |
-          cat > .env << 'ENVEOF'
-          SERVER_EVM_ADDRESS=${{ secrets.SERVER_EVM_ADDRESS }}
-          SERVER_SVM_ADDRESS=${{ secrets.SERVER_SVM_ADDRESS }}
-          CLIENT_EVM_PRIVATE_KEY=${{ secrets.CLIENT_EVM_PRIVATE_KEY }}
-          CLIENT_SVM_PRIVATE_KEY=${{ secrets.CLIENT_SVM_PRIVATE_KEY }}
-          FACILITATOR_EVM_PRIVATE_KEY=${{ secrets.FACILITATOR_EVM_PRIVATE_KEY }}
-          FACILITATOR_SVM_PRIVATE_KEY=${{ secrets.FACILITATOR_SVM_PRIVATE_KEY }}
-          BASE_SEPOLIA_RPC_URL=${{ secrets.BASE_SEPOLIA_RPC_URL }}
-          SOLANA_DEVNET_RPC_URL=${{ secrets.SOLANA_DEVNET_RPC_URL }}
-          ENVEOF
+          {
+            echo "SERVER_EVM_ADDRESS=${{ secrets.SERVER_EVM_ADDRESS }}"
+            echo "SERVER_SVM_ADDRESS=${{ secrets.SERVER_SVM_ADDRESS }}"
+            echo "CLIENT_EVM_PRIVATE_KEY=${{ secrets.CLIENT_EVM_PRIVATE_KEY }}"
+            echo "CLIENT_SVM_PRIVATE_KEY=${{ secrets.CLIENT_SVM_PRIVATE_KEY }}"
+            echo "FACILITATOR_EVM_PRIVATE_KEY=${{ secrets.FACILITATOR_EVM_PRIVATE_KEY }}"
+            echo "FACILITATOR_SVM_PRIVATE_KEY=${{ secrets.FACILITATOR_SVM_PRIVATE_KEY }}"
+          } > .env
 
       # --- Run E2E Tests ---
       # Uses programmatic mode (CLI filter flags) to bypass the interactive
