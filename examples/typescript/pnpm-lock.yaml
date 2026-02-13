@@ -76,7 +76,7 @@ importers:
         specifier: ^1.2.6
         version: 1.2.6
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../core
       ajv:
         specifier: ^8.17.1
@@ -143,7 +143,7 @@ importers:
   ../../typescript/packages/http/axios:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       axios:
         specifier: ^1.7.9
@@ -207,10 +207,10 @@ importers:
         specifier: ^2.1.1
         version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -277,7 +277,7 @@ importers:
   ../../typescript/packages/http/fetch:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -335,10 +335,10 @@ importers:
   ../../typescript/packages/http/hono:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -402,10 +402,10 @@ importers:
         specifier: ^1.22.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       '@x402/extensions':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
@@ -505,7 +505,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -539,10 +539,10 @@ importers:
         specifier: ^8.29.1
         version: 8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
       '@x402/evm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../mechanisms/evm
       '@x402/svm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../mechanisms/svm
       buffer:
         specifier: ^6.0.3
@@ -1037,7 +1037,7 @@ importers:
         specifier: ^1.12.1
         version: 1.17.3
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../core
       zod:
         specifier: ^3.24.2
@@ -1056,7 +1056,7 @@ importers:
         specifier: ^8.29.1
         version: 8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
       '@x402/evm':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../mechanisms/evm
       eslint:
         specifier: ^9.24.0
@@ -1156,7 +1156,7 @@ importers:
   ../../typescript/packages/mechanisms/evm:
     dependencies:
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -1226,7 +1226,7 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
     devDependencies:
       '@eslint/js':
@@ -1518,6 +1518,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
+      openai:
+        specifier: ^4.77.3
+        version: 4.104.0(encoding@0.1.13)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
       viem:
         specifier: ^2.39.0
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1553,11 +1556,63 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
-  clients/sign-in-with-x:
+  clients/mcp-chatbot:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.12.1
+        version: 1.17.3
       '@x402/core':
         specifier: workspace:*
         version: link:../../../../typescript/packages/core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/mcp':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mcp
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.6.1
+      openai:
+        specifier: ^4.77.3
+        version: 4.104.0(encoding@0.1.13)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.76)
+      viem:
+        specifier: ^2.39.0
+        version: 2.43.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.24.0
+        version: 9.33.0
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.29.1
+        version: 8.48.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/parser':
+        specifier: ^8.29.1
+        version: 8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      eslint:
+        specifier: ^9.24.0
+        version: 9.33.0(jiti@2.6.1)
+      eslint-plugin-import:
+        specifier: ^2.31.0
+        version: 2.32.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-jsdoc:
+        specifier: ^50.6.9
+        version: 50.8.0(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-prettier:
+        specifier: ^5.2.6
+        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.5.2)
+      prettier:
+        specifier: 3.5.2
+        version: 3.5.2
+      tsx:
+        specifier: ^4.20.4
+        version: 4.20.4
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+
+  clients/payment-identifier:
+    dependencies:
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
@@ -1577,6 +1632,67 @@ importers:
       '@eslint/js':
         specifier: ^9.24.0
         version: 9.33.0
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.29.1
+        version: 8.48.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/parser':
+        specifier: ^8.29.1
+        version: 8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      eslint:
+        specifier: ^9.24.0
+        version: 9.33.0(jiti@2.6.1)
+      eslint-plugin-import:
+        specifier: ^2.31.0
+        version: 2.32.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-jsdoc:
+        specifier: ^50.6.9
+        version: 50.8.0(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-prettier:
+        specifier: ^5.2.6
+        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.5.2)
+      prettier:
+        specifier: 3.5.2
+        version: 3.5.2
+      tsx:
+        specifier: ^4.7.0
+        version: 4.20.4
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.2
+
+  clients/sign-in-with-x:
+    dependencies:
+      '@solana/kit':
+        specifier: ^5.1.0
+        version: 5.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/extensions':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/extensions
+      '@x402/fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/http/fetch
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/svm
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      viem:
+        specifier: ^2.39.0
+        version: 2.43.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.24.0
+        version: 9.33.0
+      '@scure/base':
+        specifier: ^1.2.6
+        version: 1.2.6
       '@types/node':
         specifier: ^22.10.5
         version: 22.17.2
@@ -1606,73 +1722,6 @@ importers:
         version: 4.20.4
       typescript:
         specifier: ^5.3.0
-        version: 5.9.2
-
-  facilitator:
-    dependencies:
-      '@scure/base':
-        specifier: ^1.2.6
-        version: 1.2.6
-      '@solana/kit':
-        specifier: ^2.1.1
-        version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
-      '@x402/core':
-        specifier: workspace:*
-        version: link:../../../typescript/packages/core
-      '@x402/evm':
-        specifier: workspace:*
-        version: link:../../../typescript/packages/mechanisms/evm
-      '@x402/extensions':
-        specifier: workspace:*
-        version: link:../../../typescript/packages/extensions
-      '@x402/svm':
-        specifier: workspace:*
-        version: link:../../../typescript/packages/mechanisms/svm
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
-      express:
-        specifier: ^4.19.2
-        version: 4.21.2
-      viem:
-        specifier: ^2.21.54
-        version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
-    devDependencies:
-      '@eslint/js':
-        specifier: ^9.24.0
-        version: 9.33.0
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/node':
-        specifier: ^22.10.1
-        version: 22.17.2
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^8.29.1
-        version: 8.40.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/parser':
-        specifier: ^8.29.1
-        version: 8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
-      eslint:
-        specifier: ^9.15.0
-        version: 9.33.0(jiti@2.6.1)
-      eslint-plugin-import:
-        specifier: ^2.31.0
-        version: 2.32.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
-      eslint-plugin-jsdoc:
-        specifier: ^50.6.9
-        version: 50.8.0(eslint@9.33.0(jiti@2.6.1))
-      eslint-plugin-prettier:
-        specifier: ^5.2.6
-        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.6.2)
-      prettier:
-        specifier: ^3.3.3
-        version: 3.6.2
-      tsx:
-        specifier: ^4.19.2
-        version: 4.20.4
-      typescript:
-        specifier: ^5.7.2
         version: 5.9.2
 
   fullstack/miniapp:
@@ -3020,6 +3069,64 @@ importers:
         specifier: ^9.24.0
         version: 9.33.0
       '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.3
+      '@types/node':
+        specifier: ^22.13.4
+        version: 22.17.2
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.29.1
+        version: 8.48.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/parser':
+        specifier: ^8.29.1
+        version: 8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
+      eslint:
+        specifier: ^9.24.0
+        version: 9.33.0(jiti@2.6.1)
+      eslint-plugin-import:
+        specifier: ^2.31.0
+        version: 2.32.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-jsdoc:
+        specifier: ^50.6.9
+        version: 50.8.0(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-prettier:
+        specifier: ^5.2.6
+        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.5.2)
+      prettier:
+        specifier: 3.5.2
+        version: 3.5.2
+      tsx:
+        specifier: ^4.20.4
+        version: 4.20.4
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+
+  servers/payment-identifier:
+    dependencies:
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/express':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/http/express
+      '@x402/extensions':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/extensions
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      express:
+        specifier: ^4.18.2
+        version: 4.21.2
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.24.0
+        version: 9.33.0
+      '@types/express':
         specifier: ^5.0.1
         version: 5.0.3
       '@typescript-eslint/eslint-plugin':
@@ -3043,6 +3150,9 @@ importers:
       prettier:
         specifier: 3.5.2
         version: 3.5.2
+      tsup:
+        specifier: ^7.2.0
+        version: 7.3.0(postcss@8.5.6)(typescript@5.9.2)
       tsx:
         specifier: ^4.7.0
         version: 4.20.4
@@ -3064,6 +3174,9 @@ importers:
       '@x402/extensions':
         specifier: workspace:*
         version: link:../../../../typescript/packages/extensions
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/svm
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -7186,14 +7299,8 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
-  '@types/express-serve-static-core@4.19.7':
-    resolution: {integrity: sha512-FvPtiIf1LfhzsaIXhv/PHan/2FeQBbtBDtfX2QfvPxdUelMDEckK08SM6nqo1MIZY3RUlfA+HV8+hFUSio78qg==}
-
   '@types/express-serve-static-core@5.0.7':
     resolution: {integrity: sha512-R+33OsgWw7rOhD1emjU7dzCDHucJrgJXMA5PYCzJxVil0dsyx5iBEPHqpPfiKNJQb7lZ1vxwoLR4Z87bBUpeGQ==}
-
-  '@types/express@4.17.25':
-    resolution: {integrity: sha512-dVd04UKsfpINUnK0yBoYHDF3xu7xVH4BuDotC/xGuycx4CgbP48X/KF/586bcObxT0HENHXEU8Nqtu6NR+eKhw==}
 
   '@types/express@5.0.3':
     resolution: {integrity: sha512-wGA0NX93b19/dZC1J18tKWVIYWyyF2ZjT9vin/NRu0qzzvfVzWjs04iq2rQ3H65vCTQYlRqs3YHfY7zjdV+9Kw==}
@@ -9414,7 +9521,7 @@ packages:
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
     engines: {node: '>=12'}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   global-agent@3.0.0:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}
@@ -20083,26 +20190,12 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
-  '@types/express-serve-static-core@4.19.7':
-    dependencies:
-      '@types/node': 22.17.2
-      '@types/qs': 6.14.0
-      '@types/range-parser': 1.2.7
-      '@types/send': 0.17.5
-
   '@types/express-serve-static-core@5.0.7':
     dependencies:
       '@types/node': 22.17.2
       '@types/qs': 6.14.0
       '@types/range-parser': 1.2.7
       '@types/send': 0.17.5
-
-  '@types/express@4.17.25':
-    dependencies:
-      '@types/body-parser': 1.19.6
-      '@types/express-serve-static-core': 4.19.7
-      '@types/qs': 6.14.0
-      '@types/serve-static': 1.15.8
 
   '@types/express@5.0.3':
     dependencies:
@@ -24351,15 +24444,6 @@ snapshots:
     dependencies:
       eslint: 9.33.0(jiti@2.6.1)
       prettier: 3.5.2
-      prettier-linter-helpers: 1.0.0
-      synckit: 0.11.11
-    optionalDependencies:
-      eslint-config-prettier: 10.1.8(eslint@9.33.0(jiti@2.6.1))
-
-  eslint-plugin-prettier@5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.6.2):
-    dependencies:
-      eslint: 9.33.0(jiti@2.6.1)
-      prettier: 3.6.2
       prettier-linter-helpers: 1.0.0
       synckit: 0.11.11
     optionalDependencies:

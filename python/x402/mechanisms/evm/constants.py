@@ -159,6 +159,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # MegaETH Mainnet
+    "eip155:4326": {
+        "chain_id": 4326,
+        "default_asset": {
+            "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+            "name": "MegaUSD",
+            "version": "1",
+            "decimals": 18,
+        },
+        "supported_assets": {
+            "USDM": {
+                "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+                "name": "MegaUSD",
+                "version": "1",
+                "decimals": 18,
+            },
+        },
+    },
 }
 
 # Network aliases (legacy names to CAIP-2)
@@ -170,6 +188,7 @@ NETWORK_ALIASES: dict[str, str] = {
     "mainnet": "eip155:1",
     "polygon": "eip155:137",
     "avalanche": "eip155:43114",
+    "megaeth": "eip155:4326",
 }
 
 # V1 supported networks (legacy name-based)
@@ -189,6 +208,7 @@ V1_NETWORKS = [
     "story",
     "educhain",
     "skale-base-sepolia",
+    "megaeth",
 ]
 
 # V1 network name to chain ID mapping
@@ -209,6 +229,7 @@ V1_NETWORK_CHAIN_IDS: dict[str, int] = {
     "story": 1513,
     "educhain": 656476,
     "skale-base-sepolia": 1444673419,
+    "megaeth": 4326,
 }
 
 # EIP-3009 ABIs

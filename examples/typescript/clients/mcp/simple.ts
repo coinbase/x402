@@ -2,7 +2,7 @@
  * MCP Client with x402 Payment Support - Simple Example
  *
  * This example demonstrates the RECOMMENDED way to create an MCP client
- * using the high-level `createX402MCPClient` factory function.
+ * using the high-level `createx402MCPClient` factory function.
  *
  * Run with: pnpm dev
  */
@@ -10,7 +10,7 @@
 import { config } from "dotenv";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { createX402MCPClient } from "@x402/mcp";
+import { createx402MCPClient } from "@x402/mcp";
 import { privateKeyToAccount } from "viem/accounts";
 
 config();
@@ -24,12 +24,12 @@ if (!evmPrivateKey) {
 const serverUrl = process.env.MCP_SERVER_URL || "http://localhost:4022";
 
 /**
- * Demonstrates the simple API using createX402MCPClient factory.
+ * Demonstrates the simple API using createx402MCPClient factory.
  *
  * @returns Promise that resolves when demo is complete
  */
 export async function main(): Promise<void> {
-  console.log("\n📦 Using SIMPLE API (createX402MCPClient factory)\n");
+  console.log("\n📦 Using SIMPLE API (createx402MCPClient factory)\n");
   console.log("🔌 Connecting to MCP server at:", serverUrl);
 
   const evmSigner = privateKeyToAccount(evmPrivateKey);
@@ -38,7 +38,7 @@ export async function main(): Promise<void> {
   // ========================================================================
   // SIMPLE: One-liner setup with factory function
   // ========================================================================
-  const x402Mcp = createX402MCPClient({
+  const x402Mcp = createx402MCPClient({
     name: "x402-mcp-client-demo",
     version: "1.0.0",
     schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(evmSigner) }],

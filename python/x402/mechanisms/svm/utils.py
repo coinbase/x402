@@ -201,7 +201,7 @@ def parse_money_to_decimal(money: str | float | int) -> float:
     Returns:
         Decimal amount as float.
     """
-    if isinstance(money, (int, float)):
+    if isinstance(money, int | float):
         return float(money)
 
     # Clean string
@@ -335,7 +335,9 @@ def derive_ata(owner: str, mint: str, token_program: str | None = None) -> str:
     """
     from solders.pubkey import Pubkey
 
-    ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+    ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+    )
 
     if token_program is None:
         token_program = TOKEN_PROGRAM_ADDRESS

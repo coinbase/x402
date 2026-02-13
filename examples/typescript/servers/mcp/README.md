@@ -31,17 +31,26 @@ pnpm install
 
 ## Running
 
-### Simple Mode (Recommended for New Projects)
+All examples use the `createPaymentWrapper` API - a lean, functional approach to adding payments to MCP tools.
 
-Uses the `createX402MCPServer` factory function for easy setup:
+### Simple Mode (Recommended Starting Point)
+
+Basic payment wrapper usage:
 
 ```bash
 pnpm dev
 ```
 
-### Advanced Mode (Mid-Level API)
+Simple mode demonstrates:
 
-Uses `x402MCPServer` with manual setup for full control and hooks:
+- Creating a payment wrapper with shared configuration
+- Wrapping tool handlers with payment logic
+- Using native `McpServer.tool()` API
+- Mixing paid and free tools
+
+### Advanced Mode (Production Features)
+
+Payment wrapper with hooks for monitoring and control:
 
 ```bash
 pnpm dev:advanced
@@ -49,13 +58,14 @@ pnpm dev:advanced
 
 Advanced mode demonstrates:
 
-- Manual MCP server creation
-- Custom facilitator client configuration
-- Server-side hooks (onBeforeExecution, onAfterExecution, onAfterSettlement)
+- Server-side hooks for production features
+- `onBeforeExecution`: Rate limiting, access control (can abort)
+- `onAfterExecution`: Logging, metrics collection
+- `onAfterSettlement`: Receipts, notifications
 
-### Existing Server Mode (Low-Level API)
+### Existing Server Mode
 
-Uses `createPaymentWrapper` to add payment to an existing MCP server:
+Adding payment to an existing MCP server:
 
 ```bash
 pnpm dev:existing
@@ -63,10 +73,9 @@ pnpm dev:existing
 
 Existing server mode demonstrates:
 
-- Adding x402 to an existing `McpServer` instance
-- Using native `McpServer.tool()` API
-- Creating a reusable payment wrapper
-- Mixing paid and free tools naturally
+- Integrating x402 with an existing `McpServer` instance
+- Minimal code changes to add payment
+- Creating reusable payment wrappers
 
 The server will start on `http://localhost:4022` with:
 
@@ -96,8 +105,11 @@ Or use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to
 ## Architecture
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│   MCP Client    │────▶│  x402MCPServer  │────▶│  x402Facilitator │
-│  (with wallet)  │◀────│  (paid tools)   │◀────│  (verification)  │
-└─────────────────┘     └─────────────────┘     └──────────────────┘
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   MCP Client    │────▶│    McpServer     │────▶│  x402Facilitator │
+│  (with wallet)  │     │ + PaymentWrapper │     │  (verification)  │
+│                 │◀────│  (paid tools)    │◀────│  (settlement)    │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
 ```
+
+The payment wrapper is a lightweight function that adds payment verification and settlement to individual tool handlers.

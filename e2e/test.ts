@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
@@ -462,6 +462,15 @@ async function runTest() {
   }
 
   log('  ✅ All required environment variables are present\n');
+
+  // Clean up any processes on test ports from previous runs
+  try {
+    execSync('pnpm clean:ports', { cwd: process.cwd(), stdio: 'pipe' });
+    verboseLog('  🧹 Cleared test ports from previous runs');
+    await new Promise(resolve => setTimeout(resolve, 500)); // Allow OS to release ports
+  } catch {
+    // clean:ports may exit non-zero if no processes were found; that's fine
+  }
 
   interface DetailedTestResult {
     testNumber: number;

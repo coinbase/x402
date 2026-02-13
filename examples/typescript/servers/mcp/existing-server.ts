@@ -11,6 +11,15 @@
  * - Mix paid and free tools naturally
  * - Minimal code changes to add payment
  *
+ * NOTE ON HOOKS:
+ * The base McpServer from @modelcontextprotocol/sdk does NOT have lifecycle hooks.
+ * Hooks are available on the CLIENT side (see x402MCPClient):
+ * - beforePayment: Called before payment is created
+ * - afterPayment: Called after payment is submitted
+ * - onPaymentRequired: Called when payment is required
+ *
+ * For server-side middleware, implement custom Express middleware or wrap tool handlers.
+ *
  * Run with: pnpm dev:existing
  */
 
@@ -18,8 +27,8 @@ import { config } from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { createPaymentWrapper } from "@x402/mcp";
-import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import express from "express";
 import { z } from "zod";
 
@@ -67,6 +76,19 @@ export async function main(): Promise<void> {
   });
 
   // ========================================================================
+  // NOTE: The base McpServer from @modelcontextprotocol/sdk does NOT have
+  // lifecycle hooks (onRequest, onResponse, etc.).
+  //
+  // Hooks are available on the CLIENT side via x402MCPClient:
+  // - beforePayment: Called before payment is created
+  // - afterPayment: Called after payment is submitted
+  // - onPaymentRequired: Called when payment is required
+  //
+  // For server-side hooks, you can wrap the tool handlers or use middleware
+  // in your transport layer (Express, etc.)
+  // ========================================================================
+
+  // ========================================================================
   // STEP 2: Set up x402 resource server for payment handling
   // ========================================================================
   const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
@@ -75,17 +97,37 @@ export async function main(): Promise<void> {
   await resourceServer.initialize();
 
   // ========================================================================
-  // STEP 3: Create a payment wrapper with shared configuration
+  // STEP 3: Build payment requirements for different tools
   // ========================================================================
-  const paid = createPaymentWrapper(resourceServer, {
+  const weatherAccepts = await resourceServer.buildPaymentRequirements({
     scheme: "exact",
     network: "eip155:84532",
     payTo: evmAddress,
-    extra: { name: "USDC", version: "2" },
+    price: "$0.001",
+    extra: { name: "USDC", version: "2" }, // EIP-712 domain parameters
+  });
+
+  const forecastAccepts = await resourceServer.buildPaymentRequirements({
+    scheme: "exact",
+    network: "eip155:84532",
+    payTo: evmAddress,
+    price: "$0.005",
+    extra: { name: "USDC", version: "2" }, // EIP-712 domain parameters
   });
 
   // ========================================================================
-  // STEP 4: Register tools using NATIVE McpServer.tool() API
+  // STEP 4: Create payment wrappers with accepts arrays
+  // ========================================================================
+  const paidWeather = createPaymentWrapper(resourceServer, {
+    accepts: weatherAccepts,
+  });
+
+  const paidForecast = createPaymentWrapper(resourceServer, {
+    accepts: forecastAccepts,
+  });
+
+  // ========================================================================
+  // STEP 5: Register tools using NATIVE McpServer.tool() API
   // ========================================================================
 
   // Free tool - works exactly as before, no changes needed
@@ -93,31 +135,30 @@ export async function main(): Promise<void> {
     content: [{ type: "text", text: "pong" }],
   }));
 
-  // Paid tool - wrap the handler with paid("$price", handler)
-  // The paid() wrapper returns MCPToolCallback which is compatible with McpServer.tool()
+  // Paid tools - wrap the handler with payment wrapper
+  // Each wrapper has its own price configured in the accepts array
   mcpServer.tool(
     "get_weather",
     "Get current weather for a city. Requires payment of $0.001.",
     { city: z.string().describe("The city name to get weather for") },
-    paid("$0.001", async (args: { city: string }) => ({
+    paidWeather(async (args: { city: string }) => ({
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(getWeatherData(args.city as string), null, 2),
+          text: JSON.stringify(getWeatherData(args.city), null, 2),
         },
       ],
     })),
   );
 
-  // Another paid tool with different price
   mcpServer.tool(
     "get_forecast",
     "Get 7-day weather forecast. Requires payment of $0.005.",
     { city: z.string().describe("The city name to get forecast for") },
-    paid("$0.005", async (args: { city: string }) => {
+    paidForecast(async (args: { city: string }) => {
       const forecast = Array.from({ length: 7 }, (_, i) => ({
         day: i + 1,
-        ...getWeatherData(args.city as string),
+        ...getWeatherData(args.city),
       }));
       return {
         content: [{ type: "text" as const, text: JSON.stringify(forecast, null, 2) }],

@@ -60,7 +60,7 @@ const PENDING_SETTLEMENT_HEADER = 'x-x402-pending-settlement';
  * 
  * @example
  * ```typescript
- * import { createX402Middleware } from '@x402/lambda-edge';
+ * import { createX402Middleware } from './lib';
  * 
  * const x402 = createX402Middleware({
  *   facilitatorUrl: 'https://x402.org/facilitator',
