@@ -106,6 +106,32 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # --- Validate Required Secrets ---
+      # Fail fast before installing anything if secrets are missing.
+
+      - name: Validate required secrets
+        run: |
+          MISSING=()
+
+          if [ -z "${{ secrets.CLIENT_EVM_PRIVATE_KEY }}" ]; then MISSING+=("CLIENT_EVM_PRIVATE_KEY"); fi
+          if [ -z "${{ secrets.CLIENT_SVM_PRIVATE_KEY }}" ]; then MISSING+=("CLIENT_SVM_PRIVATE_KEY"); fi
+          if [ -z "${{ secrets.FACILITATOR_EVM_PRIVATE_KEY }}" ]; then MISSING+=("FACILITATOR_EVM_PRIVATE_KEY"); fi
+          if [ -z "${{ secrets.FACILITATOR_SVM_PRIVATE_KEY }}" ]; then MISSING+=("FACILITATOR_SVM_PRIVATE_KEY"); fi
+          if [ -z "${{ secrets.SERVER_EVM_ADDRESS }}" ]; then MISSING+=("SERVER_EVM_ADDRESS"); fi
+          if [ -z "${{ secrets.SERVER_SVM_ADDRESS }}" ]; then MISSING+=("SERVER_SVM_ADDRESS"); fi
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${MISSING[*]}"
+            echo ""
+            echo "The following secrets must be configured in Settings > Secrets and variables > Actions:"
+            for secret in "${MISSING[@]}"; do
+              echo "  - $secret"
+            done
+            exit 1
+          fi
+
+          echo "All required secrets are present."
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch || github.ref }}
