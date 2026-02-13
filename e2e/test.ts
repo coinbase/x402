@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { spawn, execSync } from 'child_process';
+import { writeFileSync } from 'fs';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
@@ -840,6 +841,37 @@ async function runTest() {
       log(` ${protocol.toUpperCase()}: ✅ ${stats.passed} / ❌ ${stats.failed} / 📈 ${total} total`);
     });
     log('');
+  }
+
+  // Write structured JSON output if requested
+  if (parsedArgs.outputJson) {
+    const breakdown = (results: DetailedTestResult[], key: keyof DetailedTestResult) =>
+      results.reduce((acc, test) => {
+        const k = String(test[key]);
+        if (!acc[k]) acc[k] = { passed: 0, failed: 0 };
+        if (test.passed) acc[k].passed++;
+        else acc[k].failed++;
+        return acc;
+      }, {} as Record<string, { passed: number; failed: number }>);
+
+    const jsonOutput = {
+      summary: {
+        total: passed + failed,
+        passed,
+        failed,
+        networkMode,
+      },
+      results: testResults,
+      breakdowns: {
+        byFacilitator: breakdown(testResults, 'facilitator'),
+        byServer: breakdown(testResults, 'server'),
+        byClient: breakdown(testResults, 'client'),
+        byProtocolFamily: breakdown(testResults, 'protocolFamily'),
+      },
+    };
+
+    writeFileSync(parsedArgs.outputJson, JSON.stringify(jsonOutput, null, 2));
+    log(`📄 JSON results written to ${parsedArgs.outputJson}`);
   }
 
   // Close logger

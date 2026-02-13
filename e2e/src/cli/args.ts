@@ -9,6 +9,7 @@ export interface ParsedArgs {
   mode: 'interactive' | 'programmatic';
   verbose: boolean;
   logFile?: string;
+  outputJson?: string;
   filters: TestFilters;
   showHelp: boolean;
   minimize: boolean;
@@ -48,6 +49,9 @@ export function parseArgs(): ParsedArgs {
   // Parse log file
   const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
 
+  // Parse JSON output file
+  const outputJson = args.find(arg => arg.startsWith('--output-json='))?.split('=')[1];
+
   // Parse minimize flag
   const minimize = args.includes('--min');
 
@@ -72,6 +76,7 @@ export function parseArgs(): ParsedArgs {
     mode,
     verbose,
     logFile,
+    outputJson,
     filters: {
       transports,
       facilitators,
@@ -118,6 +123,7 @@ export function printHelp(): void {
   console.log('Options:');
   console.log('  -v, --verbose              Enable verbose logging');
   console.log('  --log-file=<path>          Save verbose output to file');
+  console.log('  --output-json=<path>       Write structured JSON results to file');
   console.log('  --min                      Minimize tests (coverage-based skipping)');
   console.log('  -h, --help                 Show this help message');
   console.log('');
