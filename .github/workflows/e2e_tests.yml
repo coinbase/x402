@@ -170,9 +170,11 @@ jobs:
 
       # --- Install Dependencies ---
 
-      - name: Install TypeScript SDK dependencies
+      - name: Install and build TypeScript SDK
         working-directory: ./typescript
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Install E2E dependencies
         working-directory: ./e2e
