@@ -166,7 +166,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python
-        run: uv python install
+        run: uv python install 3.13
 
       # --- Install Dependencies ---
 
@@ -236,7 +236,7 @@ jobs:
           fi
 
           VERBOSE="${{ inputs.verbose }}"
-          if [ "$VERBOSE" = "true" ] || [ -z "$VERBOSE" ]; then
+          if [ "$VERBOSE" = "true" ]; then
             ARGS="$ARGS -v"
           fi
 
