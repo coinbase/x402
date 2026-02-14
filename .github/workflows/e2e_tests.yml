@@ -211,11 +211,11 @@ jobs:
         id: e2e
         working-directory: ./e2e
         run: |
-          ARGS="--testnet"
+          ARGS=""
 
           # Apply workflow_dispatch inputs (or defaults)
           ARGS="$ARGS --transport=${{ inputs.transport || 'http' }}"
-          ARGS="$ARGS --facilitators=${{ inputs.facilitators || 'go,typescript,python' }}"
+          ARGS="$ARGS --facilitators=${{ inputs.facilitators || 'go,python,typescript' }}"
 
           if [ -n "${{ inputs.servers }}" ]; then
             ARGS="$ARGS --servers=${{ inputs.servers }}"
@@ -239,6 +239,8 @@ jobs:
           if [ "$VERBOSE" = "true" ]; then
             ARGS="$ARGS -v"
           fi
+
+          ARGS="$ARGS --parallel"
 
           ARGS="$ARGS --log-file=e2e-results.log --output-json=e2e-results.json"
 
