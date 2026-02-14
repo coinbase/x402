@@ -1,68 +1,123 @@
-# Exact Scheme — Tron (TVM)
+# Exact Payment Scheme for Tron Virtual Machine (TVM) (`exact`)
 
-## Overview
+This document specifies the `exact` payment scheme for the x402 protocol on Tron.
 
-The `exact` scheme on Tron networks uses signed TRC-20 `transfer(address,uint256)` transactions to authorize a transfer of a specific amount of a TRC-20 token (e.g., USDT) from the payer to the resource server. The client constructs and signs a `TriggerSmartContract` transaction but does **not** broadcast it. Instead, the signed transaction is passed to the facilitator, which verifies all parameters and broadcasts it upon settlement.
+This scheme facilitates payments of a specific amount of a TRC-20 token (e.g., USDT, USDC) on the Tron blockchain.
+
+## Scheme Name
+
+`exact`
+
+## Supported Networks
+
+This spec uses [CAIP-2](https://namespaces.chainagnostic.org/tron/caip2) identifiers:
+
+| Network | CAIP-2 ID | Description |
+| ------- | --------- | ----------- |
+| Mainnet | `tron:27Lqcw` | Tron Mainnet (genesis hash prefix) |
+| Shasta  | `tron:4oPwXB` | Tron Shasta Testnet |
+| Nile    | `tron:6FhfKq` | Tron Nile Testnet |
+
+## Summary
+
+The `exact` scheme on Tron uses signed `TriggerSmartContract` transactions calling the standard TRC-20 `transfer(address,uint256)` function. The client constructs and signs the transaction but does **not** broadcast it. The signed transaction is passed to the facilitator, which verifies all parameters and broadcasts it upon settlement.
+
+Tron does not support EIP-3009 (`transferWithAuthorization`). Instead, a signed but unbroadcast Tron transaction serves the same role as an EIP-3009 authorization: it irrevocably commits the sender to a specific transfer that only the facilitator can execute, and the facilitator cannot alter the recipient or amount.
 
 This approach ensures:
 
-- The facilitator **cannot redirect funds** — the recipient is encoded in the signed transaction and cannot be altered without invalidating the signature.
+- The facilitator **cannot redirect funds** — the recipient is encoded in the signed transaction and any modification invalidates the signature.
 - The client and resource server **do not need TRX for gas** — the facilitator broadcasts the transaction and pays the energy/bandwidth costs.
-- **No new contracts are required** — standard TRC-20 `transfer` is used. Optionally, a wrapper contract can be used for automated fee collection (see [EruditePay Integration](#eruditepay-integration)).
+- **No new contracts are required** — standard TRC-20 `transfer` is used.
 
-## Why Tron?
+## Protocol Flow
 
-Tron is the dominant network for USDT stablecoin transfers:
+The protocol flow for `exact` on Tron is client-driven.
 
-- **$3.3T+ in stablecoin transactions** processed on Tron (2024–2025)
-- **95%+ of Tron's stablecoin supply is USDT** — the most widely held stablecoin globally
-- **Sub-cent transfer fees** — TRC-20 transfers cost <$0.01 vs $5–50 on Ethereum
-- **~2 billion daily transactions** with 3-second block times
-- **Dominant in Southeast Asia, Africa, and Latin America** — Tron USDT is the de facto payment rail for street vendors, freelancers, and cross-border remittances
+1. **Client** makes a request to a **Resource Server**.
+2. **Resource Server** responds with a payment required signal containing `PaymentRequired`. The `extra` field in the requirements MAY contain additional metadata such as token `name` and `decimals`.
+3. **Client** creates a `TriggerSmartContract` transaction that calls `transfer(address,uint256)` on the TRC-20 token contract, transferring the specified `amount` of the `asset` to the `payTo` address.
+4. **Client** signs the transaction with their wallet. This results in a **fully signed** transaction (Tron transactions require only the sender's signature; there is no separate fee payer co-signature).
+5. **Client** serializes the signed transaction as a JSON object (as returned by TronWeb's `trx.sign()`).
+6. **Client** sends a new request to the resource server with the `PaymentPayload` containing the signed transaction.
+7. **Resource Server** receives the request and forwards the `PaymentPayload` and `PaymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
+8. **Facilitator** deserializes and inspects the transaction to ensure it is valid and contains only the expected payment instruction.
+9. **Facilitator** returns a `VerifyResponse` to the **Resource Server**.
+10. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
+11. **Facilitator Server** broadcasts the signed transaction to the Tron network via `tronWeb.trx.sendRawTransaction()`.
+12. Upon successful on-chain settlement, the **Facilitator Server** responds with a `SettlementResponse` to the **Resource Server**.
+13. **Resource Server** grants the **Client** access to the resource in its response.
 
-Adding Tron to x402 unlocks the largest stablecoin network for AI agent payments, micropayments, and merchant settlement.
+> **Note on gas model:** Unlike Solana and Hedera where the facilitator co-signs as `feePayer`, Tron transactions require only the sender's signature. The facilitator pays energy/bandwidth costs implicitly by broadcasting from its own node with staked TRX resources, not by signing the transaction.
 
-## CAIP-2 Network Identifiers
+## `PaymentRequirements` for `exact`
 
-Tron networks use the `tron` namespace with the genesis block hash prefix as the chain reference, following [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md):
+In addition to the standard x402 `PaymentRequirements` fields, the `exact` scheme on Tron uses the following:
 
-| Network | CAIP-2 ID | Description |
-|---------|-----------|-------------|
-| Mainnet | `tron:27Lqcw` | Tron Mainnet (genesis hash prefix) |
-| Shasta (Testnet) | `tron:4oPwXB` | Tron Shasta Testnet |
-| Nile (Testnet) | `tron:6FhfKq` | Tron Nile Testnet |
+```json
+{
+  "scheme": "exact",
+  "network": "tron:27Lqcw",
+  "amount": "1000000",
+  "asset": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+  "payTo": "TXYZabc123merchantAddress",
+  "maxTimeoutSeconds": 60,
+  "extra": {
+    "name": "USDT",
+    "decimals": 6
+  }
+}
+```
 
-## Supported Assets
+- `asset`: The TRC-20 token contract address in base58 Tron format.
+- `amount`: The amount to be transferred in the token's smallest unit. For USDT/USDC with 6 decimals, `"1000000"` = $1.00.
+- `payTo`: The Tron address (base58 format) of the resource server receiving the funds.
+- `extra.name`: Human-readable token name (informational).
+- `extra.decimals`: Token decimal places (informational).
 
-| Token | Mainnet Address | Decimals |
-|-------|----------------|----------|
-| USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6 |
-| USDC | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6 |
+## PaymentPayload `payload` Field
 
-## Differences from EVM
+The `payload` field of the `PaymentPayload` contains:
 
-Tron does not support EIP-3009 (`transferWithAuthorization`). Instead, the `exact` scheme on Tron uses a different mechanism to achieve the same security guarantees:
+```json
+{
+  "signedTransaction": {
+    "txID": "a1b2c3d4e5f6...",
+    "raw_data": {
+      "contract": [{
+        "parameter": {
+          "value": {
+            "data": "a9059cbb000000000000000000000000...",
+            "owner_address": "41...",
+            "contract_address": "41..."
+          },
+          "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+        },
+        "type": "TriggerSmartContract"
+      }],
+      "ref_block_bytes": "...",
+      "ref_block_hash": "...",
+      "expiration": 1740672154000,
+      "timestamp": 1740672089000
+    },
+    "raw_data_hex": "0a02...",
+    "signature": ["3045..."]
+  },
+  "from": "TXYZabc123payerAddress"
+}
+```
 
-| Property | EVM (EIP-3009) | Tron (TVM) |
-|----------|---------------|------------|
-| Authorization method | EIP-712 typed signature over `transferWithAuthorization` params | Signed `TriggerSmartContract` transaction (not broadcast) |
-| Replay protection | `nonce` parameter in EIP-3009 | Transaction `expiration` field + `ref_block` binding |
-| Gas responsibility | Facilitator calls `transferWithAuthorization` | Facilitator broadcasts pre-signed transaction |
-| Fund safety | Signature locks `from`, `to`, `value` | Signed transaction locks `contract`, `to`, `value` in calldata |
-| Contract requirement | Uses existing USDC/USDT EIP-3009 support | Uses standard TRC-20 `transfer(address,uint256)` |
+- `signedTransaction`: The complete signed Tron transaction object as returned by TronWeb's `trx.sign()`. This MUST be a `TriggerSmartContract` transaction calling `transfer(address,uint256)` on the TRC-20 token contract.
+- `from`: The payer's Tron address (base58 format). Used for verification against the transaction's `owner_address`.
 
-The key insight is that a signed but unbroadcast Tron transaction serves the same role as an EIP-3009 authorization: it irrevocably commits the sender to a specific transfer that only the facilitator can execute, and the facilitator cannot alter the recipient or amount.
-
-## PaymentRequirements
-
-The `accepted` field in `PaymentRequirements` for Tron uses standard x402 V2 fields:
+Full `PaymentPayload` object:
 
 ```json
 {
   "x402Version": 2,
   "resource": {
-    "url": "https://api.example.com/premium-data",
-    "description": "Access to premium market data",
+    "url": "https://example.com/weather",
+    "description": "Access to protected content",
     "mimeType": "application/json"
   },
   "accepted": {
@@ -76,47 +131,11 @@ The `accepted` field in `PaymentRequirements` for Tron uses standard x402 V2 fie
       "name": "USDT",
       "decimals": 6
     }
-  }
-}
-```
-
-### Field Details
-
-- **`scheme`**: `"exact"` — fixed amount transfer
-- **`network`**: CAIP-2 identifier (e.g., `"tron:27Lqcw"` for mainnet)
-- **`amount`**: Amount in smallest unit (sun). For USDT with 6 decimals, `"1000000"` = $1.00
-- **`asset`**: TRC-20 token contract address (base58 Tron address format)
-- **`payTo`**: Merchant/resource server's Tron address (base58 format)
-- **`maxTimeoutSeconds`**: Maximum time the payment authorization remains valid
-- **`extra.name`**: Human-readable token name
-- **`extra.decimals`**: Token decimal places
-
-## PaymentPayload
-
-The `payload` field of `PaymentPayload` contains the signed Tron transaction:
-
-```json
-{
+  },
   "payload": {
     "signedTransaction": {
       "txID": "a1b2c3d4e5f6...",
-      "raw_data": {
-        "contract": [{
-          "parameter": {
-            "value": {
-              "data": "a9059cbb000000000000000000000000...",
-              "owner_address": "41...",
-              "contract_address": "41..."
-            },
-            "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
-          },
-          "type": "TriggerSmartContract"
-        }],
-        "ref_block_bytes": "...",
-        "ref_block_hash": "...",
-        "expiration": 1740672154000,
-        "timestamp": 1740672089000
-      },
+      "raw_data": { "..." : "..." },
       "raw_data_hex": "0a02...",
       "signature": ["3045..."]
     },
@@ -125,121 +144,85 @@ The `payload` field of `PaymentPayload` contains the signed Tron transaction:
 }
 ```
 
-### Field Details
+## `SettlementResponse`
 
-- **`signedTransaction`**: The complete signed Tron transaction object as returned by TronWeb's `trx.sign()`. This is a `TriggerSmartContract` transaction calling `transfer(address,uint256)` on the TRC-20 token contract.
-- **`from`**: The payer's Tron address (base58 format). Used for verification against the transaction's `owner_address`.
-
-## Verification (`/verify`)
-
-The facilitator performs the following checks before returning `{ isValid: true }`:
-
-1. **Scheme/network validation** — Confirm `scheme === "exact"` and `network` matches a supported Tron network.
-
-2. **Transaction format** — Verify the transaction is a `TriggerSmartContract` type.
-
-3. **Function selector** — Decode `raw_data.contract[0].parameter.value.data` and confirm the first 4 bytes match `transfer(address,uint256)` selector (`a9059cbb`).
-
-4. **Asset verification** — Confirm `contract_address` in the transaction matches the `asset` in `PaymentRequirements` (the TRC-20 token contract, e.g., USDT).
-
-5. **Recipient check** — Decode the `address` parameter from the `transfer` calldata and confirm it matches `payTo` from `PaymentRequirements`.
-
-6. **Amount verification** — Decode the `uint256` parameter from the `transfer` calldata and confirm it is >= the `amount` in `PaymentRequirements`.
-
-7. **Sender authentication** — Recover the signer from the transaction signature and confirm it matches the `from` field in `PaymentPayload` and the `owner_address` in the transaction.
-
-8. **Expiration check** — Confirm `raw_data.expiration` has not passed. The expiration should be within `maxTimeoutSeconds` of the current time.
-
-9. **Balance verification** — Query the TRC-20 token contract to confirm the sender has sufficient balance.
-
-10. **Self-transfer prevention** — Confirm the facilitator's own address does not appear as the sender or in any transaction parameter, preventing the facilitator from using client-signed transactions to move its own funds.
-
-11. **Signature validity** — Verify the transaction signature is valid for the given `raw_data_hex`.
-
-## Settlement (`/settle`)
-
-Upon settlement, the facilitator:
-
-1. **Broadcasts** the signed transaction to the Tron network via `tronWeb.trx.sendRawTransaction(signedTransaction)`.
-
-2. **Confirms** the transaction by polling for inclusion in a block. Tron blocks are produced every 3 seconds, so confirmation is typically fast.
-
-3. **Returns** the settlement response:
+The `SettlementResponse` for the `exact` scheme on Tron:
 
 ```json
 {
   "success": true,
   "transaction": "a1b2c3d4e5f6...",
   "network": "tron:27Lqcw",
-  "payer": "TXYZabc123payerAddress",
-  "payee": "TXYZabc123merchantAddress"
+  "payer": "TXYZabc123payerAddress"
 }
 ```
 
-### Settlement with Wrapper Contract (Optional)
+- `transaction`: The Tron transaction ID (`txID`) of the broadcast transaction.
+- `payer`: The Tron address of the client that signed the transaction.
 
-For facilitators that want automated on-chain fee collection, a wrapper contract can be used. Instead of the client signing a direct `transfer` to the merchant, the client signs a `transfer` to the wrapper contract, which then splits the payment:
+## Facilitator Verification Rules (MUST)
 
-1. Merchant receives `amount - fee`
-2. Facilitator treasury receives `fee`
+A facilitator verifying an `exact`-scheme Tron payment MUST enforce all of the following checks before broadcasting the transaction:
 
-This is an optional optimization. The base `exact` scheme on Tron works with standard TRC-20 transfers and no additional contracts.
+### 1. Transaction layout
 
-## Replay Protection
+- The transaction MUST be a `TriggerSmartContract` type.
+- The `raw_data.contract` array MUST contain exactly one contract invocation.
+- The first 4 bytes of `parameter.value.data` MUST match the `transfer(address,uint256)` function selector (`a9059cbb`).
+- The transaction MUST NOT contain any additional operations beyond the single TRC-20 transfer.
 
-Tron transactions include built-in replay protection:
+### 2. Asset verification
 
-- **`ref_block_bytes` / `ref_block_hash`**: Bind the transaction to a specific block, preventing replay on forks.
-- **`expiration`**: Transactions expire after a set time (typically 60 seconds). Expired transactions are rejected by the network.
-- **Transaction ID uniqueness**: Once broadcast and confirmed, the same `txID` cannot be included in another block.
+- The `contract_address` in the transaction MUST match the `asset` in `PaymentRequirements` (the TRC-20 token contract). Implementations MUST handle conversion between base58 (`T...`) and hex (`41...`) address formats.
 
-The facilitator should additionally track recently settled transaction IDs to prevent double-settlement within the expiration window.
+### 3. Transfer intent and destination
 
-## Security Considerations
+- The `address` parameter decoded from the `transfer` calldata MUST equal `PaymentRequirements.payTo`.
+- Implementations MUST handle conversion between base58 and hex address formats when comparing addresses.
 
-### Trust Model
+### 4. Amount exactness
 
-The security model mirrors the EVM `exact` scheme:
+- The `uint256` parameter decoded from the `transfer` calldata MUST equal `PaymentRequirements.amount` exactly.
+- The facilitator MUST reject any transaction where the decoded amount does not match the required amount.
 
-- **Client safety**: The signed transaction irrevocably specifies the recipient and amount. The facilitator cannot alter these parameters — any modification invalidates the signature.
-- **Resource server safety**: The facilitator verifies sufficient balance and correct parameters before signaling validity, and broadcasts the exact signed transaction on settlement.
-- **Facilitator limitation**: The facilitator can only broadcast or not broadcast the transaction. It cannot redirect funds, change amounts, or alter any transaction parameter.
+### 5. Sender authentication
 
-### Energy and Bandwidth
+- The signer recovered from the transaction signature MUST match the `from` field in `PaymentPayload.payload` and the `owner_address` in the transaction.
 
-TRC-20 transfers consume Tron energy and bandwidth resources. The facilitator is responsible for ensuring sufficient resources to broadcast transactions. Facilitators may:
+### 6. Signature validity
 
-- Stake TRX for energy to minimize costs
-- Use energy delegation services
-- Factor energy costs into their fee structure
+- The transaction signature MUST be valid for the given `raw_data_hex`.
 
-### Address Format
+### 7. Expiration check
 
-Tron uses base58check-encoded addresses (starting with `T`) for user-facing representations and hex addresses (starting with `41`) in transaction data. Implementations must handle conversion between these formats correctly.
+- The `raw_data.expiration` timestamp MUST NOT have passed.
+- The expiration SHOULD be within `maxTimeoutSeconds` of the current time.
 
-## Reference Implementation
+### 8. Balance verification
 
-- **npm package**: [`@erudite-intelligence/x402-tron-v2`](https://www.npmjs.com/package/@erudite-intelligence/x402-tron-v2)
-- **GitHub**: [`EruditeIntelligence/x402-tron-v2`](https://github.com/EruditeIntelligence/x402-tron-v2)
-- **Security**: 17 attack vector tests passing (see `test/attacks.test.ts`)
+- The facilitator SHOULD query the TRC-20 token contract to confirm the sender has sufficient balance to cover the transfer.
 
-The reference implementation provides:
+### 9. Facilitator safety
 
-- `registerExactTronScheme()` — Register Tron support on any x402 V2 facilitator
-- `registerExactTronClientScheme()` — Register Tron support on any x402 V2 client
-- `registerExactTronServerScheme()` — Register Tron support on any x402 V2 resource server
-- `toFacilitatorTronSigner()` / `toClientTronSigner()` — TronWeb signer adapters matching the x402 signer interface pattern
+- The facilitator's own address MUST NOT appear as the `owner_address` (sender) in the transaction.
+- The facilitator's address MUST NOT appear as the recipient in the `transfer` calldata.
+- This prevents the facilitator from being tricked into broadcasting transactions that move its own funds.
 
-## EruditePay Integration
+### 10. Network correctness
 
-The reference implementation includes optional support for the [EruditePay](https://eruditepay.com) wrapper contract (`THGkLBrLY1G5VovZjjK1jP9upyxRdMNL3b`), which provides automated 0.25% fee collection on-chain. This is an optional feature for facilitators that want hands-free revenue collection and is not required by the scheme specification.
+- The `network` field in `PaymentRequirements` MUST be a valid Tron CAIP-2 network identifier corresponding to the Tron network on which the transaction will be submitted.
 
-```typescript
-registerExactTronScheme(facilitator, {
-  signer: toFacilitatorTronSigner(tronWeb),
-  networks: TRON_MAINNET,
-  config: {
-    useWrapperContract: true, // Routes through EruditePay wrapper
-  },
-});
-```
+### 11. Replay protection
+
+- The facilitator SHOULD track recently settled transaction IDs to prevent double-settlement within the expiration window.
+- Tron transactions include built-in replay protection via `ref_block_bytes`/`ref_block_hash` (binding to a specific block), `expiration` (time-based expiry), and transaction ID uniqueness (once confirmed, the same `txID` cannot be included in another block).
+
+These checks are security-critical to ensure the facilitator cannot be tricked into transferring unintended funds or sponsoring unintended actions. Implementations MAY introduce stricter limits (e.g., allowed token lists, maximum amounts) but MUST NOT relax the above constraints.
+
+### Energy and bandwidth
+
+TRC-20 transfers consume Tron energy and bandwidth resources. The facilitator is responsible for ensuring sufficient resources to broadcast transactions. Facilitators MAY stake TRX for energy, use energy delegation services, or factor energy costs into their fee structure.
+
+### Address format
+
+Tron uses base58check-encoded addresses (starting with `T`) for user-facing representations and hex addresses (starting with `41`) in transaction data. Implementations MUST handle conversion between these formats correctly when performing verification checks.
