@@ -8,11 +8,11 @@ import { ERC8004_REPUTATION } from "./types";
  * and reputation registry in 402 PaymentRequired responses.
  */
 export const reputationResourceServerExtension: ResourceServerExtension = {
-    key: ERC8004_REPUTATION,
+  key: ERC8004_REPUTATION,
 
-    enrichPaymentRequiredResponse: async (declaration) => {
-        // Return the extension declaration as-is.
-        // The declaration is created via declareReputation() and contains info + schema.
-        return declaration;
-    },
+  enrichPaymentRequiredResponse: async declaration => {
+    // Return the extension declaration as-is.
+    // The declaration is created via declareReputation() and contains info + schema.
+    return declaration;
+  },
 };
