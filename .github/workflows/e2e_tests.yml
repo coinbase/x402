@@ -313,38 +313,11 @@ jobs:
 
             COMMENT_BODY+="**Network:** ${NETWORK} | **Total:** ${TOTAL} | **Passed:** ${PASSED} | **Failed:** ${FAILED}"$'\n\n'
 
-            # Facilitator breakdown
-            FACILITATOR_ROWS=$(jq -r '.breakdowns.byFacilitator | to_entries[] | "| \(.key) | \(.value.passed) | \(.value.failed) |"' e2e/e2e-results.json)
-            if [ -n "$FACILITATOR_ROWS" ]; then
-              COMMENT_BODY+="### By Facilitator"$'\n'
-              COMMENT_BODY+="| Facilitator | Passed | Failed |"$'\n'
-              COMMENT_BODY+="|---|---|---|"$'\n'
-              COMMENT_BODY+="${FACILITATOR_ROWS}"$'\n\n'
-            fi
-
-            # Server breakdown
-            SERVER_ROWS=$(jq -r '.breakdowns.byServer | to_entries[] | "| \(.key) | \(.value.passed) | \(.value.failed) |"' e2e/e2e-results.json)
-            if [ -n "$SERVER_ROWS" ]; then
-              COMMENT_BODY+="### By Server"$'\n'
-              COMMENT_BODY+="| Server | Passed | Failed |"$'\n'
-              COMMENT_BODY+="|---|---|---|"$'\n'
-              COMMENT_BODY+="${SERVER_ROWS}"$'\n\n'
-            fi
-
-            # Client breakdown
-            CLIENT_ROWS=$(jq -r '.breakdowns.byClient | to_entries[] | "| \(.key) | \(.value.passed) | \(.value.failed) |"' e2e/e2e-results.json)
-            if [ -n "$CLIENT_ROWS" ]; then
-              COMMENT_BODY+="### By Client"$'\n'
-              COMMENT_BODY+="| Client | Passed | Failed |"$'\n'
-              COMMENT_BODY+="|---|---|---|"$'\n'
-              COMMENT_BODY+="${CLIENT_ROWS}"$'\n\n'
-            fi
-
-            # Failed test details
-            FAILED_DETAILS=$(jq -r '.results[] | select(.passed == false) | "| #\(.testNumber) | \(.client) | \(.server) | \(.endpoint) | \(.facilitator) | \(.error // "Unknown") |"' e2e/e2e-results.json)
+            # Failed test details (only shown when there are failures)
+            FAILED_DETAILS=$(jq -r '.results[] | select(.passed == false) | "| \(.testNumber) | \(.client) | \(.server) | \(.endpoint) | \(.facilitator) | \(.error // "Unknown") |"' e2e/e2e-results.json)
             if [ -n "$FAILED_DETAILS" ]; then
               COMMENT_BODY+="### Failed Tests"$'\n'
-              COMMENT_BODY+="| # | Client | Server | Endpoint | Facilitator | Error |"$'\n'
+              COMMENT_BODY+="| Test | Client | Server | Endpoint | Facilitator | Error |"$'\n'
               COMMENT_BODY+="|---|---|---|---|---|---|"$'\n'
               COMMENT_BODY+="${FAILED_DETAILS}"$'\n\n'
             fi
