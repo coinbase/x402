@@ -1,0 +1,31 @@
+{
+  "name": "DropClaw",
+  "description": "Permanent encrypted on-chain storage for AI agents. Pay with MON, SOL, or USDC via x402 protocol. Files are compressed, encrypted client-side (AES-256-GCM), and stored permanently on Monad blockchain. The server is a blind encrypted relay — it never sees plaintext.",
+  "url": "https://dropclaw.cloud",
+  "logo": "dropclaw.svg",
+  "category": "resource-server",
+  "chains": ["Monad", "Solana", "Base"],
+  "features": [
+    "Permanent on-chain file storage",
+    "Client-side AES-256-GCM encryption",
+    "Multi-chain payment (MON, SOL, USDC)",
+    "x402 protocol v2 compliant",
+    "MCP server for Claude Desktop",
+    "OpenAI & Claude tool definitions",
+    "Skill file for agent interoperability",
+    "Free retrieval"
+  ],
+  "endpoints": {
+    "store": "POST /vault/store",
+    "retrieve": "POST /vault/retrieve/{fileId}",
+    "pricing": "GET /vault/pricing",
+    "discovery": "GET /.well-known/x402",
+    "skill": "GET /skill",
+    "openai_tools": "GET /openai-tools",
+    "claude_tools": "GET /claude-tools"
+  },
+  "pricing": {
+    "store": "$30 USD + gas",
+    "retrieve": "free"
+  }
+}

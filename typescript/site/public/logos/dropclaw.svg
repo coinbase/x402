@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="clawGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C3AED"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="#0a0a0f"/>
+  <g transform="translate(100,95)" fill="none" stroke="url(#clawGrad)" stroke-width="6" stroke-linecap="round">
+    <path d="M0,-45 L0,-25"/>
+    <path d="M0,-25 Q-30,-15 -35,15" />
+    <path d="M0,-25 Q30,-15 35,15" />
+    <path d="M-35,15 Q-37,25 -28,30"/>
+    <path d="M35,15 Q37,25 28,30"/>
+    <circle cx="0" cy="40" r="18" fill="url(#clawGrad)" opacity="0.3" stroke="url(#clawGrad)" stroke-width="3"/>
+    <circle cx="0" cy="40" r="8" fill="url(#clawGrad)" opacity="0.8" stroke="none"/>
+  </g>
+  <text x="100" y="145" text-anchor="middle" fill="white" font-family="monospace" font-size="22" font-weight="bold">DropClaw</text>
+</svg>
