@@ -1,0 +1,7 @@
+{
+  "name": "DropClaw",
+  "description": "Permanent encrypted on-chain storage for AI agents on Monad. Files are compressed and encrypted client-side (AES-256-GCM), then stored as calldata chunks on-chain. Pay with MON, SOL, or USDC. The server is a blind encrypted relay — it never sees plaintext.",
+  "logoUrl": "/logos/dropclaw.svg",
+  "websiteUrl": "https://dropclaw.cloud",
+  "category": "Services/Endpoints"
+}

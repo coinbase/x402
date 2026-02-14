@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect width="120" height="120" rx="16" fill="#06060c"/>
+  <line x1="60" y1="8" x2="60" y2="30" stroke="#7C3AED" stroke-width="3" stroke-dasharray="4 3" opacity="0.6"/>
+  <rect x="40" y="26" width="40" height="14" rx="3" fill="none" stroke="url(#g1)" stroke-width="1.5"/>
+  <path d="M46 40 L36 58 L28 72" stroke="url(#g2)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <circle cx="28" cy="72" r="3" fill="#06B6D4" opacity="0.8"/>
+  <path d="M74 40 L84 58 L92 72" stroke="url(#g2)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <circle cx="92" cy="72" r="3" fill="#06B6D4" opacity="0.8"/>
+  <path d="M60 40 L60 64 L60 76" stroke="url(#g2)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <circle cx="60" cy="76" r="3" fill="#06B6D4" opacity="0.8"/>
+  <rect x="48" y="82" width="24" height="18" rx="2" fill="none" stroke="url(#g1)" stroke-width="1.5" opacity="0.7"/>
+  <text x="60" y="95" text-anchor="middle" font-family="monospace" font-size="8" font-weight="bold" fill="#7C3AED" opacity="0.8">ENC</text>
+  <circle cx="60" cy="88" r="2" fill="none" stroke="#06B6D4" stroke-width="0.8" opacity="0.5"/>
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+</svg>
