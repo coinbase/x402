@@ -659,6 +659,69 @@ Extension identifier constant (`"sign-in-with-x"`).
 | `eip6492` | Counterfactual smart wallet verification |
 | `siws` | Sign-In-With-Solana |
 
+## ERC-8004 Reputation Extension
+
+The ERC-8004 Reputation extension enables autonomous AI agents to build and verify on-chain reputation based on payment outcomes. It links the x402 payment protocol with the [ERC-8004: Trustless Agents](https://eips.ethereum.org/EIPS/eip-8004) standard.
+
+### How It Works
+
+1. **Discovery**: Servers advertise their on-chain agent identity in the `PaymentRequired` response.
+2. **Identification**: Clients (other agents) can optionally provide their own identity in the `PaymentPayload`.
+3. **Feedback**: After settlement, either party can submit reputation feedback to an ERC-8004 Reputation Registry (on EVM or Solana).
+4. **Trust**: Reputation signals are weighted by payment proofs, ensuring high-integrity "proof-of-service" ratings.
+
+### Server Usage
+
+Declare your agent identity and reputation registry:
+
+```typescript
+import { declareReputation, reputationResourceServerExtension } from "@x402/extensions/8004-reputation";
+
+const routes = {
+  "GET /service": {
+    accepts: [{ scheme: "exact", price: "$0.01", network: "eip155:8453", payTo }],
+    extensions: {
+      ...declareReputation({
+        identity: {
+          agentRegistry: "eip155:8453:0xIdentityRegistryAddress",
+          agentId: "42" // NFT Token ID
+        },
+        reputationRegistry: "0xReputationRegistryAddress",
+        endpoint: "https://my-agent.com"
+      })
+    }
+  }
+};
+
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .registerExtension(reputationResourceServerExtension);
+```
+
+### Client Usage
+
+Identify as an agent when making a payment:
+
+```typescript
+import { withClientReputation } from "@x402/extensions/8004-reputation";
+
+// When server requests payment
+const serverReputation = paymentRequired.extensions["8004-reputation"].info;
+
+const payload = {
+  ...paymentPayload,
+  extensions: {
+    ...withClientReputation(serverReputation, {
+      agentRegistry: "eip155:8453:0xMyRegistry",
+      agentId: "99"
+    })
+  }
+};
+```
+
+### `ERC8004_REPUTATION`
+
+The extension identifier constant (`"8004-reputation"`).
+
 ## Troubleshooting
 
 ### Bazaar Extension Not Being Extracted

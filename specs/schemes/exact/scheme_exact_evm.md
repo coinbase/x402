@@ -8,8 +8,10 @@ This is implemented via one of two asset transfer methods, depending on the toke
 
 | AssetTransferMethod | Use Case                                                     | Recommendation                                 |
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
-| **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
-| **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+| **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Standard** (EOA only, truly gasless).        |
+| **2. Permit2**      | Tokens without EIP-3009 or **Smart Wallets**.                | **Universal** (Works for any ERC-20 & Wallets). |
+
+**Note**: EIP-3009 (AssetTransferMethod 1) typically only supports ECDSA (EOA) signatures and may fail for contract-based wallets (e.g., Coinbase Smart Wallet). If you are building for AI agents using CDP or Smart Wallets, use **Permit2**.
 
 If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 

@@ -197,7 +197,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
       }, // Base mainnet USDC
       "eip155:84532": {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        name: "USDC",
+        name: "USD Coin",
         version: "2",
         decimals: 6,
       }, // Base Sepolia USDC

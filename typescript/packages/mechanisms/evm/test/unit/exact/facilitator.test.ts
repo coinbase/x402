@@ -114,6 +114,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
         extra: {}, // Missing name and version
       };
 
+      // Mock discovery failure
+      mockFacilitatorSigner.readContract = vi.fn().mockRejectedValue(new Error("Discovery failed"));
+
       const paymentPayload = await client.createPaymentPayload(2, {
         ...requirements,
         extra: { name: "USDC", version: "2" }, // Client has it

@@ -45,17 +45,8 @@ export async function verifyEIP3009(
     };
   }
 
-  // Get chain configuration
-  if (!requirements.extra?.name || !requirements.extra?.version) {
-    return {
-      isValid: false,
-      invalidReason: "missing_eip712_domain",
-      payer,
-    };
-  }
-
-  const { name, version } = requirements.extra;
   const erc20Address = getAddress(requirements.asset);
+  let { name, version } = requirements.extra || {};
 
   // Verify network matches
   if (payload.accepted.network !== requirements.network) {
@@ -64,6 +55,32 @@ export async function verifyEIP3009(
       invalidReason: "network_mismatch",
       payer,
     };
+  }
+
+  // Automatic Domain Discovery if missing
+  if (!name || !version) {
+    try {
+      if (!name) {
+        name = (await signer.readContract({
+          address: erc20Address,
+          abi: eip3009ABI,
+          functionName: "name",
+        })) as string;
+      }
+      if (!version) {
+        version = (await signer.readContract({
+          address: erc20Address,
+          abi: eip3009ABI,
+          functionName: "version",
+        })) as string;
+      }
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "missing_eip712_domain",
+        payer,
+      };
+    }
   }
 
   // Build typed data for signature verification
