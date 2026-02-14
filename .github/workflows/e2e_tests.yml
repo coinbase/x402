@@ -229,11 +229,14 @@ jobs:
             ARGS="$ARGS --families=${{ inputs.families }}"
           fi
 
-          if [ "${{ inputs.minimize }}" = "true" ]; then
+          # Default to --min and -v when inputs are not provided (e.g. push trigger)
+          MINIMIZE="${{ inputs.minimize }}"
+          if [ "$MINIMIZE" = "true" ] || [ -z "$MINIMIZE" ]; then
             ARGS="$ARGS --min"
           fi
 
-          if [ "${{ inputs.verbose }}" = "true" ]; then
+          VERBOSE="${{ inputs.verbose }}"
+          if [ "$VERBOSE" = "true" ] || [ -z "$VERBOSE" ]; then
             ARGS="$ARGS -v"
           fi
 
