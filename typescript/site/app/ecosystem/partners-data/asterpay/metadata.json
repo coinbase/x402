@@ -1,0 +1,7 @@
+{
+  "name": "AsterPay",
+  "description": "EUR off-ramp for x402 payments. Converts USDC to EUR via SEPA Instant — MiCA-compliant settlement for AI agents and API providers in Europe. MCP server on npm, ERC-8004 identity support.",
+  "logoUrl": "/logos/asterpay.png",
+  "websiteUrl": "https://asterpay.io",
+  "category": "Services/Endpoints"
+}
