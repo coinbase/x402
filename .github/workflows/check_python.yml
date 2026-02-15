@@ -1,7 +1,32 @@
 name: Check Python
 on: [pull_request]
+permissions:
+  contents: read
 
 jobs:
+  format-python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./python/x402
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/x402/uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Check format
+        run: uv run ruff format --check .
+
   test-python:
     runs-on: ubuntu-latest
     defaults:
@@ -40,4 +65,83 @@ jobs:
           cache-dependency-glob: "python/x402/uv.lock"
 
       - name: Lint
-        run: uvx ruff check
+        run: uv run ruff check .
+
+  format-python-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/x402/uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install main x402 package
+        working-directory: ./python/x402
+        run: uv sync --all-extras --dev
+
+      - name: Check format in Python examples
+        run: |
+          for dir in $(find examples/python -name pyproject.toml -exec dirname {} \; | sort); do
+            echo "Checking format in $dir"
+            (cd "$dir" && uv sync --quiet && uvx ruff format --check .) || (echo "Format check failed in $dir" && exit 1)
+          done
+
+  lint-python-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/x402/uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install main x402 package
+        working-directory: ./python/x402
+        run: uv sync --all-extras --dev
+
+      - name: Lint Python examples
+        run: |
+          for dir in $(find examples/python -name pyproject.toml -exec dirname {} \; | sort); do
+            echo "Linting $dir"
+            (cd "$dir" && uv sync --quiet && uvx ruff check .) || (echo "Lint failed in $dir" && exit 1)
+          done
+
+  test-python-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/x402/uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install main x402 package
+        working-directory: ./python/x402
+        run: uv sync --all-extras --dev
+
+      - name: Test Python examples
+        run: |
+          for dir in $(find examples/python -name pyproject.toml -exec dirname {} \; | sort); do
+            if [ -d "$dir/tests" ]; then
+              echo "Running tests in $dir"
+              (cd "$dir" && uv sync --quiet && uv run pytest -q) || (echo "Tests failed in $dir" && exit 1)
+            else
+              echo "Skipping $dir (no tests directory)"
+            fi
+          done

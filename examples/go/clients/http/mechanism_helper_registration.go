@@ -53,4 +53,3 @@ func createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey string
 
 	return client, nil
 }
-

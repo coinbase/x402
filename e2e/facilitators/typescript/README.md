@@ -5,6 +5,7 @@ This facilitator demonstrates and tests the TypeScript x402 facilitator implemen
 ## What It Tests
 
 ### Core Functionality
+
 - ✅ **V2 Protocol** - Modern x402 facilitator protocol
 - ✅ **V1 Protocol** - Legacy x402 facilitator protocol
 - ✅ **Payment Verification** - Validates payment payloads off-chain
@@ -13,6 +14,7 @@ This facilitator demonstrates and tests the TypeScript x402 facilitator implemen
 - ✅ **HTTP API** - Express.js server exposing facilitator endpoints
 
 ### Facilitator Endpoints
+
 - ✅ `POST /verify` - Verifies payment payload validity
 - ✅ `POST /settle` - Settles payment on blockchain
 - ✅ `GET /supported` - Returns supported payment kinds
@@ -33,9 +35,12 @@ const facilitator = new x402Facilitator()
     if (context.result.isValid) {
       const paymentHash = createPaymentHash(context.paymentPayload);
       verifiedPayments.set(paymentHash, context.timestamp);
-      
+
       // Catalog discovered resources
-      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
+      const discovered = extractDiscoveryInfo(
+        context.paymentPayload,
+        context.requirements,
+      );
       if (discovered) {
         bazaarCatalog.catalogResource(discovered);
       }
@@ -47,7 +52,7 @@ const facilitator = new x402Facilitator()
     if (!verifiedPayments.has(paymentHash)) {
       return { abort: true, reason: "Payment must be verified first" };
     }
-    
+
     // Check timeout
     const age = context.timestamp - verifiedPayments.get(paymentHash)!;
     if (age > 5 * 60 * 1000) {
@@ -66,7 +71,6 @@ const facilitator = new x402Facilitator()
   });
 ```
 
-
 ### Facilitator Setup
 
 ```typescript
@@ -77,21 +81,14 @@ import { ExactSvmFacilitator } from "@x402/svm";
 import { ExactSvmFacilitatorV1, NETWORKS as SVM_NETWORKS } from "@x402/svm/v1";
 
 // Create facilitator with bazaar extension
-const facilitator = new x402Facilitator()
-  .registerExtension("bazaar");
+const facilitator = new x402Facilitator().registerExtension("bazaar");
 
 // Register EVM V2 wildcard
-facilitator.register(
-  "eip155:*",
-  new ExactEvmFacilitator(evmSigner)
-);
+facilitator.register("eip155:*", new ExactEvmFacilitator(evmSigner));
 
 // Register all EVM V1 networks
-EVM_NETWORKS.forEach(network => {
-  facilitator.registerSchemeV1(
-    network,
-    new ExactEvmFacilitatorV1(evmSigner)
-  );
+EVM_NETWORKS.forEach((network) => {
+  facilitator.registerSchemeV1(network, new ExactEvmFacilitatorV1(evmSigner));
 });
 
 // Register SVM schemes similarly...
@@ -126,16 +123,18 @@ app.listen(port, () => {
 ## Test Scenarios
 
 This facilitator is tested with:
+
 - **Clients:** TypeScript Fetch, Go HTTP
 - **Servers:** Express (TypeScript), Gin (Go)
 - **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
-- **Test Cases:** 
+- **Test Cases:**
   - V1 EVM payments
   - V2 EVM payments
   - V1 SVM payments
   - V2 SVM payments
 
 ### Success Criteria
+
 - ✅ Verification returns valid status
 - ✅ Settlement returns transaction hash
 - ✅ Supported endpoint lists all mechanisms

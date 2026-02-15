@@ -1,6 +1,11 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { createSigner, decodeXPaymentResponse, MultiNetworkSigner, wrapFetchWithPayment } from "x402-fetch";
+import {
+  createSigner,
+  decodeXPaymentResponse,
+  MultiNetworkSigner,
+  wrapFetchWithPayment,
+} from "x402-fetch";
 
 config();
 
@@ -32,7 +37,7 @@ fetchWithPayment(url, {
       success: true,
       data: data,
       status_code: response.status,
-      payment_response: decodeXPaymentResponse(paymentResponse!)
+      payment_response: decodeXPaymentResponse(paymentResponse!),
     };
 
     // Output structured result as JSON for proxy to parse
@@ -43,7 +48,7 @@ fetchWithPayment(url, {
     const errorResult = {
       success: false,
       error: error.message || String(error),
-      status_code: error.response?.status
+      status_code: error.response?.status,
     };
 
     console.log(JSON.stringify(errorResult));

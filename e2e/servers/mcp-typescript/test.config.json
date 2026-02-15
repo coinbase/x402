@@ -26,11 +26,7 @@
     }
   ],
   "environment": {
-    "required": [
-      "PORT",
-      "EVM_PAYEE_ADDRESS",
-      "FACILITATOR_URL"
-    ],
+    "required": ["PORT", "EVM_PAYEE_ADDRESS", "FACILITATOR_URL"],
     "optional": []
   }
 }

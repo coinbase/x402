@@ -324,7 +324,7 @@ func main() {
 	// Initialize the server (queries facilitator for supported schemes)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := x402Server.Initialize(ctx); err != nil {
 		fmt.Printf("⚠️  Warning: failed to initialize x402 server: %v\n", err)
 	}
@@ -406,4 +406,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

@@ -27,7 +27,7 @@ const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
 
 axiosWithPayment
   .get(url)
-  .then(async (response) => {
+  .then(async response => {
     const data = response.data;
     // Check both v2 (PAYMENT-RESPONSE) and v1 (X-PAYMENT-RESPONSE) headers
     const paymentResponse =
@@ -58,11 +58,13 @@ axiosWithPayment
     console.log(JSON.stringify(result));
     process.exit(0);
   })
-  .catch((error) => {
-    console.error(JSON.stringify({
-      success: false,
-      error: error.message || "Request failed",
-      status_code: error.response?.status || 500,
-    }));
+  .catch(error => {
+    console.error(
+      JSON.stringify({
+        success: false,
+        error: error.message || "Request failed",
+        status_code: error.response?.status || 500,
+      }),
+    );
     process.exit(1);
   });

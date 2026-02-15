@@ -1,5 +1,7 @@
 name: Check Go
 on: [pull_request]
+permissions:
+  contents: read
 
 jobs:
   check-format-go:
@@ -19,12 +21,7 @@ jobs:
       - name: Check formatting
         run: |
           make deps-dev
-          make fmt
-          if [ -n "$(git diff --name-only)" ]; then
-            echo "The following files are not properly formatted:"
-            git diff --name-only
-            exit 1
-          fi
+          make format-check
 
   lint-go:
     runs-on: ubuntu-latest
@@ -43,7 +40,7 @@ jobs:
       - name: Run golangci-lint
         run: |
           make deps-dev
-          make lint
+          make lint-check
 
   test-go:
     runs-on: ubuntu-latest
@@ -61,4 +58,46 @@ jobs:
 
       - name: Run tests
         run: make test
+
+  format-go-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ./go/go.sum
+
+      - name: Check format in Go examples
+        run: make -C examples/go format-check
+
+  lint-go-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ./go/go.sum
+
+      - name: Lint Go examples
+        run: make -C examples/go lint-check
+
+  build-go-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ./go/go.sum
+
+      - name: Build Go examples
+        run: make -C examples/go build-all
 

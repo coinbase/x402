@@ -27,7 +27,8 @@ const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 if (!serverUrl || !endpointPath || !evmPrivateKey) {
   const result: E2EResult = {
     success: false,
-    error: "Missing required environment variables: RESOURCE_SERVER_URL, ENDPOINT_PATH, EVM_PRIVATE_KEY",
+    error:
+      "Missing required environment variables: RESOURCE_SERVER_URL, ENDPOINT_PATH, EVM_PRIVATE_KEY",
   };
   console.log(JSON.stringify(result));
   process.exit(1);
@@ -105,9 +106,11 @@ async function main(): Promise<void> {
 }
 
 main().catch(error => {
-  console.error(JSON.stringify({
-    success: false,
-    error: error.message || "Fatal error",
-  }));
+  console.error(
+    JSON.stringify({
+      success: false,
+      error: error.message || "Fatal error",
+    }),
+  );
   process.exit(1);
 });

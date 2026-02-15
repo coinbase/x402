@@ -37,9 +37,7 @@ class TestBazaarResourceServerExtension:
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="GET")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         assert enriched["info"]["input"]["method"] == "GET"
 
@@ -55,9 +53,7 @@ class TestBazaarResourceServerExtension:
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="POST")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         assert enriched["info"]["input"]["method"] == "POST"
 
@@ -72,9 +68,7 @@ class TestBazaarResourceServerExtension:
             declaration = declaration.model_dump(by_alias=True)
 
         # Pass None context
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, None
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, None)
 
         # Should return unchanged (no method injection)
         assert enriched == declaration
@@ -107,9 +101,7 @@ class TestBazaarResourceServerExtension:
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="DELETE")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         schema = enriched.get("schema", {})
         input_schema = schema.get("properties", {}).get("input", {})
@@ -133,9 +125,7 @@ class TestBazaarResourceServerExtension:
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="GET")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         # Check original data preserved
         assert enriched["info"]["input"]["type"] == "http"

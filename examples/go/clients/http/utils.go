@@ -45,4 +45,3 @@ func extractPaymentResponse(headers http.Header) (*x402.SettleResponse, error) {
 
 	return &settleResp, nil
 }
-

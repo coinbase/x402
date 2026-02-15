@@ -19,8 +19,8 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
 	"github.com/coinbase/x402/go/mcp"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
 	"github.com/joho/godotenv"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )

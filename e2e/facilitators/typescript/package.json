@@ -9,6 +9,8 @@
     "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:check": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

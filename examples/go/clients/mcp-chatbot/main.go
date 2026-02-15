@@ -22,8 +22,8 @@ import (
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	"github.com/coinbase/x402/go/mcp"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/joho/godotenv"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"

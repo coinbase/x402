@@ -121,22 +121,16 @@ class ExactSvmSchemeV1:
 
         # V1: Validate scheme at top level
         if payload.scheme != SCHEME_EXACT or requirements.scheme != SCHEME_EXACT:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_UNSUPPORTED_SCHEME, payer=""
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_UNSUPPORTED_SCHEME, payer="")
 
         # V1: Validate network at top level
         if payload.network != requirements.network:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=""
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer="")
 
         extra = requirements.extra or {}
         fee_payer_str = extra.get("feePayer")
         if not fee_payer_str or not isinstance(fee_payer_str, str):
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_FEE_PAYER_MISSING, payer=""
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_FEE_PAYER_MISSING, payer="")
 
         # Verify that the requested feePayer is managed by this facilitator
         signer_addresses = self._signer.get_addresses()
@@ -244,9 +238,7 @@ class ExactSvmSchemeV1:
                     if idx < len(invalid_reasons)
                     else ERR_UNKNOWN_SIXTH_INSTRUCTION
                 )
-                return VerifyResponse(
-                    is_valid=False, invalid_reason=reason, payer=payer
-                )
+                return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
 
         # Parse transfer instruction
         transfer_accounts = list(transfer_ix.accounts)
@@ -281,9 +273,7 @@ class ExactSvmSchemeV1:
         # Verify mint address matches requirements
         mint_str = str(mint)
         if mint_str != requirements.asset:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_MINT_MISMATCH, payer=payer
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_MINT_MISMATCH, payer=payer)
 
         # Verify destination ATA
         expected_dest_ata = derive_ata(

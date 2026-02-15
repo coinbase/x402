@@ -1,0 +1,90 @@
+name: Check E2E
+on: [pull_request]
+permissions:
+  contents: read
+
+jobs:
+  format-lint-e2e-typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: ./e2e/pnpm-lock.yaml
+
+      - name: Install and check format/lint
+        working-directory: ./e2e
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run format:check
+          pnpm run lint:check
+
+  format-lint-e2e-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "python/x402/uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install main x402 package
+        working-directory: ./python/x402
+        run: uv sync --all-extras --dev
+
+      - name: Check format and lint in e2e Python packages
+        run: |
+          for dir in e2e/clients/httpx e2e/clients/mcp-python e2e/clients/requests e2e/servers/fastapi e2e/servers/flask e2e/servers/mcp-python e2e/facilitators/python e2e/legacy/servers/fastapi e2e/legacy/servers/flask; do
+            if [ -f "$dir/pyproject.toml" ]; then
+              echo "Checking $dir"
+              (cd "$dir" && uv sync --quiet && uvx ruff format --check . && uvx ruff check .) || (echo "Failed in $dir" && exit 1)
+            fi
+          done
+
+  format-lint-e2e-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ./go/go.sum
+
+      - name: Install dev tools
+        working-directory: ./go
+        run: make deps-dev
+
+      - name: Check format and lint in e2e Go packages
+        run: |
+          for dir in e2e/clients/go-http e2e/clients/mcp-go e2e/servers/gin e2e/servers/mcp-go e2e/facilitators/go e2e/legacy/servers/gin; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "Formatting and linting $dir"
+              (cd "$dir" && go fmt ./... && $(go env GOPATH)/bin/goimports -w .) || exit 1
+            fi
+          done
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "The following files are not properly formatted:"
+            git diff --name-only
+            exit 1
+          fi
+          for dir in e2e/clients/go-http e2e/clients/mcp-go e2e/servers/gin e2e/servers/mcp-go e2e/facilitators/go e2e/legacy/servers/gin; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "Linting $dir"
+              (cd "$dir" && $(go env GOPATH)/bin/golangci-lint run ./...) || exit 1
+            fi
+          done

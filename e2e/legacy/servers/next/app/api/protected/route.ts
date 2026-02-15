@@ -13,4 +13,4 @@ export async function GET() {
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
   });
-} 
+}

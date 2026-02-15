@@ -3,7 +3,7 @@
  *
  * This facilitator provides HTTP endpoints for payment verification and settlement
  * using the x402 TypeScript SDK.
- * 
+ *
  * Features:
  * - Payment verification and settlement
  * - Bazaar discovery extension support
@@ -39,7 +39,8 @@ dotenv.config();
 // Configuration
 const PORT = process.env.PORT || "4022";
 const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
-const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const SVM_NETWORK =
+  process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
 
@@ -71,12 +72,15 @@ if (!process.env.SVM_PRIVATE_KEY) {
 }
 
 // Initialize the EVM account from private key
-const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-
 // Initialize the EVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+const svmAccount = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
@@ -128,7 +132,10 @@ const evmSigner = toFacilitatorEvmSigner({
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
+const svmSigner = toFacilitatorSvmSigner(
+  svmAccount,
+  SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined,
+);
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -152,7 +159,8 @@ registerExactSvmScheme(facilitator, {
   networks: SVM_NETWORK as Network,
 });
 
-facilitator.registerExtension(BAZAAR)
+facilitator
+  .registerExtension(BAZAAR)
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation
@@ -161,7 +169,10 @@ facilitator.registerExtension(BAZAAR)
       verifiedPayments.set(paymentHash, Date.now());
 
       // Hook 2: Extract and catalog bazaar discovery info
-      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
+      const discovered = extractDiscoveryInfo(
+        context.paymentPayload,
+        context.requirements,
+      );
       if (discovered) {
         bazaarCatalog.catalogResource(
           discovered.resourceUrl,
@@ -170,7 +181,9 @@ facilitator.registerExtension(BAZAAR)
           discovered.discoveryInfo,
           context.requirements,
         );
-        console.log(`📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`);
+        console.log(
+          `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
+        );
       }
     }
   })
@@ -220,12 +233,15 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
- * 
+ *
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -253,7 +269,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
@@ -280,7 +296,10 @@ app.post("/settle", async (req, res) => {
     console.error("Settle error:", error);
 
     // Check if this was an abort from hook
-    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Settlement aborted:")
+    ) {
       // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,

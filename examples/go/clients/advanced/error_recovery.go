@@ -162,4 +162,3 @@ func contains(msg string, keywords ...string) bool {
 	}
 	return false
 }
-

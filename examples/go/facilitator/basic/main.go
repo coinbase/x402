@@ -47,7 +47,7 @@ func main() {
 	}
 
 	facilitator := x402.Newx402Facilitator()
-	
+
 	// Register V2 EVM scheme with smart wallet deployment enabled
 	evmConfig := &evm.ExactEvmSchemeConfig{
 		DeployERC4337WithEIP6492: true,
@@ -164,4 +164,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

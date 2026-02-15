@@ -12,9 +12,9 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/types"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
+	"github.com/coinbase/x402/go/types"
 	"github.com/joho/godotenv"
 )
 
@@ -74,7 +74,7 @@ func main() {
 
 	// Make the request with custom payment handling
 	fmt.Println("🔧 Using custom payment implementation (no wrapper)\n")
-	
+
 	resp, err := makeRequestWithPayment(ctx, x402Client, url)
 	if err != nil {
 		fmt.Printf("❌ Request failed: %v\n", err)
@@ -219,7 +219,7 @@ func makeRequestWithPayment(ctx context.Context, x402Client *x402.X402Client, ur
 
 	// Encode payment as base64 and add to header
 	encodedPayment := base64.StdEncoding.EncodeToString(payloadBytes)
-	
+
 	// Create new request with payment header
 	retryReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -378,4 +378,3 @@ func extractSettlementResponse(headerValue string) (x402.SettleResponse, error) 
 
 	return settleResp, nil
 }
-

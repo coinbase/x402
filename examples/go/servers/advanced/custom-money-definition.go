@@ -108,7 +108,7 @@ func main() {
 			{Network: evmNetwork, Server: evmScheme}, // Use custom scheme
 		},
 		SyncFacilitatorOnStart: true,
-		Timeout:    30 * time.Second,
+		Timeout:                30 * time.Second,
 	}))
 
 	r.GET("/weather", func(c *ginfw.Context) {
@@ -128,4 +128,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

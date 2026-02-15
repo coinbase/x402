@@ -53,4 +53,3 @@ func createBuilderPatternClient(evmPrivateKey, svmPrivateKey string) (*x402.X402
 
 	return client, nil
 }
-

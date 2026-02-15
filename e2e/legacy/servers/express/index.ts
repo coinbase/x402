@@ -19,7 +19,7 @@ if (!payToEvm || !evmNetwork) {
 // Create facilitator config if URL is provided
 const facilitatorConfig = facilitatorUrl
   ? { url: facilitatorUrl as `${string}://${string}` }
-  : undefined as any;
+  : (undefined as any);
 
 if (facilitatorUrl) {
   console.log(`Using remote facilitator at: ${facilitatorUrl}`);
@@ -38,7 +38,7 @@ app.use(
         network: evmNetwork,
       },
     },
-    facilitatorConfig
+    facilitatorConfig,
   ),
 );
 
@@ -51,7 +51,7 @@ app.use(
         network: svmNetwork,
       },
     },
-    facilitatorConfig
+    facilitatorConfig,
   ),
 );
 
@@ -81,4 +81,4 @@ app.post("/close", (req, res) => {
 
 app.listen(parseInt(port), () => {
   console.log(`Server listening at http://localhost:${port}`);
-}); 
+});

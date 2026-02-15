@@ -1,0 +1,69 @@
+name: Integration Tests
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run against (leave empty for current branch)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  integration-typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: ./typescript
+
+      - name: Run TypeScript integration tests
+        working-directory: ./typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:integration
+        env:
+          EVM_CLIENT_PRIVATE_KEY: ${{ secrets.EVM_CLIENT_PRIVATE_KEY }}
+          EVM_FACILITATOR_PRIVATE_KEY: ${{ secrets.EVM_FACILITATOR_PRIVATE_KEY }}
+          EVM_RESOURCE_SERVER_ADDRESS: ${{ secrets.EVM_RESOURCE_SERVER_ADDRESS }}
+          SVM_CLIENT_PRIVATE_KEY: ${{ secrets.SVM_CLIENT_PRIVATE_KEY }}
+          SVM_FACILITATOR_PRIVATE_KEY: ${{ secrets.SVM_FACILITATOR_PRIVATE_KEY }}
+          SVM_FACILITATOR_ADDRESS: ${{ secrets.SVM_FACILITATOR_ADDRESS }}
+          SVM_RESOURCE_SERVER_ADDRESS: ${{ secrets.SVM_RESOURCE_SERVER_ADDRESS }}
+
+  integration-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: ./go/go.sum
+
+      - name: Run Go integration tests
+        working-directory: ./go
+        run: make test-integration
+        env:
+          EVM_CLIENT_PRIVATE_KEY: ${{ secrets.EVM_CLIENT_PRIVATE_KEY }}
+          EVM_FACILITATOR_PRIVATE_KEY: ${{ secrets.EVM_FACILITATOR_PRIVATE_KEY }}
+          EVM_RESOURCE_SERVER_ADDRESS: ${{ secrets.EVM_RESOURCE_SERVER_ADDRESS }}
+          SVM_CLIENT_PRIVATE_KEY: ${{ secrets.SVM_CLIENT_PRIVATE_KEY }}
+          SVM_FACILITATOR_PRIVATE_KEY: ${{ secrets.SVM_FACILITATOR_PRIVATE_KEY }}
+          SVM_FACILITATOR_ADDRESS: ${{ secrets.SVM_FACILITATOR_ADDRESS }}
+          SVM_RESOURCE_SERVER_ADDRESS: ${{ secrets.SVM_RESOURCE_SERVER_ADDRESS }}
