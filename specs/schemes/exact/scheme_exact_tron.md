@@ -226,3 +226,155 @@ TRC-20 transfers consume Tron energy and bandwidth resources. The facilitator is
 ### Address format
 
 Tron uses base58check-encoded addresses (starting with `T`) for user-facing representations and hex addresses (starting with `41`) in transaction data. Implementations MUST handle conversion between these formats correctly when performing verification checks.
+
+## Cross-Chain Facilitator
+
+The x402 protocol on Tron supports cross-chain payment settlement through a facilitator service. When a payment originates on one network (e.g., Base USDC) and the merchant settles on another (e.g., Tron USDT), a facilitator handles verification, bridging, and settlement across chains.
+
+This enables a merchant on Tron to accept payments from clients on any supported source chain without requiring the client to hold assets on Tron.
+
+### Facilitator Role in Cross-Chain Flows
+
+In a cross-chain x402 payment:
+
+1. The client signs a payment authorization on the source chain (e.g., EIP-3009 on Base).
+2. The resource server forwards the `PaymentPayload` and `PaymentRequirements` to the facilitator's `/verify` endpoint.
+3. The facilitator verifies the payment authorization on the source chain.
+4. Upon settlement, the facilitator executes the source chain transfer, bridges assets to the destination chain, and delivers the destination token to the merchant's wallet.
+5. The facilitator returns a `SettlementResponse` containing both the source chain transaction hash and the destination chain transaction hash.
+
+### Supported Cross-Chain Routes
+
+| Source Chain | Source Asset | Destination Chain | Destination Asset | Bridge Protocol |
+|---|---|---|---|---|
+| Base (eip155:8453) | USDC | Tron (tron:27Lqcw) | USDT | deBridge DLN |
+
+Additional routes (e.g., Arbitrum, Polygon, Optimism as source chains) may be added by facilitator operators.
+
+### Facilitator Fee Model
+
+Facilitators MAY charge a fee for cross-chain settlement. The fee structure MUST be transparent and communicated to the resource server prior to settlement.
+
+- The facilitator fee is deducted from the payment amount before bridging.
+- The facilitator MUST NOT charge fees in excess of what was disclosed to the resource server.
+- Bridge protocol fees (e.g., deBridge liquidity fees) are separate from the facilitator fee and are absorbed during the bridging step.
+
+### Cross-Chain Verification Rules
+
+In addition to the standard verification rules defined above, cross-chain facilitators MUST:
+
+- Verify the payment authorization is valid on the **source chain** using that chain's native verification method (e.g., EIP-3009 signature verification for EVM chains).
+- Verify the client has sufficient balance of the **source asset** on the **source chain**.
+- Verify the destination address is a valid Tron address (Base58Check format, 34 characters, starting with `T`).
+- Verify a supported bridge route exists between the source chain/asset and the destination chain/asset.
+- Return the source chain transaction hash in the `SettlementResponse.transaction` field.
+- Include the destination chain transaction hash in `SettlementResponse.extra.destinationTransaction` when available.
+
+### Cross-Chain `SettlementResponse`
+
+```json
+{
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:8453",
+  "payer": "0x...",
+  "extra": {
+    "destinationNetwork": "tron:27Lqcw",
+    "destinationTransaction": "a1b2c3d4...",
+    "destinationAsset": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "bridgeProtocol": "deBridge DLN",
+    "bridgeOrderId": "0x...",
+    "facilitatorFee": "10000",
+    "facilitatorFeeAsset": "USDC",
+    "bridgeFee": "1500",
+    "bridgeFeeAsset": "USDC"
+  }
+}
+```
+
+### Reference Facilitator
+
+A reference cross-chain facilitator implementation is available:
+
+- **Operator:** Erudite Intelligence LLC
+- **Endpoint:** `https://api.eruditepay.com/x402/`
+- **Supported routes:** Base USDC → Tron USDT
+- **Fee:** 1% per cross-chain settlement
+- **Authentication:** None required for `/verify`; API key optional for `/settle`
+
+#### Facilitator Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/x402/verify` | Verify a payment authorization (source or same-chain) |
+| POST | `/x402/settle` | Execute settlement including cross-chain bridge |
+| POST | `/x402/bridge` | Direct bridge execution (advanced usage) |
+| GET | `/x402/status/:txId` | Track cross-chain transaction status |
+| GET | `/x402/health` | Facilitator health and supported routes |
+
+#### Example: Verify Request
+
+```bash
+curl -X POST https://api.eruditepay.com/x402/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentPayload": "<base64-encoded PaymentPayload>",
+    "paymentRequirements": {
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "amount": "1000000",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "payTo": "0x..."
+    }
+  }'
+```
+
+#### Example: Settle Request (Cross-Chain)
+
+```bash
+curl -X POST https://api.eruditepay.com/x402/settle \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentPayload": "<base64-encoded PaymentPayload>",
+    "paymentRequirements": {
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "amount": "1000000",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "payTo": "0x..."
+    },
+    "destination": {
+      "network": "tron:27Lqcw",
+      "address": "TXYZabc123...",
+      "asset": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+    }
+  }'
+```
+
+### Running Your Own Facilitator
+
+The x402 protocol is permissionless. Any party may operate a cross-chain facilitator. A facilitator implementation requires:
+
+1. **Source chain RPC access** — to verify payment authorizations and broadcast settlement transactions.
+2. **Destination chain RPC access** — to monitor bridge completion and confirm delivery.
+3. **Bridge integration** — connection to a cross-chain bridge protocol (e.g., deBridge DLN, Wormhole, LayerZero).
+4. **Funded wallets** — on both source and destination chains for gas/energy costs.
+5. **x402 verification logic** — implementation of the scheme's verification rules for each supported source chain.
+
+Facilitator operators SHOULD register their facilitator endpoint with the x402 Bazaar for discoverability.
+
+### Cross-Chain Security Considerations
+
+- Cross-chain settlements introduce additional latency compared to same-chain settlements. Bridge completion times vary by protocol and may range from seconds to minutes.
+- Facilitators MUST NOT alter the destination address or amount during the bridging process.
+- Resource servers SHOULD implement timeout handling for cross-chain settlements and provide appropriate status updates to clients.
+- Bridge protocol selection impacts security guarantees. Facilitator operators SHOULD document which bridge protocols are used and their respective security models.
+- In the event of a bridge failure, the facilitator MUST refund the source chain payment to the client's originating address.
+
+## Reference Implementation
+
+| Component | Location |
+|---|---|
+| npm package | `@erudite-intelligence/x402-tron` |
+| Facilitator API | `https://api.eruditepay.com/x402/` |
+| Wrapper contract | Deployed on Tron mainnet (0.25% protocol fee) |
