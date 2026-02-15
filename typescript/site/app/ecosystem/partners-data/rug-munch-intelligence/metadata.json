@@ -1,0 +1,7 @@
+{
+  "name": "Rug Munch Intelligence",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/rug-munch-intelligence.png",
+  "description": "Token risk intelligence API for AI agents. 13 endpoints covering rug pull detection, honeypot scoring, deployer tracking, holder deep-dive, KOL shill detection, and social OSINT. The only comprehensive crypto risk API on x402 — check any token before transacting. Accepts USDC on Base and Solana.",
+  "websiteUrl": "https://cryptorugmunch.ngrok.app/api/agent/v1/health"
+}
