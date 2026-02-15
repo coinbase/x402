@@ -37,6 +37,30 @@ class TestValidateDiscoveryExtension:
         result = validate_discovery_extension(ext[BAZAAR])
         assert result.valid is True
 
+    def test_invalid_extension_info_does_not_match_schema(self) -> None:
+        """Test that validation fails when info does not satisfy the schema.
+
+        The schema requires an 'output' field at the top level, but the info
+        only contains 'input' — a clear JSON Schema validation failure.
+        """
+        ext = declare_discovery_extension(
+            input={"query": "test"},
+            input_schema={"properties": {"query": {"type": "string"}}},
+        )
+
+        # Get the extension as a mutable dict and tighten the schema
+        bazaar_ext = ext[BAZAAR]
+        if hasattr(bazaar_ext, "model_dump"):
+            bazaar_ext = bazaar_ext.model_dump(by_alias=True)
+
+        bazaar_ext["schema"]["required"] = ["input", "output"]
+        bazaar_ext["schema"]["properties"]["output"] = {"type": "object"}
+
+        result = validate_discovery_extension(bazaar_ext)
+        assert result.valid is False
+        assert len(result.errors) > 0
+        assert "output" in result.errors[0]
+
 
 class TestExtractDiscoveryInfo:
     """Tests for extract_discovery_info function."""

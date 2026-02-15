@@ -346,6 +346,57 @@ export class x402HTTPResourceServer {
     if (errors.length > 0) {
       throw new RouteConfigurationError(errors);
     }
+
+    // Validate bazaar extensions (warnings only, does not block startup)
+    await this.validateExtensions();
+  }
+
+  /**
+   * Validate bazaar extensions on compiled routes.
+   *
+   * For each route with a bazaar extension containing both `info` and `schema`,
+   * validates that the info matches the schema. Emits warnings for invalid
+   * extensions but does not throw or block server startup.
+   *
+   * Uses dynamic import so @x402/extensions is an optional dependency.
+   */
+  private async validateExtensions(): Promise<void> {
+    // Dynamically import to avoid hard dependency on @x402/extensions
+    let validateDiscoveryExtension:
+      | ((ext: { info: unknown; schema: unknown }) => { valid: boolean; errors?: string[] })
+      | undefined;
+    try {
+      const bazaarModule = await import("@x402/extensions/bazaar/facilitator");
+      validateDiscoveryExtension = bazaarModule.validateDiscoveryExtension;
+    } catch {
+      // @x402/extensions not installed, skip validation silently
+      return;
+    }
+
+    for (const route of this.compiledRoutes) {
+      const bazaarExt = route.config.extensions?.bazaar as
+        | { info?: unknown; schema?: unknown }
+        | undefined;
+
+      if (!bazaarExt || !bazaarExt.info || !bazaarExt.schema) {
+        continue;
+      }
+
+      try {
+        const result = validateDiscoveryExtension(bazaarExt as { info: unknown; schema: unknown });
+        if (!result.valid) {
+          const routePattern = `${route.verb} ${route.regex.source}`;
+          console.warn(
+            `[x402] Bazaar extension validation warning for route "${routePattern}": ${(result.errors ?? []).join(", ")}`,
+          );
+        }
+      } catch (err) {
+        const routePattern = `${route.verb} ${route.regex.source}`;
+        console.warn(
+          `[x402] Failed to validate bazaar extension for route "${routePattern}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
   }
 
   /**

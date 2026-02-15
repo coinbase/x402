@@ -278,6 +278,35 @@ func TestValidateDiscoveryExtension(t *testing.T) {
 		result := bazaar.ValidateDiscoveryExtension(extension)
 		assert.True(t, result.Valid)
 	})
+
+	t.Run("should return errors when info does not match schema", func(t *testing.T) {
+		// Build an extension where the schema requires an "output" field
+		// but the info only contains "input" — a clear schema validation failure.
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"query": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Tighten the schema so it requires "output" at the top level,
+		// which the info does not have.
+		extension.Schema["required"] = []interface{}{"input", "output"}
+		extension.Schema["properties"].(map[string]interface{})["output"] = map[string]interface{}{
+			"type": "object",
+		}
+
+		result := bazaar.ValidateDiscoveryExtension(extension)
+		assert.False(t, result.Valid, "Expected validation to fail")
+		assert.NotEmpty(t, result.Errors, "Expected at least one error")
+		assert.Contains(t, result.Errors[0], "output", "Error should mention the missing 'output' field")
+	})
 }
 
 func TestExtractDiscoveryInfoFromExtension(t *testing.T) {
@@ -1614,6 +1643,67 @@ func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "GET", info.Method)
+	})
+}
+
+// mockTransportContext is a non-HTTP TransportContext to verify the interface
+// works with arbitrary transport types, not just HTTPRequestContext.
+type mockTransportContext struct {
+	method string
+}
+
+func (m mockTransportContext) TransportMethod() string { return m.method }
+
+func TestBazaarResourceServerExtension_CustomTransportContext(t *testing.T) {
+	t.Run("should enrich declaration via TransportContext interface (not HTTPRequestContext)", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"q": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"q": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Use a custom TransportContext instead of HTTPRequestContext
+		ctx := mockTransportContext{method: "GET"}
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, ctx)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		queryInput, ok := enrichedExt.Info.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
+	})
+
+	t.Run("should enrich POST declaration via custom TransportContext", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"data": "payload"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"data": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		ctx := mockTransportContext{method: "POST"}
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, ctx)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		bodyInput, ok := enrichedExt.Info.Input.(bazaar.BodyInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
 	})
 }
 

@@ -2,8 +2,14 @@ package bazaar
 
 import (
 	"github.com/coinbase/x402/go/extensions/types"
-	"github.com/coinbase/x402/go/http"
 )
+
+// TransportContext abstracts the transport layer so bazaar doesn't depend on
+// any concrete HTTP package.  Any type that exposes a TransportMethod() string
+// (e.g. http.HTTPRequestContext) satisfies this interface via Go structural typing.
+type TransportContext interface {
+	TransportMethod() string
+}
 
 type bazaarResourceServerExtension struct{}
 
@@ -15,7 +21,7 @@ func (e *bazaarResourceServerExtension) EnrichDeclaration(
 	declaration interface{},
 	transportContext interface{},
 ) interface{} {
-	httpContext, ok := transportContext.(http.HTTPRequestContext)
+	tc, ok := transportContext.(TransportContext)
 	if !ok {
 		return declaration
 	}
@@ -25,7 +31,7 @@ func (e *bazaarResourceServerExtension) EnrichDeclaration(
 		return declaration
 	}
 
-	method := httpContext.Method
+	method := tc.TransportMethod()
 
 	if queryInput, ok := extension.Info.Input.(types.QueryInput); ok {
 		queryInput.Method = types.QueryParamMethods(method)

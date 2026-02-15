@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/bazaar"
+	extTypes "github.com/coinbase/x402/go/extensions/types"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -129,6 +132,9 @@ type HTTPRequestContext struct {
 	PaymentHeader string
 }
 
+// TransportMethod returns the HTTP method, satisfying bazaar.TransportContext.
+func (c HTTPRequestContext) TransportMethod() string { return c.Method }
+
 // HTTPResponseInstructions tells the framework how to respond
 type HTTPResponseInstructions struct {
 	Status  int               `json:"status"`
@@ -201,6 +207,70 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// Initialize initializes the HTTP resource server.
+//
+// This method initializes the underlying resource server (fetching facilitator support)
+// and then validates that bazaar extensions are properly configured, logging warnings
+// for any invalid extensions. Invalid extensions do not block startup.
+func (s *x402HTTPResourceServer) Initialize(ctx context.Context) error {
+	// First, initialize the underlying resource server
+	if err := s.X402ResourceServer.Initialize(ctx); err != nil {
+		return err
+	}
+
+	// Validate bazaar extensions (warnings only)
+	warnings := s.ValidateExtensions()
+	for _, w := range warnings {
+		log.Printf("[x402] WARNING: %s", w)
+	}
+
+	return nil
+}
+
+// ValidateExtensions validates bazaar extensions on compiled routes.
+//
+// For each route with a bazaar extension containing both info and schema,
+// validates that the info matches the schema using JSON Schema validation.
+// Returns a list of warning strings for invalid extensions.
+func (s *x402HTTPResourceServer) ValidateExtensions() []string {
+	var warnings []string
+
+	for _, route := range s.compiledRoutes {
+		bazaarRaw, ok := route.Config.Extensions["bazaar"]
+		if !ok || bazaarRaw == nil {
+			continue
+		}
+
+		routePattern := fmt.Sprintf("%s %s", route.Verb, route.Regex.String())
+
+		// Marshal and unmarshal into the canonical DiscoveryExtension type
+		bazaarJSON, err := json.Marshal(bazaarRaw)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to marshal: %v", routePattern, err))
+			continue
+		}
+
+		var ext extTypes.DiscoveryExtension
+		if err := json.Unmarshal(bazaarJSON, &ext); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension for route %q: failed to unmarshal: %v", routePattern, err))
+			continue
+		}
+
+		// Skip if schema is not present (ValidateDiscoveryExtension requires it)
+		if ext.Schema == nil {
+			continue
+		}
+
+		// Delegate to the single source of truth for schema validation
+		result := bazaar.ValidateDiscoveryExtension(ext)
+		if !result.Valid {
+			warnings = append(warnings, fmt.Sprintf("Bazaar extension validation warning for route %q: %s", routePattern, strings.Join(result.Errors, ", ")))
+		}
+	}
+
+	return warnings
 }
 
 // BuildPaymentRequirementsFromOptions builds payment requirements from multiple payment options

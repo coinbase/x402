@@ -6,6 +6,7 @@ Contains shared logic for HTTP server implementations.
 from __future__ import annotations
 
 import html
+import logging
 import re
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, Protocol
@@ -43,6 +44,8 @@ from .utils import (
     encode_payment_response_header,
     htmlsafe_json_dumps,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..server import x402ResourceServer, x402ResourceServerSync
@@ -204,6 +207,72 @@ class x402HTTPServerBase:
         errors = self._validate_route_configuration()
         if errors:
             raise RouteConfigurationError(errors)
+
+        # Validate bazaar extensions (warnings only, does not block startup)
+        self._validate_extensions()
+
+    def _validate_extensions(self) -> list[str]:
+        """Validate bazaar extensions on compiled routes.
+
+        For each route with a bazaar extension containing both ``info`` and
+        ``schema``, validates that the info matches the schema.  Emits
+        warnings for invalid extensions but does not raise or block startup.
+
+        Uses a lazy import so ``x402.extensions`` is an optional dependency.
+
+        Returns:
+            List of warning strings (for testability).
+        """
+        warnings: list[str] = []
+
+        try:
+            from x402.extensions.bazaar.facilitator import (
+                validate_discovery_extension,
+            )
+        except ImportError:
+            # Extensions package not installed, skip silently
+            return warnings
+
+        for route in self._compiled_routes:
+            extensions = route.config.extensions
+            if not extensions or "bazaar" not in extensions:
+                continue
+
+            bazaar_ext = extensions["bazaar"]
+            if not isinstance(bazaar_ext, dict):
+                # Could be a Pydantic model; try to extract info/schema
+                info = getattr(bazaar_ext, "info", None)
+                schema = getattr(bazaar_ext, "schema_", None) or getattr(
+                    bazaar_ext, "schema", None
+                )
+                if info is None or schema is None:
+                    continue
+            else:
+                info = bazaar_ext.get("info")
+                schema = bazaar_ext.get("schema")
+                if info is None or schema is None:
+                    continue
+
+            try:
+                result = validate_discovery_extension(bazaar_ext)
+                if not result.valid:
+                    route_pattern = f"{route.verb} {route.regex.pattern}"
+                    msg = (
+                        f'[x402] Bazaar extension validation warning for route '
+                        f'"{route_pattern}": {", ".join(result.errors)}'
+                    )
+                    logger.warning(msg)
+                    warnings.append(msg)
+            except Exception as exc:
+                route_pattern = f"{route.verb} {route.regex.pattern}"
+                msg = (
+                    f'[x402] Failed to validate bazaar extension for route '
+                    f'"{route_pattern}": {exc}'
+                )
+                logger.warning(msg)
+                warnings.append(msg)
+
+        return warnings
 
     def register_paywall_provider(
         self, provider: PaywallProvider
