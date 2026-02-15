@@ -91,6 +91,16 @@
         "types": "./dist/cjs/payment-identifier/index.d.ts",
         "default": "./dist/cjs/payment-identifier/index.js"
       }
+    },
+    "./8004-reputation": {
+      "import": {
+        "types": "./dist/esm/8004-reputation/index.d.mts",
+        "default": "./dist/esm/8004-reputation/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/8004-reputation/index.d.ts",
+        "default": "./dist/cjs/8004-reputation/index.js"
+      }
     }
   },
   "files": [

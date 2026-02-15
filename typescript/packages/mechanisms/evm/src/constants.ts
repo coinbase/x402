@@ -77,6 +77,13 @@ export const eip3009ABI = [
   },
   {
     inputs: [],
+    name: "name",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "version",
     outputs: [{ name: "", type: "string" }],
     stateMutability: "view",

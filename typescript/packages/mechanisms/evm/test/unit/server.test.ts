@@ -12,7 +12,7 @@ describe("ExactEvmScheme (Server)", () => {
         const result = await server.parsePrice("$0.10", network);
         expect(result.amount).toBe("100000"); // 0.10 USDC = 100000 smallest units
         expect(result.asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-        expect(result.extra).toEqual({ name: "USDC", version: "2" });
+        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
       });
 
       it("should parse simple number string prices", async () => {
@@ -155,7 +155,7 @@ describe("ExactEvmScheme (Server)", () => {
         const result = await customServer.parsePrice("1.00", "eip155:84532");
 
         expect(result.asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-        expect(result.extra).toEqual({ name: "USDC", version: "2" });
+        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
       });
     });
 
