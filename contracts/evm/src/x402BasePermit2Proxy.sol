@@ -23,7 +23,7 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  */
 abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice The Permit2 contract address (set via initialize)
-    ISignatureTransfer public PERMIT2;
+    ISignatureTransfer public permit2;
 
     /// @notice The original deployer address (set in constructor)
     /// @dev Used to gate initialize() calls and prevent frontrunning
@@ -133,7 +133,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (_initialized) revert AlreadyInitialized();
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         _initialized = true;
-        PERMIT2 = ISignatureTransfer(_permit2);
+        permit2 = ISignatureTransfer(_permit2);
     }
 
     /**
@@ -170,7 +170,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         bytes32 witnessHash = keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter));
 
         // Execute transfer via Permit2
-        PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
+        permit2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
     }
 
     /**
@@ -192,7 +192,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (permit2612.value != permittedAmount) revert Permit2612AmountMismatch();
 
         try IERC20Permit(token).permit(
-            owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
+            owner, address(permit2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
         ) {
             // EIP-2612 permit succeeded
         } catch (bytes memory reason) {

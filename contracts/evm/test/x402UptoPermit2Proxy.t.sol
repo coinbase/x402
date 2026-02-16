@@ -77,7 +77,7 @@ contract X402UptoPermit2ProxyTest is Test {
     }
 
     function test_initialize_setsPermit2() public view {
-        assertEq(address(proxy.PERMIT2()), address(mockPermit2));
+        assertEq(address(proxy.permit2()), address(mockPermit2));
     }
 
     function test_initialize_revertsOnSecondCall() public {
