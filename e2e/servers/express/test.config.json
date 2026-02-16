@@ -4,7 +4,8 @@
   "language": "typescript",
   "x402Version": 2,
   "extensions": [
-    "bazaar"
+    "bazaar",
+    "eip2612GasSponsoring"
   ],
   "endpoints": [
     {

@@ -12,7 +12,8 @@
     "install:all:legacy": "pnpm install && ./setup.sh --legacy",
     "clean": "rm -rf dist",
     "clean:ports": "lsof -ti:4022-4060 | xargs kill -9 2>/dev/null || echo 'Ports cleared'",
-    "permit2:approve": "tsx scripts/permit2-approval.ts approve"
+    "permit2:approve": "tsx scripts/permit2-approval.ts approve",
+    "permit2:revoke": "tsx scripts/permit2-approval.ts revoke"
   },
   "dependencies": {
     "axios": "^1.6.0",

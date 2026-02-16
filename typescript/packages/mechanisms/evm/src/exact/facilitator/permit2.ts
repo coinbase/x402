@@ -454,10 +454,12 @@ function splitEip2612Signature(signature: string): {
   r: `0x${string}`;
   s: `0x${string}`;
 } {
-  // Remove 0x prefix
   const sig = signature.startsWith("0x") ? signature.slice(2) : signature;
 
-  // 65 bytes = 130 hex chars
+  if (sig.length !== 130) {
+    throw new Error(`invalid EIP-2612 signature length: expected 65 bytes (130 hex chars), got ${sig.length / 2} bytes`);
+  }
+
   const r = `0x${sig.slice(0, 64)}` as `0x${string}`;
   const s = `0x${sig.slice(64, 128)}` as `0x${string}`;
   const v = parseInt(sig.slice(128, 130), 16);
