@@ -41,10 +41,11 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @dev Must match the exact format expected by Permit2
     /// Types must be in ALPHABETICAL order after the primary type (TokenPermissions < Witness)
     string public constant WITNESS_TYPE_STRING =
-        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter)";
+        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,address facilitator,uint256 validAfter)";
 
     /// @notice EIP-712 typehash for witness struct
-    bytes32 public constant WITNESS_TYPEHASH = keccak256("Witness(address to,uint256 validAfter)");
+    bytes32 public constant WITNESS_TYPEHASH =
+        keccak256("Witness(address to,address facilitator,uint256 validAfter)");
 
     /// @notice Emitted when settle() completes successfully
     event Settled();
@@ -82,14 +83,21 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Thrown when initialize is called by unauthorized address
     error UnauthorizedInitializer();
 
+    /// @notice Thrown when msg.sender does not match the facilitator in the witness
+    error UnauthorizedFacilitator();
+
     /**
      * @notice Witness data structure for payment authorization
      * @param to Destination address (immutable once signed)
+     * @param facilitator Address authorized to settle this payment (must be msg.sender)
      * @param validAfter Earliest timestamp when payment can be settled
-     * @dev The upper time bound is enforced by Permit2's deadline field
+     * @dev The upper time bound is enforced by Permit2's deadline field.
+     *      The facilitator field prevents frontrunning/griefing by binding the
+     *      settlement caller to the payer's signature.
      */
     struct Witness {
         address to;
+        address facilitator;
         uint256 validAfter;
     }
 
@@ -159,6 +167,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (owner == address(0)) revert InvalidOwner();
         if (witness.to == address(0)) revert InvalidDestination();
 
+        // Validate caller is the authorized facilitator signed over by the payer
+        if (msg.sender != witness.facilitator) revert UnauthorizedFacilitator();
+
         // Validate time window (upper bound enforced by Permit2's deadline)
         if (block.timestamp < witness.validAfter) revert PaymentTooEarly();
 
@@ -167,7 +178,8 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
             ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: settlementAmount});
 
         // Reconstruct witness hash to enforce integrity
-        bytes32 witnessHash = keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter));
+        bytes32 witnessHash =
+            keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.facilitator, witness.validAfter));
 
         // Execute transfer via Permit2
         permit2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);

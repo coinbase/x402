@@ -58,8 +58,12 @@ contract X402ExactPermit2ProxyTest is Test {
         });
     }
 
-    function _witness(address to, uint256 validAfter) internal pure returns (x402BasePermit2Proxy.Witness memory) {
-        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter});
+    function _witness(
+        address to,
+        address facilitator,
+        uint256 validAfter
+    ) internal pure returns (x402BasePermit2Proxy.Witness memory) {
+        return x402BasePermit2Proxy.Witness({to: to, facilitator: facilitator, validAfter: validAfter});
     }
 
     function _sig() internal pure returns (bytes memory) {
@@ -105,25 +109,35 @@ contract X402ExactPermit2ProxyTest is Test {
     function test_settle_revertsOnZeroOwner() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidOwner.selector);
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), address(0), _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), address(0), _witness(recipient, address(this), t - 60), _sig());
     }
 
     function test_settle_revertsOnZeroDestination() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidDestination.selector);
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(address(0), t - 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(address(0), address(this), t - 60), _sig());
     }
 
     function test_settle_revertsBeforeValidAfter() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.PaymentTooEarly.selector);
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t + 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t + 60), _sig());
     }
 
     function test_settle_revertsOnZeroAmount() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
-        proxy.settle(_permit(0, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(0, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
+    }
+
+    function test_settle_revertsOnUnauthorizedFacilitator() public {
+        uint256 t = block.timestamp;
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert(x402BasePermit2Proxy.UnauthorizedFacilitator.selector);
+        proxy.settle(
+            _permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig()
+        );
     }
 
     // Note: validBefore was removed - upper time bound is enforced by Permit2's deadline
@@ -134,7 +148,7 @@ contract X402ExactPermit2ProxyTest is Test {
         uint256 t = block.timestamp;
         uint256 balanceBefore = token.balanceOf(recipient);
 
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
 
         assertEq(token.balanceOf(recipient) - balanceBefore, TRANSFER_AMOUNT);
     }
@@ -145,12 +159,12 @@ contract X402ExactPermit2ProxyTest is Test {
         vm.expectEmit(false, false, false, false);
         emit Settled();
 
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     function test_settle_atExactValidAfter() public {
         uint256 t = block.timestamp;
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t), _sig());
         assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
     }
 
@@ -175,7 +189,7 @@ contract X402ExactPermit2ProxyTest is Test {
             nonce: 0,
             deadline: t + 3600
         });
-        x402ExactPermit2Proxy.Witness memory witness = _witness(recipient, t - 60);
+        x402ExactPermit2Proxy.Witness memory witness = _witness(recipient, address(this), t - 60);
 
         maliciousPermit2.setAttemptReentry(true);
         maliciousPermit2.setAttackParams(permit, payer, witness, _sig());
@@ -188,7 +202,7 @@ contract X402ExactPermit2ProxyTest is Test {
 
     function test_settle_proxyNeverHoldsTokens() public {
         uint256 t = block.timestamp;
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
         assertEq(token.balanceOf(address(proxy)), 0);
     }
 
@@ -218,7 +232,7 @@ contract X402ExactPermit2ProxyTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SettledWithPermit();
 
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -246,7 +260,7 @@ contract X402ExactPermit2ProxyTest is Test {
             s: bytes32(uint256(2))
         });
 
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -277,7 +291,7 @@ contract X402ExactPermit2ProxyTest is Test {
         vm.expectEmit(true, true, false, false);
         emit EIP2612PermitFailed(address(permitToken), payer, "");
 
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     function test_settleWithPermit_doesNotEmitEIP2612PermitFailedOnSuccess() public {
@@ -302,7 +316,7 @@ contract X402ExactPermit2ProxyTest is Test {
         });
 
         vm.recordLogs();
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
 
         VmSafe.Log[] memory entries = vm.getRecordedLogs();
         bytes32 permitFailedSig = keccak256("EIP2612PermitFailed(address,address,bytes)");
@@ -333,7 +347,7 @@ contract X402ExactPermit2ProxyTest is Test {
         });
 
         vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     function test_settleWithPermit_revertsWhenPermit2612ValueTooSmall() public {
@@ -356,7 +370,7 @@ contract X402ExactPermit2ProxyTest is Test {
         });
 
         vm.expectRevert(x402BasePermit2Proxy.Permit2612AmountMismatch.selector);
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     function test_settleWithPermit_revertsWhenPermit2612ValueTooLarge() public {
@@ -379,7 +393,7 @@ contract X402ExactPermit2ProxyTest is Test {
         });
 
         vm.expectRevert(x402BasePermit2Proxy.Permit2612AmountMismatch.selector);
-        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     // --- Fuzz: Time window ---
@@ -390,7 +404,7 @@ contract X402ExactPermit2ProxyTest is Test {
 
         vm.warp(currentTime);
 
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, validAfter), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, address(this), validAfter), _sig());
 
         assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -402,7 +416,7 @@ contract X402ExactPermit2ProxyTest is Test {
         vm.warp(currentTime);
 
         vm.expectRevert();
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, validAfter), _sig());
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, address(this), validAfter), _sig());
     }
 
     // --- Fuzz: Amount (exact always transfers full permitted amount) ---
@@ -414,7 +428,7 @@ contract X402ExactPermit2ProxyTest is Test {
 
         uint256 t = block.timestamp;
 
-        proxy.settle(_permit(permitted, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+        proxy.settle(_permit(permitted, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
 
         assertEq(token.balanceOf(recipient), permitted);
     }
