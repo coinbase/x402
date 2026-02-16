@@ -46,7 +46,7 @@ contract X402ExactHandler is Test {
         });
 
         x402BasePermit2Proxy.Witness memory witness =
-            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t > 60 ? t - 60 : 0, extra: ""});
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t > 60 ? t - 60 : 0});
 
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
 

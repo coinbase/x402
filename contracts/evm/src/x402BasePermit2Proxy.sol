@@ -41,10 +41,10 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @dev Must match the exact format expected by Permit2
     /// Types must be in ALPHABETICAL order after the primary type (TokenPermissions < Witness)
     string public constant WITNESS_TYPE_STRING =
-        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,bytes extra)";
+        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter)";
 
     /// @notice EIP-712 typehash for witness struct
-    bytes32 public constant WITNESS_TYPEHASH = keccak256("Witness(address to,uint256 validAfter,bytes extra)");
+    bytes32 public constant WITNESS_TYPEHASH = keccak256("Witness(address to,uint256 validAfter)");
 
     /// @notice Emitted when settle() completes successfully
     event Settled();
@@ -80,13 +80,11 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
      * @notice Witness data structure for payment authorization
      * @param to Destination address (immutable once signed)
      * @param validAfter Earliest timestamp when payment can be settled
-     * @param extra Extensibility field for future use
      * @dev The upper time bound is enforced by Permit2's deadline field
      */
     struct Witness {
         address to;
         uint256 validAfter;
-        bytes extra;
     }
 
     /**
@@ -163,8 +161,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
             ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: amount});
 
         // Reconstruct witness hash to enforce integrity
-        bytes32 witnessHash =
-            keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter, keccak256(witness.extra)));
+        bytes32 witnessHash = keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter));
 
         // Execute transfer via Permit2
         PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);

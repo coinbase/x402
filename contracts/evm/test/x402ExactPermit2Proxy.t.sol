@@ -57,7 +57,7 @@ contract X402ExactPermit2ProxyTest is Test {
     }
 
     function _witness(address to, uint256 validAfter) internal pure returns (x402BasePermit2Proxy.Witness memory) {
-        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter, extra: ""});
+        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter});
     }
 
     function _sig() internal pure returns (bytes memory) {
