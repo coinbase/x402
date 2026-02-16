@@ -128,7 +128,9 @@ class ExactEvmSchemeV1:
 
         # V1: Validate network at top level
         if payload.network != requirements.network:
-            return VerifyResponse(is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer)
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer
+            )
 
         # V1: Legacy chain ID lookup
         try:
@@ -198,7 +200,9 @@ class ExactEvmSchemeV1:
 
         # Verify signature
         if not evm_payload.signature:
-            return VerifyResponse(is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer)
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer
+            )
 
         signature = hex_to_bytes(evm_payload.signature)
         hash_bytes = hash_eip3009_authorization(

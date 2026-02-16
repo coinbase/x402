@@ -125,7 +125,9 @@ class ExactEvmScheme:
 
         # Ensure amount is in smallest unit
         if "." in requirements.amount:
-            requirements.amount = str(parse_amount(requirements.amount, asset_info["decimals"]))
+            requirements.amount = str(
+                parse_amount(requirements.amount, asset_info["decimals"])
+            )
 
         # Add EIP-712 domain params
         if requirements.extra is None:
