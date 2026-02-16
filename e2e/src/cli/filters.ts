@@ -1,6 +1,7 @@
 import { TestScenario } from '../types';
 
 export interface TestFilters {
+  transports?: string[];
   facilitators?: string[];
   servers?: string[];
   clients?: string[];
@@ -18,6 +19,14 @@ export function filterScenarios(
   filters: TestFilters
 ): TestScenario[] {
   return scenarios.filter(scenario => {
+    // Transport filter
+    if (filters.transports && filters.transports.length > 0) {
+      const serverTransport = scenario.server.config.transport || 'http';
+      if (!filters.transports.includes(serverTransport)) {
+        return false;
+      }
+    }
+
     // Facilitator filter
     if (filters.facilitators && filters.facilitators.length > 0) {
       const facilitatorName = scenario.facilitator?.name;
