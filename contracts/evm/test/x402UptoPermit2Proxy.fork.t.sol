@@ -72,7 +72,8 @@ contract X402UptoPermit2ProxyForkTest is Test {
         x402BasePermit2Proxy.Witness memory witness
     ) internal view returns (bytes memory) {
         // Must match contract's witness hash computation order
-        bytes32 witnessHash = keccak256(abi.encode(proxy.WITNESS_TYPEHASH(), witness.to, witness.facilitator, witness.validAfter));
+        bytes32 witnessHash =
+            keccak256(abi.encode(proxy.WITNESS_TYPEHASH(), witness.to, witness.facilitator, witness.validAfter));
 
         bytes32 tokenHash = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, tokenAddr, amount));
 
@@ -139,7 +140,8 @@ contract X402UptoPermit2ProxyForkTest is Test {
             x402BasePermit2Proxy.Witness({to: recipient, facilitator: address(this), validAfter: t - 60});
 
         uint256 wrongKey = 0xdeadbeef;
-        bytes32 witnessHash = keccak256(abi.encode(proxy.WITNESS_TYPEHASH(), witness.to, witness.facilitator, witness.validAfter));
+        bytes32 witnessHash =
+            keccak256(abi.encode(proxy.WITNESS_TYPEHASH(), witness.to, witness.facilitator, witness.validAfter));
         bytes32 tokenHash = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, address(token), TRANSFER_AMOUNT));
         bytes32 structHash =
             keccak256(abi.encode(PERMIT_TYPEHASH, tokenHash, address(proxy), nonce, deadline, witnessHash));

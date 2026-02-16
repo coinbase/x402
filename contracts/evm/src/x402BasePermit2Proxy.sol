@@ -35,8 +35,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,address facilitator,uint256 validAfter)";
 
     /// @notice EIP-712 typehash for witness struct
-    bytes32 public constant WITNESS_TYPEHASH =
-        keccak256("Witness(address to,address facilitator,uint256 validAfter)");
+    bytes32 public constant WITNESS_TYPEHASH = keccak256("Witness(address to,address facilitator,uint256 validAfter)");
 
     /// @notice Emitted when settle() completes successfully
     event Settled();

@@ -91,7 +91,9 @@ contract X402ExactPermit2ProxyTest is Test {
     function test_settle_revertsOnZeroOwner() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidOwner.selector);
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), address(0), _witness(recipient, address(this), t - 60), _sig());
+        proxy.settle(
+            _permit(TRANSFER_AMOUNT, 0, t + 3600), address(0), _witness(recipient, address(this), t - 60), _sig()
+        );
     }
 
     function test_settle_revertsOnZeroDestination() public {
@@ -117,9 +119,7 @@ contract X402ExactPermit2ProxyTest is Test {
         address attacker = makeAddr("attacker");
         vm.prank(attacker);
         vm.expectRevert(x402BasePermit2Proxy.UnauthorizedFacilitator.selector);
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, address(this), t - 60), _sig());
     }
 
     // Note: validBefore was removed - upper time bound is enforced by Permit2's deadline
@@ -384,7 +384,12 @@ contract X402ExactPermit2ProxyTest is Test {
 
         vm.warp(currentTime);
 
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, address(this), validAfter), _sig());
+        proxy.settle(
+            _permit(TRANSFER_AMOUNT, 0, currentTime + 3600),
+            payer,
+            _witness(recipient, address(this), validAfter),
+            _sig()
+        );
 
         assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -396,7 +401,12 @@ contract X402ExactPermit2ProxyTest is Test {
         vm.warp(currentTime);
 
         vm.expectRevert();
-        proxy.settle(_permit(TRANSFER_AMOUNT, 0, currentTime + 3600), payer, _witness(recipient, address(this), validAfter), _sig());
+        proxy.settle(
+            _permit(TRANSFER_AMOUNT, 0, currentTime + 3600),
+            payer,
+            _witness(recipient, address(this), validAfter),
+            _sig()
+        );
     }
 
     // --- Fuzz: Amount (exact always transfers full permitted amount) ---
