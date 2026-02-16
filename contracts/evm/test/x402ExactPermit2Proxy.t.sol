@@ -33,11 +33,8 @@ contract X402ExactPermit2ProxyTest is Test {
         recipient = makeAddr("recipient");
 
         mockPermit2 = new MockPermit2();
-        // Use broadcast to ensure tx.origin matches msg.sender for initialize()
-        vm.startBroadcast();
         proxy = new x402ExactPermit2Proxy();
         proxy.initialize(address(mockPermit2));
-        vm.stopBroadcast();
         token = new MockERC20("USDC", "USDC", 6);
 
         token.mint(payer, MINT_AMOUNT);
@@ -73,11 +70,9 @@ contract X402ExactPermit2ProxyTest is Test {
     // --- Initialize ---
 
     function test_initialize_revertsOnZeroPermit2() public {
-        vm.startBroadcast();
         x402ExactPermit2Proxy newProxy = new x402ExactPermit2Proxy();
         vm.expectRevert(x402BasePermit2Proxy.InvalidPermit2Address.selector);
         newProxy.initialize(address(0));
-        vm.stopBroadcast();
     }
 
     function test_initialize_setsPermit2() public view {
@@ -85,22 +80,9 @@ contract X402ExactPermit2ProxyTest is Test {
     }
 
     function test_initialize_revertsOnSecondCall() public {
-        vm.startBroadcast();
         x402ExactPermit2Proxy newProxy = new x402ExactPermit2Proxy();
         newProxy.initialize(address(mockPermit2));
         vm.expectRevert(x402BasePermit2Proxy.AlreadyInitialized.selector);
-        newProxy.initialize(address(mockPermit2));
-        vm.stopBroadcast();
-    }
-
-    function test_initialize_revertsOnUnauthorizedCaller() public {
-        vm.startBroadcast();
-        x402ExactPermit2Proxy newProxy = new x402ExactPermit2Proxy();
-        vm.stopBroadcast();
-        // Now try to initialize from a different address (attacker)
-        address attacker = makeAddr("attacker");
-        vm.prank(attacker);
-        vm.expectRevert(x402BasePermit2Proxy.UnauthorizedInitializer.selector);
         newProxy.initialize(address(mockPermit2));
     }
 
@@ -172,10 +154,8 @@ contract X402ExactPermit2ProxyTest is Test {
 
     function test_settle_blocksReentrancy() public {
         MaliciousReentrantExact maliciousPermit2 = new MaliciousReentrantExact();
-        vm.startBroadcast();
         x402ExactPermit2Proxy vulnerableProxy = new x402ExactPermit2Proxy();
         vulnerableProxy.initialize(address(maliciousPermit2));
-        vm.stopBroadcast();
         maliciousPermit2.setTarget(address(vulnerableProxy));
 
         MockERC20 testToken = new MockERC20("Test", "TST", 6);

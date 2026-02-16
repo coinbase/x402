@@ -74,10 +74,8 @@ contract X402ExactInvariantsTest is Test {
         recipient = makeAddr("recipient");
 
         mockPermit2 = new MockPermit2();
-        vm.startBroadcast();
         proxy = new x402ExactPermit2Proxy();
         proxy.initialize(address(mockPermit2));
-        vm.stopBroadcast();
         token = new MockERC20("USDC", "USDC", 6);
 
         token.mint(payer, MINT_AMOUNT);
