@@ -19,22 +19,22 @@ Unlike `exact`, where the client signs a transfer of a known amount to a known r
 Client                        Facilitator                    Smart Contract
   |                                |                              |
   |-- POST /verify ------------->  |                              |
-  |   { proof, nullifier,         |                              |
-  |     amount, recipient, root } |                              |
+  |   { proof, nullifier,          |                              |
+  |     amount, recipient, root }  |                              |
   |                                |-- Validate proof format      |
   |                                |-- Check nullifier unused     |
   |                                |-- Check root is known        |
-  |  <-- 200 { valid: true } -----|                              |
+  |  <-- 200 { valid: true } ----- |                              |
   |                                |                              |
-  |-- POST /settle -------------> |                              |
-  |   { proof, nullifier,         |                              |
-  |     amount, recipient, root } |                              |
-  |                                |-- unshield(proof, ...)  --> |
+  |-- POST /settle ------------->  |                              |
+  |   { proof, nullifier,          |                              |
+  |     amount, recipient, root }  |                              |
+  |                                |-- unshield(proof, ...)   --> |
   |                                |                              |-- Verify ZK proof
   |                                |                              |-- Check nullifier
   |                                |                              |-- Send funds - fee
   |                                |                              |-- Emit event
-  |  <-- 200 { txHash } ---------|                              |
+  |  <-- 200 { txHash } ---------  |                              |
 ```
 
 ## Proof System
