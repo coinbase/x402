@@ -107,6 +107,20 @@ The scheme is proof-system agnostic but the reference implementation uses:
 |---------|----------|--------|
 | Base    | eip155:8453 | Live |
 
+## Comparison with `exact`
+
+| Property               | `exact`                            | `zk-relay`                              |
+|------------------------|------------------------------------|-----------------------------------------|
+| Privacy                | None (on-chain transfer visible)   | Full (deposit/withdrawal unlinkable)    |
+| Client signature       | EIP-712 / EIP-3009                 | ZK proof (UltraHonk)                    |
+| Trusted setup          | N/A                                | None required (UltraHonk)              |
+| Gas payer              | Facilitator                        | Facilitator                             |
+| Supported assets       | EIP-3009 tokens, ERC-20 via Permit2| Native ETH, ERC-20 (via assetId)       |
+| Amount flexibility     | Arbitrary amounts                  | Fixed denominations only                |
+| Proof generation       | Wallet signature (instant)         | Client-side WASM (~3-8 seconds)        |
+| On-chain verification  | Signature recovery                 | ZK proof verification (~380k gas)       |
+| Client requirements    | Wallet with signing capability     | Browser with WASM support               |
+
 ## Appendix
 
 ### Reference Implementation
