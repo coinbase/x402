@@ -67,6 +67,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Thrown when owner address is zero
     error InvalidOwner();
 
+    /// @notice Thrown when settlement amount is zero
+    error InvalidAmount();
+
     /// @notice Thrown when EIP-2612 permit value doesn't match Permit2 permitted amount
     error Permit2612AmountMismatch();
 
@@ -145,6 +148,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         Witness calldata witness,
         bytes calldata signature
     ) internal {
+        // Validate amount is non-zero to prevent no-op settlements that consume nonces
+        if (amount == 0) revert InvalidAmount();
+
         // Validate addresses
         if (owner == address(0)) revert InvalidOwner();
         if (witness.to == address(0)) revert InvalidDestination();

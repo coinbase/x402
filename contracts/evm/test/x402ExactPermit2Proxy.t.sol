@@ -118,6 +118,12 @@ contract X402ExactPermit2ProxyTest is Test {
         proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), payer, _witness(recipient, t + 60), _sig());
     }
 
+    function test_settle_revertsOnZeroAmount() public {
+        uint256 t = block.timestamp;
+        vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
+        proxy.settle(_permit(0, 0, t + 3600), payer, _witness(recipient, t - 60), _sig());
+    }
+
     // Note: validBefore was removed - upper time bound is enforced by Permit2's deadline
 
     // --- settle() success paths ---
@@ -241,6 +247,31 @@ contract X402ExactPermit2ProxyTest is Test {
         proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
+    }
+
+    function test_settleWithPermit_revertsOnZeroAmount() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+        vm.prank(payer);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: 0}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: 0,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
+        proxy.settleWithPermit(permit2612, permit, payer, _witness(recipient, t - 60), _sig());
     }
 
     function test_settleWithPermit_revertsWhenPermit2612ValueTooSmall() public {

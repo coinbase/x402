@@ -124,6 +124,18 @@ contract X402UptoPermit2ProxyTest is Test {
 
     // Note: validBefore was removed - upper time bound is enforced by Permit2's deadline
 
+    function test_settle_revertsOnZeroAmount() public {
+        uint256 t = block.timestamp;
+        vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), 0, payer, _witness(recipient, t - 60), _sig());
+    }
+
+    function test_settle_revertsOnZeroPermittedAmount() public {
+        uint256 t = block.timestamp;
+        vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
+        proxy.settle(_permit(0, 0, t + 3600), 0, payer, _witness(recipient, t - 60), _sig());
+    }
+
     function test_settle_revertsWhenAmountExceedsPermitted() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
@@ -261,6 +273,31 @@ contract X402UptoPermit2ProxyTest is Test {
         proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
+    }
+
+    function test_settleWithPermit_revertsOnZeroAmount() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+        vm.prank(payer);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: TRANSFER_AMOUNT}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: TRANSFER_AMOUNT,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectRevert(x402BasePermit2Proxy.InvalidAmount.selector);
+        proxy.settleWithPermit(permit2612, permit, 0, payer, _witness(recipient, t - 60), _sig());
     }
 
     function test_settleWithPermit_revertsWhenAmountExceedsPermitted() public {
@@ -410,7 +447,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function testFuzz_settle_partialAmountsSucceed(uint256 permitted, uint256 requested) public {
         permitted = bound(permitted, 1, MINT_AMOUNT);
-        requested = bound(requested, 0, permitted);
+        requested = bound(requested, 1, permitted);
 
         uint256 t = block.timestamp;
 
