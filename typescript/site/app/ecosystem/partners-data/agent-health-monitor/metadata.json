@@ -1,0 +1,7 @@
+{
+  "name": "Agent Health Monitor",
+  "description": "Analyzes Base blockchain agent wallets for transaction failures, gas waste, and optimization opportunities. Returns actionable health reports with cost savings estimates.",
+  "logoUrl": "",
+  "websiteUrl": "https://github.com/moonshot-cyber/agent-health-monitor",
+  "category": "Services/Endpoints"
+}
