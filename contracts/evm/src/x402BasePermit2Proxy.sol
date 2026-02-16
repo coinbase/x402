@@ -134,20 +134,20 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
      * @notice Internal settlement logic shared by all settlement functions
      * @dev Validates all parameters and executes the Permit2 transfer
      * @param permit The Permit2 transfer authorization
-     * @param amount The amount to transfer
+     * @param settlementAmount The actual amount to transfer (may be <= permit.permitted.amount)
      * @param owner The token owner (payer)
      * @param witness The witness data containing destination and validity window
      * @param signature The payer's signature
      */
     function _settle(
         ISignatureTransfer.PermitTransferFrom calldata permit,
-        uint256 amount,
+        uint256 settlementAmount,
         address owner,
         Witness calldata witness,
         bytes calldata signature
     ) internal {
         // Validate amount is non-zero to prevent no-op settlements that consume nonces
-        if (amount == 0) revert InvalidAmount();
+        if (settlementAmount == 0) revert InvalidAmount();
 
         // Validate addresses
         if (owner == address(0)) revert InvalidOwner();
@@ -158,7 +158,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
 
         // Prepare transfer details with destination from witness
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: settlementAmount});
 
         // Reconstruct witness hash to enforce integrity
         bytes32 witnessHash = keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter));
