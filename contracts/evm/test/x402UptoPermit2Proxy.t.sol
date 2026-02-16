@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
 import {x402BasePermit2Proxy} from "../src/x402BasePermit2Proxy.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
@@ -23,6 +24,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     event Settled();
     event SettledWithPermit();
+    event EIP2612PermitFailed(address indexed token, address indexed owner, bytes reason);
 
     function setUp() public {
         vm.warp(1_000_000);
@@ -273,6 +275,66 @@ contract X402UptoPermit2ProxyTest is Test {
         proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
+    }
+
+    function test_settleWithPermit_emitsEIP2612PermitFailedOnRevert() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+        permitToken.setPermitRevert(true, "Permit failed");
+
+        vm.prank(payer);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: TRANSFER_AMOUNT}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: TRANSFER_AMOUNT,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.expectEmit(true, true, false, false);
+        emit EIP2612PermitFailed(address(permitToken), payer, "");
+
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
+    }
+
+    function test_settleWithPermit_doesNotEmitEIP2612PermitFailedOnSuccess() public {
+        MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
+        permitToken.mint(payer, MINT_AMOUNT);
+        vm.prank(payer);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
+
+        uint256 t = block.timestamp;
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(permitToken), amount: TRANSFER_AMOUNT}),
+            nonce: 0,
+            deadline: t + 3600
+        });
+
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
+            value: TRANSFER_AMOUNT,
+            deadline: t + 3600,
+            v: 27,
+            r: bytes32(uint256(1)),
+            s: bytes32(uint256(2))
+        });
+
+        vm.recordLogs();
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
+
+        VmSafe.Log[] memory entries = vm.getRecordedLogs();
+        bytes32 permitFailedSig = keccak256("EIP2612PermitFailed(address,address,bytes)");
+        for (uint256 i = 0; i < entries.length; i++) {
+            assertTrue(entries[i].topics[0] != permitFailedSig, "EIP2612PermitFailed should not be emitted on success");
+        }
     }
 
     function test_settleWithPermit_revertsOnZeroAmount() public {

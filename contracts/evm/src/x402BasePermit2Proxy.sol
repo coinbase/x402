@@ -52,6 +52,12 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Emitted when settleWithPermit() completes successfully
     event SettledWithPermit();
 
+    /// @notice Emitted when the EIP-2612 permit call fails during settleWithPermit()
+    /// @param token The token whose permit() was called
+    /// @param owner The token owner for whom permit was attempted
+    /// @param reason The raw revert data from the failed permit() call
+    event EIP2612PermitFailed(address indexed token, address indexed owner, bytes reason);
+
     /// @notice Thrown when Permit2 address is zero
     error InvalidPermit2Address();
 
@@ -189,8 +195,8 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
             owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
         ) {
             // EIP-2612 permit succeeded
-        } catch {
-            // Permit2 settlement will fail if approval doesn't exist
+        } catch (bytes memory reason) {
+            emit EIP2612PermitFailed(token, owner, reason);
         }
     }
 }
