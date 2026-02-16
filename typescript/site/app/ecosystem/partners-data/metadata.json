@@ -1,0 +1,7 @@
+{
+  "name": "PriceWatcherX402",
+  "description": "A flexible e-commerce price monitoring API that checks product prices from a given URL and returns the current price with optional threshold alert status. Designed for AI shopping agents and automation workflows.",
+  "logoUrl": "/logos/pricewatcher.png",
+  "websiteUrl": "https://e-commerce-price-monitoring-production.up.railway.app",
+  "category": "Services/Endpoints"
+}
