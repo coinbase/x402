@@ -55,7 +55,9 @@ class x402HTTPResourceServer(x402HTTPServerBase):
         ```
     """
 
-    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServer:
+    def register_paywall_provider(
+        self, provider: PaywallProvider
+    ) -> x402HTTPResourceServer:
         """Register custom paywall provider for HTML generation.
 
         Args:
@@ -273,7 +275,9 @@ class x402HTTPResourceServerSync(x402HTTPServerBase):
 
         super().__init__(server, routes)  # type: ignore[arg-type]
 
-    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServerSync:
+    def register_paywall_provider(
+        self, provider: PaywallProvider
+    ) -> x402HTTPResourceServerSync:
         """Register custom paywall provider for HTML generation.
 
         Args:

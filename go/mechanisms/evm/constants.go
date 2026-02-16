@@ -58,6 +58,7 @@ var (
 	// Network chain IDs
 	ChainIDBase        = big.NewInt(8453)
 	ChainIDBaseSepolia = big.NewInt(84532)
+	ChainIDMegaETH     = big.NewInt(4326)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -108,6 +109,26 @@ var (
 				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
+			},
+		},
+		// MegaETH Mainnet
+		"eip155:4326": {
+			ChainID: ChainIDMegaETH,
+			DefaultAsset: AssetInfo{
+				Address:  "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", // USDM (MegaUSD)
+				Name:     "MegaUSD",
+				Version:  "1",
+				Decimals: 18,
+			},
+		},
+		// MegaETH Mainnet (legacy v1 format)
+		"megaeth": {
+			ChainID: ChainIDMegaETH,
+			DefaultAsset: AssetInfo{
+				Address:  "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+				Name:     "MegaUSD",
+				Version:  "1",
+				Decimals: 18,
 			},
 		},
 	}

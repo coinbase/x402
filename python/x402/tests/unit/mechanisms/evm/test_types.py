@@ -165,7 +165,9 @@ class TestExactEIP3009Payload:
         serialized = original.to_dict()
         restored = ExactEIP3009Payload.from_dict(serialized)
 
-        assert restored.authorization.from_address == original.authorization.from_address
+        assert (
+            restored.authorization.from_address == original.authorization.from_address
+        )
         assert restored.authorization.to == original.authorization.to
         assert restored.authorization.value == original.authorization.value
         assert restored.signature == original.signature
