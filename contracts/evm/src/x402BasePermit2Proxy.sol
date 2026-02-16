@@ -43,11 +43,23 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Emitted when settleWithPermit() completes successfully
     event SettledWithPermit();
 
-    /// @notice Emitted when the EIP-2612 permit call fails during settleWithPermit()
+    /// @notice Emitted when EIP-2612 permit() reverts with an Error(string) reason
     /// @param token The token whose permit() was called
     /// @param owner The token owner for whom permit was attempted
-    /// @param reason The raw revert data from the failed permit() call
-    event EIP2612PermitFailed(address indexed token, address indexed owner, bytes reason);
+    /// @param reason The human-readable revert reason string
+    event EIP2612PermitFailedWithReason(address indexed token, address indexed owner, string reason);
+
+    /// @notice Emitted when EIP-2612 permit() reverts with a Panic(uint256) code
+    /// @param token The token whose permit() was called
+    /// @param owner The token owner for whom permit was attempted
+    /// @param errorCode The Solidity panic code (e.g. 0x11 for overflow, 0x01 for assert)
+    event EIP2612PermitFailedWithPanic(address indexed token, address indexed owner, uint256 errorCode);
+
+    /// @notice Emitted when EIP-2612 permit() reverts with a custom error or empty data
+    /// @param token The token whose permit() was called
+    /// @param owner The token owner for whom permit was attempted
+    /// @param data The raw revert data (custom error selector + params, or empty)
+    event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
 
     /// @notice Thrown when Permit2 address is zero
     error InvalidPermit2Address();
@@ -183,8 +195,16 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
             owner, address(permit2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
         ) {
             // EIP-2612 permit succeeded
-        } catch (bytes memory reason) {
-            emit EIP2612PermitFailed(token, owner, reason);
+        } catch Error(string memory reason) {
+            // Legacy revert(string) or require(condition, string) — e.g. older token implementations
+            emit EIP2612PermitFailedWithReason(token, owner, reason);
+        } catch Panic(uint256 errorCode) {
+            // Solidity panic — e.g. arithmetic overflow in non-standard implementations
+            emit EIP2612PermitFailedWithPanic(token, owner, errorCode);
+        } catch (bytes memory data) {
+            // Custom errors (e.g. OZ v5 ERC2612ExpiredSignature, ERC2612InvalidSigner),
+            // empty reverts, or out-of-gas from non-EIP-2612 tokens
+            emit EIP2612PermitFailedWithData(token, owner, data);
         }
     }
 }

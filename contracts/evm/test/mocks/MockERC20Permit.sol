@@ -6,8 +6,18 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 
 contract MockERC20Permit is ERC20, ERC20Permit {
     uint8 private _decimals;
-    bool public shouldPermitRevert;
+
+    enum RevertMode {
+        None,
+        RevertWithReason,
+        Panic,
+        CustomError
+    }
+
+    RevertMode public revertMode;
     string public permitRevertMessage;
+
+    error MockCustomError(address sender);
 
     constructor(string memory name, string memory symbol, uint8 decimals_) ERC20(name, symbol) ERC20Permit(name) {
         _decimals = decimals_;
@@ -22,14 +32,27 @@ contract MockERC20Permit is ERC20, ERC20Permit {
     }
 
     function permit(address owner, address spender, uint256 value, uint256, uint8, bytes32, bytes32) public override {
-        if (shouldPermitRevert) {
+        if (revertMode == RevertMode.RevertWithReason) {
             revert(permitRevertMessage);
+        } else if (revertMode == RevertMode.Panic) {
+            uint256 zero = 0;
+            uint256 x = 1 / zero;
+            _approve(owner, spender, x);
+            return;
+        } else if (revertMode == RevertMode.CustomError) {
+            revert MockCustomError(msg.sender);
         }
         _approve(owner, spender, value);
     }
 
     function setPermitRevert(bool _shouldRevert, string memory _message) external {
-        shouldPermitRevert = _shouldRevert;
+        revertMode = _shouldRevert ? RevertMode.RevertWithReason : RevertMode.None;
         permitRevertMessage = _message;
+    }
+
+    function setRevertMode(
+        RevertMode _mode
+    ) external {
+        revertMode = _mode;
     }
 }
