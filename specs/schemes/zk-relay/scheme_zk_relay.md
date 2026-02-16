@@ -67,6 +67,40 @@ The scheme is proof-system agnostic but the reference implementation uses:
 - MUST deduct the protocol fee and send the remainder to the recipient.
 - MUST emit events for all state changes (deposits, withdrawals, transfers).
 
+## Security Considerations
+
+### Replay Attack Prevention
+
+- Each shielded note can only be spent once. The `nullifierHash` is derived from the note's secret nullifier and its leaf index in the Merkle tree. Once a nullifier is marked as spent on-chain, any subsequent proof using the same nullifier will be rejected.
+- The facilitator MUST check nullifier uniqueness before submitting to avoid wasting gas on reverted transactions.
+
+### Privacy Guarantees
+
+- The ZK proof reveals no information about the depositor's address or the original deposit transaction.
+- The proof only reveals the withdrawal amount, recipient, and that the sender knows a valid note in the tree.
+- Fixed denominations prevent amount-based correlation between deposits and withdrawals.
+- The facilitator relays the transaction, so the recipient address does not need to have prior on-chain activity or gas balance.
+
+### Authorization Scope
+
+- The facilitator (relayer) can only call `unshield()` -- it cannot modify the recipient, amount, or any other parameter embedded in the ZK proof.
+- The smart contract enforces that public inputs match the proof's public outputs. Any mismatch causes proof verification to fail.
+
+### Settlement Atomicity
+
+- Settlement is atomic: the smart contract either verifies the proof, nullifies the note, and sends funds in a single transaction, or the entire transaction reverts.
+- There is no intermediate state where funds could be locked or the nullifier spent without the recipient receiving funds.
+
+### Root Freshness
+
+- The contract maintains a permanent history of all Merkle roots (`isKnownRoot` mapping). A proof generated against any historical root remains valid, preventing front-running attacks where a new deposit would invalidate an in-progress withdrawal.
+
+### Trust Model
+
+- The client does not trust the facilitator with their privacy. The facilitator only sees the proof, nullifier hash, amount, and recipient -- none of which reveal the depositor.
+- The facilitator does not trust the client. It verifies all inputs before spending gas to submit the proof on-chain.
+- Neither party trusts the other. The smart contract acts as the arbiter, verifying the ZK proof and enforcing all rules.
+
 ## Network Support
 
 | Network | Chain ID | Status |
