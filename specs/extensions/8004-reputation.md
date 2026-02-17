@@ -184,7 +184,7 @@ A resource server advertises reputation support by including the `8004-reputatio
 
 ### Registration File
 
-The registration file is off-chain JSON referenced by on-chain `tokenURI` (ERC-8004) or `TokenMetadata.uri` ([SATI](https://github.com/cascade-fyi/sati) -- the Solana implementation of the ERC-8004 model).
+The registration file is JSON referenced by on-chain `tokenURI` (ERC-8004) or `TokenMetadata.uri` ([SATI](https://github.com/cascade-fyi/sati) -- the Solana implementation of the ERC-8004 model). The URI MAY use any scheme: `ipfs://`, `https://`, or `data:application/json;base64,...` for fully on-chain storage (per ERC-8004 spec). The same applies to `feedbackURI` in feedback submissions.
 
 #### Structure
 
@@ -550,7 +550,7 @@ If no `feedbackAggregator` is specified, or if the client prefers direct submiss
 **ERC-8004:**
 
 ```solidity
-// 1. Upload feedbackURI JSON to IPFS/HTTPS
+// 1. Upload feedbackURI JSON to IPFS/HTTPS (or use data: URI for on-chain storage)
 const feedbackURI = "ipfs://QmX...";
 const feedbackHash = keccak256(canonicalize(feedbackURIContent)); // RFC 8785 JCS
 
