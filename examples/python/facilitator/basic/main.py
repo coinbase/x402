@@ -152,7 +152,7 @@ async def verify(request: VerifyRequest):
         }
     except Exception as e:
         print(f"Verify error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/settle")
@@ -194,7 +194,7 @@ async def settle(request: SettleRequest):
                 "transaction": "",
             }
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/supported")
@@ -222,7 +222,7 @@ async def supported():
         }
     except Exception as e:
         print(f"Supported error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/health")
