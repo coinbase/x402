@@ -1,0 +1,19 @@
+{
+  "name": "Ceaser Privacy Protocol",
+  "description": "Privacy-preserving ETH wrapper on Base with zero-knowledge proofs. Shield, transfer, and unshield ETH without revealing your address. x402-compatible facilitator for gasless ZK proof settlement via zk-relay scheme.",
+  "logoUrl": "/logos/ceaser.png",
+  "websiteUrl": "https://ceaser.org",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://ceaser.org",
+    "networks": ["base"],
+    "schemes": ["zk-relay"],
+    "assets": ["ETH"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
