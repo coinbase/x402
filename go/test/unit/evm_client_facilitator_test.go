@@ -739,6 +739,80 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 	})
 }
 
+// TestVerifyEIP3009TimingValidation tests validAfter/validBefore timing checks in EIP-3009 verification
+func TestVerifyEIP3009TimingValidation(t *testing.T) {
+	ctx := context.Background()
+	signer := &mockFacilitatorSigner{
+		verifyTypedDataResult: true,
+	}
+	scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+	makePayload := func(validAfter, validBefore string) types.PaymentPayload {
+		return types.PaymentPayload{
+			X402Version: 2,
+			Accepted: types.PaymentRequirements{
+				Scheme:  evm.SchemeExact,
+				Network: "eip155:84532",
+			},
+			Payload: map[string]interface{}{
+				"signature": mockSignature65Bytes(),
+				"authorization": map[string]interface{}{
+					"from":        "0x1234567890123456789012345678901234567890",
+					"to":          "0x9876543210987654321098765432109876543210",
+					"value":       "1000000",
+					"validAfter":  validAfter,
+					"validBefore": validBefore,
+					"nonce":       "0x0000000000000000000000000000000000000000000000000000000000000001",
+				},
+			},
+		}
+	}
+
+	requirements := types.PaymentRequirements{
+		Scheme:  evm.SchemeExact,
+		Network: "eip155:84532",
+		Asset:   "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		Amount:  "1000000",
+		PayTo:   "0x9876543210987654321098765432109876543210",
+	}
+
+	t.Run("Rejects validAfter in the future", func(t *testing.T) {
+		payload := makePayload("9999999999", "99999999999")
+		_, err := scheme.Verify(ctx, payload, requirements)
+		if err == nil {
+			t.Fatal("Expected error for validAfter in the future")
+		}
+		if !strings.Contains(err.Error(), evmfacilitator.ErrValidAfterInFuture) {
+			t.Errorf("Expected error to contain %q, got: %s", evmfacilitator.ErrValidAfterInFuture, err.Error())
+		}
+	})
+
+	t.Run("Rejects expired validBefore", func(t *testing.T) {
+		payload := makePayload("0", "1")
+		_, err := scheme.Verify(ctx, payload, requirements)
+		if err == nil {
+			t.Fatal("Expected error for expired validBefore")
+		}
+		if !strings.Contains(err.Error(), evmfacilitator.ErrValidBeforeExpired) {
+			t.Errorf("Expected error to contain %q, got: %s", evmfacilitator.ErrValidBeforeExpired, err.Error())
+		}
+	})
+
+	t.Run("Accepts valid timing window", func(t *testing.T) {
+		payload := makePayload("0", "99999999999")
+		_, err := scheme.Verify(ctx, payload, requirements)
+		// Should not fail with a timing error (may fail on nonce/signature checks, which is expected)
+		if err != nil {
+			if strings.Contains(err.Error(), evmfacilitator.ErrValidAfterInFuture) {
+				t.Errorf("Should not reject valid timing window with validAfter error")
+			}
+			if strings.Contains(err.Error(), evmfacilitator.ErrValidBeforeExpired) {
+				t.Errorf("Should not reject valid timing window with validBefore error")
+			}
+		}
+	})
+}
+
 // TestExactEvmFacilitatorScheme tests the scheme initialization
 func TestExactEvmFacilitatorScheme(t *testing.T) {
 	signer := &mockFacilitatorSigner{}
