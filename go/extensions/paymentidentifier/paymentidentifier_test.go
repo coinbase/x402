@@ -57,15 +57,15 @@ func TestGeneratePaymentID(t *testing.T) {
 func TestIsValidPaymentID(t *testing.T) {
 	t.Run("should accept valid IDs", func(t *testing.T) {
 		validIDs := []string{
-			"pay_1234567890123456",          // Exactly 16 chars after prefix (20 total)
-			"pay_7d5d747be160e280",          // 20 chars
-			"pay_7d5d747be160e280504c099d",  // 28 chars
+			"pay_1234567890123456",                 // Exactly 16 chars after prefix (20 total)
+			"pay_7d5d747be160e280",                 // 20 chars
+			"pay_7d5d747be160e280504c099d",         // 28 chars
 			"pay_7d5d747be160e280504c099d984bcfe0", // 36 chars
-			"a1b2c3d4e5f6g7h8",              // 16 chars, alphanumeric
-			strings.Repeat("a", 16),         // Minimum length
-			strings.Repeat("a", 128),        // Maximum length
-			"abc-def-123_456-789",           // With hyphens and underscores
-			"ABC123def456_-ab",              // 16 chars, mixed case with special chars
+			"a1b2c3d4e5f6g7h8",                     // 16 chars, alphanumeric
+			strings.Repeat("a", 16),                // Minimum length
+			strings.Repeat("a", 128),               // Maximum length
+			"abc-def-123_456-789",                  // With hyphens and underscores
+			"ABC123def456_-ab",                     // 16 chars, mixed case with special chars
 		}
 
 		for _, id := range validIDs {
@@ -75,15 +75,15 @@ func TestIsValidPaymentID(t *testing.T) {
 
 	t.Run("should reject invalid IDs", func(t *testing.T) {
 		invalidIDs := []string{
-			"",                              // Empty
-			"abc",                           // Too short (3 chars)
-			"abc123",                        // Too short (6 chars)
-			strings.Repeat("a", 15),         // One char below minimum
-			strings.Repeat("a", 129),        // One char above maximum
-			"pay_abc!@#$%^&*()",            // Invalid characters
-			"pay id with spaces",           // Spaces not allowed
-			"pay.id.with.dots",             // Dots not allowed
-			"pay+id+with+plus",             // Plus not allowed
+			"",                       // Empty
+			"abc",                    // Too short (3 chars)
+			"abc123",                 // Too short (6 chars)
+			strings.Repeat("a", 15),  // One char below minimum
+			strings.Repeat("a", 129), // One char above maximum
+			"pay_abc!@#$%^&*()",      // Invalid characters
+			"pay id with spaces",     // Spaces not allowed
+			"pay.id.with.dots",       // Dots not allowed
+			"pay+id+with+plus",       // Plus not allowed
 		}
 
 		for _, id := range invalidIDs {
