@@ -10,9 +10,10 @@ import { runInteractiveMode } from './src/cli/interactive';
 import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
 import { getNetworkSet, NetworkMode, NetworkSet, getNetworkModeDescription } from './src/networks/networks';
-import { FacilitatorConfig } from './src/facilitators/generic-facilitator';
 import { GenericServerProxy } from './src/servers/generic-server';
 import { Semaphore, FacilitatorLock } from './src/concurrency';
+import { FacilitatorManager } from './src/facilitators/facilitator-manager';
+import { waitForHealth } from './src/health';
 
 /**
  * Run Permit2 setup script to ensure the client wallet has approved the Permit2 contract
@@ -64,75 +65,6 @@ config();
 // Parse command line arguments
 const parsedArgs = parseArgs();
 
-interface Facilitator {
-  start: (config: FacilitatorConfig) => Promise<void>;
-  health: () => Promise<{ success: boolean }>;
-  getUrl: () => string;
-  stop: () => Promise<void>;
-}
-
-// FacilitatorManager handles async facilitator lifecycle
-class FacilitatorManager {
-  private facilitator: any;
-  private port: number;
-  private readyPromise: Promise<string | null>;
-  private url: string | null = null;
-
-  constructor(facilitator: Facilitator, port: number, networks: NetworkSet) {
-    this.facilitator = facilitator;
-    this.port = port;
-
-    // Start facilitator and health checks asynchronously
-    this.readyPromise = this.startAndWaitForHealth(networks);
-  }
-
-  private async startAndWaitForHealth(networks: NetworkSet): Promise<string | null> {
-    verboseLog(`  🏛️ Starting facilitator on port ${this.port}...`);
-
-    await this.facilitator.start({
-      port: this.port,
-      evmPrivateKey: process.env.FACILITATOR_EVM_PRIVATE_KEY,
-      svmPrivateKey: process.env.FACILITATOR_SVM_PRIVATE_KEY,
-      networks,
-    });
-
-    // Wait for facilitator to be healthy
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    while (attempts < maxAttempts) {
-      const healthResult = await this.facilitator.health();
-      verboseLog(` 🔍 Facilitator health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
-
-      if (healthResult.success) {
-        verboseLog(`  ✅ Facilitator is healthy`);
-        this.url = this.facilitator.getUrl();
-        return this.url;
-      }
-
-      attempts++;
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-
-    verboseLog(`  ❌ Facilitator failed to become healthy`);
-    return null;
-  }
-
-  async ready(): Promise<string | null> {
-    return this.readyPromise;
-  }
-
-  getProxy(): any {
-    return this.facilitator;
-  }
-
-  async stop(): Promise<void> {
-    if (this.facilitator) {
-      await this.facilitator.stop();
-    }
-  }
-}
-
 async function startServer(
   server: any,
   serverConfig: ServerConfig
@@ -140,30 +72,10 @@ async function startServer(
   verboseLog(`  🚀 Starting server on port ${serverConfig.port}...`);
   await server.start(serverConfig);
 
-  // Wait for server to be healthy
-  let attempts = 0;
-  const maxAttempts = 10;
-
-  while (attempts < maxAttempts) {
-    // Give server time to actually bind to port before first check
-    if (attempts === 0) {
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-
-    const healthResult = await server.health();
-    verboseLog(` 🔍 Server health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
-
-    if (healthResult.success) {
-      verboseLog(`  ✅ Server is healthy`);
-      return true;
-    }
-
-    attempts++;
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-
-  verboseLog(`  ❌ Server failed to become healthy`);
-  return false;
+  return waitForHealth(
+    () => server.health(),
+    { initialDelayMs: 250, label: 'Server' },
+  );
 }
 
 async function runClientTest(
@@ -484,12 +396,10 @@ async function runTest() {
   }
 
   let testResults: DetailedTestResult[] = [];
-  let testNumber = 0;
   let currentPort = 4022;
 
   // Assign ports and start all facilitators
   const facilitatorManagers = new Map<string, FacilitatorManager>();
-  const serverPorts = new Map<string, number>(); // Track assigned ports for each server
 
   // Group scenarios by server + facilitator combination
   // This ensures we restart servers when switching facilitators
@@ -497,6 +407,8 @@ async function runTest() {
     serverName: string;
     facilitatorName: string | undefined;
     scenarios: typeof filteredScenarios;
+    comboIndex: number;
+    port: number;
   }
 
   const serverFacilitatorCombos: ServerFacilitatorCombo[] = [];
@@ -513,28 +425,18 @@ async function runTest() {
     comboMap.get(key)!.push(scenario);
   }
 
-  // Convert map to array of combos
-  for (const [key, scenarios] of comboMap) {
+  // Convert map to array of combos, assigning a unique port to each
+  let comboIndex = 0;
+  for (const [, scenarios] of comboMap) {
     const firstScenario = scenarios[0];
     serverFacilitatorCombos.push({
       serverName: firstScenario.server.name,
       facilitatorName: firstScenario.facilitator?.name,
       scenarios,
+      comboIndex,
+      port: currentPort++,
     });
-  }
-
-  // Assign ports: in parallel mode each combo gets its own server port;
-  // in sequential mode, servers reuse ports across restarts (original behavior).
-  if (parsedArgs.parallel) {
-    // Each combo gets a dedicated port for its server instance
-    for (let i = 0; i < serverFacilitatorCombos.length; i++) {
-      serverPorts.set(`combo-${i}`, currentPort++);
-    }
-  } else {
-    // Sequential: one port per unique server name
-    for (const [serverName] of uniqueServers) {
-      serverPorts.set(serverName, currentPort++);
-    }
+    comboIndex++;
   }
 
   // Start all facilitators with unique ports
@@ -641,165 +543,104 @@ async function runTest() {
     }
   }
 
-  // ── Parallel execution path ───────────────────────────────────────────
-  if (parsedArgs.parallel) {
-    const semaphore = new Semaphore(parsedArgs.concurrency);
-    const evmLock = new FacilitatorLock();
+  // ── Execute a single server+facilitator combo ─────────────────────────
+  async function executeCombo(
+    combo: ServerFacilitatorCombo,
+    evmLock: FacilitatorLock | null,
+    nextTestNumber: () => number,
+  ): Promise<DetailedTestResult[]> {
+    const { serverName, facilitatorName, scenarios, port } = combo;
+    const server = uniqueServers.get(serverName)!;
+    const cLog = createComboLogger(combo.comboIndex, serverName, facilitatorName);
 
-    // Thread-safe test number counter
-    let globalTestNumber = 0;
-    const nextTestNumber = () => ++globalTestNumber;
-
-    await Promise.all(serverFacilitatorCombos.map(async (combo, comboIndex) => {
-      const release = await semaphore.acquire();
-      try {
-        const { serverName, facilitatorName, scenarios } = combo;
-        const server = uniqueServers.get(serverName)!;
-        const port = serverPorts.get(`combo-${comboIndex}`)!;
-        const cLog = createComboLogger(comboIndex, serverName, facilitatorName);
-
-        // Track facilitator→server mapping
-        if (facilitatorName) {
-          if (!facilitatorServerMap.has(facilitatorName)) {
-            facilitatorServerMap.set(facilitatorName, new Set());
-          }
-          facilitatorServerMap.get(facilitatorName)!.add(serverName);
-        }
-
-        // Create a fresh server instance for this combo (own port, own process)
-        const serverProxy = new GenericServerProxy(server.directory);
-
-        const facilitatorUrl = facilitatorName ?
-          facilitatorUrls.get(facilitatorName) : undefined;
-
-        cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
-
-        const serverConfig: ServerConfig = {
-          port,
-          evmPayTo: serverEvmAddress!,
-          svmPayTo: serverSvmAddress!,
-          networks,
-          facilitatorUrl,
-        };
-
-        const started = await startServer(serverProxy, serverConfig);
-        if (!started) {
-          cLog.log(`❌ Failed to start server ${serverName}`);
-          // Record failures for all scenarios in this combo
-          for (const scenario of scenarios) {
-            testResults.push({
-              testNumber: nextTestNumber(),
-              client: scenario.client.name,
-              server: scenario.server.name,
-              endpoint: scenario.endpoint.path,
-              facilitator: scenario.facilitator?.name || 'none',
-              protocolFamily: scenario.protocolFamily,
-              passed: false,
-              error: 'Server failed to start',
-            });
-          }
-          return;
-        }
-        cLog.log(`  ✅ Server ${serverName} ready`);
-
-        try {
-          for (const scenario of scenarios) {
-            const tn = nextTestNumber();
-            const isEvm = scenario.protocolFamily === 'evm';
-
-            if (isEvm && facilitatorName) {
-              // Acquire EVM lock for this facilitator to prevent nonce collisions
-              const releaseLock = await evmLock.acquire(facilitatorName);
-              try {
-                const result = await runSingleTest(scenario, port, tn, cLog);
-                testResults.push(result);
-                // 2s delay inside the lock so the nonce settles before releasing
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              } finally {
-                releaseLock();
-              }
-            } else {
-              // SVM tests (or tests without a facilitator) — no lock, no delay
-              const result = await runSingleTest(scenario, port, tn, cLog);
-              testResults.push(result);
-            }
-          }
-        } finally {
-          cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
-          await serverProxy.stop();
-        }
-      } finally {
-        release();
+    // Track facilitator→server mapping
+    if (facilitatorName) {
+      if (!facilitatorServerMap.has(facilitatorName)) {
+        facilitatorServerMap.set(facilitatorName, new Set());
       }
-    }));
-
-  // ── Sequential execution path (original behavior) ────────────────────
-  } else {
-    // Track running servers to stop/restart them as needed
-    const runningServers = new Map<string, any>(); // serverName -> server proxy
-
-    for (const combo of serverFacilitatorCombos) {
-      const { serverName, facilitatorName, scenarios } = combo;
-      const server = uniqueServers.get(serverName)!;
-      const port = serverPorts.get(serverName)!;
-
-      // Track that this facilitator is processing this server
-      if (facilitatorName) {
-        if (!facilitatorServerMap.has(facilitatorName)) {
-          facilitatorServerMap.set(facilitatorName, new Set());
-        }
-        facilitatorServerMap.get(facilitatorName)!.add(serverName);
-      }
-
-      // Stop server if it's already running (from previous combo)
-      if (runningServers.has(serverName)) {
-        verboseLog(` 🔄 Restarting ${serverName} with new facilitator: ${facilitatorName || 'none'}`);
-        await runningServers.get(serverName).stop();
-        runningServers.delete(serverName);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for port to be released
-      }
-
-      // Start server with the appropriate facilitator
-      const facilitatorUrl = facilitatorName ?
-        facilitatorUrls.get(facilitatorName) : undefined;
-
-      log(`\n🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
-
-      const serverConfig: ServerConfig = {
-        port,
-        evmPayTo: serverEvmAddress!,
-        svmPayTo: serverSvmAddress!,
-        networks,
-        facilitatorUrl,
-      };
-
-      const started = await startServer(server.proxy, serverConfig);
-      if (!started) {
-        log(`❌ Failed to start server ${serverName}`);
-        process.exit(1);
-      }
-      log(`  ✅ Server ${serverName} ready\n`);
-      runningServers.set(serverName, server.proxy);
-
-      const cLog = { log, verboseLog, errorLog };
-
-      // Run all tests for this server+facilitator combination
-      for (const scenario of scenarios) {
-        testNumber++;
-        const result = await runSingleTest(scenario, port, testNumber, cLog);
-        testResults.push(result);
-
-        // Delay between tests to prevent timing/state/nonce issues
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      // Stop server after running all tests for this combo
-      verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
-      await server.proxy.stop();
-      runningServers.delete(serverName);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for cleanup
+      facilitatorServerMap.get(facilitatorName)!.add(serverName);
     }
+
+    // Create a fresh server instance for this combo (own port, own process)
+    const serverProxy = new GenericServerProxy(server.directory);
+
+    const facilitatorUrl = facilitatorName
+      ? facilitatorUrls.get(facilitatorName)
+      : undefined;
+
+    cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
+
+    const serverConfig: ServerConfig = {
+      port,
+      evmPayTo: serverEvmAddress!,
+      svmPayTo: serverSvmAddress!,
+      networks,
+      facilitatorUrl,
+    };
+
+    const started = await startServer(serverProxy, serverConfig);
+    if (!started) {
+      cLog.log(`❌ Failed to start server ${serverName}`);
+      return scenarios.map(scenario => ({
+        testNumber: nextTestNumber(),
+        client: scenario.client.name,
+        server: scenario.server.name,
+        endpoint: scenario.endpoint.path,
+        facilitator: scenario.facilitator?.name || 'none',
+        protocolFamily: scenario.protocolFamily,
+        passed: false,
+        error: 'Server failed to start',
+      }));
+    }
+    cLog.log(`  ✅ Server ${serverName} ready`);
+
+    const results: DetailedTestResult[] = [];
+    try {
+      for (const scenario of scenarios) {
+        const tn = nextTestNumber();
+        const isEvm = scenario.protocolFamily === 'evm';
+
+        if (isEvm && facilitatorName && evmLock) {
+          // Acquire EVM lock for this facilitator to prevent nonce collisions
+          const releaseLock = await evmLock.acquire(facilitatorName);
+          try {
+            results.push(await runSingleTest(scenario, port, tn, cLog));
+            // 2s delay inside the lock so the nonce settles before releasing
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } finally {
+            releaseLock();
+          }
+        } else {
+          // SVM tests, sequential mode, or tests without a facilitator — no lock
+          results.push(await runSingleTest(scenario, port, tn, cLog));
+        }
+      }
+    } finally {
+      cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
+      await serverProxy.stop();
+    }
+
+    return results;
   }
+
+  // ── Unified execution: concurrency=1 for sequential, N for parallel ──
+  const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
+  const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
+  const semaphore = new Semaphore(effectiveConcurrency);
+
+  let globalTestNumber = 0;
+  const nextTestNumber = () => ++globalTestNumber;
+
+  const comboPromises = serverFacilitatorCombos.map(async (combo) => {
+    const release = await semaphore.acquire();
+    try {
+      return await executeCombo(combo, evmLock, nextTestNumber);
+    } finally {
+      release();
+    }
+  });
+
+  testResults = (await Promise.all(comboPromises)).flat();
 
   // Run discovery validation before cleanup (while facilitators are still running)
   const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
@@ -809,20 +650,11 @@ async function runTest() {
 
   const serversArray = Array.from(uniqueServers.values());
 
-  // Build a serverName→port map for discovery validation.
-  // In parallel mode ports are keyed by combo index, so build it from the first
-  // combo that used each server name.
+  // Build a serverName→port map for discovery validation (first combo per server).
   const discoveryServerPorts = new Map<string, number>();
-  if (parsedArgs.parallel) {
-    for (let i = 0; i < serverFacilitatorCombos.length; i++) {
-      const name = serverFacilitatorCombos[i].serverName;
-      if (!discoveryServerPorts.has(name)) {
-        discoveryServerPorts.set(name, serverPorts.get(`combo-${i}`)!);
-      }
-    }
-  } else {
-    for (const [k, v] of serverPorts) {
-      discoveryServerPorts.set(k, v);
+  for (const combo of serverFacilitatorCombos) {
+    if (!discoveryServerPorts.has(combo.serverName)) {
+      discoveryServerPorts.set(combo.serverName, combo.port);
     }
   }
 
