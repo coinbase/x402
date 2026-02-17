@@ -73,7 +73,6 @@ A resource server advertises reputation support by including the `8004-reputatio
             "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890"
           }
         ],
-        "endpoint": "https://agent.example/weather",
         "feedbackAggregator": "https://feedback.example/submit"
       },
       "schema": "...see Extension Schema below..."
@@ -138,7 +137,6 @@ A resource server advertises reputation support by including the `8004-reputatio
 |-------|------|----------|-------------|
 | `version` | string | Yes | Extension version (e.g., `"1.0.0"`) |
 | `registrations` | array | Yes | Agent identity registrations (at least one) |
-| `endpoint` | string | No | Agent's service endpoint URL |
 | `feedbackAggregator` | string | No | Third-party endpoint for gas-free feedback submission |
 
 #### AgentRegistration Object
@@ -174,10 +172,6 @@ A resource server advertises reputation support by including the `8004-reputatio
         },
         "required": ["agentRegistry", "agentId", "reputationRegistry"]
       }
-    },
-    "endpoint": {
-      "type": "string",
-      "format": "uri"
     },
     "feedbackAggregator": {
       "type": "string",
@@ -274,7 +268,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 **Components:**
 - `taskRef`: CAIP-220 payment transaction reference (UTF-8 encoded)
-- `requestBodyBytes`: Decoded HTTP request body bytes (after decompression and dechunking; empty if no body). Text bodies UTF-8 encoded; binary bodies (images, files) used as-is.
+- `requestBodyBytes`: Decoded HTTP request body bytes (after decompression and dechunking). Text bodies UTF-8 encoded; binary bodies (images, files) used as-is. When the request has no body (e.g., GET requests), use the request target (path + query string, e.g. `/weather?city=London&units=metric`, UTF-8 encoded) instead. This ensures query parameters - the primary input for GET requests - are captured in the hash.
 - `responseBodyBytes`: Decoded HTTP response body bytes. Same encoding rules. Always hash the content as the application would consume it, not the raw wire encoding.
 - `dataHash`: Intermediate hash binding request and response content. The 4-byte big-endian length prefix on `requestBodyBytes` prevents boundary ambiguity between request and response.
 
