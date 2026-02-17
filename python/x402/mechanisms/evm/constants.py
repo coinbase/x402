@@ -19,8 +19,8 @@ TX_STATUS_FAILED = 0
 # Default validity period (1 hour in seconds)
 DEFAULT_VALIDITY_PERIOD = 3600
 
-# Default validity buffer (30 seconds before now for clock skew)
-DEFAULT_VALIDITY_BUFFER = 30
+# Default validity buffer (10 minutes before now for clock skew)
+DEFAULT_VALIDITY_BUFFER = 600
 
 # ERC-6492 magic value (32 bytes)
 # bytes32(uint256(keccak256("erc6492.invalid.signature")) - 1)

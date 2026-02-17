@@ -1,0 +1,3 @@
+kind: changed
+body: Increased EVM validAfter buffer from 30 seconds to 10 minutes for consistency with TypeScript SDK
+time: 2026-02-17T15:10:24.700592-05:00

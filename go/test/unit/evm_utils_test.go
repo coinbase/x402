@@ -547,10 +547,10 @@ func TestCreateValidityWindow(t *testing.T) {
 			t.Error("validAfter should be before validBefore")
 		}
 
-		// Window should be approximately 1 hour + 30 seconds buffer
+		// Window should be approximately 1 hour + 600 seconds buffer
 		window := validBefore.Int64() - validAfter.Int64()
-		if window < 3600 || window > 3700 { // Allow some tolerance
-			t.Errorf("Expected window ~3630 seconds, got %d", window)
+		if window < 4100 || window > 4300 { // Allow some tolerance
+			t.Errorf("Expected window ~4200 seconds, got %d", window)
 		}
 	})
 
@@ -558,10 +558,10 @@ func TestCreateValidityWindow(t *testing.T) {
 		now := time.Now().Unix()
 		validAfter, _ := evm.CreateValidityWindow(time.Minute)
 
-		// validAfter should be approximately now - 30
+		// validAfter should be approximately now - 600
 		diff := now - validAfter.Int64()
-		if diff < 25 || diff > 35 { // Allow tolerance for test execution time
-			t.Errorf("validAfter should be ~30 seconds in the past, diff was %d", diff)
+		if diff < 595 || diff > 605 { // Allow tolerance for test execution time
+			t.Errorf("validAfter should be ~600 seconds in the past, diff was %d", diff)
 		}
 	})
 
