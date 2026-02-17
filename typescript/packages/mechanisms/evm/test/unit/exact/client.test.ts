@@ -36,7 +36,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: {
           name: "USD Coin",
@@ -58,7 +58,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -79,7 +79,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -100,7 +100,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 600, // 10 minutes
         extra: { name: "USD Coin", version: "2" },
       };
@@ -121,7 +121,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -132,7 +132,7 @@ describe("ExactEvmScheme (Client)", () => {
     });
 
     it("should use requirements.payTo as to", async () => {
-      const payToAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      const payToAddress = "0x742d35cc6634c0532925a3b844bc9e7595f0beb0";
 
       const requirements: PaymentRequirements = {
         scheme: "exact",
@@ -155,7 +155,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "2500000", // 2.5 USDC
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -171,7 +171,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -189,7 +189,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:1", // Ethereum mainnet
         amount: "1000000",
         asset: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -206,7 +206,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USD Coin", version: "2" },
       };
@@ -228,7 +228,7 @@ describe("ExactEvmScheme (Client)", () => {
           network: "eip155:8453",
           amount: "1000000",
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
           maxTimeoutSeconds: 300,
           extra: { name: "USD Coin", version: "2" },
         };
@@ -246,7 +246,7 @@ describe("ExactEvmScheme (Client)", () => {
           network: "eip155:8453",
           amount: "1000000",
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
           maxTimeoutSeconds: 300,
           extra: { name: "USD Coin", version: "2", assetTransferMethod: "eip3009" },
         };
@@ -263,7 +263,7 @@ describe("ExactEvmScheme (Client)", () => {
           network: "eip155:8453",
           amount: "1000000",
           asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
           maxTimeoutSeconds: 300,
           extra: { name: "USD Coin", version: "2", assetTransferMethod: "permit2" },
         };
@@ -284,7 +284,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { assetTransferMethod: "permit2" },
       };
@@ -305,7 +305,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { assetTransferMethod: "permit2" },
       };
@@ -317,7 +317,7 @@ describe("ExactEvmScheme (Client)", () => {
     });
 
     it("should set witness.to to payTo address", async () => {
-      const payToAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      const payToAddress = "0x742d35cc6634c0532925a3b844bc9e7595f0beb0";
       const requirements: PaymentRequirements = {
         scheme: "exact",
         network: "eip155:8453",
@@ -342,7 +342,7 @@ describe("ExactEvmScheme (Client)", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { assetTransferMethod: "permit2" },
       };
@@ -567,7 +567,7 @@ describe("Permit2 Approval Flow", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: tokenAddress,
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { assetTransferMethod: "permit2" },
       };
@@ -603,7 +603,7 @@ describe("Permit2 Approval Flow", () => {
         network: "eip155:8453",
         amount: "1000000",
         asset: tokenAddress,
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { assetTransferMethod: "permit2" },
       };

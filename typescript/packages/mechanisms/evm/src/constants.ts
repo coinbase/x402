@@ -84,6 +84,22 @@ export const eip3009ABI = [
   },
 ] as const;
 
+// EIP-1271 magic value returned by isValidSignature(bytes32,bytes) on success.
+export const EIP1271_MAGIC_VALUE = "0x1626ba7e" as const;
+
+export const eip1271ABI = [
+  {
+    type: "function",
+    name: "isValidSignature",
+    inputs: [
+      { name: "hash", type: "bytes32" },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [{ name: "magicValue", type: "bytes4" }],
+    stateMutability: "view",
+  },
+] as const;
+
 /**
  * Canonical Permit2 contract address.
  * Same address on all EVM chains via CREATE2 deployment.
