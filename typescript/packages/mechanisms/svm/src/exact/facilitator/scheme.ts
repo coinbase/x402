@@ -32,6 +32,11 @@ import {
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
+import { verifyAgenticProgram, type VerifyAgenticProgramArgs } from "./agentic";
+
+export type SvmExactFacilitatorConfig = {
+  enableAgenticSVM?: boolean;
+};
 
 /**
  * SVM facilitator implementation for the Exact payment scheme.
@@ -44,9 +49,13 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
    * Creates a new ExactSvmFacilitator instance.
    *
    * @param signer - The SVM RPC client for facilitator operations
+   * @param config - Optional configuration for verification behavior
    * @returns ExactSvmFacilitator instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) {}
+  constructor(
+    private readonly signer: FacilitatorSvmSigner,
+    private readonly config: SvmExactFacilitatorConfig = {},
+  ) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
@@ -138,6 +147,8 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     }
 
     const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
+    const staticAccounts = compiled.staticAccounts ?? [];
+    const compiledInstructions = compiled.instructions ?? [];
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 
@@ -168,13 +179,20 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const payer = getTokenPayerFromTransaction(transaction);
-    if (!payer) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer: "",
-      };
+    const feePayer = requirements.extra.feePayer as Address;
+    const feePayerStr = feePayer.toString();
+    for (const ix of compiledInstructions) {
+      const accountIndices: number[] = ix.accountIndices ?? [];
+      for (const idx of accountIndices) {
+        const addr = staticAccounts[idx]?.toString();
+        if (addr === feePayerStr) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_svm_payload_fee_payer_in_instruction_accounts",
+            payer: "",
+          };
+        }
+      }
     }
 
     // Step 4: Verify Transfer Instruction
@@ -185,10 +203,73 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
       programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
     ) {
+      if (!this.config.enableAgenticSVM) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+          payer: "",
+        };
+      }
+
+      const optionalInstructions = instructions.slice(3);
+      const invalidReasonByIndex = [
+        "invalid_exact_svm_payload_unknown_fourth_instruction",
+        "invalid_exact_svm_payload_unknown_fifth_instruction",
+        "invalid_exact_svm_payload_unknown_sixth_instruction",
+      ];
+
+      for (let i = 0; i < optionalInstructions.length; i += 1) {
+        const programAddress = optionalInstructions[i].programAddress.toString();
+        if (
+          programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
+          programAddress === MEMO_PROGRAM_ADDRESS
+        ) {
+          continue;
+        }
+
+        return {
+          isValid: false,
+          invalidReason:
+            invalidReasonByIndex[i] ?? "invalid_exact_svm_payload_unknown_optional_instruction",
+          payer: "",
+        };
+      }
+
+      const agenticResult = await verifyAgenticProgram({
+        signer: this.signer,
+        network: requirements.network,
+        transaction: exactSvmPayload.transaction,
+        feePayer,
+        payerProgram: transferIx.programAddress,
+        assetMint: requirements.asset as Address,
+        payTo: requirements.payTo as Address,
+        minAmount: BigInt(requirements.amount),
+        extra: requirements.extra,
+      } satisfies VerifyAgenticProgramArgs);
+
+      const payer = transferIx.programAddress.toString();
+      if (!agenticResult.ok) {
+        return {
+          isValid: false,
+          invalidReason: agenticResult.invalidReason,
+          invalidMessage: agenticResult.invalidMessage,
+          payer,
+        };
+      }
+
+      return {
+        isValid: true,
+        invalidReason: undefined,
+        payer,
+      };
+    }
+
+    const payer = getTokenPayerFromTransaction(transaction);
+    if (!payer) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
+        payer: "",
       };
     }
 
@@ -295,8 +376,6 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // Step 6: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
-      const feePayer = requirements.extra.feePayer as Address;
-
       // Sign transaction with the feePayer's signer
       const fullySignedTransaction = await this.signer.signTransaction(
         exactSvmPayload.transaction,

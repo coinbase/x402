@@ -8,6 +8,12 @@ export const COMPUTE_BUDGET_PROGRAM_ADDRESS = "ComputeBudget11111111111111111111
 export const MEMO_PROGRAM_ADDRESS = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 /**
+ * Magic value returned by agentic program verifiers during simulation.
+ * Parity concept with EIP-1271's `isValidSignature` magic value on EVM.
+ */
+export const SOLANA_MAGIC_OK = "x402_svm_ok_v1";
+
+/**
  * Phantom/Solflare Lighthouse program address
  * Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
  * - Phantom adds 1 Lighthouse instruction (4th instruction)
