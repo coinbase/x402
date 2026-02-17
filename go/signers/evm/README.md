@@ -16,11 +16,29 @@ if err != nil {
     log.Fatal(err)
 }
 
+// Or create signer from a callback
+signer, err = evmsigners.NewClientSigner(address, signFunc)
+if err != nil {
+    log.Fatal(err)
+}
+
 // Use with ExactEvmScheme
 evmScheme := evmclient.NewExactEvmScheme(signer)
 ```
 
 ## API
+
+### NewClientSigner
+
+```go
+func NewClientSigner(address string, signFunc SignTypedDataFunc) (evm.ClientEvmSigner, error)
+```
+
+Creates a client signer from an address and a signing callback.
+
+**Use cases:**
+- MPC / custody / HSM signing
+- Remote signer services
 
 ### NewClientSignerFromPrivateKey
 
