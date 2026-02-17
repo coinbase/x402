@@ -1,0 +1,7 @@
+{
+  "name": "CrossFin",
+  "description": "x402 Agent Services Gateway — 35 paid Korean market endpoints (kimchi premium, routing engine, 5-exchange comparison, stock analysis, ETF, 4 bundle APIs), 184 verified x402 service registry, MCP server with 16 tools, agent guide API, and OpenAPI spec. USDC on Base mainnet.",
+  "logoUrl": "/logos/crossfin.png",
+  "websiteUrl": "https://crossfin.dev",
+  "category": "Services/Endpoints"
+}
