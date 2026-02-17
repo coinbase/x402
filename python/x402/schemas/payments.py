@@ -18,7 +18,7 @@ class ResourceInfo(BaseX402Model):
 
     url: str
     description: str | None = None
-    mime_type: str | None = None
+    mime_type: str | None = Field(default=None, alias="mimeType")
 
 
 class PaymentRequirements(BaseX402Model):
@@ -38,8 +38,8 @@ class PaymentRequirements(BaseX402Model):
     network: Network
     asset: str
     amount: str
-    pay_to: str
-    max_timeout_seconds: int
+    pay_to: str = Field(alias="payTo")
+    max_timeout_seconds: int = Field(alias="maxTimeoutSeconds")
     extra: dict[str, Any] = Field(default_factory=dict)
 
     def get_amount(self) -> str:
@@ -62,7 +62,7 @@ class PaymentRequired(BaseX402Model):
         extensions: Optional extension data.
     """
 
-    x402_version: int = 2
+    x402_version: int = Field(default=2, alias="x402Version")
     error: str | None = None
     resource: ResourceInfo | None = None
     accepts: list[PaymentRequirements]
@@ -80,7 +80,7 @@ class PaymentPayload(BaseX402Model):
         extensions: Optional extension data.
     """
 
-    x402_version: int = 2
+    x402_version: int = Field(default=2, alias="x402Version")
     payload: dict[str, Any]
     accepted: PaymentRequirements
     resource: ResourceInfo | None = None
