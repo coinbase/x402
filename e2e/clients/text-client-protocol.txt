@@ -15,6 +15,14 @@ Clients must declare which protocol families they support in their test.config.j
 Clients must declare which x402 protocol versions they support using the `x402Versions` field:
 - **x402Versions**: Array of supported x402 protocol versions (e.g., [1, 2])
 
+## EVM Transfer Method Support
+Clients that support the EVM protocol family must declare which transfer methods they support using the `evm.transferMethods` field:
+- **eip3009**: EIP-3009 transferWithAuthorization
+- **permit2**: Uniswap Permit2 approval-based transfer
+
+If the `evm` field is omitted, the client is assumed to only support `["eip3009"]`.
+The test suite uses this to skip scenarios where a server endpoint requires a transfer method the client does not support.
+
 Example configuration:
 ```json
 {
@@ -23,6 +31,9 @@ Example configuration:
   "language": "typescript",
   "protocolFamilies": ["evm"],
   "x402Versions": [1, 2],
+  "evm": {
+    "transferMethods": ["eip3009", "permit2"]
+  },
   "environment": {
     "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
@@ -38,8 +49,29 @@ Multi-protocol client example:
   "language": "typescript",
   "protocolFamilies": ["evm", "svm"],
   "x402Versions": [1, 2],
+  "evm": {
+    "transferMethods": ["eip3009", "permit2"]
+  },
   "environment": {
     "required": ["EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
+    "optional": []
+  }
+}
+```
+
+Python client example (eip3009 only):
+```json
+{
+  "name": "my-python-client",
+  "type": "client",
+  "language": "python",
+  "protocolFamilies": ["evm"],
+  "x402Versions": [1, 2],
+  "evm": {
+    "transferMethods": ["eip3009"]
+  },
+  "environment": {
+    "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
   }
 }
