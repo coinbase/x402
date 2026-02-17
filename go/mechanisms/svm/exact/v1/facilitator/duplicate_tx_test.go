@@ -8,33 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFacilitatorInstructionConstraints(t *testing.T) {
-	t.Run("allows 3-6 instructions", func(t *testing.T) {
-		minInstructions := 3
-		maxInstructions := 6
-
-		assert.Equal(t, 3, minInstructions)
-		assert.Equal(t, 6, maxInstructions)
-	})
-
-	t.Run("optional instructions may be Lighthouse or Memo", func(t *testing.T) {
-		lighthouseProgram := svm.LighthouseProgramAddress
-		memoProgram := svm.MemoProgramAddress
-
-		assert.NotEqual(t, lighthouseProgram, memoProgram)
-		assert.NotEmpty(t, memoProgram)
-		assert.NotEmpty(t, lighthouseProgram)
-	})
-}
-
-func TestErrorCodesForMitigationPlanning(t *testing.T) {
-	t.Run("instruction count error", func(t *testing.T) {
-		err := ErrTransactionInstructionsLength
-		assert.Equal(t, "invalid_exact_solana_payload_transaction_instructions_length", err)
-	})
-}
-
-func TestDuplicateSettlementCache(t *testing.T) {
+func TestDuplicateSettlementCacheV1(t *testing.T) {
 	t.Run("should reject duplicate transaction", func(t *testing.T) {
 		cache := svm.NewSettlementCache()
 
@@ -81,7 +55,7 @@ func TestDuplicateSettlementCache(t *testing.T) {
 
 	t.Run("constructor wires the shared cache into the scheme", func(t *testing.T) {
 		cache := svm.NewSettlementCache()
-		scheme := NewExactSvmScheme(nil, cache)
+		scheme := NewExactSvmSchemeV1(nil, cache)
 		assert.Same(t, cache, scheme.settlementCache,
 			"scheme should hold the exact cache instance that was injected")
 	})

@@ -1,12 +1,14 @@
 """Tests for ExactSvmScheme facilitator."""
 
+from unittest.mock import patch
+
 from x402.mechanisms.svm import (
     SOLANA_DEVNET_CAIP2,
     SOLANA_MAINNET_CAIP2,
     USDC_DEVNET_ADDRESS,
 )
 from x402.mechanisms.svm.exact import ExactSvmFacilitatorScheme
-from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
+from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo, VerifyResponse
 
 
 class MockFacilitatorSigner:
@@ -290,6 +292,154 @@ class TestFacilitatorSchemeAttributes:
         result = facilitator.get_signers(SOLANA_DEVNET_CAIP2)
 
         assert result == addresses
+
+
+class TestDuplicateSettlementCache:
+    """Test duplicate settlement cache in settle method."""
+
+    def _make_payload(self, transaction: str) -> PaymentPayload:
+        return PaymentPayload(
+            x402_version=2,
+            resource=ResourceInfo(
+                url="http://example.com/protected",
+                description="Test resource",
+                mime_type="application/json",
+            ),
+            accepted=PaymentRequirements(
+                scheme="exact",
+                network=SOLANA_DEVNET_CAIP2,
+                asset=USDC_DEVNET_ADDRESS,
+                amount="100000",
+                pay_to="PayToAddress11111111111111111111111111",
+                max_timeout_seconds=3600,
+                extra={"feePayer": "FeePayer1111111111111111111111111111"},
+            ),
+            payload={"transaction": transaction},
+        )
+
+    def _make_requirements(self) -> PaymentRequirements:
+        return PaymentRequirements(
+            scheme="exact",
+            network=SOLANA_DEVNET_CAIP2,
+            asset=USDC_DEVNET_ADDRESS,
+            amount="100000",
+            pay_to="PayToAddress11111111111111111111111111",
+            max_timeout_seconds=3600,
+            extra={"feePayer": "FeePayer1111111111111111111111111111"},
+        )
+
+    def test_should_reject_duplicate_settlement(self):
+        """Second settle call with the same transaction should be rejected."""
+        signer = MockFacilitatorSigner()
+        facilitator = ExactSvmFacilitatorScheme(signer)
+        requirements = self._make_requirements()
+        payload = self._make_payload("sameTransactionBase64==")
+
+        with patch.object(
+            facilitator,
+            "verify",
+            return_value=VerifyResponse(is_valid=True, payer="PayerAddress"),
+        ):
+            result1 = facilitator.settle(payload, requirements)
+            assert result1.success is True
+
+            result2 = facilitator.settle(payload, requirements)
+            assert result2.success is False
+            assert result2.error_reason == "duplicate_settlement"
+
+    def test_should_allow_distinct_transactions(self):
+        """Two different transactions should both settle successfully."""
+        signer = MockFacilitatorSigner()
+        facilitator = ExactSvmFacilitatorScheme(signer)
+        requirements = self._make_requirements()
+
+        with patch.object(
+            facilitator,
+            "verify",
+            return_value=VerifyResponse(is_valid=True, payer="PayerAddress"),
+        ):
+            result1 = facilitator.settle(self._make_payload("transactionA=="), requirements)
+            assert result1.success is True
+
+            result2 = facilitator.settle(self._make_payload("transactionB=="), requirements)
+            assert result2.success is True
+
+    def test_should_evict_cache_entries_after_ttl(self):
+        """Cache entries should be pruned after TTL so they no longer block locally.
+
+        NOTE: In production the Solana RPC would still reject a re-submitted
+        transaction that already landed on-chain. This test only verifies that
+        the in-memory cache correctly prunes expired entries.
+        """
+        signer = MockFacilitatorSigner()
+        facilitator = ExactSvmFacilitatorScheme(signer)
+        requirements = self._make_requirements()
+        payload = self._make_payload("expiringTransaction==")
+
+        with patch.object(
+            facilitator,
+            "verify",
+            return_value=VerifyResponse(is_valid=True, payer="PayerAddress"),
+        ):
+            result1 = facilitator.settle(payload, requirements)
+            assert result1.success is True
+
+            # Simulate TTL expiration by backdating the cache entry
+            for key in facilitator._settlement_cache.entries:
+                facilitator._settlement_cache.entries[key] -= 121.0
+
+            result2 = facilitator.settle(payload, requirements)
+            assert result2.success is True
+
+    def test_shared_cache_blocks_cross_version_duplicates(self):
+        """V1 and V2 sharing a cache should catch cross-version duplicates."""
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
+        from x402.mechanisms.svm.exact.v1.facilitator import (
+            ExactSvmSchemeV1 as ExactSvmFacilitatorSchemeV1,
+        )
+        from x402.schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+
+        signer = MockFacilitatorSigner()
+        shared_cache = SettlementCache()
+        v2 = ExactSvmFacilitatorScheme(signer, shared_cache)
+        v1 = ExactSvmFacilitatorSchemeV1(signer, shared_cache)
+
+        # Settle via V2 first
+        with patch.object(
+            v2,
+            "verify",
+            return_value=VerifyResponse(is_valid=True, payer="PayerAddress"),
+        ):
+            result1 = v2.settle(
+                self._make_payload("crossVersionTx=="),
+                self._make_requirements(),
+            )
+            assert result1.success is True
+
+        # Same tx via V1 should be rejected by the shared cache
+        v1_payload = PaymentPayloadV1(
+            scheme="exact",
+            network="solana-devnet",
+            payload={"transaction": "crossVersionTx=="},
+        )
+        v1_requirements = PaymentRequirementsV1(
+            scheme="exact",
+            network="solana-devnet",
+            asset=USDC_DEVNET_ADDRESS,
+            max_amount_required="100000",
+            pay_to="PayToAddress11111111111111111111111111",
+            max_timeout_seconds=3600,
+            resource="https://example.com",
+            extra={"feePayer": "FeePayer1111111111111111111111111111"},
+        )
+        with patch.object(
+            v1,
+            "verify",
+            return_value=VerifyResponse(is_valid=True, payer="PayerAddress"),
+        ):
+            result2 = v1.settle(v1_payload, v1_requirements)
+            assert result2.success is False
+            assert result2.error_reason == "duplicate_settlement"
 
 
 class TestVerifyFeePayer:
