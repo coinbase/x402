@@ -35,6 +35,15 @@ import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../.
 import { verifyAgenticProgram, type VerifyAgenticProgramArgs } from "./agentic";
 
 export type SvmExactFacilitatorConfig = {
+  /**
+   * Enables agentic program-based payer verification on SVM (parity concept with EIP-1271).
+   *
+   * When enabled, if the transaction's 3rd instruction is not a Token/Token-2022 TransferChecked,
+   * the facilitator may treat that instruction's program id as the payer and verify via
+   * `simulateTransaction` + `SOLANA_MAGIC_OK` return data.
+   *
+   * Defaults to false.
+   */
   enableAgenticSVM?: boolean;
 };
 

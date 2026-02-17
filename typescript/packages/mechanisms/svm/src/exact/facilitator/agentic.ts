@@ -76,27 +76,30 @@ function countProgramInvocations(logs: string[] | null | undefined, programId: s
  *
  * @param returnData - Simulation returnData object.
  * @param expectedProgramId - Program expected to set the returnData.
- * @returns true when the magic value matches.
+ * @returns The check result.
  */
-function isMagicOk(
+function checkMagicOk(
   returnData: SimulateTransactionResult["value"]["returnData"] | null | undefined,
   expectedProgramId: string,
-): boolean {
-  if (!returnData) return false;
-  if (returnData.programId !== expectedProgramId) return false;
+): { ok: true } | { ok: false; reason: string } {
+  if (!returnData) return { ok: false, reason: "missing_return_data" };
+  if (returnData.programId !== expectedProgramId) {
+    return { ok: false, reason: "return_data_program_mismatch" };
+  }
 
   const [data, encoding] = returnData.data;
-  if (encoding !== "base64") return false;
+  if (encoding !== "base64") return { ok: false, reason: "return_data_encoding_not_base64" };
 
   const decoded = getBase64Encoder().encode(data);
   const expected = new TextEncoder().encode(SOLANA_MAGIC_OK);
-  if (decoded.length !== expected.length) return false;
+  if (decoded.length !== expected.length)
+    return { ok: false, reason: "return_data_length_mismatch" };
 
   for (let i = 0; i < expected.length; i += 1) {
-    if (decoded[i] !== expected[i]) return false;
+    if (decoded[i] !== expected[i]) return { ok: false, reason: "return_data_value_mismatch" };
   }
 
-  return true;
+  return { ok: true };
 }
 
 /**
@@ -233,8 +236,13 @@ export async function verifyAgenticProgram(
     };
   }
 
-  if (!isMagicOk(simulation.value.returnData, args.payerProgram.toString())) {
-    return { ok: false, invalidReason: "invalid_svm_agentic_signature" };
+  const magic = checkMagicOk(simulation.value.returnData, args.payerProgram.toString());
+  if (!magic.ok) {
+    return {
+      ok: false,
+      invalidReason: "invalid_svm_agentic_signature",
+      invalidMessage: magic.reason,
+    };
   }
 
   const invocations = countProgramInvocations(simulation.value.logs, args.payerProgram.toString());

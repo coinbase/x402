@@ -16,6 +16,11 @@ export interface SvmFacilitatorConfig {
 
   /**
    * Enable agentic program wallet verification for SVM Exact.
+   *
+   * When enabled, the facilitator may accept program-based payers (no traditional transaction
+   * signature from the payer address) by verifying via RPC simulation + returnData magic
+   * (`SOLANA_MAGIC_OK`).
+   *
    * Defaults to off for backwards compatibility.
    */
   enableAgenticSVM?: boolean;

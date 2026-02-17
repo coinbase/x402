@@ -178,3 +178,43 @@ Implementations MAY additionally enforce simple unix-timestamp bounds via `Payme
 
 - `extra.validAfter`: unix seconds, reject if current time is earlier.
 - `extra.validBefore`: unix seconds, reject if current time is equal or later.
+
+### Example: Program-Based Payer
+
+An agentic payer program can signal verification success by setting return data to
+`x402_svm_ok_v1` and performing the payment (for example via CPI to Token/Token-2022):
+
+```rs
+use solana_program::{
+    account_info::AccountInfo,
+    entrypoint::ProgramResult,
+    program::set_return_data,
+    pubkey::Pubkey,
+};
+
+const SOLANA_MAGIC_OK: &[u8] = b"x402_svm_ok_v1";
+
+pub fn process_instruction(
+    _program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    _data: &[u8],
+) -> ProgramResult {
+    // 1) Verify whatever authorization or policy your wallet requires.
+    // 2) Transfer tokens to the recipient ATA (CPI to Token/Token-2022).
+    // 3) Signal x402 verification success:
+    set_return_data(SOLANA_MAGIC_OK);
+    Ok(())
+}
+```
+
+Facilitators enable the mode explicitly:
+
+```ts
+import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+
+registerExactSvmScheme(facilitator, {
+  signer: svmSigner,
+  networks: "solana:*",
+  enableAgenticSVM: true,
+});
+```

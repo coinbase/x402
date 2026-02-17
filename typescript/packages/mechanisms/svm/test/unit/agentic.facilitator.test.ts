@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExactSvmScheme as ExactSvmFacilitator } from "../../src/exact/facilitator/scheme";
 import { ExactSvmSchemeV1 as ExactSvmFacilitatorV1 } from "../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorSvmSigner } from "../../src/signer";
@@ -83,6 +83,11 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
   let agenticTx: string;
 
   const base64MagicOk = getBase64Decoder().decode(new TextEncoder().encode(SOLANA_MAGIC_OK));
+  const base64WrongMagic = getBase64Decoder().decode(new TextEncoder().encode("wrong"));
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   beforeEach(async () => {
     agenticTx = await buildAgenticTransactionBase64({ feePayer, payerProgram });
@@ -100,6 +105,8 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
     returnDataProgramId?: string;
     returnDataBase64?: string | null;
     invocationCount?: number;
+    simulationErr?: unknown;
+    payerExecutable?: boolean;
     preFeePayerLamports?: number;
     postFeePayerLamports?: number;
     preRecipientAmount?: string;
@@ -109,6 +116,8 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
       returnDataProgramId = payerProgram.toString(),
       returnDataBase64 = base64MagicOk,
       invocationCount = 1,
+      simulationErr = null,
+      payerExecutable = true,
       preFeePayerLamports = 1_000_000,
       postFeePayerLamports = preFeePayerLamports,
       preRecipientAmount = "0",
@@ -141,7 +150,10 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
         if (address === payerProgram) {
           return {
             send: vi.fn().mockResolvedValue({
-              value: { executable: true, owner: "BPFLoader1111111111111111111111111111111111" },
+              value: {
+                executable: payerExecutable,
+                owner: "BPFLoader1111111111111111111111111111111111",
+              },
             }),
           };
         }
@@ -202,7 +214,7 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
         return {
           send: vi.fn().mockResolvedValue({
             value: {
-              err: null,
+              err: simulationErr,
               logs,
               returnData,
               accounts,
@@ -326,6 +338,278 @@ describe("SVM Exact Facilitator (agentic program verification)", () => {
     const result = await facilitator.verify(payload, requirements);
     expect(result.isValid).toBe(false);
     expect(result.invalidReason).toBe("invalid_svm_agentic_signature");
+  });
+
+  it("rejects when agentic program returns the wrong magic value", async () => {
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockRpc({ returnDataBase64: base64WrongMagic }),
+    );
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_svm_agentic_signature");
+  });
+
+  it("rejects when returnData is set by a different program id", async () => {
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockRpc({ returnDataProgramId: feePayer.toString() }),
+    );
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_svm_agentic_signature");
+  });
+
+  it("rejects when payer is not an executable program account", async () => {
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockRpc({ payerExecutable: false }),
+    );
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_exact_svm_agentic_payer_not_program");
+  });
+
+  it("rejects when simulation fails", async () => {
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockRpc({ simulationErr: { InstructionError: [0, "Custom"] } }),
+    );
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("transaction_simulation_failed");
+  });
+
+  it("rejects when timelock has not started", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockRpc());
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer, validAfter: nowSeconds + 10 },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer, validAfter: nowSeconds + 10 },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_exact_svm_agentic_timelock_not_started");
+  });
+
+  it("rejects when timelock is expired", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockRpc());
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer, validBefore: nowSeconds },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer, validBefore: nowSeconds },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_exact_svm_agentic_timelock_expired");
+  });
+
+  it("rejects when recipient delta is below the required amount", async () => {
+    const { createRpcClient } = await import("../../src/utils");
+    (createRpcClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockRpc({ postRecipientAmount: "999" }),
+    );
+
+    const facilitator = new ExactSvmFacilitator(mockSigner, { enableAgenticSVM: true });
+
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: { url: "https://example.com", description: "Test", mimeType: "application/json" },
+      accepted: {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000",
+        payTo: payTo,
+        maxTimeoutSeconds: 60,
+        extra: { feePayer },
+      },
+      payload: { transaction: agenticTx },
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "1000",
+      payTo: payTo,
+      maxTimeoutSeconds: 60,
+      extra: { feePayer },
+    };
+
+    const result = await facilitator.verify(payload, requirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_exact_svm_payload_amount_insufficient");
   });
 
   it("rejects on agentic reentrancy (multiple invocations)", async () => {
