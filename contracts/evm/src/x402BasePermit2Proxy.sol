@@ -15,18 +15,18 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  *      "witness" pattern to cryptographically bind the payment destination,
  *      preventing facilitators from redirecting funds.
  *
- *      The contract uses an initializer pattern instead of constructor parameters
- *      to ensure the same CREATE2 address across all EVM chains, regardless of
- *      the chain's Permit2 deployment address.
+ *      The Permit2 address is passed as a constructor argument and stored as
+ *      an immutable. Since Permit2 is deployed via a deterministic CREATE2
+ *      deployer, its canonical address (0x000000000022D473030F116dDEE9F6B43aC78BA3)
+ *      is the same on all EVM chains. Using the same constructor argument on
+ *      every chain keeps the initCode identical, preserving a uniform CREATE2
+ *      address for these proxies across all chains.
  *
  * @author x402 Protocol
  */
 abstract contract x402BasePermit2Proxy is ReentrancyGuard {
-    /// @notice The Permit2 contract address (set via initialize)
-    ISignatureTransfer public permit2;
-
-    /// @notice Whether the contract has been initialized
-    bool private _initialized;
+    /// @notice The Permit2 contract address (set once at construction, immutable)
+    ISignatureTransfer public immutable permit2;
 
     /// @notice EIP-712 type string for witness data
     /// @dev Must match the exact format expected by Permit2
@@ -63,9 +63,6 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
 
     /// @notice Thrown when Permit2 address is zero
     error InvalidPermit2Address();
-
-    /// @notice Thrown when initialize is called more than once
-    error AlreadyInitialized();
 
     /// @notice Thrown when destination address is zero
     error InvalidDestination();
@@ -117,18 +114,16 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     }
 
     /**
-     * @notice Initializes the proxy with the Permit2 contract address
-     * @param _permit2 Address of the Permit2 contract for this chain
-     * @dev Can only be called once. MUST be called atomically with deployment (e.g., via
-     *      a multicall/batch transaction) to prevent frontrunning. No constructor parameters
-     *      are used in order to preserve CREATE2 address determinism across chains.
+     * @notice Constructs the proxy with the Permit2 contract address
+     * @param _permit2 Address of the Permit2 contract (canonical on all EVM chains)
+     * @dev The Permit2 address is stored as an immutable, eliminating any post-deployment
+     *      initialization race. Using the same canonical Permit2 address on every chain
+     *      keeps the initCode identical, preserving CREATE2 address determinism.
      */
-    function initialize(
+    constructor(
         address _permit2
-    ) external {
-        if (_initialized) revert AlreadyInitialized();
+    ) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
-        _initialized = true;
         permit2 = ISignatureTransfer(_permit2);
     }
 

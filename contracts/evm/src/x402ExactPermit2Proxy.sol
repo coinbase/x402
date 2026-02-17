@@ -18,6 +18,10 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  * @author x402 Protocol
  */
 contract x402ExactPermit2Proxy is x402BasePermit2Proxy {
+    constructor(
+        address _permit2
+    ) x402BasePermit2Proxy(_permit2) {}
+
     /**
      * @notice Settles a payment using a Permit2 signature
      * @dev This is the standard settlement path when user has already approved Permit2.

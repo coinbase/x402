@@ -11,27 +11,14 @@ import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
  * @notice Deployment script for x402 Permit2 Proxy contracts using CREATE2
  * @dev Run with: forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --verify
  *
- *      The contracts use an initializer pattern to ensure the same CREATE2 address
- *      across all chains, regardless of the chain's Permit2 address.
+ *      The Permit2 address is passed as a constructor argument. Since Permit2 is
+ *      deployed via a deterministic CREATE2 deployer, its canonical address
+ *      (0x000000000022D473030F116dDEE9F6B43aC78BA3) is the same on all EVM chains.
+ *      Using the same constructor argument on every chain keeps the initCode identical,
+ *      preserving a uniform CREATE2 address for these proxies across all chains.
  *
- *      IMPORTANT — Atomicity Requirement:
- *      initialize() has no caller restriction and can only be called once. Deployment
- *      and initialization MUST happen atomically (in the same transaction) to prevent
- *      a third party from frontrunning the initialize() call with a malicious Permit2
- *      address.
- *
- *      - EOA via Foundry: This script wraps CREATE2 deploy + initialize() within a
- *        single vm.startBroadcast() block, so both are sent as back-to-back transactions
- *        from the same EOA. While not strictly atomic on-chain, the short window and
- *        obscure salt make frontrunning impractical. The script verifies permit2 after
- *        initialization and reverts on mismatch.
- *
- *      - Multisig (e.g., Gnosis Safe): Use the Safe Transaction Builder or Safe SDK
- *        to batch both calls into a single Safe transaction:
- *          1. Call CREATE2_DEPLOYER with (salt ++ initCode) to deploy the contract
- *          2. Call proxy.initialize(permit2Address) on the newly deployed address
- *        Both execute atomically within the same transaction, leaving no window for
- *        frontrunning.
+ *      If Permit2 has not yet been deployed on the target chain, deploy it first
+ *      using the canonical Permit2 deployment method before running this script.
  */
 contract DeployX402Proxies is Script {
     /// @notice Canonical Permit2 address (Uniswap's official deployment)
@@ -74,9 +61,7 @@ contract DeployX402Proxies is Script {
             console2.log("CREATE2 deployer verified");
         }
 
-        // Deploy and initialize both contracts
-        // IMPORTANT: Each deploy function wraps CREATE2 + initialize() in a single broadcast.
-        // For multisig deployment, these must be batched atomically (see contract NatDoc).
+        // Deploy both contracts (Permit2 address is a constructor arg, no initialization needed)
         _deployExact(permit2);
         _deployUpto(permit2);
 
@@ -93,8 +78,8 @@ contract DeployX402Proxies is Script {
         console2.log("  Deploying x402ExactPermit2Proxy");
         console2.log("------------------------------------------------------------");
 
-        // No constructor args - enables same address on all chains
-        bytes memory initCode = type(x402ExactPermit2Proxy).creationCode;
+        // Constructor arg is the canonical Permit2 address (same on all chains)
+        bytes memory initCode = abi.encodePacked(type(x402ExactPermit2Proxy).creationCode, abi.encode(permit2));
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(EXACT_SALT, initCodeHash, CREATE2_DEPLOYER);
 
@@ -116,7 +101,7 @@ contract DeployX402Proxies is Script {
         address deployedAddress;
         if (block.chainid == 31_337 || block.chainid == 1337) {
             console2.log("(Using regular deployment for local network)");
-            proxy = new x402ExactPermit2Proxy();
+            proxy = new x402ExactPermit2Proxy(permit2);
             deployedAddress = address(proxy);
         } else {
             bytes memory deploymentData = abi.encodePacked(EXACT_SALT, initCode);
@@ -126,13 +111,6 @@ contract DeployX402Proxies is Script {
             require(deployedAddress.code.length > 0, "No bytecode at expected address");
             proxy = x402ExactPermit2Proxy(deployedAddress);
         }
-
-        // Initialize with chain-specific Permit2 address
-        // CRITICAL: Must happen in the same broadcast (or Safe batch) as deployment above.
-        // initialize() is unguarded and can only be called once — if a frontrunner calls it
-        // first with a malicious Permit2 address, the contract is bricked at this address.
-        console2.log("Initializing with Permit2:", permit2);
-        proxy.initialize(permit2);
 
         vm.stopBroadcast();
 
@@ -149,8 +127,8 @@ contract DeployX402Proxies is Script {
         console2.log("  Deploying x402UptoPermit2Proxy");
         console2.log("------------------------------------------------------------");
 
-        // No constructor args - enables same address on all chains
-        bytes memory initCode = type(x402UptoPermit2Proxy).creationCode;
+        // Constructor arg is the canonical Permit2 address (same on all chains)
+        bytes memory initCode = abi.encodePacked(type(x402UptoPermit2Proxy).creationCode, abi.encode(permit2));
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(UPTO_SALT, initCodeHash, CREATE2_DEPLOYER);
 
@@ -172,7 +150,7 @@ contract DeployX402Proxies is Script {
         address deployedAddress;
         if (block.chainid == 31_337 || block.chainid == 1337) {
             console2.log("(Using regular deployment for local network)");
-            proxy = new x402UptoPermit2Proxy();
+            proxy = new x402UptoPermit2Proxy(permit2);
             deployedAddress = address(proxy);
         } else {
             bytes memory deploymentData = abi.encodePacked(UPTO_SALT, initCode);
@@ -182,13 +160,6 @@ contract DeployX402Proxies is Script {
             require(deployedAddress.code.length > 0, "No bytecode at expected address");
             proxy = x402UptoPermit2Proxy(deployedAddress);
         }
-
-        // Initialize with chain-specific Permit2 address
-        // CRITICAL: Must happen in the same broadcast (or Safe batch) as deployment above.
-        // initialize() is unguarded and can only be called once — if a frontrunner calls it
-        // first with a malicious Permit2 address, the contract is bricked at this address.
-        console2.log("Initializing with Permit2:", permit2);
-        proxy.initialize(permit2);
 
         vm.stopBroadcast();
 

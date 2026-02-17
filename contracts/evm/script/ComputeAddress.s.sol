@@ -10,8 +10,9 @@ import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
  * @title ComputeAddress
  * @notice Compute the deterministic CREATE2 addresses for x402 Permit2 Proxies
  *
- * @dev The contracts use an initializer pattern (no constructor args) to ensure
- *      the same address on all chains regardless of Permit2 address.
+ * @dev The Permit2 address is a constructor argument. Since the canonical Permit2
+ *      address is the same on all EVM chains, the initCode is identical everywhere,
+ *      preserving uniform CREATE2 addresses.
  *
  * @dev Run with default salts:
  *      forge script script/ComputeAddress.s.sol
@@ -22,6 +23,9 @@ import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
 contract ComputeAddress is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+
+    /// @notice Canonical Permit2 address (same on all EVM chains)
+    address constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     /// @notice Default salt for x402ExactPermit2Proxy
     /// @dev Vanity mined for address 0x4020615294c913f045dc10f0a5cdebd86c280001
@@ -52,13 +56,13 @@ contract ComputeAddress is Script {
 
         console2.log("Configuration:");
         console2.log("  CREATE2 Deployer:    ", CREATE2_DEPLOYER);
-        console2.log("  (Permit2 set via initialize - same address on all chains)");
+        console2.log("  Permit2 (ctor arg):  ", CANONICAL_PERMIT2);
         console2.log("");
 
         // Compute x402ExactPermit2Proxy address
         {
-            // No constructor args - enables same address on all chains
-            bytes memory initCode = type(x402ExactPermit2Proxy).creationCode;
+            bytes memory initCode =
+                abi.encodePacked(type(x402ExactPermit2Proxy).creationCode, abi.encode(CANONICAL_PERMIT2));
             bytes32 initCodeHash = keccak256(initCode);
             address expectedAddress = _computeCreate2Addr(exactSalt, initCodeHash, CREATE2_DEPLOYER);
 
@@ -79,8 +83,8 @@ contract ComputeAddress is Script {
 
         // Compute x402UptoPermit2Proxy address
         {
-            // No constructor args - enables same address on all chains
-            bytes memory initCode = type(x402UptoPermit2Proxy).creationCode;
+            bytes memory initCode =
+                abi.encodePacked(type(x402UptoPermit2Proxy).creationCode, abi.encode(CANONICAL_PERMIT2));
             bytes32 initCodeHash = keccak256(initCode);
             address expectedAddress = _computeCreate2Addr(uptoSalt, initCodeHash, CREATE2_DEPLOYER);
 

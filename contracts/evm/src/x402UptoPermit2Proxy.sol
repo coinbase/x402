@@ -19,6 +19,10 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  * @author x402 Protocol
  */
 contract x402UptoPermit2Proxy is x402BasePermit2Proxy {
+    constructor(
+        address _permit2
+    ) x402BasePermit2Proxy(_permit2) {}
+
     /// @notice Thrown when requested amount exceeds permitted amount
     error AmountExceedsPermitted();
 

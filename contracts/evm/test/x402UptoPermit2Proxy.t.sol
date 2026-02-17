@@ -35,8 +35,7 @@ contract X402UptoPermit2ProxyTest is Test {
         recipient = makeAddr("recipient");
 
         mockPermit2 = new MockPermit2();
-        proxy = new x402UptoPermit2Proxy();
-        proxy.initialize(address(mockPermit2));
+        proxy = new x402UptoPermit2Proxy(address(mockPermit2));
         token = new MockERC20("USDC", "USDC", 6);
 
         token.mint(payer, MINT_AMOUNT);
@@ -69,23 +68,15 @@ contract X402UptoPermit2ProxyTest is Test {
         return abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
     }
 
-    // --- Initialize ---
+    // --- Constructor ---
 
-    function test_initialize_revertsOnZeroPermit2() public {
-        x402UptoPermit2Proxy newProxy = new x402UptoPermit2Proxy();
+    function test_constructor_revertsOnZeroPermit2() public {
         vm.expectRevert(x402BasePermit2Proxy.InvalidPermit2Address.selector);
-        newProxy.initialize(address(0));
+        new x402UptoPermit2Proxy(address(0));
     }
 
-    function test_initialize_setsPermit2() public view {
+    function test_constructor_setsPermit2() public view {
         assertEq(address(proxy.permit2()), address(mockPermit2));
-    }
-
-    function test_initialize_revertsOnSecondCall() public {
-        x402UptoPermit2Proxy newProxy = new x402UptoPermit2Proxy();
-        newProxy.initialize(address(mockPermit2));
-        vm.expectRevert(x402BasePermit2Proxy.AlreadyInitialized.selector);
-        newProxy.initialize(address(mockPermit2));
     }
 
     // --- settle() validation ---
@@ -218,8 +209,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_blocksReentrancy() public {
         MaliciousReentrantUpto maliciousPermit2 = new MaliciousReentrantUpto();
-        x402UptoPermit2Proxy vulnerableProxy = new x402UptoPermit2Proxy();
-        vulnerableProxy.initialize(address(maliciousPermit2));
+        x402UptoPermit2Proxy vulnerableProxy = new x402UptoPermit2Proxy(address(maliciousPermit2));
         maliciousPermit2.setTarget(address(vulnerableProxy));
 
         MockERC20 testToken = new MockERC20("Test", "TST", 6);
