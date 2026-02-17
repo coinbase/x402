@@ -211,6 +211,17 @@ func TestAppendPaymentIdentifierToExtensions(t *testing.T) {
 		err := paymentidentifier.AppendPaymentIdentifierToExtensions(nil, "")
 		require.NoError(t, err)
 	})
+
+	t.Run("should skip when extension has invalid structure", func(t *testing.T) {
+		extensions := map[string]interface{}{
+			paymentidentifier.PAYMENT_IDENTIFIER: "not-a-valid-extension",
+		}
+
+		err := paymentidentifier.AppendPaymentIdentifierToExtensions(extensions, "pay_valid_id_123456")
+		require.NoError(t, err)
+		// Extension value should be unchanged since it's not a valid extension structure
+		assert.Equal(t, "not-a-valid-extension", extensions[paymentidentifier.PAYMENT_IDENTIFIER])
+	})
 }
 
 func TestIsPaymentIdentifierExtension(t *testing.T) {
@@ -366,6 +377,32 @@ func TestExtractPaymentIdentifier(t *testing.T) {
 		assert.Empty(t, id)
 	})
 
+	t.Run("should return empty string when extension exists but ID is empty", func(t *testing.T) {
+		ext := paymentidentifier.PaymentIdentifierExtension{
+			Info: paymentidentifier.PaymentIdentifierInfo{
+				Required: true,
+				ID:       "",
+			},
+			Schema: paymentidentifier.PaymentIdentifierSchema(),
+		}
+
+		payload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted: x402.PaymentRequirements{
+				Scheme:  "exact",
+				Network: "eip155:8453",
+			},
+			Payload: map[string]interface{}{},
+			Extensions: map[string]interface{}{
+				paymentidentifier.PAYMENT_IDENTIFIER: ext,
+			},
+		}
+
+		id, err := paymentidentifier.ExtractPaymentIdentifier(payload, true)
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+
 	t.Run("should return ID without validation when validate=false", func(t *testing.T) {
 		ext := paymentidentifier.PaymentIdentifierExtension{
 			Info: paymentidentifier.PaymentIdentifierInfo{
@@ -471,6 +508,19 @@ func TestExtractAndValidatePaymentIdentifier(t *testing.T) {
 	t.Run("should return empty ID and valid result when no extension", func(t *testing.T) {
 		payload := x402.PaymentPayload{
 			X402Version: 2,
+		}
+
+		id, result := paymentidentifier.ExtractAndValidatePaymentIdentifier(payload)
+		assert.Empty(t, id)
+		assert.True(t, result.Valid)
+	})
+
+	t.Run("should return empty ID and valid result when extensions exist but key is missing", func(t *testing.T) {
+		payload := x402.PaymentPayload{
+			X402Version: 2,
+			Extensions: map[string]interface{}{
+				"other-extension": "value",
+			},
 		}
 
 		id, result := paymentidentifier.ExtractAndValidatePaymentIdentifier(payload)
@@ -682,6 +732,19 @@ func TestExtractPaymentIdentifierFromPaymentRequired(t *testing.T) {
 		}
 
 		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		required, err := paymentidentifier.ExtractPaymentIdentifierFromPaymentRequired(paymentRequiredBytes)
+		require.NoError(t, err)
+		assert.False(t, required)
+	})
+
+	t.Run("should return false for V2 PaymentRequired with nil extensions", func(t *testing.T) {
+		paymentRequired := map[string]interface{}{
+			"x402Version": 2,
+			"accepts":     []interface{}{},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
 
 		required, err := paymentidentifier.ExtractPaymentIdentifierFromPaymentRequired(paymentRequiredBytes)
 		require.NoError(t, err)
