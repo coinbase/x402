@@ -18,6 +18,14 @@ Servers must declare which x402 protocol version they implement using the `x402V
 Servers may declare which protocol extensions they support using the `extensions` field:
 - **extensions**: Array of supported extension names (e.g., ["bazaar"])
 
+## EVM Transfer Method
+For EVM endpoints, servers must declare the `transferMethod` used for the payment transfer:
+- **eip3009**: EIP-3009 transferWithAuthorization (default if omitted)
+- **permit2**: Uniswap Permit2 approval-based transfer
+
+The `transferMethod` field is only applicable to endpoints with `"protocolFamily": "evm"`.
+The test suite uses this field to ensure the client and facilitator both support the required transfer method before generating a test scenario.
+
 Example configuration:
 ```json
 {
@@ -30,9 +38,18 @@ Example configuration:
     {
       "path": "/protected",
       "method": "GET",
-      "description": "Protected endpoint requiring EVM payment",
+      "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
+    },
+    {
+      "path": "/protected-permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2"
     },
     {
       "path": "/health",
@@ -57,7 +74,8 @@ Multi-protocol server example:
       "method": "GET",
       "description": "Protected endpoint requiring EVM payment",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/svm-protected", 

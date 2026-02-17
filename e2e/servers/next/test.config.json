@@ -12,7 +12,8 @@
       "method": "GET",
       "description": "Protected endpoint using proxy middleware",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/api/protected-svm-proxy",
@@ -26,7 +27,8 @@
       "method": "GET",
       "description": "Protected endpoint using withX402 wrapper",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/api/protected-svm-withx402",
