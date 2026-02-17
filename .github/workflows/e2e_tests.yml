@@ -60,10 +60,6 @@
 name: E2E Tests
 
 on:
-  # TODO: revert to workflow_dispatch only before merging
-  push:
-    branches:
-      - feat/e2e-test-workflow
   workflow_dispatch:
     inputs:
       branch:
