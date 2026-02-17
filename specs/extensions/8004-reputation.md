@@ -28,10 +28,11 @@ The `8004-reputation` extension adds identity, signatures, and feedback to the s
 
 **Conventions:**
 - All hex-encoded values (hashes, signatures) use `0x` prefix unless otherwise noted
-- Public keys in registration file `signers` array use hex encoding **without** `0x` prefix (per ERC-8004 convention). When matching `InteractionData.agentSignerPublicKey` (with `0x`) against `signers[].publicKey` (without `0x`), implementations must normalize by stripping or adding the prefix before comparison.
+- **0x prefix normalization:** Public keys in registration file `signers` array use hex encoding **without** `0x` prefix (per ERC-8004 convention). `InteractionData.agentSignerPublicKey` uses `0x` prefix. Implementations MUST normalize by stripping or adding the prefix before comparison. As a general rule: strip `0x` prefixes before any byte-level comparison or hash input.
 - `||` denotes byte concatenation
 - All hashing uses keccak256 across both EVM and Solana (Solana provides `keccak::hashv` as a native syscall, ensuring cross-chain verification consistency)
 - This extension is fully optional. Clients that do not recognize `8004-reputation` in the 402 response ignore it and proceed with standard x402 payment.
+- This extension does not define `PaymentPayload` behavior. Extension data flows server-to-client only.
 
 ---
 
@@ -149,6 +150,8 @@ A resource server advertises reputation support by including the `8004-reputatio
 
 **Note:** ERC-8004 separates identity (ERC-721 NFT registry) from reputation (feedback storage). On Solana, both may be the same program address.
 
+**Note:** `agentId` is always a JSON string, even for EVM tokenIds that are numeric. This avoids precision loss for `uint256` values exceeding `Number.MAX_SAFE_INTEGER` and normalizes representation across chains (EVM uses numeric tokenIds, Solana uses mint address strings).
+
 #### Extension Schema
 
 ```json
@@ -184,7 +187,7 @@ A resource server advertises reputation support by including the `8004-reputatio
 
 ### Registration File
 
-The registration file is JSON referenced by on-chain `tokenURI` (ERC-8004) or `TokenMetadata.uri` ([SATI](https://github.com/cascade-fyi/sati) -- the Solana implementation of the ERC-8004 model). The URI MAY use any scheme: `ipfs://`, `https://`, or `data:application/json;base64,...` for fully on-chain storage (per ERC-8004 spec). The same applies to `feedbackURI` in feedback submissions.
+The registration file is JSON referenced by on-chain `agentURI` (ERC-8004, referred to as `tokenURI` in the ERC-721 getter) or `TokenMetadata.uri` ([SATI](https://github.com/cascade-fyi/sati) -- the Solana implementation of the ERC-8004 model). The URI MAY use any scheme: `ipfs://`, `https://`, or `data:application/json;base64,...` for fully on-chain storage (per ERC-8004 spec). The same applies to `feedbackURI` in feedback submissions.
 
 #### Structure
 
@@ -214,6 +217,7 @@ The registration file is JSON referenced by on-chain `tokenURI` (ERC-8004) or `T
     }
   ],
 
+  // x402 8004-reputation extension field (not part of ERC-8004 base schema)
   "signers": [
     {
       "publicKey": "a1b2c3d4...",
@@ -266,6 +270,10 @@ After successful payment settlement, agents MUST sign the interaction and includ
 - **ed25519**: Sign raw 32-byte `interactionHash` per [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032). Signature is 64 bytes (`R || S`), hex-encoded.
 - **secp256k1**: Sign raw 32-byte `interactionHash` (no EIP-191 prefix, no EIP-712 wrapping). Signature is 65 bytes (`r || s || v` where `v` is recovery id 0 or 1), hex-encoded. Signatures MUST use low-s normalization (s <= secp256k1 order / 2) to prevent malleability. Public keys are 33 bytes compressed or 65 bytes uncompressed. **Note:** Standard Ethereum signing tools (`personal_sign`, `eth_sign`) prepend a message prefix and will produce incompatible signatures.
 
+**`taskRef` construction:** `taskRef = network + ":" + transaction` where `network` and `transaction` are fields from the `SettlementResponse` (e.g., `"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREG..."`). This follows CAIP-220 format: `namespace:chainId:txHash`.
+
+**Design note:** `interactionHash = keccak256(taskRefBytes || dataHash)` is intentionally chain-agnostic -- it does not bind to agent identity or registry. Multi-chain agents reuse the same signature across registrations. The binding to a specific agent happens via the `PAYMENT-RESPONSE` context (which includes `agentRegistry` and `agentId`).
+
 **Components:**
 - `taskRef`: CAIP-220 payment transaction reference (UTF-8 encoded)
 - `requestBodyBytes`: Decoded HTTP request body bytes (after decompression and dechunking). Text bodies UTF-8 encoded; binary bodies (images, files) used as-is. When the request has no body (e.g., GET requests), use the request target (path + query string, e.g. `/weather?city=London&units=metric`, UTF-8 encoded) instead. This ensures query parameters - the primary input for GET requests - are captured in the hash.
@@ -273,6 +281,8 @@ After successful payment settlement, agents MUST sign the interaction and includ
 - `dataHash`: Intermediate hash binding request and response content. The 4-byte big-endian length prefix on `requestBodyBytes` prevents boundary ambiguity between request and response.
 
 #### Example PAYMENT-RESPONSE
+
+**Note:** The `PAYMENT-RESPONSE` header value is Base64-encoded per x402 convention. The example below shows the decoded JSON content.
 
 **Decoded header:**
 
@@ -379,7 +389,7 @@ A compromised agent server (or MITM attacker) can change the `payTo` field in th
 
 This check prevents payment theft and should happen before any blockchain transaction.
 
-**Trust model for cross-chain wallets:** The on-chain `agentWallet` (set via `setAgentWallet()` with EIP-712/ERC-1271 signature verification) is the most trusted source for the identity chain. For other chains, the `agentWallet` service entries in the registration file are trusted to the same degree as the registration file itself (verified via on-chain `tokenURI`/`agentURI` pointer).
+**Trust model for cross-chain wallets:** The on-chain `agentWallet` (set via `setAgentWallet()` with EIP-712/ERC-1271 signature verification) is the most trusted source for the identity chain. For other chains, the `agentWallet` service entries in the registration file are trusted to the same degree as the registration file itself (verified via on-chain `agentURI` pointer).
 
 ### Post-Service Signature Verification
 
@@ -388,8 +398,8 @@ After receiving the service response with `PAYMENT-RESPONSE` header, clients MUS
 #### 1. Fetch Registration File
 
 ```
-// registry.tokenURI() - ERC-8004 compliant interface (EVM and SATI)
-uri = registry.tokenURI(agentId)
+// registry.agentURI() - ERC-8004 terminology (on-chain getter is tokenURI() per ERC-721)
+uri = registry.agentURI(agentId)
 registrationFile = fetch(uri).json()
 ```
 
@@ -459,6 +469,8 @@ Two submission paths are available:
 {
   "agentRegistry": "solana:5eykt4...:satiRkx...",
   "agentId": "7xKXtg2CW87...",
+  "clientAddress": "solana:5eykt4...:ClientWallet...",
+  "endpoint": "https://agent.example/weather",
   "createdAt": "2026-01-26T12:00:00Z",
   "value": 95,
   "valueDecimals": 0,
@@ -480,7 +492,7 @@ Two submission paths are available:
 }
 ```
 
-**Why `proofOfParticipation`:** Payment proof is already in `taskRef` (CAIP-220 contains chain + txHash). What x402 uniquely provides is proof of **participation** -- that the client actually received service, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery.
+**Why `proofOfParticipation` (not `proofOfPayment`):** ERC-8004 defines `proofOfPayment` with fields `fromAddress`, `toAddress`, `chainId`, `txHash` -- a receipt proving money moved. x402's `proofOfParticipation` is a different concept: it proves the client actually **received service**, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery. Payment proof is already captured in `taskRef` (CAIP-220 contains chain + txHash). `proofOfParticipation` supersedes `proofOfPayment` in x402 context.
 
 **Why `reviewerAddress` + `reviewerSignature`:** ERC-8004's `giveFeedback()` hardcodes `clientAddress = msg.sender`. When an aggregator submits on behalf of a client, on-chain `clientAddress` becomes the aggregator's address. The actual reviewer must be identified and verified in feedbackURI so consumers know who left the feedback.
 
@@ -492,6 +504,8 @@ Two submission paths are available:
 |-------|------|--------|----------|-------------|
 | `agentRegistry` | string | ERC-8004 | Yes | CAIP-10 registry address |
 | `agentId` | string | ERC-8004 | Yes | Agent identifier |
+| `clientAddress` | string | ERC-8004 | Yes | CAIP-10 address of the feedback submitter. For direct submission, equals reviewer. For aggregator submission, equals aggregator address. |
+| `endpoint` | string | ERC-8004 | No | Service endpoint URL (e.g., `"https://agent.example/weather"`) |
 | `createdAt` | string | ERC-8004 | Yes | ISO 8601 timestamp |
 | `value` | number | ERC-8004 | Yes | Feedback score (0-100) |
 | `valueDecimals` | number | ERC-8004 | Yes | Decimal places (0 = integer) |
@@ -499,6 +513,10 @@ Two submission paths are available:
 | `tag1` | string | Both | No | Primary structured tag |
 | `tag2` | string | Both | No | Secondary structured tag |
 | `comment` | string | Both | No | Free-form text |
+
+**Numeric fields:** All numeric fields in feedbackURI (`value`, `valueDecimals`) MUST be JSON integers. JCS (RFC 8785) has floating-point edge cases; ERC-8004's `value` (`int128`) and `valueDecimals` (`uint8`) are always integers.
+
+**Tag validation:** `tag1` and `tag2` MUST NOT contain null bytes (`0x00`).
 
 #### proofOfParticipation Fields
 
@@ -530,7 +548,7 @@ reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 ```
 
 - Null byte (`0x00`) separators prevent boundary ambiguity between variable-length string fields. CAIP identifiers are ASCII and never contain null bytes.
-- `dataHash` (32 bytes, raw) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
+- `dataHash` (32 raw bytes, decoded from hex, strip `0x` prefix before decoding) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
 - `tag1`/`tag2` are included so an aggregator cannot silently change feedback sentiment (e.g., flipping `x402-resource-delivered` to `x402-resource-missing`). If no tags are provided, use empty strings.
 - `value` uses `uint16_be` (not `uint8`) to safely handle scores where `valueDecimals > 0` shifts the magnitude (e.g., `value=9500, valueDecimals=2` for 95.00).
 - `comment` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
@@ -580,6 +598,7 @@ await satiClient.giveFeedback({
   tag2: "proof-of-participation",
   endpoint: "https://agent.example/weather",
   feedbackURI: "ipfs://QmX...",
+  feedbackHash: "0x...", // keccak256(JCS(feedbackURIContent))
   proofOfParticipation: {
     dataHash: "0x9f86d081884c...",
     agentSignerPublicKey: "0xa1b2c3d4...",
@@ -626,6 +645,7 @@ Content-Type: application/json
     "valueDecimals": 0,
     "tag1": "x402-resource-delivered",
     "tag2": "proof-of-participation",
+    "endpoint": "https://agent.example/weather",
     "comment": "Excellent service"
   },
   "reviewerAddress": "solana:5eykt4...:ClientWallet...",
@@ -659,7 +679,7 @@ Error codes: `INVALID_AGENT_SIGNATURE`, `INVALID_REVIEWER_SIGNATURE`, `UNKNOWN_A
 ### Aggregator Requirements
 
 The aggregator MUST:
-- Validate `agentSignature`: Fetch the agent's registration file (via `tokenURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The aggregator SHOULD cache registration files to avoid repeated on-chain lookups.
+- Validate `agentSignature`: Fetch the agent's registration file (via `agentURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The aggregator SHOULD cache registration files to avoid repeated on-chain lookups.
 - Validate `reviewerSignature`: Recompute the reviewer message and verify the signature against `reviewerAddress`
 - Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfParticipation`)
 - Upload feedbackURI to IPFS or equivalent content-addressed storage
@@ -667,6 +687,8 @@ The aggregator MUST:
 - Submit all valid feedback regardless of sentiment
 
 The agent is responsible for funding the aggregator (deposit, subscription, or per-feedback fee).
+
+**Aggregator neutrality:** Clients who do not trust the agent's declared aggregator SHOULD submit feedback directly on-chain.
 
 ---
 
