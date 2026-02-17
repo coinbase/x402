@@ -33,6 +33,7 @@ export interface EIP3009FacilitatorConfig {
  * @param payload - The payment payload to verify
  * @param requirements - The payment requirements
  * @param eip3009Payload - The EIP-3009 specific payload
+ * @param config - Facilitator configuration
  * @returns Promise resolving to verification response
  */
 export async function verifyEIP3009(
@@ -56,7 +57,9 @@ export async function verifyEIP3009(
   }
 
   // Get chain configuration
-  if (!requirements.extra?.name || !requirements.extra?.version) {
+  const name = requirements.extra?.name;
+  const version = requirements.extra?.version;
+  if (typeof name !== "string" || typeof version !== "string") {
     return {
       isValid: false,
       invalidReason: "missing_eip712_domain",
@@ -64,7 +67,6 @@ export async function verifyEIP3009(
     };
   }
 
-  const { name, version } = requirements.extra;
   const erc20Address = getAddress(requirements.asset);
 
   // Verify network matches
