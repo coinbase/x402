@@ -2,6 +2,6 @@
   "name": "Rug Munch Intelligence",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/rug-munch-intelligence.png",
-  "description": "Token risk intelligence API for AI agents. 14 x402 endpoints: rug pull detection ($0.02), premium forensics ($0.05), batch screening ($0.15/20), deployer tracking, holder deep-dive with sniper/bundle detection, KOL shill analysis, social OSINT, and real-time token watch with webhook alerts ($0.10/7d). The only comprehensive crypto risk API on x402. Accepts USDC on Base and Solana.",
+  "description": "Token risk intelligence + AI forensic analysis for crypto agents. 18 x402 endpoints: risk scoring, holder deep-dive, deployer tracking, KOL shill detection, social OSINT, real-time token watch — plus Marcus AI forensics powered by Claude (Sonnet and Opus 4.6). The only LLM-powered crypto forensic analyst on x402. Accepts USDC on Base and Solana.",
   "websiteUrl": "https://cryptorugmunch.ngrok.app/api/agent/v1/health"
 }
