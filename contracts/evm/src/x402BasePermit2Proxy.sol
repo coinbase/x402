@@ -26,7 +26,7 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  */
 abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice The Permit2 contract address (set once at construction, immutable)
-    ISignatureTransfer public immutable permit2;
+    ISignatureTransfer public immutable PERMIT2;
 
     /// @notice EIP-712 type string for witness data
     /// @dev Must match the exact format expected by Permit2
@@ -124,7 +124,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         address _permit2
     ) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
-        permit2 = ISignatureTransfer(_permit2);
+        PERMIT2 = ISignatureTransfer(_permit2);
     }
 
     /**
@@ -165,7 +165,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
             keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.facilitator, witness.validAfter));
 
         // Execute transfer via Permit2
-        permit2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
+        PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
     }
 
     /**
@@ -187,7 +187,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (permit2612.value != permittedAmount) revert Permit2612AmountMismatch();
 
         try IERC20Permit(token).permit(
-            owner, address(permit2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
+            owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
         ) {
             // EIP-2612 permit succeeded
         } catch Error(string memory reason) {

@@ -76,7 +76,7 @@ contract X402ExactPermit2ProxyTest is Test {
     }
 
     function test_constructor_setsPermit2() public view {
-        assertEq(address(proxy.permit2()), address(mockPermit2));
+        assertEq(address(proxy.PERMIT2()), address(mockPermit2));
     }
 
     // --- settle() validation ---

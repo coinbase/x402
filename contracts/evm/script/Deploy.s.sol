@@ -92,7 +92,7 @@ contract DeployX402Proxies is Script {
         if (expectedAddress.code.length > 0) {
             console2.log("Contract already deployed at", expectedAddress);
             proxy = x402ExactPermit2Proxy(expectedAddress);
-            console2.log("PERMIT2:", address(proxy.permit2()));
+            console2.log("PERMIT2:", address(proxy.PERMIT2()));
             return;
         }
 
@@ -115,8 +115,8 @@ contract DeployX402Proxies is Script {
         vm.stopBroadcast();
 
         console2.log("Deployed to:", deployedAddress);
-        console2.log("Verification - PERMIT2:", address(proxy.permit2()));
-        require(address(proxy.permit2()) == permit2, "PERMIT2 mismatch");
+        console2.log("Verification - PERMIT2:", address(proxy.PERMIT2()));
+        require(address(proxy.PERMIT2()) == permit2, "PERMIT2 mismatch");
     }
 
     function _deployUpto(
@@ -141,7 +141,7 @@ contract DeployX402Proxies is Script {
         if (expectedAddress.code.length > 0) {
             console2.log("Contract already deployed at", expectedAddress);
             proxy = x402UptoPermit2Proxy(expectedAddress);
-            console2.log("PERMIT2:", address(proxy.permit2()));
+            console2.log("PERMIT2:", address(proxy.PERMIT2()));
             return;
         }
 
@@ -164,8 +164,8 @@ contract DeployX402Proxies is Script {
         vm.stopBroadcast();
 
         console2.log("Deployed to:", deployedAddress);
-        console2.log("Verification - PERMIT2:", address(proxy.permit2()));
-        require(address(proxy.permit2()) == permit2, "PERMIT2 mismatch");
+        console2.log("Verification - PERMIT2:", address(proxy.PERMIT2()));
+        require(address(proxy.PERMIT2()) == permit2, "PERMIT2 mismatch");
     }
 
     function _computeCreate2Addr(
