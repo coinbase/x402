@@ -127,9 +127,7 @@ class MCPClientAdapter:
             if isinstance(item, TextContent):
                 content.append({"type": "text", "text": item.text})
             else:
-                content.append(
-                    {"type": getattr(item, "type", "text"), "text": str(item)}
-                )
+                content.append({"type": getattr(item, "type", "text"), "text": str(item)})
 
         return type(
             "MCPResult",
@@ -139,9 +137,7 @@ class MCPClientAdapter:
                 "isError": result.isError,  # MCP SDK uses camelCase
                 "_meta": result.meta if hasattr(result, "meta") and result.meta else {},
                 "structuredContent": (
-                    result.structuredContent
-                    if hasattr(result, "structuredContent")
-                    else None
+                    result.structuredContent if hasattr(result, "structuredContent") else None
                 ),
             },
         )()
@@ -200,9 +196,7 @@ class TestMCPEVMIntegration:
     def test_free_tool_works_without_payment(self):
         """Test that free tools work without payment."""
         # Create FastMCP server with port configuration
-        mcp_server = FastMCP(
-            "x402-test-server", json_response=True, port=TEST_PORT_FREE
-        )
+        mcp_server = FastMCP("x402-test-server", json_response=True, port=TEST_PORT_FREE)
 
         # Register free tool
         @mcp_server.tool()
@@ -239,9 +233,7 @@ class TestMCPEVMIntegration:
         try:
             # Connect client
             async def run_client():
-                async with streamable_http_client(
-                    f"http://localhost:{TEST_PORT_FREE}/mcp"
-                ) as (
+                async with streamable_http_client(f"http://localhost:{TEST_PORT_FREE}/mcp") as (
                     read_stream,
                     write_stream,
                     _,
@@ -313,9 +305,7 @@ class TestMCPEVMIntegration:
         )
 
         # Create FastMCP server with port configuration
-        mcp_server = FastMCP(
-            "x402-test-server", json_response=True, port=TEST_PORT_PAID
-        )
+        mcp_server = FastMCP("x402-test-server", json_response=True, port=TEST_PORT_PAID)
 
         # Register free tool
         @mcp_server.tool()
@@ -362,9 +352,7 @@ class TestMCPEVMIntegration:
         try:
             # Connect client
             async def run_client():
-                async with streamable_http_client(
-                    f"http://localhost:{TEST_PORT_PAID}/mcp"
-                ) as (
+                async with streamable_http_client(f"http://localhost:{TEST_PORT_PAID}/mcp") as (
                     read_stream,
                     write_stream,
                     _,
@@ -382,9 +370,7 @@ class TestMCPEVMIntegration:
                         )
 
                         # Call paid tool - this makes a REAL blockchain transaction!
-                        print(
-                            "\n🔄 Starting paid tool call with real blockchain settlement...\n"
-                        )
+                        print("\n🔄 Starting paid tool call with real blockchain settlement...\n")
 
                         result = x402_mcp.call_tool("get_weather", {"city": "New York"})
 

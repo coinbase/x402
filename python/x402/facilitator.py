@@ -140,9 +140,7 @@ class x402Facilitator(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._verify_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -179,9 +177,7 @@ class x402Facilitator(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._settle_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -298,9 +294,7 @@ class x402FacilitatorSync(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._verify_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -337,9 +331,7 @@ class x402FacilitatorSync(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._settle_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
