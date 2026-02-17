@@ -117,7 +117,9 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    if (!requirements.extra?.name || !requirements.extra?.version) {
+    const name = requirements.extra?.name;
+    const version = requirements.extra?.version;
+    if (typeof name !== "string" || typeof version !== "string") {
       return {
         isValid: false,
         invalidReason: "missing_eip712_domain",
@@ -125,7 +127,6 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    const { name, version } = requirements.extra;
     const erc20Address = getAddress(requirements.asset);
 
     // Verify network matches
