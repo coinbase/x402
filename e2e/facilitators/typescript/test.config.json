@@ -13,6 +13,9 @@
   "extensions": [
     "bazaar"
   ],
+  "evm": {
+    "transferMethods": ["eip3009", "permit2"]
+  },
   "environment": {
     "required": [
       "PORT",
