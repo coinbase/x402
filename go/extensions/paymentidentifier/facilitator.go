@@ -5,7 +5,24 @@ import (
 	"fmt"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
+
+// parseExtension converts an extension interface{} to a PaymentIdentifierExtension.
+// This centralizes the marshal/unmarshal pattern used throughout the package.
+func parseExtension(extension interface{}) (*PaymentIdentifierExtension, error) {
+	extBytes, err := json.Marshal(extension)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal extension: %w", err)
+	}
+
+	var ext PaymentIdentifierExtension
+	if err := json.Unmarshal(extBytes, &ext); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal extension: %w", err)
+	}
+
+	return &ext, nil
+}
 
 // IsPaymentIdentifierExtension checks if an object is a valid payment-identifier extension structure.
 //
@@ -63,17 +80,8 @@ func ValidatePaymentIdentifier(extension interface{}) ValidationResult {
 		}
 	}
 
-	// Marshal and unmarshal to our type
-	extBytes, err := json.Marshal(extension)
+	ext, err := parseExtension(extension)
 	if err != nil {
-		return ValidationResult{
-			Valid:  false,
-			Errors: []string{fmt.Sprintf("Failed to marshal extension: %v", err)},
-		}
-	}
-
-	var ext PaymentIdentifierExtension
-	if err := json.Unmarshal(extBytes, &ext); err != nil {
 		return ValidationResult{
 			Valid:  false,
 			Errors: []string{fmt.Sprintf("Extension must have an 'info' property: %v", err)},
@@ -113,15 +121,9 @@ func ExtractPaymentIdentifier(payload x402.PaymentPayload, validate bool) (strin
 		return "", nil
 	}
 
-	// Marshal and unmarshal to our type
-	extBytes, err := json.Marshal(ext)
+	paymentExt, err := parseExtension(ext)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal extension: %w", err)
-	}
-
-	var paymentExt PaymentIdentifierExtension
-	if err := json.Unmarshal(extBytes, &paymentExt); err != nil {
-		return "", fmt.Errorf("failed to unmarshal extension: %w", err)
+		return "", err
 	}
 
 	if paymentExt.Info.ID == "" {
@@ -148,16 +150,14 @@ func ExtractPaymentIdentifier(payload x402.PaymentPayload, validate bool) (strin
 //   - The payment ID string, or empty string if not present or V1 payload
 //   - Error if extraction fails
 func ExtractPaymentIdentifierFromBytes(payloadBytes []byte, validate bool) (string, error) {
-	// First detect version
-	var versionCheck struct {
-		X402Version int `json:"x402Version"`
-	}
-	if err := json.Unmarshal(payloadBytes, &versionCheck); err != nil {
-		return "", fmt.Errorf("failed to parse version: %w", err)
+	// Detect version using shared utility
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect version: %w", err)
 	}
 
 	// V1 payloads don't have extensions
-	if versionCheck.X402Version == 1 {
+	if version == 1 {
 		return "", nil
 	}
 
@@ -193,20 +193,11 @@ func ExtractAndValidatePaymentIdentifier(payload x402.PaymentPayload) (string, V
 		return "", validation
 	}
 
-	// Extract the ID
-	extBytes, err := json.Marshal(ext)
+	paymentExt, err := parseExtension(ext)
 	if err != nil {
 		return "", ValidationResult{
 			Valid:  false,
-			Errors: []string{fmt.Sprintf("Failed to marshal extension: %v", err)},
-		}
-	}
-
-	var paymentExt PaymentIdentifierExtension
-	if err := json.Unmarshal(extBytes, &paymentExt); err != nil {
-		return "", ValidationResult{
-			Valid:  false,
-			Errors: []string{fmt.Sprintf("Failed to unmarshal extension: %v", err)},
+			Errors: []string{err.Error()},
 		}
 	}
 
@@ -241,13 +232,8 @@ func IsPaymentIdentifierRequired(extension interface{}) bool {
 		return false
 	}
 
-	extBytes, err := json.Marshal(extension)
+	ext, err := parseExtension(extension)
 	if err != nil {
-		return false
-	}
-
-	var ext PaymentIdentifierExtension
-	if err := json.Unmarshal(extBytes, &ext); err != nil {
 		return false
 	}
 
@@ -309,16 +295,14 @@ func ValidatePaymentIdentifierRequirement(payload x402.PaymentPayload, serverReq
 //   - Whether the server requires a payment identifier
 //   - Error if extraction fails
 func ExtractPaymentIdentifierFromPaymentRequired(paymentRequiredBytes []byte) (bool, error) {
-	// First detect version
-	var versionCheck struct {
-		X402Version int `json:"x402Version"`
-	}
-	if err := json.Unmarshal(paymentRequiredBytes, &versionCheck); err != nil {
-		return false, fmt.Errorf("failed to parse version: %w", err)
+	// Detect version using shared utility
+	version, err := types.DetectVersion(paymentRequiredBytes)
+	if err != nil {
+		return false, fmt.Errorf("failed to detect version: %w", err)
 	}
 
 	// V1 doesn't support extensions
-	if versionCheck.X402Version == 1 {
+	if version == 1 {
 		return false, nil
 	}
 
