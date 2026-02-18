@@ -7,6 +7,7 @@ import {
   PAYMENT_ID_PATTERN,
   generatePaymentId,
   isValidPaymentId,
+  payloadFingerprint,
   appendPaymentIdentifierToExtensions,
   declarePaymentIdentifierExtension,
   paymentIdentifierResourceServerExtension,
@@ -119,6 +120,83 @@ describe("Payment-Identifier Extension", () => {
       expect(isValidPaymentId(null as unknown as string)).toBe(false);
       expect(isValidPaymentId(undefined as unknown as string)).toBe(false);
       expect(isValidPaymentId(123 as unknown as string)).toBe(false);
+    });
+  });
+
+  describe("payloadFingerprint", () => {
+    const createMockPayload = (
+      amount: string,
+      id?: string,
+    ): PaymentPayload => {
+      const payload: PaymentPayload = {
+        x402Version: 2,
+        resource: { url: "https://example.com/resource", method: "GET" },
+        accepted: {
+          scheme: "exact",
+          network: "eip155:8453",
+          asset: "0x...",
+          amount,
+          payTo: "0x...",
+          maxTimeoutSeconds: 300,
+          extra: {},
+        },
+        payload: {},
+      };
+      if (id) {
+        payload.extensions = {
+          [PAYMENT_IDENTIFIER]: {
+            info: { required: true, id },
+            schema: paymentIdentifierSchema,
+          },
+        };
+      }
+      return payload;
+    };
+
+    it("identical payloads produce the same fingerprint", () => {
+      const p1 = createMockPayload("1000", "pay_aaaa1111bbbb2222");
+      const p2 = createMockPayload("1000", "pay_aaaa1111bbbb2222");
+      expect(payloadFingerprint(p1)).toBe(payloadFingerprint(p2));
+    });
+
+    it("different payload content produces different fingerprints", () => {
+      const p1 = createMockPayload("1000", "pay_aaaa1111bbbb2222");
+      const p2 = createMockPayload("2000", "pay_aaaa1111bbbb2222");
+      expect(payloadFingerprint(p1)).not.toBe(payloadFingerprint(p2));
+    });
+
+    it("same payload with different IDs produces different fingerprints", () => {
+      const p1 = createMockPayload("1000", "pay_aaaa1111bbbb2222");
+      const p2 = createMockPayload("1000", "pay_cccc3333dddd4444");
+      expect(payloadFingerprint(p1)).not.toBe(payloadFingerprint(p2));
+    });
+
+    it("payload with no extensions works without error", () => {
+      const p = createMockPayload("1000");
+      const fp = payloadFingerprint(p);
+      expect(fp).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it("payload with extensions but no payment-identifier works without error", () => {
+      const p: PaymentPayload = {
+        x402Version: 2,
+        resource: { url: "https://example.com/resource", method: "GET" },
+        accepted: {
+          scheme: "exact",
+          network: "eip155:8453",
+          asset: "0x...",
+          amount: "1000",
+          payTo: "0x...",
+          maxTimeoutSeconds: 300,
+          extra: {},
+        },
+        payload: {},
+        extensions: {
+          "other-extension": { foo: "bar" },
+        },
+      };
+      const fp = payloadFingerprint(p);
+      expect(fp).toMatch(/^[a-f0-9]{64}$/);
     });
   });
 
