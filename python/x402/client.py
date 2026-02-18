@@ -166,9 +166,7 @@ class x402Client(x402ClientBase):
         extensions: dict[str, Any] | None,
     ) -> PaymentPayload:
         """Create V2 payment payload using generator."""
-        gen = self._create_payment_payload_v2_core(
-            payment_required, resource, extensions
-        )
+        gen = self._create_payment_payload_v2_core(payment_required, resource, extensions)
         result = None
         try:
             while True:
@@ -231,9 +229,7 @@ class x402ClientSync(x402ClientBase):
         # Type the hook lists for sync-only
         self._before_payment_creation_hooks: list[SyncBeforePaymentCreationHook] = []
         self._after_payment_creation_hooks: list[SyncAfterPaymentCreationHook] = []
-        self._on_payment_creation_failure_hooks: list[
-            SyncOnPaymentCreationFailureHook
-        ] = []
+        self._on_payment_creation_failure_hooks: list[SyncOnPaymentCreationFailureHook] = []
 
     # ========================================================================
     # Factory Methods
@@ -266,9 +262,7 @@ class x402ClientSync(x402ClientBase):
         self._after_payment_creation_hooks.append(hook)
         return self
 
-    def on_payment_creation_failure(
-        self, hook: SyncOnPaymentCreationFailureHook
-    ) -> Self:
+    def on_payment_creation_failure(self, hook: SyncOnPaymentCreationFailureHook) -> Self:
         """Register hook on failure. Return RecoveredPayloadResult to recover."""
         self._on_payment_creation_failure_hooks.append(hook)
         return self
@@ -318,9 +312,7 @@ class x402ClientSync(x402ClientBase):
         extensions: dict[str, Any] | None,
     ) -> PaymentPayload:
         """Create V2 payment payload using generator."""
-        gen = self._create_payment_payload_v2_core(
-            payment_required, resource, extensions
-        )
+        gen = self._create_payment_payload_v2_core(payment_required, resource, extensions)
         result = None
         try:
             while True:

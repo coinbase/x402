@@ -4,10 +4,12 @@
 
 import type { BodyMethods, QueryParamMethods } from "@x402/core/http";
 
+import type { FacilitatorExtension } from "@x402/core/types";
+
 /**
- * Extension identifier constant for the Bazaar discovery extension
+ * Extension identifier for the Bazaar discovery extension.
  */
-export const BAZAAR = "bazaar";
+export const BAZAAR: FacilitatorExtension = { key: "bazaar" };
 
 /**
  * Discovery info for query parameter methods (GET, HEAD, DELETE)

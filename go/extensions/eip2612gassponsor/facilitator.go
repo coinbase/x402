@@ -16,7 +16,7 @@ func ExtractEip2612GasSponsoringInfo(extensions map[string]interface{}) (*Info, 
 		return nil, nil
 	}
 
-	extRaw, ok := extensions[EIP2612GasSponsoring]
+	extRaw, ok := extensions[EIP2612GasSponsoring.Key()]
 	if !ok {
 		return nil, nil
 	}

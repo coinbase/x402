@@ -13,7 +13,7 @@ import (
 )
 
 func TestBazaarConstant(t *testing.T) {
-	assert.Equal(t, "bazaar", bazaar.BAZAAR)
+	assert.Equal(t, "bazaar", bazaar.BAZAAR.Key())
 }
 
 func TestDeclareDiscoveryExtension_GET(t *testing.T) {
@@ -350,7 +350,7 @@ func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 				URL: "https://api.example.com/data",
 			},
 			Extensions: map[string]interface{}{
-				bazaar.BAZAAR: extension,
+				bazaar.BAZAAR.Key(): extension,
 			},
 		}
 
@@ -442,7 +442,7 @@ func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 				URL: "https://api.example.com/weather?city=NYC&units=metric",
 			},
 			Extensions: map[string]interface{}{
-				bazaar.BAZAAR: extension,
+				bazaar.BAZAAR.Key(): extension,
 			},
 		}
 
@@ -477,7 +477,7 @@ func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 				URL: "https://api.example.com/docs#section-1",
 			},
 			Extensions: map[string]interface{}{
-				bazaar.BAZAAR: extension,
+				bazaar.BAZAAR.Key(): extension,
 			},
 		}
 
@@ -512,7 +512,7 @@ func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 				URL: "https://api.example.com/page?foo=bar#anchor",
 			},
 			Extensions: map[string]interface{}{
-				bazaar.BAZAAR: extension,
+				bazaar.BAZAAR.Key(): extension,
 			},
 		}
 
@@ -981,7 +981,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			},
 			"accepts": []interface{}{},
 			"extensions": map[string]interface{}{
-				bazaar.BAZAAR: extension,
+				bazaar.BAZAAR.Key(): extension,
 			},
 		})
 
@@ -989,7 +989,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		_ = json.Unmarshal(paymentRequiredJSON, &paymentRequired)
 
 		// 3. Facilitator receives and validates
-		bazaarExtRaw := paymentRequired["extensions"].(map[string]interface{})[bazaar.BAZAAR]
+		bazaarExtRaw := paymentRequired["extensions"].(map[string]interface{})[bazaar.BAZAAR.Key()]
 		bazaarExtJSON, _ := json.Marshal(bazaarExtRaw)
 		var bazaarExt bazaar.DiscoveryExtension
 		_ = json.Unmarshal(bazaarExtJSON, &bazaarExt)
@@ -1118,7 +1118,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 				URL: "https://api.example.com/items",
 			},
 			Extensions: map[string]interface{}{
-				bazaar.BAZAAR: v2Extension,
+				bazaar.BAZAAR.Key(): v2Extension,
 			},
 		}
 

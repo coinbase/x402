@@ -8,7 +8,7 @@ import (
 type bazaarResourceServerExtension struct{}
 
 func (e *bazaarResourceServerExtension) Key() string {
-	return types.BAZAAR
+	return types.BAZAAR.Key()
 }
 
 func (e *bazaarResourceServerExtension) EnrichDeclaration(

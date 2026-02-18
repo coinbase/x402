@@ -5,8 +5,10 @@
 // facilitator submits it on-chain via x402Permit2Proxy.settleWithPermit.
 package eip2612gassponsor
 
-// EIP2612GasSponsoring is the extension identifier constant.
-const EIP2612GasSponsoring = "eip2612GasSponsoring"
+import x402 "github.com/coinbase/x402/go"
+
+// EIP2612GasSponsoring is the extension identifier for the EIP-2612 gas sponsoring extension.
+var EIP2612GasSponsoring = x402.NewFacilitatorExtension("eip2612GasSponsoring")
 
 // Info contains the EIP-2612 permit data populated by the client.
 // The facilitator uses this to call settleWithPermit.

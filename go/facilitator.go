@@ -25,7 +25,7 @@ type x402Facilitator struct {
 	// Arrays support multiple facilitators with same scheme name
 	schemesV1  []*schemeData
 	schemes    []*schemeData // V2 (default)
-	extensions []string
+	extensions map[string]FacilitatorExtension
 
 	// Lifecycle hooks
 	beforeVerifyHooks    []FacilitatorBeforeVerifyHook
@@ -40,7 +40,7 @@ func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
 		schemesV1:  []*schemeData{},
 		schemes:    []*schemeData{},
-		extensions: []string{},
+		extensions: make(map[string]FacilitatorExtension),
 	}
 }
 
@@ -88,20 +88,21 @@ func (f *x402Facilitator) Register(networks []Network, facilitator SchemeNetwork
 	return f
 }
 
-// RegisterExtension registers a protocol extension
-func (f *x402Facilitator) RegisterExtension(extension string) *x402Facilitator {
+// RegisterExtension registers a protocol extension.
+func (f *x402Facilitator) RegisterExtension(extension FacilitatorExtension) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// Check if already registered
-	for _, ext := range f.extensions {
-		if ext == extension {
-			return f
-		}
-	}
-
-	f.extensions = append(f.extensions, extension)
+	f.extensions[extension.Key()] = extension
 	return f
+}
+
+// GetExtension returns the extension registered under the given key, or nil.
+func (f *x402Facilitator) GetExtension(key string) FacilitatorExtension {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.extensions[key]
 }
 
 // ============================================================================
@@ -419,6 +420,7 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemesV1 {
@@ -429,7 +431,7 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Verify(ctx, payload, requirements)
+			return facilitator.Verify(ctx, payload, requirements, fctx)
 		}
 	}
 
@@ -443,6 +445,7 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemes {
@@ -453,7 +456,7 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Verify(ctx, payload, requirements)
+			return facilitator.Verify(ctx, payload, requirements, fctx)
 		}
 	}
 
@@ -467,6 +470,7 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemesV1 {
@@ -477,7 +481,7 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Settle(ctx, payload, requirements)
+			return facilitator.Settle(ctx, payload, requirements, fctx)
 		}
 	}
 
@@ -491,6 +495,7 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemes {
@@ -501,7 +506,7 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Settle(ctx, payload, requirements)
+			return facilitator.Settle(ctx, payload, requirements, fctx)
 		}
 	}
 
@@ -586,9 +591,14 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 		signers[family] = signerList
 	}
 
+	extensionKeys := make([]string, 0, len(f.extensions))
+	for key := range f.extensions {
+		extensionKeys = append(extensionKeys, key)
+	}
+
 	return SupportedResponse{
 		Kinds:      kinds,
-		Extensions: f.extensions,
+		Extensions: extensionKeys,
 		Signers:    signers,
 	}
 }

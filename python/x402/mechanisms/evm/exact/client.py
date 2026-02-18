@@ -96,9 +96,7 @@ class ExactEvmScheme:
         if "name" not in extra:
             # Try to get from asset info
             try:
-                asset_info = get_asset_info(
-                    str(requirements.network), requirements.asset
-                )
+                asset_info = get_asset_info(str(requirements.network), requirements.asset)
                 extra["name"] = asset_info["name"]
                 extra["version"] = asset_info.get("version", "1")
             except ValueError:
@@ -124,8 +122,6 @@ class ExactEvmScheme:
                 TypedDataField(name=f["name"], type=f["type"]) for f in fields
             ]
 
-        sig_bytes = self._signer.sign_typed_data(
-            domain, typed_fields, primary_type, message
-        )
+        sig_bytes = self._signer.sign_typed_data(domain, typed_fields, primary_type, message)
 
         return "0x" + sig_bytes.hex()

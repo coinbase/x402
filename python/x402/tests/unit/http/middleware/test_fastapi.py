@@ -216,9 +216,7 @@ class TestFastAPIAdapter:
 
     def test_get_query_params(self):
         """Test getting query parameters."""
-        request = make_mock_fastapi_request(
-            query_params={"city": "london", "units": "metric"}
-        )
+        request = make_mock_fastapi_request(query_params={"city": "london", "units": "metric"})
         adapter = FastAPIAdapter(request)
 
         params = adapter.get_query_params()
@@ -292,9 +290,7 @@ class TestPaymentMiddleware:
             )
         }
 
-        middleware = payment_middleware(
-            routes, mock_server, sync_facilitator_on_start=False
-        )
+        middleware = payment_middleware(routes, mock_server, sync_facilitator_on_start=False)
 
         request = make_mock_fastapi_request(path="/api/public")
         expected_response = MagicMock()
@@ -316,9 +312,7 @@ class TestPaymentMiddleware:
                 mock_http_server_class,
             )
 
-            middleware = payment_middleware(
-                routes, mock_server, sync_facilitator_on_start=False
-            )
+            middleware = payment_middleware(routes, mock_server, sync_facilitator_on_start=False)
             response = await middleware(request, call_next)
 
         assert response == expected_response
