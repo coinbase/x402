@@ -7,7 +7,7 @@ The `8004-reputation` extension enables **on-chain reputation and proof-of-servi
 **Key features:**
 - Agents sign every response before knowing client feedback (blind commitment)
 - Multi-chain identity support (ERC-8004 compliant registries on EVM and Solana)
-- Separate identity and reputation registries (ERC-8004 two-registry model)
+- Registry-agnostic design (works with any ERC-8004 compliant registry)
 - Payment address verification (prevent fraud from compromised servers)
 
 The extension is organized into four parts: server extension ([§1](#1-server-extension)), client extension ([§2](#2-client-extension)), feedback aggregator API ([§3](#3-feedback-aggregator-api)), and facilitator extension ([§4](#4-facilitator-extension)).
@@ -70,8 +70,7 @@ A resource server advertises reputation support by including the `8004-reputatio
         "registrations": [
           {
             "agentRegistry": "eip155:8453:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-            "agentId": "42",
-            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890"
+            "agentId": "42"
           }
         ],
         "feedbackAggregator": "https://feedback.example/submit"
@@ -114,13 +113,11 @@ A resource server advertises reputation support by including the `8004-reputatio
         "registrations": [
           {
             "agentRegistry": "eip155:8453:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-            "agentId": "42",
-            "reputationRegistry": "eip155:8453:0x8004B663C4a7e45d78F2D05C8e4A5a3D3D5e7890"
+            "agentId": "42"
           },
           {
             "agentRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
-            "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            "reputationRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe"
+            "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
           }
         ]
       },
@@ -140,15 +137,16 @@ A resource server advertises reputation support by including the `8004-reputatio
 | `registrations` | array | Yes | Agent identity registrations (at least one) |
 | `feedbackAggregator` | string | No | Third-party endpoint for gas-free feedback submission |
 
+**Note:** The aggregator's settlement chain (where it submits feedback on-chain) is an implementation detail of the aggregator service, not declared in the protocol. Agents configure an aggregator URL; the aggregator handles settlement on whatever chain it supports. This parallels x402's own design where clients don't choose which chain the facilitator settles payments on. The aggregator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-feedback-aggregator-api)) so clients can see where settlement happened.
+
 #### AgentRegistration Object
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `agentRegistry` | string | Yes | CAIP-10 Identity Registry address |
 | `agentId` | string | Yes | Agent identifier (tokenId for EVM, mint address for Solana) |
-| `reputationRegistry` | string | Yes | CAIP-10 Reputation Registry address (may equal agentRegistry on Solana) |
 
-**Note:** ERC-8004 separates identity (ERC-721 NFT registry) from reputation (feedback storage). On Solana, both may be the same program address.
+**Note:** Per ERC-8004, each registration entry contains exactly `agentId` and `agentRegistry`. The reputation registry is derivable - ERC-8004 deploys Identity and Reputation registries as per-chain singletons, and on Solana implementations both are the same program address.
 
 **Note:** `agentId` is always a JSON string, even for EVM tokenIds that are numeric. This avoids precision loss for `uint256` values exceeding `Number.MAX_SAFE_INTEGER` and normalizes representation across chains (EVM uses numeric tokenIds, Solana uses mint address strings).
 
@@ -170,10 +168,9 @@ A resource server advertises reputation support by including the `8004-reputatio
         "type": "object",
         "properties": {
           "agentRegistry": { "type": "string" },
-          "agentId": { "type": "string" },
-          "reputationRegistry": { "type": "string" }
+          "agentId": { "type": "string" }
         },
-        "required": ["agentRegistry", "agentId", "reputationRegistry"]
+        "required": ["agentRegistry", "agentId"]
       }
     },
     "feedbackAggregator": {
@@ -262,9 +259,11 @@ After successful payment settlement, agents MUST sign the interaction and includ
 **Agents MUST:**
 1. Complete the service and construct the response
 2. Compute: `dataHash = keccak256(uint32_be(len(requestBodyBytes)) || requestBodyBytes || responseBodyBytes)`
-3. Compute: `interactionHash = keccak256(taskRefBytes || dataHash)`
+3. Compute: `interactionHash = keccak256("x402:8004-reputation:v1" || UTF8(taskRef) || dataHash)`
 4. Sign the `interactionHash` with an authorized key from their registration file
 5. Include signature WITH every response (blind commitment - before knowing client feedback)
+
+**Domain separator:** The `"x402:8004-reputation:v1"` prefix prevents cross-protocol signature replay - without it, the agent signs `keccak256(variable_string || 32_bytes)`, which is structurally generic enough for other protocols to produce matching inputs. The separator is versioned so future formula changes can coexist.
 
 **Signature formats:**
 - **ed25519**: Sign raw 32-byte `interactionHash` per [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032). Signature is 64 bytes (`R || S`), hex-encoded.
@@ -272,13 +271,15 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 **`taskRef` construction:** `taskRef = network + ":" + transaction` where `network` and `transaction` are fields from the `SettlementResponse` (e.g., `"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREG..."`). This follows CAIP-220 format: `namespace:chainId:txHash`.
 
-**Design note:** `interactionHash = keccak256(taskRefBytes || dataHash)` is intentionally chain-agnostic -- it does not bind to agent identity or registry. Multi-chain agents reuse the same signature across registrations. The binding to a specific agent happens via the `PAYMENT-RESPONSE` context (which includes `agentRegistry` and `agentId`).
+**Design note:** `interactionHash = keccak256("x402:8004-reputation:v1" || UTF8(taskRef) || dataHash)` is intentionally chain-agnostic - it does not bind to agent identity or registry. Multi-chain agents reuse the same signature across registrations. The binding to a specific agent happens via the `PAYMENT-RESPONSE` context (which includes `agentRegistry` and `agentId`).
 
 **Components:**
 - `taskRef`: CAIP-220 payment transaction reference (UTF-8 encoded)
 - `requestBodyBytes`: Decoded HTTP request body bytes (after decompression and dechunking). Text bodies UTF-8 encoded; binary bodies (images, files) used as-is. When the request has no body (e.g., GET requests), use the request target (path + query string, e.g. `/weather?city=London&units=metric`, UTF-8 encoded) instead. This ensures query parameters - the primary input for GET requests - are captured in the hash.
 - `responseBodyBytes`: Decoded HTTP response body bytes. Same encoding rules. Always hash the content as the application would consume it, not the raw wire encoding.
 - `dataHash`: Intermediate hash binding request and response content. The 4-byte big-endian length prefix on `requestBodyBytes` prevents boundary ambiguity between request and response.
+
+**Requirements:** This extension requires **synchronous settlement** - the server must wait for on-chain settlement confirmation before returning the response, because `taskRef` (containing the txHash) is needed for the signature. Servers using optimistic/async settlement flows MUST NOT include 8004-reputation signing. This extension also requires **buffered responses** - the full response body is needed for `dataHash`. Servers using streaming (SSE, chunked transfer) MUST NOT include 8004-reputation signing. Note that x402 itself does not support streaming in current implementations - this extension makes that implicit constraint explicit.
 
 #### Example PAYMENT-RESPONSE
 
@@ -315,7 +316,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 | `agentId` | string | Yes | Agent identifier on this registry |
 | `taskRef` | string | Yes | CAIP-220 payment transaction reference |
 | `dataHash` | string | Yes | `keccak256(uint32_be(len(requestBodyBytes)) \|\| requestBodyBytes \|\| responseBodyBytes)` |
-| `interactionHash` | string | Yes | `keccak256(taskRefBytes \|\| dataHash)` |
+| `interactionHash` | string | Yes | `keccak256("x402:8004-reputation:v1" \|\| UTF8(taskRef) \|\| dataHash)` |
 | `agentSignerPublicKey` | string | Yes | Hex-encoded public key that produced the signature |
 | `agentSignature` | string | Yes | Hex-encoded signature over `interactionHash` |
 | `agentSignatureAlgorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
@@ -449,7 +450,7 @@ if not isValid:
 #### 5. Additional Checks (Recommended)
 
 - **dataHash**: Recompute `keccak256(uint32_be(len(requestBodyBytes)) || requestBodyBytes || responseBodyBytes)` and verify it matches. Without this, signature verification only proves the agent signed *something* -- not that it signed *this specific* request/response pair.
-- **interactionHash**: Recompute `keccak256(taskRefBytes || dataHash)` and verify it matches
+- **interactionHash**: Recompute `keccak256("x402:8004-reputation:v1" || UTF8(taskRef) || dataHash)` and verify it matches
 - **taskRef format**: Valid CAIP-220 matching the network in `agentRegistry`
 - **Registry matching**: `agentRegistry` matches agent's declared registration
 - **Transaction matching**: `taskRef` references actual payment transaction
@@ -525,7 +526,7 @@ Two submission paths are available:
 | `taskRef` | string | Yes | CAIP-220 payment transaction reference |
 | `dataHash` | string | Yes | `keccak256(uint32_be(len(requestBodyBytes)) \|\| requestBodyBytes \|\| responseBodyBytes)` |
 | `agentSignerPublicKey` | string | Yes | Hex-encoded public key that signed |
-| `agentSignature` | string | Yes | Signature over `keccak256(taskRefBytes \|\| dataHash)` |
+| `agentSignature` | string | Yes | Signature over `keccak256("x402:8004-reputation:v1" \|\| UTF8(taskRef) \|\| dataHash)` |
 | `agentSignatureAlgorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
 | `reviewerAddress` | string | Yes | CAIP-10 address of actual reviewer |
 | `reviewerSignature` | string | Yes | Reviewer signs feedback content |
@@ -539,7 +540,7 @@ reviewerMessage = keccak256(
   UTF8(agentId) || 0x00 ||
   UTF8(taskRef) || 0x00 ||
   dataHash ||
-  uint16_be(value) ||
+  int128_be(value) ||
   uint8(valueDecimals) ||
   UTF8(tag1) || 0x00 ||
   UTF8(tag2)
@@ -550,7 +551,7 @@ reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 - Null byte (`0x00`) separators prevent boundary ambiguity between variable-length string fields. CAIP identifiers are ASCII and never contain null bytes.
 - `dataHash` (32 raw bytes, decoded from hex, strip `0x` prefix before decoding) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
 - `tag1`/`tag2` are included so an aggregator cannot silently change feedback sentiment (e.g., flipping `x402-resource-delivered` to `x402-resource-missing`). If no tags are provided, use empty strings.
-- `value` uses `uint16_be` (not `uint8`) to safely handle scores where `valueDecimals > 0` shifts the magnitude (e.g., `value=9500, valueDecimals=2` for 95.00).
+- `value` uses `int128_be` (16 bytes, signed big-endian) to match ERC-8004's on-chain `int128` type exactly. This covers negative values (e.g., yield loss), large magnitudes, and high-precision decimals. The reviewer's hash commitment must encode the same type as the on-chain parameter - any mismatch silently produces wrong hashes.
 - `comment` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
 
 #### feedbackHash Computation
@@ -659,10 +660,15 @@ Content-Type: application/json
 ```json
 {
   "status": "submitted",
-  "txHash": "0x...",
+  "settlementRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
+  "txRef": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREG...",
   "feedbackURI": "ipfs://QmX..."
 }
 ```
+
+- `settlementRegistry`: CAIP-10 address of the reputation registry where feedback was recorded.
+- `txRef`: CAIP-220 chain-qualified transaction reference.
+- `feedbackURI`: content-addressed feedback file.
 
 **Error response (4xx):**
 
