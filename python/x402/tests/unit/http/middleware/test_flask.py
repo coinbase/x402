@@ -212,9 +212,7 @@ class TestFlaskAdapter:
 
     def test_get_query_params(self):
         """Test getting query parameters."""
-        request = make_mock_flask_request(
-            query_params={"city": "london", "units": "metric"}
-        )
+        request = make_mock_flask_request(query_params={"city": "london", "units": "metric"})
         adapter = FlaskAdapter(request)
 
         params = adapter.get_query_params()
@@ -311,9 +309,7 @@ class TestResponseWrapper:
 
         wrapper.send_response([b"body_data"])
 
-        original_start_response.assert_called_once_with(
-            "200 OK", [("Content-Type", "text/plain")]
-        )
+        original_start_response.assert_called_once_with("200 OK", [("Content-Type", "text/plain")])
         write_mock.assert_any_call(b"write_data")
         write_mock.assert_any_call(b"body_data")
 
@@ -357,9 +353,7 @@ class TestPaymentMiddleware:
         routes = {}
 
         original_wsgi = app.wsgi_app
-        middleware = PaymentMiddleware(
-            app, routes, mock_server, sync_facilitator_on_start=False
-        )
+        middleware = PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=False)
 
         assert middleware._original_wsgi == original_wsgi
 
@@ -373,9 +367,7 @@ class TestPaymentMiddlewareFunction:
         mock_server = MagicMock()
         routes = {}
 
-        result = payment_middleware(
-            app, routes, mock_server, sync_facilitator_on_start=False
-        )
+        result = payment_middleware(app, routes, mock_server, sync_facilitator_on_start=False)
 
         assert isinstance(result, PaymentMiddleware)
 
@@ -428,9 +420,7 @@ class TestFlaskMiddlewareIntegration:
         }
 
         # Create middleware with mocked http server
-        with patch(
-            "x402.http.middleware.flask.x402HTTPResourceServerSync"
-        ) as mock_http_server:
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.requires_payment.return_value = False
             mock_http_server.return_value = mock_http_server_instance
@@ -463,21 +453,17 @@ class TestFlaskMiddlewareIntegration:
         }
 
         # Create middleware with mocked http server
-        with patch(
-            "x402.http.middleware.flask.x402HTTPResourceServerSync"
-        ) as mock_http_server:
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.requires_payment.return_value = True
-            mock_http_server_instance.process_http_request.return_value = (
-                HTTPProcessResult(
-                    type="payment-error",
-                    response=HTTPResponseInstructions(
-                        status=402,
-                        headers={"PAYMENT-REQUIRED": "encoded_header"},
-                        body={"error": "Payment required"},
-                        is_html=False,
-                    ),
-                )
+            mock_http_server_instance.process_http_request.return_value = HTTPProcessResult(
+                type="payment-error",
+                response=HTTPResponseInstructions(
+                    status=402,
+                    headers={"PAYMENT-REQUIRED": "encoded_header"},
+                    body={"error": "Payment required"},
+                    is_html=False,
+                ),
             )
             mock_http_server.return_value = mock_http_server_instance
 
@@ -510,23 +496,17 @@ class TestFlaskMiddlewareIntegration:
         payment_payload = make_v2_payload()
         payment_requirements = make_payment_requirements()
 
-        with patch(
-            "x402.http.middleware.flask.x402HTTPResourceServerSync"
-        ) as mock_http_server:
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.requires_payment.return_value = True
-            mock_http_server_instance.process_http_request.return_value = (
-                HTTPProcessResult(
-                    type="payment-verified",
-                    payment_payload=payment_payload,
-                    payment_requirements=payment_requirements,
-                )
+            mock_http_server_instance.process_http_request.return_value = HTTPProcessResult(
+                type="payment-verified",
+                payment_payload=payment_payload,
+                payment_requirements=payment_requirements,
             )
-            mock_http_server_instance.process_settlement.return_value = (
-                ProcessSettleResult(
-                    success=True,
-                    headers={"PAYMENT-RESPONSE": "settlement_encoded"},
-                )
+            mock_http_server_instance.process_settlement.return_value = ProcessSettleResult(
+                success=True,
+                headers={"PAYMENT-RESPONSE": "settlement_encoded"},
             )
             mock_http_server.return_value = mock_http_server_instance
 
@@ -555,23 +535,17 @@ class TestFlaskMiddlewareIntegration:
         payment_payload = make_v2_payload()
         payment_requirements = make_payment_requirements()
 
-        with patch(
-            "x402.http.middleware.flask.x402HTTPResourceServerSync"
-        ) as mock_http_server:
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.requires_payment.return_value = True
-            mock_http_server_instance.process_http_request.return_value = (
-                HTTPProcessResult(
-                    type="payment-verified",
-                    payment_payload=payment_payload,
-                    payment_requirements=payment_requirements,
-                )
+            mock_http_server_instance.process_http_request.return_value = HTTPProcessResult(
+                type="payment-verified",
+                payment_payload=payment_payload,
+                payment_requirements=payment_requirements,
             )
-            mock_http_server_instance.process_settlement.return_value = (
-                ProcessSettleResult(
-                    success=False,
-                    error_reason="Insufficient funds",
-                )
+            mock_http_server_instance.process_settlement.return_value = ProcessSettleResult(
+                success=False,
+                error_reason="Insufficient funds",
             )
             mock_http_server.return_value = mock_http_server_instance
 

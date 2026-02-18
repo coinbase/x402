@@ -209,9 +209,7 @@ class TestCorePaymentFlow:
         payment_payload = components.create_payment_payload(payment_required)
 
         # Server maps payment payload to requirements
-        accepted = components.server.find_matching_requirements(
-            accepts, payment_payload
-        )
+        accepted = components.server.find_matching_requirements(accepts, payment_payload)
         assert accepted is not None
 
         # Server verifies the payment
@@ -249,9 +247,7 @@ class TestCorePaymentFlow:
     ) -> None:
         """Test that facilitator can verify and settle payments directly."""
         requirements = build_cash_payment_requirements("Recipient", "USD", "5")
-        payment_required = components.server.create_payment_required_response(
-            [requirements]
-        )
+        payment_required = components.server.create_payment_required_response([requirements])
         payload = components.create_payment_payload(payment_required)
 
         # Verify directly with facilitator
@@ -269,9 +265,7 @@ class TestCorePaymentFlow:
     ) -> None:
         """Test that invalid signatures fail verification."""
         requirements = build_cash_payment_requirements("Recipient", "USD", "5")
-        payment_required = components.server.create_payment_required_response(
-            [requirements]
-        )
+        payment_required = components.server.create_payment_required_response([requirements])
         payload = components.create_payment_payload(payment_required)
 
         # Tamper with the payload
@@ -292,9 +286,7 @@ class TestCorePaymentFlow:
 
         # Try to match against different requirements
         different_accepts = [build_cash_payment_requirements("Company B", "USD", "99")]
-        result = components.server.find_matching_requirements(
-            different_accepts, payload
-        )
+        result = components.server.find_matching_requirements(different_accepts, payload)
 
         assert result is None
 
@@ -361,9 +353,7 @@ class TestServerInitialization:
     ) -> None:
         """Test that server raises error if not initialized."""
         requirements = build_cash_payment_requirements("Test", "USD", "1")
-        payment_required = uninitialized_server.create_payment_required_response(
-            [requirements]
-        )
+        payment_required = uninitialized_server.create_payment_required_response([requirements])
 
         # Create a valid client to make payload
         client = x402ClientSync().register("x402:cash", CashSchemeNetworkClient("Test"))
@@ -415,9 +405,7 @@ class TestClientPolicies:
 class TestSyncHooks:
     """Tests for sync hooks - these apply to both sync and async classes."""
 
-    def test_client_after_payment_creation_hook(
-        self, components: ComponentsFixture
-    ) -> None:
+    def test_client_after_payment_creation_hook(self, components: ComponentsFixture) -> None:
         """Test that after_payment_creation hook is called."""
         hook_called = False
         received_payload = None

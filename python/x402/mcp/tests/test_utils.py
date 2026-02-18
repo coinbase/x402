@@ -43,9 +43,7 @@ def test_extract_payment_from_meta_valid():
     )
     params = {
         "_meta": {
-            "x402/payment": (
-                payload.model_dump() if hasattr(payload, "model_dump") else payload
-            )
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
         }
     }
     result = extract_payment_from_meta(params)
@@ -167,18 +165,14 @@ def test_create_payment_required_error():
     error = create_payment_required_error(payment_required)
     assert error.code == 402
     assert str(error) == "Payment required" or (
-        hasattr(error, "args")
-        and len(error.args) > 0
-        and error.args[0] == "Payment required"
+        hasattr(error, "args") and len(error.args) > 0 and error.args[0] == "Payment required"
     )
     assert error.payment_required == payment_required
 
     # Test custom message
     error = create_payment_required_error(payment_required, "Custom error")
     assert str(error) == "Custom error" or (
-        hasattr(error, "args")
-        and len(error.args) > 0
-        and error.args[0] == "Custom error"
+        hasattr(error, "args") and len(error.args) > 0 and error.args[0] == "Custom error"
     )
 
 
@@ -288,9 +282,7 @@ def test_attach_payment_response_to_meta():
         network="eip155:84532",
     )
 
-    result = MCPToolResult(
-        content=[{"type": "text", "text": "success"}], is_error=False, meta=None
-    )
+    result = MCPToolResult(content=[{"type": "text", "text": "success"}], is_error=False, meta=None)
 
     updated = attach_payment_response_to_meta(result, settle_response)
 
@@ -366,9 +358,7 @@ def test_extract_payment_from_meta_json_string():
         },
         payload={"signature": "0x123"},
     )
-    payload_json = json.dumps(
-        payload.model_dump() if hasattr(payload, "model_dump") else payload
-    )
+    payload_json = json.dumps(payload.model_dump() if hasattr(payload, "model_dump") else payload)
     params = {
         "_meta": {
             "x402/payment": payload_json,

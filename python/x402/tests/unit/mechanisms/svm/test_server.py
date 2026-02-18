@@ -369,9 +369,7 @@ class TestRegisterMoneyParser:
 
             server.register_money_parser(error_parser)
 
-            with pytest.raises(
-                RuntimeError, match="Parser error: amount exceeds limit"
-            ):
+            with pytest.raises(RuntimeError, match="Parser error: amount exceeds limit"):
                 server.parse_price(50, SOLANA_MAINNET_CAIP2)
 
     class TestChainingAndFluentApi:
@@ -387,9 +385,7 @@ class TestRegisterMoneyParser:
             def parser2(amount: float, network: str) -> AssetAmount | None:
                 return None
 
-            result = server.register_money_parser(parser1).register_money_parser(
-                parser2
-            )
+            result = server.register_money_parser(parser1).register_money_parser(parser2)
 
             assert result is server
 

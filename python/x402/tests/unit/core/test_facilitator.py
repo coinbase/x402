@@ -1,6 +1,7 @@
 """Unit tests for x402Facilitator and x402FacilitatorSync."""
 
 from x402 import x402Facilitator, x402FacilitatorSync
+from x402.interfaces import FacilitatorExtension
 from x402.schemas import SettleResponse, VerifyResponse
 
 # =============================================================================
@@ -19,11 +20,11 @@ class MockSchemeNetworkFacilitator:
         self.verify_calls: list = []
         self.settle_calls: list = []
 
-    def verify(self, payload, requirements) -> VerifyResponse:
+    def verify(self, payload, requirements, context=None) -> VerifyResponse:
         self.verify_calls.append((payload, requirements))
         return VerifyResponse(is_valid=True)
 
-    def settle(self, payload, requirements) -> SettleResponse:
+    def settle(self, payload, requirements, context=None) -> SettleResponse:
         self.settle_calls.append((payload, requirements))
         return SettleResponse(
             success=True,
@@ -49,11 +50,11 @@ class MockSchemeNetworkFacilitatorV1:
         self.verify_calls: list = []
         self.settle_calls: list = []
 
-    def verify(self, payload, requirements) -> VerifyResponse:
+    def verify(self, payload, requirements, context=None) -> VerifyResponse:
         self.verify_calls.append((payload, requirements))
         return VerifyResponse(is_valid=True)
 
-    def settle(self, payload, requirements) -> SettleResponse:
+    def settle(self, payload, requirements, context=None) -> SettleResponse:
         self.settle_calls.append((payload, requirements))
         return SettleResponse(
             success=True,
@@ -144,7 +145,7 @@ class TestExtensionRegistration:
         """Test registering an extension."""
         facilitator = x402Facilitator()
 
-        result = facilitator.register_extension("bazaar")
+        result = facilitator.register_extension(FacilitatorExtension(key="bazaar"))
 
         assert result is facilitator
         assert "bazaar" in facilitator._extensions
@@ -153,8 +154,8 @@ class TestExtensionRegistration:
         """Test registering multiple extensions."""
         facilitator = x402Facilitator()
 
-        facilitator.register_extension("bazaar")
-        facilitator.register_extension("other")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
+        facilitator.register_extension(FacilitatorExtension(key="other"))
 
         assert len(facilitator._extensions) == 2
 
@@ -162,16 +163,16 @@ class TestExtensionRegistration:
         """Test that duplicate extension is not added."""
         facilitator = x402Facilitator()
 
-        facilitator.register_extension("bazaar")
-        facilitator.register_extension("bazaar")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
 
         assert len(facilitator._extensions) == 1
 
     def test_get_extensions(self):
         """Test get_extensions returns registered extensions."""
         facilitator = x402Facilitator()
-        facilitator.register_extension("bazaar")
-        facilitator.register_extension("other")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
+        facilitator.register_extension(FacilitatorExtension(key="other"))
 
         extensions = facilitator.get_extensions()
 
@@ -238,7 +239,7 @@ class TestGetSupported:
     def test_returns_extensions(self):
         """Test that extensions appear in supported response."""
         facilitator = x402Facilitator()
-        facilitator.register_extension("bazaar")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
 
         supported = facilitator.get_supported()
 
@@ -406,9 +407,7 @@ class TestFindFacilitatorV1:
         """Test that V1 and V2 facilitators are separate."""
         facilitator = x402Facilitator()
         facilitator.register(["eip155:8453"], MockSchemeNetworkFacilitator("exact"))
-        facilitator.register_v1(
-            ["base-sepolia"], MockSchemeNetworkFacilitatorV1("exact")
-        )
+        facilitator.register_v1(["base-sepolia"], MockSchemeNetworkFacilitatorV1("exact"))
 
         # V2 lookup shouldn't find V1
         assert facilitator._find_facilitator("exact", "base-sepolia") is None

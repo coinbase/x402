@@ -76,6 +76,7 @@ func (f *ExactEvmSchemeV1) Verify(
 	ctx context.Context,
 	payload types.PaymentPayloadV1,
 	requirements types.PaymentRequirementsV1,
+	_ *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	// Validate scheme (v1 has scheme at top level)
 	if payload.Scheme != evm.SchemeExact || requirements.Scheme != evm.SchemeExact {
@@ -211,11 +212,12 @@ func (f *ExactEvmSchemeV1) Settle(
 	ctx context.Context,
 	payload types.PaymentPayloadV1,
 	requirements types.PaymentRequirementsV1,
+	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Network)
 
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, payload, requirements)
+	verifyResp, err := f.Verify(ctx, payload, requirements, fctx)
 	if err != nil {
 		// Convert VerifyError to SettleError
 		ve := &x402.VerifyError{}

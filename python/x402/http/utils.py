@@ -48,9 +48,7 @@ def encode_payment_required_header(
     payment_required: PaymentRequired | PaymentRequiredV1,
 ) -> str:
     """Encode a PaymentRequired object as a base64 header value."""
-    return safe_base64_encode(
-        payment_required.model_dump_json(by_alias=True, exclude_none=True)
-    )
+    return safe_base64_encode(payment_required.model_dump_json(by_alias=True, exclude_none=True))
 
 
 def decode_payment_required_header(
@@ -69,9 +67,7 @@ def decode_payment_required_header(
 
 def encode_payment_response_header(settle_response: SettleResponse) -> str:
     """Encode a SettleResponse object as a base64 header value."""
-    return safe_base64_encode(
-        settle_response.model_dump_json(by_alias=True, exclude_none=True)
-    )
+    return safe_base64_encode(settle_response.model_dump_json(by_alias=True, exclude_none=True))
 
 
 def decode_payment_response_header(header_value: str) -> SettleResponse:

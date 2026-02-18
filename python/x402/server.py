@@ -165,9 +165,7 @@ class x402ResourceServer(x402ResourceServerBase):
             PaymentAbortedError: If a before hook aborts.
             RuntimeError: If not initialized.
         """
-        gen = self._verify_payment_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_payment_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -211,9 +209,7 @@ class x402ResourceServer(x402ResourceServerBase):
             PaymentAbortedError: If a before hook aborts.
             RuntimeError: If not initialized.
         """
-        gen = self._settle_payment_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_payment_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -271,9 +267,7 @@ class x402ResourceServerSync(x402ResourceServerBase):
 
     def __init__(
         self,
-        facilitator_clients: (
-            FacilitatorClientSync | list[FacilitatorClientSync] | None
-        ) = None,
+        facilitator_clients: (FacilitatorClientSync | list[FacilitatorClientSync] | None) = None,
     ) -> None:
         """Initialize sync x402ResourceServer."""
         # Runtime validation - catch mismatched sync/async early
@@ -374,9 +368,7 @@ class x402ResourceServerSync(x402ResourceServerBase):
             PaymentAbortedError: If a before hook aborts.
             RuntimeError: If not initialized.
         """
-        gen = self._verify_payment_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_payment_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -420,9 +412,7 @@ class x402ResourceServerSync(x402ResourceServerBase):
             PaymentAbortedError: If a before hook aborts.
             RuntimeError: If not initialized.
         """
-        gen = self._settle_payment_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_payment_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:

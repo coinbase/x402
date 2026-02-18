@@ -97,18 +97,14 @@ class FacilitatorClientSync(Protocol):
 # Type Aliases - Support both sync and async hooks
 # ============================================================================
 
-BeforeVerifyHook = Callable[
-    [VerifyContext], Awaitable[AbortResult | None] | AbortResult | None
-]
+BeforeVerifyHook = Callable[[VerifyContext], Awaitable[AbortResult | None] | AbortResult | None]
 AfterVerifyHook = Callable[[VerifyResultContext], Awaitable[None] | None]
 OnVerifyFailureHook = Callable[
     [VerifyFailureContext],
     Awaitable[RecoveredVerifyResult | None] | RecoveredVerifyResult | None,
 ]
 
-BeforeSettleHook = Callable[
-    [SettleContext], Awaitable[AbortResult | None] | AbortResult | None
-]
+BeforeSettleHook = Callable[[SettleContext], Awaitable[AbortResult | None] | AbortResult | None]
 AfterSettleHook = Callable[[SettleResultContext], Awaitable[None] | None]
 OnSettleFailureHook = Callable[
     [SettleFailureContext],
@@ -146,9 +142,7 @@ class x402ResourceServerBase:
 
     def __init__(
         self,
-        facilitator_clients: (
-            _AnyFacilitatorClient | list[_AnyFacilitatorClient] | None
-        ) = None,
+        facilitator_clients: (_AnyFacilitatorClient | list[_AnyFacilitatorClient] | None) = None,
     ) -> None:
         """Initialize base server."""
         # Normalize to list
@@ -163,9 +157,7 @@ class x402ResourceServerBase:
         self._schemes: dict[Network, dict[str, SchemeNetworkServer]] = {}
 
         # Facilitator client map: network -> scheme -> client
-        self._facilitator_clients_map: dict[
-            Network, dict[str, _AnyFacilitatorClient]
-        ] = {}
+        self._facilitator_clients_map: dict[Network, dict[str, _AnyFacilitatorClient]] = {}
 
         # Supported responses from facilitators
         self._supported_responses: dict[Network, dict[str, SupportedResponse]] = {}
@@ -462,9 +454,7 @@ class x402ResourceServerBase:
                     requirements=requirements,
                     payload_bytes=payload_bytes,
                     requirements_bytes=requirements_bytes,
-                    error=Exception(
-                        verify_result.invalid_reason or "Verification failed"
-                    ),
+                    error=Exception(verify_result.invalid_reason or "Verification failed"),
                 )
                 for hook in self._on_verify_failure_hooks:
                     result = yield ("failure", hook, failure_context)

@@ -30,7 +30,7 @@ func TestExtractEip2612GasSponsoringInfo(t *testing.T) {
 
 	t.Run("returns nil for server-only info (incomplete)", func(t *testing.T) {
 		extensions := map[string]interface{}{
-			EIP2612GasSponsoring: map[string]interface{}{
+			EIP2612GasSponsoring.Key(): map[string]interface{}{
 				"info": map[string]interface{}{
 					"description": "test",
 					"version":     "1",
@@ -49,7 +49,7 @@ func TestExtractEip2612GasSponsoringInfo(t *testing.T) {
 
 	t.Run("extracts valid info", func(t *testing.T) {
 		extensions := map[string]interface{}{
-			EIP2612GasSponsoring: map[string]interface{}{
+			EIP2612GasSponsoring.Key(): map[string]interface{}{
 				"info": map[string]interface{}{
 					"from":      "0x857b06519E91e3A54538791bDbb0E22373e36b66",
 					"asset":     "0x036CbD53842c5426634e7929541eC2318f3dCF7e",

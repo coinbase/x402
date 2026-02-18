@@ -799,7 +799,7 @@ func TestVerifyEIP3009TimingValidation(t *testing.T) {
 
 	t.Run("Rejects validAfter in the future", func(t *testing.T) {
 		payload := makePayload("9999999999", "99999999999")
-		_, err := scheme.Verify(ctx, payload, requirements)
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
 		if err == nil {
 			t.Fatal("Expected error for validAfter in the future")
 		}
@@ -810,7 +810,7 @@ func TestVerifyEIP3009TimingValidation(t *testing.T) {
 
 	t.Run("Rejects expired validBefore", func(t *testing.T) {
 		payload := makePayload("0", "1")
-		_, err := scheme.Verify(ctx, payload, requirements)
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
 		if err == nil {
 			t.Fatal("Expected error for expired validBefore")
 		}
@@ -821,7 +821,7 @@ func TestVerifyEIP3009TimingValidation(t *testing.T) {
 
 	t.Run("Accepts valid timing window", func(t *testing.T) {
 		payload := makePayload("0", "99999999999")
-		_, err := scheme.Verify(ctx, payload, requirements)
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
 		// Should not fail with a timing error (may fail on nonce/signature checks, which is expected)
 		if err != nil {
 			if strings.Contains(err.Error(), evmfacilitator.ErrValidAfterInFuture) {
