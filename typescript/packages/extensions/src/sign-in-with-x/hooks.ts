@@ -64,6 +64,7 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
     const address = ctx.result.payer;
     if (!address) return;
 
+    if (!ctx.paymentPayload.resource?.url) return;
     const resource = new URL(ctx.paymentPayload.resource.url).pathname;
     await storage.recordPayment(resource, address);
     onEvent?.({ type: "payment_recorded", resource, address });
