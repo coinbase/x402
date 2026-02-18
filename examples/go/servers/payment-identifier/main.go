@@ -17,6 +17,11 @@ import (
 
 const DefaultPort = "4021"
 
+type processedPayment struct {
+	orderID     string
+	fingerprint string
+}
+
 /**
  * Payment Identifier Extension Example
  *
@@ -28,6 +33,7 @@ const DefaultPort = "4021"
  * - Server declares support with DeclarePaymentIdentifierExtension(required bool)
  * - When required=true, clients MUST provide an ID or receive 400 Bad Request
  * - When required=false, clients MAY provide an ID for optional deduplication
+ * - Use OnBeforeSettle + OnAfterSettle + OnSettleFailure hooks to skip duplicate settlements
  */
 
 func main() {
@@ -54,6 +60,70 @@ func main() {
 	facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
 		URL: facilitatorURL,
 	})
+
+	// Two separate stores (use Redis/DB in production):
+	// - settledPayments: IDs that have been settled on-chain, checked before settlement
+	// - processedPayments: order ID cache for returning idempotent responses
+	settledPayments := make(map[string]bool)
+	processedPayments := make(map[string]processedPayment)
+
+	/**
+	 * Create x402 resource server with settlement deduplication.
+	 *
+	 * The middleware calls c.Next() (handler) BEFORE ProcessSettlement, so the
+	 * handler populates processedPayments before settlement hooks run. We use a
+	 * separate settledPayments store — populated in OnAfterSettle — so that
+	 * OnBeforeSettle only skips settlement for IDs that have actually been
+	 * settled on-chain.
+	 *
+	 * Flow for first request:
+	 *   handler stores order → OnBeforeSettle: not in settledPayments → settle →
+	 *   OnAfterSettle: add to settledPayments
+	 *
+	 * Flow for duplicate request:
+	 *   handler returns cached order → OnBeforeSettle: found in settledPayments →
+	 *   abort → OnSettleFailure: recover with success
+	 */
+	server := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(facilitatorClient),
+	).
+		Register(evmNetwork, evm.NewExactEvmScheme()).
+		OnBeforeSettle(func(ctx x402.SettleContext) (*x402.BeforeHookResult, error) {
+			id, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(ctx.PayloadBytes, false)
+			if err != nil || id == "" {
+				return nil, nil // No payment ID, proceed normally
+			}
+
+			if settledPayments[id] {
+				fmt.Printf("Duplicate settlement skipped for payment ID: %s\n", id)
+				return &x402.BeforeHookResult{
+					Abort:  true,
+					Reason: "duplicate_payment_id",
+				}, nil
+			}
+
+			return nil, nil
+		}).
+		OnAfterSettle(func(ctx x402.SettleResultContext) error {
+			id, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(ctx.PayloadBytes, false)
+			if err != nil || id == "" {
+				return nil
+			}
+			settledPayments[id] = true
+			fmt.Printf("Payment ID settled: %s\n", id)
+			return nil
+		}).
+		OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
+			// Recover from the abort we triggered for duplicate payment IDs.
+			// Return a success response so the middleware doesn't return a 402.
+			if settleErr, ok := ctx.Error.(*x402.SettleError); ok && settleErr.ErrorReason == "duplicate_payment_id" {
+				return &x402.SettleFailureHookResult{
+					Recovered: true,
+					Result:    &x402.SettleResponse{Success: true},
+				}, nil
+			}
+			return nil, nil
+		})
 
 	/**
 	 * Declare Payment Identifier Extension
@@ -82,18 +152,9 @@ func main() {
 		},
 	}
 
-	r.Use(ginmw.X402Payment(ginmw.Config{
-		Routes:                 routes,
-		Facilitator:           facilitatorClient,
-		Schemes:               []ginmw.SchemeConfig{
-			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
-		},
-		SyncFacilitatorOnStart: true,
-		Timeout:                30 * time.Second,
-	}))
-
-	// In-memory store for processed payment IDs (use Redis/DB in production)
-	processedPayments := make(map[string]string)
+	r.Use(ginmw.PaymentMiddleware(routes, server,
+		ginmw.WithTimeout(30*time.Second),
+	))
 
 	r.POST("/order", func(c *gin.Context) {
 		// Get the payment payload from context (set by middleware)
@@ -123,11 +184,27 @@ func main() {
 			return
 		}
 
+		// Compute payload fingerprint for idempotency comparison
+		fingerprint, err := paymentidentifier.PayloadFingerprint(payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to compute payload fingerprint: %v", err)})
+			return
+		}
+
 		// Check for duplicate payment (idempotency)
-		if existingOrderID, found := processedPayments[paymentID]; found {
-			fmt.Printf("Duplicate payment detected: %s -> returning existing order: %s\n", paymentID, existingOrderID)
+		if existing, found := processedPayments[paymentID]; found {
+			if existing.fingerprint != fingerprint {
+				fmt.Printf("Conflict: payment ID %s reused with different payload\n", paymentID)
+				c.JSON(http.StatusConflict, gin.H{
+					"error":     "payment identifier already used with different payload",
+					"paymentId": paymentID,
+				})
+				return
+			}
+
+			fmt.Printf("Duplicate payment detected: %s -> returning existing order: %s\n", paymentID, existing.orderID)
 			c.JSON(http.StatusOK, gin.H{
-				"orderId":   existingOrderID,
+				"orderId":   existing.orderID,
 				"status":    "already_processed",
 				"paymentId": paymentID,
 				"message":   "This payment was already processed",
@@ -138,8 +215,11 @@ func main() {
 		// Process the order (your business logic here)
 		orderID := fmt.Sprintf("order_%d", time.Now().UnixNano())
 
-		// Store the payment ID for future deduplication
-		processedPayments[paymentID] = orderID
+		// Store the payment ID and fingerprint for future deduplication
+		processedPayments[paymentID] = processedPayment{
+			orderID:     orderID,
+			fingerprint: fingerprint,
+		}
 
 		fmt.Printf("New order created: %s with payment ID: %s\n", orderID, paymentID)
 
