@@ -142,11 +142,14 @@ export async function runInteractiveMode(
   }
 
   // Question 4: Select clients (multi-select)
-  const clientChoices = transportFilteredClients.map(c => ({
-    title: `${c.name} (${formatVersions(c.config.x402Versions)}) [${c.config.protocolFamilies?.join(', ') || ''}]`,
-    value: c.name,
-    selected: minimize // With --min: all selected. Without --min: none selected
-  }));
+  const clientChoices = transportFilteredClients.map(c => {
+    const extInfo = c.config.extensions ? ' {' + c.config.extensions.join(', ') + '}' : '';
+    return {
+      title: `${c.name} (${formatVersions(c.config.x402Versions)}) [${c.config.protocolFamilies?.join(', ') || ''}]${extInfo}`,
+      value: c.name,
+      selected: minimize // With --min: all selected. Without --min: none selected
+    };
+  });
 
   const clientsResponse = await prompts({
     type: 'multiselect',
@@ -168,8 +171,10 @@ export async function runInteractiveMode(
   const availableExtensions = getAvailableExtensions(
     facilitatorsResponse.facilitators,
     serversResponse.servers,
+    clientsResponse.clients,
     allFacilitators,
-    allServers
+    allServers,
+    allClients,
   );
 
   let selectedExtensions: string[] | undefined;
@@ -332,17 +337,20 @@ export async function runInteractiveMode(
 }
 
 /**
- * Get available extensions from selected facilitators and servers
+ * Get available extensions from selected facilitators, servers, and clients
  */
 function getAvailableExtensions(
   facilitatorNames: string[],
   serverNames: string[],
+  clientNames: string[],
   allFacilitators: DiscoveredFacilitator[],
-  allServers: DiscoveredServer[]
+  allServers: DiscoveredServer[],
+  allClients: DiscoveredClient[],
 ): Array<{ name: string; description: string }> {
   const extensions = new Set<string>();
   const extensionInfo: Record<string, string> = {
     'bazaar': 'Discovery extension for resource discovery',
+    'eip2612GasSponsoring': 'EIP-2612 gasless Permit2 approval',
   };
 
   // Collect from facilitators
@@ -358,6 +366,14 @@ function getAvailableExtensions(
     const server = allServers.find(s => s.name === name);
     if (server?.config.extensions) {
       server.config.extensions.forEach(ext => extensions.add(ext));
+    }
+  });
+
+  // Collect from clients
+  clientNames.forEach(name => {
+    const client = allClients.find(c => c.name === name);
+    if (client?.config.extensions) {
+      client.config.extensions.forEach(ext => extensions.add(ext));
     }
   });
 

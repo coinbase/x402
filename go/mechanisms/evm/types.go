@@ -192,13 +192,20 @@ func IsEIP3009Payload(data map[string]interface{}) bool {
 	return ok
 }
 
-// ClientEvmSigner defines the interface for client-side EVM signing operations
+// ClientEvmSigner defines the interface for client-side EVM signing operations.
+//
+// Typically created via NewClientSignerFromPrivateKeyWithClient which provides
+// both signing and on-chain read capability. The ReadContract method is required
+// for EIP-2612 gas sponsoring (querying nonces and checking allowances).
 type ClientEvmSigner interface {
 	// Address returns the signer's Ethereum address
 	Address() string
 
 	// SignTypedData signs EIP-712 typed data
 	SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error)
+
+	// ReadContract reads data from a smart contract
+	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 }
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations

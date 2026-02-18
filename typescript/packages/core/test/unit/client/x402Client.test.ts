@@ -592,4 +592,82 @@ describe("x402Client", () => {
       });
     });
   });
+
+  describe("Extension Hooks", () => {
+    it("should register and invoke extensions that match paymentRequired.extensions", async () => {
+      const client = new x402Client();
+      const mockClient = new MockSchemeNetworkClient("exact");
+      client.register("eip155:84532" as Network, mockClient);
+
+      let enrichCalled = false;
+      client.registerExtension({
+        key: "testExtension",
+        enrichPaymentPayload: async (payload, _paymentRequired) => {
+          enrichCalled = true;
+          return {
+            ...payload,
+            extensions: {
+              ...payload.extensions,
+              testExtension: { info: { enriched: true } },
+            },
+          };
+        },
+      });
+
+      const paymentRequired = buildPaymentRequired({
+        accepts: [
+          buildPaymentRequirements({
+            scheme: "exact",
+            network: "eip155:84532" as Network,
+          }),
+        ],
+        extensions: {
+          testExtension: { info: { description: "test" }, schema: {} },
+        },
+      });
+
+      const result = await client.createPaymentPayload(paymentRequired);
+
+      expect(enrichCalled).toBe(true);
+      expect((result.extensions as Record<string, unknown>)?.testExtension).toEqual({
+        info: { enriched: true },
+      });
+    });
+
+    it("should NOT invoke extension when key is not in paymentRequired.extensions", async () => {
+      const client = new x402Client();
+      const mockClient = new MockSchemeNetworkClient("exact");
+      client.register("eip155:84532" as Network, mockClient);
+
+      let enrichCalled = false;
+      client.registerExtension({
+        key: "missingExtension",
+        enrichPaymentPayload: async payload => {
+          enrichCalled = true;
+          return payload;
+        },
+      });
+
+      const paymentRequired = buildPaymentRequired({
+        accepts: [
+          buildPaymentRequirements({
+            scheme: "exact",
+            network: "eip155:84532" as Network,
+          }),
+        ],
+        extensions: {},
+      });
+
+      await client.createPaymentPayload(paymentRequired);
+
+      expect(enrichCalled).toBe(false);
+    });
+
+    it("should support chaining registerExtension", () => {
+      const client = new x402Client();
+      const result = client.registerExtension({ key: "ext1" }).registerExtension({ key: "ext2" });
+
+      expect(result).toBe(client);
+    });
+  });
 });

@@ -10,6 +10,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
@@ -158,9 +159,16 @@ func main() {
 					},
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
-			},
+			Extensions: func() map[string]interface{} {
+				ext := map[string]interface{}{
+					types.BAZAAR: discoveryExtension,
+				}
+				// Add EIP-2612 gas sponsoring extension
+				for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+					ext[k] = v
+				}
+				return ext
+			}(),
 		},
 	}
 

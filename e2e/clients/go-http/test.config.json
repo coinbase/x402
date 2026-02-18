@@ -11,8 +11,14 @@
     2
   ],
   "evm": {
-    "transferMethods": ["eip3009", "permit2"]
+    "transferMethods": [
+      "eip3009",
+      "permit2"
+    ]
   },
+  "extensions": [
+    "eip2612GasSponsoring"
+  ],
   "environment": {
     "required": [
       "EVM_PRIVATE_KEY",
@@ -20,6 +26,8 @@
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],
-    "optional": []
+    "optional": [
+      "EVM_RPC_URL"
+    ]
   }
 }

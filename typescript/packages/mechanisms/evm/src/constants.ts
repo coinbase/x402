@@ -85,6 +85,32 @@ export const eip3009ABI = [
 ] as const;
 
 /**
+ * EIP-2612 Permit EIP-712 types for signing token.permit().
+ */
+export const eip2612PermitTypes = {
+  Permit: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * EIP-2612 nonces ABI for querying current nonce.
+ */
+export const eip2612NoncesAbi = [
+  {
+    type: "function",
+    name: "nonces",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+/**
  * Canonical Permit2 contract address.
  * Same address on all EVM chains via CREATE2 deployment.
  *

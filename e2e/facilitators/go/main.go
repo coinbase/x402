@@ -774,6 +774,9 @@ func main() {
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
 
+	// Register the EIP-2612 Gas Sponsoring extension
+	facilitator.RegisterExtension("eip2612GasSponsoring")
+
 	// Lifecycle hooks for payment tracking and discovery
 	facilitator.
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {

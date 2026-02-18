@@ -89,6 +89,30 @@ type SchemeNetworkClient interface {
 	CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error)
 }
 
+// ExtensionAwareClient is an optional interface for schemes that can handle extensions.
+// When a scheme implements this, x402Client will call CreatePaymentPayloadWithExtensions
+// instead of CreatePaymentPayload, passing the server-declared extensions so the scheme
+// can enrich the payload (e.g., EIP-2612 gas sponsoring).
+type ExtensionAwareClient interface {
+	SchemeNetworkClient
+	CreatePaymentPayloadWithExtensions(ctx context.Context, requirements types.PaymentRequirements, extensions map[string]interface{}) (types.PaymentPayload, error)
+}
+
+// ClientExtension can enrich payment payloads on the client side.
+// Client extensions are invoked after the scheme creates the base payload
+// but before it is returned. This allows mechanism-specific logic (e.g., EVM EIP-2612
+// permit signing) to enrich the payload's extensions data.
+type ClientExtension interface {
+	// Key returns the unique extension identifier (e.g., "eip2612GasSponsoring").
+	// Must match the extension key used in PaymentRequired.Extensions.
+	Key() string
+
+	// EnrichPaymentPayload is called after payload creation when the extension key
+	// is present in paymentRequired.Extensions. Allows the extension to enrich the
+	// payload with extension-specific data (e.g., signing an EIP-2612 permit).
+	EnrichPaymentPayload(ctx context.Context, payload types.PaymentPayload, required types.PaymentRequired) (types.PaymentPayload, error)
+}
+
 // SchemeNetworkServer is implemented by server-side payment mechanisms (V2)
 type SchemeNetworkServer interface {
 	Scheme() string
