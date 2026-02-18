@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
 	x402evm "github.com/coinbase/x402/go/mechanisms/evm"
@@ -19,6 +22,7 @@ import (
 type ClientSigner struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
+	ethClient  *ethclient.Client
 }
 
 // NewClientSignerFromPrivateKey creates a client signer from a hex-encoded private key.
@@ -41,6 +45,14 @@ type ClientSigner struct {
 //	client := x402.Newx402Client().
 //	    Register("eip155:*", evm.NewExactEvmClient(signer))
 func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigner, error) {
+	return NewClientSignerFromPrivateKeyWithClient(privateKeyHex, nil)
+}
+
+// NewClientSignerFromPrivateKeyWithClient creates a client signer from a private key
+// and an optional ethclient for contract reads (e.g., querying EIP-2612 nonces).
+//
+// If ethClient is nil, ReadContract will return an error when called.
+func NewClientSignerFromPrivateKeyWithClient(privateKeyHex string, ethClient *ethclient.Client) (x402evm.ClientEvmSigner, error) {
 	// Strip 0x prefix if present
 	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
 
@@ -56,6 +68,7 @@ func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigne
 	return &ClientSigner{
 		privateKey: privateKey,
 		address:    address,
+		ethClient:  ethClient,
 	}, nil
 }
 
@@ -148,4 +161,57 @@ func (s *ClientSigner) SignTypedData(
 	signature[64] += 27
 
 	return signature, nil
+}
+
+// ReadContract reads data from a smart contract.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) ReadContract(
+	ctx context.Context,
+	contractAddress string,
+	abiBytes []byte,
+	functionName string,
+	args ...interface{},
+) (interface{}, error) {
+	if s.ethClient == nil {
+		return nil, fmt.Errorf("ReadContract requires an ethclient; use NewClientSignerFromPrivateKeyWithClient")
+	}
+
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(functionName, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Create call message
+	addr := common.HexToAddress(contractAddress)
+	msg := ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}
+
+	// Execute call
+	result, err := s.ethClient.CallContract(ctx, msg, nil)
+	if err != nil {
+		return nil, fmt.Errorf("contract call failed: %w", err)
+	}
+
+	// Unpack result
+	outputs, err := contractABI.Unpack(functionName, result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack result: %w", err)
+	}
+
+	if len(outputs) == 0 {
+		return nil, nil
+	}
+	if len(outputs) == 1 {
+		return outputs[0], nil
+	}
+	return outputs, nil
 }

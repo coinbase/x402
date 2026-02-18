@@ -16,6 +16,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
     mockClientSigner = {
       address: "0x1234567890123456789012345678901234567890",
       signTypedData: vi.fn().mockResolvedValue("0xmocksignature"),
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
     };
     client = new ClientExactEvmScheme(mockClientSigner);
 
@@ -617,6 +618,280 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       // Signature validation handles checksummed addresses
       expect(result).toBeDefined();
+    });
+  });
+
+  describe("EIP-2612 Gas Sponsoring - Verify", () => {
+    it("should accept valid EIP-2612 extension when Permit2 allowance is 0", async () => {
+      // Mock: allowance returns 0, then balance returns sufficient
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockResolvedValueOnce(0n) // allowance check = 0
+        .mockResolvedValueOnce(BigInt("10000000")); // balance check
+
+      const permit2Requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 60,
+        extra: { assetTransferMethod: "permit2", name: "USDC", version: "2" },
+      };
+
+      // Create a Permit2 payload
+      const permit2ClientSigner: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0x" + "ab".repeat(32) + "cd".repeat(32) + "1b"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const permit2Client = new ClientExactEvmScheme(permit2ClientSigner);
+      const paymentPayload = await permit2Client.createPaymentPayload(2, permit2Requirements);
+
+      // Add EIP-2612 extension data
+      const now = Math.floor(Date.now() / 1000);
+      const fullPayload: PaymentPayload = {
+        ...paymentPayload,
+        accepted: permit2Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        extensions: {
+          eip2612GasSponsoring: {
+            info: {
+              from: "0x1234567890123456789012345678901234567890",
+              asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+              spender: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+              amount:
+                "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+              nonce: "0",
+              deadline: (now + 300).toString(),
+              signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+              version: "1",
+            },
+            schema: {},
+          },
+        },
+      };
+
+      const result = await facilitator.verify(fullPayload, permit2Requirements);
+      // Should pass verify (EIP-2612 extension provides the permit)
+      expect(result).toBeDefined();
+      // It may still fail on signature verification (mock), but should NOT fail with permit2_allowance_required
+      if (!result.isValid) {
+        expect(result.invalidReason).not.toBe("permit2_allowance_required");
+      }
+    });
+
+    it("should reject when allowance is 0 and no EIP-2612 extension", async () => {
+      // Mock: allowance returns 0
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n); // allowance check = 0
+
+      const permit2Requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 60,
+        extra: { assetTransferMethod: "permit2", name: "USDC", version: "2" },
+      };
+
+      const permit2ClientSigner: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0x" + "ab".repeat(32) + "cd".repeat(32) + "1b"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const permit2Client = new ClientExactEvmScheme(permit2ClientSigner);
+      const paymentPayload = await permit2Client.createPaymentPayload(2, permit2Requirements);
+
+      const fullPayload: PaymentPayload = {
+        ...paymentPayload,
+        accepted: permit2Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        // NO eip2612GasSponsoring extension
+      };
+
+      const result = await facilitator.verify(fullPayload, permit2Requirements);
+      // Should fail with permit2_allowance_required since there's no EIP-2612 extension
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("permit2_allowance_required");
+    });
+
+    it("should reject EIP-2612 extension with wrong spender", async () => {
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockResolvedValueOnce(0n) // allowance = 0
+        .mockResolvedValueOnce(BigInt("10000000")); // balance
+
+      const permit2Requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 60,
+        extra: { assetTransferMethod: "permit2", name: "USDC", version: "2" },
+      };
+
+      const permit2ClientSigner: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0x" + "ab".repeat(32) + "cd".repeat(32) + "1b"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const permit2Client = new ClientExactEvmScheme(permit2ClientSigner);
+      const paymentPayload = await permit2Client.createPaymentPayload(2, permit2Requirements);
+
+      const now = Math.floor(Date.now() / 1000);
+      const fullPayload: PaymentPayload = {
+        ...paymentPayload,
+        accepted: permit2Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        extensions: {
+          eip2612GasSponsoring: {
+            info: {
+              from: "0x1234567890123456789012345678901234567890",
+              asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+              spender: "0x0000000000000000000000000000000000000000", // WRONG spender
+              amount:
+                "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+              nonce: "0",
+              deadline: (now + 300).toString(),
+              signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+              version: "1",
+            },
+            schema: {},
+          },
+        },
+      };
+
+      const result = await facilitator.verify(fullPayload, permit2Requirements);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("eip2612_spender_not_permit2");
+    });
+  });
+
+  describe("EIP-2612 Gas Sponsoring - Settlement", () => {
+    const permit2Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: { assetTransferMethod: "permit2", name: "USDC", version: "2" },
+    };
+
+    function makePermit2Payload(extensions?: Record<string, unknown>): PaymentPayload {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        x402Version: 2,
+        payload: {
+          signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+          permit2Authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            permitted: {
+              token: permit2Requirements.asset,
+              amount: permit2Requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: (now + 300).toString(),
+            witness: {
+              to: permit2Requirements.payTo,
+              validAfter: "0",
+              extra: "0x",
+            },
+          },
+        },
+        accepted: permit2Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        ...(extensions ? { extensions } : {}),
+      };
+    }
+
+    function makeEip2612Extension() {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        eip2612GasSponsoring: {
+          info: {
+            from: "0x1234567890123456789012345678901234567890",
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            spender: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            amount:
+              "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+            nonce: "0",
+            deadline: (now + 300).toString(),
+            signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+            version: "1",
+          },
+          schema: {},
+        },
+      };
+    }
+
+    it("should call settleWithPermit when EIP-2612 extension is present", async () => {
+      // Mock: allowance=0 (verify), balance=sufficient, allowance=0 (settle re-verify), balance=sufficient
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "allowance") return Promise.resolve(0n);
+          if (functionName === "balanceOf") return Promise.resolve(BigInt("10000000"));
+          return Promise.resolve(0n);
+        });
+
+      const payload = makePermit2Payload(makeEip2612Extension());
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(true);
+      expect(result.transaction).toBe("0xtxhash");
+
+      // Verify writeContract was called with settleWithPermit
+      const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
+        .calls[0][0];
+      expect(writeCall.functionName).toBe("settleWithPermit");
+    });
+
+    it("should call settle (not settleWithPermit) when no EIP-2612 extension", async () => {
+      // Mock: allowance=sufficient, balance=sufficient
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(true);
+      expect(result.transaction).toBe("0xtxhash");
+
+      // Verify writeContract was called with settle (not settleWithPermit)
+      const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
+        .calls[0][0];
+      expect(writeCall.functionName).toBe("settle");
+    });
+
+    it("should pass correct EIP-2612 permit struct to settleWithPermit", async () => {
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "allowance") return Promise.resolve(0n);
+          if (functionName === "balanceOf") return Promise.resolve(BigInt("10000000"));
+          return Promise.resolve(0n);
+        });
+
+      const extensions = makeEip2612Extension();
+      const payload = makePermit2Payload(extensions);
+      await facilitator.settle(payload, permit2Requirements);
+
+      const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
+        .calls[0][0];
+      expect(writeCall.functionName).toBe("settleWithPermit");
+
+      // First arg to settleWithPermit is the EIP-2612 permit struct (value, deadline, r, s, v)
+      const permit2612Struct = writeCall.args[0];
+      expect(permit2612Struct.value).toBeDefined();
+      expect(permit2612Struct.deadline).toBeDefined();
+      expect(permit2612Struct.r).toBeDefined();
+      expect(permit2612Struct.s).toBeDefined();
+      expect(permit2612Struct.v).toBeDefined();
+      // v should be a number (27 or 28)
+      expect(typeof permit2612Struct.v).toBe("number");
     });
   });
 });

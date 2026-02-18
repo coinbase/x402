@@ -62,6 +62,9 @@ func TestMCPEVMIntegration(t *testing.T) {
 	defer cancel()
 
 	t.Run("MCP Payment Flow - Real EVM Transactions with Real MCP SDK", func(t *testing.T) {
+		// Wait for any pending transactions from previous tests (shared facilitator wallet)
+		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
+
 		// ========================================================================
 		// Setup Client (Payer)
 		// ========================================================================
@@ -311,7 +314,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 				t.Error("Expected PaymentMade to be true")
 			}
 			if result.IsError {
-				t.Error("Expected IsError to be false")
+				t.Errorf("Expected IsError to be false, content: %+v", result.Content)
 			}
 
 			// Verify we got the tool result
@@ -321,7 +324,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 
 			// Verify payment response (settlement result)
 			if result.PaymentResponse == nil {
-				t.Fatal("Expected PaymentResponse to be set")
+				t.Fatalf("Expected PaymentResponse to be set, content: %+v", result.Content)
 			}
 			if !result.PaymentResponse.Success {
 				t.Error("Expected settlement to succeed")
@@ -343,6 +346,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 4: Multiple paid tool calls work
 		// ========================================================================
 		t.Run("Multiple paid tool calls work", func(t *testing.T) {
+			// Wait for the previous test's settlement tx to be mined
+			waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
 			t.Log("\n🔄 Starting second paid tool call...\n")
 
 			result, err := x402McpClient.CallTool(ctx, "get_weather", map[string]interface{}{"city": "Los Angeles"})
@@ -353,8 +358,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 			if !result.PaymentMade {
 				t.Error("Expected PaymentMade to be true")
 			}
+			if result.IsError {
+				t.Errorf("Expected IsError to be false, content: %+v", result.Content)
+			}
 			if result.PaymentResponse == nil {
-				t.Fatal("Expected PaymentResponse to be set")
+				t.Fatalf("Expected PaymentResponse to be set, content: %+v", result.Content)
 			}
 			if !result.PaymentResponse.Success {
 				t.Error("Expected successful settlement")
@@ -371,7 +379,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 5: List tools works
 		// ========================================================================
 		t.Run("List tools works", func(t *testing.T) {
-			tools, err := x402McpClient.ListTools(ctx)
+			session, ok := x402McpClient.Client().(*mcpsdk.ClientSession)
+			if !ok {
+				t.Fatal("Expected underlying client to be *mcp.ClientSession")
+			}
+			tools, err := session.ListTools(ctx, nil)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
