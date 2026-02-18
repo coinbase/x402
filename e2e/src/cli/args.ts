@@ -1,0 +1,134 @@
+import { TestFilters } from './filters';
+import type { NetworkMode } from '../networks/networks';
+
+/**
+ * Parse command-line arguments
+ * Used primarily for CI/GitHub workflows
+ */
+export interface ParsedArgs {
+  mode: 'interactive' | 'programmatic';
+  verbose: boolean;
+  logFile?: string;
+  filters: TestFilters;
+  showHelp: boolean;
+  minimize: boolean;
+  networkMode?: NetworkMode;  // undefined = prompt user, set = skip prompt
+}
+
+export function parseArgs(): ParsedArgs {
+  const args = process.argv.slice(2);
+
+  // Help flag
+  if (args.includes('-h') || args.includes('--help')) {
+    return {
+      mode: 'interactive',
+      verbose: false,
+      filters: {},
+      showHelp: true,
+      minimize: false
+    };
+  }
+
+  // Check if any filter args present -> programmatic mode
+  const hasFilterArgs = args.some(arg => 
+    arg.startsWith('--transport=') ||
+    arg.startsWith('--facilitators=') ||
+    arg.startsWith('--servers=') ||
+    arg.startsWith('--clients=') ||
+    arg.startsWith('--extensions=') ||
+    arg.startsWith('--versions=') ||
+    arg.startsWith('--families=')
+  );
+
+  const mode: 'interactive' | 'programmatic' = hasFilterArgs ? 'programmatic' : 'interactive';
+
+  // Parse verbose
+  const verbose = args.includes('-v') || args.includes('--verbose');
+
+  // Parse log file
+  const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
+
+  // Parse minimize flag
+  const minimize = args.includes('--min');
+
+  // Parse network mode (optional - if not set, will prompt in interactive mode)
+  let networkMode: NetworkMode | undefined;
+  if (args.includes('--mainnet')) {
+    networkMode = 'mainnet';
+  } else if (args.includes('--testnet')) {
+    networkMode = 'testnet';
+  }
+
+  // Parse filters (comma-separated lists)
+  const transports = parseListArg(args, '--transport');
+  const facilitators = parseListArg(args, '--facilitators');
+  const servers = parseListArg(args, '--servers');
+  const clients = parseListArg(args, '--clients');
+  const extensions = parseListArg(args, '--extensions');
+  const versions = parseListArg(args, '--versions')?.map(v => parseInt(v));
+  const families = parseListArg(args, '--families');
+
+  return {
+    mode,
+    verbose,
+    logFile,
+    filters: {
+      transports,
+      facilitators,
+      servers,
+      clients,
+      extensions,
+      versions,
+      protocolFamilies: families,
+    },
+    showHelp: false,
+    minimize,
+    networkMode
+  };
+}
+
+function parseListArg(args: string[], argName: string): string[] | undefined {
+  const arg = args.find(a => a.startsWith(`${argName}=`));
+  if (!arg) return undefined;
+  const value = arg.split('=')[1];
+  return value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+}
+
+export function printHelp(): void {
+  console.log('Usage: pnpm test [options]');
+  console.log('');
+  console.log('Interactive Mode (default):');
+  console.log('  pnpm test                  Launch interactive prompt mode');
+  console.log('  pnpm test -v               Interactive with verbose logging');
+  console.log('');
+  console.log('Network Selection:');
+  console.log('  --testnet                  Use testnet networks (Base Sepolia + Solana Devnet)');
+  console.log('  --mainnet                  Use mainnet networks (Base + Solana) ⚠️  Real funds!');
+  console.log('  (If not specified, will prompt in interactive mode)');
+  console.log('');
+  console.log('Programmatic Mode (for CI/workflows):');
+  console.log('  --transport=<list>         Comma-separated transports (e.g., http,mcp)');
+  console.log('  --facilitators=<list>      Comma-separated facilitator names');
+  console.log('  --servers=<list>           Comma-separated server names');
+  console.log('  --clients=<list>           Comma-separated client names');
+  console.log('  --extensions=<list>        Comma-separated extensions (e.g., bazaar)');
+  console.log('  --versions=<list>          Comma-separated version numbers (e.g., 1,2)');
+  console.log('  --families=<list>          Comma-separated protocol families (e.g., evm,svm)');
+  console.log('');
+  console.log('Options:');
+  console.log('  -v, --verbose              Enable verbose logging');
+  console.log('  --log-file=<path>          Save verbose output to file');
+  console.log('  --min                      Minimize tests (coverage-based skipping)');
+  console.log('  -h, --help                 Show this help message');
+  console.log('');
+  console.log('Examples:');
+  console.log('  pnpm test                                           # Interactive mode (testnet)');
+  console.log('  pnpm test --testnet                                 # Skip network prompt');
+  console.log('  pnpm test --mainnet                                 # Use mainnet (real funds!)');
+  console.log('  pnpm test --min -v                                  # Minimize with verbose');
+  console.log('  pnpm test --transport=mcp                                # MCP transport only');
+  console.log('  pnpm test --mainnet --facilitators=go --servers=express  # Mainnet programmatic');
+  console.log('');
+  console.log('Note: --mainnet requires funded wallets with real tokens!');
+  console.log('');
+}

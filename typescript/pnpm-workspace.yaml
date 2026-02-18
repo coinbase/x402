@@ -1,0 +1,12 @@
+packages:
+  - packages/core
+  - packages/extensions
+  - packages/mcp
+  - packages/http/*
+  - packages/mechanisms/*
+  - packages/legacy/*
+  - examples/facilitator
+  - examples/**/*
+  - site
+ignoredBuiltDependencies:
+  - esbuild
