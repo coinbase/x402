@@ -335,9 +335,7 @@ def derive_ata(owner: str, mint: str, token_program: str | None = None) -> str:
     """
     from solders.pubkey import Pubkey
 
-    ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
-        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-    )
+    ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
 
     if token_program is None:
         token_program = TOKEN_PROGRAM_ADDRESS

@@ -132,17 +132,13 @@ class x402HTTPAdapter(HTTPAdapter):
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pass
 
-            payment_required = self._http_client.get_payment_required_response(
-                get_header, body
-            )
+            payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload (sync)
             payment_payload = self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
-            payment_headers = self._http_client.encode_payment_signature_header(
-                payment_payload
-            )
+            payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
 
             # Create a copy of the request for retry (don't modify original)
             retry_request = request.copy()

@@ -35,7 +35,7 @@ interface ExtensionDeclaration {
 }
 
 export const bazaarResourceServerExtension: ResourceServerExtension = {
-  key: BAZAAR,
+  key: BAZAAR.key,
 
   enrichDeclaration: (declaration, transportContext) => {
     if (!isHTTPRequestContext(transportContext)) {

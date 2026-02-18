@@ -339,7 +339,7 @@ app.get("/health", (req, res) => {
     svmNetwork: SVM_NETWORK,
     facilitator: "typescript",
     version: "2.0.0",
-    extensions: [BAZAAR],
+    extensions: [BAZAAR.key],
     discoveredResources: bazaarCatalog.getCount(),
   });
 });

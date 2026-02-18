@@ -116,7 +116,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     context?: PaymentPayloadContext,
   ): Promise<Record<string, unknown> | undefined> {
     // Check if server advertises eip2612GasSponsoring
-    if (!context?.extensions?.[EIP2612_GAS_SPONSORING]) {
+    if (!context?.extensions?.[EIP2612_GAS_SPONSORING.key]) {
       return undefined;
     }
 
@@ -163,7 +163,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     );
 
     return {
-      [EIP2612_GAS_SPONSORING]: { info },
+      [EIP2612_GAS_SPONSORING.key]: { info },
     };
   }
 }

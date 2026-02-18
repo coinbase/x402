@@ -103,6 +103,7 @@ class ExactEvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> VerifyResponse:
         """Verify EIP-3009 payment payload.
 
@@ -134,9 +135,7 @@ class ExactEvmScheme:
 
         # Validate network
         if payload.accepted.network != requirements.network:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer)
 
         # Get configs
         try:
@@ -217,9 +216,7 @@ class ExactEvmScheme:
 
         # Verify signature
         if not evm_payload.signature:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer
-            )
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_INVALID_SIGNATURE, payer=payer)
 
         signature = hex_to_bytes(evm_payload.signature)
         hash_bytes = hash_eip3009_authorization(
@@ -252,6 +249,7 @@ class ExactEvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> SettleResponse:
         """Settle EIP-3009 payment on-chain.
 
@@ -268,7 +266,7 @@ class ExactEvmScheme:
             SettleResponse with success, transaction, and payer.
         """
         # First verify
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
         if not verify_result.is_valid:
             return SettleResponse(
                 success=False,

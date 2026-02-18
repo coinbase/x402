@@ -18,6 +18,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
@@ -775,7 +776,7 @@ func main() {
 	facilitator.RegisterExtension(exttypes.BAZAAR)
 
 	// Register the EIP-2612 Gas Sponsoring extension
-	facilitator.RegisterExtension("eip2612GasSponsoring")
+	facilitator.RegisterExtension(eip2612gassponsor.EIP2612GasSponsoring)
 
 	// Lifecycle hooks for payment tracking and discovery
 	facilitator.
@@ -1073,7 +1074,7 @@ func main() {
 			"svmNetwork":          svmNetwork,
 			"facilitator":         "go",
 			"version":             "2.0.0",
-			"extensions":          []string{exttypes.BAZAAR},
+			"extensions":          []string{exttypes.BAZAAR.Key()},
 			"discoveredResources": bazaarCatalog.GetCount(),
 		})
 	})

@@ -129,7 +129,7 @@ export function extractDiscoveryInfo(
     resourceUrl = paymentPayload.resource?.url ?? "";
 
     if (paymentPayload.extensions) {
-      const bazaarExtension = paymentPayload.extensions[BAZAAR];
+      const bazaarExtension = paymentPayload.extensions[BAZAAR.key];
 
       if (bazaarExtension && typeof bazaarExtension === "object") {
         try {

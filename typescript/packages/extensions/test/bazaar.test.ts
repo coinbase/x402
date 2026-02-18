@@ -19,7 +19,7 @@ import type { HTTPAdapter, HTTPRequestContext } from "@x402/core/http";
 describe("Bazaar Discovery Extension", () => {
   describe("BAZAAR constant", () => {
     it("should export the correct extension identifier", () => {
-      expect(BAZAAR).toBe("bazaar");
+      expect(BAZAAR.key).toBe("bazaar");
     });
   });
 
@@ -324,7 +324,7 @@ describe("Bazaar Discovery Extension", () => {
         accepted: {} as unknown,
         resource: { url: "http://example.com/test" },
         extensions: {
-          [BAZAAR]: extension,
+          [BAZAAR.key]: extension,
         },
       };
 
@@ -359,7 +359,7 @@ describe("Bazaar Discovery Extension", () => {
           mimeType: "application/json",
         },
         extensions: {
-          [BAZAAR]: extension,
+          [BAZAAR.key]: extension,
         },
       };
 
@@ -391,7 +391,7 @@ describe("Bazaar Discovery Extension", () => {
           mimeType: "text/html",
         },
         extensions: {
-          [BAZAAR]: extension,
+          [BAZAAR.key]: extension,
         },
       };
 
@@ -421,7 +421,7 @@ describe("Bazaar Discovery Extension", () => {
           mimeType: "text/html",
         },
         extensions: {
-          [BAZAAR]: extension,
+          [BAZAAR.key]: extension,
         },
       };
 
@@ -986,11 +986,11 @@ describe("Bazaar Discovery Extension", () => {
         },
         accepts: [],
         extensions: {
-          [BAZAAR]: extension,
+          [BAZAAR.key]: extension,
         },
       };
 
-      const bazaarExt = paymentRequired.extensions?.[BAZAAR] as DiscoveryExtension;
+      const bazaarExt = paymentRequired.extensions?.[BAZAAR.key] as DiscoveryExtension;
       expect(bazaarExt).toBeDefined();
 
       const validation = validateDiscoveryExtension(bazaarExt);
@@ -1084,7 +1084,7 @@ describe("Bazaar Discovery Extension", () => {
         accepted: {} as unknown,
         resource: { url: "http://example.com/v2" },
         extensions: {
-          [BAZAAR]: v2Extension,
+          [BAZAAR.key]: v2Extension,
         },
       };
 
