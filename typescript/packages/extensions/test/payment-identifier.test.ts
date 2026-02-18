@@ -124,10 +124,7 @@ describe("Payment-Identifier Extension", () => {
   });
 
   describe("payloadFingerprint", () => {
-    const createMockPayload = (
-      amount: string,
-      id?: string,
-    ): PaymentPayload => {
+    const createMockPayload = (amount: string, id?: string): PaymentPayload => {
       const payload: PaymentPayload = {
         x402Version: 2,
         resource: { url: "https://example.com/resource", method: "GET" },
