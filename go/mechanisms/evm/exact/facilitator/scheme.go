@@ -76,6 +76,7 @@ func (f *ExactEvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
@@ -237,6 +238,7 @@ func (f *ExactEvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
