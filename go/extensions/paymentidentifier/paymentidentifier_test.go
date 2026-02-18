@@ -92,6 +92,94 @@ func TestIsValidPaymentID(t *testing.T) {
 	})
 }
 
+func TestPayloadFingerprint(t *testing.T) {
+	makePayload := func(amount string, id string) x402.PaymentPayload {
+		p := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted: x402.PaymentRequirements{
+				Scheme:  "exact",
+				Network: "eip155:8453",
+				Amount:  amount,
+			},
+			Payload: map[string]interface{}{},
+		}
+		if id != "" {
+			p.Extensions = map[string]interface{}{
+				paymentidentifier.PAYMENT_IDENTIFIER: paymentidentifier.PaymentIdentifierExtension{
+					Info: paymentidentifier.PaymentIdentifierInfo{
+						Required: true,
+						ID:       id,
+					},
+					Schema: paymentidentifier.PaymentIdentifierSchema(),
+				},
+			}
+		}
+		return p
+	}
+
+	t.Run("identical payloads produce the same fingerprint", func(t *testing.T) {
+		p1 := makePayload("1000", "pay_aaaa1111bbbb2222")
+		p2 := makePayload("1000", "pay_aaaa1111bbbb2222")
+
+		fp1, err := paymentidentifier.PayloadFingerprint(p1)
+		require.NoError(t, err)
+		fp2, err := paymentidentifier.PayloadFingerprint(p2)
+		require.NoError(t, err)
+
+		assert.Equal(t, fp1, fp2)
+	})
+
+	t.Run("different payload content produces different fingerprints", func(t *testing.T) {
+		p1 := makePayload("1000", "pay_aaaa1111bbbb2222")
+		p2 := makePayload("2000", "pay_aaaa1111bbbb2222")
+
+		fp1, err := paymentidentifier.PayloadFingerprint(p1)
+		require.NoError(t, err)
+		fp2, err := paymentidentifier.PayloadFingerprint(p2)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, fp1, fp2)
+	})
+
+	t.Run("same payload with different IDs produces different fingerprints", func(t *testing.T) {
+		p1 := makePayload("1000", "pay_aaaa1111bbbb2222")
+		p2 := makePayload("1000", "pay_cccc3333dddd4444")
+
+		fp1, err := paymentidentifier.PayloadFingerprint(p1)
+		require.NoError(t, err)
+		fp2, err := paymentidentifier.PayloadFingerprint(p2)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, fp1, fp2)
+	})
+
+	t.Run("payload with no extensions works without error", func(t *testing.T) {
+		p := makePayload("1000", "")
+
+		fp, err := paymentidentifier.PayloadFingerprint(p)
+		require.NoError(t, err)
+		assert.NotEmpty(t, fp)
+	})
+
+	t.Run("payload with extensions but no payment-identifier works without error", func(t *testing.T) {
+		p := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted: x402.PaymentRequirements{
+				Scheme:  "exact",
+				Network: "eip155:8453",
+			},
+			Payload: map[string]interface{}{},
+			Extensions: map[string]interface{}{
+				"other-extension": map[string]interface{}{"foo": "bar"},
+			},
+		}
+
+		fp, err := paymentidentifier.PayloadFingerprint(p)
+		require.NoError(t, err)
+		assert.NotEmpty(t, fp)
+	})
+}
+
 func TestPaymentIdentifierSchema(t *testing.T) {
 	t.Run("should return valid JSON schema", func(t *testing.T) {
 		schema := paymentidentifier.PaymentIdentifierSchema()

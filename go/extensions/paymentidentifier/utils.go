@@ -1,8 +1,13 @@
 package paymentidentifier
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"strings"
 
+	x402 "github.com/coinbase/x402/go"
 	"github.com/google/uuid"
 )
 
@@ -18,6 +23,19 @@ func GeneratePaymentID(prefix string) string {
 	// Generate UUID v4 without hyphens
 	uuidStr := strings.ReplaceAll(uuid.New().String(), "-", "")
 	return prefix + uuidStr
+}
+
+// PayloadFingerprint computes a deterministic hash of a PaymentPayload.
+// This allows detecting whether two payloads with the same payment ID carry
+// identical or different content (for 409 Conflict detection).
+func PayloadFingerprint(payload x402.PaymentPayload) (string, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 // IsValidPaymentID validates that a payment ID meets the format requirements.
