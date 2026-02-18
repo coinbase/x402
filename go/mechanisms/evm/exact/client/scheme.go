@@ -103,7 +103,7 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 	if extensions == nil {
 		return nil, nil
 	}
-	if _, ok := extensions[eip2612gassponsor.EIP2612GasSponsoring]; !ok {
+	if _, ok := extensions[eip2612gassponsor.EIP2612GasSponsoring.Key()]; !ok {
 		return nil, nil
 	}
 
@@ -159,7 +159,7 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 	}
 
 	return map[string]interface{}{
-		eip2612gassponsor.EIP2612GasSponsoring: map[string]interface{}{
+		eip2612gassponsor.EIP2612GasSponsoring.Key(): map[string]interface{}{
 			"info": info,
 		},
 	}, nil
