@@ -6,6 +6,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
 import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -170,6 +171,42 @@ app.use(
             },
           }
         : {}),
+      "GET /protected-permit2": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "exact",
+          network: EVM_NETWORK,
+          price: {
+            amount: "1000",
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            extra: {
+              assetTransferMethod: "permit2",
+              name: "USDC",
+              version: "2",
+            },
+          },
+        },
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Permit2 endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+                method: "permit2",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                  method: { type: "string" },
+                },
+                required: ["message", "timestamp", "method"],
+              },
+            },
+          }),
+          ...declareEip2612GasSponsoringExtension(),
+        },
+      },
     },
     x402Server, // Pass pre-configured server instance
   ),
@@ -212,6 +249,17 @@ app.get("/protected-aptos", (c) => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Protected Permit2 endpoint - requires Permit2 payment with EIP-2612 gas sponsoring
+ */
+app.get("/protected-permit2", (c) => {
+  return c.json({
+    message: "Permit2 endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "permit2",
   });
 });
 
@@ -264,10 +312,11 @@ console.log(`
 ║  Aptos Payee:    ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected       (requires $0.001 USDC payment)║
-║  • GET  /protected-svm   (requires $0.001 USDC payment)║
-║  • GET  /protected-aptos (requires $0.001 USDC payment)║
-║  • GET  /health        (no payment required)          ║
-║  • POST /close         (shutdown server)              ║
+║  • GET  /protected          (EIP-3009 payment)        ║
+║  • GET  /protected-permit2  (Permit2 + EIP-2612)      ║
+║  • GET  /protected-svm      (SVM payment)             ║
+║  • GET  /protected-aptos    (Aptos payment)           ║
+║  • GET  /health             (no payment required)     ║
+║  • POST /close              (shutdown server)         ║
 ╚════════════════════════════════════════════════════════╝
   `);

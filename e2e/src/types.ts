@@ -2,6 +2,7 @@ import type { NetworkSet } from './networks/networks';
 
 export type ProtocolFamily = 'evm' | 'svm' | 'aptos';
 export type Transport = 'http' | 'mcp';
+export type TransferMethod = 'eip3009' | 'permit2';
 
 export interface ClientResult {
   success: boolean;
@@ -46,7 +47,7 @@ export interface TestEndpoint {
   description: string;
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
-  permit2?: boolean; // Endpoint requires Permit2 approval
+  transferMethod?: TransferMethod;
   health?: boolean;
   close?: boolean;
 }
@@ -60,6 +61,9 @@ export interface TestConfig {
   x402Version?: number;
   x402Versions?: number[];
   extensions?: string[];
+  evm?: {
+    transferMethods: TransferMethod[];
+  };
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

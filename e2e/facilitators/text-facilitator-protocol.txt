@@ -20,6 +20,14 @@ Facilitators must declare which x402 protocol versions they support using the `x
 Facilitators must declare which protocol extensions they support using the `extensions` field:
 - **extensions**: Array of supported extension names (e.g., ["bazaar"])
 
+## EVM Transfer Method Support
+Facilitators that support the EVM protocol family must declare which transfer methods they support using the `evm.transferMethods` field:
+- **eip3009**: EIP-3009 transferWithAuthorization
+- **permit2**: Uniswap Permit2 approval-based transfer
+
+If the `evm` field is omitted, the facilitator is assumed to only support `["eip3009"]`.
+The test suite uses this to skip scenarios where a server endpoint requires a transfer method the facilitator does not support.
+
 Example configuration:
 ```json
 {
@@ -29,6 +37,28 @@ Example configuration:
   "protocolFamilies": ["evm", "svm", "aptos"],
   "x402Versions": [2],
   "extensions": ["bazaar"],
+  "evm": {
+    "transferMethods": ["eip3009", "permit2"]
+  },
+  "environment": {
+    "required": ["PORT", "EVM_PRIVATE_KEY", "EVM_NETWORK"],
+    "optional": ["SVM_PRIVATE_KEY", "SVM_NETWORK"]
+  }
+}
+```
+
+Python facilitator example (eip3009 only):
+```json
+{
+  "name": "python",
+  "type": "facilitator",
+  "language": "python",
+  "protocolFamilies": ["evm"],
+  "x402Versions": [2],
+  "extensions": ["bazaar"],
+  "evm": {
+    "transferMethods": ["eip3009"]
+  },
   "environment": {
     "required": ["PORT", "EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "APTOS_PRIVATE_KEY"],
     "optional": ["EVM_NETWORK", "SVM_NETWORK", "APTOS_NETWORK"]

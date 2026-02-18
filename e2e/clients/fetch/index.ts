@@ -1,7 +1,10 @@
 import { config } from "dotenv";
 import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
+import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { toClientEvmSigner } from "@x402/evm";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { registerExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
@@ -17,6 +20,15 @@ const url = `${baseURL}${endpointPath}`;
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
 
+// Create a public client for on-chain reads (needed for EIP-2612 extension)
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
+
+// Compose account + publicClient into a full ClientEvmSigner
+const evmSigner = toClientEvmSigner(evmAccount, publicClient);
+
 // Initialize Aptos signer if key is provided
 let aptosAccount: Account | undefined;
 if (process.env.APTOS_PRIVATE_KEY) {
@@ -27,7 +39,7 @@ if (process.env.APTOS_PRIVATE_KEY) {
 
 // Create client and register EVM, SVM, and Aptos schemes using the register helpers
 const client = new x402Client();
-registerExactEvmScheme(client, { signer: evmAccount });
+registerExactEvmScheme(client, { signer: evmSigner });
 registerExactSvmScheme(client, { signer: svmSigner });
 if (aptosAccount) {
   registerExactAptosScheme(client, { signer: aptosAccount });

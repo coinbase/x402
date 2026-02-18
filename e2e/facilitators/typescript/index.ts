@@ -27,6 +27,7 @@ import {
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
+import { EIP2612_GAS_SPONSORING } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
 import crypto from "crypto";
@@ -179,6 +180,7 @@ if (aptosSigner) {
 }
 
 facilitator.registerExtension(BAZAAR)
+  .registerExtension(EIP2612_GAS_SPONSORING)
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation

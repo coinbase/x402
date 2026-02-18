@@ -5,6 +5,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
 import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -178,6 +179,8 @@ app.use(
             asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
             extra: {
               assetTransferMethod: "permit2",
+              name: "USDC",
+              version: "2",
             },
           },
         },
@@ -199,6 +202,7 @@ app.use(
               },
             },
           }),
+          ...declareEip2612GasSponsoringExtension(),
         },
       },
     },

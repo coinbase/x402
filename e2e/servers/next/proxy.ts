@@ -4,6 +4,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
 import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 
 export const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 export const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
@@ -117,11 +118,47 @@ export const proxy = paymentProxy(
         },
       }
       : {}),
+    "/api/protected-permit2-proxy": {
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        network: EVM_NETWORK,
+        price: {
+          amount: "1000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          extra: {
+            assetTransferMethod: "permit2",
+            name: "USDC",
+            version: "2",
+          },
+        },
+      },
+      extensions: {
+        ...declareDiscoveryExtension({
+          output: {
+            example: {
+              message: "Permit2 endpoint accessed successfully",
+              timestamp: "2024-01-01T00:00:00Z",
+              method: "permit2",
+            },
+            schema: {
+              properties: {
+                message: { type: "string" },
+                timestamp: { type: "string" },
+                method: { type: "string" },
+              },
+              required: ["message", "timestamp", "method"],
+            },
+          },
+        }),
+        ...declareEip2612GasSponsoringExtension(),
+      },
+    },
   },
   server, // Pass pre-configured server instance
 );
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy"],
+  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy", "/api/protected-permit2-proxy"],
 };
