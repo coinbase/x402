@@ -1,0 +1,449 @@
+---
+title: "EIP-2612 Gas Sponsoring"
+description: "The EIP-2612 gas sponsoring extension enables gasless Permit2 approval for tokens that implement EIP-2612, allowing clients to make payments without prior on-chain approvals."
+---
+
+The EIP-2612 gas sponsoring extension enables gasless approval of the Permit2 contract for tokens that implement the EIP-2612 standard. When a client doesn't have an existing Permit2 approval, they can sign an off-chain EIP-2612 permit, and the facilitator will submit it on-chain as part of the settlement transaction via `x402Permit2Proxy.settleWithPermit`.
+
+This eliminates the need for a separate approval transaction, reducing friction and gas costs for first-time users.
+
+## How It Works
+
+1. **Server advertises support**: The server includes the `eip2612GasSponsoring` extension in the `PaymentRequired` response
+2. **Client detects insufficient allowance**: When the client's Permit2 allowance is insufficient, the EVM scheme automatically checks for extension support
+3. **Client signs EIP-2612 permit**: The client signs an off-chain permit authorizing Permit2 to spend tokens
+4. **Extension data added to payload**: The permit signature and parameters are added to the payment payload's extensions
+5. **Facilitator uses settleWithPermit**: The facilitator detects the extension and calls `settleWithPermit` instead of `settle`, submitting the permit on-chain
+
+## Use Cases
+
+- **First-time payments**: Users can make their first payment without a separate approval transaction
+- **Gasless onboarding**: Reduce friction for new users who don't have native tokens for gas
+- **Improved UX**: Eliminate the two-step approval + payment flow for EIP-2612 tokens
+
+## Supported Tokens
+
+This extension works with any ERC-20 token that implements the EIP-2612 `permit` function. Common examples include:
+
+- USDC (on most networks)
+- DAI
+- USDT (on some networks)
+- Many modern ERC-20 tokens
+
+To check if a token supports EIP-2612, verify it has a `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` function.
+
+## Quickstart for Sellers (Servers)
+
+### Step 1: Advertise Extension Support
+
+Declare the `eip2612GasSponsoring` extension in your route configuration:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { HTTPFacilitatorClient } from "@x402/core/server";
+    import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
+
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+
+    const routes = {
+      "GET /premium-data": {
+        accepts: {
+          scheme: "exact",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
+          price: {
+            amount: "1000", // 0.001 USDC
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            extra: {
+              assetTransferMethod: "permit2", // Use Permit2 flow
+            },
+          },
+        },
+        extensions: {
+          // Advertise EIP-2612 gas sponsoring support
+          ...declareEip2612GasSponsoringExtension(),
+        },
+      },
+    };
+
+    app.use(
+      paymentMiddleware(
+        routes,
+        new x402ResourceServer(facilitatorClient).register(
+          "eip155:84532",
+          new ExactEvmScheme()
+        )
+      )
+    );
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    package main
+
+    import (
+        x402 "github.com/coinbase/x402/go"
+        "github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+        x402http "github.com/coinbase/x402/go/http"
+        ginmw "github.com/coinbase/x402/go/http/gin"
+        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+        "github.com/gin-gonic/gin"
+    )
+
+    func main() {
+        r := gin.Default()
+
+        facilitatorClient := x402http.NewHTTPFacilitatorClient(
+            "https://x402.org/facilitator",
+        )
+
+        // Build EIP-2612 gas sponsoring extension declaration
+        eip2612Ext := eip2612gassponsor.DeclareEip2612GasSponsoringExtension()
+        extensions := make(map[string]interface{})
+        for k, v := range eip2612Ext {
+            extensions[k] = v
+        }
+
+        routes := x402http.RouteConfig{
+            "GET /premium-data": {
+                Accepts: x402http.PaymentOptions{{
+                    Scheme:  "exact",
+                    PayTo:   "0xYourAddress",
+                    Network: x402.Network("eip155:84532"),
+                    Price: map[string]interface{}{
+                        "amount": "1000",
+                        "asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                        "extra": map[string]interface{}{
+                            "assetTransferMethod": "permit2",
+                        },
+                    },
+                }},
+                Extensions: extensions,
+            },
+        }
+
+        r.Use(ginmw.X402Payment(ginmw.Config{
+            Routes:      routes,
+            Facilitator: facilitatorClient,
+            Schemes: []ginmw.SchemeConfig{{
+                Network: x402.Network("eip155:84532"),
+                Server:  evm.NewExactEvmScheme(),
+            }},
+        }))
+
+        r.GET("/premium-data", func(c *gin.Context) {
+            c.JSON(200, gin.H{"data": "premium market data"})
+        })
+
+        r.Run(":4021")
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Step 2: Ensure Permit2 Flow
+
+The extension only applies when using the Permit2 asset transfer method. Make sure your price configuration includes:
+
+```typescript
+price: {
+  amount: "1000",
+  asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  extra: {
+    assetTransferMethod: "permit2", // Required for EIP-2612 extension
+  },
+}
+```
+
+### Step 3: No Additional Server Logic Required
+
+The extension is handled automatically by the x402 SDK:
+- The server advertises support in the `PaymentRequired` response
+- The client adds the permit signature to the payment payload
+- The facilitator detects the extension and uses `settleWithPermit`
+
+## Quickstart for Buyers (Clients)
+
+### Automatic Handling
+
+The EIP-2612 gas sponsoring extension is **automatically handled** by the x402 client SDK when:
+
+1. The server advertises `eip2612GasSponsoring` extension support
+2. The client's Permit2 allowance is insufficient for the payment
+3. The token implements EIP-2612 `permit`
+
+No additional client code is required - the SDK will:
+- Detect the extension in the `PaymentRequired` response
+- Check the current Permit2 allowance
+- Sign an EIP-2612 permit if needed
+- Add the permit to the payment payload's extensions
+
+### Example Client Code
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { privateKeyToAccount } from "viem/accounts";
+
+    // Set up your payment account
+    const account = privateKeyToAccount("0xYourPrivateKey");
+    const client = new x402Client();
+    registerExactEvmScheme(client, { signer: account });
+
+    // Wrap fetch with payment capability
+    const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+    // Make a request - EIP-2612 permit is handled automatically
+    const response = await fetchWithPayment("http://localhost:4021/premium-data");
+    const data = await response.json();
+    console.log(data);
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    package main
+
+    import (
+        "fmt"
+        "io"
+        "net/http"
+
+        x402 "github.com/coinbase/x402/go"
+        x402http "github.com/coinbase/x402/go/http"
+        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+        "github.com/coinbase/x402/go/signers"
+    )
+
+    func main() {
+        // Create signer from private key
+        signer, _ := signers.NewEvmSignerFromHex("0xYourPrivateKey")
+
+        // Create x402 client
+        client := x402.NewClient()
+        client.Register(x402.Network("eip155:84532"), evm.NewExactEvmScheme(signer))
+
+        // Create HTTP client with payment capability
+        httpClient := x402http.NewHTTPClient(client, &http.Client{})
+
+        // Make request - EIP-2612 permit is handled automatically
+        resp, _ := httpClient.Get("http://localhost:4021/premium-data")
+        defer resp.Body.Close()
+
+        body, _ := io.ReadAll(resp.Body)
+        fmt.Println(string(body))
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## How the Client SDK Handles It
+
+When the client SDK detects the `eip2612GasSponsoring` extension:
+
+1. **Check allowance**: Query the current Permit2 allowance for the token
+2. **Detect insufficient allowance**: If allowance < payment amount, proceed with EIP-2612 flow
+3. **Read token metadata**: Query the token's EIP-2612 `name()` and `version()` for EIP-712 signing
+4. **Sign permit**: Create and sign an EIP-2612 permit authorizing Permit2 to spend tokens
+5. **Enrich payload**: Add the permit signature and parameters to `paymentPayload.extensions.eip2612GasSponsoring`
+6. **Submit payment**: Send the enriched payload to the facilitator
+
+## Facilitator Handling
+
+Facilitators that support this extension will:
+
+1. **Extract extension data**: Parse the `eip2612GasSponsoring` extension from the payment payload
+2. **Validate permit**: Verify the permit signature and parameters
+3. **Use settleWithPermit**: Call `x402Permit2Proxy.settleWithPermit` instead of `settle`
+4. **Submit on-chain**: The permit is submitted on-chain as part of the settlement transaction
+
+## Extension Data Structure
+
+### Server Declaration (in PaymentRequired)
+
+```json
+{
+  "extensions": {
+    "eip2612GasSponsoring": {
+      "info": {
+        "description": "Enables gasless Permit2 approval via EIP-2612 permit",
+        "version": "1.0.0"
+      },
+      "schema": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "asset": { "type": "string" },
+          "spender": { "type": "string" },
+          "amount": { "type": "string" },
+          "nonce": { "type": "string" },
+          "deadline": { "type": "string" },
+          "signature": { "type": "string" },
+          "version": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+### Client Enrichment (in PaymentPayload)
+
+```json
+{
+  "extensions": {
+    "eip2612GasSponsoring": {
+      "info": {
+        "from": "0xBuyerAddress",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "spender": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+        "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "nonce": "0",
+        "deadline": "1735689600",
+        "signature": "0x1234...abcd",
+        "version": "2"
+      }
+    }
+  }
+}
+```
+
+## API Reference
+
+### Server Functions
+
+#### `declareEip2612GasSponsoringExtension()` (TypeScript)
+
+Creates the extension declaration for resource servers.
+
+```typescript
+import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
+
+const extension = declareEip2612GasSponsoringExtension();
+// Returns: { eip2612GasSponsoring: { info: {...}, schema: {...} } }
+```
+
+#### `DeclareEip2612GasSponsoringExtension()` (Go)
+
+Creates the extension declaration for resource servers.
+
+```go
+import "github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+
+ext := eip2612gassponsor.DeclareEip2612GasSponsoringExtension()
+// Returns: map[string]interface{} with extension data
+```
+
+### Facilitator Functions
+
+#### `extractEip2612GasSponsoringInfo(paymentPayload)` (TypeScript)
+
+Extracts the EIP-2612 gas sponsoring info from a payment payload.
+
+```typescript
+import { extractEip2612GasSponsoringInfo } from "@x402/extensions";
+
+const info = extractEip2612GasSponsoringInfo(paymentPayload);
+if (info) {
+  // Use settleWithPermit instead of settle
+}
+```
+
+#### `validateEip2612GasSponsoringInfo(info)` (TypeScript)
+
+Validates the format of the EIP-2612 gas sponsoring info.
+
+```typescript
+import { validateEip2612GasSponsoringInfo } from "@x402/extensions";
+
+if (info && validateEip2612GasSponsoringInfo(info)) {
+  // Info is valid, proceed with settleWithPermit
+}
+```
+
+#### `ExtractEip2612GasSponsoringInfo(extensions)` (Go)
+
+Extracts the EIP-2612 gas sponsoring info from payment payload extensions.
+
+```go
+import "github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+
+info, err := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(extensions)
+if err == nil && info != nil {
+    // Use settleWithPermit
+}
+```
+
+#### `ValidateEip2612GasSponsoringInfo(info)` (Go)
+
+Validates the format of the EIP-2612 gas sponsoring info.
+
+```go
+import "github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+
+if eip2612gassponsor.ValidateEip2612GasSponsoringInfo(info) {
+    // Info is valid
+}
+```
+
+## Examples
+
+Full working examples are available in the x402 repository:
+
+- [TypeScript Server Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced/eip2612-gas-sponsoring.ts)
+- [Go Server Example](https://github.com/coinbase/x402/tree/main/examples/go/servers/advanced/eip2612-gas-sponsoring.go)
+
+## Requirements
+
+### For Servers
+- Must use Permit2 asset transfer method (`assetTransferMethod: "permit2"`)
+- Must advertise the `eip2612GasSponsoring` extension
+- Token must implement EIP-2612 `permit` function
+
+### For Facilitators
+- Must support the `settleWithPermit` function on the x402Permit2Proxy contract
+- Must validate and extract the extension data from payment payloads
+- Must handle on-chain permit submission
+
+### For Clients
+- Automatically handled by x402 SDK (TypeScript, Go)
+- Requires a signer capable of signing EIP-712 messages
+- Token must implement EIP-2612 `permit` function
+
+## Limitations
+
+- **EIP-2612 tokens only**: The extension only works with tokens that implement the EIP-2612 standard
+- **Permit2 flow only**: The extension is only applicable when using the Permit2 asset transfer method
+- **First approval only**: After the first payment, the Permit2 allowance is set, so subsequent payments don't need the extension
+- **Network support**: Depends on facilitator support for the target network
+
+## Support
+
+- **GitHub**: [github.com/coinbase/x402](https://github.com/coinbase/x402)
+- **Discord**: [Join #x402 channel](https://discord.com/invite/cdp)
+
+## FAQ
+
+**Q: Do I need to do anything special on the client side?**
+A: No, the x402 client SDK automatically handles the EIP-2612 permit signing when the extension is advertised and allowance is insufficient.
+
+**Q: What happens if the token doesn't support EIP-2612?**
+A: The client will fall back to requiring a separate approval transaction before making the payment.
+
+**Q: Does this work with all ERC-20 tokens?**
+A: No, only tokens that implement the EIP-2612 `permit` function. Common examples include USDC, DAI, and many modern ERC-20 tokens.
+
+**Q: What if I already have a Permit2 approval?**
+A: The extension is only used when the Permit2 allowance is insufficient. If you already have an approval, the standard Permit2 flow is used without the extension.
+
+**Q: Can I use this with EIP-3009 tokens?**
+A: No, this extension is specifically for EIP-2612 tokens. EIP-3009 tokens use a different flow (`transferWithAuthorization`) that doesn't require Permit2.
+
+**Q: Does this cost more gas?**
+A: The first payment includes the permit submission, which adds a small amount of gas. However, this is typically less than a separate approval transaction, and subsequent payments use the standard Permit2 flow.
