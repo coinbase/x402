@@ -18,12 +18,30 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// payloadFingerprint computes a deterministic hash of the request intent,
+// excluding the "payload" field which contains per-attempt cryptographic
+// signatures. Two retries of the same logical request will produce the same
+// fingerprint even though their payment proofs differ.
 func payloadFingerprint(payload x402.PaymentPayload) (string, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal payload: %w", err)
 	}
-	hash := sha256.Sum256(data)
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return "", fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
+	// Remove the payment proof — it contains a unique signature per attempt.
+	delete(m, "payload")
+
+	canonical, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("failed to re-marshal payload: %w", err)
+	}
+
+	hash := sha256.Sum256(canonical)
 	return hex.EncodeToString(hash[:]), nil
 }
 
