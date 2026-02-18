@@ -1244,6 +1244,12 @@ importers:
       '@eslint/js':
         specifier: ^9.24.0
         version: 9.39.2
+      '@scure/base':
+        specifier: ^1.2.6
+        version: 1.2.6
+      '@solana/kit':
+        specifier: ^5.1.0
+        version: 5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@types/node':
         specifier: ^22.13.4
         version: 22.19.7
@@ -1259,6 +1265,9 @@ importers:
       '@x402/evm':
         specifier: workspace:~
         version: link:../mechanisms/evm
+      '@x402/svm':
+        specifier: workspace:~
+        version: link:../mechanisms/svm
       eslint:
         specifier: ^9.24.0
         version: 9.39.2(jiti@2.6.1)

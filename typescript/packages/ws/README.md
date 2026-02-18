@@ -49,14 +49,14 @@ await client.waitForOpen();
 const result = await client.call("echo", { message: "hello" });
 ```
 
-## Real On-Chain Integration Test
+## Real On-Chain Integration Tests
 
-This package includes an integration test that performs a real payment settlement
-on Base Sepolia over WebSocket transport:
+This package includes integration tests that perform real payment settlement over WebSocket transport:
 
-- `test/integration/real-evm-payment.test.ts`
+- `test/integration/real-evm-payment.test.ts` (Base Sepolia, EVM)
+- `test/integration/real-svm-payment.test.ts` (Solana Devnet, SVM)
 
-Required environment variables:
+### EVM test environment variables
 
 - `X402_TEST_PRIVATE_KEY` - one shared private key used for both payer and facilitator (recommended for local testing)
 
@@ -65,6 +65,13 @@ or alternatively provide separate keys:
 - `CLIENT_PRIVATE_KEY` - payer account private key (`0x...`)
 - `FACILITATOR_PRIVATE_KEY` - facilitator signer private key (`0x...`)
 - `BASE_SEPOLIA_RPC_URL` - optional custom Base Sepolia RPC URL
+
+### SVM test environment variables
+
+- `SVM_CLIENT_PRIVATE_KEY` - payer private key encoded as base58 bytes
+- `SVM_FACILITATOR_PRIVATE_KEY` - facilitator private key encoded as base58 bytes
+- `SVM_RESOURCE_SERVER_ADDRESS` - recipient Solana address that has a USDC Devnet ATA
+- `SOLANA_DEVNET_RPC_URL` - optional custom Solana Devnet RPC URL
 
 Run:
 
