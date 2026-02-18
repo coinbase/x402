@@ -14,10 +14,12 @@ import (
  *
  * - all-networks: Facilitator with all supported networks
  * - bazaar: Facilitator with bazaar discovery extension
+ * - payment-identifier: Facilitator with payment identifier idempotency
  *
  * Usage:
  *   go run . all-networks
  *   go run . bazaar
+ *   go run . payment-identifier
  */
 
 func main() {
@@ -57,9 +59,15 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "payment-identifier":
+		if err := runPaymentIdentifierExample(evmPrivateKey, svmPrivateKey); err != nil {
+			fmt.Printf("❌ Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
-		fmt.Println("Available patterns: all-networks, bazaar")
+		fmt.Println("Available patterns: all-networks, bazaar, payment-identifier")
 		os.Exit(1)
 	}
 }

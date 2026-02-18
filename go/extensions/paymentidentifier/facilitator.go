@@ -24,6 +24,16 @@ func parseExtension(extension interface{}) (*PaymentIdentifierExtension, error) 
 	return &ext, nil
 }
 
+// getPaymentIdentifierExtension extracts the raw payment-identifier extension from a payload.
+// Returns the raw extension and true if found, or nil and false if not present.
+func getPaymentIdentifierExtension(payload x402.PaymentPayload) (interface{}, bool) {
+	if payload.Extensions == nil {
+		return nil, false
+	}
+	ext, ok := payload.Extensions[PAYMENT_IDENTIFIER]
+	return ext, ok
+}
+
 // IsPaymentIdentifierExtension checks if an object is a valid payment-identifier extension structure.
 //
 // This checks for the basic structure (info object with required boolean),
@@ -112,11 +122,7 @@ func ValidatePaymentIdentifier(extension interface{}) ValidationResult {
 //   - The payment ID string, or empty string if not present
 //   - Error if extraction fails or validation fails (when validate is true)
 func ExtractPaymentIdentifier(payload x402.PaymentPayload, validate bool) (string, error) {
-	if payload.Extensions == nil {
-		return "", nil
-	}
-
-	ext, ok := payload.Extensions[PAYMENT_IDENTIFIER]
+	ext, ok := getPaymentIdentifierExtension(payload)
 	if !ok {
 		return "", nil
 	}
@@ -179,11 +185,7 @@ func ExtractPaymentIdentifierFromBytes(payloadBytes []byte, validate bool) (stri
 //   - The ID (or empty string if not present)
 //   - ValidationResult with any errors
 func ExtractAndValidatePaymentIdentifier(payload x402.PaymentPayload) (string, ValidationResult) {
-	if payload.Extensions == nil {
-		return "", ValidationResult{Valid: true}
-	}
-
-	ext, ok := payload.Extensions[PAYMENT_IDENTIFIER]
+	ext, ok := getPaymentIdentifierExtension(payload)
 	if !ok {
 		return "", ValidationResult{Valid: true}
 	}
@@ -212,10 +214,7 @@ func ExtractAndValidatePaymentIdentifier(payload x402.PaymentPayload) (string, V
 // Returns:
 //   - True if the extension is present
 func HasPaymentIdentifier(payload x402.PaymentPayload) bool {
-	if payload.Extensions == nil {
-		return false
-	}
-	_, ok := payload.Extensions[PAYMENT_IDENTIFIER]
+	_, ok := getPaymentIdentifierExtension(payload)
 	return ok
 }
 
