@@ -90,7 +90,7 @@ export {
 export { paymentIdentifierSchema } from "./schema";
 
 // Export utilities
-export { generatePaymentId, isValidPaymentId, payloadFingerprint } from "./utils";
+export { generatePaymentId, isValidPaymentId } from "./utils";
 
 // Export client functions
 export { appendPaymentIdentifierToExtensions } from "./client";

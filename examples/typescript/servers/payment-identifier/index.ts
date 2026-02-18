@@ -10,10 +10,25 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import {
   declarePaymentIdentifierExtension,
   extractPaymentIdentifier,
-  payloadFingerprint,
   PAYMENT_IDENTIFIER,
 } from "@x402/extensions/payment-identifier";
+import { createHash } from "crypto";
+import type { PaymentPayload } from "@x402/core/types";
 config();
+
+function payloadFingerprint(payload: PaymentPayload): string {
+  const canonical = JSON.stringify(payload, (_key, value) => {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+        sorted[k] = (value as Record<string, unknown>)[k];
+      }
+      return sorted;
+    }
+    return value;
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
 
 const address = process.env.ADDRESS as `0x${string}`;
 if (!address) {
