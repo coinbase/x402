@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +36,68 @@ import (
  * - Track payments across multiple request attempts
  */
 
+// PaymentIdentifierTransport wraps the x402 payment transport to inject
+// a payment identifier into the extensions before payment processing.
+// It intercepts the Payment-Required response header, appends the payment
+// identifier, and re-encodes it so the inner payment transport picks it up.
+type PaymentIdentifierTransport struct {
+	Inner     http.RoundTripper
+	PaymentID string
+}
+
+func (t *PaymentIdentifierTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Make the initial request ourselves to check for 402
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// If not 402, return as-is
+	if resp.StatusCode != http.StatusPaymentRequired {
+		return resp, nil
+	}
+
+	// Intercept the Payment-Required header and inject the payment identifier
+	prHeader := resp.Header.Get("Payment-Required")
+	if prHeader != "" {
+		decoded, err := base64.StdEncoding.DecodeString(prHeader)
+		if err == nil {
+			var paymentRequired x402.PaymentRequired
+			if err := json.Unmarshal(decoded, &paymentRequired); err == nil {
+				if paymentRequired.Extensions == nil {
+					paymentRequired.Extensions = make(map[string]interface{})
+				}
+
+				// Check if server declared payment-identifier extension
+				if _, ok := paymentRequired.Extensions[paymentidentifier.PAYMENT_IDENTIFIER]; ok {
+					required := paymentidentifier.IsPaymentIdentifierRequired(paymentRequired.Extensions[paymentidentifier.PAYMENT_IDENTIFIER])
+					fmt.Printf("  Payment identifier required by server: %v\n", required)
+
+					// Append payment identifier to extensions
+					if err := paymentidentifier.AppendPaymentIdentifierToExtensions(paymentRequired.Extensions, t.PaymentID); err != nil {
+						fmt.Printf("  Warning: failed to append payment identifier: %v\n", err)
+					} else {
+						fmt.Printf("  Added payment ID: %s\n\n", t.PaymentID)
+					}
+
+					// Re-encode the modified header
+					modified, err := json.Marshal(paymentRequired)
+					if err == nil {
+						resp.Header.Set("Payment-Required", base64.StdEncoding.EncodeToString(modified))
+					}
+				} else {
+					fmt.Println("  Server does not support payment-identifier extension")
+				}
+			}
+		}
+	}
+
+	// Now let the inner transport (x402 payment handler) process the modified response
+	// We need to replay the request through the inner transport which expects to see the 402
+	// Return the modified 402 response so the caller (PaymentRoundTripper) processes it
+	return resp, nil
+}
+
 func main() {
 	godotenv.Load()
 
@@ -65,39 +129,18 @@ func main() {
 	paymentID := paymentidentifier.GeneratePaymentID("")
 	fmt.Printf("Generated Payment ID: %s\n\n", paymentID)
 
-	// Register hook to add payment identifier to extensions
-	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
-		fmt.Println("[BeforePaymentCreation] Checking for payment-identifier extension...")
-
-		// Check if extensions exist
-		if ctx.Extensions == nil {
-			fmt.Println("  No extensions declared by server")
-			return nil, nil
-		}
-
-		// Check if payment identifier is declared by server
-		ext := ctx.Extensions[paymentidentifier.PAYMENT_IDENTIFIER]
-		if ext == nil {
-			fmt.Println("  Server does not support payment-identifier extension")
-			return nil, nil
-		}
-
-		required := paymentidentifier.IsPaymentIdentifierRequired(ext)
-		fmt.Printf("  Payment identifier required: %v\n", required)
-
-		// Append payment identifier to extensions
-		err := paymentidentifier.AppendPaymentIdentifierToExtensions(ctx.Extensions, paymentID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to append payment identifier: %w", err)
-		}
-
-		fmt.Printf("  Added payment ID: %s\n\n", paymentID)
-		return nil, nil
-	})
-
-	// Create HTTP client wrapper
+	// Create HTTP client with payment identifier injection.
+	// The PaymentIdentifierTransport intercepts the 402 response to inject
+	// the payment identifier into extensions before the payment flow runs.
 	httpClient := x402http.Newx402HTTPClient(client)
-	wrappedClient := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
+	wrappedClient := x402http.WrapHTTPClientWithPayment(
+		&http.Client{
+			Transport: &PaymentIdentifierTransport{
+				PaymentID: paymentID,
+			},
+		},
+		httpClient,
+	)
 
 	// First request - will process payment
 	fmt.Println("First Request (with payment ID)")
@@ -115,7 +158,7 @@ func main() {
 	// Second request - same payment ID, should return from cache
 	fmt.Println("Second Request (SAME payment ID)")
 	fmt.Printf("Making request to: %s\n", serverURL)
-	fmt.Println("Expected: Server returns cached response without payment processing\n")
+	fmt.Println("Expected: Server returns cached response without payment processing")
 
 	startTime2 := time.Now()
 	resp2, err := makeRequest(ctx, wrappedClient, serverURL)
