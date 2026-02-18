@@ -21,6 +21,9 @@ config();
  * resends the exact same signed payload, so the hash — including the
  * cryptographic signature — will match. A genuinely different request
  * (different signer, amount, etc.) produces a different hash → 409 Conflict.
+ *
+ * @param payload - the payment payload to fingerprint
+ * @returns SHA-256 hex digest of the canonicalized payload
  */
 function payloadFingerprint(payload: PaymentPayload): string {
   const canonical = JSON.stringify(payload, (_key, value) => {
