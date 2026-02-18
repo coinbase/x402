@@ -40,7 +40,7 @@ export class FacilitatorManager {
 
     const healthy = await waitForHealth(
       () => this.facilitator.health(),
-      { label: 'Facilitator' },
+      { initialDelayMs: 100, intervalMs: 500, maxAttempts: 30, label: 'Facilitator' },
     );
 
     if (healthy) {

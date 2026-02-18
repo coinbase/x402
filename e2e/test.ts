@@ -119,7 +119,7 @@ async function startServer(
 
   return waitForHealth(
     () => server.health(),
-    { initialDelayMs: 250, label: 'Server' },
+    { initialDelayMs: 100, intervalMs: 500, maxAttempts: 20, label: 'Server' },
   );
 }
 
@@ -601,6 +601,7 @@ async function runTest() {
     combo: ServerFacilitatorCombo,
     evmLock: FacilitatorLock | null,
     nextTestNumber: () => number,
+    evmSettleMs: number,
   ): Promise<DetailedTestResult[]> {
     const { serverName, facilitatorName, scenarios, port } = combo;
     const server = uniqueServers.get(serverName)!;
@@ -647,28 +648,49 @@ async function runTest() {
     }
     cLog.log(`  ✅ Server ${serverName} ready`);
 
+    // Split scenarios by protocol family so SVM tests can run in parallel
+    const evmScenarios = scenarios.filter(s => s.protocolFamily === 'evm');
+    const svmScenarios = scenarios.filter(s => s.protocolFamily !== 'evm');
+
     const results: DetailedTestResult[] = [];
     try {
-      for (const scenario of scenarios) {
-        const tn = nextTestNumber();
-        const isEvm = scenario.protocolFamily === 'evm';
+      // Run EVM (sequential, with nonce lock) and SVM (fully parallel) concurrently
+      const evmPromise = (async () => {
+        const evmResults: DetailedTestResult[] = [];
+        for (const scenario of evmScenarios) {
+          const tn = nextTestNumber();
 
-        if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
-          await revokePermit2Approval();
-        }
-
-        if (isEvm && facilitatorName && evmLock) {
-          const releaseLock = await evmLock.acquire(facilitatorName);
-          try {
-            results.push(await runSingleTest(scenario, port, tn, cLog));
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } finally {
-            releaseLock();
+          if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
+            await revokePermit2Approval();
           }
-        } else {
-          results.push(await runSingleTest(scenario, port, tn, cLog));
+
+          if (facilitatorName && evmLock) {
+            // Acquire EVM lock for this facilitator to prevent nonce collisions
+            const releaseLock = await evmLock.acquire(facilitatorName);
+            try {
+              evmResults.push(await runSingleTest(scenario, port, tn, cLog));
+              // Delay inside the lock so the nonce settles before releasing
+              await new Promise(resolve => setTimeout(resolve, evmSettleMs));
+            } finally {
+              releaseLock();
+            }
+          } else {
+            // Sequential mode or tests without a facilitator — no lock
+            evmResults.push(await runSingleTest(scenario, port, tn, cLog));
+          }
         }
-      }
+        return evmResults;
+      })();
+
+      const svmPromise = Promise.all(
+        svmScenarios.map(scenario => {
+          const tn = nextTestNumber();
+          return runSingleTest(scenario, port, tn, cLog);
+        }),
+      );
+
+      const [evmResults, svmResults] = await Promise.all([evmPromise, svmPromise]);
+      results.push(...evmResults, ...svmResults);
     } finally {
   cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
   await serverProxy.stop();
@@ -685,94 +707,94 @@ const semaphore = new Semaphore(effectiveConcurrency);
 let globalTestNumber = 0;
 const nextTestNumber = () => ++globalTestNumber;
 
-const comboPromises = serverFacilitatorCombos.map(async (combo) => {
-  const release = await semaphore.acquire();
-  try {
-    return await executeCombo(combo, evmLock, nextTestNumber);
-  } finally {
-    release();
-  }
-});
-
-testResults = (await Promise.all(comboPromises)).flat();
-
-// Run discovery validation before cleanup (while facilitators are still running)
-const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
-  proxy: facilitatorManagers.get(f.name)!.getProxy(),
-  config: f.config,
-}));
-
-const serversArray = Array.from(uniqueServers.values());
-
-// Build a serverName→port map for discovery validation (first combo per server).
-const discoveryServerPorts = new Map<string, number>();
-for (const combo of serverFacilitatorCombos) {
-  if (!discoveryServerPorts.has(combo.serverName)) {
-    discoveryServerPorts.set(combo.serverName, combo.port);
-  }
-}
-
-// Run discovery validation if bazaar extension is enabled
-const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
-if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
-  log('\n🔍 Running Bazaar Discovery Validation...\n');
-  await handleDiscoveryValidation(
-    facilitatorsWithConfig,
-    serversArray,
-    discoveryServerPorts,
-    facilitatorServerMap
-  );
-}
-
-// Clean up facilitators (servers already stopped in test loop for both modes)
-log('\n🧹 Cleaning up...');
-
-// Stop all facilitators
-const facilitatorStopPromises: Promise<void>[] = [];
-for (const [facilitatorName, manager] of facilitatorManagers) {
-  log(`  🛑 Stopping facilitator: ${facilitatorName}`);
-  facilitatorStopPromises.push(manager.stop());
-}
-await Promise.all(facilitatorStopPromises);
-
-// Calculate totals
-const passed = testResults.filter(r => r.passed).length;
-const failed = testResults.filter(r => !r.passed).length;
-
-// Summary
-log('');
-log('📊 Test Summary');
-log('==============');
-log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
-log(`✅ Passed: ${passed}`);
-log(`❌ Failed: ${failed}`);
-log(`📈 Total: ${passed + failed}`);
-log('');
-
-// Detailed results table
-log('📋 Detailed Test Results');
-log('========================');
-log('');
-
-// Group by status
-const passedTests = testResults.filter(r => r.passed);
-const failedTests = testResults.filter(r => !r.passed);
-
-if (passedTests.length > 0) {
-  log('✅ PASSED TESTS:');
-  log('');
-  passedTests.forEach(test => {
-    log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
-    log(`      Facilitator: ${test.facilitator}`);
-    if (test.network) {
-      log(`      Network: ${test.network}`);
-    }
-    if (test.transaction) {
-      log(`      Tx: ${test.transaction}`);
+  const comboPromises = serverFacilitatorCombos.map(async (combo) => {
+    const release = await semaphore.acquire();
+    try {
+      return await executeCombo(combo, evmLock, nextTestNumber, parsedArgs.evmSettleMs);
+    } finally {
+      release();
     }
   });
+
+  testResults = (await Promise.all(comboPromises)).flat();
+
+  // Run discovery validation before cleanup (while facilitators are still running)
+  const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
+    proxy: facilitatorManagers.get(f.name)!.getProxy(),
+    config: f.config,
+  }));
+
+  const serversArray = Array.from(uniqueServers.values());
+
+  // Build a serverName→port map for discovery validation (first combo per server).
+  const discoveryServerPorts = new Map<string, number>();
+  for (const combo of serverFacilitatorCombos) {
+    if (!discoveryServerPorts.has(combo.serverName)) {
+      discoveryServerPorts.set(combo.serverName, combo.port);
+    }
+  }
+
+  // Run discovery validation if bazaar extension is enabled
+  const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
+  if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+    log('\n🔍 Running Bazaar Discovery Validation...\n');
+    await handleDiscoveryValidation(
+      facilitatorsWithConfig,
+      serversArray,
+      discoveryServerPorts,
+      facilitatorServerMap
+    );
+  }
+
+  // Clean up facilitators (servers already stopped in test loop for both modes)
+  log('\n🧹 Cleaning up...');
+
+  // Stop all facilitators
+  const facilitatorStopPromises: Promise<void>[] = [];
+  for (const [facilitatorName, manager] of facilitatorManagers) {
+    log(`  🛑 Stopping facilitator: ${facilitatorName}`);
+    facilitatorStopPromises.push(manager.stop());
+  }
+  await Promise.all(facilitatorStopPromises);
+
+  // Calculate totals
+  const passed = testResults.filter(r => r.passed).length;
+  const failed = testResults.filter(r => !r.passed).length;
+
+  // Summary
   log('');
-}
+  log('📊 Test Summary');
+  log('==============');
+  log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
+  log(`✅ Passed: ${passed}`);
+  log(`❌ Failed: ${failed}`);
+  log(`📈 Total: ${passed + failed}`);
+  log('');
+
+  // Detailed results table
+  log('📋 Detailed Test Results');
+  log('========================');
+  log('');
+
+  // Group by status
+  const passedTests = testResults.filter(r => r.passed);
+  const failedTests = testResults.filter(r => !r.passed);
+
+  if (passedTests.length > 0) {
+    log('✅ PASSED TESTS:');
+    log('');
+    passedTests.forEach(test => {
+      log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
+      log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
+      if (test.transaction) {
+        log(`      Tx: ${test.transaction}`);
+      }
+    });
+    log('');
+  }
 
 if (failedTests.length > 0) {
   log('❌ FAILED TESTS:');

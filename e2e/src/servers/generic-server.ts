@@ -192,8 +192,8 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         // Try graceful shutdown via POST /close
         const closeResult = await this.close();
         if (closeResult.success) {
-          // Wait a bit for graceful shutdown
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Brief pause before sending SIGTERM (stopProcess has its own 5s force-kill)
+          await new Promise(resolve => setTimeout(resolve, 500));
         } else {
           verboseLog('Graceful shutdown failed, using force kill');
         }
