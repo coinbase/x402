@@ -25,8 +25,14 @@ export async function waitForHealth(
   }
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const result = await healthCheck();
-    verboseLog(` 🔍 ${label} health check ${attempt}/${maxAttempts}: ${result.success ? '✅' : '❌'}`);
+    let result: { success: boolean; error?: string };
+    try {
+      result = await healthCheck();
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    const detail = !result.success && result.error ? ` (${result.error})` : '';
+    verboseLog(` 🔍 ${label} health check ${attempt}/${maxAttempts}: ${result.success ? '✅' : '❌'}${detail}`);
 
     if (result.success) {
       verboseLog(`  ✅ ${label} is healthy`);

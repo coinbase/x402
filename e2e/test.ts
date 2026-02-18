@@ -451,6 +451,14 @@ async function runTest() {
   let testResults: DetailedTestResult[] = [];
   let currentPort = 4022;
 
+  // Ports blocked by Node's fetch (undici) / Chromium — requests to these
+  // ports fail with "bad port" regardless of what is listening.
+  const UNSAFE_PORTS = new Set([4045]);
+  const nextPort = () => {
+    while (UNSAFE_PORTS.has(currentPort)) currentPort++;
+    return currentPort++;
+  };
+
   // Assign ports and start all facilitators
   const facilitatorManagers = new Map<string, FacilitatorManager>();
 
@@ -487,20 +495,21 @@ async function runTest() {
       facilitatorName: firstScenario.facilitator?.name,
       scenarios,
       comboIndex,
-      port: currentPort++,
+      port: nextPort(),
     });
     comboIndex++;
   }
 
   // Start all facilitators with unique ports
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
-    const port = currentPort++;
+    const port = nextPort();
     log(`\n🏛️ Starting facilitator: ${facilitatorName} on port ${port}`);
 
     const manager = new FacilitatorManager(
       facilitator.proxy,
       port,
-      networks
+      networks,
+      facilitatorName
     );
     facilitatorManagers.set(facilitatorName, manager);
   }
@@ -523,7 +532,7 @@ async function runTest() {
 
   log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
   serverFacilitatorCombos.forEach(combo => {
-    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s)`);
+    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s) (port ${combo.port})`);
   });
   if (parsedArgs.parallel) {
     log(`\n⚡ Parallel mode enabled (concurrency: ${parsedArgs.concurrency})`);
@@ -648,12 +657,12 @@ async function runTest() {
     }
     cLog.log(`  ✅ Server ${serverName} ready`);
 
-    // Split scenarios by protocol family so SVM tests can run in parallel
-    const evmScenarios = scenarios.filter(s => s.protocolFamily === 'evm');
-    const svmScenarios = scenarios.filter(s => s.protocolFamily !== 'evm');
-
     const results: DetailedTestResult[] = [];
     try {
+      // Split scenarios by protocol family so SVM tests can run in parallel
+      const evmScenarios = scenarios.filter(s => s.protocolFamily === 'evm');
+      const svmScenarios = scenarios.filter(s => s.protocolFamily !== 'evm');
+
       // Run EVM (sequential, with nonce lock) and SVM (fully parallel) concurrently
       const evmPromise = (async () => {
         const evmResults: DetailedTestResult[] = [];
@@ -692,20 +701,20 @@ async function runTest() {
       const [evmResults, svmResults] = await Promise.all([evmPromise, svmPromise]);
       results.push(...evmResults, ...svmResults);
     } finally {
-  cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
-  await serverProxy.stop();
-}
+      cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
+      await serverProxy.stop();
+    }
 
-return results;
+    return results;
   }
 
-// ── Unified execution: concurrency=1 for sequential, N for parallel ──
-const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
-const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
-const semaphore = new Semaphore(effectiveConcurrency);
+  // ── Unified execution: concurrency=1 for sequential, N for parallel ──
+  const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
+  const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
+  const semaphore = new Semaphore(effectiveConcurrency);
 
-let globalTestNumber = 0;
-const nextTestNumber = () => ++globalTestNumber;
+  let globalTestNumber = 0;
+  const nextTestNumber = () => ++globalTestNumber;
 
   const comboPromises = serverFacilitatorCombos.map(async (combo) => {
     const release = await semaphore.acquire();

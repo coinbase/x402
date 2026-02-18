@@ -5,7 +5,7 @@ import type { NetworkSet } from '../networks/networks';
 
 interface Facilitator {
   start: (config: FacilitatorConfig) => Promise<void>;
-  health: () => Promise<{ success: boolean }>;
+  health: () => Promise<{ success: boolean; error?: string }>;
   getUrl: () => string;
   stop: () => Promise<void>;
 }
@@ -20,9 +20,12 @@ export class FacilitatorManager {
   private readyPromise: Promise<string | null>;
   private url: string | null = null;
 
-  constructor(facilitator: Facilitator, port: number, networks: NetworkSet) {
+  private name: string;
+
+  constructor(facilitator: Facilitator, port: number, networks: NetworkSet, name?: string) {
     this.facilitator = facilitator;
     this.port = port;
+    this.name = name || 'unknown';
 
     // Start facilitator and health checks asynchronously
     this.readyPromise = this.startAndWaitForHealth(networks);
@@ -40,7 +43,7 @@ export class FacilitatorManager {
 
     const healthy = await waitForHealth(
       () => this.facilitator.health(),
-      { initialDelayMs: 100, intervalMs: 500, maxAttempts: 30, label: 'Facilitator' },
+      { initialDelayMs: 100, intervalMs: 500, maxAttempts: 30, label: `Facilitator(${this.name}:${this.port})` },
     );
 
     if (healthy) {
