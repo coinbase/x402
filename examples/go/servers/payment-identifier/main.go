@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +17,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
+
+func payloadFingerprint(payload x402.PaymentPayload) (string, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
+}
 
 const DefaultPort = "4021"
 
@@ -185,7 +197,7 @@ func main() {
 		}
 
 		// Compute payload fingerprint for idempotency comparison
-		fingerprint, err := paymentidentifier.PayloadFingerprint(payload)
+		fingerprint, err := payloadFingerprint(payload)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to compute payload fingerprint: %v", err)})
 			return
