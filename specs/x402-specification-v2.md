@@ -323,6 +323,7 @@ Verifies a payment authorization without executing the transaction on the blockc
 
 ```json
 {
+  "x402Version": 2,
   "paymentPayload": {
     /* PaymentPayload schema */
   },
