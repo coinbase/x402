@@ -30,7 +30,9 @@ def encode_payment_signature_header(payload: PaymentPayload | PaymentPayloadV1) 
     return safe_base64_encode(payload.model_dump_json(by_alias=True, exclude_none=True))
 
 
-def decode_payment_signature_header(header_value: str) -> PaymentPayload | PaymentPayloadV1:
+def decode_payment_signature_header(
+    header_value: str,
+) -> PaymentPayload | PaymentPayloadV1:
     """Decode a base64 payment signature header into a PaymentPayload."""
     json_str = safe_base64_decode(header_value)
     data = json.loads(json_str)
@@ -42,12 +44,18 @@ def decode_payment_signature_header(header_value: str) -> PaymentPayload | Payme
     return PaymentPayload.model_validate(data)
 
 
-def encode_payment_required_header(payment_required: PaymentRequired | PaymentRequiredV1) -> str:
+def encode_payment_required_header(
+    payment_required: PaymentRequired | PaymentRequiredV1,
+) -> str:
     """Encode a PaymentRequired object as a base64 header value."""
-    return safe_base64_encode(payment_required.model_dump_json(by_alias=True, exclude_none=True))
+    return safe_base64_encode(
+        payment_required.model_dump_json(by_alias=True, exclude_none=True)
+    )
 
 
-def decode_payment_required_header(header_value: str) -> PaymentRequired | PaymentRequiredV1:
+def decode_payment_required_header(
+    header_value: str,
+) -> PaymentRequired | PaymentRequiredV1:
     """Decode a base64 payment required header into a PaymentRequired object."""
     json_str = safe_base64_decode(header_value)
     data = json.loads(json_str)
@@ -61,7 +69,9 @@ def decode_payment_required_header(header_value: str) -> PaymentRequired | Payme
 
 def encode_payment_response_header(settle_response: SettleResponse) -> str:
     """Encode a SettleResponse object as a base64 header value."""
-    return safe_base64_encode(settle_response.model_dump_json(by_alias=True, exclude_none=True))
+    return safe_base64_encode(
+        settle_response.model_dump_json(by_alias=True, exclude_none=True)
+    )
 
 
 def decode_payment_response_header(header_value: str) -> SettleResponse:

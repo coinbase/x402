@@ -2,7 +2,7 @@ import os
 import signal
 import sys
 import logging
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from dotenv import load_dotenv
 from x402.flask.middleware import PaymentMiddleware
 

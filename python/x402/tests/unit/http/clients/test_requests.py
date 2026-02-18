@@ -115,7 +115,9 @@ class TestX402HTTPAdapter:
         mock_response.status_code = 200
         mock_response.content = b'{"data": "test"}'
 
-        with patch.object(requests.adapters.HTTPAdapter, "send", return_value=mock_response):
+        with patch.object(
+            requests.adapters.HTTPAdapter, "send", return_value=mock_response
+        ):
             response = adapter.send(mock_request)
 
         assert response == mock_response
@@ -273,7 +275,9 @@ class TestX402HTTPAdapter:
         mock_402_response.headers = {}  # No valid payment info
         mock_402_response.content = b"not json"
 
-        with patch.object(requests.adapters.HTTPAdapter, "send", return_value=mock_402_response):
+        with patch.object(
+            requests.adapters.HTTPAdapter, "send", return_value=mock_402_response
+        ):
             with pytest.raises(PaymentError):
                 adapter.send(mock_request)
 
@@ -510,7 +514,9 @@ class TestBasicFunctionalityWithFixtures:
             (301, b"redirect"),
         ],
     )
-    def test_should_return_non_402_response_directly(self, adapter, status_code, content):
+    def test_should_return_non_402_response_directly(
+        self, adapter, status_code, content
+    ):
         """Should return non-402 responses without payment handling."""
         mock_response = _create_response(status_code, content)
 
@@ -543,7 +549,9 @@ class TestErrorHandlingWithFixtures:
 
     def test_should_raise_payment_error_on_client_error(self, adapter):
         """Should raise PaymentError when client fails."""
-        adapter._client.create_payment_payload = MagicMock(side_effect=Exception("Client error"))
+        adapter._client.create_payment_payload = MagicMock(
+            side_effect=Exception("Client error")
+        )
         mock_402 = _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", return_value=mock_402):
