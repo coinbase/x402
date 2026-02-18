@@ -133,21 +133,21 @@ export class TestDiscovery {
 
     for (const facilitatorName of facilitatorDirs) {
       const facilitatorDir = join(facilitatorsDir, facilitatorName);
-      
+
       // Special case: external-proxies is a nested directory of more facilitators
       if (facilitatorName === 'external-proxies') {
         verboseLog(`  🔍 Found external-proxies directory, discovering nested facilitators...`);
         this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', true);
         continue;
       }
-      
+
       // Special case: local is a nested directory of more facilitators (inherits isExternal from parent)
       if (facilitatorName === 'local') {
         verboseLog(`  🔍 Found local directory, discovering nested facilitators...`);
         this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', isExternal);
         continue;
       }
-      
+
       const configPath = join(facilitatorDir, 'test.config.json');
 
       if (existsSync(configPath)) {
@@ -337,13 +337,15 @@ export class TestDiscovery {
       const evmTransferMethods = client.config.evm?.transferMethods || ['eip3009'];
       const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
       log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
+      const extInfo = client.config.extensions ? ` {${client.config.extensions.join(', ')}}` : '';
+      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${extInfo}`);
     });
 
     log(`🏛️ Facilitators found: ${facilitators.length}`);
-    
+
     const regularFacilitators = facilitators.filter(f => !f.isExternal);
     const externalFacilitators = facilitators.filter(f => f.isExternal);
-    
+
     regularFacilitators.forEach(facilitator => {
       const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
       const versions = facilitator.config.x402Versions || [2];
@@ -351,7 +353,7 @@ export class TestDiscovery {
       const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
       log(`   - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
     });
-    
+
     if (externalFacilitators.length > 0) {
       log(`   External:`);
       externalFacilitators.forEach(facilitator => {
