@@ -1,0 +1,40 @@
+{
+  "x402Version": "2",
+  "discoveryDocument": {
+    "resources": {
+      "/weather": {
+        "accepts": [
+          {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "amount": "1000000",
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "payTo": "0x523Eff3dDB03938eaa31a5a6FBd41E3B9d23edde",
+            "maxTimeoutSeconds": 300,
+            "extra": {
+              "name": "USD Coin",
+              "version": "2"
+            }
+          }
+        ],
+        "description": "Weather data API with x402 micropayments"
+      },
+      "/generate-code": {
+        "accepts": [
+          {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "amount": "5000000",
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "payTo": "0x523Eff3dDB03938eaa31a5a6FBd41E3B9d23edde",
+            "maxTimeoutSeconds": 600,
+            "extra": {
+              "name": "USD Coin"
+            }
+          }
+        ],
+        "description": "AI code generation service"
+      }
+    }
+  }
+}
