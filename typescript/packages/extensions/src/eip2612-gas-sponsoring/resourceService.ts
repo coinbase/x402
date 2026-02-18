@@ -88,8 +88,9 @@ export function declareEip2612GasSponsoringExtension(): Record<
   string,
   Eip2612GasSponsoringExtension
 > {
+  const key = EIP2612_GAS_SPONSORING.key;
   return {
-    [EIP2612_GAS_SPONSORING]: {
+    [key]: {
       info: {
         description:
           "The facilitator accepts EIP-2612 gasless Permit to `Permit2` canonical contract.",
