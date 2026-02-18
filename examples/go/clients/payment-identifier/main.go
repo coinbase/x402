@@ -38,14 +38,38 @@ import (
 
 // PaymentIdentifierTransport wraps the x402 payment transport to inject
 // a payment identifier into the extensions before payment processing.
-// It intercepts the Payment-Required response header, appends the payment
-// identifier, and re-encodes it so the inner payment transport picks it up.
+//
+// On the first request it intercepts the 402 response, appends the payment ID
+// to extensions, and lets the PaymentRoundTripper create and sign a payment.
+// It then caches the resulting PAYMENT-SIGNATURE header so that subsequent
+// requests replay the exact same signed payload — a true retry.
 type PaymentIdentifierTransport struct {
-	Inner     http.RoundTripper
-	PaymentID string
+	Inner                http.RoundTripper
+	PaymentID            string
+	cachedPaymentHeader  string // PAYMENT-SIGNATURE from the first successful attempt
 }
 
 func (t *PaymentIdentifierTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Retry path: if we already have a cached payment header and this is a
+	// fresh request (no header set by PaymentRoundTripper yet), inject it
+	// directly so the server sees the exact same signed payload.
+	if t.cachedPaymentHeader != "" && req.Header.Get("PAYMENT-SIGNATURE") == "" {
+		fmt.Println("  Replaying cached payment header (true retry)")
+		retryReq := req.Clone(req.Context())
+		retryReq.Header.Set("PAYMENT-SIGNATURE", t.cachedPaymentHeader)
+		if req.GetBody != nil {
+			if body, err := req.GetBody(); err == nil {
+				retryReq.Body = body
+			}
+		}
+		return http.DefaultTransport.RoundTrip(retryReq)
+	}
+
+	// Cache the payment header when the PaymentRoundTripper retries with one.
+	if header := req.Header.Get("PAYMENT-SIGNATURE"); header != "" {
+		t.cachedPaymentHeader = header
+	}
+
 	// Make the initial request ourselves to check for 402
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
@@ -92,9 +116,7 @@ func (t *PaymentIdentifierTransport) RoundTrip(req *http.Request) (*http.Respons
 		}
 	}
 
-	// Now let the inner transport (x402 payment handler) process the modified response
-	// We need to replay the request through the inner transport which expects to see the 402
-	// Return the modified 402 response so the caller (PaymentRoundTripper) processes it
+	// Return the modified 402 so the PaymentRoundTripper creates the payment
 	return resp, nil
 }
 
@@ -155,10 +177,10 @@ func main() {
 	}
 	fmt.Printf("Response (%v): %s\n\n", duration1, resp1)
 
-	// Second request - same payment ID, should return from cache
-	fmt.Println("Second Request (SAME payment ID)")
+	// Second request - replay the same signed payment (true retry)
+	fmt.Println("Second Request (retry with cached payment)")
 	fmt.Printf("Making request to: %s\n", serverURL)
-	fmt.Println("Expected: Server returns cached response without payment processing")
+	fmt.Println("Expected: Server returns cached response (same ID, same payload)")
 
 	startTime2 := time.Now()
 	resp2, err := makeRequest(ctx, wrappedClient, serverURL)

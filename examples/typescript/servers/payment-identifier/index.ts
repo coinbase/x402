@@ -17,15 +17,13 @@ import type { PaymentPayload } from "@x402/core/types";
 config();
 
 /**
- * Computes a deterministic hash of the request intent, excluding the "payload"
- * field which contains per-attempt cryptographic signatures. Two retries of
- * the same logical request produce the same fingerprint even though their
- * payment proofs differ.
+ * Computes a deterministic hash of the full PaymentPayload. A proper retry
+ * resends the exact same signed payload, so the hash — including the
+ * cryptographic signature — will match. A genuinely different request
+ * (different signer, amount, etc.) produces a different hash → 409 Conflict.
  */
 function payloadFingerprint(payload: PaymentPayload): string {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { payload: _proof, ...intent } = payload as PaymentPayload & Record<string, unknown>;
-  const canonical = JSON.stringify(intent, (_key, value) => {
+  const canonical = JSON.stringify(payload, (_key, value) => {
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       const sorted: Record<string, unknown> = {};
       for (const k of Object.keys(value as Record<string, unknown>).sort()) {

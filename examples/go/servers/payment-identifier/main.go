@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,38 +18,20 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// payloadFingerprint computes a deterministic hash of the request intent,
-// excluding the "payload" field which contains per-attempt cryptographic
-// signatures. Two retries of the same logical request will produce the same
-// fingerprint even though their payment proofs differ.
-func payloadFingerprint(payload x402.PaymentPayload) (string, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal payload: %w", err)
-	}
-
-	var m map[string]interface{}
-	if err := json.Unmarshal(data, &m); err != nil {
-		return "", fmt.Errorf("failed to unmarshal payload: %w", err)
-	}
-
-	// Remove the payment proof — it contains a unique signature per attempt.
-	delete(m, "payload")
-
-	canonical, err := json.Marshal(m)
-	if err != nil {
-		return "", fmt.Errorf("failed to re-marshal payload: %w", err)
-	}
-
-	hash := sha256.Sum256(canonical)
-	return hex.EncodeToString(hash[:]), nil
-}
-
 const DefaultPort = "4021"
 
 type processedPayment struct {
 	orderID     string
 	fingerprint string
+}
+
+// paymentHeaderFingerprint hashes the raw PAYMENT-SIGNATURE header.
+// Because a proper retry resends the exact same signed payload, the header
+// bytes are identical and the hash matches. A genuinely different request
+// produces a different hash → 409 Conflict.
+func paymentHeaderFingerprint(header string) string {
+	hash := sha256.Sum256([]byte(header))
+	return hex.EncodeToString(hash[:])
 }
 
 /**
@@ -63,7 +45,8 @@ type processedPayment struct {
  * - Server declares support with DeclarePaymentIdentifierExtension(required bool)
  * - When required=true, clients MUST provide an ID or receive 400 Bad Request
  * - When required=false, clients MAY provide an ID for optional deduplication
- * - Use OnBeforeSettle + OnAfterSettle + OnSettleFailure hooks to skip duplicate settlements
+ * - Idempotency is checked BEFORE the payment middleware so duplicate requests
+ *   skip verification and settlement entirely
  */
 
 func main() {
@@ -91,77 +74,15 @@ func main() {
 		URL: facilitatorURL,
 	})
 
-	// Two separate stores (use Redis/DB in production):
-	// - settledPayments: IDs that have been settled on-chain, checked before settlement
-	// - processedPayments: order ID cache for returning idempotent responses
-	settledPayments := make(map[string]bool)
+	// In-memory store for processed payments (use Redis/DB in production)
 	processedPayments := make(map[string]processedPayment)
 
-	/**
-	 * Create x402 resource server with settlement deduplication.
-	 *
-	 * The middleware calls c.Next() (handler) BEFORE ProcessSettlement, so the
-	 * handler populates processedPayments before settlement hooks run. We use a
-	 * separate settledPayments store — populated in OnAfterSettle — so that
-	 * OnBeforeSettle only skips settlement for IDs that have actually been
-	 * settled on-chain.
-	 *
-	 * Flow for first request:
-	 *   handler stores order → OnBeforeSettle: not in settledPayments → settle →
-	 *   OnAfterSettle: add to settledPayments
-	 *
-	 * Flow for duplicate request:
-	 *   handler returns cached order → OnBeforeSettle: found in settledPayments →
-	 *   abort → OnSettleFailure: recover with success
-	 */
+	// Create x402 resource server
 	server := x402.Newx402ResourceServer(
 		x402.WithFacilitatorClient(facilitatorClient),
 	).
-		Register(evmNetwork, evm.NewExactEvmScheme()).
-		OnBeforeSettle(func(ctx x402.SettleContext) (*x402.BeforeHookResult, error) {
-			id, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(ctx.PayloadBytes, false)
-			if err != nil || id == "" {
-				return nil, nil // No payment ID, proceed normally
-			}
+		Register(evmNetwork, evm.NewExactEvmScheme())
 
-			if settledPayments[id] {
-				fmt.Printf("Duplicate settlement skipped for payment ID: %s\n", id)
-				return &x402.BeforeHookResult{
-					Abort:  true,
-					Reason: "duplicate_payment_id",
-				}, nil
-			}
-
-			return nil, nil
-		}).
-		OnAfterSettle(func(ctx x402.SettleResultContext) error {
-			id, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(ctx.PayloadBytes, false)
-			if err != nil || id == "" {
-				return nil
-			}
-			settledPayments[id] = true
-			fmt.Printf("Payment ID settled: %s\n", id)
-			return nil
-		}).
-		OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
-			// Recover from the abort we triggered for duplicate payment IDs.
-			// Return a success response so the middleware doesn't return a 402.
-			if settleErr, ok := ctx.Error.(*x402.SettleError); ok && settleErr.ErrorReason == "duplicate_payment_id" {
-				return &x402.SettleFailureHookResult{
-					Recovered: true,
-					Result:    &x402.SettleResponse{Success: true},
-				}, nil
-			}
-			return nil, nil
-		})
-
-	/**
-	 * Declare Payment Identifier Extension
-	 *
-	 * DeclarePaymentIdentifierExtension(required bool) creates the extension declaration.
-	 * - required=true: Clients MUST provide a payment identifier
-	 * - required=false: Clients MAY provide a payment identifier (optional)
-	 */
 	paymentIdExtension := paymentidentifier.DeclarePaymentIdentifierExtension(true)
 
 	routes := x402http.RoutesConfig{
@@ -182,6 +103,59 @@ func main() {
 		},
 	}
 
+	// Idempotency middleware — runs BEFORE the payment middleware.
+	// If we've already processed this payment ID, return the cached response
+	// immediately without re-verifying or re-settling the payment.
+	r.Use(func(c *gin.Context) {
+		paymentHeader := c.GetHeader("PAYMENT-SIGNATURE")
+		if paymentHeader == "" {
+			c.Next()
+			return
+		}
+
+		// Decode the payment header to extract the payment ID
+		decoded, err := base64.StdEncoding.DecodeString(paymentHeader)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		paymentID, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(decoded, false)
+		if err != nil || paymentID == "" {
+			c.Next()
+			return
+		}
+
+		existing, found := processedPayments[paymentID]
+		if !found {
+			c.Next()
+			return
+		}
+
+		// Duplicate payment ID — compare fingerprints
+		fingerprint := paymentHeaderFingerprint(paymentHeader)
+
+		if existing.fingerprint != fingerprint {
+			fmt.Printf("Conflict: payment ID %s reused with different payload\n", paymentID)
+			c.JSON(http.StatusConflict, gin.H{
+				"error":     "payment identifier already used with different payload",
+				"paymentId": paymentID,
+			})
+			c.Abort()
+			return
+		}
+
+		fmt.Printf("Duplicate payment detected: %s -> returning existing order: %s\n", paymentID, existing.orderID)
+		c.JSON(http.StatusOK, gin.H{
+			"orderId":   existing.orderID,
+			"status":    "already_processed",
+			"paymentId": paymentID,
+			"message":   "This payment was already processed",
+		})
+		c.Abort()
+	})
+
+	// Payment middleware — only runs for requests that pass the idempotency check
 	r.Use(ginmw.PaymentMiddleware(routes, server,
 		ginmw.WithTimeout(30*time.Second),
 	))
@@ -207,45 +181,19 @@ func main() {
 			return
 		}
 
-		// Check for required payment identifier
 		if paymentID == "" {
-			// This shouldn't happen if extension is properly validated by facilitator
 			c.JSON(http.StatusBadRequest, gin.H{"error": "payment identifier is required"})
 			return
 		}
 
-		// Compute payload fingerprint for idempotency comparison
-		fingerprint, err := payloadFingerprint(payload)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to compute payload fingerprint: %v", err)})
-			return
-		}
-
-		// Check for duplicate payment (idempotency)
-		if existing, found := processedPayments[paymentID]; found {
-			if existing.fingerprint != fingerprint {
-				fmt.Printf("Conflict: payment ID %s reused with different payload\n", paymentID)
-				c.JSON(http.StatusConflict, gin.H{
-					"error":     "payment identifier already used with different payload",
-					"paymentId": paymentID,
-				})
-				return
-			}
-
-			fmt.Printf("Duplicate payment detected: %s -> returning existing order: %s\n", paymentID, existing.orderID)
-			c.JSON(http.StatusOK, gin.H{
-				"orderId":   existing.orderID,
-				"status":    "already_processed",
-				"paymentId": paymentID,
-				"message":   "This payment was already processed",
-			})
-			return
-		}
+		// Compute fingerprint from the raw payment header
+		paymentHeader := c.GetHeader("PAYMENT-SIGNATURE")
+		fingerprint := paymentHeaderFingerprint(paymentHeader)
 
 		// Process the order (your business logic here)
 		orderID := fmt.Sprintf("order_%d", time.Now().UnixNano())
 
-		// Store the payment ID and fingerprint for future deduplication
+		// Store for future deduplication
 		processedPayments[paymentID] = processedPayment{
 			orderID:     orderID,
 			fingerprint: fingerprint,
