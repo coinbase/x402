@@ -32,7 +32,7 @@ Facilitators that support the Bazaar extension may provide a `/list` endpoint th
 
 #### List Endpoint
 
-Retrieve all available x402-compatible endpoints:
+Retrieve all available x402-compatible endpoints and MCP tools:
 
 ```bash
 GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
@@ -42,7 +42,7 @@ GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
 
 **Response Schema**
 
-Each endpoint in the list contains the following fields:
+Each resource in the list contains the following fields:
 
 ```json
 {
