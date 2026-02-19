@@ -379,6 +379,14 @@ You can register multiple payment schemes to handle different networks:
     const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
     // Now handles both EVM and Solana networks automatically!
+
+    // For Aptos support, also add:
+    import { registerExactAptosScheme } from "@x402/aptos/exact/client";
+    import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
+
+    const aptosPrivateKey = new Ed25519PrivateKey(process.env.APTOS_PRIVATE_KEY!);
+    const aptosSigner = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+    registerExactAptosScheme(client, aptosSigner);
     ```
   </Tab>
   <Tab title="Go">
