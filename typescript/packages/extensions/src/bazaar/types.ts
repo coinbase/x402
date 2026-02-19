@@ -219,7 +219,10 @@ export interface McpDiscoveryExtension {
 /**
  * Combined discovery extension type
  */
-export type DiscoveryExtension = QueryDiscoveryExtension | BodyDiscoveryExtension | McpDiscoveryExtension;
+export type DiscoveryExtension =
+  | QueryDiscoveryExtension
+  | BodyDiscoveryExtension
+  | McpDiscoveryExtension;
 
 export interface DeclareQueryDiscoveryExtensionConfig {
   method?: QueryParamMethods;

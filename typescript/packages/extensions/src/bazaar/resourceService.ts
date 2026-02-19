@@ -189,6 +189,7 @@ function createBodyDiscoveryExtension({
  * @param root0.inputSchema - JSON Schema for tool arguments
  * @param root0.example - Example tool arguments
  * @param root0.output - Output specification with example
+ * @param root0.transport - MCP transport type (streamable-http or sse)
  * @returns McpDiscoveryExtension with info and schema
  */
 function createMcpDiscoveryExtension({
