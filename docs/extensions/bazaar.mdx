@@ -469,3 +469,6 @@ A: Currently Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) with USDC pa
 
 **Q: Can I list non-x402 services?**
 A: No, only x402-compatible endpoints can be listed. See our [Quickstart for Sellers](/getting-started/quickstart-for-sellers) to make your API x402-compatible.
+
+**Q: What are MCP tools and how do they work with Bazaar?**
+A: MCP (Model Context Protocol) tools are AI-agent-friendly interfaces that can be discovered and paid for through x402. When listing an MCP tool, include `type: "mcp"` in the bazaar extension along with the tool name and input schema. The unique identifier for MCP tools is the combination of the resource URL and tool name, since multiple tools can be served from a single MCP endpoint.
