@@ -9,7 +9,7 @@
 
 import Ajv from "ajv/dist/2020.js";
 import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
-import type { DiscoveryExtension, DiscoveryInfo } from "./types";
+import type { DiscoveryExtension, DiscoveryInfo, McpDiscoveryInfo } from "./types";
 import { BAZAAR } from "./types";
 import { extractDiscoveryInfoV1 } from "./v1/facilitator";
 
@@ -181,11 +181,17 @@ export function extractDiscoveryInfo(
     mimeType = requirementsV1.mimeType;
   }
 
+  // For MCP tools, the "method" is the tool name; for HTTP, it's the HTTP method
+  const method =
+    discoveryInfo.input.type === "mcp"
+      ? (discoveryInfo as McpDiscoveryInfo).input.tool
+      : discoveryInfo.input.method;
+
   return {
     resourceUrl: normalizedResourceUrl,
     description,
     mimeType,
-    method: discoveryInfo.input.method,
+    method,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,
   };
