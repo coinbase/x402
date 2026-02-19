@@ -13,7 +13,7 @@ import {
   validateAndExtract,
   bazaarResourceServerExtension,
 } from "../src/bazaar/index";
-import type { BodyDiscoveryInfo, DiscoveryExtension } from "../src/bazaar/types";
+import type { BodyDiscoveryInfo, McpDiscoveryInfo, DiscoveryExtension } from "../src/bazaar/types";
 import type { HTTPAdapter, HTTPRequestContext } from "@x402/core/http";
 
 describe("Bazaar Discovery Extension", () => {
@@ -1286,6 +1286,307 @@ describe("Bazaar Discovery Extension", () => {
       // Should return unchanged - schema still has broad enum
       const methodEnum = extractMethodEnum(result.schema as Record<string, unknown>);
       expect(methodEnum).toEqual(["POST", "PUT", "PATCH"]);
+    });
+  });
+
+  describe("declareDiscoveryExtension - MCP tool", () => {
+    it("should create a valid MCP extension with tool info", () => {
+      const result = declareDiscoveryExtension({
+        tool: "financial_analysis",
+        description: "Analyze financial data for a given ticker",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string", description: "Stock ticker symbol" },
+            analysis_type: {
+              type: "string",
+              enum: ["fundamental", "technical", "sentiment"],
+            },
+          },
+          required: ["ticker"],
+        },
+        example: { ticker: "AAPL", analysis_type: "fundamental" },
+      });
+
+      expect(result).toHaveProperty("bazaar");
+      const extension = result.bazaar;
+      expect(extension).toHaveProperty("info");
+      expect(extension).toHaveProperty("schema");
+      expect(extension.info.input.type).toBe("mcp");
+      expect((extension.info as McpDiscoveryInfo).input.tool).toBe("financial_analysis");
+      expect((extension.info as McpDiscoveryInfo).input.description).toBe(
+        "Analyze financial data for a given ticker",
+      );
+      expect((extension.info as McpDiscoveryInfo).input.inputSchema).toBeDefined();
+      expect((extension.info as McpDiscoveryInfo).input.example).toEqual({
+        ticker: "AAPL",
+        analysis_type: "fundamental",
+      });
+    });
+
+    it("should create an MCP extension without optional fields", () => {
+      const result = declareDiscoveryExtension({
+        tool: "simple_tool",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      });
+
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("mcp");
+      expect((extension.info as McpDiscoveryInfo).input.tool).toBe("simple_tool");
+      expect((extension.info as McpDiscoveryInfo).input.description).toBeUndefined();
+      expect((extension.info as McpDiscoveryInfo).input.example).toBeUndefined();
+    });
+
+    it("should create an MCP extension with transport field", () => {
+      const result = declareDiscoveryExtension({
+        tool: "streaming_tool",
+        transport: "sse",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      });
+
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("mcp");
+      expect((extension.info as McpDiscoveryInfo).input.transport).toBe("sse");
+    });
+
+    it("should omit transport when not provided (defaults to streamable-http per spec)", () => {
+      const result = declareDiscoveryExtension({
+        tool: "default_transport_tool",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      });
+
+      const extension = result.bazaar;
+      expect((extension.info as McpDiscoveryInfo).input.transport).toBeUndefined();
+    });
+
+    it("should create an MCP extension with output example", () => {
+      const result = declareDiscoveryExtension({
+        tool: "weather_tool",
+        inputSchema: {
+          type: "object",
+          properties: {
+            city: { type: "string" },
+          },
+        },
+        output: {
+          example: { temperature: 72, condition: "sunny" },
+        },
+      });
+
+      const extension = result.bazaar;
+      expect(extension.info.output?.example).toEqual({ temperature: 72, condition: "sunny" });
+    });
+  });
+
+  describe("validateDiscoveryExtension - MCP", () => {
+    it("should validate a correct MCP extension", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "my_tool",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      });
+
+      const extension = declared.bazaar;
+      const result = validateDiscoveryExtension(extension);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toBeUndefined();
+    });
+
+    it("should validate an MCP extension with all optional fields", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "full_tool",
+        description: "A fully specified tool",
+        transport: "streamable-http",
+        inputSchema: {
+          type: "object",
+          properties: {
+            input: { type: "string" },
+          },
+          required: ["input"],
+        },
+        example: { input: "test" },
+        output: {
+          example: { result: "success" },
+        },
+      });
+
+      const extension = declared.bazaar;
+      const result = validateDiscoveryExtension(extension);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("extractDiscoveryInfo - MCP", () => {
+    it("should extract MCP discovery info with tool name as method", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "financial_analysis",
+        description: "Analyze financial data",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string" },
+          },
+        },
+      });
+
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://mcp.example.com/tools",
+          description: "MCP Tool Server",
+          mimeType: "application/json",
+        },
+        extensions: {
+          [BAZAAR.key]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.method).toBe("financial_analysis");
+      expect(discovered!.discoveryInfo.input.type).toBe("mcp");
+      expect(discovered!.resourceUrl).toBe("https://mcp.example.com/tools");
+      expect(discovered!.description).toBe("MCP Tool Server");
+    });
+
+    it("should strip query params from MCP resource URL", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "search",
+        inputSchema: { type: "object", properties: {} },
+      });
+
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://mcp.example.com/tools?session=abc",
+        },
+        extensions: {
+          [BAZAAR.key]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://mcp.example.com/tools");
+    });
+  });
+
+  describe("validateAndExtract - MCP", () => {
+    it("should validate and extract MCP discovery info", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "code_review",
+        description: "Review code changes",
+        inputSchema: {
+          type: "object",
+          properties: {
+            diff: { type: "string" },
+            language: { type: "string" },
+          },
+          required: ["diff"],
+        },
+        example: { diff: "--- a/file.ts\n+++ b/file.ts", language: "typescript" },
+      });
+
+      const extension = declared.bazaar;
+      const result = validateAndExtract(extension);
+      expect(result.valid).toBe(true);
+      expect(result.info).toBeDefined();
+      expect(result.info!.input.type).toBe("mcp");
+    });
+  });
+
+  describe("extractDiscoveryInfoFromExtension - MCP", () => {
+    it("should extract info from a valid MCP extension", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "translate",
+        inputSchema: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            target_language: { type: "string" },
+          },
+        },
+      });
+
+      const extension = declared.bazaar;
+      const info = extractDiscoveryInfoFromExtension(extension);
+      expect(info).toEqual(extension.info);
+      expect(info.input.type).toBe("mcp");
+    });
+  });
+
+  describe("bazaarResourceServerExtension - MCP", () => {
+    it("should not modify MCP extensions even with HTTP context", () => {
+      const declared = declareDiscoveryExtension({
+        tool: "my_tool",
+        description: "A tool",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      });
+
+      const extension = declared.bazaar;
+
+      const mockAdapter: HTTPAdapter = {
+        getMethod: () => "POST",
+        getUrl: () => new URL("http://localhost/test"),
+        getHeader: () => undefined,
+        setHeader: () => {},
+        setStatusCode: () => {},
+        setBody: () => {},
+        getBody: () => ({}),
+      };
+
+      const httpContext: HTTPRequestContext = {
+        method: "POST",
+        path: "/test",
+        adapter: mockAdapter,
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      // MCP extension should remain unchanged
+      expect(enriched.info.input.type).toBe("mcp");
+      expect((enriched.info as McpDiscoveryInfo).input.tool).toBe("my_tool");
     });
   });
 });
