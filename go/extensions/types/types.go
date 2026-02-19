@@ -2,12 +2,25 @@ package types
 
 import (
 	"encoding/json"
+	"regexp"
 
 	x402 "github.com/coinbase/x402/go"
 )
 
 // BAZAAR is the extension identifier for the Bazaar discovery extension.
 var BAZAAR = x402.NewFacilitatorExtension("bazaar")
+
+// Extension identifier constant for the Payment Identifier extension
+const PAYMENT_IDENTIFIER = "payment-identifier"
+
+// Payment identifier validation constants
+const (
+	PAYMENT_ID_MIN_LENGTH = 16
+	PAYMENT_ID_MAX_LENGTH = 128
+)
+
+// PAYMENT_ID_PATTERN is a regex pattern for valid payment identifier characters
+var PAYMENT_ID_PATTERN = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // QueryParamMethods are HTTP methods that use query parameters
 type QueryParamMethods string
