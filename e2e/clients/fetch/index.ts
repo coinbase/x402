@@ -6,7 +6,7 @@ import { baseSepolia } from "viem/chains";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
-import { registerExactAptosScheme } from "@x402/aptos/exact/client";
+import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
@@ -42,7 +42,7 @@ const client = new x402Client();
 registerExactEvmScheme(client, { signer: evmSigner });
 registerExactSvmScheme(client, { signer: svmSigner });
 if (aptosAccount) {
-  registerExactAptosScheme(client, { signer: aptosAccount });
+  client.register("aptos:*", new ExactAptosScheme(aptosAccount));
 }
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);

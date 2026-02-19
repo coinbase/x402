@@ -3,7 +3,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
-import { registerExactAptosScheme } from "@x402/aptos/exact/server";
+import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import dotenv from "dotenv";
@@ -55,7 +55,7 @@ const server = new x402ResourceServer(facilitatorClient);
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
 if (APTOS_PAYEE_ADDRESS) {
-  registerExactAptosScheme(server);
+  server.register("aptos:*", new ExactAptosScheme());
 }
 
 // Register Bazaar discovery extension

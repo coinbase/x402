@@ -15,7 +15,7 @@ import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@apt
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { toFacilitatorAptosSigner } from "@x402/aptos";
-import { registerExactAptosScheme } from "@x402/aptos/exact/facilitator";
+import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   Network,
@@ -173,10 +173,7 @@ registerExactSvmScheme(facilitator, {
   networks: SVM_NETWORK as Network,
 });
 if (aptosSigner) {
-  registerExactAptosScheme(facilitator, {
-    signer: aptosSigner,
-    networks: APTOS_NETWORK as Network,
-  });
+  facilitator.register(APTOS_NETWORK as Network, new ExactAptosScheme(aptosSigner));
 }
 
 facilitator.registerExtension(BAZAAR)
