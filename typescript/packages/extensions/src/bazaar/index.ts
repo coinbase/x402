@@ -76,8 +76,10 @@ export type {
   DiscoveryInfo,
   QueryDiscoveryInfo,
   BodyDiscoveryInfo,
+  McpDiscoveryInfo,
   QueryDiscoveryExtension,
   BodyDiscoveryExtension,
+  McpDiscoveryExtension,
   DiscoveryExtension,
 } from "./types";
 

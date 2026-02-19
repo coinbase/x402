@@ -48,9 +48,28 @@ export interface BodyDiscoveryInfo {
 }
 
 /**
+ * Discovery info for MCP tools
+ */
+export interface McpDiscoveryInfo {
+  input: {
+    type: "mcp";
+    tool: string;
+    description?: string;
+    transport?: "streamable-http" | "sse";
+    inputSchema: Record<string, unknown>;
+    example?: Record<string, unknown>;
+  };
+  output?: {
+    type?: string;
+    format?: string;
+    example?: unknown;
+  };
+}
+
+/**
  * Combined discovery info type
  */
-export type DiscoveryInfo = QueryDiscoveryInfo | BodyDiscoveryInfo;
+export type DiscoveryInfo = QueryDiscoveryInfo | BodyDiscoveryInfo | McpDiscoveryInfo;
 
 /**
  * Discovery extension for query parameter methods (GET, HEAD, DELETE)
@@ -154,9 +173,53 @@ export interface BodyDiscoveryExtension {
 }
 
 /**
+ * Discovery extension for MCP tools
+ */
+export interface McpDiscoveryExtension {
+  info: McpDiscoveryInfo;
+
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema";
+    type: "object";
+    properties: {
+      input: {
+        type: "object";
+        properties: {
+          type: {
+            type: "string";
+            const: "mcp";
+          };
+          tool: {
+            type: "string";
+          };
+          description?: {
+            type: "string";
+          };
+          transport?: {
+            type: "string";
+            enum: ["streamable-http", "sse"];
+          };
+          inputSchema: Record<string, unknown>;
+          example?: Record<string, unknown>;
+        };
+        required: ("type" | "tool" | "inputSchema")[];
+        additionalProperties?: boolean;
+      };
+      output?: {
+        type: "object";
+        properties?: Record<string, unknown>;
+        required?: readonly string[];
+        additionalProperties?: boolean;
+      };
+    };
+    required: ["input"];
+  };
+}
+
+/**
  * Combined discovery extension type
  */
-export type DiscoveryExtension = QueryDiscoveryExtension | BodyDiscoveryExtension;
+export type DiscoveryExtension = QueryDiscoveryExtension | BodyDiscoveryExtension | McpDiscoveryExtension;
 
 export interface DeclareQueryDiscoveryExtensionConfig {
   method?: QueryParamMethods;
@@ -179,9 +242,22 @@ export interface DeclareBodyDiscoveryExtensionConfig {
   };
 }
 
+export interface DeclareMcpDiscoveryExtensionConfig {
+  tool: string;
+  description?: string;
+  transport?: "streamable-http" | "sse";
+  inputSchema: Record<string, unknown>;
+  example?: Record<string, unknown>;
+  output?: {
+    example?: unknown;
+    schema?: Record<string, unknown>;
+  };
+}
+
 export type DeclareDiscoveryExtensionConfig =
   | DeclareQueryDiscoveryExtensionConfig
-  | DeclareBodyDiscoveryExtensionConfig;
+  | DeclareBodyDiscoveryExtensionConfig
+  | DeclareMcpDiscoveryExtensionConfig;
 
 /**
  * Distributive Omit - properly distributes Omit over union types.
@@ -196,17 +272,24 @@ export type DistributiveOmit<T, K extends keyof T> = T extends T ? Omit<T, K> : 
 
 /**
  * Config type for declareDiscoveryExtension function.
- * Uses DistributiveOmit to preserve bodyType discriminant in the union.
+ * Uses DistributiveOmit to preserve bodyType discriminant in the union for HTTP configs.
+ * MCP config has no `method` field so it's included directly.
  */
-export type DeclareDiscoveryExtensionInput = DistributiveOmit<
-  DeclareDiscoveryExtensionConfig,
-  "method"
->;
+export type DeclareDiscoveryExtensionInput =
+  | DistributiveOmit<DeclareQueryDiscoveryExtensionConfig, "method">
+  | DistributiveOmit<DeclareBodyDiscoveryExtensionConfig, "method">
+  | DeclareMcpDiscoveryExtensionConfig;
+
+export const isMcpExtensionConfig = (
+  config: DeclareDiscoveryExtensionConfig,
+): config is DeclareMcpDiscoveryExtensionConfig => {
+  return "tool" in config;
+};
 
 export const isQueryExtensionConfig = (
   config: DeclareDiscoveryExtensionConfig,
 ): config is DeclareQueryDiscoveryExtensionConfig => {
-  return !("bodyType" in config);
+  return !("bodyType" in config) && !("tool" in config);
 };
 
 export const isBodyExtensionConfig = (
