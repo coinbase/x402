@@ -33,7 +33,7 @@
  *   resource: { ... },
  *   accepts: [ ... ],
  *   extensions: {
- *     [BAZAAR]: extension
+ *     [BAZAAR.key]: extension
  *   }
  * };
  * ```
