@@ -123,6 +123,18 @@ const svmSigner = await createKeyPairSignerFromBytes(
 );
 ```
 
+#### Aptos
+
+Use the Aptos TypeScript SDK to instantiate a signer:
+
+```typescript
+import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
+
+// Create account from private key
+const privateKey = new Ed25519PrivateKey(process.env.APTOS_PRIVATE_KEY!);
+const aptosSigner = Account.fromPrivateKey({ privateKey });
+```
+
 ### 3. Make Paid Requests Automatically
 
 <Tabs>
