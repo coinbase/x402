@@ -78,6 +78,22 @@ from x402.extensions.payment_identifier import generate_payment_id
 
 payment_id = generate_payment_id()
 # Example: "pay_7d5d747be160e280504c099d984bcfe0"
+<Tab title="Go">
+
+### Step 1: Generate a Payment ID
+
+Use the `GeneratePaymentID()` utility to create a unique identifier:
+
+```go
+import "github.com/coinbase/x402/go/extensions/paymentidentifier"
+
+// Generate with default prefix "pay_"
+paymentID := paymentidentifier.GeneratePaymentID("")
+// Example: "pay_7d5d747be160e280504c099d984bcfe0"
+
+// Generate with custom prefix
+paymentID := paymentidentifier.GeneratePaymentID("order_")
+// Example: "order_7d5d747be160e280504c099d984bcfe0"
 ```
 
 ### Step 2: Add Payment ID to Extensions
@@ -109,10 +125,48 @@ async with x402HttpxClient(client) as http:
     
     # Retry with same payment ID - cached response returned (no payment)
     response2 = await http.get(url)
+```go
+import (
+    "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/extensions/paymentidentifier"
+)
+
+client := x402.Newx402Client()
+// ... register schemes ...
+
+// Generate a unique payment ID for this logical request
+paymentID := paymentidentifier.GeneratePaymentID("")
+
+// Hook into payment flow to add the payment ID
+client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
+    if ctx.Extensions == nil {
+        return nil, nil
+    }
+
+    // Only add if server declared the extension
+    if ctx.Extensions[paymentidentifier.PAYMENT_IDENTIFIER] == nil {
+        return nil, nil
+    }
+
+    // Append our payment ID
+    err := paymentidentifier.AppendPaymentIdentifierToExtensions(ctx.Extensions, paymentID)
+    if err != nil {
+        return nil, err
+    }
+
+    return nil, nil
+})
+
+// First request - payment is processed
+response1, err := client.MakeRequest(url)
+
+// Retry with same payment ID - cached response returned (no payment)
+response2, err := client.MakeRequest(url)
 ```
 
 </Tab>
 </Tabs>
+
 
 ### Best Practices
 
