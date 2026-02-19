@@ -3,6 +3,7 @@ import { ExactEvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
+import { concat, encodeAbiParameters } from "viem";
 
 describe("ExactEvmSchemeV1", () => {
   let mockSigner: FacilitatorEvmSigner;
@@ -360,6 +361,102 @@ describe("ExactEvmSchemeV1", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe("invalid_exact_evm_payload_signature");
+    });
+  });
+
+  describe("ERC-6492 counterfactual signature verification (V1)", () => {
+    const ERC6492_MAGIC =
+      "0x6492649264926492649264926492649264926492649264926492649264926492";
+
+    function makeERC6492Sig(
+      factory: `0x${string}`,
+      calldata: `0x${string}`,
+      innerSig: `0x${string}`,
+    ): `0x${string}` {
+      const encoded = encodeAbiParameters(
+        [{ type: "address" }, { type: "bytes" }, { type: "bytes" }],
+        [factory, calldata, innerSig],
+      );
+      return concat([encoded, ERC6492_MAGIC]) as `0x${string}`;
+    }
+
+    const erc6492Requirements: PaymentRequirementsV1 = {
+      scheme: "exact",
+      network: "base-sepolia",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      maxAmountRequired: "1000000",
+      payTo: "0x9876543210987654321098765432109876543210",
+      maxTimeoutSeconds: 3600,
+      extra: { name: "USDC", version: "2" },
+    };
+
+    const erc6492Payer = "0x1234567890123456789012345678901234567890";
+    const factory = "0x1111111111111111111111111111111111111111" as `0x${string}`;
+    const factoryCalldata = "0xdeadbeef" as `0x${string}`;
+    const garbageInnerSig = ("0x" + "00".repeat(65)) as `0x${string}`;
+    const erc6492Sig = makeERC6492Sig(factory, factoryCalldata, garbageInnerSig);
+
+    function makeV1Payload(sig: string): PaymentPayloadV1 {
+      return {
+        x402Version: 1,
+        scheme: "exact",
+        network: "base-sepolia",
+        payload: {
+          signature: sig,
+          authorization: {
+            from: erc6492Payer,
+            to: erc6492Requirements.payTo,
+            value: erc6492Requirements.maxAmountRequired,
+            validAfter: (Math.floor(Date.now() / 1000) - 300).toString(),
+            validBefore: (Math.floor(Date.now() / 1000) + 3600).toString(),
+            nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          },
+        },
+      };
+    }
+
+    it("should reject forged ERC-6492 when validator returns false", async () => {
+      mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("not EOA"));
+      mockSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockSigner.readContract = vi.fn().mockResolvedValue(false);
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_evm_payload_signature");
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should accept ERC-6492 when validator returns true", async () => {
+      mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("not EOA"));
+      mockSigner.getCode = vi.fn().mockResolvedValue("0x");
+      // isValidSig → true (valid sig), balanceOf → large balance
+      mockSigner.readContract = vi.fn().mockImplementation(
+        ({ functionName }: { functionName: string }) => {
+          if (functionName === "isValidSig") return Promise.resolve(true);
+          return Promise.resolve(BigInt("10000000")); // sufficient balance
+        },
+      );
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should reject ERC-6492 when UniversalSigValidator is unavailable", async () => {
+      mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("not EOA"));
+      mockSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockSigner.readContract = vi.fn().mockRejectedValue(new Error("execution reverted"));
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_evm_payload_signature");
+      expect(result.payer).toBe(erc6492Payer);
     });
   });
 });

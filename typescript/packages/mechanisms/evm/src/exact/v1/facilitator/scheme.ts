@@ -7,8 +7,20 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { PaymentRequirementsV1 } from "@x402/core/types/v1";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
-import { authorizationTypes, eip3009ABI } from "../../../constants";
+import {
+  getAddress,
+  hashTypedData,
+  Hex,
+  isAddressEqual,
+  parseErc6492Signature,
+  parseSignature,
+} from "viem";
+import {
+  authorizationTypes,
+  eip3009ABI,
+  UNIVERSAL_SIG_VALIDATOR_ADDRESS,
+  universalSigValidatorABI,
+} from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
 import { getEvmChainId } from "../../../utils";
@@ -190,8 +202,40 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
               payer: payerAddress,
             };
           }
-          // EIP-6492 signature with deployment info - allow through
-          // Facilitators with sponsored deployment support can handle this in settle()
+          // Simulate deployment and verify inner signature via ERC-6492 UniversalSigValidator
+          const hashBytes = hashTypedData({
+            types: permitTypedData.types,
+            primaryType: permitTypedData.primaryType,
+            domain: {
+              name: name as string,
+              version: version as string,
+              chainId,
+              verifyingContract: erc20Address,
+            },
+            message: {
+              ...permitTypedData.message,
+              from: getAddress(exactEvmPayload.authorization.from),
+              to: getAddress(exactEvmPayload.authorization.to),
+            },
+          });
+          let erc6492Valid = false;
+          try {
+            erc6492Valid = (await this.signer.readContract({
+              address: UNIVERSAL_SIG_VALIDATOR_ADDRESS,
+              abi: universalSigValidatorABI,
+              functionName: "isValidSig",
+              args: [payerAddress, hashBytes, signature as Hex],
+            })) as boolean;
+          } catch {
+            // Validator unavailable — reject to prevent bypass
+          }
+          if (!erc6492Valid) {
+            return {
+              isValid: false,
+              invalidReason: "invalid_exact_evm_payload_signature",
+              payer: payerAddress,
+            };
+          }
         } else {
           // Wallet is deployed but signature still failed - invalid signature
           return {

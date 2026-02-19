@@ -153,10 +153,11 @@ func TestVerifyUniversalSignature_ERC6492(t *testing.T) {
 	// Create valid ERC-6492 signature
 	erc6492Sig := createERC6492SignatureForTest(t, factory, factoryCalldata, innerSig)
 
-	t.Run("undeployed wallet with ERC-6492 and allowUndeployed=true", func(t *testing.T) {
-		// Mock signer that returns no code (undeployed)
+	t.Run("undeployed wallet with ERC-6492 and allowUndeployed=true - validator returns true", func(t *testing.T) {
+		// Mock signer: no code (undeployed), validator returns true (bool)
 		mock := &mockFacilitatorSigner{
-			getCodeResult: []byte{}, // No code = undeployed
+			getCodeResult:      []byte{}, // No code = undeployed
+			readContractResult: true,     // UniversalSigValidator returns valid
 		}
 
 		valid, sigData, err := VerifyUniversalSignature(
@@ -276,6 +277,94 @@ func TestVerifyUniversalSignature_EdgeCases(t *testing.T) {
 
 		if err == nil {
 			t.Error("expected error for malformed ERC-6492 signature")
+		}
+	})
+}
+
+func TestVerifyUniversalSignature_ERC6492_ValidatorChecks(t *testing.T) {
+	ctx := context.Background()
+	wallet := "0x1234567890123456789012345678901234567890"
+	testHash := [32]byte{1, 2, 3, 4, 5}
+
+	factory := common.HexToAddress("0xfactory0000000000000000000000000000000000")
+	factoryCalldata := []byte("deploy calldata")
+	garbageInnerSig := make([]byte, 65) // All zeros — forged/garbage inner sig
+
+	erc6492Sig := createERC6492SignatureForTest(t, factory, factoryCalldata, garbageInnerSig)
+
+	t.Run("forged ERC-6492 with garbage inner sig - validator returns false", func(t *testing.T) {
+		// Validator returns false (signature not valid)
+		mock := &mockFacilitatorSigner{
+			getCodeResult:      []byte{}, // No code = undeployed
+			readContractResult: false,    // UniversalSigValidator rejects the signature
+		}
+
+		valid, _, err := VerifyUniversalSignature(
+			ctx,
+			mock,
+			wallet,
+			testHash,
+			erc6492Sig,
+			true, // allowUndeployed
+		)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if valid {
+			t.Error("expected invalid: forged ERC-6492 signature should be rejected")
+		}
+	})
+
+	t.Run("valid ERC-6492 - validator returns true", func(t *testing.T) {
+		// Validator returns true (signature is valid)
+		mock := &mockFacilitatorSigner{
+			getCodeResult:      []byte{}, // No code = undeployed
+			readContractResult: true,     // UniversalSigValidator accepts the signature
+		}
+
+		valid, sigData, err := VerifyUniversalSignature(
+			ctx,
+			mock,
+			wallet,
+			testHash,
+			erc6492Sig,
+			true, // allowUndeployed
+		)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !valid {
+			t.Error("expected valid ERC-6492 signature")
+		}
+		if sigData == nil {
+			t.Error("expected sigData to be non-nil")
+		}
+	})
+
+	t.Run("validator unavailable - call returns error - signature rejected", func(t *testing.T) {
+		// Validator call fails (contract not deployed on this chain, network error, etc.)
+		mock := &mockFacilitatorSigner{
+			getCodeResult:     []byte{}, // No code = undeployed
+			readContractError: errors.New("contract not deployed"),
+		}
+
+		valid, _, err := VerifyUniversalSignature(
+			ctx,
+			mock,
+			wallet,
+			testHash,
+			erc6492Sig,
+			true, // allowUndeployed
+		)
+
+		// When validator is unavailable, we reject (return false) without propagating error
+		if err != nil {
+			t.Errorf("expected no error propagated when validator unavailable, got: %v", err)
+		}
+		if valid {
+			t.Error("expected invalid: should reject when validator is unavailable")
 		}
 	})
 }

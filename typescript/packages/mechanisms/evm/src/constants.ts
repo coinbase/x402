@@ -398,3 +398,29 @@ export const x402ExactPermit2ProxyABI = [
   { type: "error", name: "PaymentTooEarly", inputs: [] },
   { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
 ] as const;
+
+/**
+ * ERC-6492 UniversalSigValidator contract address.
+ * Deployed at the same address on all major EVM chains via CREATE2.
+ * Source: https://eips.ethereum.org/EIPS/eip-6492
+ */
+export const UNIVERSAL_SIG_VALIDATOR_ADDRESS =
+  "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC" as const;
+
+/**
+ * ERC-6492 UniversalSigValidator ABI — isValidSig function.
+ * Simulates factory deployment and verifies the inner EIP-1271 signature atomically.
+ */
+export const universalSigValidatorABI = [
+  {
+    inputs: [
+      { name: "_signer", type: "address" },
+      { name: "_hash", type: "bytes32" },
+      { name: "_signature", type: "bytes" },
+    ],
+    name: "isValidSig",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;

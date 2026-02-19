@@ -306,3 +306,21 @@ IS_VALID_SIGNATURE_ABI = [
         "type": "function",
     }
 ]
+
+# ERC-6492 UniversalSigValidator contract address (same on all EVM chains via CREATE2)
+# Source: https://eips.ethereum.org/EIPS/eip-6492
+UNIVERSAL_SIG_VALIDATOR_ADDRESS = "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+
+UNIVERSAL_SIG_VALIDATOR_ABI = [
+    {
+        "inputs": [
+            {"name": "_signer", "type": "address"},
+            {"name": "_hash", "type": "bytes32"},
+            {"name": "_signature", "type": "bytes"},
+        ],
+        "name": "isValidSig",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    }
+]

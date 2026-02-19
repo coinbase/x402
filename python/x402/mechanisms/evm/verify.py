@@ -7,7 +7,12 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
-from .constants import EIP1271_MAGIC_VALUE, IS_VALID_SIGNATURE_ABI
+from .constants import (
+    EIP1271_MAGIC_VALUE,
+    IS_VALID_SIGNATURE_ABI,
+    UNIVERSAL_SIG_VALIDATOR_ADDRESS,
+    UNIVERSAL_SIG_VALIDATOR_ABI,
+)
 from .erc6492 import has_deployment_info, is_eoa_signature, parse_erc6492_signature
 from .signer import FacilitatorEvmSigner
 from .types import ERC6492SignatureData
@@ -103,6 +108,34 @@ def verify_eip1271_signature(
         return False
 
 
+def verify_erc6492_signature(
+    signer: FacilitatorEvmSigner,
+    signer_address: str,
+    hash: bytes,
+    signature: bytes,
+) -> bool:
+    """Verify an ERC-6492 counterfactual signature using the UniversalSigValidator.
+
+    Calls isValidSig(address, bytes32, bytes) on the UniversalSigValidator via eth_call.
+    The validator atomically simulates factory deployment then calls isValidSignature
+    on the resulting contract. Returns False if the validator is unavailable.
+    """
+    try:
+        result = signer.read_contract(
+            UNIVERSAL_SIG_VALIDATOR_ADDRESS,
+            UNIVERSAL_SIG_VALIDATOR_ABI,
+            "isValidSig",
+            signer_address,
+            hash,
+            signature,
+        )
+        if isinstance(result, bool):
+            return result
+        return False
+    except Exception:
+        return False
+
+
 def verify_universal_signature(
     signer: FacilitatorEvmSigner,
     signer_address: str,
@@ -145,8 +178,9 @@ def verify_universal_signature(
         if has_deployment_info(sig_data):
             if not allow_undeployed:
                 raise ValueError("Undeployed smart wallet not allowed")
-            # Valid ERC-6492 - deployment happens in settle()
-            return (True, sig_data)
+            # Simulate deployment and verify inner signature via ERC-6492 UniversalSigValidator
+            valid = verify_erc6492_signature(signer, signer_address, hash, signature)
+            return (valid, sig_data)
 
         # No deployment info - try EOA verification as fallback
         if len(sig_data.inner_signature) == 65:

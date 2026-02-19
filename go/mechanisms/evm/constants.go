@@ -52,6 +52,11 @@ const (
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
 	Permit2DeadlineBuffer = 6
+
+	// UniversalSigValidatorAddress is the ERC-6492 UniversalSigValidator contract address.
+	// Deployed at the same address on all major EVM chains via CREATE2.
+	// Source: https://eips.ethereum.org/EIPS/eip-6492
+	UniversalSigValidatorAddress = "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
 )
 
 var (
@@ -132,6 +137,20 @@ var (
 			},
 		},
 	}
+
+	// UniversalSigValidatorABI is the ABI for the ERC-6492 UniversalSigValidator's isValidSig function.
+	// Used to verify counterfactual smart wallet signatures via simulate-and-check eth_call.
+	UniversalSigValidatorABI = []byte(`[{
+		"inputs": [
+			{"name": "_signer", "type": "address"},
+			{"name": "_hash", "type": "bytes32"},
+			{"name": "_signature", "type": "bytes"}
+		],
+		"name": "isValidSig",
+		"outputs": [{"name": "", "type": "bool"}],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}]`)
 
 	// EIP-3009 ABI for transferWithAuthorization with v,r,s (EOA signatures)
 	TransferWithAuthorizationVRSABI = []byte(`[

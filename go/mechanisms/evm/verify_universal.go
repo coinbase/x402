@@ -84,9 +84,13 @@ func VerifyUniversalSignature(
 			if !allowUndeployed {
 				return false, nil, errors.New(ErrUndeployedSmartWallet + ": undeployed not allowed")
 			}
-			// Valid ERC-6492 signature - allow it through
-			// Actual deployment happens in settle() if configured
-			return true, sigData, nil
+			// Simulate deployment and verify inner signature via ERC-6492 UniversalSigValidator
+			valid, err := VerifyERC6492Signature(ctx, facilitatorSigner, signerAddress, hash, signature)
+			if err != nil {
+				// Validator unavailable or call failed — reject to prevent bypass
+				return false, sigData, nil
+			}
+			return valid, sigData, nil
 		}
 
 		// No deployment info - try EOA verification as fallback
