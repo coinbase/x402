@@ -171,8 +171,8 @@ The `info.input` object uses a discriminated union type, distinguished by the `t
   "x402Version": 2,
   "error": "Payment required",
   "resource": {
-    "url": "mcp://tool/financial_analysis",
-    "description": "Advanced AI-powered financial analysis",
+    "url": "https://api.example.com/mcp",
+    "description": "Advanced AI-powered financial tools",
     "mimeType": "application/json"
   },
   "accepts": [ ... ],
@@ -214,6 +214,7 @@ The `info.input` object uses a discriminated union type, distinguished by the `t
               "type": { "type": "string", "const": "mcp" },
               "tool": { "type": "string" },
               "description": { "type": "string" },
+              "transport": { "type": "string", "enum": ["streamable-http", "sse"] },
               "inputSchema": { "type": "object" },
               "example": { "type": "object" }
             },
@@ -271,8 +272,11 @@ The `info.input` object describes how to call the endpoint or tool.
 | `type` | string | Yes | Always `"mcp"` |
 | `tool` | string | Yes | MCP tool name (matches what's passed to `tools/call`) |
 | `description` | string | No | Human-readable description of the tool |
-| `inputSchema` | object | Yes | JSON Schema for the tool's `arguments`. Should reuse the same schema the MCP server already defines for the tool. |
+| `inputSchema` | object | Yes | JSON Schema for the tool's `arguments`, following the MCP [`Tool.inputSchema`](https://spec.modelcontextprotocol.io/) format (a JSON Schema subset with `type: "object"`, `properties`, and `required`). Servers should reuse the same schema their MCP tool already declares. |
+| `transport` | string | No | MCP transport protocol. One of `"streamable-http"` or `"sse"`. Defaults to `"streamable-http"` if omitted. |
 | `example` | object | No | Example `arguments` object |
+
+> **Note:** For MCP tools, the unique resource identifier is the tuple (`resource.url`, `input.tool`). Since MCP multiplexes multiple tools over a single server endpoint, `resource.url` alone may not be unique. Facilitators **must** use both fields when cataloging MCP tools.
 
 ### Output Types
 
@@ -327,6 +331,7 @@ Facilitators **must** validate `info` against `schema` before cataloging.
         "type": { "type": "string", "const": "mcp" },
         "tool": { "type": "string" },
         "description": { "type": "string" },
+        "transport": { "type": "string", "enum": ["streamable-http", "sse"] },
         "inputSchema": { "type": "object" },
         "example": { "type": "object" }
       },
