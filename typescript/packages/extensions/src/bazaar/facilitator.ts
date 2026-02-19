@@ -103,6 +103,7 @@ export interface DiscoveredResource {
   resourceUrl: string;
   description?: string;
   mimeType?: string;
+  /** For HTTP resources this is the HTTP method (e.g. "GET"); for MCP resources it is the tool name. */
   method: string;
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
