@@ -21,7 +21,7 @@ class TestConstants:
 
     def test_bazaar_constant(self) -> None:
         """Test BAZAAR constant value."""
-        assert BAZAAR == "bazaar"
+        assert BAZAAR.key == "bazaar"
 
 
 class TestMethodChecks:

@@ -2,6 +2,7 @@ import { SettleResponse, VerifyResponse } from "./facilitator";
 import { PaymentRequirements } from "./payments";
 import { PaymentPayload } from "./payments";
 import { Price, Network, AssetAmount } from ".";
+import { FacilitatorExtension } from "./extensions";
 
 /**
  * Money parser function that converts a numeric amount to an AssetAmount
@@ -42,6 +43,15 @@ export interface SchemeNetworkClient {
     paymentRequirements: PaymentRequirements,
     context?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult>;
+}
+
+/**
+ * Context passed to SchemeNetworkFacilitator.verify/settle, providing
+ * access to registered facilitator extensions. Mechanism implementations
+ * use this to retrieve extension-provided capabilities (e.g., a batch signer).
+ */
+export interface FacilitatorContext {
+  getExtension<T extends FacilitatorExtension = FacilitatorExtension>(key: string): T | undefined;
 }
 
 export interface SchemeNetworkFacilitator {
@@ -106,8 +116,16 @@ export interface SchemeNetworkFacilitator {
    */
   getSigners(network: string): string[];
 
-  verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse>;
-  settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
+  verify(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    context?: FacilitatorContext,
+  ): Promise<VerifyResponse>;
+  settle(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    context?: FacilitatorContext,
+  ): Promise<SettleResponse>;
 }
 
 export interface SchemeNetworkServer {

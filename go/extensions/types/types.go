@@ -2,10 +2,12 @@ package types
 
 import (
 	"encoding/json"
+
+	x402 "github.com/coinbase/x402/go"
 )
 
-// Extension identifier constant for the Bazaar discovery extension
-const BAZAAR = "bazaar"
+// BAZAAR is the extension identifier for the Bazaar discovery extension.
+var BAZAAR = x402.NewFacilitatorExtension("bazaar")
 
 // QueryParamMethods are HTTP methods that use query parameters
 type QueryParamMethods string
