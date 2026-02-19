@@ -236,10 +236,13 @@ async function runTest() {
   // Load configuration from environment
   const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
+  const serverAptosAddress = process.env.SERVER_APTOS_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
+  const clientAptosPrivateKey = process.env.CLIENT_APTOS_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
+  const facilitatorAptosPrivateKey = process.env.FACILITATOR_APTOS_PRIVATE_KEY;
 
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
@@ -316,6 +319,7 @@ async function runTest() {
   log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
+  log(`   APTOS: ${networks.aptos.name} (${networks.aptos.caip2})`);
 
   if (networkMode === 'mainnet') {
     log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
@@ -392,7 +396,7 @@ async function runTest() {
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
 
   // Environment variables managed by the test framework (don't require user to set)
-  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL']);
+  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'APTOS_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'APTOS_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL', 'APTOS_RPC_URL']);
 
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
@@ -546,6 +550,7 @@ async function runTest() {
     const clientConfig: ClientConfig = {
       evmPrivateKey: clientEvmPrivateKey!,
       svmPrivateKey: clientSvmPrivateKey!,
+      aptosPrivateKey: clientAptosPrivateKey || '',
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
     };
@@ -627,6 +632,7 @@ async function runTest() {
       port,
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
+      aptosPayTo: serverAptosAddress || '',
       networks,
       facilitatorUrl,
     };

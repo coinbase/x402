@@ -22,6 +22,7 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
         env: {
           EVM_PRIVATE_KEY: config.evmPrivateKey,
           SVM_PRIVATE_KEY: config.svmPrivateKey,
+          APTOS_PRIVATE_KEY: config.aptosPrivateKey,
           RESOURCE_SERVER_URL: config.serverUrl,
           ENDPOINT_PATH: config.endpointPath,
         }
