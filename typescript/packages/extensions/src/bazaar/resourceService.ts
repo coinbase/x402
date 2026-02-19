@@ -240,10 +240,14 @@ function createMcpDiscoveryExtension({
                   },
                 }
               : {}),
-            transport: {
-              type: "string" as const,
-              enum: ["streamable-http", "sse"],
-            },
+            ...(transport !== undefined
+              ? {
+                  transport: {
+                    type: "string" as const,
+                    enum: ["streamable-http", "sse"],
+                  },
+                }
+              : {}),
             inputSchema: {
               type: "object" as const,
             },
