@@ -659,47 +659,28 @@ async function runTest() {
 
     const results: DetailedTestResult[] = [];
     try {
-      // Split scenarios by protocol family so SVM tests can run in parallel
-      const evmScenarios = scenarios.filter(s => s.protocolFamily === 'evm');
-      const svmScenarios = scenarios.filter(s => s.protocolFamily !== 'evm');
+      for (const scenario of scenarios) {
+        const tn = nextTestNumber();
+        const isEvm = scenario.protocolFamily === 'evm';
 
-      // Run EVM (sequential, with nonce lock) and SVM (fully parallel) concurrently
-      const evmPromise = (async () => {
-        const evmResults: DetailedTestResult[] = [];
-        for (const scenario of evmScenarios) {
-          const tn = nextTestNumber();
-
-          if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
-            await revokePermit2Approval();
-          }
-
-          if (facilitatorName && evmLock) {
-            // Acquire EVM lock for this facilitator to prevent nonce collisions
-            const releaseLock = await evmLock.acquire(facilitatorName);
-            try {
-              evmResults.push(await runSingleTest(scenario, port, tn, cLog));
-              // Delay inside the lock so the nonce settles before releasing
-              await new Promise(resolve => setTimeout(resolve, evmSettleMs));
-            } finally {
-              releaseLock();
-            }
-          } else {
-            // Sequential mode or tests without a facilitator — no lock
-            evmResults.push(await runSingleTest(scenario, port, tn, cLog));
-          }
+        if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
+          await revokePermit2Approval();
         }
-        return evmResults;
-      })();
 
-      const svmPromise = Promise.all(
-        svmScenarios.map(scenario => {
-          const tn = nextTestNumber();
-          return runSingleTest(scenario, port, tn, cLog);
-        }),
-      );
-
-      const [evmResults, svmResults] = await Promise.all([evmPromise, svmPromise]);
-      results.push(...evmResults, ...svmResults);
+        if (isEvm && facilitatorName && evmLock) {
+          // Acquire EVM lock for this facilitator to prevent nonce collisions
+          const releaseLock = await evmLock.acquire(facilitatorName);
+          try {
+            results.push(await runSingleTest(scenario, port, tn, cLog));
+            // Delay inside the lock so the nonce settles before releasing
+            await new Promise(resolve => setTimeout(resolve, evmSettleMs));
+          } finally {
+            releaseLock();
+          }
+        } else {
+          results.push(await runSingleTest(scenario, port, tn, cLog));
+        }
+      }
     } finally {
       cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
       await serverProxy.stop();
