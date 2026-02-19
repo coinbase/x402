@@ -25,11 +25,11 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import { EIP2612_GAS_SPONSORING } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -163,15 +163,9 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 
 const facilitator = new x402Facilitator();
 
-// Register EVM, SVM, and Aptos schemes using the register helpers
-registerExactEvmScheme(facilitator, {
-  signer: evmSigner,
-  networks: EVM_NETWORK as Network,
-});
-registerExactSvmScheme(facilitator, {
-  signer: svmSigner,
-  networks: SVM_NETWORK as Network,
-});
+// Register EVM, SVM, and Aptos schemes
+facilitator.register(EVM_NETWORK as Network, new ExactEvmScheme(evmSigner));
+facilitator.register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner));
 if (aptosSigner) {
   facilitator.register(APTOS_NETWORK as Network, new ExactAptosScheme(aptosSigner));
 }

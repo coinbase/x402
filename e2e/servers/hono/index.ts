@@ -2,8 +2,8 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { paymentMiddleware } from "@x402/hono";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-import { registerExactEvmScheme } from "@x402/evm/exact/server";
-import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
@@ -53,8 +53,8 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const x402Server = new x402ResourceServer(facilitatorClient);
 
 // Register server schemes
-registerExactEvmScheme(x402Server);
-registerExactSvmScheme(x402Server);
+x402Server.register("eip155:*", new ExactEvmScheme());
+x402Server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
   x402Server.register("aptos:*", new ExactAptosScheme());
 }

@@ -1,8 +1,8 @@
 import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-import { registerExactEvmScheme } from "@x402/evm/exact/server";
-import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
@@ -52,8 +52,8 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const server = new x402ResourceServer(facilitatorClient);
 
 // Register server schemes
-registerExactEvmScheme(server);
-registerExactSvmScheme(server);
+server.register("eip155:*", new ExactEvmScheme());
+server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
   server.register("aptos:*", new ExactAptosScheme());
 }
