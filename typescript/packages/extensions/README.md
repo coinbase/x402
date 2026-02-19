@@ -417,12 +417,21 @@ Extracts discovery information from a payment request (for facilitators).
 **Returns:** `DiscoveredResource` object or `null` if not found.
 
 ```typescript
-interface DiscoveredResource {
+interface DiscoveredHTTPResource {
   resourceUrl: string;
-  method: string;       // HTTP method for HTTP resources; tool name for MCP resources
+  method: string;        // e.g. "GET", "POST"
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
+
+interface DiscoveredMCPResource {
+  resourceUrl: string;
+  tool: string;          // MCP tool name
+  x402Version: number;
+  discoveryInfo: DiscoveryInfo;
+}
+
+type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 ```
 
 #### `validateDiscoveryExtension(extension)`
