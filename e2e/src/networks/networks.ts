@@ -6,7 +6,7 @@
  */
 
 export type NetworkMode = 'testnet' | 'mainnet';
-export type ProtocolFamily = 'evm' | 'svm';
+export type ProtocolFamily = 'evm' | 'svm' | 'stellar';
 
 export type NetworkConfig = {
   name: string;
@@ -17,6 +17,7 @@ export type NetworkConfig = {
 export type NetworkSet = {
   evm: NetworkConfig;
   svm: NetworkConfig;
+  stellar: NetworkConfig;
 };
 
 /**
@@ -34,6 +35,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       caip2: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
       rpcUrl: process.env.SOLANA_DEVNET_RPC_URL || 'https://api.devnet.solana.com',
     },
+    stellar: {
+      name: 'Stellar Testnet',
+      caip2: 'stellar:testnet',
+      rpcUrl: process.env.STELLAR_TESTNET_RPC_URL || 'https://soroban-testnet.stellar.org',
+    },
   },
   mainnet: {
     evm: {
@@ -45,6 +51,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       name: 'Solana',
       caip2: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
       rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
+    },
+    stellar: {
+      name: 'Stellar Pubnet',
+      caip2: 'stellar:pubnet',
+      rpcUrl: process.env.STELLAR_RPC_URL || 'https://mainnet.sorobanrpc.com',
     },
   },
 };
@@ -63,8 +74,8 @@ export function getNetworkSet(mode: NetworkMode): NetworkSet {
  * Get network config for a protocol family in a given mode
  * 
  * @param mode - 'testnet' or 'mainnet'
- * @param protocolFamily - 'evm' or 'svm'
- * @returns NetworkConfig for the specified protocol
+ * @param protocolFamily - 'evm', 'svm', or 'stellar'
+ * @returns NetworkConfig for the specified protocol, or undefined if not available
  */
 export function getNetworkForProtocol(
   mode: NetworkMode,
@@ -81,5 +92,6 @@ export function getNetworkForProtocol(
  */
 export function getNetworkModeDescription(mode: NetworkMode): string {
   const set = NETWORK_SETS[mode];
-  return `${set.evm.name} + ${set.svm.name}`;
+  const networks = [set.evm.name, set.svm.name, set.stellar.name];
+  return networks.join(' + ');
 }

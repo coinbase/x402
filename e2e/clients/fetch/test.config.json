@@ -4,7 +4,8 @@
   "language": "typescript",
   "protocolFamilies": [
     "evm",
-    "svm"
+    "svm",
+    "stellar"
   ],
   "x402Versions": [
     1,
@@ -26,6 +27,8 @@
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],
-    "optional": []
+    "optional": [
+      "STELLAR_PRIVATE_KEY"
+    ]
   }
 }

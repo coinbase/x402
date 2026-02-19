@@ -98,6 +98,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         SVM_RPC_URL: config.networks.svm.rpcUrl,
         SVM_PAYEE_ADDRESS: config.svmPayTo,
 
+        // Stellar network config
+        STELLAR_PAYEE_ADDRESS: config.stellarPayTo,
+        STELLAR_NETWORK: config.networks.stellar.caip2,
+        STELLAR_RPC_URL: config.networks.stellar.rpcUrl,
+
         // Facilitator
         FACILITATOR_URL: config.facilitatorUrl || '',
       }

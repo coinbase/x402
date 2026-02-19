@@ -7,6 +7,8 @@ import { baseSepolia } from "viem/chains";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { registerExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client } from "@x402/core/client";
@@ -34,6 +36,12 @@ const evmSigner = toClientEvmSigner(evmAccount, publicClient);
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: evmSigner });
 registerExactSvmScheme(client, { signer: svmSigner });
+
+// Conditionally register Stellar scheme if private key is provided
+if (process.env.STELLAR_PRIVATE_KEY) {
+  const stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
+  registerExactStellarScheme(client, { signer: stellarSigner });
+}
 
 const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
 
