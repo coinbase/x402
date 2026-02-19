@@ -332,6 +332,22 @@ function createMcpDiscoveryExtension({
  *     example: { success: true, id: "123" }
  *   }
  * });
+ *
+ * // For an MCP tool
+ * const mcpExtension = declareDiscoveryExtension({
+ *   tool: "financial_analysis",
+ *   description: "Analyze financial data for a given ticker",
+ *   inputSchema: {
+ *     type: "object",
+ *     properties: {
+ *       ticker: { type: "string" },
+ *     },
+ *     required: ["ticker"],
+ *   },
+ *   output: {
+ *     example: { pe_ratio: 28.5, recommendation: "hold" }
+ *   }
+ * });
  * ```
  */
 export function declareDiscoveryExtension(
