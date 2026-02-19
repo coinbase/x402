@@ -19,6 +19,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
@@ -777,6 +778,12 @@ func main() {
 
 	// Register the EIP-2612 Gas Sponsoring extension
 	facilitator.RegisterExtension(eip2612gassponsor.EIP2612GasSponsoring)
+
+	// Register the ERC-20 Approval Gas Sponsoring extension
+	// Note: In production, provide a real SmartWalletBatchSigner implementation.
+	// For e2e tests, the extension is registered but SmartWalletSigner is nil
+	// (disables batch settlement; server still advertises the extension capability).
+	facilitator.RegisterExtension(erc20approvalgassponsor.NewFacilitatorExtension(nil))
 
 	// Lifecycle hooks for payment tracking and discovery
 	facilitator.

@@ -52,4 +52,12 @@ const (
 	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
 	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
 	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
+
+	// ERC-20 Approval Gas Sponsoring errors
+	ErrErc20GasSponsoringNotConfigured = "erc20_gas_sponsoring_not_configured"
+	ErrErc20InvalidSignedTx            = "erc20_invalid_signed_transaction"
+	ErrErc20SignerMismatch             = "erc20_signer_mismatch"
+	ErrErc20TokenMismatch              = "erc20_token_mismatch"
+	ErrErc20SpenderNotPermit2          = "erc20_spender_not_permit2"
+	ErrErc20InvalidCalldata            = "erc20_invalid_calldata"
 )

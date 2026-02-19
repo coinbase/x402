@@ -52,6 +52,10 @@ const (
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
 	Permit2DeadlineBuffer = 6
+
+	// ERC20ApproveFunctionSelector is the 4-byte function selector for approve(address,uint256).
+	// keccak256("approve(address,uint256)") = 0x095ea7b3...
+	ERC20ApproveFunctionSelector = "0x095ea7b3"
 )
 
 var (

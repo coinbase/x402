@@ -9,13 +9,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/types"
 )
 
+// ExactEvmSchemeClientConfig holds optional configuration for the ExactEvmScheme client.
+type ExactEvmSchemeClientConfig struct {
+	// Erc20ApprovalConfig configures ERC-20 raw approval transaction signing.
+	// If nil, ERC-20 approval gas sponsoring uses infinite approval (MaxUint256).
+	Erc20ApprovalConfig *Erc20ApprovalClientConfig
+}
+
 // ExactEvmScheme implements the SchemeNetworkClient interface for EVM exact payments (V2)
 type ExactEvmScheme struct {
-	signer evm.ClientEvmSigner
+	signer      evm.ClientEvmSigner
+	erc20Config *Erc20ApprovalClientConfig
 }
 
 // NewExactEvmScheme creates a new ExactEvmScheme.
@@ -25,6 +34,16 @@ func NewExactEvmScheme(signer evm.ClientEvmSigner) *ExactEvmScheme {
 	return &ExactEvmScheme{
 		signer: signer,
 	}
+}
+
+// NewExactEvmSchemeWithConfig creates a new ExactEvmScheme with optional configuration.
+// Use this to configure ERC-20 approval gas sponsoring behaviour.
+func NewExactEvmSchemeWithConfig(signer evm.ClientEvmSigner, config *ExactEvmSchemeClientConfig) *ExactEvmScheme {
+	s := &ExactEvmScheme{signer: signer}
+	if config != nil {
+		s.erc20Config = config.Erc20ApprovalConfig
+	}
+	return s
 }
 
 // Scheme returns the scheme identifier
@@ -79,8 +98,15 @@ func (c *ExactEvmScheme) CreatePaymentPayloadWithExtensions(
 			return types.PaymentPayload{}, err
 		}
 
-		// Try to sign EIP-2612 permit if extension is advertised
+		// 1. Try EIP-2612 first (preferred: no on-chain tx needed for the approval)
 		extData, err := c.trySignEip2612Permit(ctx, requirements, result, extensions)
+		if err == nil && extData != nil {
+			result.Extensions = extData
+			return result, nil
+		}
+
+		// 2. Fallback: ERC-20 raw approval gas sponsoring
+		extData, err = c.trySignErc20Approval(ctx, requirements, result, extensions)
 		if err == nil && extData != nil {
 			result.Extensions = extData
 		}
@@ -160,6 +186,71 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 
 	return map[string]interface{}{
 		eip2612gassponsor.EIP2612GasSponsoring.Key(): map[string]interface{}{
+			"info": info,
+		},
+	}, nil
+}
+
+// trySignErc20Approval attempts to sign an ERC-20 approve(Permit2, amount) transaction
+// for gasless Permit2 approval as a fallback when EIP-2612 is not available.
+func (c *ExactEvmScheme) trySignErc20Approval(
+	ctx context.Context,
+	requirements types.PaymentRequirements,
+	_ types.PaymentPayload,
+	extensions map[string]interface{},
+) (map[string]interface{}, error) {
+	// Check if server advertises erc20ApprovalGasSponsoring
+	if extensions == nil {
+		return nil, nil
+	}
+	if _, ok := extensions[erc20approvalgassponsor.ERC20ApprovalGasSponsoring]; !ok {
+		return nil, nil
+	}
+
+	// Check that the signer supports raw transaction signing
+	approvalSigner, ok := c.signer.(Erc20ApprovalClientSigner)
+	if !ok {
+		return nil, nil
+	}
+
+	chainID, err := evm.GetEvmChainId(string(requirements.Network))
+	if err != nil {
+		return nil, err
+	}
+
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
+
+	// Check if user already has sufficient Permit2 allowance
+	allowanceResult, err := c.signer.ReadContract(
+		ctx,
+		tokenAddress,
+		evm.ERC20AllowanceABI,
+		"allowance",
+		common.HexToAddress(c.signer.Address()),
+		common.HexToAddress(evm.PERMIT2Address),
+	)
+	if err == nil {
+		if allowanceBig, ok := allowanceResult.(*big.Int); ok {
+			requiredAmount, ok := new(big.Int).SetString(requirements.Amount, 10)
+			if ok && allowanceBig.Cmp(requiredAmount) >= 0 {
+				return nil, nil // Already approved
+			}
+		}
+	}
+
+	requiredAmount, ok := new(big.Int).SetString(requirements.Amount, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid required amount: %s", requirements.Amount)
+	}
+
+	// Sign ERC-20 approve transaction
+	info, err := SignErc20ApprovalTransaction(ctx, approvalSigner, tokenAddress, chainID, requiredAmount, c.erc20Config)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring: map[string]interface{}{
 			"info": info,
 		},
 	}, nil
