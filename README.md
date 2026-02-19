@@ -85,6 +85,16 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 - Ability to trade off speed of response for guarantee of payment
 - Extensible to different payment flows and networks
 
+## Optional formal checks for SVM integrations
+
+Teams that use Rust + Kani for Solana settlement logic can add optional formal checks with [`kamiyo-kani`](https://crates.io/crates/kamiyo-kani).
+
+- Reusable invariants for lamport conservation, replay/idempotency, CPI authorization, and FSM transitions
+- Contract-style CPI modeling via `cpi_contract!`
+- Runnable x402-style SVM proof example: [`x402-svm-agent-payments-fixed`](https://github.com/kamiyo-ai/kamiyo-kani/tree/main/examples/x402-svm-agent-payments-fixed)
+
+This is optional and not required for x402 usage or compatibility.
+
 ## Specification
 
 See `specs/` for full documentation of the x402 standard/
