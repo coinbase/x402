@@ -1,5 +1,4 @@
-import { nativeToScVal, TransactionBuilder } from "@stellar/stellar-sdk";
-import { AssembledTransaction } from "@stellar/stellar-sdk/contract";
+import { nativeToScVal, TransactionBuilder, contract } from "@stellar/stellar-sdk";
 import { Api } from "@stellar/stellar-sdk/rpc";
 import { handleSimulationResult } from "../../shared";
 import {
@@ -69,7 +68,7 @@ export class ExactStellarScheme implements SchemeNetworkClient {
     const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(rpcServer);
     const maxLedger = currentLedger + Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
 
-    const tx = await AssembledTransaction.build({
+    const tx = await contract.AssembledTransaction.build({
       contractId: asset,
       method: "transfer",
       args: [
