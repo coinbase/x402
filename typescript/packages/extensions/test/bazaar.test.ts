@@ -13,7 +13,12 @@ import {
   validateAndExtract,
   bazaarResourceServerExtension,
 } from "../src/bazaar/index";
-import type { BodyDiscoveryInfo, McpDiscoveryInfo, DiscoveryExtension } from "../src/bazaar/types";
+import type {
+  BodyDiscoveryInfo,
+  McpDiscoveryInfo,
+  DiscoveryExtension,
+} from "../src/bazaar/types";
+import type { DiscoveredMCPResource } from "../src/bazaar/facilitator";
 import type { HTTPAdapter, HTTPRequestContext } from "@x402/core/http";
 
 describe("Bazaar Discovery Extension", () => {
@@ -1469,8 +1474,8 @@ describe("Bazaar Discovery Extension", () => {
       const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
 
       expect(discovered).not.toBeNull();
-      expect(discovered!.method).toBe("financial_analysis");
       expect(discovered!.discoveryInfo.input.type).toBe("mcp");
+      expect((discovered as DiscoveredMCPResource).tool).toBe("financial_analysis");
       expect(discovered!.resourceUrl).toBe("https://mcp.example.com/tools");
       expect(discovered!.description).toBe("MCP Tool Server");
     });
