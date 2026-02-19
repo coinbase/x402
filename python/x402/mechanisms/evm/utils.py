@@ -103,13 +103,12 @@ def get_asset_info(network: str, asset_symbol_or_address: str) -> AssetInfo:
         for asset in config["supported_assets"].values():
             if asset["address"].lower() == asset_symbol_or_address.lower():
                 return asset
-        # Return default with provided address if not found
-        return {
-            "address": asset_symbol_or_address,
-            "name": config["default_asset"]["name"],
-            "version": config["default_asset"]["version"],
-            "decimals": config["default_asset"]["decimals"],
-        }
+        # Fail fast for unknown tokens instead of returning misleading metadata
+        raise ValueError(
+            f"Token {asset_symbol_or_address} is not registered for network {network}. "
+            f"Only tokens in NETWORK_CONFIGS['supported_assets'] are supported. "
+            f"Register the token with correct metadata before use."
+        )
 
     # Search by symbol
     symbol = asset_symbol_or_address.upper()
