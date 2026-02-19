@@ -116,6 +116,8 @@ export {
   extractDiscoveryInfoFromExtension,
   validateAndExtract,
   type ValidationResult,
+  type DiscoveredHTTPResource,
+  type DiscoveredMCPResource,
   type DiscoveredResource,
 } from "./facilitator";
 

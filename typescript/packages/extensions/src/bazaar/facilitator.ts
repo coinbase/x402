@@ -99,15 +99,25 @@ export function validateDiscoveryExtension(extension: DiscoveryExtension): Valid
  * }
  * ```
  */
-export interface DiscoveredResource {
+export interface DiscoveredHTTPResource {
   resourceUrl: string;
   description?: string;
   mimeType?: string;
-  /** For HTTP resources this is the HTTP method (e.g. "GET"); for MCP resources it is the tool name. */
   method: string;
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
+
+export interface DiscoveredMCPResource {
+  resourceUrl: string;
+  description?: string;
+  mimeType?: string;
+  tool: string;
+  x402Version: number;
+  discoveryInfo: DiscoveryInfo;
+}
+
+export type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 
 /**
  * Extracts discovery information from payment payload and requirements.
@@ -182,20 +192,19 @@ export function extractDiscoveryInfo(
     mimeType = requirementsV1.mimeType;
   }
 
-  // For MCP tools, the "method" is the tool name; for HTTP, it's the HTTP method
-  const method =
-    discoveryInfo.input.type === "mcp"
-      ? (discoveryInfo as McpDiscoveryInfo).input.tool
-      : discoveryInfo.input.method;
-
-  return {
+  const base = {
     resourceUrl: normalizedResourceUrl,
     description,
     mimeType,
-    method,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,
   };
+
+  if (discoveryInfo.input.type === "mcp") {
+    return { ...base, tool: (discoveryInfo as McpDiscoveryInfo).input.tool };
+  }
+
+  return { ...base, method: discoveryInfo.input.method };
 }
 
 /**
