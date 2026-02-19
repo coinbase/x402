@@ -78,6 +78,22 @@ Each resource in the list contains the following fields:
 }
 ```
 
+**Resource Types**
+
+The `type` field indicates the resource type:
+- `"http"` - HTTP endpoints (GET, POST, PUT, PATCH, DELETE, HEAD)
+- `"mcp"` - MCP (Model Context Protocol) tools
+
+For MCP tools, the `outputSchema.input` object will contain:
+- `type: "mcp"` - Identifies this as an MCP tool
+- `tool` - The MCP tool name (used in `tools/call` requests)
+- `inputSchema` - JSON Schema for the tool's arguments (follows MCP `Tool.inputSchema` format)
+- `description` - Human-readable description of the tool (optional)
+- `transport` - MCP transport protocol: `"streamable-http"` (default) or `"sse"` (optional)
+- `example` - Example arguments object (optional)
+
+**Note:** For MCP tools, the unique resource identifier is the tuple (`resource`, `input.tool`) since MCP multiplexes multiple tools over a single server endpoint.
+
 ### Quickstart for Buyers
 
 See the full example here for [Python](https://github.com/coinbase/x402/tree/main/examples/python/discovery) and [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/discovery).
