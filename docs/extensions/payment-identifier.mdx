@@ -141,6 +141,9 @@ response2, err := client.MakeRequest(url)
 
 ## Quickstart for Sellers (Servers)
 
+<Tabs>
+<Tab title="TypeScript">
+
 ### Step 1: Advertise Extension Support
 
 Declare the payment-identifier extension in your route configuration:
@@ -217,6 +220,81 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
     }
   });
 ```
+
+</Tab>
+<Tab title="Go">
+
+### Step 1: Advertise Extension Support
+
+Declare the payment-identifier extension in your route configuration:
+
+```go
+import (
+    x402http "github.com/coinbase/x402/go/http"
+    "github.com/coinbase/x402/go/extensions/paymentidentifier"
+)
+
+// Require payment identifier (clients MUST provide one)
+paymentIdExtension := paymentidentifier.DeclarePaymentIdentifierExtension(true)
+
+// Or make it optional (clients MAY provide one)
+paymentIdExtension := paymentidentifier.DeclarePaymentIdentifierExtension(false)
+
+routes := x402http.RoutesConfig{
+    "POST /order": {
+        Accepts: x402http.PaymentOptions{
+            Scheme:  "exact",
+            Price:   "$0.001",
+            Network: "eip155:84532",
+            PayTo:   address,
+        },
+        Extensions: map[string]interface{}{
+            paymentidentifier.PAYMENT_IDENTIFIER: paymentIdExtension,
+        },
+    },
+}
+```
+
+### Step 2: Extract Payment ID
+
+Use the `ExtractPaymentIdentifier()` utility to get the payment ID:
+
+```go
+import "github.com/coinbase/x402/go/extensions/paymentidentifier"
+
+// In your handler
+payload := c.MustGet("x402_payload").(x402.PaymentPayload)
+
+paymentID, err := paymentidentifier.ExtractPaymentIdentifier(payload, true)
+if err != nil {
+    // Handle invalid payment ID
+    c.JSON(400, gin.H{"error": err.Error()})
+    return
+}
+
+// Check for duplicate
+if existingOrder, found := processedPayments[paymentID]; found {
+    // Return cached response
+    c.JSON(200, existingOrder)
+    return
+}
+```
+
+### Step 3: Cache Responses
+
+Store responses after successful payment processing:
+
+```go
+// In-memory cache (use Redis in production)
+var processedPayments = make(map[string]interface{})
+
+// After processing payment
+processedPayments[paymentID] = responseData
+```
+
+</Tab>
+</Tabs>
+
 
 ### Idempotency Behavior
 
