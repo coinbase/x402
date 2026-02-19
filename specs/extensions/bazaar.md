@@ -2,7 +2,7 @@
 
 ## Summary
 
-The `bazaar` extension enables **resource discovery and cataloging** for x402-enabled endpoints and tools. Resource servers declare their endpoint specifications (HTTP method or MCP tool name, input parameters, and output format) so that facilitators can catalog and index them in a discovery service.
+The `bazaar` extension enables **resource discovery and cataloging** for x402-enabled endpoints and MCP tools. Resource servers declare their endpoint specifications (HTTP method or MCP tool name, input parameters, and output format) so that facilitators can catalog and index them in a discovery service.
 
 ---
 
