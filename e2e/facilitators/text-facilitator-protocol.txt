@@ -10,6 +10,7 @@
 Facilitators must declare which protocol families they support in their test.config.json:
 - **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
 - **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
+- **Aptos**: Aptos blockchain networks (Mainnet, Testnet, etc.)
 
 ## X402 Version Support
 Facilitators must declare which x402 protocol versions they support using the `x402Versions` field:
@@ -33,7 +34,7 @@ Example configuration:
   "name": "typescript",
   "type": "facilitator",
   "language": "typescript",
-  "protocolFamilies": ["evm"],
+  "protocolFamilies": ["evm", "svm", "aptos"],
   "x402Versions": [2],
   "extensions": ["bazaar"],
   "evm": {
@@ -59,8 +60,8 @@ Python facilitator example (eip3009 only):
     "transferMethods": ["eip3009"]
   },
   "environment": {
-    "required": ["PORT", "EVM_PRIVATE_KEY", "EVM_NETWORK"],
-    "optional": ["SVM_PRIVATE_KEY", "SVM_NETWORK"]
+    "required": ["PORT", "EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "APTOS_PRIVATE_KEY"],
+    "optional": ["EVM_NETWORK", "SVM_NETWORK", "APTOS_NETWORK"]
   }
 }
 ```
@@ -70,8 +71,10 @@ The following parameters must be configurable:
 - `PORT`: Port to listen on (default: 4022)
 - `EVM_PRIVATE_KEY`: Private key for EVM operations
 - `SVM_PRIVATE_KEY`: Private key for Solana operations
+- `APTOS_PRIVATE_KEY`: Private key for Aptos operations (hex string without 0x prefix)
 - `EVM_NETWORK`: EVM network to use (e.g., "eip155:84532" for Base Sepolia)
 - `SVM_NETWORK`: Solana network to use (e.g., "solana:devnet")
+- `APTOS_NETWORK`: Aptos network to use (e.g., "aptos:2" for Testnet)
 
 ## Required Endpoints
 
