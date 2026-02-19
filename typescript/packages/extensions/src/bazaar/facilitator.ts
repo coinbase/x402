@@ -9,7 +9,10 @@
 
 import Ajv from "ajv/dist/2020.js";
 import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
-import type { DiscoveryExtension, DiscoveryInfo, McpDiscoveryInfo } from "./types";
+import type { DiscoveryExtension, DiscoveryInfo } from "./types";
+import type { McpDiscoveryInfo } from "./mcp/types";
+import type { DiscoveredHTTPResource } from "./http/types";
+import type { DiscoveredMCPResource } from "./mcp/types";
 import { BAZAAR } from "./types";
 import { extractDiscoveryInfoV1 } from "./v1/facilitator";
 
@@ -99,23 +102,8 @@ export function validateDiscoveryExtension(extension: DiscoveryExtension): Valid
  * }
  * ```
  */
-export interface DiscoveredHTTPResource {
-  resourceUrl: string;
-  description?: string;
-  mimeType?: string;
-  method: string;
-  x402Version: number;
-  discoveryInfo: DiscoveryInfo;
-}
-
-export interface DiscoveredMCPResource {
-  resourceUrl: string;
-  description?: string;
-  mimeType?: string;
-  tool: string;
-  x402Version: number;
-  discoveryInfo: DiscoveryInfo;
-}
+export type { DiscoveredHTTPResource } from "./http/types";
+export type { DiscoveredMCPResource } from "./mcp/types";
 
 export type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 

@@ -1,0 +1,185 @@
+/**
+ * HTTP-specific type definitions for the Bazaar Discovery Extension
+ */
+
+import type { BodyMethods, QueryParamMethods } from "@x402/core/http";
+import type { DiscoveryInfo } from "../types";
+
+/**
+ * Discovery info for query parameter methods (GET, HEAD, DELETE)
+ */
+export interface QueryDiscoveryInfo {
+  input: {
+    type: "http";
+    method: QueryParamMethods;
+    queryParams?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  };
+  output?: {
+    type?: string;
+    format?: string;
+    example?: unknown;
+  };
+}
+
+/**
+ * Discovery info for body methods (POST, PUT, PATCH)
+ */
+export interface BodyDiscoveryInfo {
+  input: {
+    type: "http";
+    method: BodyMethods;
+    bodyType: "json" | "form-data" | "text";
+    body: Record<string, unknown>;
+    queryParams?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  };
+  output?: {
+    type?: string;
+    format?: string;
+    example?: unknown;
+  };
+}
+
+/**
+ * Discovery extension for query parameter methods (GET, HEAD, DELETE)
+ */
+export interface QueryDiscoveryExtension {
+  info: QueryDiscoveryInfo;
+
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema";
+    type: "object";
+    properties: {
+      input: {
+        type: "object";
+        properties: {
+          type: {
+            type: "string";
+            const: "http";
+          };
+          method: {
+            type: "string";
+            enum: QueryParamMethods[];
+          };
+          queryParams?: {
+            type: "object";
+            properties?: Record<string, unknown>;
+            required?: string[];
+            additionalProperties?: boolean;
+          };
+          headers?: {
+            type: "object";
+            additionalProperties: {
+              type: "string";
+            };
+          };
+        };
+        required: ("type" | "method")[];
+        additionalProperties?: boolean;
+      };
+      output?: {
+        type: "object";
+        properties?: Record<string, unknown>;
+        required?: readonly string[];
+        additionalProperties?: boolean;
+      };
+    };
+    required: ["input"];
+  };
+}
+
+/**
+ * Discovery extension for body methods (POST, PUT, PATCH)
+ */
+export interface BodyDiscoveryExtension {
+  info: BodyDiscoveryInfo;
+
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema";
+    type: "object";
+    properties: {
+      input: {
+        type: "object";
+        properties: {
+          type: {
+            type: "string";
+            const: "http";
+          };
+          method: {
+            type: "string";
+            enum: BodyMethods[];
+          };
+          bodyType: {
+            type: "string";
+            enum: ["json", "form-data", "text"];
+          };
+          body: Record<string, unknown>;
+          queryParams?: {
+            type: "object";
+            properties?: Record<string, unknown>;
+            required?: string[];
+            additionalProperties?: boolean;
+          };
+          headers?: {
+            type: "object";
+            additionalProperties: {
+              type: "string";
+            };
+          };
+        };
+        required: ("type" | "method" | "bodyType" | "body")[];
+        additionalProperties?: boolean;
+      };
+      output?: {
+        type: "object";
+        properties?: Record<string, unknown>;
+        required?: readonly string[];
+        additionalProperties?: boolean;
+      };
+    };
+    required: ["input"];
+  };
+}
+
+export interface DeclareQueryDiscoveryExtensionConfig {
+  method?: QueryParamMethods;
+  input?: Record<string, unknown>;
+  inputSchema?: Record<string, unknown>;
+  output?: {
+    example?: unknown;
+    schema?: Record<string, unknown>;
+  };
+}
+
+export interface DeclareBodyDiscoveryExtensionConfig {
+  method?: BodyMethods;
+  input?: Record<string, unknown>;
+  inputSchema?: Record<string, unknown>;
+  bodyType: "json" | "form-data" | "text";
+  output?: {
+    example?: unknown;
+    schema?: Record<string, unknown>;
+  };
+}
+
+export interface DiscoveredHTTPResource {
+  resourceUrl: string;
+  description?: string;
+  mimeType?: string;
+  method: string;
+  x402Version: number;
+  discoveryInfo: DiscoveryInfo;
+}
+
+export const isQueryExtensionConfig = (
+  config: DeclareQueryDiscoveryExtensionConfig | DeclareBodyDiscoveryExtensionConfig,
+): config is DeclareQueryDiscoveryExtensionConfig => {
+  return !("bodyType" in config) && !("tool" in config);
+};
+
+export const isBodyExtensionConfig = (
+  config: DeclareQueryDiscoveryExtensionConfig | DeclareBodyDiscoveryExtensionConfig,
+): config is DeclareBodyDiscoveryExtensionConfig => {
+  return "bodyType" in config;
+};
