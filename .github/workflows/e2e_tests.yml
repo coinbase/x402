@@ -236,7 +236,7 @@ jobs:
             ARGS="$ARGS -v"
           fi
 
-          ARGS="$ARGS --parallel"
+          ARGS="$ARGS --parallel --concurrency=6 --evm-settle-ms=500"
 
           ARGS="$ARGS --log-file=e2e-results.log --output-json=e2e-results.json"
 

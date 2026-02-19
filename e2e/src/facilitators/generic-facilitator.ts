@@ -276,9 +276,13 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
         statusCode: response.status
       };
     } catch (error) {
+      let msg = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && (error as any).cause) {
+        msg += ` [cause: ${(error as any).cause}]`;
+      }
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: `Health fetch http://localhost:${this.port}${this.healthEndpoint}: ${msg}`
       };
     }
   }

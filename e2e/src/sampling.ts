@@ -151,14 +151,53 @@ export class CoverageTracker {
 }
 
 /**
+ * Pre-sort scenarios so the greedy set-cover distributes tests evenly across
+ * server/facilitator combos instead of front-loading alphabetically-first combos.
+ *
+ * Algorithm:
+ *   1. Group scenarios by combo key (serverName::facilitatorName)
+ *   2. Sort combo groups: reverse-alphabetical by facilitator (so less-common
+ *      facilitators like typescript/python get first-pick), then alphabetical
+ *      by server within the same facilitator
+ *   3. Round-robin interleave: take one scenario from each combo per round
+ */
+function sortForBalancedDistribution(scenarios: TestScenario[]): TestScenario[] {
+  const comboGroups = new Map<string, TestScenario[]>();
+  for (const scenario of scenarios) {
+    const key = `${scenario.server.name}::${scenario.facilitator?.name || 'none'}`;
+    if (!comboGroups.has(key)) comboGroups.set(key, []);
+    comboGroups.get(key)!.push(scenario);
+  }
+
+  // Sort combo keys: reverse-alphabetical by facilitator, then alphabetical by server
+  const sortedKeys = Array.from(comboGroups.keys()).sort((a, b) => {
+    const facA = a.split('::')[1];
+    const facB = b.split('::')[1];
+    if (facA !== facB) return facB.localeCompare(facA); // reverse alpha
+    return a.localeCompare(b);
+  });
+
+  // Round-robin interleave across combos
+  const result: TestScenario[] = [];
+  const maxLen = Math.max(...Array.from(comboGroups.values()).map(g => g.length));
+  for (let round = 0; round < maxLen; round++) {
+    for (const key of sortedKeys) {
+      const group = comboGroups.get(key)!;
+      if (round < group.length) result.push(group[round]);
+    }
+  }
+  return result;
+}
+
+/**
  * Filter scenarios based on coverage to minimize test runs
- * 
+ *
  * Only includes scenarios that provide new coverage (i.e., test a component
  * with a protocol family and version combination that hasn't been tested yet).
- * 
+ *
  * Args:
  *   scenarios: All test scenarios to filter
- * 
+ *
  * Returns:
  *   Filtered list of scenarios that provide new coverage
  */
@@ -166,7 +205,7 @@ export function minimizeScenarios(scenarios: TestScenario[]): TestScenario[] {
   const tracker = new CoverageTracker();
   const minimized: TestScenario[] = [];
 
-  for (const scenario of scenarios) {
+  for (const scenario of sortForBalancedDistribution(scenarios)) {
     if (tracker.isNewCoverage(scenario)) {
       minimized.push(scenario);
       tracker.markCovered(scenario);

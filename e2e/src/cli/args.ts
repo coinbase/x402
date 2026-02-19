@@ -16,6 +16,7 @@ export interface ParsedArgs {
   networkMode?: NetworkMode;  // undefined = prompt user, set = skip prompt
   parallel: boolean;
   concurrency: number;
+  evmSettleMs: number;
 }
 
 export function parseArgs(): ParsedArgs {
@@ -31,6 +32,7 @@ export function parseArgs(): ParsedArgs {
       minimize: false,
       parallel: false,
       concurrency: 4,
+      evmSettleMs: 500,
     };
   }
 
@@ -63,6 +65,10 @@ export function parseArgs(): ParsedArgs {
   const parallel = args.includes('--parallel');
   const concurrencyArg = args.find(arg => arg.startsWith('--concurrency='))?.split('=')[1];
   const concurrency = concurrencyArg ? parseInt(concurrencyArg, 10) : 4;
+
+  // Parse EVM nonce-settle delay
+  const evmSettleMsArg = args.find(arg => arg.startsWith('--evm-settle-ms='))?.split('=')[1];
+  const evmSettleMs = evmSettleMsArg ? parseInt(evmSettleMsArg, 10) : 500;
 
   // Parse network mode (optional - if not set, will prompt in interactive mode)
   let networkMode: NetworkMode | undefined;
@@ -100,6 +106,7 @@ export function parseArgs(): ParsedArgs {
     networkMode,
     parallel,
     concurrency,
+    evmSettleMs,
   };
 }
 
@@ -138,6 +145,7 @@ export function printHelp(): void {
   console.log('  --min                      Minimize tests (coverage-based skipping)');
   console.log('  --parallel                 Run server+facilitator combos concurrently');
   console.log('  --concurrency=<N>          Max concurrent combos (default: 4, requires --parallel)');
+  console.log('  --evm-settle-ms=<N>        Delay after EVM tx before releasing nonce lock (default: 500)');
   console.log('  -h, --help                 Show this help message');
   console.log('');
   console.log('Examples:');

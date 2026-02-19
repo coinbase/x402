@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -1114,11 +1115,16 @@ func main() {
 ╚════════════════════════════════════════════════════════╝
 `, port, evmNetwork, svmNetwork, evmSigner.GetAddresses()[0])
 
-	// Log that facilitator is ready (needed for e2e test discovery)
-	log.Println("Facilitator listening")
+	// Start server - bind the port first, then log readiness
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("Failed to bind port %s: %v", port, err)
+	}
 
-	// Start server
-	if err := router.Run(":" + port); err != nil {
+	// Log that facilitator is ready (needed for e2e test discovery)
+	log.Printf("Facilitator listening on port %s", port)
+
+	if err := http.Serve(listener, router.Handler()); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

@@ -93,7 +93,12 @@ export abstract class BaseProxy {
 
       this.process.stderr?.on('data', (data) => {
         stderr += data.toString();
-        verboseLog(`[${this.directory}] stderr: ${data.toString()}`);
+        verboseLog(`[${this.directory}] stderr: ${data.toString().trimEnd()}`);
+        // Also check stderr for readyLog (e.g., Go's log package writes to stderr)
+        if (stderr.includes(this.readyLog) && !resolved) {
+          resolved = true;
+          resolve();
+        }
       });
 
       this.process.on('error', (error) => {

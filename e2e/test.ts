@@ -119,7 +119,7 @@ async function startServer(
 
   return waitForHealth(
     () => server.health(),
-    { initialDelayMs: 250, label: 'Server' },
+    { initialDelayMs: 100, intervalMs: 500, maxAttempts: 20, label: 'Server' },
   );
 }
 
@@ -451,6 +451,14 @@ async function runTest() {
   let testResults: DetailedTestResult[] = [];
   let currentPort = 4022;
 
+  // Ports blocked by Node's fetch (undici) / Chromium — requests to these
+  // ports fail with "bad port" regardless of what is listening.
+  const UNSAFE_PORTS = new Set([4045]);
+  const nextPort = () => {
+    while (UNSAFE_PORTS.has(currentPort)) currentPort++;
+    return currentPort++;
+  };
+
   // Assign ports and start all facilitators
   const facilitatorManagers = new Map<string, FacilitatorManager>();
 
@@ -487,20 +495,21 @@ async function runTest() {
       facilitatorName: firstScenario.facilitator?.name,
       scenarios,
       comboIndex,
-      port: currentPort++,
+      port: nextPort(),
     });
     comboIndex++;
   }
 
   // Start all facilitators with unique ports
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
-    const port = currentPort++;
+    const port = nextPort();
     log(`\n🏛️ Starting facilitator: ${facilitatorName} on port ${port}`);
 
     const manager = new FacilitatorManager(
       facilitator.proxy,
       port,
-      networks
+      networks,
+      facilitatorName
     );
     facilitatorManagers.set(facilitatorName, manager);
   }
@@ -523,7 +532,7 @@ async function runTest() {
 
   log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
   serverFacilitatorCombos.forEach(combo => {
-    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s)`);
+    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s) (port ${combo.port})`);
   });
   if (parsedArgs.parallel) {
     log(`\n⚡ Parallel mode enabled (concurrency: ${parsedArgs.concurrency})`);
@@ -601,6 +610,7 @@ async function runTest() {
     combo: ServerFacilitatorCombo,
     evmLock: FacilitatorLock | null,
     nextTestNumber: () => number,
+    evmSettleMs: number,
   ): Promise<DetailedTestResult[]> {
     const { serverName, facilitatorName, scenarios, port } = combo;
     const server = uniqueServers.get(serverName)!;
@@ -658,10 +668,12 @@ async function runTest() {
         }
 
         if (isEvm && facilitatorName && evmLock) {
+          // Acquire EVM lock for this facilitator to prevent nonce collisions
           const releaseLock = await evmLock.acquire(facilitatorName);
           try {
             results.push(await runSingleTest(scenario, port, tn, cLog));
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Delay inside the lock so the nonce settles before releasing
+            await new Promise(resolve => setTimeout(resolve, evmSettleMs));
           } finally {
             releaseLock();
           }
@@ -670,109 +682,109 @@ async function runTest() {
         }
       }
     } finally {
-  cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
-  await serverProxy.stop();
-}
-
-return results;
-  }
-
-// ── Unified execution: concurrency=1 for sequential, N for parallel ──
-const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
-const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
-const semaphore = new Semaphore(effectiveConcurrency);
-
-let globalTestNumber = 0;
-const nextTestNumber = () => ++globalTestNumber;
-
-const comboPromises = serverFacilitatorCombos.map(async (combo) => {
-  const release = await semaphore.acquire();
-  try {
-    return await executeCombo(combo, evmLock, nextTestNumber);
-  } finally {
-    release();
-  }
-});
-
-testResults = (await Promise.all(comboPromises)).flat();
-
-// Run discovery validation before cleanup (while facilitators are still running)
-const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
-  proxy: facilitatorManagers.get(f.name)!.getProxy(),
-  config: f.config,
-}));
-
-const serversArray = Array.from(uniqueServers.values());
-
-// Build a serverName→port map for discovery validation (first combo per server).
-const discoveryServerPorts = new Map<string, number>();
-for (const combo of serverFacilitatorCombos) {
-  if (!discoveryServerPorts.has(combo.serverName)) {
-    discoveryServerPorts.set(combo.serverName, combo.port);
-  }
-}
-
-// Run discovery validation if bazaar extension is enabled
-const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
-if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
-  log('\n🔍 Running Bazaar Discovery Validation...\n');
-  await handleDiscoveryValidation(
-    facilitatorsWithConfig,
-    serversArray,
-    discoveryServerPorts,
-    facilitatorServerMap
-  );
-}
-
-// Clean up facilitators (servers already stopped in test loop for both modes)
-log('\n🧹 Cleaning up...');
-
-// Stop all facilitators
-const facilitatorStopPromises: Promise<void>[] = [];
-for (const [facilitatorName, manager] of facilitatorManagers) {
-  log(`  🛑 Stopping facilitator: ${facilitatorName}`);
-  facilitatorStopPromises.push(manager.stop());
-}
-await Promise.all(facilitatorStopPromises);
-
-// Calculate totals
-const passed = testResults.filter(r => r.passed).length;
-const failed = testResults.filter(r => !r.passed).length;
-
-// Summary
-log('');
-log('📊 Test Summary');
-log('==============');
-log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
-log(`✅ Passed: ${passed}`);
-log(`❌ Failed: ${failed}`);
-log(`📈 Total: ${passed + failed}`);
-log('');
-
-// Detailed results table
-log('📋 Detailed Test Results');
-log('========================');
-log('');
-
-// Group by status
-const passedTests = testResults.filter(r => r.passed);
-const failedTests = testResults.filter(r => !r.passed);
-
-if (passedTests.length > 0) {
-  log('✅ PASSED TESTS:');
-  log('');
-  passedTests.forEach(test => {
-    log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
-    log(`      Facilitator: ${test.facilitator}`);
-    if (test.network) {
-      log(`      Network: ${test.network}`);
+      cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
+      await serverProxy.stop();
     }
-    if (test.transaction) {
-      log(`      Tx: ${test.transaction}`);
+
+    return results;
+  }
+
+  // ── Unified execution: concurrency=1 for sequential, N for parallel ──
+  const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
+  const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
+  const semaphore = new Semaphore(effectiveConcurrency);
+
+  let globalTestNumber = 0;
+  const nextTestNumber = () => ++globalTestNumber;
+
+  const comboPromises = serverFacilitatorCombos.map(async (combo) => {
+    const release = await semaphore.acquire();
+    try {
+      return await executeCombo(combo, evmLock, nextTestNumber, parsedArgs.evmSettleMs);
+    } finally {
+      release();
     }
   });
+
+  testResults = (await Promise.all(comboPromises)).flat();
+
+  // Run discovery validation before cleanup (while facilitators are still running)
+  const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
+    proxy: facilitatorManagers.get(f.name)!.getProxy(),
+    config: f.config,
+  }));
+
+  const serversArray = Array.from(uniqueServers.values());
+
+  // Build a serverName→port map for discovery validation (first combo per server).
+  const discoveryServerPorts = new Map<string, number>();
+  for (const combo of serverFacilitatorCombos) {
+    if (!discoveryServerPorts.has(combo.serverName)) {
+      discoveryServerPorts.set(combo.serverName, combo.port);
+    }
+  }
+
+  // Run discovery validation if bazaar extension is enabled
+  const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
+  if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+    log('\n🔍 Running Bazaar Discovery Validation...\n');
+    await handleDiscoveryValidation(
+      facilitatorsWithConfig,
+      serversArray,
+      discoveryServerPorts,
+      facilitatorServerMap
+    );
+  }
+
+  // Clean up facilitators (servers already stopped in test loop for both modes)
+  log('\n🧹 Cleaning up...');
+
+  // Stop all facilitators
+  const facilitatorStopPromises: Promise<void>[] = [];
+  for (const [facilitatorName, manager] of facilitatorManagers) {
+    log(`  🛑 Stopping facilitator: ${facilitatorName}`);
+    facilitatorStopPromises.push(manager.stop());
+  }
+  await Promise.all(facilitatorStopPromises);
+
+  // Calculate totals
+  const passed = testResults.filter(r => r.passed).length;
+  const failed = testResults.filter(r => !r.passed).length;
+
+  // Summary
   log('');
-}
+  log('📊 Test Summary');
+  log('==============');
+  log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
+  log(`✅ Passed: ${passed}`);
+  log(`❌ Failed: ${failed}`);
+  log(`📈 Total: ${passed + failed}`);
+  log('');
+
+  // Detailed results table
+  log('📋 Detailed Test Results');
+  log('========================');
+  log('');
+
+  // Group by status
+  const passedTests = testResults.filter(r => r.passed);
+  const failedTests = testResults.filter(r => !r.passed);
+
+  if (passedTests.length > 0) {
+    log('✅ PASSED TESTS:');
+    log('');
+    passedTests.forEach(test => {
+      log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
+      log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
+      if (test.transaction) {
+        log(`      Tx: ${test.transaction}`);
+      }
+    });
+    log('');
+  }
 
 if (failedTests.length > 0) {
   log('❌ FAILED TESTS:');
