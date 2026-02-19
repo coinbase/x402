@@ -80,6 +80,7 @@
         "group": "Guides",
         "pages": [
           "guides/mcp-server-with-x402",
+          "guides/optional-formal-checks-svm",
           "guides/migration-v1-to-v2"
         ]
       },
