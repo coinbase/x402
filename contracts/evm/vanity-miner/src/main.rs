@@ -17,10 +17,10 @@ const UPTO_SUFFIX: [u8; 2] = [0x00, 0x02]; // ...0002
 // Run `forge script script/ComputeAddress.s.sol` to verify these match
 // x402ExactPermit2Proxy
 const EXACT_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("531736bfc0b3dcf1f07c2003a8d79086ce6813b63ec948c482dc3e9d6115370c");
+    hex_literal::hex!("61f007aac96be95995d250c70b750b0c239f3c8cbc28b7b0e89761f84bc0c2bb");
 // x402UptoPermit2Proxy
 const UPTO_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("747e371bedda1269987a9c38f01901bcc1b1856489221ee5a8cbac8a35893535");
+    hex_literal::hex!("6bc5ae76d294a4e82cf7857326e018e5d9cd6e306ccfd1ff1300c08697eed7b2");
 
 fn compute_create2_address(salt: &[u8; 32], init_code_hash: &[u8; 32]) -> [u8; 20] {
     let mut hasher = Keccak::v256();
