@@ -529,7 +529,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for invalid spender")
 		}
@@ -555,7 +555,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for recipient mismatch")
 		}
@@ -581,7 +581,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for expired deadline")
 		}
@@ -607,7 +607,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for not-yet-valid payment")
 		}
@@ -633,7 +633,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for insufficient amount")
 		}
@@ -659,7 +659,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for token mismatch")
 		}
@@ -685,7 +685,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for invalid deadline format")
 		}
@@ -719,7 +719,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongSchemePayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongSchemePayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for scheme mismatch")
 		}
@@ -753,7 +753,7 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongNetworkPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongNetworkPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for network mismatch")
 		}
@@ -1069,7 +1069,7 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -1103,7 +1103,7 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 			// No extensions
 		}
 
-		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}

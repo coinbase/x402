@@ -11,6 +11,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
@@ -126,7 +127,7 @@ func main() {
 				},
 			},
 			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
+				types.BAZAAR.Key(): discoveryExtension,
 			},
 		},
 		"GET /protected-svm": {
@@ -139,7 +140,7 @@ func main() {
 				},
 			},
 			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
+				types.BAZAAR.Key(): discoveryExtension,
 			},
 		},
 		// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
@@ -161,10 +162,14 @@ func main() {
 			},
 			Extensions: func() map[string]interface{} {
 				ext := map[string]interface{}{
-					types.BAZAAR: discoveryExtension,
+					types.BAZAAR.Key(): discoveryExtension,
 				}
 				// Add EIP-2612 gas sponsoring extension
 				for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+					ext[k] = v
+				}
+				// Add ERC-20 approval gas sponsoring extension (fallback for tokens without EIP-2612)
+				for k, v := range erc20approvalgassponsor.DeclareErc20ApprovalGasSponsoringExtension() {
 					ext[k] = v
 				}
 				return ext
