@@ -184,6 +184,52 @@ const resources = {
 };
 ```
 
+#### Example: MCP Tool
+
+For MCP (Model Context Protocol) tools, use the `toolName` field instead of `bodyType`/`input`. The HTTP method is not relevant -- MCP tools are invoked by name.
+
+```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
+const resources = {
+  "POST /mcp": {
+    accepts: {
+      scheme: "exact",
+      price: "$0.01",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
+    },
+    extensions: {
+      ...declareDiscoveryExtension({
+        toolName: "financial_analysis",
+        description: "Analyze financial data for a given ticker",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string", description: "Stock ticker symbol" },
+            analysis_type: {
+              type: "string",
+              enum: ["fundamental", "technical", "sentiment"],
+            },
+          },
+          required: ["ticker"],
+        },
+        example: { ticker: "AAPL", analysis_type: "fundamental" },
+        output: {
+          example: {
+            pe_ratio: 28.5,
+            recommendation: "hold",
+            confidence: 0.85
+          }
+        },
+      }),
+    },
+  },
+};
+```
+
+You can optionally specify `transport` to indicate the MCP transport type (`"streamable-http"` or `"sse"`). When omitted, `streamable-http` is assumed per the MCP spec.
+
 #### Using with Next.js Middleware
 
 ```typescript
@@ -305,9 +351,9 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
 
 #### `declareDiscoveryExtension(config)`
 
-Creates a discovery extension object for resource servers.
+Creates a discovery extension object for resource servers. Accepts either an HTTP endpoint config or an MCP tool config.
 
-**Parameters:**
+**HTTP Parameters:**
 - `config.input` (optional): Example input values (query params for GET/HEAD/DELETE, body for POST/PUT/PATCH)
 - `config.inputSchema` (optional): JSON Schema for input validation
 - `config.bodyType` (required for body methods): For POST/PUT/PATCH, specify `"json"`, `"form-data"`, or `"text"`. This is how TypeScript discriminates between query methods (GET/HEAD/DELETE) and body methods.
@@ -317,11 +363,22 @@ Creates a discovery extension object for resource servers.
 
 > **Note:** The HTTP method is NOT passed to this function. It is automatically inferred from the route key (e.g., `"GET /weather"`) or enriched by `bazaarResourceServerExtension` at runtime.
 
+**MCP Parameters:**
+- `config.toolName` (required): MCP tool name — the presence of this field identifies the config as MCP
+- `config.description` (optional): Human-readable tool description
+- `config.inputSchema` (required): JSON Schema for tool arguments
+- `config.example` (optional): Example tool arguments
+- `config.transport` (optional): MCP transport type (`"streamable-http"` or `"sse"`). Defaults to `streamable-http` per the MCP spec when omitted.
+- `config.output` (optional): Output specification
+  - `output.example`: Example output data
+  - `output.schema`: JSON Schema for output validation
+
 **Returns:** An object with a `bazaar` key containing the discovery extension.
 
-**Example:**
+**Examples:**
 ```typescript
-const extension = declareDiscoveryExtension({
+// HTTP endpoint
+const httpExtension = declareDiscoveryExtension({
   input: { query: "search term" },
   inputSchema: {
     properties: { query: { type: "string" } },
@@ -331,7 +388,21 @@ const extension = declareDiscoveryExtension({
     example: { results: [] }
   }
 });
-// Returns: { bazaar: { info: {...}, schema: {...} } }
+
+// MCP tool
+const mcpExtension = declareDiscoveryExtension({
+  toolName: "search",
+  description: "Search for documents",
+  inputSchema: {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"]
+  },
+  output: {
+    example: { results: [] }
+  }
+});
+// Both return: { bazaar: { info: {...}, schema: {...} } }
 ```
 
 #### `extractDiscoveryInfo(paymentPayload, paymentRequirements, validate?)`
@@ -346,12 +417,21 @@ Extracts discovery information from a payment request (for facilitators).
 **Returns:** `DiscoveredResource` object or `null` if not found.
 
 ```typescript
-interface DiscoveredResource {
+interface DiscoveredHTTPResource {
   resourceUrl: string;
-  method: string;
+  method: string;        // e.g. "GET", "POST"
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
+
+interface DiscoveredMCPResource {
+  resourceUrl: string;
+  toolName: string;      // MCP tool name
+  x402Version: number;
+  discoveryInfo: DiscoveryInfo;
+}
+
+type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 ```
 
 #### `validateDiscoveryExtension(extension)`
@@ -368,7 +448,7 @@ Validates and extracts discovery info in one step.
 
 #### `bazaarResourceServerExtension`
 
-A server extension that automatically enriches discovery extensions with HTTP method information from the request context.
+A server extension that automatically enriches HTTP discovery extensions with method information from the request context. MCP extensions are passed through unchanged.
 
 **Usage:**
 ```typescript

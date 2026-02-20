@@ -1,185 +1,24 @@
 /**
- * Resource Service functions for creating Bazaar discovery extensions
+ * Resource Service entry point for creating Bazaar discovery extensions
  *
- * These functions help servers declare the shape of their endpoints
- * for facilitator discovery and cataloging in the Bazaar.
+ * This module provides the unified `declareDiscoveryExtension` function that
+ * routes to protocol-specific builders in http/ and mcp/.
  */
 
+import type { DiscoveryExtension, DeclareDiscoveryExtensionInput } from "./types";
+import type {
+  DeclareQueryDiscoveryExtensionConfig,
+  DeclareBodyDiscoveryExtensionConfig,
+} from "./http/types";
+import type { DeclareMcpDiscoveryExtensionConfig } from "./mcp/types";
 import {
-  type DiscoveryExtension,
-  type QueryDiscoveryExtension,
-  type BodyDiscoveryExtension,
-  type DeclareDiscoveryExtensionInput,
-  type DeclareQueryDiscoveryExtensionConfig,
-  type DeclareBodyDiscoveryExtensionConfig,
-} from "./types";
+  createQueryDiscoveryExtension,
+  createBodyDiscoveryExtension,
+} from "./http/resourceService";
+import { createMcpDiscoveryExtension } from "./mcp/resourceService";
 
 /**
- * Internal helper to create a query discovery extension
- *
- * @param root0 - Configuration object for query discovery extension
- * @param root0.method - HTTP method (GET, HEAD, DELETE)
- * @param root0.input - Query parameters
- * @param root0.inputSchema - JSON schema for query parameters
- * @param root0.output - Output specification with example
- * @returns QueryDiscoveryExtension with info and schema
- */
-function createQueryDiscoveryExtension({
-  method,
-  input = {},
-  inputSchema = { properties: {} },
-  output,
-}: DeclareQueryDiscoveryExtensionConfig): QueryDiscoveryExtension {
-  return {
-    info: {
-      input: {
-        type: "http",
-        ...(method ? { method } : {}),
-        ...(input ? { queryParams: input } : {}),
-      } as QueryDiscoveryExtension["info"]["input"],
-      ...(output?.example
-        ? {
-            output: {
-              type: "json",
-              example: output.example,
-            },
-          }
-        : {}),
-    },
-    schema: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-      properties: {
-        input: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              const: "http",
-            },
-            method: {
-              type: "string",
-              enum: ["GET", "HEAD", "DELETE"],
-            },
-            ...(inputSchema
-              ? {
-                  queryParams: {
-                    type: "object" as const,
-                    ...(typeof inputSchema === "object" ? inputSchema : {}),
-                  },
-                }
-              : {}),
-          },
-          required: ["type"] as ("type" | "method")[],
-          additionalProperties: false,
-        },
-        ...(output?.example
-          ? {
-              output: {
-                type: "object" as const,
-                properties: {
-                  type: {
-                    type: "string" as const,
-                  },
-                  example: {
-                    type: "object" as const,
-                    ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
-                  },
-                },
-                required: ["type"] as const,
-              },
-            }
-          : {}),
-      },
-      required: ["input"],
-    },
-  };
-}
-
-/**
- * Internal helper to create a body discovery extension
- *
- * @param root0 - Configuration object for body discovery extension
- * @param root0.method - HTTP method (POST, PUT, PATCH)
- * @param root0.input - Request body specification
- * @param root0.inputSchema - JSON schema for request body
- * @param root0.bodyType - Content type of body (json, form-data, text) - required for body methods
- * @param root0.output - Output specification with example
- * @returns BodyDiscoveryExtension with info and schema
- */
-function createBodyDiscoveryExtension({
-  method,
-  input = {},
-  inputSchema = { properties: {} },
-  bodyType,
-  output,
-}: DeclareBodyDiscoveryExtensionConfig): BodyDiscoveryExtension {
-  return {
-    info: {
-      input: {
-        type: "http",
-        ...(method ? { method } : {}),
-        bodyType,
-        body: input,
-      } as BodyDiscoveryExtension["info"]["input"],
-      ...(output?.example
-        ? {
-            output: {
-              type: "json",
-              example: output.example,
-            },
-          }
-        : {}),
-    },
-    schema: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-      properties: {
-        input: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              const: "http",
-            },
-            method: {
-              type: "string",
-              enum: ["POST", "PUT", "PATCH"],
-            },
-            bodyType: {
-              type: "string",
-              enum: ["json", "form-data", "text"],
-            },
-            body: inputSchema,
-          },
-          required: ["type", "bodyType", "body"] as ("type" | "method" | "bodyType" | "body")[],
-          additionalProperties: false,
-        },
-        ...(output?.example
-          ? {
-              output: {
-                type: "object" as const,
-                properties: {
-                  type: {
-                    type: "string" as const,
-                  },
-                  example: {
-                    type: "object" as const,
-                    ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
-                  },
-                },
-                required: ["type"] as const,
-              },
-            }
-          : {}),
-      },
-      required: ["input"],
-    },
-  };
-}
-
-/**
- * Create a discovery extension for any HTTP method
+ * Create a discovery extension for any HTTP method or MCP tool
  *
  * This function helps servers declare how their endpoint should be called,
  * including the expected input parameters/body and output format.
@@ -225,11 +64,32 @@ function createBodyDiscoveryExtension({
  *     example: { success: true, id: "123" }
  *   }
  * });
+ *
+ * // For an MCP tool
+ * const mcpExtension = declareDiscoveryExtension({
+ *   toolName: "financial_analysis",
+ *   description: "Analyze financial data for a given ticker",
+ *   inputSchema: {
+ *     type: "object",
+ *     properties: {
+ *       ticker: { type: "string" },
+ *     },
+ *     required: ["ticker"],
+ *   },
+ *   output: {
+ *     example: { pe_ratio: 28.5, recommendation: "hold" }
+ *   }
+ * });
  * ```
  */
 export function declareDiscoveryExtension(
   config: DeclareDiscoveryExtensionInput,
 ): Record<string, DiscoveryExtension> {
+  if ("toolName" in config) {
+    const extension = createMcpDiscoveryExtension(config as DeclareMcpDiscoveryExtensionConfig);
+    return { bazaar: extension as DiscoveryExtension };
+  }
+
   const bodyType = (config as DeclareBodyDiscoveryExtensionConfig).bodyType;
   const isBodyMethod = bodyType !== undefined;
 
