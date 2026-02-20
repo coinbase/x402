@@ -628,11 +628,14 @@ async function runTest() {
 
     cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
 
+    const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
+    const facilitatorSupportsAptos = facilitatorConfig?.protocolFamilies?.includes('aptos') ?? false;
+
     const serverConfig: ServerConfig = {
       port,
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
-      aptosPayTo: serverAptosAddress || '',
+      aptosPayTo: facilitatorSupportsAptos ? (serverAptosAddress || '') : '',
       networks,
       facilitatorUrl,
     };

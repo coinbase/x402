@@ -19,7 +19,7 @@ import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 import type { ClientEvmSigner } from "@x402/evm";
 import type { WalletClient, Account } from "viem";
 
@@ -113,7 +113,7 @@ export default function App() {
       // Create x402 client and register EVM scheme with wagmi signer
       const client = new x402Client();
       const signer = wagmiToClientSigner(walletClient);
-      registerExactEvmScheme(client, { signer });
+      client.register("eip155:*", new ExactEvmScheme(signer));
 
       // Wrap fetch with payment handling
       const fetchWithPayment = wrapFetchWithPayment(fetch, client);

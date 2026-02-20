@@ -16,47 +16,41 @@ pnpm add @x402/aptos
 
 ```typescript
 import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
-import { ExactAptosClient } from "@x402/aptos/exact/client";
+import { ExactAptosScheme } from "@x402/aptos/exact/client";
 
 // Create signer from private key
 const privateKey = new Ed25519PrivateKey("0x...");
 const account = Account.fromPrivateKey({ privateKey });
 
-// Create client
-const client = new ExactAptosClient(account);
-
-// Create payment payload
-const payload = await client.createPaymentPayload(2, paymentRequirements);
+// Register scheme with client
+client.register("aptos:*", new ExactAptosScheme(account));
 ```
 
 ### Facilitator
 
 ```typescript
 import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
-import { ExactAptosFacilitator, toFacilitatorAptosSigner } from "@x402/aptos";
+import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
+import { toFacilitatorAptosSigner } from "@x402/aptos";
 
 // Create facilitator signer
 const privateKey = new Ed25519PrivateKey("0x...");
 const account = Account.fromPrivateKey({ privateKey });
 const signer = toFacilitatorAptosSigner(account);
 
-// Create facilitator
-const facilitator = new ExactAptosFacilitator(signer);
-
-// Verify and settle payments
-const verifyResult = await facilitator.verify(payload, requirements);
-const settleResult = await facilitator.settle(payload, requirements);
+// Register scheme with facilitator
+facilitator.register("aptos:2", new ExactAptosScheme(signer));
 ```
 
 ### Server
 
 ```typescript
 import { x402ResourceServer } from "@x402/core/server";
-import { registerExactAptosScheme } from "@x402/aptos/exact/server";
+import { ExactAptosScheme } from "@x402/aptos/exact/server";
 
 // Create and configure server
 const server = new x402ResourceServer({ facilitatorUrl: "https://..." });
-registerExactAptosScheme(server);
+server.register("aptos:*", new ExactAptosScheme());
 
 // Use parsePrice to convert amounts (e.g., "$1.00" or { amount: "1000000", asset: "0x..." })
 // The scheme handles USDC conversion automatically
