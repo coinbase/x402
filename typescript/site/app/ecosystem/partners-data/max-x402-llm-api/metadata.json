@@ -1,0 +1,7 @@
+{
+  "name": "Max's x402 LLM API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/max-x402-llm-api.png",
+  "description": "Pay-per-request LLM inference on RTX 5090 (32GB). OpenAI-compatible API with DeepSeek-R1, Qwen 2.5, and Llama 3.2. $0.001/request via Solana micropayments. No API keys needed.",
+  "websiteUrl": "https://come-chemistry-outstanding-plays.trycloudflare.com"
+}
