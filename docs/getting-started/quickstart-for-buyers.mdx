@@ -144,7 +144,7 @@ const aptosSigner = Account.fromPrivateKey({ privateKey });
     ```typescript
     import { wrapFetchWithPayment } from "@x402/fetch";
     import { x402Client, x402HTTPClient } from "@x402/core/client";
-    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
     import { privateKeyToAccount } from "viem/accounts";
 
     // Create signer
@@ -152,7 +152,7 @@ const aptosSigner = Account.fromPrivateKey({ privateKey });
 
     // Create x402 client and register EVM scheme
     const client = new x402Client();
-    registerExactEvmScheme(client, { signer });
+    client.register("eip155:*", new ExactEvmScheme(signer));
 
     // Wrap fetch with payment handling
     const fetchWithPayment = wrapFetchWithPayment(fetch, client);
