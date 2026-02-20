@@ -207,6 +207,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         version: "1",
         decimals: 18,
       }, // MegaETH mainnet USDM
+      "eip155:40": {
+        address: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+        name: "Bridged USDC (Stargate)",
+        version: "2",
+        decimals: 6,
+      }, // Telos EVM mainnet USDC.e
     };
 
     const assetInfo = stablecoins[network];

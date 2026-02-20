@@ -177,6 +177,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # Telos EVM Mainnet
+    "eip155:40": {
+        "chain_id": 40,
+        "default_asset": {
+            "address": "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+            "name": "Bridged USDC (Stargate)",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC.e": {
+                "address": "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+                "name": "Bridged USDC (Stargate)",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
 # Network aliases (legacy names to CAIP-2)
@@ -189,6 +207,7 @@ NETWORK_ALIASES: dict[str, str] = {
     "polygon": "eip155:137",
     "avalanche": "eip155:43114",
     "megaeth": "eip155:4326",
+    "telos": "eip155:40",
 }
 
 # V1 supported networks (legacy name-based)
@@ -209,6 +228,7 @@ V1_NETWORKS = [
     "educhain",
     "skale-base-sepolia",
     "megaeth",
+    "telos",
 ]
 
 # V1 network name to chain ID mapping
@@ -230,6 +250,7 @@ V1_NETWORK_CHAIN_IDS: dict[str, int] = {
     "educhain": 656476,
     "skale-base-sepolia": 1444673419,
     "megaeth": 4326,
+    "telos": 40,
 }
 
 # EIP-3009 ABIs

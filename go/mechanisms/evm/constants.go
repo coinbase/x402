@@ -59,6 +59,7 @@ var (
 	ChainIDBase        = big.NewInt(8453)
 	ChainIDBaseSepolia = big.NewInt(84532)
 	ChainIDMegaETH     = big.NewInt(4326)
+	ChainIDTelos       = big.NewInt(40)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -129,6 +130,26 @@ var (
 				Name:     "MegaUSD",
 				Version:  "1",
 				Decimals: 18,
+			},
+		},
+		// Telos EVM Mainnet
+		"eip155:40": {
+			ChainID: ChainIDTelos,
+			DefaultAsset: AssetInfo{
+				Address:  "0xF1815bd50389c46847f0Bda824eC8da914045D14", // USDC.e (Stargate) - FiatTokenV2
+				Name:     "Bridged USDC (Stargate)",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// Telos EVM Mainnet (legacy v1 format)
+		"telos": {
+			ChainID: ChainIDTelos,
+			DefaultAsset: AssetInfo{
+				Address:  "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+				Name:     "Bridged USDC (Stargate)",
+				Version:  "2",
+				Decimals: DefaultDecimals,
 			},
 		},
 	}
