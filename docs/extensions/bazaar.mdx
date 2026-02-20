@@ -40,6 +40,9 @@ Retrieve all available x402-compatible endpoints:
 GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
 ```
 
+**Query Parameters:**
+- `type` (optional): Filter by protocol type - `"http"` for HTTP endpoints or `"mcp"` for MCP tools
+
 **Note**: The recommended way to use this endpoint is to use the `useFacilitator` hook as described below.
 
 **Response Schema**
