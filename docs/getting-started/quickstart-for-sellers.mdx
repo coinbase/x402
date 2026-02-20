@@ -86,7 +86,7 @@ Integrate the payment middleware into your application. You will need to provide
     import express from "express";
     import { paymentMiddleware } from "@x402/express";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const app = express();
 
@@ -100,7 +100,7 @@ Integrate the payment middleware into your application. You will need to provide
 
     // Create resource server and register EVM scheme
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     app.use(
       paymentMiddleware(
