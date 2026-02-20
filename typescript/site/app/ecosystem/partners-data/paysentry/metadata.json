@@ -1,0 +1,7 @@
+{
+  "name": "PaySentry",
+  "description": "Control plane for AI agent payments. Open-source SDK providing spending limits, policy enforcement, circuit breakers, and audit trails for x402 integrations.",
+  "logoUrl": "/logos/paysentry.svg",
+  "websiteUrl": "https://github.com/mkmkkkkk/paysentry",
+  "category": "Infrastructure & Tooling"
+}
