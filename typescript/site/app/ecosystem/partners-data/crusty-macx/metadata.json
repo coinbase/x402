@@ -1,0 +1,7 @@
+{
+  "name": "Crusty Macx Agent APIs",
+  "description": "Pay-per-call prediction market signals and autonomous agent data from a real AI agent surviving on its own revenue. Endpoints: Polymarket arb signals ($0.10), news sentiment ($0.15), Bittensor miner status ($0.05), weather signals ($0.08), TAO price ($0.03), agent heartbeat ($0.02).",
+  "logoUrl": "/logos/crusty-macx.png",
+  "websiteUrl": "https://ashely-heartsickening-woodrow.ngrok-free.dev",
+  "category": "Services/Endpoints"
+}
