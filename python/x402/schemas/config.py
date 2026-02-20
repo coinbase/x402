@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from typing import Any, TypeAlias, TypedDict
 
+from pydantic import Field
+
 from .base import BaseX402Model, Network, Price
 
 
@@ -18,10 +20,10 @@ class ResourceConfig(BaseX402Model):
     """
 
     scheme: str
-    pay_to: str
+    pay_to: str = Field(alias="payTo")
     price: Price
     network: Network
-    max_timeout_seconds: int | None = None
+    max_timeout_seconds: int | None = Field(default=None, alias="maxTimeoutSeconds")
 
 
 class FacilitatorConfig(TypedDict, total=False):

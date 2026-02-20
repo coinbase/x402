@@ -16,8 +16,8 @@ class VerifyRequest(BaseX402Model):
         payment_requirements: The requirements to verify against.
     """
 
-    payment_payload: PaymentPayload
-    payment_requirements: PaymentRequirements
+    payment_payload: PaymentPayload = Field(alias="paymentPayload")
+    payment_requirements: PaymentRequirements = Field(alias="paymentRequirements")
 
 
 class VerifyResponse(BaseX402Model):
@@ -30,9 +30,9 @@ class VerifyResponse(BaseX402Model):
         payer: The payer's address.
     """
 
-    is_valid: bool
-    invalid_reason: str | None = None
-    invalid_message: str | None = None
+    is_valid: bool = Field(alias="isValid")
+    invalid_reason: str | None = Field(default=None, alias="invalidReason")
+    invalid_message: str | None = Field(default=None, alias="invalidMessage")
     payer: str | None = None
 
 
@@ -44,8 +44,8 @@ class SettleRequest(BaseX402Model):
         payment_requirements: The requirements for settlement.
     """
 
-    payment_payload: PaymentPayload
-    payment_requirements: PaymentRequirements
+    payment_payload: PaymentPayload = Field(alias="paymentPayload")
+    payment_requirements: PaymentRequirements = Field(alias="paymentRequirements")
 
 
 class SettleResponse(BaseX402Model):
@@ -61,8 +61,8 @@ class SettleResponse(BaseX402Model):
     """
 
     success: bool
-    error_reason: str | None = None
-    error_message: str | None = None
+    error_reason: str | None = Field(default=None, alias="errorReason")
+    error_message: str | None = Field(default=None, alias="errorMessage")
     payer: str | None = None
     transaction: str
     network: Network
@@ -78,7 +78,7 @@ class SupportedKind(BaseX402Model):
         extra: Additional scheme-specific data.
     """
 
-    x402_version: int
+    x402_version: int = Field(alias="x402Version")
     scheme: str
     network: Network
     extra: dict[str, Any] | None = None

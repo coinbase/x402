@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import Field
+
 from .base import BaseX402Model, Network
 
 if TYPE_CHECKING:
@@ -29,14 +31,14 @@ class PaymentRequirementsV1(BaseX402Model):
 
     scheme: str
     network: Network
-    max_amount_required: str
+    max_amount_required: str = Field(alias="maxAmountRequired")
     resource: str
     description: str | None = None
-    mime_type: str | None = None
-    pay_to: str
-    max_timeout_seconds: int
+    mime_type: str | None = Field(default=None, alias="mimeType")
+    pay_to: str = Field(alias="payTo")
+    max_timeout_seconds: int = Field(alias="maxTimeoutSeconds")
     asset: str
-    output_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = Field(default=None, alias="outputSchema")
     extra: dict[str, Any] | None = None
 
     def get_amount(self) -> str:
@@ -57,7 +59,7 @@ class PaymentRequiredV1(BaseX402Model):
         accepts: List of accepted payment requirements.
     """
 
-    x402_version: Literal[1] = 1
+    x402_version: Literal[1] = Field(default=1, alias="x402Version")
     error: str | None = None
     accepts: list[PaymentRequirementsV1]
 
@@ -72,7 +74,7 @@ class PaymentPayloadV1(BaseX402Model):
         payload: Scheme-specific payload data.
     """
 
-    x402_version: Literal[1] = 1
+    x402_version: Literal[1] = Field(default=1, alias="x402Version")
     scheme: str
     network: Network
     payload: dict[str, Any]
