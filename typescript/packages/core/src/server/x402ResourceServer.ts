@@ -347,6 +347,12 @@ export class x402ResourceServer {
         console.warn(`Failed to fetch supported kinds from facilitator: ${error}`);
       }
     }
+
+    if (this.supportedResponsesMap.size === 0) {
+      throw new Error(
+        "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+      );
+    }
   }
 
   /**
