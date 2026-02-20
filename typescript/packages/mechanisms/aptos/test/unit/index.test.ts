@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
+import { ExactAptosScheme as ExactAptosClient } from "../../src/exact/client/scheme";
+import { ExactAptosScheme as ExactAptosFacilitator } from "../../src/exact/facilitator/scheme";
+import { ExactAptosScheme as ExactAptosServer } from "../../src/exact/server/scheme";
 import {
-  ExactAptosClient,
-  ExactAptosFacilitator,
-  ExactAptosServer,
   APTOS_MAINNET_CAIP2,
   APTOS_TESTNET_CAIP2,
   APTOS_ADDRESS_REGEX,
