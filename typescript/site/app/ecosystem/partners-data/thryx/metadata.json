@@ -1,0 +1,7 @@
+{
+  "name": "THRYX",
+  "description": "AI-powered token deployment and market intelligence API on Base. Deploy tokens, claim LP fees, analyze markets, and access AI services — all via x402 micropayments. 12 paid endpoints including full token pipeline (idea → live token in one call), batch deploy, fee claiming, sentiment analysis, and whale tracking.",
+  "logoUrl": "/logos/thryx.png",
+  "websiteUrl": "https://api.thryx.mom/api-docs",
+  "category": "Services/Endpoints"
+}
