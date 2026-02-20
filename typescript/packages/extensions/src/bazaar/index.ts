@@ -2,7 +2,8 @@
  * Bazaar Discovery Extension for x402 v2 and v1
  *
  * Enables facilitators to automatically catalog and index x402-enabled resources
- * by following the server's provided discovery instructions.
+ * by following the server's provided discovery instructions. Supports both
+ * HTTP endpoints and MCP (Model Context Protocol) tools.
  *
  * ## V2 Usage
  *
@@ -15,17 +16,25 @@
  * ```typescript
  * import { declareDiscoveryExtension, BAZAAR } from '@x402/extensions/bazaar';
  *
- * // Declare a GET endpoint
- * const extension = declareDiscoveryExtension(
- *   "GET",
- *   { query: "example" },
- *   {
- *     properties: {
- *       query: { type: "string" }
- *     },
+ * // Declare an HTTP GET endpoint
+ * const httpExtension = declareDiscoveryExtension({
+ *   input: { query: "example" },
+ *   inputSchema: {
+ *     properties: { query: { type: "string" } },
  *     required: ["query"]
  *   }
- * );
+ * });
+ *
+ * // Declare an MCP tool
+ * const mcpExtension = declareDiscoveryExtension({
+ *   toolName: "financial_analysis",
+ *   description: "Analyze financial data for a given ticker",
+ *   inputSchema: {
+ *     type: "object",
+ *     properties: { ticker: { type: "string" } },
+ *     required: ["ticker"]
+ *   }
+ * });
  *
  * // Include in PaymentRequired response
  * const paymentRequired = {
@@ -76,12 +85,24 @@ export type {
   DiscoveryInfo,
   QueryDiscoveryInfo,
   BodyDiscoveryInfo,
+  McpDiscoveryInfo,
   QueryDiscoveryExtension,
   BodyDiscoveryExtension,
+  McpDiscoveryExtension,
   DiscoveryExtension,
+  DeclareQueryDiscoveryExtensionConfig,
+  DeclareBodyDiscoveryExtensionConfig,
+  DeclareMcpDiscoveryExtensionConfig,
+  DeclareDiscoveryExtensionConfig,
+  DeclareDiscoveryExtensionInput,
 } from "./types";
 
-export { BAZAAR } from "./types";
+export {
+  BAZAAR,
+  isMcpExtensionConfig,
+  isQueryExtensionConfig,
+  isBodyExtensionConfig,
+} from "./types";
 
 // Export resource service functions (for servers)
 export { declareDiscoveryExtension } from "./resourceService";
@@ -95,6 +116,8 @@ export {
   extractDiscoveryInfoFromExtension,
   validateAndExtract,
   type ValidationResult,
+  type DiscoveredHTTPResource,
+  type DiscoveredMCPResource,
   type DiscoveredResource,
 } from "./facilitator";
 
