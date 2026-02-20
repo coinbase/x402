@@ -11,9 +11,11 @@ The x402 Bazaar is in early development. While our vision is to build the "Googl
 
 The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**. Without it, x402-compatible endpoints are like hidden stalls in a vast market. The Bazaar provides:
 
-* **For Buyers (API Consumers)**: Programmatically discover available x402-enabled services, understand their capabilities, pricing, and schemas
+* **For Buyers (API Consumers)**: Programmatically discover available x402-enabled services (HTTP APIs and MCP tools), understand their capabilities, pricing, and schemas
 * **For Sellers (API Providers)**: Automatic visibility for your x402-enabled services to a global audience of developers and AI agents
 * **For AI Agents**: Dynamic service discovery without pre-baked integrations - query, find, pay, and use
+
+The Bazaar supports both **HTTP endpoints** and **MCP (Model Context Protocol) tools**, enabling discovery of traditional REST APIs and AI-native tool servers.
 
 ### How It Works
 
@@ -37,6 +39,9 @@ Retrieve all available x402-compatible endpoints:
 ```bash
 GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
 ```
+
+**Query Parameters:**
+- `type` (optional): Filter by protocol type - `"http"` for HTTP endpoints or `"mcp"` for MCP tools
 
 **Note**: The recommended way to use this endpoint is to use the `useFacilitator` hook as described below.
 
@@ -222,9 +227,9 @@ Once you've found a suitable service, use an x402 client to call it:
 
 #### Listing with Bazaar Extension
 
-Add the bazaar extension to your route configuration to make your API discoverable.
+Add the bazaar extension to your route configuration to make your API discoverable. The Bazaar supports both HTTP endpoints and MCP tools.
 
-#### Adding Metadata
+#### Adding Metadata for HTTP Endpoints
 
 To enhance your listing with descriptions and schemas, include them when setting up your x402 middleware. **You should include descriptions for each parameter to make it clear for agents to call your endpoints**:
 
@@ -423,6 +428,74 @@ To enhance your listing with descriptions and schemas, include them when setting
     ```
   </Tab>
 </Tabs>
+
+#### Adding MCP Tools
+
+For MCP (Model Context Protocol) tool servers, use the `toolName` field to declare your tools for discovery:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+    import { paymentMiddleware } from "@x402/express";
+    import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+    const server = new x402ResourceServer(facilitatorClient);
+    registerExactEvmScheme(server);
+
+    const routes = {
+      "POST /mcp": {
+        price: "$0.01",
+        network: "eip155:8453",
+        payTo: "0xYourAddress",
+        description: "Financial analysis MCP tool",
+        extensions: {
+          ...declareDiscoveryExtension({
+            toolName: "financial_analysis",
+            description: "Analyze financial data for a given ticker",
+            inputSchema: {
+              type: "object",
+              properties: {
+                ticker: { 
+                  type: "string", 
+                  description: "Stock ticker symbol" 
+                },
+                analysis_type: {
+                  type: "string",
+                  enum: ["fundamental", "technical", "sentiment"]
+                }
+              },
+              required: ["ticker"]
+            },
+            example: { ticker: "AAPL", analysis_type: "fundamental" },
+            output: {
+              example: {
+                pe_ratio: 28.5,
+                recommendation: "hold",
+                confidence: 0.85
+              }
+            }
+          })
+        }
+      }
+    };
+
+    app.use(paymentMiddleware(routes, server));
+    ```
+  </Tab>
+</Tabs>
+
+**MCP-specific fields:**
+- `toolName` (required): The MCP tool name - presence of this field identifies the config as MCP
+- `description` (optional): Human-readable tool description
+- `transport` (optional): MCP transport type (`"streamable-http"` or `"sse"`). Defaults to `streamable-http` per the MCP spec
+- `inputSchema` (required): JSON Schema for tool arguments
+- `example` (optional): Example tool arguments
+- `output` (optional): Output specification with example
 
 ### Coming Soon
 
