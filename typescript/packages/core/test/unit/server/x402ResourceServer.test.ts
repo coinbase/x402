@@ -190,6 +190,24 @@ describe("x402ResourceServer", () => {
       expect(workingClient.getSupportedCalls).toBe(1);
     });
 
+    it("should throw if all facilitators fail", async () => {
+      const failingClient1 = new MockFacilitatorClient(buildSupportedResponse());
+      failingClient1.getSupported = async () => {
+        throw new Error("Network error");
+      };
+
+      const failingClient2 = new MockFacilitatorClient(buildSupportedResponse());
+      failingClient2.getSupported = async () => {
+        throw new Error("Rate limited");
+      };
+
+      const server = new x402ResourceServer([failingClient1, failingClient2]);
+
+      await expect(server.initialize()).rejects.toThrow(
+        "Failed to initialize: no supported payment kinds loaded from any facilitator",
+      );
+    });
+
     it("should clear existing mappings on re-initialization", async () => {
       const mockClient1 = new MockFacilitatorClient(
         buildSupportedResponse({

@@ -3,6 +3,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { registerExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import dotenv from "dotenv";
@@ -19,8 +20,10 @@ dotenv.config();
 const PORT = process.env.PORT || "4021";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
 const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -32,6 +35,7 @@ if (!SVM_PAYEE_ADDRESS) {
   console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
+
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -50,6 +54,9 @@ const server = new x402ResourceServer(facilitatorClient);
 // Register server schemes
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
+if (APTOS_PAYEE_ADDRESS) {
+  registerExactAptosScheme(server);
+}
 
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
@@ -58,10 +65,24 @@ console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EV
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 /**
+ * Pre-middleware guard for optional Aptos endpoint
+ * Returns 501 Not Implemented if Aptos is not configured
+ */
+app.get("/protected-aptos", (req, res, next) => {
+  if (!APTOS_PAYEE_ADDRESS) {
+    return res.status(501).json({
+      error: "Aptos payments not configured",
+      message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+    });
+  }
+  next();
+});
+
+/**
  * Configure x402 payment middleware using builder pattern
  *
  * This middleware protects endpoints with $0.001 USDC payment requirements
- * on Base Sepolia and Solana Devnet with bazaar discovery extension.
+ * on Base Sepolia, Solana Devnet, and Aptos Testnet with bazaar discovery extension.
  */
 app.use(
   paymentMiddleware(
@@ -117,6 +138,35 @@ app.use(
           }),
         },
       },
+      ...(APTOS_PAYEE_ADDRESS
+        ? {
+            "GET /protected-aptos": {
+              accepts: {
+                payTo: APTOS_PAYEE_ADDRESS,
+                scheme: "exact",
+                price: "$0.001",
+                network: APTOS_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
+                    },
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
+                  },
+                }),
+              },
+            },
+          }
+        : {}),
       // Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
       "GET /protected-permit2": {
         accepts: {
@@ -187,6 +237,20 @@ app.get("/protected-svm", (req, res) => {
 });
 
 /**
+ * Protected Aptos endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for Aptos.
+ * Clients must provide a valid payment signature to access this endpoint.
+ * Note: 501 check is handled by pre-middleware guard above.
+ */
+app.get("/protected-aptos", (req, res) => {
+  res.json({
+    message: "Protected endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Protected Permit2 endpoint - requires payment via Permit2 flow
  *
  * This endpoint demonstrates the Permit2 payment flow.
@@ -235,16 +299,19 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Express E2E Test Server                 ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                  ║
-║  EVM Network:    ${EVM_NETWORK}                         ║
-║  SVM Network:    ${SVM_NETWORK}                         ║
-║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
-║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
+║  Server:       http://localhost:${PORT}                ║
+║  EVM Network:  ${EVM_NETWORK}                          ║
+║  SVM Network:  ${SVM_NETWORK}                          ║
+║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  EVM Payee:    ${EVM_PAYEE_ADDRESS}                    ║
+║  SVM Payee:    ${SVM_PAYEE_ADDRESS}                    ║
+║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected        (EIP-3009 payment)          ║
+║  • GET  /protected        (EIP-3009 payment - EVM)    ║
 ║  • GET  /protected-svm    (SVM payment)               ║
-║  • GET  /protected-permit2 (Permit2 payment)          ║
+║  • GET  /protected-aptos  (Aptos payment)             ║
+║  • GET  /protected-permit2 (Permit2 payment - EVM)    ║
 ║  • GET  /health           (no payment required)       ║
 ║  • POST /close            (shutdown server)           ║
 ╚════════════════════════════════════════════════════════╝
