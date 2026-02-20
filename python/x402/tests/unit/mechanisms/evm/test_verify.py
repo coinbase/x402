@@ -7,8 +7,7 @@ try:
 except ImportError:
     pytest.skip("eth-abi not available", allow_module_level=True)
 
-from x402.mechanisms.evm.verify import verify_universal_signature, verify_erc6492_signature
-
+from x402.mechanisms.evm.verify import verify_erc6492_signature, verify_universal_signature
 
 # ERC-6492 magic bytes suffix
 ERC6492_MAGIC = bytes.fromhex(

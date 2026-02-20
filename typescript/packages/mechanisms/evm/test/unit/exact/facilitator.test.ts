@@ -771,8 +771,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
   });
 
   describe("ERC-6492 counterfactual signature verification", () => {
-    const ERC6492_MAGIC =
-      "0x6492649264926492649264926492649264926492649264926492649264926492";
+    const ERC6492_MAGIC = "0x6492649264926492649264926492649264926492649264926492649264926492";
 
     function makeERC6492Sig(
       factory: `0x${string}`,
@@ -843,12 +842,12 @@ describe("ExactEvmScheme (Facilitator)", () => {
       // getCode returns "0x" (undeployed)
       mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
       // isValidSig → true (valid sig), balanceOf → large balance
-      mockFacilitatorSigner.readContract = vi.fn().mockImplementation(
-        ({ functionName }: { functionName: string }) => {
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
           if (functionName === "isValidSig") return Promise.resolve(true);
           return Promise.resolve(BigInt("10000000")); // sufficient balance
-        },
-      );
+        });
 
       const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
 
@@ -862,7 +861,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
       // getCode returns "0x" (undeployed)
       mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
       // UniversalSigValidator call throws (contract not deployed on chain)
-      mockFacilitatorSigner.readContract = vi.fn().mockRejectedValue(new Error("execution reverted"));
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted"));
 
       const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
 

@@ -12,12 +12,8 @@ import {
   parseErc6492Signature,
   parseSignature,
 } from "viem";
-import {
-  authorizationTypes,
-  eip3009ABI,
-  UNIVERSAL_SIG_VALIDATOR_ADDRESS,
-  universalSigValidatorABI,
-} from "../../constants";
+import { authorizationTypes, eip3009ABI } from "../../constants";
+import { verifyERC6492Signature } from "../../verify_erc6492";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEIP3009Payload } from "../../types";
 
@@ -142,24 +138,26 @@ export async function verifyEIP3009(
         }
         // Simulate deployment and verify inner signature via ERC-6492 UniversalSigValidator
         const hashBytes = hashTypedData({
-          ...permitTypedData,
+          types: permitTypedData.types,
+          primaryType: permitTypedData.primaryType,
+          domain: {
+            name: name as string,
+            version: version as string,
+            chainId: parseInt(requirements.network.split(":")[1]),
+            verifyingContract: erc20Address,
+          },
           message: {
             ...permitTypedData.message,
             from: getAddress(eip3009Payload.authorization.from),
             to: getAddress(eip3009Payload.authorization.to),
           },
         });
-        let erc6492Valid = false;
-        try {
-          erc6492Valid = (await signer.readContract({
-            address: UNIVERSAL_SIG_VALIDATOR_ADDRESS,
-            abi: universalSigValidatorABI,
-            functionName: "isValidSig",
-            args: [payerAddress, hashBytes, signature as Hex],
-          })) as boolean;
-        } catch {
-          // Validator unavailable — reject to prevent bypass
-        }
+        const erc6492Valid = await verifyERC6492Signature(
+          signer,
+          payerAddress as `0x${string}`,
+          hashBytes,
+          signature as Hex,
+        );
         if (!erc6492Valid) {
           return {
             isValid: false,

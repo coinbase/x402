@@ -359,9 +359,9 @@ func TestVerifyUniversalSignature_ERC6492_ValidatorChecks(t *testing.T) {
 			true, // allowUndeployed
 		)
 
-		// When validator is unavailable, we reject (return false) without propagating error
-		if err != nil {
-			t.Errorf("expected no error propagated when validator unavailable, got: %v", err)
+		// When validator is unavailable, we reject (return false) and propagate the error
+		if err == nil {
+			t.Error("expected error to be propagated when validator is unavailable")
 		}
 		if valid {
 			t.Error("expected invalid: should reject when validator is unavailable")

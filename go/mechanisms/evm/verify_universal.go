@@ -88,7 +88,7 @@ func VerifyUniversalSignature(
 			valid, err := VerifyERC6492Signature(ctx, facilitatorSigner, signerAddress, hash, signature)
 			if err != nil {
 				// Validator unavailable or call failed — reject to prevent bypass
-				return false, sigData, nil
+				return false, sigData, err
 			}
 			return valid, sigData, nil
 		}

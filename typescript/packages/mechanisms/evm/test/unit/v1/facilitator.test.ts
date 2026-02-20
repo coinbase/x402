@@ -365,8 +365,7 @@ describe("ExactEvmSchemeV1", () => {
   });
 
   describe("ERC-6492 counterfactual signature verification (V1)", () => {
-    const ERC6492_MAGIC =
-      "0x6492649264926492649264926492649264926492649264926492649264926492";
+    const ERC6492_MAGIC = "0x6492649264926492649264926492649264926492649264926492649264926492";
 
     function makeERC6492Sig(
       factory: `0x${string}`,
@@ -421,7 +420,10 @@ describe("ExactEvmSchemeV1", () => {
       mockSigner.readContract = vi.fn().mockResolvedValue(false);
 
       const facilitator = new ExactEvmSchemeV1(mockSigner);
-      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+      const result = await facilitator.verify(
+        makeV1Payload(erc6492Sig) as never,
+        erc6492Requirements as never,
+      );
 
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_exact_evm_payload_signature");
@@ -432,15 +434,18 @@ describe("ExactEvmSchemeV1", () => {
       mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("not EOA"));
       mockSigner.getCode = vi.fn().mockResolvedValue("0x");
       // isValidSig → true (valid sig), balanceOf → large balance
-      mockSigner.readContract = vi.fn().mockImplementation(
-        ({ functionName }: { functionName: string }) => {
+      mockSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
           if (functionName === "isValidSig") return Promise.resolve(true);
           return Promise.resolve(BigInt("10000000")); // sufficient balance
-        },
-      );
+        });
 
       const facilitator = new ExactEvmSchemeV1(mockSigner);
-      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+      const result = await facilitator.verify(
+        makeV1Payload(erc6492Sig) as never,
+        erc6492Requirements as never,
+      );
 
       expect(result.isValid).toBe(true);
       expect(result.payer).toBe(erc6492Payer);
@@ -452,7 +457,10 @@ describe("ExactEvmSchemeV1", () => {
       mockSigner.readContract = vi.fn().mockRejectedValue(new Error("execution reverted"));
 
       const facilitator = new ExactEvmSchemeV1(mockSigner);
-      const result = await facilitator.verify(makeV1Payload(erc6492Sig) as never, erc6492Requirements as never);
+      const result = await facilitator.verify(
+        makeV1Payload(erc6492Sig) as never,
+        erc6492Requirements as never,
+      );
 
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_exact_evm_payload_signature");

@@ -15,12 +15,8 @@ import {
   parseErc6492Signature,
   parseSignature,
 } from "viem";
-import {
-  authorizationTypes,
-  eip3009ABI,
-  UNIVERSAL_SIG_VALIDATOR_ADDRESS,
-  universalSigValidatorABI,
-} from "../../../constants";
+import { authorizationTypes, eip3009ABI } from "../../../constants";
+import { verifyERC6492Signature } from "../../../verify_erc6492";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
 import { getEvmChainId } from "../../../utils";
@@ -218,17 +214,12 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
               to: getAddress(exactEvmPayload.authorization.to),
             },
           });
-          let erc6492Valid = false;
-          try {
-            erc6492Valid = (await this.signer.readContract({
-              address: UNIVERSAL_SIG_VALIDATOR_ADDRESS,
-              abi: universalSigValidatorABI,
-              functionName: "isValidSig",
-              args: [payerAddress, hashBytes, signature as Hex],
-            })) as boolean;
-          } catch {
-            // Validator unavailable — reject to prevent bypass
-          }
+          const erc6492Valid = await verifyERC6492Signature(
+            this.signer,
+            payerAddress as `0x${string}`,
+            hashBytes,
+            signature as Hex,
+          );
           if (!erc6492Valid) {
             return {
               isValid: false,

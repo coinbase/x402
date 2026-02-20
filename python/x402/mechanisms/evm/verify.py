@@ -10,8 +10,8 @@ except ImportError as e:
 from .constants import (
     EIP1271_MAGIC_VALUE,
     IS_VALID_SIGNATURE_ABI,
-    UNIVERSAL_SIG_VALIDATOR_ADDRESS,
     UNIVERSAL_SIG_VALIDATOR_ABI,
+    UNIVERSAL_SIG_VALIDATOR_ADDRESS,
 )
 from .erc6492 import has_deployment_info, is_eoa_signature, parse_erc6492_signature
 from .signer import FacilitatorEvmSigner
