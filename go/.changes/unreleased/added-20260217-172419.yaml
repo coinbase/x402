@@ -1,0 +1,3 @@
+kind: added
+body: 'Added payment-identifier extension — Enables idempotent payment requests.'
+time: 2026-02-17T17:24:19.876766-05:00

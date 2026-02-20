@@ -35,9 +35,7 @@ def verify_eoa_signature(
         ValueError: If signature length is invalid.
     """
     if len(signature) != 65:
-        raise ValueError(
-            f"Invalid EOA signature length: expected 65, got {len(signature)}"
-        )
+        raise ValueError(f"Invalid EOA signature length: expected 65, got {len(signature)}")
 
     # Extract r, s, v
     r = signature[:32]
@@ -159,7 +157,5 @@ def verify_universal_signature(
         return (False, sig_data)
 
     # Deployed contract - use EIP-1271
-    valid = verify_eip1271_signature(
-        signer, signer_address, hash, sig_data.inner_signature
-    )
+    valid = verify_eip1271_signature(signer, signer_address, hash, sig_data.inner_signature)
     return (valid, sig_data)

@@ -10,8 +10,8 @@
 
 import { config } from "dotenv";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -27,7 +27,7 @@ const url = `${baseURL}${endpointPath}`;
 
 /**
  * Example demonstrating how to use @x402/fetch with all supported networks.
- * Schemes are registered only for networks where private keys are provided.
+ * Schemes are registered directly for networks where private keys are provided.
  */
 async function main(): Promise<void> {
   // Validate at least one private key is provided
@@ -42,14 +42,14 @@ async function main(): Promise<void> {
   // Register EVM scheme if private key is provided
   if (evmPrivateKey) {
     const evmSigner = privateKeyToAccount(evmPrivateKey);
-    registerExactEvmScheme(client, { signer: evmSigner });
+    client.register("eip155:*", new ExactEvmScheme(evmSigner));
     console.log(`Initialized EVM account: ${evmSigner.address}`);
   }
 
   // Register SVM scheme if private key is provided
   if (svmPrivateKey) {
     const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
-    registerExactSvmScheme(client, { signer: svmSigner });
+    client.register("solana:*", new ExactSvmScheme(svmSigner));
     console.log(`Initialized SVM account: ${svmSigner.address}`);
   }
 
