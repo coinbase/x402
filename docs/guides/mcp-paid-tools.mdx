@@ -1,0 +1,359 @@
+---
+title: "MCP Paid Tools"
+description: "Create MCP servers with paid tools using native x402 MCP transport support"
+---
+
+## Overview
+
+The `@x402/mcp` package provides native support for paid tools in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers. Unlike the [HTTP-based approach](/guides/mcp-server-with-x402) where an MCP server calls paid HTTP APIs, this integration allows you to create MCP tools that directly require payment.
+
+**Use this approach when:**
+- You want to monetize MCP tools directly
+- You're building an MCP server that provides paid services
+- You need fine-grained control over tool pricing
+
+**Use the [HTTP approach](/guides/mcp-server-with-x402) when:**
+- Your MCP server calls external paid HTTP APIs
+- You're wrapping existing x402 HTTP endpoints
+
+## Quick Start
+
+### Server: Creating Paid Tools
+
+```typescript
+import { createX402MCPServer } from "@x402/mcp";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { z } from "zod";
+
+const server = createX402MCPServer({
+  name: "premium-api",
+  version: "1.0.0",
+  facilitator: "https://x402.org/facilitator",
+  schemes: [{ network: "eip155:84532", server: new ExactEvmScheme() }],
+});
+
+await server.initialize();
+
+// Register a paid tool
+server.paidTool(
+  "financial_analysis",
+  {
+    description: "AI-powered financial analysis",
+    inputSchema: { ticker: z.string() },
+  },
+  {
+    scheme: "exact",
+    network: "eip155:84532",
+    price: "$0.10",
+    payTo: "0x...",
+  },
+  async ({ ticker }) => {
+    const analysis = await performAnalysis(ticker);
+    return { content: [{ type: "text", text: analysis }] };
+  }
+);
+
+// Register a free tool
+server.tool("ping", "Health check", {}, async () => ({
+  content: [{ type: "text", text: "pong" }],
+}));
+
+await server.server.connect(transport);
+```
+
+### Client: Calling Paid Tools
+
+```typescript
+import { createX402MCPClient } from "@x402/mcp";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const client = createX402MCPClient({
+  name: "my-agent",
+  version: "1.0.0",
+  schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(walletAccount) }],
+  autoPayment: true,
+  onPaymentRequested: async ({ paymentRequired }) => {
+    console.log(`Tool requires payment: ${paymentRequired.accepts[0].amount}`);
+    return true; // Return false to deny payment
+  },
+});
+
+const transport = new SSEClientTransport(new URL("http://localhost:4022/sse"));
+await client.connect(transport);
+
+const result = await client.callTool("financial_analysis", { ticker: "AAPL" });
+console.log(result.content);
+
+if (result.paymentMade) {
+  console.log("Payment settled:", result.paymentResponse?.transaction);
+}
+```
+
+## Payment Flow
+
+```
+┌──────────────┐                    ┌──────────────┐
+│  MCP Client  │                    │  MCP Server  │
+└──────┬───────┘                    └──────┬───────┘
+       │                                   │
+       │  1. callTool("get_weather")       │
+       │──────────────────────────────────▶│
+       │                                   │
+       │  2. 402 PaymentRequired           │
+       │◀──────────────────────────────────│
+       │                                   │
+       │  3. createPaymentPayload()        │
+       │  (signs transaction)              │
+       │                                   │
+       │  4. callTool + PaymentPayload     │
+       │──────────────────────────────────▶│
+       │                                   │
+       │                    5. verify()    │
+       │                    6. execute()   │
+       │                    7. settle()    │
+       │                                   │
+       │  8. Result + SettleResponse       │
+       │◀──────────────────────────────────│
+```
+
+1. **Client calls tool** → No payment attached
+2. **Server returns 402** → PaymentRequired in structured result
+3. **Client creates payment** → Using x402Client
+4. **Client retries with payment** → PaymentPayload in `_meta["x402/payment"]`
+5. **Server verifies & executes** → Tool runs if payment valid
+6. **Server settles payment** → Transaction submitted
+7. **Server returns result** → SettleResponse in `_meta["x402/payment-response"]`
+
+## Server Setup
+
+### Factory Function (Recommended)
+
+The simplest way to create an MCP server with paid tools:
+
+```typescript
+import { createX402MCPServer } from "@x402/mcp";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const server = createX402MCPServer({
+  name: "premium-api",
+  version: "1.0.0",
+  facilitator: "https://x402.org/facilitator",
+  schemes: [
+    { network: "eip155:84532", server: new ExactEvmScheme() },
+  ],
+});
+
+await server.initialize();
+```
+
+### Manual Setup (Advanced)
+
+For full control over server configuration:
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { x402MCPServer } from "@x402/mcp";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const mcpServer = new McpServer({ name: "premium-api", version: "1.0.0" });
+const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
+const resourceServer = new x402ResourceServer(facilitatorClient);
+
+resourceServer.register("eip155:84532", new ExactEvmScheme());
+await resourceServer.initialize();
+
+const x402Server = new x402MCPServer(mcpServer, resourceServer);
+```
+
+### Registering Paid Tools
+
+```typescript
+server.paidTool(
+  "premium_search",
+  {
+    description: "Search with premium features",
+    inputSchema: { query: z.string() },
+  },
+  {
+    scheme: "exact",
+    network: "eip155:84532",
+    price: "$0.05",
+    payTo: "0x...",
+  },
+  async ({ query }) => {
+    const results = await search(query);
+    return { content: [{ type: "text", text: JSON.stringify(results) }] };
+  }
+);
+```
+
+### Server Hooks
+
+```typescript
+// Called after verification, before tool execution
+server.onBeforeExecution(async ({ toolName, paymentPayload }) => {
+  if (isBlocked(paymentPayload.signer)) {
+    return false; // Aborts execution
+  }
+});
+
+// Called after tool execution, before settlement
+server.onAfterExecution(async ({ toolName, result }) => {
+  metrics.recordExecution(toolName, result.isError);
+});
+
+// Called after successful settlement
+server.onAfterSettlement(async ({ toolName, settlement }) => {
+  await logTransaction(toolName, settlement.transaction);
+});
+```
+
+## Client Setup
+
+### Factory Function (Recommended)
+
+```typescript
+import { createX402MCPClient } from "@x402/mcp";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+
+const client = createX402MCPClient({
+  name: "my-agent",
+  version: "1.0.0",
+  schemes: [
+    { network: "eip155:84532", client: new ExactEvmScheme(walletAccount) },
+  ],
+  autoPayment: true,
+});
+
+await client.connect(transport);
+```
+
+### Manual Setup (Advanced)
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { wrapMCPClientWithPayment } from "@x402/mcp";
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+
+const mcpClient = new Client({ name: "my-agent", version: "1.0.0" });
+const paymentClient = new x402Client()
+  .register("eip155:84532", new ExactEvmScheme(walletAccount));
+
+const x402Mcp = wrapMCPClientWithPayment(mcpClient, paymentClient, {
+  autoPayment: true,
+});
+```
+
+### Client Hooks
+
+```typescript
+// Called when a 402 is received (before payment)
+client.onPaymentRequired(async ({ toolName, paymentRequired }) => {
+  const cached = await cache.get(toolName);
+  if (cached) return { payment: cached };
+});
+
+// Called before payment is created
+client.onBeforePayment(async ({ paymentRequired }) => {
+  await logPaymentAttempt(paymentRequired);
+});
+
+// Called after payment is submitted
+client.onAfterPayment(async ({ paymentPayload, settleResponse }) => {
+  await saveReceipt(settleResponse.transaction);
+});
+```
+
+## Integrating with Existing MCP Servers
+
+If you have an existing MCP server and want to add payment to specific tools without adopting the full `x402MCPServer` abstraction, use `createPaymentWrapper`:
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+// Your existing MCP server
+const mcpServer = new McpServer({ name: "my-api", version: "1.0.0" });
+
+// Set up x402 for payment handling
+const resourceServer = new x402ResourceServer(
+  new HTTPFacilitatorClient({ url: facilitatorUrl })
+);
+resourceServer.register("eip155:84532", new ExactEvmScheme());
+await resourceServer.initialize();
+
+// Create a payment wrapper with shared config
+const paid = createPaymentWrapper(resourceServer, {
+  scheme: "exact",
+  network: "eip155:84532",
+  payTo: "0x...",
+});
+
+// Free tools - unchanged, use native McpServer API
+mcpServer.tool("ping", "Health check", {}, async () => ({
+  content: [{ type: "text", text: "pong" }],
+}));
+
+// Paid tools - wrap handlers with paid("$price", handler)
+mcpServer.tool("search", "Premium search", { query: z.string() },
+  paid("$0.10", async (args) => ({
+    content: [{ type: "text", text: "Search results..." }],
+  }))
+);
+```
+
+## Configuration
+
+### Server Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `name` | `string` | Yes | MCP server name |
+| `version` | `string` | Yes | MCP server version |
+| `facilitator` | `string \| FacilitatorClient` | No | Facilitator for payment processing |
+| `schemes` | `SchemeRegistration[]` | No | Payment scheme registrations |
+| `syncFacilitatorOnStart` | `boolean` | No | Initialize facilitator immediately (default: true) |
+
+### Client Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `autoPayment` | `boolean` | `true` | Automatically retry with payment on 402 |
+| `onPaymentRequested` | `function` | `() => true` | Hook for human-in-the-loop approval |
+
+### Tool Payment Config
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `scheme` | `string` | Yes | Payment scheme (e.g., "exact") |
+| `network` | `Network` | Yes | CAIP-2 network ID (e.g., "eip155:84532") |
+| `price` | `Price` | Yes | Price (e.g., "$0.10" or "1000000") |
+| `payTo` | `string` | Yes | Recipient wallet address |
+| `maxTimeoutSeconds` | `number` | No | Payment timeout (default: 60) |
+| `extra` | `object` | No | Scheme-specific parameters |
+| `resource` | `object` | No | Resource metadata |
+
+## Examples
+
+Full working examples are available in the repository:
+
+- **Server**: [`examples/typescript/servers/mcp/`](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/mcp)
+  - Simple mode (factory function)
+  - Advanced mode (manual setup with hooks)
+  - Existing server mode (payment wrapper)
+
+- **Client**: [`examples/typescript/clients/mcp/`](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/mcp)
+  - Simple mode (factory function)
+  - Advanced mode (manual setup with hooks)
+
+## Next Steps
+
+- [View the full package README](https://github.com/coinbase/x402/tree/main/typescript/packages/mcp)
+- [Explore server examples](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/mcp)
+- [Explore client examples](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/mcp)
+- [Learn about x402 core concepts](/core-concepts/http-402)
