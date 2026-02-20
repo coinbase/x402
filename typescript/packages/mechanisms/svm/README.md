@@ -174,6 +174,54 @@ The exact payment scheme uses SPL Token `TransferChecked` instruction with:
 - Source/destination ATAs (Associated Token Accounts)
 - Partial signing (client signs, facilitator completes and submits)
 
+## Agentic Program Wallets (Optional)
+
+Some Solana wallets and agentic flows are program-based (no traditional transaction signature from
+the payer address). The SVM Exact facilitator can optionally verify these payments via RPC
+simulation and a return-data magic value (parity concept with EIP-1271 on EVM).
+
+### Enabling On The Facilitator
+
+Via the registration helper:
+
+```ts
+import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+
+registerExactSvmScheme(facilitator, {
+  signer: facilitatorSigner,
+  networks: "solana:*",
+  enableAgenticSVM: true,
+});
+```
+
+Or directly on the scheme:
+
+```ts
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+
+facilitator.register(
+  "solana:*",
+  new ExactSvmScheme(facilitatorSigner, { enableAgenticSVM: true }),
+);
+```
+
+### Optional Timelock Bounds
+
+Resource servers MAY include unix-second bounds in `PaymentRequirements.extra`:
+
+```json
+{
+  "feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+  "validAfter": 1700000000,
+  "validBefore": 1700003600
+}
+```
+
+### Tradeoffs
+
+Agentic verification adds an RPC `simulateTransaction` round-trip (plus a few account lookups) per
+verification, so it will be higher latency than the signature-only path.
+
 ## Development
 
 ```bash
@@ -197,4 +245,3 @@ pnpm format
 - `@x402/fetch` - HTTP wrapper with automatic payment handling
 - `@x402/evm` - EVM/Ethereum implementation
 - `@solana/web3.js` - Solana JavaScript SDK (peer dependency)
-
