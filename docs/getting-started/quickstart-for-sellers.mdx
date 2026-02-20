@@ -186,7 +186,7 @@ Integrate the payment middleware into your application. You will need to provide
     import { serve } from "@hono/node-server";
     import { paymentMiddleware } from "@x402/hono";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const app = new Hono();
     const payTo = "0xYourAddress";
@@ -196,7 +196,7 @@ Integrate the payment middleware into your application. You will need to provide
     });
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     app.use(
       paymentMiddleware(
