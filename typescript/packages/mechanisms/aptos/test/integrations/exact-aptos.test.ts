@@ -16,13 +16,10 @@ import {
   SettleResponse,
   SupportedResponse,
 } from "@x402/core/types";
-import {
-  ExactAptosClient,
-  ExactAptosServer,
-  ExactAptosFacilitator,
-  createClientSigner,
-  toFacilitatorAptosSigner,
-} from "../../src";
+import { ExactAptosScheme as ExactAptosClient } from "../../src/exact/client/scheme";
+import { ExactAptosScheme as ExactAptosServer } from "../../src/exact/server/scheme";
+import { ExactAptosScheme as ExactAptosFacilitator } from "../../src/exact/facilitator/scheme";
+import { createClientSigner, toFacilitatorAptosSigner } from "../../src";
 import type { ExactAptosPayload } from "../../src/types";
 
 // Load private keys from environment
