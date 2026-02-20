@@ -13,7 +13,6 @@ import { WithExtensions } from "../types";
 export interface ListDiscoveryResourcesParams {
   /**
    * Filter by protocol type (e.g., "http", "mcp").
-   * Currently, the only supported protocol type is "http".
    */
   type?: string;
 
