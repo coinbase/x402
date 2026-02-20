@@ -165,7 +165,7 @@ const svmSigner = await createKeyPairSignerFromBytes(
 
     ```typescript
     import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
-    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
     import { privateKeyToAccount } from "viem/accounts";
     import axios from "axios";
 
@@ -174,7 +174,7 @@ const svmSigner = await createKeyPairSignerFromBytes(
 
     // Create x402 client and register EVM scheme
     const client = new x402Client();
-    registerExactEvmScheme(client, { signer });
+    client.register("eip155:*", new ExactEvmScheme(signer));
 
     // Create an Axios instance with payment handling
     const api = wrapAxiosWithPayment(
