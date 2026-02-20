@@ -103,8 +103,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import axios from "axios";
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -130,13 +130,13 @@ async function createClient() {
   // Register EVM scheme if private key is provided
   if (evmPrivateKey) {
     const evmSigner = privateKeyToAccount(evmPrivateKey);
-    registerExactEvmScheme(client, { signer: evmSigner });
+    client.register("eip155:*", new ExactEvmScheme(evmSigner));
   }
 
   // Register SVM scheme if private key is provided
   if (svmPrivateKey) {
     const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
-    registerExactSvmScheme(client, { signer: svmSigner });
+    client.register("solana:*", new ExactSvmScheme(svmSigner));
   }
 
   return wrapAxiosWithPayment(axios.create({ baseURL }), client);
