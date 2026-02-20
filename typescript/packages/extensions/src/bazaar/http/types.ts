@@ -11,7 +11,8 @@ import type { DiscoveryInfo } from "../types";
 export interface QueryDiscoveryInfo {
   input: {
     type: "http";
-    method: QueryParamMethods;
+    /** Absent at declaration time; set by bazaarResourceServerExtension.enrichDeclaration */
+    method?: QueryParamMethods;
     queryParams?: Record<string, unknown>;
     headers?: Record<string, string>;
   };
@@ -28,7 +29,8 @@ export interface QueryDiscoveryInfo {
 export interface BodyDiscoveryInfo {
   input: {
     type: "http";
-    method: BodyMethods;
+    /** Absent at declaration time; set by bazaarResourceServerExtension.enrichDeclaration */
+    method?: BodyMethods;
     bodyType: "json" | "form-data" | "text";
     body: Record<string, unknown>;
     queryParams?: Record<string, unknown>;
@@ -167,7 +169,8 @@ export interface DiscoveredHTTPResource {
   resourceUrl: string;
   description?: string;
   mimeType?: string;
-  method: string;
+  /** Present after server extension enrichment; may be absent for pre-enrichment data */
+  method?: string;
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
@@ -175,7 +178,7 @@ export interface DiscoveredHTTPResource {
 export const isQueryExtensionConfig = (
   config: DeclareQueryDiscoveryExtensionConfig | DeclareBodyDiscoveryExtensionConfig,
 ): config is DeclareQueryDiscoveryExtensionConfig => {
-  return !("bodyType" in config) && !("tool" in config);
+  return !("bodyType" in config) && !("toolName" in config);
 };
 
 export const isBodyExtensionConfig = (

@@ -10,7 +10,7 @@ import type { DiscoveryInfo } from "../types";
 export interface McpDiscoveryInfo {
   input: {
     type: "mcp";
-    tool: string;
+    toolName: string;
     description?: string;
     transport?: "streamable-http" | "sse";
     inputSchema: Record<string, unknown>;
@@ -40,7 +40,7 @@ export interface McpDiscoveryExtension {
             type: "string";
             const: "mcp";
           };
-          tool: {
+          toolName: {
             type: "string";
           };
           description?: {
@@ -53,7 +53,7 @@ export interface McpDiscoveryExtension {
           inputSchema: Record<string, unknown>;
           example?: Record<string, unknown>;
         };
-        required: ("type" | "tool" | "inputSchema")[];
+        required: ("type" | "toolName" | "inputSchema")[];
         additionalProperties?: boolean;
       };
       output?: {
@@ -68,7 +68,7 @@ export interface McpDiscoveryExtension {
 }
 
 export interface DeclareMcpDiscoveryExtensionConfig {
-  tool: string;
+  toolName: string;
   description?: string;
   transport?: "streamable-http" | "sse";
   inputSchema: Record<string, unknown>;
@@ -83,7 +83,7 @@ export interface DiscoveredMCPResource {
   resourceUrl: string;
   description?: string;
   mimeType?: string;
-  tool: string;
+  toolName: string;
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
@@ -91,5 +91,5 @@ export interface DiscoveredMCPResource {
 export const isMcpExtensionConfig = (
   config: DeclareMcpDiscoveryExtensionConfig | Record<string, unknown>,
 ): config is DeclareMcpDiscoveryExtensionConfig => {
-  return "tool" in config;
+  return "toolName" in config;
 };

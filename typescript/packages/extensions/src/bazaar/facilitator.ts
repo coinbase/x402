@@ -189,7 +189,7 @@ export function extractDiscoveryInfo(
   };
 
   if (discoveryInfo.input.type === "mcp") {
-    return { ...base, tool: (discoveryInfo as McpDiscoveryInfo).input.tool };
+    return { ...base, toolName: (discoveryInfo as McpDiscoveryInfo).input.toolName };
   }
 
   return { ...base, method: discoveryInfo.input.method };

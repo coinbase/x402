@@ -27,7 +27,7 @@
  *
  * // Declare an MCP tool
  * const mcpExtension = declareDiscoveryExtension({
- *   tool: "financial_analysis",
+ *   toolName: "financial_analysis",
  *   description: "Analyze financial data for a given ticker",
  *   inputSchema: {
  *     type: "object",

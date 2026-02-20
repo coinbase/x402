@@ -186,7 +186,7 @@ const resources = {
 
 #### Example: MCP Tool
 
-For MCP (Model Context Protocol) tools, use the `tool` field instead of `bodyType`/`input`. The HTTP method is not relevant -- MCP tools are invoked by tool name.
+For MCP (Model Context Protocol) tools, use the `toolName` field instead of `bodyType`/`input`. The HTTP method is not relevant -- MCP tools are invoked by name.
 
 ```typescript
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
@@ -201,7 +201,7 @@ const resources = {
     },
     extensions: {
       ...declareDiscoveryExtension({
-        tool: "financial_analysis",
+        toolName: "financial_analysis",
         description: "Analyze financial data for a given ticker",
         inputSchema: {
           type: "object",
@@ -364,7 +364,7 @@ Creates a discovery extension object for resource servers. Accepts either an HTT
 > **Note:** The HTTP method is NOT passed to this function. It is automatically inferred from the route key (e.g., `"GET /weather"`) or enriched by `bazaarResourceServerExtension` at runtime.
 
 **MCP Parameters:**
-- `config.tool` (required): MCP tool name — the presence of this field identifies the config as MCP
+- `config.toolName` (required): MCP tool name — the presence of this field identifies the config as MCP
 - `config.description` (optional): Human-readable tool description
 - `config.inputSchema` (required): JSON Schema for tool arguments
 - `config.example` (optional): Example tool arguments
@@ -391,7 +391,7 @@ const httpExtension = declareDiscoveryExtension({
 
 // MCP tool
 const mcpExtension = declareDiscoveryExtension({
-  tool: "search",
+  toolName: "search",
   description: "Search for documents",
   inputSchema: {
     type: "object",
@@ -426,7 +426,7 @@ interface DiscoveredHTTPResource {
 
 interface DiscoveredMCPResource {
   resourceUrl: string;
-  tool: string;          // MCP tool name
+  toolName: string;      // MCP tool name
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }

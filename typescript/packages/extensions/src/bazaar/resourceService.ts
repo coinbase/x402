@@ -67,7 +67,7 @@ import { createMcpDiscoveryExtension } from "./mcp/resourceService";
  *
  * // For an MCP tool
  * const mcpExtension = declareDiscoveryExtension({
- *   tool: "financial_analysis",
+ *   toolName: "financial_analysis",
  *   description: "Analyze financial data for a given ticker",
  *   inputSchema: {
  *     type: "object",
@@ -85,7 +85,7 @@ import { createMcpDiscoveryExtension } from "./mcp/resourceService";
 export function declareDiscoveryExtension(
   config: DeclareDiscoveryExtensionInput,
 ): Record<string, DiscoveryExtension> {
-  if ("tool" in config) {
+  if ("toolName" in config) {
     const extension = createMcpDiscoveryExtension(config as DeclareMcpDiscoveryExtensionConfig);
     return { bazaar: extension as DiscoveryExtension };
   }

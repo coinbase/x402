@@ -8,7 +8,7 @@ import type { McpDiscoveryExtension, DeclareMcpDiscoveryExtensionConfig } from "
  * Create an MCP tool discovery extension
  *
  * @param root0 - Configuration object for MCP discovery extension
- * @param root0.tool - MCP tool name
+ * @param root0.toolName - MCP tool name
  * @param root0.description - Tool description
  * @param root0.inputSchema - JSON Schema for tool arguments
  * @param root0.example - Example tool arguments
@@ -17,7 +17,7 @@ import type { McpDiscoveryExtension, DeclareMcpDiscoveryExtensionConfig } from "
  * @returns McpDiscoveryExtension with info and schema
  */
 export function createMcpDiscoveryExtension({
-  tool,
+  toolName,
   description,
   transport,
   inputSchema,
@@ -28,7 +28,7 @@ export function createMcpDiscoveryExtension({
     info: {
       input: {
         type: "mcp",
-        tool,
+        toolName,
         ...(description !== undefined ? { description } : {}),
         ...(transport !== undefined ? { transport } : {}),
         inputSchema,
@@ -54,7 +54,7 @@ export function createMcpDiscoveryExtension({
               type: "string",
               const: "mcp",
             },
-            tool: {
+            toolName: {
               type: "string",
             },
             ...(description !== undefined
@@ -83,7 +83,7 @@ export function createMcpDiscoveryExtension({
                 }
               : {}),
           },
-          required: ["type", "tool", "inputSchema"] as ("type" | "tool" | "inputSchema")[],
+          required: ["type", "toolName", "inputSchema"] as ("type" | "toolName" | "inputSchema")[],
           additionalProperties: false,
         },
         ...(output?.example

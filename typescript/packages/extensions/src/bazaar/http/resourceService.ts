@@ -28,10 +28,10 @@ export function createQueryDiscoveryExtension({
   return {
     info: {
       input: {
-        type: "http",
+        type: "http" as const,
         ...(method ? { method } : {}),
         ...(input ? { queryParams: input } : {}),
-      } as QueryDiscoveryExtension["info"]["input"],
+      },
       ...(output?.example
         ? {
             output: {
@@ -112,11 +112,11 @@ export function createBodyDiscoveryExtension({
   return {
     info: {
       input: {
-        type: "http",
+        type: "http" as const,
         ...(method ? { method } : {}),
         bodyType,
         body: input,
-      } as BodyDiscoveryExtension["info"]["input"],
+      },
       ...(output?.example
         ? {
             output: {

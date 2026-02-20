@@ -1293,7 +1293,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("declareDiscoveryExtension - MCP tool", () => {
     it("should create a valid MCP extension with tool info", () => {
       const result = declareDiscoveryExtension({
-        tool: "financial_analysis",
+        toolName: "financial_analysis",
         description: "Analyze financial data for a given ticker",
         inputSchema: {
           type: "object",
@@ -1314,7 +1314,7 @@ describe("Bazaar Discovery Extension", () => {
       expect(extension).toHaveProperty("info");
       expect(extension).toHaveProperty("schema");
       expect(extension.info.input.type).toBe("mcp");
-      expect((extension.info as McpDiscoveryInfo).input.tool).toBe("financial_analysis");
+      expect((extension.info as McpDiscoveryInfo).input.toolName).toBe("financial_analysis");
       expect((extension.info as McpDiscoveryInfo).input.description).toBe(
         "Analyze financial data for a given ticker",
       );
@@ -1327,7 +1327,7 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should create an MCP extension without optional fields", () => {
       const result = declareDiscoveryExtension({
-        tool: "simple_tool",
+        toolName: "simple_tool",
         inputSchema: {
           type: "object",
           properties: {
@@ -1338,14 +1338,14 @@ describe("Bazaar Discovery Extension", () => {
 
       const extension = result.bazaar;
       expect(extension.info.input.type).toBe("mcp");
-      expect((extension.info as McpDiscoveryInfo).input.tool).toBe("simple_tool");
+      expect((extension.info as McpDiscoveryInfo).input.toolName).toBe("simple_tool");
       expect((extension.info as McpDiscoveryInfo).input.description).toBeUndefined();
       expect((extension.info as McpDiscoveryInfo).input.example).toBeUndefined();
     });
 
     it("should create an MCP extension with transport field", () => {
       const result = declareDiscoveryExtension({
-        tool: "streaming_tool",
+        toolName: "streaming_tool",
         transport: "sse",
         inputSchema: {
           type: "object",
@@ -1362,7 +1362,7 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should omit transport when not provided (defaults to streamable-http per spec)", () => {
       const result = declareDiscoveryExtension({
-        tool: "default_transport_tool",
+        toolName: "default_transport_tool",
         inputSchema: {
           type: "object",
           properties: {
@@ -1377,7 +1377,7 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should create an MCP extension with output example", () => {
       const result = declareDiscoveryExtension({
-        tool: "weather_tool",
+        toolName: "weather_tool",
         inputSchema: {
           type: "object",
           properties: {
@@ -1397,7 +1397,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("validateDiscoveryExtension - MCP", () => {
     it("should validate a correct MCP extension", () => {
       const declared = declareDiscoveryExtension({
-        tool: "my_tool",
+        toolName: "my_tool",
         inputSchema: {
           type: "object",
           properties: {
@@ -1414,7 +1414,7 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should validate an MCP extension with all optional fields", () => {
       const declared = declareDiscoveryExtension({
-        tool: "full_tool",
+        toolName: "full_tool",
         description: "A fully specified tool",
         transport: "streamable-http",
         inputSchema: {
@@ -1439,7 +1439,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("extractDiscoveryInfo - MCP", () => {
     it("should extract MCP discovery info with tool name as method", () => {
       const declared = declareDiscoveryExtension({
-        tool: "financial_analysis",
+        toolName: "financial_analysis",
         description: "Analyze financial data",
         inputSchema: {
           type: "object",
@@ -1471,14 +1471,14 @@ describe("Bazaar Discovery Extension", () => {
 
       expect(discovered).not.toBeNull();
       expect(discovered!.discoveryInfo.input.type).toBe("mcp");
-      expect((discovered as DiscoveredMCPResource).tool).toBe("financial_analysis");
+      expect((discovered as DiscoveredMCPResource).toolName).toBe("financial_analysis");
       expect(discovered!.resourceUrl).toBe("https://mcp.example.com/tools");
       expect(discovered!.description).toBe("MCP Tool Server");
     });
 
     it("should strip query params from MCP resource URL", () => {
       const declared = declareDiscoveryExtension({
-        tool: "search",
+        toolName: "search",
         inputSchema: { type: "object", properties: {} },
       });
 
@@ -1508,7 +1508,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("validateAndExtract - MCP", () => {
     it("should validate and extract MCP discovery info", () => {
       const declared = declareDiscoveryExtension({
-        tool: "code_review",
+        toolName: "code_review",
         description: "Review code changes",
         inputSchema: {
           type: "object",
@@ -1532,7 +1532,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("extractDiscoveryInfoFromExtension - MCP", () => {
     it("should extract info from a valid MCP extension", () => {
       const declared = declareDiscoveryExtension({
-        tool: "translate",
+        toolName: "translate",
         inputSchema: {
           type: "object",
           properties: {
@@ -1552,7 +1552,7 @@ describe("Bazaar Discovery Extension", () => {
   describe("bazaarResourceServerExtension - MCP", () => {
     it("should not modify MCP extensions even with HTTP context", () => {
       const declared = declareDiscoveryExtension({
-        tool: "my_tool",
+        toolName: "my_tool",
         description: "A tool",
         inputSchema: {
           type: "object",
@@ -1587,7 +1587,7 @@ describe("Bazaar Discovery Extension", () => {
 
       // MCP extension should remain unchanged
       expect(enriched.info.input.type).toBe("mcp");
-      expect((enriched.info as McpDiscoveryInfo).input.tool).toBe("my_tool");
+      expect((enriched.info as McpDiscoveryInfo).input.toolName).toBe("my_tool");
     });
   });
 });
