@@ -1,0 +1,27 @@
+{
+    "name": "P402",
+    "description": "The Operating System for the Agentic Economy. A Payment-Aware Orchestration Layer that routes, verifies, and settles AI agent interactions using the x402 and A2A protocols.",
+    "logoUrl": "/logos/p402-router.png",
+    "websiteUrl": "https://www.p402.io",
+    "category": "Facilitators",
+    "facilitator": {
+        "baseUrl": "https://www.p402.io",
+        "networks": [
+            "base"
+        ],
+        "schemes": [
+            "exact",
+            "onchain",
+            "receipt"
+        ],
+        "assets": [
+            "USDC"
+        ],
+        "supports": {
+            "verify": true,
+            "settle": true,
+            "supported": true,
+            "list": true
+        }
+    }
+}
