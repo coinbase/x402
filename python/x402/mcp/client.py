@@ -127,9 +127,7 @@ class x402MCPSession:
             return self._build_result(result, payment_made=False)
 
         # Create payment payload using the x402 client
-        payment_payload = await self._x402_client.create_payment_payload(
-            payment_required
-        )
+        payment_payload = await self._x402_client.create_payment_payload(payment_required)
 
         # Serialize for transmission
         payload_dict = payment_payload.model_dump(by_alias=True)
@@ -147,9 +145,7 @@ class x402MCPSession:
         """Convert MCP result to MCPToolCallResult."""
         payment_response = None
         if hasattr(result, "meta") and result.meta:
-            meta_dict = (
-                dict(result.meta) if not isinstance(result.meta, dict) else result.meta
-            )
+            meta_dict = dict(result.meta) if not isinstance(result.meta, dict) else result.meta
             pr = meta_dict.get(MCP_PAYMENT_RESPONSE_META_KEY)
             if pr:
                 try:

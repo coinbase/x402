@@ -1,11 +1,12 @@
 /**
  * Permit2 Approval Script
  *
- * This script ensures the client wallet has approved Permit2 to spend USDC.
- * It checks the current allowance and grants unlimited approval if needed.
+ * This script manages Permit2 allowance for the client wallet.
+ * It can grant unlimited approval or revoke existing approval.
  *
  * Usage:
  *   pnpm tsx scripts/permit2-approval.ts approve  # Check and approve if needed
+ *   pnpm tsx scripts/permit2-approval.ts revoke   # Revoke Permit2 approval (set allowance to 0)
  *
  * Environment variables required:
  *   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet
@@ -44,12 +45,13 @@ const erc20Abi = parseAbi([
 async function main() {
   const action = process.argv[2];
 
-  if (!action || action !== 'approve') {
+  if (!action || (action !== 'approve' && action !== 'revoke')) {
     console.log(`
 Permit2 Approval Script
 
 Usage:
   pnpm tsx scripts/permit2-approval.ts approve  # Check and approve Permit2 if needed
+  pnpm tsx scripts/permit2-approval.ts revoke   # Revoke Permit2 approval (set allowance to 0)
 
 Environment variables required:
   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet
@@ -104,6 +106,39 @@ Environment variables required:
       : `${formatUnits(currentAllowance, USDC_DECIMALS)} USDC`;
   console.log(`📋 Current Permit2 Allowance: ${formattedAllowance}\n`);
 
+  if (action === 'revoke') {
+    // Revoke approval by setting allowance to 0
+    if (currentAllowance === 0n) {
+      console.log('✅ Permit2 approval is already revoked (allowance is 0)');
+      process.exit(0);
+    }
+
+    console.log('🔄 Revoking Permit2 approval (setting allowance to 0)...');
+
+    const hash = await walletClient.writeContract({
+      address: USDC_ADDRESS,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [PERMIT2_ADDRESS, 0n],
+    });
+
+    console.log(`📝 Transaction submitted: ${hash}`);
+    console.log('⏳ Waiting for confirmation...');
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status === 'success') {
+      console.log(`\n✅ Permit2 approval revoked successfully!`);
+      console.log(`   Block: ${receipt.blockNumber}`);
+      console.log(`   Gas used: ${receipt.gasUsed}`);
+    } else {
+      console.error(`\n❌ Revoke transaction failed`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // action === 'approve'
   // Check if approval already exists
   if (currentAllowance === MAX_UINT256) {
     console.log('✅ Permit2 already has unlimited approval');
