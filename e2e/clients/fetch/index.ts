@@ -4,8 +4,10 @@ import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactSvmSchemeV1 } from "@x402/svm/v1";
 import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
@@ -37,10 +39,13 @@ if (process.env.APTOS_PRIVATE_KEY) {
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
 }
 
-// Create client and register EVM, SVM, and Aptos schemes
-const client = new x402Client();
-client.register("eip155:*", new ExactEvmScheme(evmSigner));
-client.register("solana:*", new ExactSvmScheme(svmSigner));
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(evmSigner))
+  .registerV1("base-sepolia", new ExactEvmSchemeV1(evmSigner))
+  .registerV1("base", new ExactEvmSchemeV1(evmSigner))
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .registerV1("solana-devnet", new ExactSvmSchemeV1(svmSigner))
+  .registerV1("solana", new ExactSvmSchemeV1(svmSigner));
 if (aptosAccount) {
   client.register("aptos:*", new ExactAptosScheme(aptosAccount));
 }
