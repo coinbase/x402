@@ -5,7 +5,11 @@ import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
-import { createSIWxClientHook, type SolanaSigner } from "@x402/extensions/sign-in-with-x";
+import {
+  createSIWxClientHook,
+  signSIWxChallenge,
+  type SolanaSigner,
+} from "@x402/extensions/sign-in-with-x";
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
@@ -103,6 +107,46 @@ async function demonstrateResource(path: string): Promise<void> {
 }
 
 /**
+ * Demonstrates auth-only SIWX flow (no payment required).
+ * Server returns SIWX challenge, client signs and retries.
+ */
+async function demonstrateAuthOnly(): Promise<void> {
+  if (!evmSigner) {
+    console.log("\n--- /profile (auth-only) --- skipped (no EVM signer)");
+    return;
+  }
+
+  const url = `${baseURL}/profile`;
+  console.log("\n--- /profile (auth-only, no payment) ---");
+
+  // First request: get SIWX challenge
+  console.log("1. Request without auth...");
+  const response1 = await fetch(url);
+  const body1 = await response1.json();
+  if (response1.status !== 402) {
+    console.log("   Unexpected status:", response1.status);
+    return;
+  }
+  console.log("   Got 402 with SIWX challenge");
+
+  // Sign the SIWX challenge
+  const header = await signSIWxChallenge(body1.extensions["sign-in-with-x"], evmSigner);
+
+  // Second request: with SIWX signature
+  console.log("2. Request with SIWX signature...");
+  const response2 = await fetch(url, {
+    headers: { "sign-in-with-x": header },
+  });
+  const body2 = await response2.json();
+  if (response2.ok) {
+    console.log("   ✓ Authenticated via SIWX (auth-only, no payment)");
+    console.log("   Response:", body2);
+  } else {
+    console.log("   ✗ Auth failed:", body2.error);
+  }
+}
+
+/**
  * Main entry point - demonstrates SIWX authentication flow.
  */
 async function main(): Promise<void> {
@@ -114,6 +158,9 @@ async function main(): Promise<void> {
   }
   console.log(`Server: ${baseURL}`);
 
+  // Auth-only: SIWX signature without payment
+  await demonstrateAuthOnly();
+
   await demonstrateResource("/weather");
 
   // Small delay to avoid facilitator race condition with rapid payments
@@ -121,7 +168,7 @@ async function main(): Promise<void> {
 
   await demonstrateResource("/joke");
 
-  console.log("\nDone. Each resource required payment once, then SIWX auth worked.");
+  console.log("\nDone. /profile used auth-only SIWX. /weather and /joke used payment + SIWX.");
 }
 
 main().catch(err => {
