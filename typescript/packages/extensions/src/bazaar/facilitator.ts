@@ -10,6 +10,9 @@
 import Ajv from "ajv/dist/2020.js";
 import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
 import type { DiscoveryExtension, DiscoveryInfo } from "./types";
+import type { McpDiscoveryInfo } from "./mcp/types";
+import type { DiscoveredHTTPResource } from "./http/types";
+import type { DiscoveredMCPResource } from "./mcp/types";
 import { BAZAAR } from "./types";
 import { extractDiscoveryInfoV1 } from "./v1/facilitator";
 
@@ -99,14 +102,10 @@ export function validateDiscoveryExtension(extension: DiscoveryExtension): Valid
  * }
  * ```
  */
-export interface DiscoveredResource {
-  resourceUrl: string;
-  description?: string;
-  mimeType?: string;
-  method: string;
-  x402Version: number;
-  discoveryInfo: DiscoveryInfo;
-}
+export type { DiscoveredHTTPResource } from "./http/types";
+export type { DiscoveredMCPResource } from "./mcp/types";
+
+export type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 
 /**
  * Extracts discovery information from payment payload and requirements.
@@ -181,14 +180,19 @@ export function extractDiscoveryInfo(
     mimeType = requirementsV1.mimeType;
   }
 
-  return {
+  const base = {
     resourceUrl: normalizedResourceUrl,
     description,
     mimeType,
-    method: discoveryInfo.input.method,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,
   };
+
+  if (discoveryInfo.input.type === "mcp") {
+    return { ...base, toolName: (discoveryInfo as McpDiscoveryInfo).input.toolName };
+  }
+
+  return { ...base, method: discoveryInfo.input.method };
 }
 
 /**
