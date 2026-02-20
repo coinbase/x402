@@ -10,6 +10,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
@@ -124,11 +125,11 @@ func main() {
 					Network: evmNetwork,
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
-			},
+		Extensions: map[string]interface{}{
+			types.BAZAAR.Key(): discoveryExtension,
 		},
-		"GET /protected-svm": {
+	},
+	"GET /protected-svm": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -137,11 +138,11 @@ func main() {
 					Network: svmNetwork,
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
-			},
+		Extensions: map[string]interface{}{
+			types.BAZAAR.Key(): discoveryExtension,
 		},
-		// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
+	},
+	// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
 		"GET /protected-permit2": {
 			Accepts: x402http.PaymentOptions{
 				{
@@ -158,9 +159,16 @@ func main() {
 					},
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
-			},
+			Extensions: func() map[string]interface{} {
+			ext := map[string]interface{}{
+				types.BAZAAR.Key(): discoveryExtension,
+			}
+				// Add EIP-2612 gas sponsoring extension
+				for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+					ext[k] = v
+				}
+				return ext
+			}(),
 		},
 	}
 

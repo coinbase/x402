@@ -45,9 +45,7 @@ def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:
         return None
 
 
-def attach_payment_to_meta(
-    params: dict[str, Any], payload: PaymentPayload
-) -> dict[str, Any]:
+def attach_payment_to_meta(params: dict[str, Any], payload: PaymentPayload) -> dict[str, Any]:
     """Attach payment payload to request params.
 
     Args:
@@ -58,9 +56,7 @@ def attach_payment_to_meta(
         New params dict with payment in _meta
     """
     result = params.copy()
-    meta = (
-        result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
-    )
+    meta = result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
     meta[MCP_PAYMENT_META_KEY] = (
         payload.model_dump(by_alias=True) if hasattr(payload, "model_dump") else payload
     )
@@ -114,9 +110,7 @@ def attach_payment_response_to_meta(
     """
     new_meta = result.meta.copy() if result.meta else {}
     new_meta[MCP_PAYMENT_RESPONSE_META_KEY] = (
-        response.model_dump(by_alias=True)
-        if hasattr(response, "model_dump")
-        else response
+        response.model_dump(by_alias=True) if hasattr(response, "model_dump") else response
     )
     return MCPToolResult(
         content=result.content,
@@ -179,9 +173,7 @@ def _extract_payment_required_from_object(
 
     try:
         # Normalize camelCase to snake_case for Pydantic
-        normalized = {
-            ("x402_version" if k == "x402Version" else k): v for k, v in obj.items()
-        }
+        normalized = {("x402_version" if k == "x402Version" else k): v for k, v in obj.items()}
         return PaymentRequired(**normalized)
     except (TypeError, ValueError, KeyError):
         return None
@@ -282,9 +274,7 @@ def extract_payment_required_from_error(error: Any) -> PaymentRequired | None:
         return None
 
     # Normalize camelCase to snake_case for Pydantic
-    normalized_data = {
-        ("x402_version" if k == "x402Version" else k): v for k, v in data.items()
-    }
+    normalized_data = {("x402_version" if k == "x402Version" else k): v for k, v in data.items()}
     return _extract_payment_required_from_object(normalized_data)
 
 

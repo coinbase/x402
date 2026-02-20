@@ -4,7 +4,8 @@
   "language": "typescript",
   "x402Version": 2,
   "extensions": [
-    "bazaar"
+    "bazaar",
+    "eip2612GasSponsoring"
   ],
   "endpoints": [
     {
@@ -16,11 +17,26 @@
       "transferMethod": "eip3009"
     },
     {
+      "path": "/api/protected-permit2-proxy",
+      "method": "GET",
+      "description": "Protected Permit2 endpoint using proxy middleware",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "permit2": true
+    },
+    {
       "path": "/api/protected-svm-proxy",
       "method": "GET",
       "description": "Protected endpoint using proxy middleware on SVM",
       "requiresPayment": true,
       "protocolFamily": "svm"
+    },
+    {
+      "path": "/api/protected-aptos-proxy",
+      "method": "GET",
+      "description": "Protected endpoint using proxy middleware on Aptos",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
     },
     {
       "path": "/api/protected-withx402",
@@ -57,6 +73,8 @@
       "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PAYEE_ADDRESS"
+    ]
   }
 }

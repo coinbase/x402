@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { x402Client, x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -26,10 +26,10 @@ const svmSigner = svmPrivateKey
 // Configure client with available signers
 const client = new x402Client();
 if (evmSigner) {
-  registerExactEvmScheme(client, { signer: evmSigner });
+  client.register("eip155:*", new ExactEvmScheme(evmSigner));
 }
 if (svmSigner) {
-  registerExactSvmScheme(client, { signer: svmSigner });
+  client.register("solana:*", new ExactSvmScheme(svmSigner));
 }
 
 // Configure HTTP client with SIWX hooks for each signer
