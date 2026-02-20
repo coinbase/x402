@@ -47,6 +47,18 @@ The settled amount MUST be less than or equal to the authorized maximum.
 - The settled `amount` MUST be `<=` the authorized maximum
 - The settled `amount` MAY be `0` (no charge if no usage occurred)
 
+### 5. Phase-Dependent `amount` Semantics in `PaymentRequirements`
+
+In the x402 protocol, the verify and settle requests share the same `PaymentPayload` and `PaymentRequirements` types. In the `upto` scheme, the `amount` field of `PaymentRequirements` is **phase-dependent** for server-to-facilitator communication:
+
+- At **verification** time, `amount` represents the **maximum** amount the client authorizes.
+- At **settlement** time, `amount` represents the **actual amount to settle**, which MUST be less than or equal to the previously authorized maximum.
+
+The actual settled amount is communicated by the resource server to the facilitator via the `amount` field in the settlement-time `PaymentRequirements`. This allows the resource server to determine the final charge based on actual resource consumption (e.g., tokens generated, bytes transferred) and communicate it to the facilitator without requiring additional fields or a separate settlement type.
+
+- Rationale: Reusing the existing `PaymentRequirements` type for both phases keeps the protocol simple and avoids introducing settlement-specific message types. The `amount` field naturally maps to "how much" in both contexts — "how much is authorized" at verification time and "how much to charge" at settlement time.
+- Implementation: The resource server MUST set the `amount` field in the `PaymentRequirements` passed to the facilitator's settle endpoint to the desired settlement amount. The facilitator MUST verify that this amount does not exceed the authorized maximum from the client's signed authorization.
+
 ## Out of Scope
 
 The following patterns are NOT supported by `upto` and would require different schemes:

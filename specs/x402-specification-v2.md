@@ -405,7 +405,9 @@ Example with actual data:
 
 Executes a verified payment by broadcasting the transaction to the blockchain.
 
-**Request:** Same as `/verify` endpoint
+**Request:** Same structure as `/verify` endpoint (contains `paymentPayload` and `paymentRequirements`).
+
+> **Note**: While the request structure is identical, some payment schemes may assign different semantics to fields at settlement time versus verification time. For example, in the `upto` scheme, the `amount` field in `paymentRequirements` represents the maximum authorized amount at verification time, but the actual amount to settle at settlement time. See individual scheme specifications for details.
 
 **Successful Response:**
 

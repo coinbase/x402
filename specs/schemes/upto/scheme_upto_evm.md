@@ -211,13 +211,18 @@ The `upto` scheme uses the following `PaymentRequirements` schema:
 | ------------------- | -------- | -------- | ----------------------------------------------------------------------------- |
 | `scheme`            | `string` | Required | Must be `"upto"`                                                              |
 | `network`           | `string` | Required | Blockchain network identifier in CAIP-2 format (e.g., "eip155:84532")         |
-| `amount`            | `string` | Required | Maximum payment amount in atomic token units                                  |
+| `amount`            | `string` | Required | Phase-dependent: maximum amount at verification, actual amount at settlement  |
 | `asset`             | `string` | Required | Token contract address                                                        |
 | `payTo`             | `string` | Required | Recipient wallet address                                                      |
 | `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                                   |
 | `extra`             | `object` | Optional | Scheme-specific additional information (must include `name` and `version`)    |
 
-> **Note**: In the `upto` scheme, the `amount` field represents the **maximum** amount the client authorizes. The actual settled amount may be less than or equal to this value.
+> **Note**: In the `upto` scheme, the `amount` field of `PaymentRequirements` is phase-dependent for server-to-facilitator communication:
+>
+> - At _verification_ time, `amount` represents the **maximum** amount the client authorizes.
+> - At _settlement_ time, `amount` represents the **actual amount to settle**, which MUST be less than or equal to the previously authorized maximum.
+>
+> The actual settled amount is communicated by the resource server to the facilitator via the `amount` field in the settlement-time payment requirements. This allows the server to determine the final charge based on actual resource consumption without requiring additional fields or a separate settlement type.
 
 ---
 
