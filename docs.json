@@ -1,0 +1,105 @@
+{
+  "name": "x402",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://discord.gg/cdp"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://portal.cdp.coinbase.com"
+  },
+  "global": {
+    "anchors": [
+      {
+        "anchor": "x402.org",
+        "icon": "globe",
+        "href": "https://x402.org"
+      },
+      {
+        "anchor": "GitHub",
+        "icon": "github",
+        "href": "https://github.com/coinbase/x402"
+      },
+      {
+        "anchor": "Discord",
+        "icon": "discord",
+        "href": "https://discord.gg/cdp"
+      },
+      {
+        "anchor": "Vercel Starter",
+        "icon": "triangle",
+        "href": "https://vercel.com/templates/ai/x402-ai-starter"
+      }
+    ]
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Welcome",
+        "pages": ["introduction", "faq"]
+      },
+      {
+        "group": "Getting Started",
+        "pages": [
+          "getting-started/quickstart-for-buyers",
+          "getting-started/quickstart-for-sellers"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "core-concepts/http-402",
+          "core-concepts/client-server",
+          "core-concepts/facilitator",
+          "core-concepts/wallet",
+          "core-concepts/network-and-token-support"
+        ]
+      },
+      {
+        "group": "Extensions",
+        "pages": [
+          "extensions/bazaar",
+          "extensions/sign-in-with-x",
+          "extensions/payment-identifier",
+          "extensions/eip2612-gas-sponsoring"
+        ]
+      },
+      {
+        "group": "Advanced Concepts",
+        "pages": ["advanced-concepts/lifecycle-hooks"]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/mcp-server-with-x402",
+          "guides/migration-v1-to-v2"
+        ]
+      },
+      {
+        "group": "SDK Features",
+        "pages": ["sdk-features"]
+      }
+    ]
+  },
+  "footerSocials": {
+    "x": "https://x.com/CoinbaseDev",
+    "github": "https://github.com/coinbase/x402",
+    "discord": "https://discord.gg/cdp"
+  }
+}
