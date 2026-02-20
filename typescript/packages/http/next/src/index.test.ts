@@ -87,7 +87,10 @@ function createMockHttpServer(
   processResult: HTTPProcessResult,
   settlementResult:
     | { success: true; headers: Record<string, string> }
-    | { success: false; errorReason: string } = { success: true, headers: {} },
+    | { success: false; errorReason: string; headers: Record<string, string> } = {
+    success: true,
+    headers: {},
+  },
 ): x402HTTPResourceServer {
   return {
     processHTTPRequest: vi.fn().mockResolvedValue(processResult),
@@ -274,7 +277,11 @@ describe("paymentProxy", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+      },
     );
     setupMockCreateHttpServer(mockServer);
 
@@ -285,6 +292,7 @@ describe("paymentProxy", () => {
     const body = await response.json();
     expect(body.error).toBe("Settlement failed");
     expect(body.details).toBe("Insufficient funds");
+    expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 });
 
@@ -392,7 +400,11 @@ describe("withX402", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+      },
     );
     setupMockCreateHttpServer(mockServer);
     const handler = vi.fn().mockResolvedValue(NextResponse.json({ data: "protected" }));
@@ -405,6 +417,7 @@ describe("withX402", () => {
     const body = await response.json();
     expect(body.error).toBe("Settlement failed");
     expect(body.details).toBe("Insufficient funds");
+    expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 });
 

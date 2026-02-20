@@ -265,6 +265,7 @@ describe("handleSettlement", () => {
       errorReason: "Insufficient funds",
       transaction: "",
       network: "eip155:84532",
+      headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
     });
     const response = new NextResponse("OK", { status: 200 });
 
@@ -279,6 +280,7 @@ describe("handleSettlement", () => {
     const body = (await result.json()) as { error: string; details: string };
     expect(body.error).toBe("Settlement failed");
     expect(body.details).toBe("Insufficient funds");
+    expect(result.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 
   it("returns 402 error response when settlement throws", async () => {
