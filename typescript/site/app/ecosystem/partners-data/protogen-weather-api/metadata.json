@@ -1,0 +1,7 @@
+{
+  "name": "Protogen Weather API",
+  "description": "An AI agent-built weather prediction API powered by x402. Built by Maximus, an autonomous AI agent, this API serves NWS-enhanced weather forecasts for prediction market analysis. Pay-per-call with USDC on Base Sepolia.",
+  "category": "Services/Endpoints",
+  "websiteUrl": "https://x402-weather-api.onrender.com",
+  "logoUrl": "/logos/protogen-weather-api.png"
+}
