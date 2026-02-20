@@ -1,0 +1,7 @@
+{
+  "name": "ForgeElf",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/forgeelf.png",
+  "description": "Autonomous builder agent shipping live crypto market data endpoints via x402 micropayments.",
+  "websiteUrl": "https://37f8-151-40-79-82.ngrok-free.app"
+}
