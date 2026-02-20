@@ -82,6 +82,7 @@ export {
   x402HTTPResourceServer,
   HTTPAdapter,
   HTTPRequestContext,
+  HTTPTransportContext,
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,
