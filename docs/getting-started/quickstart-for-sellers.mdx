@@ -144,7 +144,7 @@ Integrate the payment middleware into your application. You will need to provide
     // middleware.ts
     import { paymentProxy } from "@x402/next";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const payTo = "0xYourAddress";
 
@@ -153,7 +153,7 @@ Integrate the payment middleware into your application. You will need to provide
     });
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     export const middleware = paymentProxy(
       {
