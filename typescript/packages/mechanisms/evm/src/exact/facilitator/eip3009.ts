@@ -4,8 +4,16 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
+import {
+  getAddress,
+  hashTypedData,
+  Hex,
+  isAddressEqual,
+  parseErc6492Signature,
+  parseSignature,
+} from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
+import { verifyERC6492Signature } from "../../verify_erc6492";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEIP3009Payload } from "../../types";
 
@@ -128,7 +136,35 @@ export async function verifyEIP3009(
             payer: payerAddress,
           };
         }
-        // EIP-6492 signature with deployment info - allow through
+        // Simulate deployment and verify inner signature via ERC-6492 UniversalSigValidator
+        const hashBytes = hashTypedData({
+          types: permitTypedData.types,
+          primaryType: permitTypedData.primaryType,
+          domain: {
+            name: name as string,
+            version: version as string,
+            chainId: parseInt(requirements.network.split(":")[1]),
+            verifyingContract: erc20Address,
+          },
+          message: {
+            ...permitTypedData.message,
+            from: getAddress(eip3009Payload.authorization.from),
+            to: getAddress(eip3009Payload.authorization.to),
+          },
+        });
+        const erc6492Valid = await verifyERC6492Signature(
+          signer,
+          payerAddress as `0x${string}`,
+          hashBytes,
+          signature as Hex,
+        );
+        if (!erc6492Valid) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_evm_payload_signature",
+            payer: payerAddress,
+          };
+        }
       } else {
         // Wallet is deployed but signature still failed - invalid signature
         return {
