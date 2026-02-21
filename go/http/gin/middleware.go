@@ -259,11 +259,6 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 
 		result := server.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
 
-		// Debug logging for request processing
-		fmt.Printf("🔍 [GIN REQUEST DEBUG] Processed HTTP request\n")
-		fmt.Printf("   Result Type: %v\n", result.Type)
-		fmt.Printf("   Path: %s, Method: %s\n", reqCtx.Path, reqCtx.Method)
-
 		// Handle result
 		switch result.Type {
 		case x402http.ResultNoPaymentRequired:
@@ -312,6 +307,14 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 	}
 	c.Writer = writer
 
+	// Set payment data in context for downstream handlers
+	if result.PaymentPayload != nil {
+		c.Set("x402_payload", *result.PaymentPayload)
+	}
+	if result.PaymentRequirements != nil {
+		c.Set("x402_requirements", *result.PaymentRequirements)
+	}
+
 	// Continue to protected handler
 	c.Next()
 
@@ -331,23 +334,12 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		return
 	}
 
-	// Debug logging for settlement
-	fmt.Printf("🔍 [GIN SETTLEMENT DEBUG] Starting settlement process\n")
-	fmt.Printf("   StatusCode: %d\n", writer.statusCode)
-	fmt.Printf("   Context Error: %v\n", ctx.Err())
-	fmt.Printf("   PaymentPayload: %+v\n", result.PaymentPayload)
-	fmt.Printf("   PaymentRequirements: %+v\n", result.PaymentRequirements)
-
 	// Process settlement
 	settleResult := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
 	)
-
-	fmt.Printf("🔍 [GIN SETTLEMENT DEBUG] Settlement completed\n")
-	fmt.Printf("   Success: %v\n", settleResult.Success)
-	fmt.Printf("   ErrorReason: %v\n", settleResult.ErrorReason)
 
 	// Check settlement success
 	if !settleResult.Success {

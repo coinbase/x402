@@ -35,7 +35,7 @@ interface ExtensionDeclaration {
 }
 
 export const bazaarResourceServerExtension: ResourceServerExtension = {
-  key: BAZAAR,
+  key: BAZAAR.key,
 
   enrichDeclaration: (declaration, transportContext) => {
     if (!isHTTPRequestContext(transportContext)) {
@@ -43,6 +43,12 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
     }
 
     const extension = declaration as ExtensionDeclaration;
+
+    // MCP extensions don't need HTTP method enrichment
+    if (extension.info?.input?.type === "mcp") {
+      return declaration;
+    }
+
     const method = transportContext.method;
 
     // At declaration time, the schema uses a broad enum (["GET", "HEAD", "DELETE"] or ["POST", "PUT", "PATCH"])
