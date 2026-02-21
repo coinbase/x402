@@ -96,6 +96,19 @@ export function errorLog(message: string, toFile: boolean = true): void {
 }
 
 /**
+ * Create a combo-prefixed logger for parallel mode.
+ * Returns functions that prepend a tag like [combo-0 express+go] to every message.
+ */
+export function createComboLogger(comboIndex: number, serverName: string, facilitatorName: string | undefined) {
+  const tag = `[combo-${comboIndex} ${serverName}+${facilitatorName || 'none'}]`;
+  return {
+    log: (message: string, toFile?: boolean) => log(`${tag} ${message}`, toFile),
+    verboseLog: (message: string, toFile?: boolean) => verboseLog(`${tag} ${message}`, toFile),
+    errorLog: (message: string, toFile?: boolean) => errorLog(`${tag} ${message}`, toFile),
+  };
+}
+
+/**
  * Close the logger and its file streams
  */
 export function close(): void {
