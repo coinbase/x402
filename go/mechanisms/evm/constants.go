@@ -270,6 +270,72 @@ var (
 		}
 	]`)
 
+	// EIP2612NoncesABI for querying EIP-2612 nonces
+	EIP2612NoncesABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "owner", "type": "address"}
+			],
+			"name": "nonces",
+			"outputs": [{"name": "", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// X402ExactPermit2ProxySettleWithPermitABI for calling settleWithPermit (EIP-2612 extension)
+	X402ExactPermit2ProxySettleWithPermitABI = []byte(`[
+		{
+			"type": "function",
+			"name": "settleWithPermit",
+			"inputs": [
+				{
+					"name": "permit2612",
+					"type": "tuple",
+					"components": [
+						{"name": "value", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"},
+						{"name": "r", "type": "bytes32"},
+						{"name": "s", "type": "bytes32"},
+						{"name": "v", "type": "uint8"}
+					]
+				},
+				{
+					"name": "permit",
+					"type": "tuple",
+					"components": [
+						{
+							"name": "permitted",
+							"type": "tuple",
+							"components": [
+								{"name": "token", "type": "address"},
+								{"name": "amount", "type": "uint256"}
+							]
+						},
+						{"name": "nonce", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"}
+					]
+				},
+				{"name": "owner", "type": "address"},
+				{
+					"name": "witness",
+					"type": "tuple",
+					"components": [
+						{"name": "to", "type": "address"},
+						{"name": "validAfter", "type": "uint256"},
+						{"name": "extra", "type": "bytes"}
+					]
+				},
+				{"name": "signature", "type": "bytes"}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// FunctionSettleWithPermit is the function name for EIP-2612 settlement
+	FunctionSettleWithPermit = "settleWithPermit"
+
 	// EIP712DomainTypes defines the standard EIP-712 domain type for Permit2.
 	// Permit2 uses name + chainId + verifyingContract (no version field).
 	EIP712DomainTypes = []TypedDataField{
@@ -311,3 +377,33 @@ func GetPermit2EIP712Types() map[string][]TypedDataField {
 		"Witness":                   Permit2WitnessTypes["Witness"],
 	}
 }
+
+// EIP2612PermitTypes defines the EIP-712 types for EIP-2612 permit signing.
+var EIP2612PermitTypes = map[string][]TypedDataField{
+	"Permit": {
+		{Name: "owner", Type: "address"},
+		{Name: "spender", Type: "address"},
+		{Name: "value", Type: "uint256"},
+		{Name: "nonce", Type: "uint256"},
+		{Name: "deadline", Type: "uint256"},
+	},
+}
+
+// EIP712DomainTypesWithVersion is the standard EIP-712 domain type with version field.
+// Used by EIP-2612 tokens (unlike Permit2 which omits version).
+var EIP712DomainTypesWithVersion = []TypedDataField{
+	{Name: "name", Type: "string"},
+	{Name: "version", Type: "string"},
+	{Name: "chainId", Type: "uint256"},
+	{Name: "verifyingContract", Type: "address"},
+}
+
+// GetEIP2612EIP712Types returns the complete EIP-712 types map for EIP-2612 signing.
+func GetEIP2612EIP712Types() map[string][]TypedDataField {
+	return map[string][]TypedDataField{
+		"EIP712Domain": EIP712DomainTypesWithVersion,
+		"Permit":       EIP2612PermitTypes["Permit"],
+	}
+}
+
+// Note: MaxUint256() is defined in utils.go
