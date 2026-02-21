@@ -10,6 +10,9 @@
     1,
     2
   ],
+  "evm": {
+    "transferMethods": ["eip3009"]
+  },
   "description": "Python httpx client with x402 v2 payment hooks",
   "environment": {
     "required": [

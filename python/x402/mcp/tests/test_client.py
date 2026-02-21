@@ -202,9 +202,7 @@ def test_wrap_mcp_client_with_payment():
     mock_mcp = MockMCPClient()
     mock_payment = MockPaymentClient()
 
-    client = wrap_mcp_client_with_payment_sync(
-        mock_mcp, mock_payment, auto_payment=True
-    )
+    client = wrap_mcp_client_with_payment_sync(mock_mcp, mock_payment, auto_payment=True)
     assert isinstance(client, x402MCPClientSync)
     assert client.client == mock_mcp
     assert client.payment_client == mock_payment
@@ -220,9 +218,7 @@ def test_wrap_mcp_client_with_payment_from_config():
 
     client = wrap_mcp_client_with_payment_from_config_sync(
         mock_mcp,
-        schemes=[
-            {"network": "eip155:84532", "client": ExactEvmClientScheme(mock_signer)}
-        ],
+        schemes=[{"network": "eip155:84532", "client": ExactEvmClientScheme(mock_signer)}],
         auto_payment=True,
     )
 
@@ -423,9 +419,7 @@ def test_x402_mcp_client_hook_custom_payment():
 
     from x402.mcp.types import PaymentRequiredHookResult
 
-    client.on_payment_required(
-        lambda ctx: PaymentRequiredHookResult(payment=custom_payload)
-    )
+    client.on_payment_required(lambda ctx: PaymentRequiredHookResult(payment=custom_payload))
 
     result = client.call_tool("paid_tool", {})
 
