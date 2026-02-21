@@ -122,17 +122,25 @@ def get_asset_info(network: str, asset_address: str | None = None) -> AssetInfo:
 
     Returns:
         Asset information.
+
+    Raises:
+        ValueError: If asset_address is provided but not registered.
     """
     config = get_network_config(network)
     default_asset = config["default_asset"]
 
     if asset_address and asset_address != default_asset["address"]:
-        # Return with provided address but default metadata
-        return {
-            "address": asset_address,
-            "name": default_asset["name"],
-            "decimals": default_asset["decimals"],
-        }
+        # Check if token exists in supported_assets
+        for asset in config.get("supported_assets", {}).values():
+            if asset["address"].lower() == asset_address.lower():
+                return asset
+
+        # Raise error for unregistered tokens instead of returning incorrect metadata
+        raise ValueError(
+            f"Token {asset_address} is not registered for network {network}. "
+            f"Only tokens in NETWORK_CONFIGS['supported_assets'] are supported. "
+            f"Register the token with correct metadata before use."
+        )
 
     return default_asset
 

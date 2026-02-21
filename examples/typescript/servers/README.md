@@ -8,12 +8,13 @@ This directory contains TypeScript server examples demonstrating how to protect 
 | --- | --- |
 | [`express/`](./express/) | Using `@x402/express` middleware |
 | [`hono/`](./hono/) | Using `@x402/hono` middleware |
+| [`nextjs/`](./nextjs/) | Using `@x402/next` middleware with API routes |
 | [`advanced/`](./advanced/) | Advanced patterns: hooks, dynamic pricing, custom tokens |
 | [`custom/`](./custom/) | Manual implementation using only `@x402/core` |
 
 ## Framework Examples
 
-The **express** and **hono** directories showcase the minimal approach to adding x402 paywalls to your API. These use our middleware packages that automatically handle:
+The **express**, **hono**, and **nextjs** directories showcase the minimal approach to adding x402 paywalls to your API. These use our middleware packages that automatically handle:
 
 1. Checking for payment headers on protected routes
 2. Returning 402 with payment requirements if no payment
