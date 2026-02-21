@@ -4,10 +4,12 @@ import { wrapAxiosWithPayment, decodePaymentResponseHeader } from "@x402/axios";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
-import { registerExactAptosScheme } from "@x402/aptos/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactSvmSchemeV1 } from "@x402/svm/v1";
+import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
@@ -40,12 +42,15 @@ if (process.env.APTOS_PRIVATE_KEY) {
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
 }
 
-// Create client and register EVM, SVM, and Aptos schemes using the register helpers
-const client = new x402Client();
-registerExactEvmScheme(client, { signer: evmSigner });
-registerExactSvmScheme(client, { signer: svmSigner });
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(evmSigner))
+  .registerV1("base-sepolia", new ExactEvmSchemeV1(evmSigner))
+  .registerV1("base", new ExactEvmSchemeV1(evmSigner))
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .registerV1("solana-devnet", new ExactSvmSchemeV1(svmSigner))
+  .registerV1("solana", new ExactSvmSchemeV1(svmSigner));
 if (aptosAccount) {
-  registerExactAptosScheme(client, { signer: aptosAccount });
+  client.register("aptos:*", new ExactAptosScheme(aptosAccount));
 }
 
 const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
