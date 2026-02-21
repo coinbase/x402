@@ -8,6 +8,7 @@ This directory contains examples demonstrating how to use the x402 v2 SDK with d
 |-----------|-------------|---------|
 | [httpx/](./httpx/) | httpx | Async |
 | [requests/](./requests/) | requests | Sync |
+| [error-handling/](./error-handling/) | httpx | Comprehensive error handling & retry logic |
 
 ## Quick Start
 
@@ -35,12 +36,25 @@ uv sync
 uv run python main.py
 ```
 
+### error-handling (Production Error Patterns)
+
+```bash
+cd error-handling
+cp .env-example .env
+# Edit .env with your configuration
+uv sync
+uv run python main.py
+```
+
 ## Features Demonstrated
 
 - **Automatic 402 handling** - Payment handling is transparent to your code
 - **EVM payments** - Uses `EthAccountSigner` with `register_exact_evm_client`
+- **SVM payments** - Uses `KeypairSigner` with `register_exact_svm_client` 
 - **Payment response extraction** - Shows how to decode settlement confirmations
 - **Environment validation** - Checks for required configuration
+- **Error handling & retry logic** - Production-ready error handling patterns (error-handling example)
+- **Batch operations** - Concurrent requests with error isolation
 
 ## Architecture
 
