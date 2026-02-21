@@ -303,7 +303,7 @@ describe("x402Client", () => {
 
         await expect(
           async () => await client.createPaymentPayload(paymentRequired),
-        ).rejects.toThrow("No client registered for x402 version: 2");
+        ).rejects.toThrow("No client registered for x402 version 2");
       });
 
       it("should throw if no matching scheme/network client found", async () => {
