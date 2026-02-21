@@ -14,10 +14,11 @@ describe("ExactEvmScheme (Client)", () => {
   let mockSigner: ClientEvmSigner;
 
   beforeEach(() => {
-    // Create mock signer
+    // Create mock signer with readContract (required for ClientEvmSigner)
     mockSigner = {
       address: "0x1234567890123456789012345678901234567890",
       signTypedData: vi.fn().mockResolvedValue("0xmocksignature123456789"),
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
     };
     client = new ExactEvmScheme(mockSigner);
   });
@@ -620,6 +621,106 @@ describe("Permit2 Approval Flow", () => {
 
       expect(isPermit2Payload(result.payload)).toBe(true);
       expect(result.payload.permit2Authorization).toBeDefined();
+    });
+  });
+
+  describe("EIP-2612 Gas Sponsoring (Scheme-level)", () => {
+    const permit2Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: {
+        assetTransferMethod: "permit2",
+        name: "USDC",
+        version: "2",
+      },
+    };
+
+    it("should not return extensions when eip2612GasSponsoring not in context", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, permit2Requirements, {
+        extensions: {},
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should not return extensions when allowance is sufficient", async () => {
+      const signerWithReader: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt("999999999999999999")),
+      };
+      const schemeWithReader = new ExactEvmScheme(signerWithReader);
+
+      const result = await schemeWithReader.createPaymentPayload(2, permit2Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should return EIP-2612 extensions when allowance insufficient and extension advertised", async () => {
+      const signerWithReader: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue(
+          "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b", // 65 byte sig
+        ),
+        readContract: vi
+          .fn()
+          .mockResolvedValueOnce(BigInt(0)) // allowance check returns 0
+          .mockResolvedValueOnce(BigInt(5)), // nonce query returns 5
+      };
+      const schemeWithReader = new ExactEvmScheme(signerWithReader);
+
+      const result = await schemeWithReader.createPaymentPayload(2, permit2Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeDefined();
+      expect(result.extensions!.eip2612GasSponsoring).toBeDefined();
+      const ext = result.extensions!.eip2612GasSponsoring as Record<string, unknown>;
+      const info = ext.info as Record<string, unknown>;
+      expect(info.from).toBe("0x1234567890123456789012345678901234567890");
+      expect(info.spender).toBeDefined();
+      expect(info.signature).toBeDefined();
+      expect(info.version).toBe("1");
+    });
+
+    it("should not return extensions for EIP-3009 asset transfer method", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const eip3009Requirements: PaymentRequirements = {
+        ...permit2Requirements,
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      };
+
+      const result = await scheme.createPaymentPayload(2, eip3009Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
     });
   });
 });

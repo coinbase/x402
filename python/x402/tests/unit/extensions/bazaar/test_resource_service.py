@@ -20,8 +20,8 @@ class TestDeclareDiscoveryExtension:
             },
         )
 
-        assert BAZAAR in result
-        ext = result[BAZAAR]
+        assert BAZAAR.key in result
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["input"]["queryParams"] == {"city": "San Francisco"}
 
@@ -36,7 +36,7 @@ class TestDeclareDiscoveryExtension:
             ),
         )
 
-        ext = result[BAZAAR]
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["output"] is not None
         assert ext["info"]["output"]["type"] == "json"
@@ -56,8 +56,8 @@ class TestDeclareDiscoveryExtension:
             body_type="json",
         )
 
-        assert BAZAAR in result
-        ext = result[BAZAAR]
+        assert BAZAAR.key in result
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["input"]["bodyType"] == "json"
         assert ext["info"]["input"]["body"] == {"name": "John", "age": 30}
@@ -70,7 +70,7 @@ class TestDeclareDiscoveryExtension:
             body_type="form-data",
         )
 
-        ext = result[BAZAAR]
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["input"]["bodyType"] == "form-data"
 
@@ -81,7 +81,7 @@ class TestDeclareDiscoveryExtension:
             body_type="text",
         )
 
-        ext = result[BAZAAR]
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["input"]["bodyType"] == "text"
 
@@ -92,7 +92,7 @@ class TestDeclareDiscoveryExtension:
             input_schema={"properties": {"q": {"type": "string"}}},
         )
 
-        ext = result[BAZAAR]
+        ext = result[BAZAAR.key]
         schema = ext["schema"]
         assert "$schema" in schema
         assert schema["type"] == "object"
@@ -103,8 +103,8 @@ class TestDeclareDiscoveryExtension:
         """Test creating an extension with minimal config."""
         result = declare_discovery_extension()
 
-        assert BAZAAR in result
-        ext = result[BAZAAR]
+        assert BAZAAR.key in result
+        ext = result[BAZAAR.key]
         assert isinstance(ext, dict)
         assert ext["info"]["input"]["type"] == "http"
 
@@ -117,6 +117,6 @@ class TestDeclareDiscoveryExtension:
             ),
         )
 
-        ext = result[BAZAAR]
+        ext = result[BAZAAR.key]
         schema = ext["schema"]
         assert "output" in schema["properties"]

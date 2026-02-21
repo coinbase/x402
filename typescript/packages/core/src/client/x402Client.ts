@@ -38,6 +38,35 @@ export type OnPaymentCreationFailureHook = (
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
 
 /**
+ * Extension that can enrich payment payloads on the client side.
+ *
+ * Client extensions are invoked after the scheme creates the base payment payload
+ * but before it is returned. This allows mechanism-specific logic (e.g., EVM EIP-2612
+ * permit signing) to enrich the payload's extensions data.
+ */
+export interface ClientExtension {
+  /**
+   * Unique key identifying this extension (e.g., "eip2612GasSponsoring").
+   * Must match the extension key used in PaymentRequired.extensions.
+   */
+  key: string;
+
+  /**
+   * Called after payload creation when the extension key is present in
+   * paymentRequired.extensions. Allows the extension to enrich the payload
+   * with extension-specific data (e.g., signing an EIP-2612 permit).
+   *
+   * @param paymentPayload - The payment payload to enrich
+   * @param paymentRequired - The original PaymentRequired response
+   * @returns The enriched payment payload
+   */
+  enrichPaymentPayload?: (
+    paymentPayload: PaymentPayload,
+    paymentRequired: PaymentRequired,
+  ) => Promise<PaymentPayload>;
+}
+
+/**
  * A policy function that filters or transforms payment requirements.
  * Policies are applied in order before the selector chooses the final option.
  *
@@ -101,6 +130,7 @@ export class x402Client {
   private readonly paymentRequirementsSelector: SelectPaymentRequirements;
   private readonly registeredClientSchemes: Map<number, Map<string, Map<string, SchemeNetworkClient>>> = new Map();
   private readonly policies: PaymentPolicy[] = [];
+  private readonly registeredExtensions: Map<string, ClientExtension> = new Map();
 
   private beforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
   private afterPaymentCreationHooks: AfterPaymentCreationHook[] = [];
@@ -186,6 +216,22 @@ export class x402Client {
   }
 
   /**
+   * Registers a client extension that can enrich payment payloads.
+   *
+   * Extensions are invoked after the scheme creates the base payload and the
+   * payload is wrapped with extensions/resource/accepted data. If the extension's
+   * key is present in `paymentRequired.extensions`, the extension's
+   * `enrichPaymentPayload` hook is called to modify the payload.
+   *
+   * @param extension - The client extension to register
+   * @returns The x402Client instance for chaining
+   */
+  registerExtension(extension: ClientExtension): x402Client {
+    this.registeredExtensions.set(extension.key, extension);
+    return this;
+  }
+
+  /**
    * Register a hook to execute before payment payload creation.
    * Can abort creation by returning { abort: true, reason: string }
    *
@@ -266,19 +312,34 @@ export class x402Client {
         );
       }
 
-      const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
+      const partialPayload = await schemeNetworkClient.createPaymentPayload(
+        paymentRequired.x402Version,
+        requirements,
+        { extensions: paymentRequired.extensions },
+      );
 
       let paymentPayload: PaymentPayload;
       if (partialPayload.x402Version == 1) {
         paymentPayload = partialPayload as PaymentPayload;
       } else {
+        // Merge server-declared extensions with any scheme-provided extensions.
+        // Scheme extensions overlay on top (e.g., EIP-2612 info enriches server declaration).
+        const mergedExtensions = this.mergeExtensions(
+          paymentRequired.extensions,
+          partialPayload.extensions,
+        );
+
         paymentPayload = {
-          ...partialPayload,
-          extensions: paymentRequired.extensions,
+          x402Version: partialPayload.x402Version,
+          payload: partialPayload.payload,
+          extensions: mergedExtensions,
           resource: paymentRequired.resource,
           accepted: requirements,
         };
       }
+
+      // Enrich payload via registered client extensions (for non-scheme extensions)
+      paymentPayload = await this.enrichPaymentPayloadWithExtensions(paymentPayload, paymentRequired);
 
       // Execute afterPaymentCreation hooks
       const createdContext: PaymentCreatedContext = {
@@ -310,6 +371,67 @@ export class x402Client {
   }
 
 
+
+  /**
+   * Merges server-declared extensions with scheme-provided extensions.
+   * Scheme extensions overlay on top of server extensions at each key,
+   * preserving server-provided schema while overlaying scheme-provided info.
+   *
+   * @param serverExtensions - Extensions declared by the server in the 402 response
+   * @param schemeExtensions - Extensions provided by the scheme client (e.g. EIP-2612)
+   * @returns The merged extensions object, or undefined if both inputs are undefined
+   */
+  private mergeExtensions(
+    serverExtensions?: Record<string, unknown>,
+    schemeExtensions?: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
+    if (!schemeExtensions) return serverExtensions;
+    if (!serverExtensions) return schemeExtensions;
+
+    const merged = { ...serverExtensions };
+    for (const [key, schemeValue] of Object.entries(schemeExtensions)) {
+      const serverValue = merged[key];
+      if (
+        serverValue &&
+        typeof serverValue === "object" &&
+        schemeValue &&
+        typeof schemeValue === "object"
+      ) {
+        // Deep merge: scheme info overlays server info, schema preserved
+        merged[key] = { ...serverValue as Record<string, unknown>, ...schemeValue as Record<string, unknown> };
+      } else {
+        merged[key] = schemeValue;
+      }
+    }
+    return merged;
+  }
+
+  /**
+   * Enriches a payment payload by calling registered extension hooks.
+   * For each extension key present in the PaymentRequired response,
+   * invokes the corresponding extension's enrichPaymentPayload callback.
+   *
+   * @param paymentPayload - The payment payload to enrich with extension data
+   * @param paymentRequired - The PaymentRequired response containing extension declarations
+   * @returns The enriched payment payload with extension data applied
+   */
+  private async enrichPaymentPayloadWithExtensions(
+    paymentPayload: PaymentPayload,
+    paymentRequired: PaymentRequired,
+  ): Promise<PaymentPayload> {
+    if (!paymentRequired.extensions || this.registeredExtensions.size === 0) {
+      return paymentPayload;
+    }
+
+    let enriched = paymentPayload;
+    for (const [key, extension] of this.registeredExtensions) {
+      if (key in paymentRequired.extensions && extension.enrichPaymentPayload) {
+        enriched = await extension.enrichPaymentPayload(enriched, paymentRequired);
+      }
+    }
+
+    return enriched;
+  }
 
   /**
    * Selects appropriate payment requirements based on registered clients and policies.

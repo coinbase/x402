@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -75,6 +76,7 @@ func (f *ExactEvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
@@ -150,6 +152,27 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		return nil, x402.NewVerifyError(ErrInsufficientAmount, evmPayload.Authorization.From, fmt.Sprintf("insufficient amount: %s < %s", authValue.String(), requiredValue.String()))
 	}
 
+	// Check validBefore is in the future (with 6 second buffer for block time)
+	now := time.Now().Unix()
+	validBefore, ok := new(big.Int).SetString(evmPayload.Authorization.ValidBefore, 10)
+	if !ok {
+		return nil, x402.NewVerifyError(ErrInvalidPayload, evmPayload.Authorization.From, "invalid validBefore format")
+	}
+	if validBefore.Cmp(big.NewInt(now+6)) < 0 {
+		return nil, x402.NewVerifyError(ErrValidBeforeExpired, evmPayload.Authorization.From,
+			fmt.Sprintf("valid before expired: %s", validBefore.String()))
+	}
+
+	// Check validAfter is not in the future
+	validAfter, ok := new(big.Int).SetString(evmPayload.Authorization.ValidAfter, 10)
+	if !ok {
+		return nil, x402.NewVerifyError(ErrInvalidPayload, evmPayload.Authorization.From, "invalid validAfter format")
+	}
+	if validAfter.Cmp(big.NewInt(now)) > 0 {
+		return nil, x402.NewVerifyError(ErrValidAfterInFuture, evmPayload.Authorization.From,
+			fmt.Sprintf("valid after in future: %s", validAfter.String()))
+	}
+
 	// Check if nonce has been used
 	nonceUsed, err := f.checkNonceUsed(ctx, evmPayload.Authorization.From, evmPayload.Authorization.Nonce, assetInfo.Address)
 	if err != nil {
@@ -215,6 +238,7 @@ func (f *ExactEvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
