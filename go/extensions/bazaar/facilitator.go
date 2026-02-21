@@ -161,7 +161,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 
 		// Extract discovery info from extensions
 		if payload.Extensions != nil {
-			if bazaarExt, ok := payload.Extensions[types.BAZAAR]; ok {
+			if bazaarExt, ok := payload.Extensions[types.BAZAAR.Key()]; ok {
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
@@ -312,7 +312,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 
 		// First check PaymentRequired.extensions for bazaar extension
 		if paymentRequired.Extensions != nil {
-			if bazaarExt, ok := paymentRequired.Extensions[types.BAZAAR]; ok {
+			if bazaarExt, ok := paymentRequired.Extensions[types.BAZAAR.Key()]; ok {
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
