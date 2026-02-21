@@ -1,0 +1,8 @@
+{
+  "name": "Verse",
+  "description": "Production autonomous AI agent providing calibrated prediction consultations via x402 micropayments. $0.01 USDC per query on Base mainnet — no API key, just a wallet. Ed25519-signed responses with verifiable track record (Brier ~0.20, 210+ resolved predictions).",
+  "logoUrl": "/logos/verse.png",
+  "websiteUrl": "https://brain.verse-me.com",
+  "agentCardUrl": "https://brain.verse-me.com/.well-known/agent.json",
+  "category": "Services & Endpoints"
+}
