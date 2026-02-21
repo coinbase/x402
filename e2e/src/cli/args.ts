@@ -9,10 +9,13 @@ export interface ParsedArgs {
   mode: 'interactive' | 'programmatic';
   verbose: boolean;
   logFile?: string;
+  outputJson?: string;
   filters: TestFilters;
   showHelp: boolean;
   minimize: boolean;
   networkMode?: NetworkMode;  // undefined = prompt user, set = skip prompt
+  parallel: boolean;
+  concurrency: number;
 }
 
 export function parseArgs(): ParsedArgs {
@@ -25,7 +28,9 @@ export function parseArgs(): ParsedArgs {
       verbose: false,
       filters: {},
       showHelp: true,
-      minimize: false
+      minimize: false,
+      parallel: false,
+      concurrency: 4,
     };
   }
 
@@ -48,8 +53,16 @@ export function parseArgs(): ParsedArgs {
   // Parse log file
   const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
 
+  // Parse JSON output file
+  const outputJson = args.find(arg => arg.startsWith('--output-json='))?.split('=')[1];
+
   // Parse minimize flag
   const minimize = args.includes('--min');
+
+  // Parse parallel mode flags
+  const parallel = args.includes('--parallel');
+  const concurrencyArg = args.find(arg => arg.startsWith('--concurrency='))?.split('=')[1];
+  const concurrency = concurrencyArg ? parseInt(concurrencyArg, 10) : 4;
 
   // Parse network mode (optional - if not set, will prompt in interactive mode)
   let networkMode: NetworkMode | undefined;
@@ -72,6 +85,7 @@ export function parseArgs(): ParsedArgs {
     mode,
     verbose,
     logFile,
+    outputJson,
     filters: {
       transports,
       facilitators,
@@ -83,7 +97,9 @@ export function parseArgs(): ParsedArgs {
     },
     showHelp: false,
     minimize,
-    networkMode
+    networkMode,
+    parallel,
+    concurrency,
   };
 }
 
@@ -118,7 +134,10 @@ export function printHelp(): void {
   console.log('Options:');
   console.log('  -v, --verbose              Enable verbose logging');
   console.log('  --log-file=<path>          Save verbose output to file');
+  console.log('  --output-json=<path>       Write structured JSON results to file');
   console.log('  --min                      Minimize tests (coverage-based skipping)');
+  console.log('  --parallel                 Run server+facilitator combos concurrently');
+  console.log('  --concurrency=<N>          Max concurrent combos (default: 4, requires --parallel)');
   console.log('  -h, --help                 Show this help message');
   console.log('');
   console.log('Examples:');
@@ -128,6 +147,8 @@ export function printHelp(): void {
   console.log('  pnpm test --min -v                                  # Minimize with verbose');
   console.log('  pnpm test --transport=mcp                                # MCP transport only');
   console.log('  pnpm test --mainnet --facilitators=go --servers=express  # Mainnet programmatic');
+  console.log('  pnpm test --testnet --min --parallel -v                   # Parallel mode');
+  console.log('  pnpm test --testnet --min --parallel --concurrency=2 -v   # Limited concurrency');
   console.log('');
   console.log('Note: --mainnet requires funded wallets with real tokens!');
   console.log('');

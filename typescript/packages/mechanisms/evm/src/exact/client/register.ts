@@ -55,15 +55,19 @@ export interface EvmClientConfig {
  * ```
  */
 export function registerExactEvmScheme(client: x402Client, config: EvmClientConfig): x402Client {
+  const evmScheme = new ExactEvmScheme(config.signer);
+
   // Register V2 scheme
+  // EIP-2612 gas sponsoring is handled internally by the scheme when the
+  // server advertises support - no separate extension registration needed.
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      client.register(network, new ExactEvmScheme(config.signer));
+      client.register(network, evmScheme);
     });
   } else {
     // Register wildcard for all EVM chains
-    client.register("eip155:*", new ExactEvmScheme(config.signer));
+    client.register("eip155:*", evmScheme);
   }
 
   // Register all V1 networks

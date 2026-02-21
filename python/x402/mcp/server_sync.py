@@ -50,9 +50,7 @@ def create_payment_wrapper_sync(
         )
 
     def wrapper(handler: SyncToolHandler) -> SyncToolHandler:
-        def wrapped_handler(
-            args: dict[str, Any], extra: dict[str, Any]
-        ) -> MCPToolResult:
+        def wrapped_handler(args: dict[str, Any], extra: dict[str, Any]) -> MCPToolResult:
             meta = extra.get("_meta", {})
             if not isinstance(meta, dict):
                 meta = {}
@@ -92,9 +90,7 @@ def create_payment_wrapper_sync(
                     "No matching payment requirements found",
                 )
 
-            verify_result = resource_server.verify_payment(
-                payment_payload, payment_requirements
-            )
+            verify_result = resource_server.verify_payment(payment_payload, payment_requirements)
 
             if not verify_result.is_valid:
                 reason = verify_result.invalid_reason or "Payment verification failed"
@@ -200,15 +196,9 @@ def _create_payment_required_result_sync(
     from ..schemas import ResourceInfo as SchemaResourceInfo
 
     resource_info = SchemaResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
-        mime_type=(
-            config.resource.mime_type if config.resource else "application/json"
-        ),
+        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
+        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
+        mime_type=(config.resource.mime_type if config.resource else "application/json"),
     )
 
     payment_required = resource_server.create_payment_required_response(
@@ -242,15 +232,9 @@ def _create_settlement_failed_result_sync(
     from ..schemas import ResourceInfo as SchemaResourceInfo
 
     resource_info = SchemaResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
-        mime_type=(
-            config.resource.mime_type if config.resource else "application/json"
-        ),
+        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
+        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
+        mime_type=(config.resource.mime_type if config.resource else "application/json"),
     )
 
     resource_server.create_payment_required_response(
@@ -269,8 +253,7 @@ def _create_settlement_failed_result_sync(
     error_data = {
         "x402Version": 2,
         "accepts": [
-            r.model_dump(by_alias=True) if hasattr(r, "model_dump") else r
-            for r in config.accepts
+            r.model_dump(by_alias=True) if hasattr(r, "model_dump") else r for r in config.accepts
         ],
         "error": f"Payment settlement failed: {error_message}",
         MCP_PAYMENT_RESPONSE_META_KEY: settlement_failure,
