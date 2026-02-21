@@ -1,0 +1,7 @@
+{
+  "name": "Verse",
+  "description": "Production x402 consultation service. Calibrated AI predictions gated by x402 micropayments — $0.01 USDC on Base mainnet. No API key, just a wallet. Ed25519-signed responses with verifiable track record (Brier ~0.20, 280+ resolved predictions). Supports machine-to-machine and human-to-agent payments.",
+  "logoUrl": "/logos/verse.png",
+  "websiteUrl": "https://brain.verse-me.com",
+  "category": "Services/Endpoints"
+}
