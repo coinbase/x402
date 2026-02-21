@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -18,8 +18,7 @@ const url = `${baseURL}${endpointPath}`;
 /**
  * Example demonstrating how to use @x402/axios to make requests to x402-protected endpoints.
  *
- * This uses the helper registration functions from @x402/evm and @x402/svm to register
- * all supported networks for both v1 and v2 protocols.
+ * Uses the builder pattern to register payment schemes directly.
  *
  * Required environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
@@ -30,8 +29,8 @@ async function main(): Promise<void> {
   const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
   const client = new x402Client();
-  registerExactEvmScheme(client, { signer: evmSigner });
-  registerExactSvmScheme(client, { signer: svmSigner });
+  client.register("eip155:*", new ExactEvmScheme(evmSigner));
+  client.register("solana:*", new ExactSvmScheme(svmSigner));
 
   const api = wrapAxiosWithPayment(axios.create(), client);
 

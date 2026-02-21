@@ -268,4 +268,4 @@ def declare_discovery_extension(
         )
 
     # Convert to dict excluding None values
-    return {BAZAAR: extension.model_dump(by_alias=True, exclude_none=True)}
+    return {BAZAAR.key: extension.model_dump(by_alias=True, exclude_none=True)}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@x402/next";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 const facilitatorUrl = process.env.FACILITATOR_URL;
 export const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -21,7 +21,7 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 // Create x402 resource server
 const server = new x402ResourceServer(facilitatorClient);
-registerExactEvmScheme(server);
+server.register("eip155:*", new ExactEvmScheme());
 
 /**
  * Protected API endpoint handler
