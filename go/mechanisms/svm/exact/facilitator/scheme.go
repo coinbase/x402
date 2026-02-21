@@ -68,6 +68,7 @@ func (f *ExactSvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	network := x402.Network(requirements.Network)
 
@@ -222,11 +223,12 @@ func (f *ExactSvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(requirements.Network)
 
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, payload, requirements)
+	verifyResp, err := f.Verify(ctx, payload, requirements, fctx)
 	if err != nil {
 		// Convert VerifyError to SettleError
 		ve := &x402.VerifyError{}
