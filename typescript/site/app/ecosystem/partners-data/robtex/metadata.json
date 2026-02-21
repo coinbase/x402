@@ -1,0 +1,7 @@
+{
+  "name": "Robtex",
+  "description": "DNS, IP, and network intelligence API with 50+ endpoints. Passive DNS, IP geolocation, BGP routing, AS lookups, threat intel, and Lightning Network data — pay per query with USDC on Base.",
+  "logoUrl": "/logos/robtex.png",
+  "websiteUrl": "https://robtex.com",
+  "category": "Services/Endpoints"
+}
