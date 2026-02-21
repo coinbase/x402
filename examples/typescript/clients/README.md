@@ -10,6 +10,7 @@ This directory contains TypeScript client examples demonstrating how to make HTT
 | [`axios/`](./axios/) | Using `@x402/axios` with Axios |
 | [`advanced/`](./advanced/) | Advanced patterns: lifecycle hooks, network preferences |
 | [`custom/`](./custom/) | Manual implementation using only `@x402/core` |
+| [`error-handling/`](./error-handling/) | Production-ready error handling & retry patterns |
 
 ## Framework Examples
 
