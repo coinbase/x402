@@ -31,12 +31,14 @@ export class CoverageTracker {
 
   /**
    * Generate a coverage key for an endpoint
-   * Format: "server-name-endpoint-path-protocolFamily-vVersion"
+   * Format: "server-name-endpoint-path-protocolFamily-transferMethod-vVersion"
    * 
-   * This ensures each unique endpoint on a server is tested separately.
+   * This ensures each unique endpoint on a server is tested separately,
+   * including different EVM transfer methods (eip3009 vs permit2).
    */
-  private getEndpointCoverageKey(serverName: string, endpointPath: string, protocolFamily: string, version: number): string {
-    return `${serverName}-${endpointPath}-${protocolFamily}-v${version}`;
+  private getEndpointCoverageKey(serverName: string, endpointPath: string, protocolFamily: string, version: number, transferMethod?: string): string {
+    const method = protocolFamily === 'evm' ? (transferMethod || 'eip3009') : '';
+    return `${serverName}-${endpointPath}-${protocolFamily}${method ? `-${method}` : ''}-v${version}`;
   }
 
   /**
@@ -74,7 +76,8 @@ export class CoverageTracker {
       scenario.server.name,
       scenario.endpoint.path,
       protocolFamily,
-      version
+      version,
+      scenario.endpoint.transferMethod
     );
 
     // Check if ANY component hasn't been covered yet
@@ -121,7 +124,8 @@ export class CoverageTracker {
       scenario.server.name,
       scenario.endpoint.path,
       protocolFamily,
-      version
+      version,
+      scenario.endpoint.transferMethod
     );
 
     this.clientsCovered.add(clientKey);

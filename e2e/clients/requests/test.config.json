@@ -10,6 +10,9 @@
     1,
     2
   ],
+  "evm": {
+    "transferMethods": ["eip3009"]
+  },
   "description": "Python requests client with x402 v2 HTTP adapter",
   "environment": {
     "required": [

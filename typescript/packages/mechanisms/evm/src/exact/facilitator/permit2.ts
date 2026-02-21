@@ -4,6 +4,11 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
+import {
+  extractEip2612GasSponsoringInfo,
+  validateEip2612GasSponsoringInfo,
+} from "@x402/extensions";
+import type { Eip2612GasSponsoringInfo } from "@x402/extensions";
 import { getAddress } from "viem";
 import {
   eip3009ABI,
@@ -185,14 +190,41 @@ export async function verifyPermit2(
     })) as bigint;
 
     if (allowance < BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "permit2_allowance_required",
-        payer,
-      };
+      // Allowance insufficient - check for EIP-2612 gas sponsoring extension
+      const eip2612Info = extractEip2612GasSponsoringInfo(payload);
+      if (eip2612Info) {
+        // Validate the EIP-2612 extension data
+        const validationResult = validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress);
+        if (!validationResult.isValid) {
+          return {
+            isValid: false,
+            invalidReason: validationResult.invalidReason!,
+            payer,
+          };
+        }
+        // EIP-2612 extension is valid, allowance will be set during settlement
+      } else {
+        return {
+          isValid: false,
+          invalidReason: "permit2_allowance_required",
+          payer,
+        };
+      }
     }
   } catch {
-    // If we can't check allowance, continue - settlement will fail if insufficient
+    // If we can't check allowance, check if EIP-2612 extension is present
+    const eip2612Info = extractEip2612GasSponsoringInfo(payload);
+    if (eip2612Info) {
+      const validationResult = validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress);
+      if (!validationResult.isValid) {
+        return {
+          isValid: false,
+          invalidReason: validationResult.invalidReason!,
+          payer,
+        };
+      }
+      // EIP-2612 extension is valid, allowance will be set during settlement
+    }
   }
 
   // Check balance
@@ -253,29 +285,69 @@ export async function settlePermit2(
   }
 
   try {
-    // Call x402ExactPermit2Proxy.settle()
-    const tx = await signer.writeContract({
-      address: x402ExactPermit2ProxyAddress,
-      abi: x402ExactPermit2ProxyABI,
-      functionName: "settle",
-      args: [
-        {
-          permitted: {
-            token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-            amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+    // Check if EIP-2612 gas sponsoring extension is present
+    const eip2612Info = extractEip2612GasSponsoringInfo(payload);
+
+    let tx: `0x${string}`;
+
+    if (eip2612Info) {
+      // Use settleWithPermit - includes the EIP-2612 permit
+      const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
+
+      tx = await signer.writeContract({
+        address: x402ExactPermit2ProxyAddress,
+        abi: x402ExactPermit2ProxyABI,
+        functionName: "settleWithPermit",
+        args: [
+          {
+            value: BigInt(eip2612Info.amount),
+            deadline: BigInt(eip2612Info.deadline),
+            r,
+            s,
+            v,
           },
-          nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-          deadline: BigInt(permit2Payload.permit2Authorization.deadline),
-        },
-        getAddress(payer),
-        {
-          to: getAddress(permit2Payload.permit2Authorization.witness.to),
-          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-          extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
-        },
-        permit2Payload.signature,
-      ],
-    });
+          {
+            permitted: {
+              token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+              amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+            },
+            nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+            deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+          },
+          getAddress(payer),
+          {
+            to: getAddress(permit2Payload.permit2Authorization.witness.to),
+            validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
+          },
+          permit2Payload.signature,
+        ],
+      });
+    } else {
+      // Standard settle - no EIP-2612 extension
+      tx = await signer.writeContract({
+        address: x402ExactPermit2ProxyAddress,
+        abi: x402ExactPermit2ProxyABI,
+        functionName: "settle",
+        args: [
+          {
+            permitted: {
+              token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+              amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+            },
+            nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+            deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+          },
+          getAddress(payer),
+          {
+            to: getAddress(permit2Payload.permit2Authorization.witness.to),
+            validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
+          },
+          permit2Payload.signature,
+        ],
+      });
+    }
 
     // Wait for transaction confirmation
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
@@ -327,4 +399,72 @@ export async function settlePermit2(
       payer,
     };
   }
+}
+
+/**
+ * Validates EIP-2612 permit extension data for a payment.
+ *
+ * @param info - The EIP-2612 gas sponsoring info
+ * @param payer - The expected payer address
+ * @param tokenAddress - The expected token address
+ * @returns Validation result
+ */
+function validateEip2612PermitForPayment(
+  info: Eip2612GasSponsoringInfo,
+  payer: `0x${string}`,
+  tokenAddress: `0x${string}`,
+): { isValid: boolean; invalidReason?: string } {
+  // Validate format
+  if (!validateEip2612GasSponsoringInfo(info)) {
+    return { isValid: false, invalidReason: "invalid_eip2612_extension_format" };
+  }
+
+  // Verify from matches payer
+  if (getAddress(info.from as `0x${string}`) !== getAddress(payer)) {
+    return { isValid: false, invalidReason: "eip2612_from_mismatch" };
+  }
+
+  // Verify asset matches token
+  if (getAddress(info.asset as `0x${string}`) !== tokenAddress) {
+    return { isValid: false, invalidReason: "eip2612_asset_mismatch" };
+  }
+
+  // Verify spender is Permit2
+  if (getAddress(info.spender as `0x${string}`) !== getAddress(PERMIT2_ADDRESS)) {
+    return { isValid: false, invalidReason: "eip2612_spender_not_permit2" };
+  }
+
+  // Verify deadline not expired (with 6 second buffer, consistent with Permit2 deadline check)
+  const now = Math.floor(Date.now() / 1000);
+  if (BigInt(info.deadline) < BigInt(now + 6)) {
+    return { isValid: false, invalidReason: "eip2612_deadline_expired" };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Splits a 65-byte EIP-2612 signature into v, r, s components.
+ *
+ * @param signature - The hex-encoded 65-byte signature
+ * @returns Object with v (uint8), r (bytes32), s (bytes32)
+ */
+function splitEip2612Signature(signature: string): {
+  v: number;
+  r: `0x${string}`;
+  s: `0x${string}`;
+} {
+  const sig = signature.startsWith("0x") ? signature.slice(2) : signature;
+
+  if (sig.length !== 130) {
+    throw new Error(
+      `invalid EIP-2612 signature length: expected 65 bytes (130 hex chars), got ${sig.length / 2} bytes`,
+    );
+  }
+
+  const r = `0x${sig.slice(0, 64)}` as `0x${string}`;
+  const s = `0x${sig.slice(64, 128)}` as `0x${string}`;
+  const v = parseInt(sig.slice(128, 130), 16);
+
+  return { v, r, s };
 }
