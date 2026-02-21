@@ -8,12 +8,13 @@ This directory contains TypeScript server examples demonstrating how to protect 
 | --- | --- |
 | [`express/`](./express/) | Using `@x402/express` middleware |
 | [`hono/`](./hono/) | Using `@x402/hono` middleware |
+| [`fastify/`](./fastify/) | Fastify integration with custom x402 plugin |
 | [`advanced/`](./advanced/) | Advanced patterns: hooks, dynamic pricing, custom tokens |
 | [`custom/`](./custom/) | Manual implementation using only `@x402/core` |
 
 ## Framework Examples
 
-The **express** and **hono** directories showcase the minimal approach to adding x402 paywalls to your API. These use our middleware packages that automatically handle:
+The **express**, **hono**, and **fastify** directories showcase different approaches to adding x402 paywalls to your API. Express and Hono use our official middleware packages, while Fastify demonstrates a custom plugin integration that automatically handles:
 
 1. Checking for payment headers on protected routes
 2. Returning 402 with payment requirements if no payment
@@ -39,7 +40,7 @@ These patterns are useful for production applications that need custom business 
 The **custom** directory shows how to implement x402 payment handling manually using only `@x402/core`, without any middleware. Use this approach when:
 
 - You need complete control over the payment flow
-- You're using a web framework we don't have a package for (Koa, Fastify, etc.)
+- You're using a web framework we don't have a package for (Koa, etc.)
 - You want to understand how x402 works under the hood
 
 ## Getting Started
