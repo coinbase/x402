@@ -53,7 +53,7 @@ func (a *GinAdapter) GetURL() string {
 	if host == "" {
 		host = a.ctx.GetHeader("Host")
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.Path)
+	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.RequestURI)
 }
 
 // GetAcceptHeader gets the Accept header
