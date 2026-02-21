@@ -63,6 +63,7 @@ The x402 ecosystem is growing! Check out our [ecosystem page](https://x402.org/e
 - Services and endpoints
 - Ecosystem infrastructure and tooling
 - Learning and community resources
+- [awesome-x402](https://github.com/xpaysh/awesome-x402) — A community-maintained curated list of x402 projects, tools, libraries, and resources
 
 Want to add your project to the ecosystem? See our [demo site README](https://github.com/coinbase/x402/tree/main/typescript/site#adding-your-project-to-the-ecosystem) for detailed instructions on how to submit your project.
 
