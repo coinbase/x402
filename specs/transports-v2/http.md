@@ -147,7 +147,7 @@ PAYMENT-RESPONSE: eyJzdWNjZXNzIjpmYWxzZSwiZXJyb3JSZWFzb24iOiJpbnN1ZmZpY2llbnRfZn
 
 {
   "x402Version": 2,
-  "error": "Payment failed: insufficient funds"
+  "error": "Payment failed: insufficient funds",
   "accepts": [...]
 }
 ```
