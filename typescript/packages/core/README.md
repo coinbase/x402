@@ -148,6 +148,81 @@ const routes = {
 };
 ```
 
+## Route Patterns
+
+x402 supports flexible route patterns for matching HTTP requests. Routes can be specified with or without HTTP methods:
+
+### Basic Patterns
+
+```typescript
+const routes = {
+  // Exact path matching
+  '/api/data': { accepts: { /* ... */ } },
+  
+  // With HTTP method prefix
+  'GET /api/data': { accepts: { /* ... */ } },
+  'POST /api/submit': { accepts: { /* ... */ } },
+};
+```
+
+### Dynamic Parameters
+
+x402 supports three parameter styles:
+
+```typescript
+const routes = {
+  // Next.js style: [param]
+  '/api/users/[id]': { accepts: { /* ... */ } },
+  '/api/posts/[category]/[slug]': { accepts: { /* ... */ } },
+  
+  // Express style: :param
+  '/api/users/:id': { accepts: { /* ... */ } },
+  '/api/chapters/:seriesId/:chapterId': { accepts: { /* ... */ } },
+  
+  // Method-specific dynamic routes
+  'GET /api/users/:id': { accepts: { /* ... */ } },
+  'PUT /api/users/[id]': { accepts: { /* ... */ } },
+};
+```
+
+**Parameter Matching Rules:**
+- Parameters match exactly one path segment (no `/` characters)
+- `/api/users/:id` matches `/api/users/123` but not `/api/users/123/posts`
+- Both `[param]` and `:param` styles are equivalent
+
+### Wildcards
+
+```typescript
+const routes = {
+  // Wildcard matching
+  '/api/*': { accepts: { /* ... */ } },
+  '/public/assets/*': { accepts: { /* ... */ } },
+  
+  // Method-specific wildcards
+  'GET /api/*': { accepts: { /* ... */ } },
+  'POST /upload/*': { accepts: { /* ... */ } },
+};
+```
+
+**Wildcard Matching Rules:**
+- `*` matches any number of characters including `/`
+- `/api/*` matches `/api/users`, `/api/users/123`, `/api/users/123/posts`
+
+### Pattern Priority
+
+Routes are matched in the order they appear in your configuration object. More specific patterns should come before general ones:
+
+```typescript
+const routes = {
+  // Specific routes first
+  'GET /api/users/me': { accepts: { /* ... */ } },
+  'GET /api/users/:id': { accepts: { /* ... */ } },
+  
+  // General patterns last
+  '/api/*': { accepts: { /* ... */ } },
+};
+```
+
 ## Client Configuration
 
 Use `fromConfig()` for declarative setup:
