@@ -59,6 +59,7 @@ var (
 	ChainIDBase        = big.NewInt(8453)
 	ChainIDBaseSepolia = big.NewInt(84532)
 	ChainIDMegaETH     = big.NewInt(4326)
+	ChainIDMonad       = big.NewInt(143)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -129,6 +130,26 @@ var (
 				Name:     "MegaUSD",
 				Version:  "1",
 				Decimals: 18,
+			},
+		},
+		// Monad Mainnet
+		"eip155:143": {
+			ChainID: ChainIDMonad,
+			DefaultAsset: AssetInfo{
+				Address:  "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", // USDC on Monad
+				Name:     "USD Coin",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// Monad Mainnet (legacy v1 format)
+		"monad": {
+			ChainID: ChainIDMonad,
+			DefaultAsset: AssetInfo{
+				Address:  "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+				Name:     "USD Coin",
+				Version:  "2",
+				Decimals: DefaultDecimals,
 			},
 		},
 	}
