@@ -34,7 +34,7 @@ export interface ResourceServerExtension {
    * Return extension data to add to extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
-   * @param context - PaymentRequired context containing response and requirements
+   * @param context - PaymentRequired context containing response, requirements, and optional transportContext
    * @returns Extension data to add to response.extensions[key]
    */
   enrichPaymentRequiredResponse?: (
@@ -46,7 +46,7 @@ export interface ResourceServerExtension {
    * Return extension data to add to response.extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
-   * @param context - Settlement result context containing payment payload, requirements, and result
+   * @param context - Settlement result context containing payment payload, requirements, result and optional transportContext
    * @returns Extension data to add to response.extensions[key]
    */
   enrichSettlementResponse?: (
