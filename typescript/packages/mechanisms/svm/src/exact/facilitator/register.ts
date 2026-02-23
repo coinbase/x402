@@ -15,6 +15,17 @@ export interface SvmFacilitatorConfig {
   signer: FacilitatorSvmSigner;
 
   /**
+   * Enable agentic program wallet verification for SVM Exact.
+   *
+   * When enabled, the facilitator may accept program-based payers (no traditional transaction
+   * signature from the payer address) by verifying via RPC simulation + returnData magic
+   * (`SOLANA_MAGIC_OK`).
+   *
+   * Defaults to off for backwards compatibility.
+   */
+  enableAgenticSVM?: boolean;
+
+  /**
    * Networks to register (single network or array of networks)
    * Examples: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
    */
@@ -48,10 +59,16 @@ export function registerExactSvmScheme(
   config: SvmFacilitatorConfig,
 ): x402Facilitator {
   // Register V2 scheme with specified networks
-  facilitator.register(config.networks, new ExactSvmScheme(config.signer));
+  facilitator.register(
+    config.networks,
+    new ExactSvmScheme(config.signer, { enableAgenticSVM: config.enableAgenticSVM }),
+  );
 
   // Register all V1 networks
-  facilitator.registerV1(NETWORKS as Network[], new ExactSvmSchemeV1(config.signer));
+  facilitator.registerV1(
+    NETWORKS as Network[],
+    new ExactSvmSchemeV1(config.signer, { enableAgenticSVM: config.enableAgenticSVM }),
+  );
 
   return facilitator;
 }

@@ -106,15 +106,18 @@ A facilitator verifying an `exact`-scheme SVM payment MUST enforce all of the fo
 
 1. Instruction layout
 
-- The decompiled transaction MUST contain 3 to 5 instructions in this order:
+- The decompiled transaction MUST contain 3 to 6 instructions in this order:
   1. Compute Budget: Set Compute Unit Limit
   2. Compute Budget: Set Compute Unit Price
   3. SPL Token or Token-2022 TransferChecked
-  4. (Optional) Lighthouse program instruction (Phantom wallet protection)
-  5. (Optional) Lighthouse program instruction (Solflare wallet protection)
+  4. (Optional) Lighthouse program instruction (Phantom wallet protection) OR Memo program instruction
+  5. (Optional) Lighthouse program instruction (Solflare wallet protection) OR Memo program instruction
+  6. (Optional) Memo program instruction
 
-- If a 4th or 5th instruction is present, the program MUST be the Lighthouse program (`L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95`).
-- Phantom wallet injects 1 Lighthouse instruction; Solflare injects 2.
+- If an optional instruction is present, the program MUST be either:
+  - Lighthouse (`L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95`), or
+  - Memo (`MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`).
+- Phantom wallet injects 1 Lighthouse instruction; Solflare injects 2 Lighthouse instructions.
 - These Lighthouse instructions are wallet-injected user protection mechanisms and MUST be allowed to support these wallets.
 
 2. Fee payer (facilitator) safety
@@ -140,6 +143,78 @@ A facilitator verifying an `exact`-scheme SVM payment MUST enforce all of the fo
 
 6. Amount
 
-- The `amount` in TransferChecked MUST equal `PaymentRequirements.amount` exactly.
+- The `amount` in TransferChecked MUST be greater than or equal to `PaymentRequirements.amount`.
 
 These checks are security-critical to ensure the fee payer cannot be tricked into transferring their own funds or sponsoring unintended actions. Implementations MAY introduce stricter limits (e.g., lower compute price caps) but MUST NOT relax the above constraints.
+
+## Agentic Program Wallet Verification (Optional)
+
+Some Solana wallets are program-based (no transaction signature from the “payer” address). For facilitators that want parity with EIP-1271-style smart wallet verification on EVM, the SVM `exact` facilitator MAY support an opt-in “agentic program verification” mode.
+
+### Facilitator Config
+
+Implementations MAY support an opt-in configuration flag:
+
+```ts
+{ enableAgenticSVM: false }
+```
+
+This mode MUST default to `false` to preserve backwards compatibility.
+
+### Verification Behavior
+
+When `enableAgenticSVM` is enabled and the 3rd instruction is not a Token/Token-2022 `TransferChecked`, a facilitator MAY treat the 3rd instruction’s program id as the payer and verify it via simulation:
+
+1. The payer address MUST be an executable program account.
+2. The fully signed transaction MUST successfully simulate.
+3. The simulation MUST include `returnData` set by the payer program, and the returned bytes MUST equal `SOLANA_MAGIC_OK` (`x402_svm_ok_v1`).
+4. The payer program MUST be invoked exactly once (no re-entrancy).
+5. The fee payer’s lamports MUST be conserved (the program MUST NOT modify the fee payer’s account state during simulation).
+6. The recipient’s associated token account balance MUST increase by at least `PaymentRequirements.amount`.
+
+### Optional Timelock
+
+Implementations MAY additionally enforce simple unix-timestamp bounds via `PaymentRequirements.extra`:
+
+- `extra.validAfter`: unix seconds, reject if current time is earlier.
+- `extra.validBefore`: unix seconds, reject if current time is equal or later.
+
+### Example: Program-Based Payer
+
+An agentic payer program can signal verification success by setting return data to
+`x402_svm_ok_v1` and performing the payment (for example via CPI to Token/Token-2022):
+
+```rs
+use solana_program::{
+    account_info::AccountInfo,
+    entrypoint::ProgramResult,
+    program::set_return_data,
+    pubkey::Pubkey,
+};
+
+const SOLANA_MAGIC_OK: &[u8] = b"x402_svm_ok_v1";
+
+pub fn process_instruction(
+    _program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    _data: &[u8],
+) -> ProgramResult {
+    // 1) Verify whatever authorization or policy your wallet requires.
+    // 2) Transfer tokens to the recipient ATA (CPI to Token/Token-2022).
+    // 3) Signal x402 verification success:
+    set_return_data(SOLANA_MAGIC_OK);
+    Ok(())
+}
+```
+
+Facilitators enable the mode explicitly:
+
+```ts
+import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+
+registerExactSvmScheme(facilitator, {
+  signer: svmSigner,
+  networks: "solana:*",
+  enableAgenticSVM: true,
+});
+```
