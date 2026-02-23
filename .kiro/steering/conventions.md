@@ -1,0 +1,4 @@
+- never use Data.now()
+- all timestamp should be from the actual event
+- events must be idempotent
+- use SQLite not Postgres

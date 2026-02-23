@@ -1,0 +1,382 @@
+{
+  "info": {
+    "name": "x402-observed Express Paywall Example API Tests",
+    "description": "Comprehensive API tests for the x402-observed Express Paywall Example with wallet integration.\n\nThis collection tests:\n- Health check endpoint\n- Premium content endpoint ($0.001 USDC)\n- Exclusive content endpoint ($0.01 USDC)\n- Dashboard API endpoints\n- SSE event streaming\n\nSetup:\n1. Start the server: `cd typescript/examples/express-paywall-example && pnpm dev`\n2. Start the dashboard: `npx x402-observed`\n3. Run this collection in Postman\n\nNote: Payment endpoints will return 402 without valid payment headers. To test full payment flow, use the browser UI at http://localhost:3001",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Express Paywall Example",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData).to.have.property('network');",
+                  "    pm.expect(jsonData).to.have.property('payee');",
+                  "    pm.expect(jsonData).to.have.property('observability');",
+                  "    pm.expect(jsonData).to.have.property('paywall');",
+                  "    pm.expect(jsonData).to.have.property('testnet');",
+                  "});",
+                  "",
+                  "pm.test(\"Observability is enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.observability).to.eql('enabled');",
+                  "});",
+                  "",
+                  "pm.test(\"Paywall is enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.paywall).to.eql('enabled');",
+                  "});",
+                  "",
+                  "pm.test(\"Testnet mode is enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.testnet).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_paywall_base_url}}/health",
+              "host": [
+                "{{express_paywall_base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health check endpoint - no payment required. Verifies server is running with observability and paywall enabled."
+          },
+          "response": []
+        },
+        {
+          "name": "Premium Endpoint (No Payment)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('accepts');",
+                  "});",
+                  "",
+                  "pm.test(\"Payment amount is $0.001\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.price).to.eql('$0.001');",
+                  "});",
+                  "",
+                  "pm.test(\"Payment scheme is exact\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.scheme).to.eql('exact');",
+                  "});",
+                  "",
+                  "pm.test(\"Network is Base Sepolia\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.network).to.include('eip155:84532');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_paywall_base_url}}/api/premium",
+              "host": [
+                "{{express_paywall_base_url}}"
+              ],
+              "path": [
+                "api",
+                "premium"
+              ]
+            },
+            "description": "Premium content endpoint requiring $0.001 USDC payment. Without payment headers, returns 402 with payment requirements."
+          },
+          "response": []
+        },
+        {
+          "name": "Exclusive Endpoint (No Payment)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('accepts');",
+                  "});",
+                  "",
+                  "pm.test(\"Payment amount is $0.01\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.price).to.eql('$0.01');",
+                  "});",
+                  "",
+                  "pm.test(\"Payment scheme is exact\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.scheme).to.eql('exact');",
+                  "});",
+                  "",
+                  "pm.test(\"Network is Base Sepolia\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.accepts.network).to.include('eip155:84532');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_paywall_base_url}}/api/exclusive",
+              "host": [
+                "{{express_paywall_base_url}}"
+              ],
+              "path": [
+                "api",
+                "exclusive"
+              ]
+            },
+            "description": "Exclusive content endpoint requiring $0.01 USDC payment. Without payment headers, returns 402 with payment requirements."
+          },
+          "response": []
+        },
+        {
+          "name": "Home Page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is HTML\", function () {",
+                  "    pm.response.to.have.header('Content-Type');",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+                  "});",
+                  "",
+                  "pm.test(\"HTML contains paywall demo title\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('x402-observed Paywall Demo');",
+                  "});",
+                  "",
+                  "pm.test(\"HTML contains premium endpoint\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('/api/premium');",
+                  "});",
+                  "",
+                  "pm.test(\"HTML contains exclusive endpoint\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('/api/exclusive');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_paywall_base_url}}/",
+              "host": [
+                "{{express_paywall_base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Interactive frontend with wallet integration UI. Provides buttons to test payment flow with MetaMask or Coinbase Wallet."
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for the Express Paywall Example server endpoints"
+    },
+    {
+      "name": "Dashboard API",
+      "item": [
+        {
+          "name": "Get All Workflows",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has workflows array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('workflows');",
+                  "    pm.expect(jsonData.workflows).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Save first workflow ID for next test\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.workflows.length > 0) {",
+                  "        pm.environment.set('workflow_id', jsonData.workflows[0].id);",
+                  "        pm.expect(jsonData.workflows[0]).to.have.property('id');",
+                  "        pm.expect(jsonData.workflows[0]).to.have.property('status');",
+                  "        pm.expect(jsonData.workflows[0]).to.have.property('events');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/workflows",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "workflows"
+              ]
+            },
+            "description": "Retrieves all workflows from the SQLite database. Each workflow contains all events from request_received through workflow_completed."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Workflow by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has workflow object\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('workflow');",
+                  "});",
+                  "",
+                  "pm.test(\"Workflow has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.workflow).to.have.property('id');",
+                  "    pm.expect(jsonData.workflow).to.have.property('status');",
+                  "    pm.expect(jsonData.workflow).to.have.property('events');",
+                  "    pm.expect(jsonData.workflow.events).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/workflows/{{workflow_id}}",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "workflows",
+                "{{workflow_id}}"
+              ]
+            },
+            "description": "Retrieves a specific workflow by ID. Uses the workflow_id saved from the previous test."
+          },
+          "response": []
+        },
+        {
+          "name": "SSE Events Stream",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Content-Type is text/event-stream\", function () {",
+                  "    pm.response.to.have.header('Content-Type');",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});",
+                  "",
+                  "pm.test(\"Cache-Control is no-cache\", function () {",
+                  "    pm.response.to.have.header('Cache-Control');",
+                  "    pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-cache');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/events",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            },
+            "description": "Server-Sent Events endpoint for real-time workflow updates. Note: SSE streaming may not display properly in Postman. Use curl or browser console for better testing."
+          },
+          "response": []
+        }
+      ],
+      "description": "Tests for the x402-observed dashboard API endpoints"
+    }
+  ],
+  "variable": [
+    {
+      "key": "express_paywall_base_url",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "dashboard_base_url",
+      "value": "http://localhost:4402",
+      "type": "string"
+    },
+    {
+      "key": "workflow_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

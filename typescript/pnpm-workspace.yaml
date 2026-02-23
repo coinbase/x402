@@ -5,6 +5,11 @@ packages:
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*
+  - packages/x402-observed-core
+  - packages/x402-observed-express
+  - packages/x402-observed-next
+  - packages/x402-observed-cli
+  - packages/x402-observed-dashboard
   - examples/facilitator
   - examples/**/*
   - site

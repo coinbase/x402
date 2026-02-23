@@ -1,0 +1,434 @@
+{
+  "info": {
+    "name": "x402-observed API Tests",
+    "description": "Postman collection for testing x402-observed Express and Next.js examples",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "express_base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "nextjs_base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "dashboard_base_url",
+      "value": "http://localhost:4402",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Express Example",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_base_url}}/health",
+              "host": [
+                "{{express_base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health check endpoint - no payment required"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has status field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.eql('ok');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has observability enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('observability');",
+                  "    pm.expect(jsonData.observability).to.eql('enabled');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Premium Endpoint (No Payment)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_base_url}}/api/premium",
+              "host": [
+                "{{express_base_url}}"
+              ],
+              "path": [
+                "api",
+                "premium"
+              ]
+            },
+            "description": "Protected endpoint requiring $0.001 USDC - should return 402 without payment"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('payment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Data Endpoint (No Payment)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_base_url}}/api/data",
+              "host": [
+                "{{express_base_url}}"
+              ],
+              "path": [
+                "api",
+                "data"
+              ]
+            },
+            "description": "Protected endpoint requiring $0.005 USDC - should return 402 without payment"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('payment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Home Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{express_base_url}}/",
+              "host": [
+                "{{express_base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Frontend HTML page"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is HTML\", function () {",
+                  "    pm.response.to.have.header('Content-Type');",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Next.js Example",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{nextjs_base_url}}/api/health",
+              "host": [
+                "{{nextjs_base_url}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "Health check endpoint - no payment required"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has status field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.eql('ok');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has observability enabled\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('observability');",
+                  "    pm.expect(jsonData.observability).to.eql('enabled');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Premium Endpoint (No Payment)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{nextjs_base_url}}/api/premium",
+              "host": [
+                "{{nextjs_base_url}}"
+              ],
+              "path": [
+                "api",
+                "premium"
+              ]
+            },
+            "description": "Protected endpoint requiring $0.001 USDC - should return 402 without payment"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('payment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Data Endpoint (No Payment)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{nextjs_base_url}}/api/data",
+              "host": [
+                "{{nextjs_base_url}}"
+              ],
+              "path": [
+                "api",
+                "data"
+              ]
+            },
+            "description": "Protected endpoint requiring $0.005 USDC - should return 402 without payment"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains payment requirements\", function () {",
+                  "    pm.expect(pm.response.text()).to.include('payment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dashboard API",
+      "item": [
+        {
+          "name": "Get All Workflows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/workflows",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "workflows"
+              ]
+            },
+            "description": "Get all workflows from the SQLite database"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has workflows array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('workflows');",
+                  "    pm.expect(jsonData.workflows).to.be.an('array');",
+                  "});",
+                  "",
+                  "// Save first workflow ID for next request",
+                  "if (pm.response.json().workflows.length > 0) {",
+                  "    pm.environment.set('workflow_id', pm.response.json().workflows[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/workflows/{{workflow_id}}",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "workflows",
+                "{{workflow_id}}"
+              ]
+            },
+            "description": "Get a specific workflow by ID (requires workflow_id environment variable)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 404\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"Response has workflow object\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData).to.have.property('workflow');",
+                  "        pm.expect(jsonData.workflow).to.have.property('id');",
+                  "        pm.expect(jsonData.workflow).to.have.property('events');",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Workflow has events array\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.workflow.events).to.be.an('array');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "SSE Events Stream (Manual Test)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dashboard_base_url}}/api/events",
+              "host": [
+                "{{dashboard_base_url}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            },
+            "description": "Server-Sent Events endpoint for real-time workflow updates. Note: This is a streaming endpoint and may not work properly in Postman. Test in browser or with curl."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Content-Type is text/event-stream\", function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -77,19 +77,22 @@ if (!process.env.EVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
-if (!process.env.SVM_PRIVATE_KEY) {
-  console.error("❌ SVM_PRIVATE_KEY environment variable is required");
-  process.exit(1);
-}
-
-
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-// Initialize the SVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
-console.info(`SVM Facilitator account: ${svmAccount.address}`);
+// Initialize the SVM account from private key (optional)
+let svmAccount: Awaited<ReturnType<typeof createKeyPairSignerFromBytes>> | undefined;
+if (process.env.SVM_PRIVATE_KEY) {
+  try {
+    svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+    console.info(`SVM Facilitator account: ${svmAccount.address}`);
+  } catch (error) {
+    console.warn(`⚠️  SVM_PRIVATE_KEY provided but invalid, skipping SVM support:`, error instanceof Error ? error.message : error);
+  }
+} else {
+  console.warn(`⚠️  SVM_PRIVATE_KEY not provided, skipping SVM support`);
+}
 
 // Initialize the Aptos account from private key (format to AIP-80 compliant format) if provided
 let aptosAccount: Account | undefined;
@@ -149,7 +152,7 @@ const evmSigner = toFacilitatorEvmSigner({
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
+const svmSigner = svmAccount ? toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined) : undefined;
 
 // Facilitator can handle all Aptos networks with automatic RPC creation
 // Pass custom RPC URL if provided
@@ -170,9 +173,14 @@ const facilitator = new x402Facilitator();
 // Register EVM, SVM, and Aptos schemes (v2 + v1)
 facilitator
   .register(EVM_NETWORK as Network, new ExactEvmScheme(evmSigner))
-  .registerV1(EVM_V1_NETWORKS as Network[], new ExactEvmSchemeV1(evmSigner))
-  .register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner))
-  .registerV1(SVM_V1_NETWORKS as Network[], new ExactSvmSchemeV1(svmSigner));
+  .registerV1(EVM_V1_NETWORKS as Network[], new ExactEvmSchemeV1(evmSigner));
+
+if (svmSigner) {
+  facilitator
+    .register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner))
+    .registerV1(SVM_V1_NETWORKS as Network[], new ExactSvmSchemeV1(svmSigner));
+}
+
 if (aptosSigner) {
   facilitator.register(APTOS_NETWORK as Network, new ExactAptosScheme(aptosSigner));
 }

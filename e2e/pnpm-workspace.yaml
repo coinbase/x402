@@ -1,13 +1,22 @@
 packages:
-  - "facilitators/*"
-  - "facilitators/external-proxies/*"
-  - "facilitators/external-proxies/local/*"
-  - "servers/*"
-  - "clients/*"
-  - "clients/external/*"
-  - "legacy/servers/*"
-  - "legacy/clients/*"
-  - "../typescript/packages/*"
-  - "../typescript/packages/http/*"
-  - "../typescript/packages/mechanisms/*"
-  - "../typescript/packages/legacy/*"
+  - facilitators/*
+  - facilitators/external-proxies/*
+  - facilitators/external-proxies/local/*
+  - servers/*
+  - clients/*
+  - clients/external/*
+  - legacy/servers/*
+  - legacy/clients/*
+  - ../typescript/packages/*
+  - ../typescript/packages/http/*
+  - ../typescript/packages/mechanisms/*
+  - ../typescript/packages/legacy/*
+
+onlyBuiltDependencies:
+  - better-sqlite3
+  - bufferutil
+  - esbuild
+  - keccak
+  - sharp
+  - unrs-resolver
+  - utf-8-validate
