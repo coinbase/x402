@@ -117,6 +117,7 @@ export function paymentProxyFromHTTPServer(
           paymentPayload,
           paymentRequirements,
           declaredExtensions,
+          context,
         );
       }
     }
@@ -293,6 +294,7 @@ export function withX402FromHTTPServer<T = unknown>(
           paymentPayload,
           paymentRequirements,
           declaredExtensions,
+          context,
         ) as Promise<NextResponse<T>>;
       }
     }
