@@ -718,6 +718,9 @@ export class x402ResourceServer {
           });
         }
       } catch (error) {
+        if (error instanceof SettleError) {
+          throw error;
+        }
         throw new SettleError(400, {
           success: false,
           errorReason: "before_settle_hook_error",

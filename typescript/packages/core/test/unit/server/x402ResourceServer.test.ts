@@ -640,9 +640,39 @@ describe("x402ResourceServer", () => {
 
         await expect(
           async () => await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
-        ).rejects.toThrow("before_settle_hook_error: Insufficient balance");
+        ).rejects.toThrow("Insufficient balance");
 
         expect(mockClient.settleCalls.length).toBe(0); // Facilitator not called
+      });
+
+      it("should preserve abort reason as errorReason in SettleError", async () => {
+        server.onBeforeSettle(async () => {
+          return { abort: true, reason: "Insufficient balance", message: "Not enough funds" };
+        });
+
+        try {
+          await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+          expect.unreachable("Should have thrown");
+        } catch (error: any) {
+          expect(error.name).toBe("SettleError");
+          expect(error.errorReason).toBe("Insufficient balance");
+          expect(error.errorMessage).toBe("Not enough funds");
+        }
+      });
+
+      it("should wrap unexpected hook errors as before_settle_hook_error", async () => {
+        server.onBeforeSettle(async () => {
+          throw new Error("Unexpected failure");
+        });
+
+        try {
+          await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+          expect.unreachable("Should have thrown");
+        } catch (error: any) {
+          expect(error.name).toBe("SettleError");
+          expect(error.errorReason).toBe("before_settle_hook_error");
+          expect(error.errorMessage).toBe("Unexpected failure");
+        }
       });
 
       it("should execute multiple hooks in order", async () => {
