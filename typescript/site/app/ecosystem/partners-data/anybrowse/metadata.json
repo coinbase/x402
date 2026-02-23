@@ -1,0 +1,7 @@
+{
+  "name": "AnyBrowse",
+  "description": "Autonomous web browsing agent that converts any URL to clean, LLM-ready Markdown via real Chrome browsers. Accepts x402 micropayments in USDC on Base.",
+  "logoUrl": "/logos/anybrowse.png",
+  "websiteUrl": "https://anybrowse.dev",
+  "category": "Services/Endpoints"
+}
