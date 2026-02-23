@@ -151,7 +151,7 @@ Should the settlement fail, the transaction ID **SHOULD** be returned, but since
   "success": true,
   "errorReason": null,
   "payer": "<payer>",
-  "transaction", "NTRZR6HGMMZGYMJKUNVNLKLA427ACAVIPFNC6JHA5XNBQQHW7MWA",
+  "transaction": "NTRZR6HGMMZGYMJKUNVNLKLA427ACAVIPFNC6JHA5XNBQQHW7MWA",
   "network": "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8="
 }
 ```
