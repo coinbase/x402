@@ -11,12 +11,20 @@ x402 V2 uses [CAIP-2](https://chainagnostic.org/CAIPs/caip-2) standard network i
 
 | V1 Name | V2 CAIP-2 ID | Chain ID | Description |
 |---------|--------------|----------|-------------|
-| `base-sepolia` | `eip155:84532` | 84532 | Base Sepolia testnet |
 | `base` | `eip155:8453` | 8453 | Base mainnet |
+| `base-sepolia` | `eip155:84532` | 84532 | Base Sepolia testnet |
+| `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana mainnet |
 | `solana-devnet` | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | - | Solana Devnet |
-| `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana Mainnet |
 | - | `aptos:1` | 1 | Aptos Mainnet |
 | - | `aptos:2` | 2 | Aptos Testnet |
+| `avalanche` | `eip155:43114` | 43114 | Avalanche C-Chain mainnet |
+| `avalanche-fuji` | `eip155:43113` | 43113 | Avalanche Fuji testnet |
+| `polygon` | `eip155:137` | 137 | Polygon mainnet |
+| `polygon-amoy` | `eip155:80002` | 80002 | Polygon Amoy testnet |
+| `sei` | `eip155:1329` | 1329 | Sei mainnet |
+| `sei-testnet` | `eip155:713715` | 713715 | Sei testnet |
+| `skale-base` | `eip155:1187947933` | 1187947933 | SKALE mainnet |
+| `skale-base-sepolia` | `eip155:324705682` | 324705682 | SKALE testnet |
 
 ### Format Explanation
 - **EVM networks**: `eip155:<chainId>` where chainId is the numeric chain identifier
@@ -29,7 +37,7 @@ x402 is designed to work across multiple blockchain networks, with different lev
 
 ### Supported Facilitators
 
-Network support in x402 depends on which facilitator you use. For a complete and up-to-date list of available facilitators and their supported networks, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
+Network support in x402 depends on which facilitator you use. For a complete and up-to-date list of available facilitators and their supported networks, see the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators).
 
 #### x402.org Facilitator
 
@@ -38,7 +46,7 @@ Network support in x402 depends on which facilitator you use. For a complete and
 
 #### Production Facilitators
 
-Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options and their documentation.
+Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options and their documentation.
 
 ### Token Support
 
@@ -118,7 +126,7 @@ The EIP-3009 standard is essential for x402 because it enables:
 | Facilitator Type | Networks Supported | Production Ready | Requirements |
 | ---------------- | ------------------ | ---------------- | ------------ |
 | x402.org (Default) | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testnet only | None |
-| [Production Facilitators](https://www.x402.org/ecosystem?category=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
+| [Production Facilitators](https://www.x402.org/ecosystem?filter=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
 | Self-hosted | Any EVM network (CAIP-2 format) | Yes | Technical setup |
 
 **Note**: On EVM networks, facilitators support any EIP-3009 compatible token; on Solana, facilitators support any SPL/Token-2022 token.
@@ -245,7 +253,7 @@ x402's network support is designed to be extensible while maintaining security a
 
 Key takeaways:
 
-* Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) have the best out-of-the-box support
+* Base (`eip155:8453`), Base Sepolia (`eip155:84532`), Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`), and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) have the best out-of-the-box support
 * Any EVM network can be supported with a custom facilitator using CAIP-2 format
 * Any EIP-3009 token (with `transferWithAuthorization`) works on any facilitator
 * Use price strings for USDC or TokenAmount for custom tokens
