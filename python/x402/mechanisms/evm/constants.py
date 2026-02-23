@@ -177,6 +177,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # Monad Mainnet
+    "eip155:143": {
+        "chain_id": 143,
+        "default_asset": {
+            "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+            "name": "USD Coin",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC": {
+                "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+                "name": "USD Coin",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
 # Network aliases (legacy names to CAIP-2)
@@ -189,6 +207,7 @@ NETWORK_ALIASES: dict[str, str] = {
     "polygon": "eip155:137",
     "avalanche": "eip155:43114",
     "megaeth": "eip155:4326",
+    "monad": "eip155:143",
 }
 
 # V1 supported networks (legacy name-based)
@@ -209,6 +228,7 @@ V1_NETWORKS = [
     "educhain",
     "skale-base-sepolia",
     "megaeth",
+    "monad",
 ]
 
 # V1 network name to chain ID mapping
@@ -230,6 +250,7 @@ V1_NETWORK_CHAIN_IDS: dict[str, int] = {
     "educhain": 656476,
     "skale-base-sepolia": 1444673419,
     "megaeth": 4326,
+    "monad": 143,
 }
 
 # EIP-3009 ABIs
