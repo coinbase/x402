@@ -17,13 +17,13 @@ The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**.
 
 ### How It Works
 
-Facilitators that support the Bazaar extension may provide a `/list` endpoint that returns all x402-compatible services registered through the respective facilitator. Services (HTTP endpoints and MCP tools) are discoverable when they include the bazaar extension in their route configuration.
+Facilitators that support the Bazaar extension may provide a `/discovery/resources` endpoint that returns all x402-compatible services registered through the respective facilitator. Services (HTTP endpoints and MCP tools) are discoverable when they include the bazaar extension in their route configuration.
 
 **Note:** The spec for marketplace items is open and part of the x402 scheme, meaning any facilitator can implement their own discovery layer.
 
 #### Basic Flow
 
-1. **Discovery**: Clients query the `/list` endpoint to find available services
+1. **Discovery**: Clients query the `/discovery/resources` endpoint to find available services
 2. **Selection**: Choose a service based on price, capabilities, and requirements
 3. **Execution**: Use x402 to pay for and access the selected service
 4. **No Manual Setup**: No API keys, no account creation, just discover and pay
@@ -34,9 +34,16 @@ Facilitators that support the Bazaar extension may provide a `/list` endpoint th
 
 Retrieve all available x402-compatible endpoints and MCP tools:
 
+##### Coinbase
 ```bash
 GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
 ```
+
+##### PayAI
+```bash
+GET https://facilitator.payai.network/discovery/resources
+```
+
 
 **Note**: The recommended way to use this endpoint is to use the `useFacilitator` hook as described below.
 
@@ -96,8 +103,6 @@ For MCP tools, the `outputSchema.input` object will contain:
 
 ### Quickstart for Buyers
 
-See the full example here for [Python](https://github.com/coinbase/x402/tree/main/examples/python/discovery) and [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/discovery).
-
 #### Step 1: Discover Available Services
 
 Fetch the list of available x402 services using the facilitator client:
@@ -132,7 +137,7 @@ Fetch the list of available x402 services using the facilitator client:
     from x402.http import FacilitatorConfig, HTTPFacilitatorClient
 
     facilitator = HTTPFacilitatorClient(
-        FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+        FacilitatorConfig(url="https://x402.org/facilitator")
     )
 
     response = await facilitator.list_resources(type="http")
@@ -310,7 +315,7 @@ To enhance your listing with descriptions and schemas, include them when setting
 
     # Create facilitator client (CDP mainnet)
     facilitator = HTTPFacilitatorClient(
-        FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+        FacilitatorConfig(url="https://x402.org/facilitator")
     )
 
     # Create resource server and register EVM scheme
@@ -465,7 +470,7 @@ A: Include descriptions clearly stating what each parameter does and how to call
 A: Listing is free. Services set their own prices per API call, paid via x402.
 
 **Q: What networks are supported?**
-A: Currently Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) with USDC payments.
+A: Currently Base (`eip155:8453`), Base Sepolia (`eip155:84532`), Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`), and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) with USDC payments.
 
 **Q: Can I list non-x402 services?**
 A: No, only x402-compatible endpoints can be listed. See our [Quickstart for Sellers](/getting-started/quickstart-for-sellers) to make your API x402-compatible.
