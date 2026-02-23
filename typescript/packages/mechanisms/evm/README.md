@@ -159,6 +159,17 @@ Supports any ERC-3009 compatible token:
 - EURC
 - Any token implementing `transferWithAuthorization()`
 
+## Smart Wallet Signatures
+
+Facilitator integrations often wire `verifyTypedData` from their own signer stack. Some stacks only do
+EOA-style ECDSA recovery, which can reject valid ERC-1271 contract wallet signatures.
+
+To keep verification aligned with on-chain settlement, x402 falls back to explicit ERC-1271
+`isValidSignature` checks when typed-data verification fails for a deployed contract wallet.
+
+For undeployed ERC-4337 wallets, x402 only accepts EIP-6492 signatures when
+`deployERC4337WithEIP6492` is enabled.
+
 ## Development
 
 ```bash

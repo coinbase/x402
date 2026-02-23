@@ -176,6 +176,8 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       isValidSignature = false;
     }
 
+    // Some facilitator signers only do EOA recovery in verifyTypedData.
+    // If that path fails, verify deployed contract wallets with ERC-1271.
     if (!isValidSignature) {
       const payerAddress = exactEvmPayload.authorization.from;
       let bytecode: `0x${string}` | undefined;

@@ -182,6 +182,8 @@ export async function verifyPermit2(
     isValidSignature = false;
   }
 
+  // Some facilitator signers only do EOA recovery in verifyTypedData.
+  // If that path fails, verify deployed contract wallets with ERC-1271.
   if (!isValidSignature) {
     let bytecode: `0x${string}` | undefined;
     try {
