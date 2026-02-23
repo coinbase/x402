@@ -15,11 +15,11 @@ With x402, any web service can require payment before serving a response, using 
 
 ### Why Use x402?
 
-x402 addresses key limitations of existing payment systems:
+x402 offers key advantages over traditional payment systems:
 
-* **High fees and friction** with traditional credit cards and fiat payment processors
-* **Incompatibility with machine-to-machine payments**, such as AI agents
-* **Lack of support for micropayments**, making it difficult to monetize usage-based services
+* **Low fees and minimal friction** compared to traditional credit cards and fiat payment processors
+* **Native support for machine-to-machine payments**, enabling seamless use by AI agents
+* **Built-in micropayment support**, making it easy to monetize usage-based services
 
 ### Who is x402 for?
 
@@ -45,7 +45,7 @@ At a high level, the flow is simple:
 1. A buyer requests a resource from a server.
 2. If payment is required, the server responds with `402 Payment Required`, including payment instructions.
 3. The buyer prepares and submits a payment payload.
-4. The server verifies and settles the payment using an x402 facilitator's /verify and /settle endpoints.
+4. The server verifies and settles the payment independently, or by leveraging an x402 facilitator's /verify and /settle endpoints.
 5. If payment is valid, the server provides the requested resource.
 
 For more detail, see:

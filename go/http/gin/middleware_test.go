@@ -199,21 +199,46 @@ func TestGinAdapter_GetPath(t *testing.T) {
 }
 
 func TestGinAdapter_GetURL(t *testing.T) {
-	router := createTestRouter()
-	var adapter *GinAdapter
+	tests := []struct {
+		name     string
+		target   string
+		expected string
+	}{
+		{
+			name:     "with query params",
+			target:   "/api/test?id=1",
+			expected: "http://example.com/api/test?id=1",
+		},
+		{
+			name:     "without query params",
+			target:   "/api/test",
+			expected: "http://example.com/api/test",
+		},
+		{
+			name:     "with multiple query params",
+			target:   "/api/test?id=1&foo=bar",
+			expected: "http://example.com/api/test?id=1&foo=bar",
+		},
+	}
 
-	router.GET("/api/test", func(c *gin.Context) {
-		adapter = NewGinAdapter(c)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			var adapter *GinAdapter
 
-	req := httptest.NewRequest("GET", "/api/test", nil)
-	req.Host = "example.com"
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			router.GET("/api/test", func(c *gin.Context) {
+				adapter = NewGinAdapter(c)
+			})
 
-	expected := "http://example.com/api/test"
-	if adapter.GetURL() != expected {
-		t.Errorf("Expected URL '%s', got '%s'", expected, adapter.GetURL())
+			req := httptest.NewRequest("GET", tt.target, nil)
+			req.Host = "example.com"
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if adapter.GetURL() != tt.expected {
+				t.Errorf("Expected URL '%s', got '%s'", tt.expected, adapter.GetURL())
+			}
+		})
 	}
 }
 
