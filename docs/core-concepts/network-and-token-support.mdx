@@ -15,10 +15,13 @@ x402 V2 uses [CAIP-2](https://chainagnostic.org/CAIPs/caip-2) standard network i
 | `base` | `eip155:8453` | 8453 | Base mainnet |
 | `solana-devnet` | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | - | Solana Devnet |
 | `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana Mainnet |
+| - | `aptos:1` | 1 | Aptos Mainnet |
+| - | `aptos:2` | 2 | Aptos Testnet |
 
 ### Format Explanation
 - **EVM networks**: `eip155:<chainId>` where chainId is the numeric chain identifier
 - **Solana**: `solana:<genesisHash>` where genesisHash is the first 32 bytes of the genesis block hash
+- **Aptos**: `aptos:<chainId>` where chainId is the numeric chain identifier
 
 ## Overview
 
@@ -39,12 +42,13 @@ Multiple production-ready facilitators are available supporting various networks
 
 ### Token Support
 
-x402 supports tokens on both EVM and Solana networks:
+x402 supports tokens on EVM, Solana, and Aptos networks:
 
 * **EVM**: Any ERC-20 token that implements the EIP-3009 standard
 * **Solana**: Any SPL or token-2022 token
+* **Aptos**: Any fungible asset using Aptos's native fungible asset framework
 
-**Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
+**Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, any SPL/token-2022 token works on Solana, and any fungible asset works on Aptos, for the facilitators that support those networks.
 
 #### EVM: EIP-3009 Requirement
 
@@ -90,6 +94,10 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 #### Solana: SPL Tokens & Token 2022 Tokens
 
 On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL/token-2022 token, including USDC (SPL). No EIP-712 configuration is required on Solana.
+
+#### Aptos: Fungible Assets
+
+On Aptos, x402 supports all fungible assets using Aptos's native fungible asset framework. Payments use the `primary_fungible_store::transfer` function for automatic store creation and management. The TypeScript SDK supports sponsored transactions where facilitators pay gas fees on behalf of clients.
 
 #### USDC - The Default Token
 
