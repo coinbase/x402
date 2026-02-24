@@ -1,0 +1,7 @@
+{
+  "name": "Farnsworth SYNTEK",
+  "description": "7-layer agent memory service with x402 payment verification and encrypted on-chain persistence via DropClaw. Provides durable, structured memory for AI agents with per-request micropayments.",
+  "logoUrl": "/logos/farnsworth-syntek.svg",
+  "websiteUrl": "https://ai.farnsworth.cloud/memory",
+  "category": "Services/Endpoints"
+}
