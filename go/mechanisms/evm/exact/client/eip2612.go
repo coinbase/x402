@@ -13,7 +13,10 @@ import (
 
 // SignEip2612Permit signs an EIP-2612 permit authorizing the Permit2 contract
 // to spend tokens. This creates a gasless off-chain signature that the
-// facilitator can submit on-chain via x402Permit2Proxy.settleWith2612().
+// facilitator can submit on-chain via x402Permit2Proxy.settleWithPermit().
+//
+// The permittedAmount must match the Permit2 permitted.amount exactly, as the
+// proxy contract enforces permit2612.value == permittedAmount.
 func SignEip2612Permit(
 	ctx context.Context,
 	signer evm.ClientEvmSigner,
@@ -22,6 +25,7 @@ func SignEip2612Permit(
 	tokenVersion string,
 	chainID *big.Int,
 	deadline string,
+	permittedAmount string,
 ) (*eip2612gassponsor.Info, error) {
 	owner := signer.Address()
 	spender := evm.PERMIT2Address
@@ -60,12 +64,15 @@ func SignEip2612Permit(
 
 	types := evm.GetEIP2612EIP712Types()
 
-	maxUint256 := evm.MaxUint256()
+	approvalAmount, ok := new(big.Int).SetString(permittedAmount, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid permitted amount: %s", permittedAmount)
+	}
 
 	message := map[string]interface{}{
 		"owner":    owner,
 		"spender":  spender,
-		"value":    maxUint256,
+		"value":    approvalAmount,
 		"nonce":    nonce,
 		"deadline": deadlineBig,
 	}
@@ -80,7 +87,7 @@ func SignEip2612Permit(
 		From:      owner,
 		Asset:     normalizedToken,
 		Spender:   spender,
-		Amount:    maxUint256.String(),
+		Amount:    approvalAmount.String(),
 		Nonce:     nonce.String(),
 		Deadline:  deadline,
 		Signature: evm.BytesToHex(signatureBytes),
