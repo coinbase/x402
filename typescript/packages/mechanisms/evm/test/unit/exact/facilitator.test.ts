@@ -277,7 +277,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -321,7 +320,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -363,7 +361,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -405,7 +402,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -447,7 +443,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: "0x0000000000000000000000000000000000000001", // Wrong recipient
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -494,7 +489,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -540,7 +534,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -798,7 +791,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: permit2Requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -864,6 +856,45 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
         .calls[0][0];
       expect(writeCall.functionName).toBe("settle");
+    });
+
+    it("should map Permit2612AmountMismatch contract revert to permit2_2612_amount_mismatch", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: Permit2612AmountMismatch()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_2612_amount_mismatch");
+    });
+
+    it("should map InvalidAmount contract revert to permit2_invalid_amount", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: InvalidAmount()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_invalid_amount");
+    });
+
+    it("should map InvalidNonce contract revert to permit2_invalid_nonce", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: InvalidNonce()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_invalid_nonce");
     });
 
     it("should pass correct EIP-2612 permit struct to settleWithPermit", async () => {
