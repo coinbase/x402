@@ -152,8 +152,9 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 		deadline = fmt.Sprintf("%d", time.Now().Unix()+int64(requirements.MaxTimeoutSeconds))
 	}
 
-	// Sign the EIP-2612 permit
-	info, err := SignEip2612Permit(ctx, c.signer, tokenAddress, tokenName, tokenVersion, chainID, deadline)
+	// Sign the EIP-2612 permit with the exact Permit2 permitted amount
+	// (the contract enforces permit2612.value == permit.permitted.amount)
+	info, err := SignEip2612Permit(ctx, c.signer, tokenAddress, tokenName, tokenVersion, chainID, deadline, requirements.Amount)
 	if err != nil {
 		return nil, err
 	}

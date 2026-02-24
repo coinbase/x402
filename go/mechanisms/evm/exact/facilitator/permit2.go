@@ -171,10 +171,6 @@ func SettlePermit2(
 	if !ok {
 		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid validAfter")
 	}
-	extraBytes, err := evm.HexToBytes(permit2Payload.Permit2Authorization.Witness.Extra)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid witness extra")
-	}
 	signatureBytes, err := evm.HexToBytes(permit2Payload.Signature)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrInvalidSignatureFormat, payer, network, "", "invalid signature format")
@@ -204,11 +200,9 @@ func SettlePermit2(
 	witnessStruct := struct {
 		To         common.Address
 		ValidAfter *big.Int
-		Extra      []byte
 	}{
 		To:         common.HexToAddress(permit2Payload.Permit2Authorization.Witness.To),
 		ValidAfter: validAfter,
-		Extra:      extraBytes,
 	}
 
 	// Check for EIP-2612 gas sponsoring extension
@@ -371,8 +365,10 @@ func splitEip2612Signature(signature string) (uint8, [32]byte, [32]byte, error) 
 func parsePermit2Error(err error) string {
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "AmountExceedsPermitted"):
-		return ErrPermit2AmountExceedsPermitted
+	case strings.Contains(msg, "Permit2612AmountMismatch"):
+		return ErrPermit2612AmountMismatch
+	case strings.Contains(msg, "InvalidAmount"):
+		return ErrPermit2InvalidAmount
 	case strings.Contains(msg, "InvalidDestination"):
 		return ErrPermit2InvalidDestination
 	case strings.Contains(msg, "InvalidOwner"):
