@@ -53,7 +53,6 @@ func CreatePermit2Payload(
 		Witness: evm.Permit2Witness{
 			To:         payTo,
 			ValidAfter: validAfter,
-			Extra:      "0x",
 		},
 	}
 
@@ -109,10 +108,6 @@ func signPermit2Authorization(
 	if !ok {
 		return nil, fmt.Errorf("invalid validAfter: %s", authorization.Witness.ValidAfter)
 	}
-	extraBytes, err := evm.HexToBytes(authorization.Witness.Extra)
-	if err != nil {
-		return nil, fmt.Errorf("invalid witness extra: %w", err)
-	}
 
 	// Create message with nested structs
 	message := map[string]interface{}{
@@ -124,7 +119,6 @@ func signPermit2Authorization(
 		"nonce":    nonce,
 		"deadline": deadline,
 		"witness": map[string]interface{}{
-			"extra":      extraBytes,
 			"to":         authorization.Witness.To,
 			"validAfter": validAfter,
 		},

@@ -524,7 +524,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -550,7 +549,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0xWrongRecipient23456789012345678901234567", // Wrong recipient!
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -576,7 +574,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -602,7 +599,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "9999999999", // Far in the future!
-					Extra:      "0x",
 				},
 			},
 		}
@@ -628,7 +624,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -654,7 +649,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -680,7 +674,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -714,7 +707,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -748,7 +740,6 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -997,7 +988,6 @@ func signedPermit2TestData(t *testing.T) (*evm.ExactPermit2Payload, string) {
 		Witness: evm.Permit2Witness{
 			To:         "0x9876543210987654321098765432109876543210",
 			ValidAfter: "0",
-			Extra:      "0x",
 		},
 	}
 

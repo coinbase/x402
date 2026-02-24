@@ -218,10 +218,6 @@ func HashPermit2Authorization(
 	if !ok {
 		return nil, fmt.Errorf("invalid validAfter: %s", authorization.Witness.ValidAfter)
 	}
-	extraBytes, err := HexToBytes(authorization.Witness.Extra)
-	if err != nil {
-		return nil, fmt.Errorf("invalid witness extra: %w", err)
-	}
 
 	// Ensure addresses are checksummed
 	token := common.HexToAddress(authorization.Permitted.Token).Hex()
@@ -238,7 +234,6 @@ func HashPermit2Authorization(
 		"nonce":    nonce,
 		"deadline": deadline,
 		"witness": map[string]interface{}{
-			"extra":      extraBytes,
 			"to":         to,
 			"validAfter": validAfter,
 		},

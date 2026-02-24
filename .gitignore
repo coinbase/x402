@@ -29,3 +29,7 @@ e2e/legacy/servers/gin/gin
 # Agent artifacts
 TASK.md
 .claude/
+
+# Agent Control Plane
+skills/
+REVIEW_PROMPT.md

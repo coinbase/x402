@@ -277,7 +277,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -321,7 +320,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -363,7 +361,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -405,7 +402,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -447,7 +443,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: "0x0000000000000000000000000000000000000001", // Wrong recipient
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -494,7 +489,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -540,7 +534,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -798,7 +791,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: permit2Requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },

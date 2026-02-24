@@ -166,7 +166,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -194,7 +193,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -223,7 +221,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -248,7 +245,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 		auth2 := evm.Permit2Authorization{
@@ -263,7 +259,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -288,7 +283,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -311,7 +305,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Witness: evm.Permit2Witness{
 				To:         "0x9876543210987654321098765432109876543210",
 				ValidAfter: "0",
-				Extra:      "0x",
 			},
 		}
 
@@ -321,28 +314,6 @@ func TestHashPermit2Authorization(t *testing.T) {
 		}
 	})
 
-	t.Run("Invalid extra format returns error", func(t *testing.T) {
-		auth := evm.Permit2Authorization{
-			From: "0x1234567890123456789012345678901234567890",
-			Permitted: evm.Permit2TokenPermissions{
-				Token:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				Amount: "1000000",
-			},
-			Spender:  evm.X402ExactPermit2ProxyAddress,
-			Nonce:    "12345",
-			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-				Extra:      "not_valid_hex",
-			},
-		}
-
-		_, err := evm.HashPermit2Authorization(auth, big.NewInt(84532))
-		if err == nil {
-			t.Error("Expected error for invalid extra format")
-		}
-	})
 }
 
 // TestHashTypedData tests the generic EIP-712 hashing function
@@ -402,7 +373,6 @@ func TestHashTypedData(t *testing.T) {
 			"witness": map[string]interface{}{
 				"to":         "0x9876543210987654321098765432109876543210",
 				"validAfter": big.NewInt(0),
-				"extra":      []byte{},
 			},
 		}
 
@@ -465,7 +435,7 @@ func TestGetPermit2EIP712Types(t *testing.T) {
 		witness := types["Witness"]
 
 		// Field order matters for EIP-712 type hash
-		expectedFields := []string{"to", "validAfter", "extra"}
+		expectedFields := []string{"to", "validAfter"}
 		if len(witness) != len(expectedFields) {
 			t.Errorf("Expected %d fields, got %d", len(expectedFields), len(witness))
 			return

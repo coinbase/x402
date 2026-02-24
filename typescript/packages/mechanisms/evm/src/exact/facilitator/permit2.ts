@@ -152,7 +152,6 @@ export async function verifyPermit2(
       witness: {
         to: getAddress(permit2Payload.permit2Authorization.witness.to),
         validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-        extra: permit2Payload.permit2Authorization.witness.extra,
       },
     },
   };
@@ -318,7 +317,6 @@ export async function settlePermit2(
           {
             to: getAddress(permit2Payload.permit2Authorization.witness.to),
             validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
           },
           permit2Payload.signature,
         ],
@@ -342,7 +340,6 @@ export async function settlePermit2(
           {
             to: getAddress(permit2Payload.permit2Authorization.witness.to),
             validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
           },
           permit2Payload.signature,
         ],
@@ -374,8 +371,8 @@ export async function settlePermit2(
     if (error instanceof Error) {
       // Check for common contract revert patterns
       const message = error.message;
-      if (message.includes("AmountExceedsPermitted")) {
-        errorReason = "permit2_amount_exceeds_permitted";
+      if (message.includes("InvalidAmount")) {
+        errorReason = "permit2_invalid_amount";
       } else if (message.includes("InvalidDestination")) {
         errorReason = "permit2_invalid_destination";
       } else if (message.includes("InvalidOwner")) {
