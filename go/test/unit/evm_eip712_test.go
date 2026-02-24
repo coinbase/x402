@@ -163,10 +163,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		hash, err := evm.HashPermit2Authorization(auth, big.NewInt(84532))
@@ -190,10 +187,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		hash1, err1 := evm.HashPermit2Authorization(auth, big.NewInt(84532))
@@ -218,10 +212,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		hash1, _ := evm.HashPermit2Authorization(auth, big.NewInt(84532))
@@ -242,10 +233,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 		auth2 := evm.Permit2Authorization{
 			From: "0x1234567890123456789012345678901234567890",
@@ -256,10 +244,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		hash1, _ := evm.HashPermit2Authorization(auth1, big.NewInt(84532))
@@ -280,10 +265,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "12345",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		_, err := evm.HashPermit2Authorization(auth, big.NewInt(84532))
@@ -302,10 +284,7 @@ func TestHashPermit2Authorization(t *testing.T) {
 			Spender:  evm.X402ExactPermit2ProxyAddress,
 			Nonce:    "not_a_number",
 			Deadline: "9999999999",
-			Witness: evm.Permit2Witness{
-				To:         "0x9876543210987654321098765432109876543210",
-				ValidAfter: "0",
-			},
+			Witness:  defaultTestWitness(),
 		}
 
 		_, err := evm.HashPermit2Authorization(auth, big.NewInt(84532))
@@ -402,10 +381,7 @@ func TestPermit2HashCrossSDKVector(t *testing.T) {
 		Spender:  evm.X402ExactPermit2ProxyAddress,
 		Nonce:    "1",
 		Deadline: "9999999999",
-		Witness: evm.Permit2Witness{
-			To:         "0x9876543210987654321098765432109876543210",
-			ValidAfter: "0",
-		},
+		Witness:  defaultTestWitness(),
 	}
 	chainID := big.NewInt(84532) // Base Sepolia
 
