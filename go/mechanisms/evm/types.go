@@ -55,7 +55,6 @@ type Permit2TokenPermissions struct {
 type Permit2Witness struct {
 	To         string `json:"to"`         // Destination address for funds (hex)
 	ValidAfter string `json:"validAfter"` // Unix timestamp (decimal string) - payment invalid before this time
-	Extra      string `json:"extra"`      // Extra data (hex, typically "0x" for empty)
 }
 
 // Permit2Authorization represents the Permit2 authorization parameters.
@@ -92,7 +91,6 @@ func (p *ExactPermit2Payload) ToMap() map[string]interface{} {
 			"witness": map[string]interface{}{
 				"to":         p.Permit2Authorization.Witness.To,
 				"validAfter": p.Permit2Authorization.Witness.ValidAfter,
-				"extra":      p.Permit2Authorization.Witness.Extra,
 			},
 		},
 	}
@@ -168,13 +166,6 @@ func Permit2PayloadFromMap(data map[string]interface{}) (*ExactPermit2Payload, e
 		payload.Permit2Authorization.Witness.ValidAfter = validAfter
 	} else {
 		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness.validAfter field")
-	}
-
-	if extra, ok := witness["extra"].(string); ok {
-		payload.Permit2Authorization.Witness.Extra = extra
-	} else {
-		// Extra is optional, default to "0x"
-		payload.Permit2Authorization.Witness.Extra = "0x"
 	}
 
 	return payload, nil

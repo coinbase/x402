@@ -47,7 +47,6 @@ export async function createPermit2Payload(
     witness: {
       to: getAddress(paymentRequirements.payTo),
       validAfter,
-      extra: "0x",
     },
   };
 
@@ -101,7 +100,6 @@ async function signPermit2Authorization(
     witness: {
       to: getAddress(permit2Authorization.witness.to),
       validAfter: BigInt(permit2Authorization.witness.validAfter),
-      extra: permit2Authorization.witness.extra,
     },
   };
 

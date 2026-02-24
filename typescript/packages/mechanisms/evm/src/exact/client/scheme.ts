@@ -152,7 +152,8 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       (permit2Auth?.deadline as string) ??
       Math.floor(Date.now() / 1000 + requirements.maxTimeoutSeconds).toString();
 
-    // Sign the EIP-2612 permit
+    // Sign the EIP-2612 permit with the exact Permit2 permitted amount
+    // (the contract enforces permit2612.value == permit.permitted.amount)
     const info = await signEip2612Permit(
       this.signer,
       tokenAddress,
@@ -160,6 +161,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       tokenVersion,
       chainId,
       deadline,
+      requirements.amount,
     );
 
     return {

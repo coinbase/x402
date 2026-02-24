@@ -17,6 +17,15 @@ import {
   x402ExactPermit2ProxyABI,
   x402ExactPermit2ProxyAddress,
 } from "../../constants";
+import {
+  ErrPermit2612AmountMismatch,
+  ErrPermit2InvalidAmount,
+  ErrPermit2InvalidDestination,
+  ErrPermit2InvalidNonce,
+  ErrPermit2InvalidOwner,
+  ErrPermit2InvalidSignature,
+  ErrPermit2PaymentTooEarly,
+} from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactPermit2Payload } from "../../types";
 
@@ -152,7 +161,6 @@ export async function verifyPermit2(
       witness: {
         to: getAddress(permit2Payload.permit2Authorization.witness.to),
         validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-        extra: permit2Payload.permit2Authorization.witness.extra,
       },
     },
   };
@@ -318,7 +326,6 @@ export async function settlePermit2(
           {
             to: getAddress(permit2Payload.permit2Authorization.witness.to),
             validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
           },
           permit2Payload.signature,
         ],
@@ -342,7 +349,6 @@ export async function settlePermit2(
           {
             to: getAddress(permit2Payload.permit2Authorization.witness.to),
             validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-            extra: permit2Payload.permit2Authorization.witness.extra as `0x${string}`,
           },
           permit2Payload.signature,
         ],
@@ -372,20 +378,22 @@ export async function settlePermit2(
     // Extract meaningful error message from the contract revert
     let errorReason = "transaction_failed";
     if (error instanceof Error) {
-      // Check for common contract revert patterns
+      // Check for common contract revert patterns (ordered: more specific first)
       const message = error.message;
-      if (message.includes("AmountExceedsPermitted")) {
-        errorReason = "permit2_amount_exceeds_permitted";
+      if (message.includes("Permit2612AmountMismatch")) {
+        errorReason = ErrPermit2612AmountMismatch;
+      } else if (message.includes("InvalidAmount")) {
+        errorReason = ErrPermit2InvalidAmount;
       } else if (message.includes("InvalidDestination")) {
-        errorReason = "permit2_invalid_destination";
+        errorReason = ErrPermit2InvalidDestination;
       } else if (message.includes("InvalidOwner")) {
-        errorReason = "permit2_invalid_owner";
+        errorReason = ErrPermit2InvalidOwner;
       } else if (message.includes("PaymentTooEarly")) {
-        errorReason = "permit2_payment_too_early";
+        errorReason = ErrPermit2PaymentTooEarly;
       } else if (message.includes("InvalidSignature") || message.includes("SignatureExpired")) {
-        errorReason = "permit2_invalid_signature";
+        errorReason = ErrPermit2InvalidSignature;
       } else if (message.includes("InvalidNonce")) {
-        errorReason = "permit2_invalid_nonce";
+        errorReason = ErrPermit2InvalidNonce;
       } else {
         // Include error message for debugging (longer for better visibility)
         errorReason = `transaction_failed: ${message.slice(0, 500)}`;

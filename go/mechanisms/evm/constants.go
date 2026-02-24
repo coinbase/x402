@@ -43,11 +43,11 @@ const (
 
 	// X402ExactPermit2ProxyAddress is the x402 exact payment proxy.
 	// Vanity address: 0x4020...0001 for easy recognition.
-	X402ExactPermit2ProxyAddress = "0x4020615294c913F045dc10f0a5cdEbd86c280001"
+	X402ExactPermit2ProxyAddress = "0x402085c248EeA27D92E8b30b2C58ed07f9E20001"
 
 	// X402UptoPermit2ProxyAddress is the x402 upto payment proxy.
 	// Vanity address: 0x4020...0002 for easy recognition.
-	X402UptoPermit2ProxyAddress = "0x4020633461b2895a48930Ff97eE8fCdE8E520002"
+	X402UptoPermit2ProxyAddress = "0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002"
 
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
@@ -280,8 +280,7 @@ var (
 					"type": "tuple",
 					"components": [
 						{"name": "to", "type": "address"},
-						{"name": "validAfter", "type": "uint256"},
-						{"name": "extra", "type": "bytes"}
+						{"name": "validAfter", "type": "uint256"}
 					]
 				},
 				{"name": "signature", "type": "bytes"}
@@ -343,8 +342,7 @@ var (
 					"type": "tuple",
 					"components": [
 						{"name": "to", "type": "address"},
-						{"name": "validAfter", "type": "uint256"},
-						{"name": "extra", "type": "bytes"}
+						{"name": "validAfter", "type": "uint256"}
 					]
 				},
 				{"name": "signature", "type": "bytes"}
@@ -382,7 +380,6 @@ var (
 		"Witness": {
 			{Name: "to", Type: "address"},
 			{Name: "validAfter", Type: "uint256"},
-			{Name: "extra", Type: "bytes"},
 		},
 	}
 )
