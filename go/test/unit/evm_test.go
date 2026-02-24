@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
@@ -35,6 +36,16 @@ func (m *mockClientEvmSigner) SignTypedData(
 	// Set v to 27 (common value for Ethereum signatures)
 	sig[64] = 27
 	return sig, nil
+}
+
+func (m *mockClientEvmSigner) ReadContract(
+	ctx context.Context,
+	address string,
+	abi []byte,
+	functionName string,
+	args ...interface{},
+) (interface{}, error) {
+	return nil, fmt.Errorf("mock ReadContract not implemented")
 }
 
 // TestEVMVersionMismatch tests that V1 and V2 don't mix

@@ -251,6 +251,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         return {
           isValid: false,
           invalidReason: "insufficient_funds",
+          invalidMessage: `Insufficient funds to complete the payment. Required: ${requirementsV1.maxAmountRequired} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
           payer: exactEvmPayload.authorization.from,
         };
       }

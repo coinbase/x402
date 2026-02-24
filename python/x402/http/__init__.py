@@ -53,7 +53,11 @@ from .utils import (
     safe_base64_encode,
 )
 from .x402_http_client import PaymentRoundTripper, x402HTTPClient, x402HTTPClientSync
-from .x402_http_server import PaywallProvider, x402HTTPResourceServer, x402HTTPResourceServerSync
+from .x402_http_server import (
+    PaywallProvider,
+    x402HTTPResourceServer,
+    x402HTTPResourceServerSync,
+)
 
 # HTTP clients (imported on demand to avoid requiring httpx/requests)
 # from .clients import (

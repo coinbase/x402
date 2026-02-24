@@ -98,6 +98,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         SVM_RPC_URL: config.networks.svm.rpcUrl,
         SVM_PAYEE_ADDRESS: config.svmPayTo,
 
+        // Aptos network config
+        APTOS_NETWORK: config.networks.aptos.caip2,
+        APTOS_RPC_URL: config.networks.aptos.rpcUrl,
+        APTOS_PAYEE_ADDRESS: config.aptosPayTo,
+
         // Facilitator
         FACILITATOR_URL: config.facilitatorUrl || '',
       }

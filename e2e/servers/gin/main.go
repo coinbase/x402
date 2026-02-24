@@ -10,6 +10,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
@@ -90,7 +91,7 @@ func main() {
 	 * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
 	 * on the Base Sepolia testnet with bazaar discovery extension.
 	 */
-	// Declare bazaar discovery extension for the GET endpoint
+	// Declare bazaar discovery extension for GET endpoints
 	discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
 		bazaar.MethodGET,
 		nil, // No query params
@@ -124,11 +125,11 @@ func main() {
 					Network: evmNetwork,
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
-			},
+		Extensions: map[string]interface{}{
+			types.BAZAAR.Key(): discoveryExtension,
 		},
-		"GET /protected-svm": {
+	},
+	"GET /protected-svm": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -137,9 +138,37 @@ func main() {
 					Network: svmNetwork,
 				},
 			},
-			Extensions: map[string]interface{}{
-				types.BAZAAR: discoveryExtension,
+		Extensions: map[string]interface{}{
+			types.BAZAAR.Key(): discoveryExtension,
+		},
+	},
+	// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
+		"GET /protected-permit2": {
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Network: evmNetwork,
+					// Use pre-parsed price with assetTransferMethod to force Permit2
+					Price: map[string]interface{}{
+						"amount": "1000", // 0.001 USDC (6 decimals)
+						"asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+						"extra": map[string]interface{}{
+							"assetTransferMethod": "permit2",
+						},
+					},
+				},
 			},
+			Extensions: func() map[string]interface{} {
+			ext := map[string]interface{}{
+				types.BAZAAR.Key(): discoveryExtension,
+			}
+				// Add EIP-2612 gas sponsoring extension
+				for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+					ext[k] = v
+				}
+				return ext
+			}(),
 		},
 	}
 
@@ -219,6 +248,27 @@ func main() {
 	})
 
 	/**
+	 * Protected Permit2 endpoint - requires payment via Permit2 flow
+	 *
+	 * This endpoint demonstrates the Permit2 payment flow.
+	 * Clients must have approved Permit2 to spend their USDC before accessing.
+	 */
+	r.GET("/protected-permit2", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Permit2 endpoint accessed successfully",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"method":    "permit2",
+		})
+	})
+
+	/**
 	 * Health check endpoint - no payment required
 	 *
 	 * Used to verify the server is running and responsive.
@@ -276,10 +326,11 @@ func main() {
 ║  SVM Payee:   %-40s ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected      (requires $0.001 EVM payment) ║
-║  • GET  /protected-svm  (requires $0.001 SVM payment) ║
-║  • GET  /health         (no payment required)         ║
-║  • POST /close          (shutdown server)             ║
+║  • GET  /protected         (EIP-3009 payment)         ║
+║  • GET  /protected-svm     (SVM payment)              ║
+║  • GET  /protected-permit2 (Permit2 payment)          ║
+║  • GET  /health            (no payment required)      ║
+║  • POST /close             (shutdown server)          ║
 ╚════════════════════════════════════════════════════════╝
 `, port, evmNetwork, evmPayeeAddress, svmNetwork, svmPayeeAddress)
 
@@ -292,14 +343,4 @@ func main() {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func maskPrivateKey(key string) string {
-	if key == "" {
-		return "not configured"
-	}
-	if len(key) > 10 {
-		return key[:10] + "..."
-	}
-	return key
 }

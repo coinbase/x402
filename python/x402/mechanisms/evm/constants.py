@@ -19,8 +19,8 @@ TX_STATUS_FAILED = 0
 # Default validity period (1 hour in seconds)
 DEFAULT_VALIDITY_PERIOD = 3600
 
-# Default validity buffer (30 seconds before now for clock skew)
-DEFAULT_VALIDITY_BUFFER = 30
+# Default validity buffer (10 minutes before now for clock skew)
+DEFAULT_VALIDITY_BUFFER = 600
 
 # ERC-6492 magic value (32 bytes)
 # bytes32(uint256(keccak256("erc6492.invalid.signature")) - 1)
@@ -159,6 +159,42 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # MegaETH Mainnet
+    "eip155:4326": {
+        "chain_id": 4326,
+        "default_asset": {
+            "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+            "name": "MegaUSD",
+            "version": "1",
+            "decimals": 18,
+        },
+        "supported_assets": {
+            "USDM": {
+                "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+                "name": "MegaUSD",
+                "version": "1",
+                "decimals": 18,
+            },
+        },
+    },
+    # Monad Mainnet
+    "eip155:143": {
+        "chain_id": 143,
+        "default_asset": {
+            "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+            "name": "USD Coin",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC": {
+                "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+                "name": "USD Coin",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
 # Network aliases (legacy names to CAIP-2)
@@ -170,6 +206,8 @@ NETWORK_ALIASES: dict[str, str] = {
     "mainnet": "eip155:1",
     "polygon": "eip155:137",
     "avalanche": "eip155:43114",
+    "megaeth": "eip155:4326",
+    "monad": "eip155:143",
 }
 
 # V1 supported networks (legacy name-based)
@@ -189,6 +227,8 @@ V1_NETWORKS = [
     "story",
     "educhain",
     "skale-base-sepolia",
+    "megaeth",
+    "monad",
 ]
 
 # V1 network name to chain ID mapping
@@ -209,6 +249,8 @@ V1_NETWORK_CHAIN_IDS: dict[str, int] = {
     "story": 1513,
     "educhain": 656476,
     "skale-base-sepolia": 1444673419,
+    "megaeth": 4326,
+    "monad": 143,
 }
 
 # EIP-3009 ABIs

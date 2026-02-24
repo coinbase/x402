@@ -1,18 +1,28 @@
 {
-  "name": "express",
+  "name": "hono",
   "type": "server",
   "language": "typescript",
   "x402Version": 2,
   "extensions": [
-    "bazaar"
+    "bazaar",
+    "eip2612GasSponsoring"
   ],
   "endpoints": [
     {
       "path": "/protected",
       "method": "GET",
-      "description": "Protected endpoint requiring payment",
+      "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
+    },
+    {
+      "path": "/protected-permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "permit2": true
     },
     {
       "path": "/protected-svm",
@@ -20,6 +30,13 @@
       "description": "Protected endpoint requiring payment on SVM network",
       "requiresPayment": true,
       "protocolFamily": "svm"
+    },
+    {
+      "path": "/protected-aptos",
+      "method": "GET",
+      "description": "Protected endpoint requiring payment on Aptos network",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
     },
     {
       "path": "/health",
@@ -41,6 +58,8 @@
       "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PAYEE_ADDRESS"
+    ]
   }
 }

@@ -306,7 +306,11 @@ class TestPaymentMiddleware:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.requires_payment.return_value = False
             mock_http_server_class.return_value = mock_http_server_instance
-            mp.setattr(middleware_module.fastapi, "x402HTTPResourceServer", mock_http_server_class)
+            mp.setattr(
+                middleware_module.fastapi,
+                "x402HTTPResourceServer",
+                mock_http_server_class,
+            )
 
             middleware = payment_middleware(routes, mock_server, sync_facilitator_on_start=False)
             response = await middleware(request, call_next)

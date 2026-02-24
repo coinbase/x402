@@ -1,6 +1,10 @@
 """Tests for ExactSvmScheme facilitator."""
 
-from x402.mechanisms.svm import SOLANA_DEVNET_CAIP2, SOLANA_MAINNET_CAIP2, USDC_DEVNET_ADDRESS
+from x402.mechanisms.svm import (
+    SOLANA_DEVNET_CAIP2,
+    SOLANA_MAINNET_CAIP2,
+    USDC_DEVNET_ADDRESS,
+)
 from x402.mechanisms.svm.exact import ExactSvmFacilitatorScheme
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
 

@@ -188,7 +188,10 @@ func TestHTTPIntegration(t *testing.T) {
 
 		// Marshal payload to bytes for header encoding
 		payloadBytes, _ := json.Marshal(payload)
-		requestHeaders := httpClient.EncodePaymentSignatureHeader(payloadBytes)
+		requestHeaders, err := httpClient.EncodePaymentSignatureHeader(payloadBytes)
+		if err != nil {
+			t.Fatalf("Failed to encode payment signature header: %v", err)
+		}
 
 		// Update mock adapter with payment header
 		mockAdapter.headers = requestHeaders

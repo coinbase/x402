@@ -31,14 +31,14 @@ func (m *mockSchemeNetworkFacilitatorV1) GetSigners(_ Network) []string {
 	return []string{}
 }
 
-func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error) {
+func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1, _ *FacilitatorContext) (*VerifyResponse, error) {
 	return &VerifyResponse{
 		IsValid: true,
 		Payer:   "0xmockpayer",
 	}, nil
 }
 
-func (m *mockSchemeNetworkFacilitatorV1) Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error) {
+func (m *mockSchemeNetworkFacilitatorV1) Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1, _ *FacilitatorContext) (*SettleResponse, error) {
 	return &SettleResponse{
 		Success:     true,
 		Transaction: "0xmocktx",
@@ -70,7 +70,7 @@ func (m *mockSchemeNetworkFacilitator) GetSigners(_ Network) []string {
 	return []string{}
 }
 
-func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, _ *FacilitatorContext) (*VerifyResponse, error) {
 	if m.verifyFunc != nil {
 		return m.verifyFunc(ctx, payload, requirements)
 	}
@@ -80,7 +80,7 @@ func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types
 	}, nil
 }
 
-func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, _ *FacilitatorContext) (*SettleResponse, error) {
 	if m.settleFunc != nil {
 		return m.settleFunc(ctx, payload, requirements)
 	}
@@ -159,21 +159,21 @@ func TestFacilitatorRegister(t *testing.T) {
 func TestFacilitatorRegisterExtension(t *testing.T) {
 	facilitator := Newx402Facilitator()
 
-	facilitator.RegisterExtension("bazaar")
+	facilitator.RegisterExtension(NewFacilitatorExtension("bazaar"))
 	if len(facilitator.extensions) != 1 {
 		t.Fatal("Expected 1 extension")
 	}
-	if facilitator.extensions[0] != "bazaar" {
+	if facilitator.extensions["bazaar"] == nil {
 		t.Fatal("Expected 'bazaar' extension")
 	}
 
 	// Test duplicate registration (should not add twice)
-	facilitator.RegisterExtension("bazaar")
+	facilitator.RegisterExtension(NewFacilitatorExtension("bazaar"))
 	if len(facilitator.extensions) != 1 {
 		t.Fatal("Expected extension to not be duplicated")
 	}
 
-	facilitator.RegisterExtension("sign_in_with_x")
+	facilitator.RegisterExtension(NewFacilitatorExtension("sign_in_with_x"))
 	if len(facilitator.extensions) != 2 {
 		t.Fatal("Expected 2 extensions")
 	}
@@ -507,7 +507,7 @@ func TestFacilitatorGetSupported(t *testing.T) {
 	facilitator.Register([]Network{"eip155:1"}, mockFacilitatorV2_1)
 	facilitator.Register([]Network{"eip155:8453"}, mockFacilitatorV2_2)
 	facilitator.RegisterV1([]Network{"eip155:1"}, mockFacilitatorV1_1)
-	facilitator.RegisterExtension("bazaar")
+	facilitator.RegisterExtension(NewFacilitatorExtension("bazaar"))
 
 	supported := facilitator.GetSupported()
 

@@ -11,14 +11,22 @@ from x402.http.constants import (
     X_PAYMENT_HEADER,
     X_PAYMENT_RESPONSE_HEADER,
 )
-from x402.http.utils import encode_payment_required_header, encode_payment_response_header
+from x402.http.utils import (
+    encode_payment_required_header,
+    encode_payment_response_header,
+)
 from x402.http.x402_http_client import (
     PaymentRoundTripper,
     x402HTTPClient,
     x402HTTPClientSync,
 )
 from x402.http.x402_http_client_base import x402HTTPClientBase
-from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    SettleResponse,
+)
 from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
 
 # =============================================================================

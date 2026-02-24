@@ -103,6 +103,7 @@ class ExactEvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> VerifyResponse:
         """Verify EIP-3009 payment payload.
 
@@ -248,6 +249,7 @@ class ExactEvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> SettleResponse:
         """Settle EIP-3009 payment on-chain.
 
@@ -264,7 +266,7 @@ class ExactEvmScheme:
             SettleResponse with success, transaction, and payer.
         """
         # First verify
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
         if not verify_result.is_valid:
             return SettleResponse(
                 success=False,

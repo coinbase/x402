@@ -37,7 +37,7 @@ func GetEvmChainId(network string) (*big.Int, error) {
 	return nil, fmt.Errorf("unsupported network: %s", network)
 }
 
-// CreateNonce generates a random 32-byte nonce
+// CreateNonce generates a random 32-byte nonce for EIP-3009
 func CreateNonce() (string, error) {
 	nonce := make([]byte, 32)
 	_, err := rand.Read(nonce)
@@ -45,6 +45,27 @@ func CreateNonce() (string, error) {
 		return "", fmt.Errorf("failed to generate nonce: %w", err)
 	}
 	return "0x" + hex.EncodeToString(nonce), nil
+}
+
+// CreatePermit2Nonce generates a random 256-bit nonce for Permit2.
+// Permit2 uses uint256 nonces (not bytes32 like EIP-3009).
+func CreatePermit2Nonce() (string, error) {
+	nonce := make([]byte, 32)
+	_, err := rand.Read(nonce)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	// Convert to uint256 string representation
+	nonceInt := new(big.Int).SetBytes(nonce)
+	return nonceInt.String(), nil
+}
+
+// MaxUint256 returns the maximum value for uint256 (used for unlimited approval).
+func MaxUint256() *big.Int {
+	max := new(big.Int)
+	max.Exp(big.NewInt(2), big.NewInt(256), nil)
+	max.Sub(max, big.NewInt(1))
+	return max
 }
 
 // NormalizeAddress ensures an Ethereum address is in the correct format
@@ -226,8 +247,8 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 // CreateValidityWindow creates valid after/before timestamps
 func CreateValidityWindow(duration time.Duration) (validAfter, validBefore *big.Int) {
 	now := time.Now().Unix()
-	// Add 30 second buffer to account for clock skew and block time
-	validAfter = big.NewInt(now - 30)
+	// Add 10 minute buffer to account for clock skew and block time
+	validAfter = big.NewInt(now - 600)
 	validBefore = big.NewInt(now + int64(duration.Seconds()))
 	return validAfter, validBefore
 }

@@ -374,14 +374,14 @@ func (m *mockSchemeFacilitator) GetSigners(_ Network) []string {
 	return []string{}
 }
 
-func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
+func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, _ *FacilitatorContext) (*VerifyResponse, error) {
 	if m.verifyFunc != nil {
 		return m.verifyFunc(ctx, payload, requirements)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchemeFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
+func (m *mockSchemeFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, _ *FacilitatorContext) (*SettleResponse, error) {
 	if m.settleFunc != nil {
 		return m.settleFunc(ctx, payload, requirements)
 	}

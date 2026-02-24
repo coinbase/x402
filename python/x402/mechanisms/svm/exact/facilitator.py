@@ -33,15 +33,24 @@ from ..constants import (
     ERR_SIMULATION_FAILED,
     ERR_TRANSACTION_DECODE_FAILED,
     ERR_TRANSACTION_FAILED,
+    ERR_UNKNOWN_FIFTH_INSTRUCTION,
+    ERR_UNKNOWN_FOURTH_INSTRUCTION,
+    ERR_UNKNOWN_SIXTH_INSTRUCTION,
     ERR_UNSUPPORTED_SCHEME,
+    LIGHTHOUSE_PROGRAM_ADDRESS,
     MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+    MEMO_PROGRAM_ADDRESS,
     SCHEME_EXACT,
     TOKEN_2022_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
 )
 from ..signer import FacilitatorSvmSigner
 from ..types import ExactSvmPayload
-from ..utils import decode_transaction_from_payload, derive_ata, get_token_payer_from_transaction
+from ..utils import (
+    decode_transaction_from_payload,
+    derive_ata,
+    get_token_payer_from_transaction,
+)
 
 
 class ExactSvmScheme:
@@ -100,12 +109,13 @@ class ExactSvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> VerifyResponse:
         """Verify SPL token payment payload.
 
         Validates:
         - Scheme and network match
-        - Transaction structure (3 instructions)
+        - Transaction structure (3-6 instructions)
         - Compute budget instructions are valid
         - TransferChecked instruction:
           - Token program is known (Token or Token-2022)
@@ -156,8 +166,8 @@ class ExactSvmScheme:
         instructions = message.instructions
         static_accounts = list(message.account_keys)
 
-        # 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-        if len(instructions) != 3:
+        # 3-6 instructions: ComputeLimit + ComputePrice + TransferChecked + optional Lighthouse/Memo
+        if len(instructions) < 3 or len(instructions) > 6:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_INSTRUCTION_COUNT, payer=""
             )
@@ -221,6 +231,29 @@ class ExactSvmScheme:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer
             )
+
+        # Step 5: Verify optional instructions (if present)
+        optional_instructions = instructions[3:]
+        if optional_instructions:
+            lighthouse_program = Pubkey.from_string(LIGHTHOUSE_PROGRAM_ADDRESS)
+            memo_program = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
+            invalid_reasons = [
+                ERR_UNKNOWN_FOURTH_INSTRUCTION,
+                ERR_UNKNOWN_FIFTH_INSTRUCTION,
+                ERR_UNKNOWN_SIXTH_INSTRUCTION,
+            ]
+
+            for idx, optional_ix in enumerate(optional_instructions):
+                optional_program = static_accounts[optional_ix.program_id_index]
+                if optional_program in (lighthouse_program, memo_program):
+                    continue
+
+                reason = (
+                    invalid_reasons[idx]
+                    if idx < len(invalid_reasons)
+                    else ERR_UNKNOWN_SIXTH_INSTRUCTION
+                )
+                return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
 
         # Parse transfer instruction
         transfer_accounts = list(transfer_ix.accounts)
@@ -299,6 +332,7 @@ class ExactSvmScheme:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> SettleResponse:
         """Settle SPL token payment on-chain.
 
@@ -318,7 +352,7 @@ class ExactSvmScheme:
         network = str(payload.accepted.network)
 
         # First verify
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
         if not verify_result.is_valid:
             return SettleResponse(
                 success=False,

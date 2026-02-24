@@ -1,6 +1,6 @@
 {
   "name": "@x402/extensions",
-  "version": "2.2.0",
+  "version": "2.4.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -44,11 +44,13 @@
   },
   "dependencies": {
     "@noble/curves": "^1.9.0",
-    "@scure/base": "^1.2.0",
-    "@x402/core": "workspace:^",
+    "@scure/base": "^1.2.6",
+    "@x402/core": "workspace:~",
     "ajv": "^8.17.1",
     "jose": "^5.9.6",
-    "viem": "^2.21.0",
+    "siwe": "^2.3.2",
+    "tweetnacl": "^1.0.3",
+    "viem": "^2.43.5",
     "zod": "^3.24.2"
   },
   "exports": {
@@ -90,6 +92,16 @@
       "require": {
         "types": "./dist/cjs/offer-receipt/index.d.ts",
         "default": "./dist/cjs/offer-receipt/index.js"
+      }
+    },
+    "./payment-identifier": {
+      "import": {
+        "types": "./dist/esm/payment-identifier/index.d.mts",
+        "default": "./dist/esm/payment-identifier/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/payment-identifier/index.d.ts",
+        "default": "./dist/cjs/payment-identifier/index.js"
       }
     }
   },

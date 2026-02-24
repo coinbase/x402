@@ -7,6 +7,7 @@ export type { FacilitatorClient, FacilitatorConfig } from "../http/httpFacilitat
 export { x402HTTPResourceServer, RouteConfigurationError } from "../http/x402HTTPResourceServer";
 export type {
   HTTPRequestContext,
+  HTTPTransportContext,
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,

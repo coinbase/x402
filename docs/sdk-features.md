@@ -28,6 +28,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |---------|------------|-----|--------|
 | evm (EIP-155) | ✅ | ✅ | ✅ |
 | svm (Solana) | ✅ | ✅ | ✅ |
+| aptos | ✅ | ❌ | ❌ |
 
 ## Mechanisms
 
@@ -35,12 +36,15 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |-----------|------------|-----|--------|
 | exact/evm (EIP-3009) | ✅ | ✅ | ✅ |
 | exact/svm (SPL) | ✅ | ✅ | ✅ |
+| exact/aptos (Fungible Assets) | ✅ | ❌ | ❌ |
 
 ## Extensions
 
 | Extension | TypeScript | Go | Python |
 |-----------|------------|-----|--------|
 | bazaar | ✅ | ✅ | ✅ |
+| sign-in-with-x | ✅ | ❌ | ❌ |
+| payment-identifier | ✅ | ❌ | ✅ |
 
 ## Client Hooks
 

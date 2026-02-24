@@ -14,7 +14,6 @@ Run with: uv run uvicorn main:app --port 4022
 
 import os
 import sys
-from datetime import datetime
 from typing import Any
 
 from dotenv import load_dotenv
@@ -23,7 +22,7 @@ from pydantic import BaseModel
 from solders.keypair import Keypair
 
 from x402 import x402Facilitator
-from x402.extensions.bazaar import DiscoveredResource, extract_discovery_info
+from x402.extensions.bazaar import extract_discovery_info
 from x402.mechanisms.evm import FacilitatorWeb3Signer
 from x402.mechanisms.evm.exact import register_exact_evm_facilitator
 from x402.mechanisms.svm import FacilitatorKeypairSigner
