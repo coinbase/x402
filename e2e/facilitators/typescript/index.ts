@@ -26,13 +26,13 @@ import {
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
-import { ExactEvmSchemeV1 } from "@x402/evm/v1";
+import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
 import { NETWORKS as EVM_V1_NETWORKS } from "@x402/evm/v1";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import { EIP2612_GAS_SPONSORING } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
-import { ExactSvmSchemeV1 } from "@x402/svm/v1";
+import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { NETWORKS as SVM_V1_NETWORKS } from "@x402/svm/v1";
 import crypto from "crypto";
 import dotenv from "dotenv";
