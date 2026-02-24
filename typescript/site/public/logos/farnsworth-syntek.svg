@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="syntekGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00D4AA"/>
+      <stop offset="100%" style="stop-color:#0066FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="#0a0a1a"/>
+  <g transform="translate(100,100)" fill="none" stroke="url(#syntekGrad)" stroke-width="5" stroke-linecap="round">
+    <!-- 7 horizontal memory layers -->
+    <line x1="-50" y1="-54" x2="50" y2="-54"/>
+    <line x1="-50" y1="-36" x2="50" y2="-36"/>
+    <line x1="-50" y1="-18" x2="50" y2="-18"/>
+    <line x1="-50" y1="0" x2="50" y2="0"/>
+    <line x1="-50" y1="18" x2="50" y2="18"/>
+    <line x1="-50" y1="36" x2="50" y2="36"/>
+    <line x1="-50" y1="54" x2="50" y2="54"/>
+    <!-- Vertical connector -->
+    <line x1="0" y1="-60" x2="0" y2="60" stroke-width="2" stroke-dasharray="4,4"/>
+  </g>
+  <text x="100" y="185" text-anchor="middle" fill="url(#syntekGrad)" font-family="monospace" font-size="14" font-weight="bold">SYNTEK</text>
+</svg>
