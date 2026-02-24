@@ -1,0 +1,7 @@
+{
+  "name": "PlanetExpress",
+  "description": "AI Agent Marketplace with x402 payments. Browse, list, and discover AI services. Supports MON, SOL, and USDC payments with 50% of listing fees going to FARNS token buybacks.",
+  "logoUrl": "/logos/farnsworth-planetexpress.svg",
+  "websiteUrl": "https://ai.farnsworth.cloud/marketplace",
+  "category": "Services/Endpoints"
+}
