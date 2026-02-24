@@ -365,6 +365,8 @@ func splitEip2612Signature(signature string) (uint8, [32]byte, [32]byte, error) 
 func parsePermit2Error(err error) string {
 	msg := err.Error()
 	switch {
+	case strings.Contains(msg, "Permit2612AmountMismatch"):
+		return ErrPermit2612AmountMismatch
 	case strings.Contains(msg, "InvalidAmount"):
 		return ErrPermit2InvalidAmount
 	case strings.Contains(msg, "InvalidDestination"):

@@ -173,6 +173,16 @@ func HashEIP3009Authorization(
 	return HashTypedData(domain, types, "TransferWithAuthorization", message)
 }
 
+// BuildPermit2WitnessMap returns the witness map used in EIP-712 message construction.
+// Centralizing this ensures eip712.go and exact/client/permit2.go stay in sync when
+// the witness struct changes.
+func BuildPermit2WitnessMap(to string, validAfter *big.Int) map[string]interface{} {
+	return map[string]interface{}{
+		"to":         to,
+		"validAfter": validAfter,
+	}
+}
+
 // HashPermit2Authorization hashes a PermitWitnessTransferFrom message for Permit2.
 //
 // This function creates the EIP-712 hash for Permit2's PermitWitnessTransferFrom
@@ -233,10 +243,7 @@ func HashPermit2Authorization(
 		"spender":  spender,
 		"nonce":    nonce,
 		"deadline": deadline,
-		"witness": map[string]interface{}{
-			"to":         to,
-			"validAfter": validAfter,
-		},
+		"witness":  BuildPermit2WitnessMap(to, validAfter),
 	}
 
 	return HashTypedData(domain, types, "PermitWitnessTransferFrom", message)

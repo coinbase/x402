@@ -118,10 +118,7 @@ func signPermit2Authorization(
 		"spender":  authorization.Spender,
 		"nonce":    nonce,
 		"deadline": deadline,
-		"witness": map[string]interface{}{
-			"to":         authorization.Witness.To,
-			"validAfter": validAfter,
-		},
+		"witness":  evm.BuildPermit2WitnessMap(authorization.Witness.To, validAfter),
 	}
 
 	return signer.SignTypedData(ctx, domain, types, "PermitWitnessTransferFrom", message)

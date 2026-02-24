@@ -47,9 +47,10 @@ const (
 	ErrPermit2AllowanceRequired  = "permit2_allowance_required"
 
 	// Permit2 settle errors (from contract reverts)
-	ErrPermit2InvalidAmount      = "permit2_invalid_amount"
-	ErrPermit2InvalidDestination = "permit2_invalid_destination"
-	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
-	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
-	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
+	ErrPermit2InvalidAmount        = "permit2_invalid_amount"
+	ErrPermit2InvalidDestination   = "permit2_invalid_destination"
+	ErrPermit2InvalidOwner         = "permit2_invalid_owner"
+	ErrPermit2PaymentTooEarly      = "permit2_payment_too_early"
+	ErrPermit2InvalidNonce         = "permit2_invalid_nonce"
+	ErrPermit2612AmountMismatch    = "permit2_612_amount_mismatch"
 )

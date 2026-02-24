@@ -138,7 +138,19 @@ export const x402ExactPermit2ProxyAddress = "0x402085c248EeA27D92E8b30b2C58ed07f
 export const x402UptoPermit2ProxyAddress = "0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002" as const;
 
 /**
+ * Shared ABI components for the Permit2 witness tuple.
+ * Used in both x402ExactPermit2ProxyABI and x402UptoPermit2ProxyABI to keep them in sync.
+ * The upto contract's witness struct is identical to exact (both remove 'extra' post-audit).
+ */
+const permit2WitnessABIComponents = [
+  { name: "to", type: "address", internalType: "address" },
+  { name: "validAfter", type: "uint256", internalType: "uint256" },
+] as const;
+
+/**
  * x402UptoPermit2Proxy ABI - settle function for upto payment scheme (variable amounts).
+ * Updated post-audit: 'extra' removed from witness struct, 'initialize()' removed (now
+ * a constructor arg), and error names aligned with x402ExactPermit2Proxy.
  */
 export const x402UptoPermit2ProxyABI = [
   {
@@ -161,13 +173,6 @@ export const x402UptoPermit2ProxyABI = [
     inputs: [],
     outputs: [{ name: "", type: "string", internalType: "string" }],
     stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "initialize",
-    inputs: [{ name: "_permit2", type: "address", internalType: "address" }],
-    outputs: [],
-    stateMutability: "nonpayable",
   },
   {
     type: "function",
@@ -195,12 +200,8 @@ export const x402UptoPermit2ProxyABI = [
       {
         name: "witness",
         type: "tuple",
-        internalType: "struct x402BasePermit2Proxy.Witness",
-        components: [
-          { name: "to", type: "address", internalType: "address" },
-          { name: "validAfter", type: "uint256", internalType: "uint256" },
-          { name: "extra", type: "bytes", internalType: "bytes" },
-        ],
+        internalType: "struct x402UptoPermit2Proxy.Witness",
+        components: permit2WitnessABIComponents,
       },
       { name: "signature", type: "bytes", internalType: "bytes" },
     ],
@@ -214,7 +215,7 @@ export const x402UptoPermit2ProxyABI = [
       {
         name: "permit2612",
         type: "tuple",
-        internalType: "struct x402BasePermit2Proxy.EIP2612Permit",
+        internalType: "struct x402UptoPermit2Proxy.EIP2612Permit",
         components: [
           { name: "value", type: "uint256", internalType: "uint256" },
           { name: "deadline", type: "uint256", internalType: "uint256" },
@@ -245,12 +246,8 @@ export const x402UptoPermit2ProxyABI = [
       {
         name: "witness",
         type: "tuple",
-        internalType: "struct x402BasePermit2Proxy.Witness",
-        components: [
-          { name: "to", type: "address", internalType: "address" },
-          { name: "validAfter", type: "uint256", internalType: "uint256" },
-          { name: "extra", type: "bytes", internalType: "bytes" },
-        ],
+        internalType: "struct x402UptoPermit2Proxy.Witness",
+        components: permit2WitnessABIComponents,
       },
       { name: "signature", type: "bytes", internalType: "bytes" },
     ],
@@ -259,12 +256,12 @@ export const x402UptoPermit2ProxyABI = [
   },
   { type: "event", name: "Settled", inputs: [], anonymous: false },
   { type: "event", name: "SettledWithPermit", inputs: [], anonymous: false },
-  { type: "error", name: "AlreadyInitialized", inputs: [] },
-  { type: "error", name: "AmountExceedsPermitted", inputs: [] },
+  { type: "error", name: "InvalidAmount", inputs: [] },
   { type: "error", name: "InvalidDestination", inputs: [] },
   { type: "error", name: "InvalidOwner", inputs: [] },
   { type: "error", name: "InvalidPermit2Address", inputs: [] },
   { type: "error", name: "PaymentTooEarly", inputs: [] },
+  { type: "error", name: "Permit2612AmountMismatch", inputs: [] },
   { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
 ] as const;
 
@@ -320,10 +317,7 @@ export const x402ExactPermit2ProxyABI = [
         name: "witness",
         type: "tuple",
         internalType: "struct x402ExactPermit2Proxy.Witness",
-        components: [
-          { name: "to", type: "address", internalType: "address" },
-          { name: "validAfter", type: "uint256", internalType: "uint256" },
-        ],
+        components: permit2WitnessABIComponents,
       },
       { name: "signature", type: "bytes", internalType: "bytes" },
     ],
@@ -369,10 +363,7 @@ export const x402ExactPermit2ProxyABI = [
         name: "witness",
         type: "tuple",
         internalType: "struct x402ExactPermit2Proxy.Witness",
-        components: [
-          { name: "to", type: "address", internalType: "address" },
-          { name: "validAfter", type: "uint256", internalType: "uint256" },
-        ],
+        components: permit2WitnessABIComponents,
       },
       { name: "signature", type: "bytes", internalType: "bytes" },
     ],
