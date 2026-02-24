@@ -81,6 +81,9 @@ importers:
 
   packages/extensions:
     dependencies:
+      '@noble/curves':
+        specifier: ^1.9.0
+        version: 1.9.7
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
@@ -90,6 +93,9 @@ importers:
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
       siwe:
         specifier: ^2.3.2
         version: 2.3.2(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))

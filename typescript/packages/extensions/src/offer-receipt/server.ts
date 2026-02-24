@@ -158,18 +158,8 @@ function requirementsToOfferInput(
  * @returns ResourceServerExtension that can be registered with x402ResourceServer
  */
 export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): ResourceServerExtension {
-  // Store the current resource URL during declaration enrichment for use in hooks
-  let currentResourceUrl: string | undefined;
-
   return {
     key: OFFER_RECEIPT,
-
-    // Enrich declaration with transport context - captures the resource URL for later use
-    enrichDeclaration: (declaration: unknown, transportContext: unknown): unknown => {
-      // Capture resource URL from transport context
-      currentResourceUrl = extractResourceUrl(transportContext);
-      return declaration;
-    },
 
     // Add signed offers to 402 PaymentRequired response
     enrichPaymentRequiredResponse: async (
@@ -178,8 +168,10 @@ export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): Resourc
     ): Promise<unknown> => {
       const config = declaration as OfferReceiptDeclaration | undefined;
 
-      // Get resource URL - prefer from context, fall back to captured URL
-      const resourceUrl = context.paymentRequiredResponse.resource?.url || currentResourceUrl;
+      // Get resource URL from transport context or payment required response
+      const resourceUrl =
+        context.paymentRequiredResponse.resource?.url ||
+        extractResourceUrl(context.transportContext);
 
       if (!resourceUrl) {
         console.warn("[offer-receipt] No resource URL available for signing offers");
@@ -240,8 +232,8 @@ export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): Resourc
       }
       const transaction = context.result.transaction;
 
-      // Get resource URL from captured URL during declaration enrichment
-      const resourceUrl = currentResourceUrl;
+      // Get resource URL from transport context
+      const resourceUrl = extractResourceUrl(context.transportContext);
 
       if (!resourceUrl) {
         console.warn("[offer-receipt] No resource URL available for signing receipt");
