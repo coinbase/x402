@@ -1019,20 +1019,20 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 				Scheme:  evm.SchemeExact,
 				Network: "eip155:84532",
 			},
-		Extensions: map[string]interface{}{
-			"eip2612GasSponsoring": map[string]interface{}{
-				"info": map[string]interface{}{
-					"from":      payerAddress,
-					"asset":     "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					"spender":   evm.PERMIT2Address,
-					"amount":    "1000000", // Must match Permit2 permitted.amount exactly
-					"nonce":     "0",
-					"deadline":  "9999999999",
-					"signature": mockSignature65Bytes(),
-					"version":   "1",
+			Extensions: map[string]interface{}{
+				"eip2612GasSponsoring": map[string]interface{}{
+					"info": map[string]interface{}{
+						"from":      payerAddress,
+						"asset":     "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+						"spender":   evm.PERMIT2Address,
+						"amount":    "1000000", // Must match Permit2 permitted.amount exactly
+						"nonce":     "0",
+						"deadline":  "9999999999",
+						"signature": mockSignature65Bytes(),
+						"version":   "1",
+					},
 				},
 			},
-		},
 		}
 
 		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload)
