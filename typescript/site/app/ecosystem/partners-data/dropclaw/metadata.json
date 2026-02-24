@@ -1,0 +1,7 @@
+{
+  "name": "DropClaw",
+  "description": "Permanent encrypted on-chain storage for AI agents on Monad blockchain. x402 payment flow with MON, SOL, and USDC. Client-side AES-256-GCM encryption — server never sees plaintext.",
+  "logoUrl": "/logos/dropclaw.svg",
+  "websiteUrl": "https://dropclaw.cloud",
+  "category": "Services/Endpoints"
+}
