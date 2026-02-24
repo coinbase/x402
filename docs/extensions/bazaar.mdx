@@ -167,14 +167,14 @@ Once you've found a suitable service, use an x402 client to call it:
   <Tab title="TypeScript">
     ```typescript
     import { wrapAxiosWithPayment, x402Client } from "@x402/axios";
-    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
     import axios from "axios";
     import { privateKeyToAccount } from "viem/accounts";
 
     // Set up your payment account
     const account = privateKeyToAccount("0xYourPrivateKey");
     const client = new x402Client();
-    registerExactEvmScheme(client, { signer: account });
+    client.register("eip155:*", new ExactEvmScheme(account));
 
     // Select a service from discovery
     const selectedService = affordableServices[0];
@@ -258,14 +258,14 @@ To enhance your listing with descriptions and schemas, include them when setting
     ```typescript
     import { paymentMiddleware } from "@x402/express";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
     import { bazaarResourceServerExtension } from "@x402/extensions";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://x402.org/facilitator"
     });
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     const routes = {
       "GET /weather": {
