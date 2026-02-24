@@ -66,15 +66,15 @@ description: "This guide helps you migrate from x402 V1 to V2. The V2 protocol i
   <Tab title="TypeScript">
     ```typescript
     import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
-    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
     import { privateKeyToAccount } from "viem/accounts";
     import axios from "axios";
 
     const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 
-    // V2 pattern: Create client and register scheme separately
+    // V2 pattern: Create client and register scheme using the builder pattern
     const client = new x402Client();
-    registerExactEvmScheme(client, { signer });
+    client.register("eip155:*", new ExactEvmScheme(signer));
 
     // Wrap axios with payment handling
     const api = wrapAxiosWithPayment(
@@ -131,7 +131,7 @@ description: "This guide helps you migrate from x402 V1 to V2. The V2 protocol i
   <Tab title="TypeScript">
     1. **Package rename**: `x402-axios` → `@x402/axios`
     2. **Function rename**: `withPaymentInterceptor` → `wrapAxiosWithPayment`
-    3. **Wallet setup**: Use `x402Client` with `registerExactEvmScheme` helper instead of passing wallet directly
+    3. **Wallet setup**: Use `x402Client` with `.register()` builder pattern instead of passing wallet directly
     4. **No chain-specific configuration**: The V2 client automatically handles network selection based on payment requirements
   </Tab>
   <Tab title="Python">
@@ -207,7 +207,7 @@ description: "This guide helps you migrate from x402 V1 to V2. The V2 protocol i
     import express from "express";
     import { paymentMiddleware } from "@x402/express";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const app = express();
     const payTo = "0xYourAddress";
@@ -218,7 +218,7 @@ description: "This guide helps you migrate from x402 V1 to V2. The V2 protocol i
     });
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     app.use(
       paymentMiddleware(
@@ -296,7 +296,7 @@ description: "This guide helps you migrate from x402 V1 to V2. The V2 protocol i
     1. **Package rename**: `x402-express` → `@x402/express`
     2. **Configuration structure**: Route config now uses `accepts` array with explicit `scheme`, `network`, and `payTo`
     3. **Network format**: `base-sepolia` → `eip155:84532` (CAIP-2 standard)
-    4. **Resource server**: Create `x402ResourceServer` with facilitator client and register schemes using helper functions
+    4. **Resource server**: Create `x402ResourceServer` with facilitator client and register schemes using the `.register()` builder pattern
     5. **Price recipient**: Explicitly specify `payTo` address per route
   </Tab>
   <Tab title="Python">
