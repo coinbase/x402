@@ -688,12 +688,12 @@ For multi-network support, register both EVM and SVM schemes:
 <Tabs>
   <Tab title="Node.js">
     ```typescript
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
-    import { registerExactSvmScheme } from "@x402/svm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
-    registerExactSvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
+    server.register("solana:*", new ExactSvmScheme());
     ```
   </Tab>
   <Tab title="Go">
