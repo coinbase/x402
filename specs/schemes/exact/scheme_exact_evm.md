@@ -144,7 +144,7 @@ The `payload` field must contain:
         "amount": "10000"
       },
       "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-      "spender": "0x4020CD856C882D5fb903D99CE35316A085Bb0001", // Canonical x402ExactPermit2Proxy address
+      "spender": "0x402085c248EeA27D92E8b30b2C58ed07f9E20001", // Canonical x402ExactPermit2Proxy address
       "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
       "deadline": "1740672154",
       "witness": {
@@ -219,7 +219,7 @@ This contract acts as the authorized Spender. It validates the Witness data to e
 
 > **Requirement**: This contract will be deployed to the same address across all supported EVM chains using `CREATE2` to ensure consistent behavior and simpler integration.
 
-**Canonical Address:** `0x4020CD856C882D5fb903D99CE35316A085Bb0001`
+**Canonical Address:** `0x402085c248EeA27D92E8b30b2C58ed07f9E20001`
 
 ```solidity
 // SPDX-License-Identifier: MIT
