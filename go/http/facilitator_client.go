@@ -149,15 +149,20 @@ func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 	}
 	defer resp.Body.Close()
 
+	// Read response body
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return x402.SupportedResponse{}, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	// Check status
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return x402.SupportedResponse{}, fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(body))
+		return x402.SupportedResponse{}, fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
 	// Parse response
 	var supportedResponse x402.SupportedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&supportedResponse); err != nil {
+	if err := json.Unmarshal(responseBody, &supportedResponse); err != nil {
 		return x402.SupportedResponse{}, fmt.Errorf("failed to decode supported response: %w", err)
 	}
 
