@@ -55,6 +55,9 @@ export const ERC20_APPROVAL_GAS_SPONSORING: FacilitatorExtension = {
   key: "erc20ApprovalGasSponsoring",
 };
 
+/** Current schema version for the ERC-20 approval gas sponsoring extension info. */
+export const ERC20_APPROVAL_GAS_SPONSORING_VERSION = "1";
+
 /**
  * Extended extension object registered in a facilitator via registerExtension().
  * Carries the signer that owns the full approve+settle flow for ERC-20 tokens
@@ -92,15 +95,15 @@ export interface Erc20ApprovalGasSponsoringInfo {
   /** Index signature for compatibility with Record<string, unknown> */
   [key: string]: unknown;
   /** The address of the sender (token owner who signed the tx). */
-  from: string;
+  from: `0x${string}`;
   /** The address of the ERC-20 token contract. */
-  asset: string;
+  asset: `0x${string}`;
   /** The address of the spender (Canonical Permit2). */
-  spender: string;
+  spender: `0x${string}`;
   /** The amount approved (uint256 as decimal string). Always MaxUint256. */
   amount: string;
   /** The RLP-encoded signed EIP-1559 transaction as a hex string. */
-  signedTransaction: string;
+  signedTransaction: `0x${string}`;
   /** Schema version identifier. */
   version: string;
 }

@@ -46,10 +46,13 @@ export type {
   Erc20ApprovalGasSponsoringFacilitatorExtension,
 } from "./types";
 
-export { ERC20_APPROVAL_GAS_SPONSORING } from "./types";
+export { ERC20_APPROVAL_GAS_SPONSORING, ERC20_APPROVAL_GAS_SPONSORING_VERSION } from "./types";
 
 // Export resource service functions (for servers)
-export { declareErc20ApprovalGasSponsoringExtension } from "./resourceService";
+export {
+  declareErc20ApprovalGasSponsoringExtension,
+  erc20ApprovalGasSponsoringSchema,
+} from "./resourceService";
 
 // Export facilitator functions
 export {

@@ -6,13 +6,17 @@
  * implement EIP-2612 (generic ERC-20 tokens).
  */
 
-import { ERC20_APPROVAL_GAS_SPONSORING, type Erc20ApprovalGasSponsoringExtension } from "./types";
+import {
+  ERC20_APPROVAL_GAS_SPONSORING,
+  ERC20_APPROVAL_GAS_SPONSORING_VERSION,
+  type Erc20ApprovalGasSponsoringExtension,
+} from "./types";
 
 /**
  * The JSON Schema for the ERC-20 approval gas sponsoring extension info.
  * Matches the schema defined in the spec.
  */
-const erc20ApprovalGasSponsoringSchema: Record<string, unknown> = {
+export const erc20ApprovalGasSponsoringSchema: Record<string, unknown> = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   properties: {
@@ -85,7 +89,7 @@ export function declareErc20ApprovalGasSponsoringExtension(): Record<
       info: {
         description:
           "The facilitator broadcasts a pre-signed ERC-20 approve() transaction to grant Permit2 allowance.",
-        version: "1",
+        version: ERC20_APPROVAL_GAS_SPONSORING_VERSION,
       },
       schema: erc20ApprovalGasSponsoringSchema,
     },

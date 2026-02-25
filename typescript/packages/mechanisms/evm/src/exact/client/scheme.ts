@@ -7,26 +7,13 @@ import {
 import { EIP2612_GAS_SPONSORING, ERC20_APPROVAL_GAS_SPONSORING } from "@x402/extensions";
 import { ClientEvmSigner } from "../../signer";
 import { AssetTransferMethod } from "../../types";
-import { PERMIT2_ADDRESS } from "../../constants";
+import { PERMIT2_ADDRESS, erc20AllowanceAbi } from "../../constants";
 import { getAddress } from "viem";
+import { getEvmChainId } from "../../utils";
 import { createEIP3009Payload } from "./eip3009";
 import { createPermit2Payload } from "./permit2";
 import { signEip2612Permit } from "./eip2612";
 import { signErc20ApprovalTransaction } from "./erc20approval";
-
-/** ERC20 allowance ABI for checking Permit2 approval */
-const erc20AllowanceAbi = [
-  {
-    type: "function",
-    name: "allowance",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ type: "uint256" }],
-    stateMutability: "view",
-  },
-] as const;
 
 /**
  * EVM client implementation for the Exact payment scheme.
@@ -137,7 +124,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       return undefined;
     }
 
-    const chainId = parseInt(requirements.network.split(":")[1]);
+    const chainId = getEvmChainId(requirements.network);
     const tokenAddress = getAddress(requirements.asset) as `0x${string}`;
 
     // Check if user already has sufficient Permit2 allowance
@@ -213,7 +200,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       return undefined;
     }
 
-    const chainId = parseInt(requirements.network.split(":")[1]);
+    const chainId = getEvmChainId(requirements.network);
     const tokenAddress = getAddress(requirements.asset) as `0x${string}`;
 
     // Check if user already has sufficient Permit2 allowance

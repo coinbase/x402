@@ -1,21 +1,16 @@
 import { encodeFunctionData, getAddress, maxUint256 } from "viem";
-import type { Erc20ApprovalGasSponsoringInfo } from "@x402/extensions";
-import { PERMIT2_ADDRESS } from "../../constants";
+import {
+  ERC20_APPROVAL_GAS_SPONSORING_VERSION,
+  type Erc20ApprovalGasSponsoringInfo,
+} from "@x402/extensions";
+import {
+  PERMIT2_ADDRESS,
+  erc20ApproveAbi,
+  ERC20_APPROVE_GAS_LIMIT,
+  DEFAULT_MAX_FEE_PER_GAS,
+  DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
+} from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-
-/** ERC-20 approve ABI for encoding approve(address,uint256) calldata */
-const erc20ApproveAbi = [
-  {
-    type: "function",
-    name: "approve",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-    stateMutability: "nonpayable",
-  },
-] as const;
 
 /**
  * Signs an EIP-1559 `approve(Permit2, MaxUint256)` transaction for the given token.
@@ -57,9 +52,8 @@ export async function signErc20ApprovalTransaction(
     maxFeePerGas = fees.maxFeePerGas;
     maxPriorityFeePerGas = fees.maxPriorityFeePerGas;
   } catch {
-    // Fallback to 1 gwei base and priority fees
-    maxFeePerGas = 1_000_000_000n;
-    maxPriorityFeePerGas = 100_000_000n;
+    maxFeePerGas = DEFAULT_MAX_FEE_PER_GAS;
+    maxPriorityFeePerGas = DEFAULT_MAX_PRIORITY_FEE_PER_GAS;
   }
 
   // Sign the EIP-1559 transaction (not broadcast)
@@ -67,7 +61,7 @@ export async function signErc20ApprovalTransaction(
     to: tokenAddress,
     data,
     nonce,
-    gas: 70_000n,
+    gas: ERC20_APPROVE_GAS_LIMIT,
     maxFeePerGas,
     maxPriorityFeePerGas,
     chainId,
@@ -79,6 +73,6 @@ export async function signErc20ApprovalTransaction(
     spender,
     amount: maxUint256.toString(),
     signedTransaction,
-    version: "1",
+    version: ERC20_APPROVAL_GAS_SPONSORING_VERSION,
   };
 }

@@ -20,6 +20,7 @@ import {
   permit2WitnessTypes,
   x402ExactPermit2ProxyABI,
   x402ExactPermit2ProxyAddress,
+  erc20AllowanceAbi,
 } from "../../constants";
 import {
   ErrPermit2612AmountMismatch,
@@ -32,20 +33,8 @@ import {
 } from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactPermit2Payload } from "../../types";
+import { getEvmChainId } from "../../utils";
 import { validateErc20ApprovalForPayment } from "./erc20approval";
-
-const erc20AllowanceABI = [
-  {
-    type: "function",
-    name: "allowance",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ type: "uint256" }],
-    stateMutability: "view",
-  },
-] as const;
 
 /**
  * Verifies a Permit2 payment payload.
@@ -87,7 +76,7 @@ export async function verifyPermit2(
     };
   }
 
-  const chainId = parseInt(requirements.network.split(":")[1]);
+  const chainId = getEvmChainId(requirements.network);
   const tokenAddress = getAddress(requirements.asset);
 
   if (
@@ -251,7 +240,7 @@ async function _verifyPermit2Allowance(
   try {
     const allowance = (await signer.readContract({
       address: tokenAddress,
-      abi: erc20AllowanceABI,
+      abi: erc20AllowanceAbi,
       functionName: "allowance",
       args: [payer, PERMIT2_ADDRESS],
     })) as bigint;

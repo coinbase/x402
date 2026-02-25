@@ -6,18 +6,21 @@
  * from payment payloads and validate it before broadcasting and settling.
  */
 
+import Ajv from "ajv/dist/2020.js";
 import type { PaymentPayload } from "@x402/core/types";
 import {
   ERC20_APPROVAL_GAS_SPONSORING,
   type Erc20ApprovalGasSponsoringInfo,
   type Erc20ApprovalGasSponsoringExtension,
 } from "./types";
+import { erc20ApprovalGasSponsoringSchema } from "./resourceService";
 
 /**
  * Extracts the ERC-20 approval gas sponsoring info from a payment payload's extensions.
  *
- * Returns the info if the extension is present and contains the required client-populated
- * fields (from, asset, spender, amount, signedTransaction, version).
+ * Performs structural extraction only — checks that the extension is present and
+ * contains all required fields. Does NOT validate field formats (use
+ * validateErc20ApprovalGasSponsoringInfo for that).
  *
  * @param paymentPayload - The payment payload to extract from
  * @returns The ERC-20 approval gas sponsoring info, or null if not present
@@ -39,7 +42,6 @@ export function extractErc20ApprovalGasSponsoringInfo(
 
   const info = extension.info as Record<string, unknown>;
 
-  // Check that the client has populated the required fields
   if (
     !info.from ||
     !info.asset ||
@@ -57,7 +59,8 @@ export function extractErc20ApprovalGasSponsoringInfo(
 /**
  * Validates that the ERC-20 approval gas sponsoring info has valid format.
  *
- * Performs basic validation on the info fields:
+ * Validates the info against the canonical JSON Schema, checking:
+ * - All required fields are present
  * - Addresses are valid hex (0x + 40 hex chars)
  * - Amount is a numeric string
  * - signedTransaction is a hex string
@@ -69,17 +72,7 @@ export function extractErc20ApprovalGasSponsoringInfo(
 export function validateErc20ApprovalGasSponsoringInfo(
   info: Erc20ApprovalGasSponsoringInfo,
 ): boolean {
-  const addressPattern = /^0x[a-fA-F0-9]{40}$/;
-  const numericPattern = /^[0-9]+$/;
-  const hexPattern = /^0x[a-fA-F0-9]+$/;
-  const versionPattern = /^[0-9]+(\.[0-9]+)*$/;
-
-  return (
-    addressPattern.test(info.from) &&
-    addressPattern.test(info.asset) &&
-    addressPattern.test(info.spender) &&
-    numericPattern.test(info.amount) &&
-    hexPattern.test(info.signedTransaction) &&
-    versionPattern.test(info.version)
-  );
+  const ajv = new Ajv({ strict: false, allErrors: true });
+  const validate = ajv.compile(erc20ApprovalGasSponsoringSchema);
+  return validate(info) as boolean;
 }

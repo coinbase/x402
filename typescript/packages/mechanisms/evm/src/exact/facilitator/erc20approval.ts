@@ -1,23 +1,29 @@
-import { getAddress, parseTransaction, decodeFunctionData, recoverTransactionAddress } from "viem";
+import {
+  getAddress,
+  parseTransaction,
+  decodeFunctionData,
+  recoverTransactionAddress,
+  type TransactionSerialized,
+} from "viem";
+import type { VerifyResponse } from "@x402/core/types";
 import {
   validateErc20ApprovalGasSponsoringInfo,
   type Erc20ApprovalGasSponsoringInfo,
 } from "@x402/extensions";
-import { PERMIT2_ADDRESS } from "../../constants";
-
-/** ERC-20 approve ABI for decoding approve(address,uint256) calldata */
-const erc20ApproveAbi = [
-  {
-    type: "function",
-    name: "approve",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-    stateMutability: "nonpayable",
-  },
-] as const;
+import { PERMIT2_ADDRESS, erc20ApproveAbi } from "../../constants";
+import {
+  ErrErc20ApprovalInvalidFormat,
+  ErrErc20ApprovalFromMismatch,
+  ErrErc20ApprovalAssetMismatch,
+  ErrErc20ApprovalSpenderNotPermit2,
+  ErrErc20ApprovalTxWrongTarget,
+  ErrErc20ApprovalTxWrongSelector,
+  ErrErc20ApprovalTxWrongSpender,
+  ErrErc20ApprovalTxInvalidCalldata,
+  ErrErc20ApprovalTxSignerMismatch,
+  ErrErc20ApprovalTxInvalidSignature,
+  ErrErc20ApprovalTxParseFailed,
+} from "./errors";
 
 /** The approve(address,uint256) function selector */
 const APPROVE_SELECTOR = "0x095ea7b3";
@@ -26,7 +32,7 @@ const APPROVE_SELECTOR = "0x095ea7b3";
  * Validates ERC-20 approval extension data for a Permit2 payment.
  *
  * Performs comprehensive validation:
- * - Format validation via validateErc20ApprovalGasSponsoringInfo
+ * - Format validation via validateErc20ApprovalGasSponsoringInfo (JSON Schema)
  * - `from` matches payer
  * - `asset` matches token
  * - `spender` is PERMIT2_ADDRESS
@@ -37,50 +43,66 @@ const APPROVE_SELECTOR = "0x095ea7b3";
  * @param info - The ERC-20 approval gas sponsoring info
  * @param payer - The expected payer address
  * @param tokenAddress - The expected token address
- * @returns Validation result
+ * @returns Validation result with invalidReason and invalidMessage on failure
  */
 export async function validateErc20ApprovalForPayment(
   info: Erc20ApprovalGasSponsoringInfo,
   payer: `0x${string}`,
   tokenAddress: `0x${string}`,
-): Promise<{ isValid: boolean; invalidReason?: string }> {
-  // Validate format
+): Promise<Pick<VerifyResponse, "isValid" | "invalidReason" | "invalidMessage">> {
   if (!validateErc20ApprovalGasSponsoringInfo(info)) {
-    return { isValid: false, invalidReason: "invalid_erc20_approval_extension_format" };
+    return {
+      isValid: false,
+      invalidReason: ErrErc20ApprovalInvalidFormat,
+      invalidMessage: "ERC-20 approval extension info failed schema validation",
+    };
   }
 
-  // Verify from matches payer
-  if (getAddress(info.from as `0x${string}`) !== getAddress(payer)) {
-    return { isValid: false, invalidReason: "erc20_approval_from_mismatch" };
+  if (getAddress(info.from) !== getAddress(payer)) {
+    return {
+      isValid: false,
+      invalidReason: ErrErc20ApprovalFromMismatch,
+      invalidMessage: `Expected from=${payer}, got ${info.from}`,
+    };
   }
 
-  // Verify asset matches token
-  if (getAddress(info.asset as `0x${string}`) !== tokenAddress) {
-    return { isValid: false, invalidReason: "erc20_approval_asset_mismatch" };
+  if (getAddress(info.asset) !== tokenAddress) {
+    return {
+      isValid: false,
+      invalidReason: ErrErc20ApprovalAssetMismatch,
+      invalidMessage: `Expected asset=${tokenAddress}, got ${info.asset}`,
+    };
   }
 
-  // Verify spender field in info is Permit2
-  if (getAddress(info.spender as `0x${string}`) !== getAddress(PERMIT2_ADDRESS)) {
-    return { isValid: false, invalidReason: "erc20_approval_spender_not_permit2" };
+  if (getAddress(info.spender) !== getAddress(PERMIT2_ADDRESS)) {
+    return {
+      isValid: false,
+      invalidReason: ErrErc20ApprovalSpenderNotPermit2,
+      invalidMessage: `Expected spender=${PERMIT2_ADDRESS}, got ${info.spender}`,
+    };
   }
 
-  // Parse and validate the signed transaction
   try {
-    const serializedTx = info.signedTransaction as `0x${string}`;
+    const serializedTx = info.signedTransaction as TransactionSerialized;
     const tx = parseTransaction(serializedTx);
 
-    // Verify the transaction targets the token contract
     if (!tx.to || getAddress(tx.to) !== tokenAddress) {
-      return { isValid: false, invalidReason: "erc20_approval_tx_wrong_target" };
+      return {
+        isValid: false,
+        invalidReason: ErrErc20ApprovalTxWrongTarget,
+        invalidMessage: `Transaction targets ${tx.to ?? "null"}, expected ${tokenAddress}`,
+      };
     }
 
-    // Verify the calldata is an approve() call
     const data = tx.data ?? "0x";
     if (!data.startsWith(APPROVE_SELECTOR)) {
-      return { isValid: false, invalidReason: "erc20_approval_tx_wrong_selector" };
+      return {
+        isValid: false,
+        invalidReason: ErrErc20ApprovalTxWrongSelector,
+        invalidMessage: `Transaction calldata does not start with approve() selector ${APPROVE_SELECTOR}`,
+      };
     }
 
-    // Decode the calldata to verify the spender argument is PERMIT2_ADDRESS
     try {
       const decoded = decodeFunctionData({
         abi: erc20ApproveAbi,
@@ -88,25 +110,44 @@ export async function validateErc20ApprovalForPayment(
       });
       const calldataSpender = getAddress(decoded.args[0] as `0x${string}`);
       if (calldataSpender !== getAddress(PERMIT2_ADDRESS)) {
-        return { isValid: false, invalidReason: "erc20_approval_tx_wrong_spender" };
+        return {
+          isValid: false,
+          invalidReason: ErrErc20ApprovalTxWrongSpender,
+          invalidMessage: `approve() spender is ${calldataSpender}, expected Permit2 ${PERMIT2_ADDRESS}`,
+        };
       }
     } catch {
-      return { isValid: false, invalidReason: "erc20_approval_tx_invalid_calldata" };
+      return {
+        isValid: false,
+        invalidReason: ErrErc20ApprovalTxInvalidCalldata,
+        invalidMessage: "Failed to decode approve() calldata from the signed transaction",
+      };
     }
 
-    // Recover the signer of the transaction and verify it matches from
     try {
       const recoveredAddress = await recoverTransactionAddress({
         serializedTransaction: serializedTx,
       });
       if (getAddress(recoveredAddress) !== getAddress(payer)) {
-        return { isValid: false, invalidReason: "erc20_approval_tx_signer_mismatch" };
+        return {
+          isValid: false,
+          invalidReason: ErrErc20ApprovalTxSignerMismatch,
+          invalidMessage: `Transaction signed by ${recoveredAddress}, expected payer ${payer}`,
+        };
       }
     } catch {
-      return { isValid: false, invalidReason: "erc20_approval_tx_invalid_signature" };
+      return {
+        isValid: false,
+        invalidReason: ErrErc20ApprovalTxInvalidSignature,
+        invalidMessage: "Failed to recover signer from the signed transaction",
+      };
     }
   } catch {
-    return { isValid: false, invalidReason: "erc20_approval_tx_parse_failed" };
+    return {
+      isValid: false,
+      invalidReason: ErrErc20ApprovalTxParseFailed,
+      invalidMessage: "Failed to parse the signed transaction",
+    };
   }
 
   return { isValid: true };
