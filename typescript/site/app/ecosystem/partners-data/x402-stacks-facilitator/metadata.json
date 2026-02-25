@@ -1,0 +1,15 @@
+{
+  "name": "x402Stacks Facilitator",
+  "category": "Facilitators",
+  "logoUrl": "/logos/x402Stacks.svg",
+  "description": "Open source facilitator for x402 payments on Stacks. Supports STX, sBTC, and USDCx tokens.",
+  "websiteUrl": "https://stacksx402.com",
+  "githubUrl": "https://github.com/x402Stacks/x402-stacks-facilitator",
+  "facilitator": {
+    "baseUrl": "https://facilitator.stacksx402.com",
+    "networks": ["stacks-mainnet", "stacks-testnet"],
+    "schemes": ["exact"],
+    "assets": ["STX", "sBTC", "USDCx"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
