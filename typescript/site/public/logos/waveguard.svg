@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <rect width="256" height="256" rx="32" fill="#0f172a"/>
+  <!-- Wave pattern -->
+  <path d="M 30 128 Q 60 80, 90 128 Q 120 176, 150 128 Q 180 80, 210 128" 
+        stroke="#38bdf8" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M 30 148 Q 60 100, 90 148 Q 120 196, 150 148 Q 180 100, 210 148" 
+        stroke="#818cf8" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <!-- Shield outline -->
+  <path d="M 128 40 L 210 75 L 210 140 Q 210 190, 128 225 Q 46 190, 46 140 L 46 75 Z" 
+        stroke="#38bdf8" stroke-width="4" fill="none" opacity="0.3"/>
+  <!-- Anomaly dot -->
+  <circle cx="195" cy="108" r="8" fill="#f43f5e"/>
+  <circle cx="195" cy="108" r="12" stroke="#f43f5e" stroke-width="2" fill="none" opacity="0.5"/>
+</svg>
