@@ -3,13 +3,14 @@ import { ExactEvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
+import { EIP1271_MAGIC_VALUE } from "../../../src/constants";
 
 describe("ExactEvmSchemeV1", () => {
   let mockSigner: FacilitatorEvmSigner;
 
   beforeEach(() => {
     mockSigner = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      address: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       readContract: vi.fn().mockResolvedValue(BigInt("10000000")), // 10 USDC
       verifyTypedData: vi.fn().mockResolvedValue(true),
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
@@ -34,7 +35,7 @@ describe("ExactEvmSchemeV1", () => {
         scheme: "exact",
         network: "base-sepolia",
         payload: {
-          signature: "0xvalidsignature",
+          signature: `0x${"11".repeat(32)}${"22".repeat(32)}1b`,
           authorization: {
             from: "0x1234567890123456789012345678901234567890",
             to: "0x9876543210987654321098765432109876543210",
@@ -61,6 +62,53 @@ describe("ExactEvmSchemeV1", () => {
 
       const result = await facilitator.verify(payload as never, requirements as never);
 
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
+    });
+
+    it("should accept deployed smart wallet signatures via EIP-1271", async () => {
+      mockSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockSigner.getCode = vi.fn().mockResolvedValue("0x1234");
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return EIP1271_MAGIC_VALUE;
+        if (functionName === "balanceOf") return BigInt("10000000");
+        return 0n;
+      });
+
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
+
+      const now = Math.floor(Date.now() / 1000);
+      const payload: PaymentPayloadV1 = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "base-sepolia",
+        payload: {
+          signature: `0x${"aa".repeat(65)}`,
+          authorization: {
+            from: "0x1234567890123456789012345678901234567890",
+            to: "0x9876543210987654321098765432109876543210",
+            value: "100000",
+            validAfter: (now - 300).toString(),
+            validBefore: (now + 3600).toString(),
+            nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          },
+        },
+      };
+
+      const requirements: PaymentRequirementsV1 = {
+        scheme: "exact",
+        network: "base-sepolia",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        maxAmountRequired: "100000",
+        payTo: "0x9876543210987654321098765432109876543210",
+        maxTimeoutSeconds: 3600,
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      };
+
+      const result = await facilitator.verify(payload as never, requirements as never);
       expect(result.isValid).toBe(true);
       expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
     });
@@ -291,7 +339,7 @@ describe("ExactEvmSchemeV1", () => {
         scheme: "exact",
         network: "base-sepolia",
         payload: {
-          signature: "0xvalidsignature",
+          signature: `0x${"11".repeat(32)}${"22".repeat(32)}1b`,
           authorization: {
             from: "0x1234567890123456789012345678901234567890",
             to: "0x9876543210987654321098765432109876543210",

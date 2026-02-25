@@ -3,7 +3,7 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
-import { x402ExactPermit2ProxyAddress } from "../../../src/constants";
+import { EIP1271_MAGIC_VALUE, x402ExactPermit2ProxyAddress } from "../../../src/constants";
 
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
@@ -22,7 +22,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
     // Create mock facilitator signer
     mockFacilitatorSigner = {
-      getAddresses: vi.fn().mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"]),
+      getAddresses: vi.fn().mockReturnValue(["0x742d35cc6634c0532925a3b844bc9e7595f0beb0"]),
       readContract: vi.fn().mockResolvedValue(0n), // Mock nonce state
       verifyTypedData: vi.fn().mockResolvedValue(true), // Mock signature verification
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
@@ -47,7 +47,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: {
           name: "USDC",
@@ -70,13 +70,110 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.verifyTypedData).toHaveBeenCalled();
     });
 
+    it("should accept deployed smart wallet signatures via EIP-1271 (EIP-3009)", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x1234");
+      mockFacilitatorSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return EIP1271_MAGIC_VALUE;
+        if (functionName === "balanceOf") return BigInt("10000000000");
+        return 0n;
+      });
+
+      const now = Math.floor(Date.now() / 1000);
+      const payer = "0x1234567890123456789012345678901234567890";
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          authorization: {
+            from: payer,
+            to: requirements.payTo,
+            value: requirements.amount,
+            validAfter: (now - 60).toString(),
+            validBefore: (now + 3600).toString(),
+            nonce: `0x${"11".repeat(32)}`,
+          },
+          signature: `0x${"aa".repeat(65)}`,
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+      expect(result.isValid).toBe(true);
+      expect(mockFacilitatorSigner.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "isValidSignature" }),
+      );
+    });
+
+    it("should accept deployed smart wallet signatures via EIP-1271 (Permit2)", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x1234");
+      mockFacilitatorSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return EIP1271_MAGIC_VALUE;
+        if (functionName === "allowance") return BigInt("10000000000");
+        if (functionName === "balanceOf") return BigInt("10000000000");
+        return 0n;
+      });
+
+      const now = Math.floor(Date.now() / 1000);
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: `0x${"aa".repeat(65)}`,
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: (now + 3600).toString(),
+            witness: {
+              to: requirements.payTo,
+              validAfter: (now - 60).toString(),
+              extra: "0x",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(permit2Payload, requirements);
+      expect(result.isValid).toBe(true);
+      expect(mockFacilitatorSigner.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "isValidSignature" }),
+      );
+    });
+
     it("should reject if scheme doesn't match", async () => {
       const requirements: PaymentRequirements = {
         scheme: "intent", // Wrong scheme
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };
@@ -110,7 +207,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: {}, // Missing name and version
       };
@@ -138,7 +235,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };
@@ -165,7 +262,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };
@@ -196,7 +293,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };
@@ -227,7 +324,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };
@@ -253,7 +350,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -296,7 +393,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -340,7 +437,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -381,7 +478,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -422,7 +519,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -465,7 +562,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -504,13 +601,61 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
     });
 
+    describe("EIP-3009 settlement", () => {
+      it("should settle smart wallet payloads using bytes signature overload", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2" },
+        };
+
+        mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+        mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x1234");
+        mockFacilitatorSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+          if (functionName === "isValidSignature") return EIP1271_MAGIC_VALUE;
+          if (functionName === "balanceOf") return BigInt("10000000000");
+          return 0n;
+        });
+
+        const now = Math.floor(Date.now() / 1000);
+        const payer = "0x1234567890123456789012345678901234567890";
+        const payload: PaymentPayload = {
+          x402Version: 2,
+          payload: {
+            authorization: {
+              from: payer,
+              to: requirements.payTo,
+              value: requirements.amount,
+              validAfter: (now - 60).toString(),
+              validBefore: (now + 3600).toString(),
+              nonce: `0x${"11".repeat(32)}`,
+            },
+            signature: `0x${"aa".repeat(65)}`,
+          },
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        const result = await facilitator.settle(payload, requirements);
+        expect(result.success).toBe(true);
+
+        const call = (mockFacilitatorSigner.writeContract as any).mock.calls[0][0];
+        expect(call.functionName).toBe("transferWithAuthorization");
+        expect(call.args).toHaveLength(7);
+      });
+    });
+
     it("should fail Permit2 settlement when verification fails", async () => {
       const requirements: PaymentRequirements = {
         scheme: "exact",
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
       };
@@ -556,7 +701,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         network: "eip155:84532",
         amount: "1000000",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        payTo: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         maxTimeoutSeconds: 300,
         extra: { name: "USDC", version: "2" },
       };

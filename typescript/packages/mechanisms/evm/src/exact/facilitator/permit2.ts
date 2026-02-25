@@ -9,9 +9,11 @@ import {
   validateEip2612GasSponsoringInfo,
 } from "@x402/extensions";
 import type { Eip2612GasSponsoringInfo } from "@x402/extensions";
-import { getAddress } from "viem";
+import { getAddress, hashTypedData, parseErc6492Signature } from "viem";
 import {
   eip3009ABI,
+  EIP1271_MAGIC_VALUE,
+  eip1271ABI,
   PERMIT2_ADDRESS,
   permit2WitnessTypes,
   x402ExactPermit2ProxyABI,
@@ -166,26 +168,61 @@ export async function verifyPermit2(
   };
 
   // Verify signature
+  const signedPayload = permit2Payload.signature;
+  const erc6492Data = parseErc6492Signature(signedPayload);
+
+  let isValidSignature = false;
   try {
-    const isValid = await signer.verifyTypedData({
+    isValidSignature = await signer.verifyTypedData({
       address: payer,
       ...permit2TypedData,
-      signature: permit2Payload.signature,
+      signature: signedPayload,
     });
+  } catch {
+    isValidSignature = false;
+  }
 
-    if (!isValid) {
+  // Some facilitator signers only do EOA recovery in verifyTypedData.
+  // If that path fails, verify deployed contract wallets with ERC-1271.
+  if (!isValidSignature) {
+    let bytecode: `0x${string}` | undefined;
+    try {
+      bytecode = await signer.getCode({ address: payer });
+    } catch {
+      bytecode = undefined;
+    }
+
+    if (bytecode && bytecode !== "0x") {
+      const digest = hashTypedData(permit2TypedData);
+      try {
+        const magicValue = (await signer.readContract({
+          address: payer,
+          abi: eip1271ABI,
+          functionName: "isValidSignature",
+          args: [digest, erc6492Data.signature],
+        })) as unknown;
+
+        if (typeof magicValue !== "string" || magicValue.toLowerCase() !== EIP1271_MAGIC_VALUE) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_permit2_signature",
+            payer,
+          };
+        }
+      } catch {
+        return {
+          isValid: false,
+          invalidReason: "invalid_permit2_signature",
+          payer,
+        };
+      }
+    } else {
       return {
         isValid: false,
         invalidReason: "invalid_permit2_signature",
         payer,
       };
     }
-  } catch {
-    return {
-      isValid: false,
-      invalidReason: "invalid_permit2_signature",
-      payer,
-    };
   }
 
   // Check Permit2 allowance

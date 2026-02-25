@@ -4,8 +4,15 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
-import { authorizationTypes, eip3009ABI } from "../../constants";
+import {
+  getAddress,
+  hashTypedData,
+  Hex,
+  isAddressEqual,
+  parseErc6492Signature,
+  parseSignature,
+} from "viem";
+import { authorizationTypes, EIP1271_MAGIC_VALUE, eip1271ABI, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEIP3009Payload } from "../../types";
 
@@ -26,6 +33,7 @@ export interface EIP3009FacilitatorConfig {
  * @param payload - The payment payload to verify
  * @param requirements - The payment requirements
  * @param eip3009Payload - The EIP-3009 specific payload
+ * @param config - Facilitator configuration
  * @returns Promise resolving to verification response
  */
 export async function verifyEIP3009(
@@ -33,6 +41,9 @@ export async function verifyEIP3009(
   payload: PaymentPayload,
   requirements: PaymentRequirements,
   eip3009Payload: ExactEIP3009Payload,
+  config: Pick<EIP3009FacilitatorConfig, "deployERC4337WithEIP6492"> = {
+    deployERC4337WithEIP6492: false,
+  },
 ): Promise<VerifyResponse> {
   const payer = eip3009Payload.authorization.from;
 
@@ -46,7 +57,9 @@ export async function verifyEIP3009(
   }
 
   // Get chain configuration
-  if (!requirements.extra?.name || !requirements.extra?.version) {
+  const name = requirements.extra?.name;
+  const version = requirements.extra?.version;
+  if (typeof name !== "string" || typeof version !== "string") {
     return {
       isValid: false,
       invalidReason: "missing_eip712_domain",
@@ -54,7 +67,6 @@ export async function verifyEIP3009(
     };
   }
 
-  const { name, version } = requirements.extra;
   const erc20Address = getAddress(requirements.asset);
 
   // Verify network matches
@@ -86,51 +98,52 @@ export async function verifyEIP3009(
     },
   };
 
-  // Verify signature
+  const signedPayload = eip3009Payload.signature!;
+  const erc6492Data = parseErc6492Signature(signedPayload);
+  const signatureLength = erc6492Data.signature.startsWith("0x")
+    ? erc6492Data.signature.length - 2
+    : erc6492Data.signature.length;
+
+  let isValidSignature = false;
   try {
-    const recoveredAddress = await signer.verifyTypedData({
-      address: eip3009Payload.authorization.from,
+    isValidSignature = await signer.verifyTypedData({
+      address: payer,
       ...permitTypedData,
-      signature: eip3009Payload.signature!,
+      signature: signedPayload,
     });
-
-    if (!recoveredAddress) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
-        payer,
-      };
-    }
   } catch {
-    // Signature verification failed - could be an undeployed smart wallet
-    // Check if smart wallet is deployed
-    const signature = eip3009Payload.signature!;
-    const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-    const isSmartWallet = signatureLength > 130; // 65 bytes = 130 hex chars for EOA
+    isValidSignature = false;
+  }
 
-    if (isSmartWallet) {
-      const payerAddress = eip3009Payload.authorization.from;
-      const bytecode = await signer.getCode({ address: payerAddress });
+  // Some facilitator signers only do EOA recovery in verifyTypedData.
+  // If that path fails, verify deployed contract wallets with ERC-1271.
+  if (!isValidSignature) {
+    let bytecode: `0x${string}` | undefined;
+    try {
+      bytecode = await signer.getCode({ address: payer });
+    } catch {
+      bytecode = undefined;
+    }
 
-      if (!bytecode || bytecode === "0x") {
-        // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
-        const erc6492Data = parseErc6492Signature(signature);
-        const hasDeploymentInfo =
-          erc6492Data.address &&
-          erc6492Data.data &&
-          !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
+    if (bytecode && bytecode !== "0x") {
+      const digest = hashTypedData(permitTypedData);
 
-        if (!hasDeploymentInfo) {
-          // Non-EIP-6492 undeployed smart wallet - will always fail at settlement
+      try {
+        const magicValue = (await signer.readContract({
+          address: payer,
+          abi: eip1271ABI,
+          functionName: "isValidSignature",
+          args: [digest, erc6492Data.signature],
+        })) as unknown;
+
+        if (typeof magicValue !== "string" || magicValue.toLowerCase() !== EIP1271_MAGIC_VALUE) {
           return {
             isValid: false,
-            invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-            payer: payerAddress,
+            invalidReason: "invalid_exact_evm_payload_signature",
+            payer,
           };
         }
-        // EIP-6492 signature with deployment info - allow through
-      } else {
-        // Wallet is deployed but signature still failed - invalid signature
+      } catch {
         return {
           isValid: false,
           invalidReason: "invalid_exact_evm_payload_signature",
@@ -138,12 +151,34 @@ export async function verifyEIP3009(
         };
       }
     } else {
-      // EOA signature failed
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
-        payer,
-      };
+      const hasDeploymentInfo =
+        erc6492Data.address &&
+        erc6492Data.data &&
+        !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
+
+      if (hasDeploymentInfo) {
+        if (config.deployERC4337WithEIP6492) {
+          // Facilitators with sponsored deployment support can handle this in settle().
+        } else {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+            payer,
+          };
+        }
+      } else if (signatureLength > 130) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+          payer,
+        };
+      } else {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_evm_payload_signature",
+          payer,
+        };
+      }
     }
   }
 
@@ -232,7 +267,7 @@ export async function settleEIP3009(
   const payer = eip3009Payload.authorization.from;
 
   // Re-verify before settling
-  const valid = await verifyEIP3009(signer, payload, requirements, eip3009Payload);
+  const valid = await verifyEIP3009(signer, payload, requirements, eip3009Payload, config);
   if (!valid.isValid) {
     return {
       success: false,
@@ -270,12 +305,16 @@ export async function settleEIP3009(
       }
     }
 
-    // Determine if this is an ECDSA signature (EOA) or smart wallet signature
-    const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-    const isECDSA = signatureLength === 130;
+    let bytecode: `0x${string}` | undefined;
+    try {
+      bytecode = await signer.getCode({ address: payer });
+    } catch {
+      bytecode = undefined;
+    }
+    const isContractWallet = Boolean(bytecode && bytecode !== "0x");
 
     let tx: Hex;
-    if (isECDSA) {
+    if (!isContractWallet) {
       // For EOA wallets, parse signature into v, r, s and use that overload
       const parsedSig = parseSignature(signature);
 
@@ -296,7 +335,7 @@ export async function settleEIP3009(
         ],
       });
     } else {
-      // For smart wallets, use the bytes signature overload
+      // For smart wallets, use the bytes signature overload regardless of signature length.
       tx = await signer.writeContract({
         address: getAddress(requirements.asset),
         abi: eip3009ABI,
