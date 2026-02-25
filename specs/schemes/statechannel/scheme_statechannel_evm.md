@@ -272,29 +272,30 @@ The client sends the signed channel state directly to the payee:
 
 The **payee** MUST validate the following in order:
 
-1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)).
-2. **Scheme check** — `accepted.scheme` is `"statechannel-hub-v1"`.
+1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)). For compatibility with existing SCP reference deployments, implementations MAY fall back to parsing raw JSON directly if base64 decoding fails.
+2. **Scheme check** — If the parsed value is wrapped as x402 `PaymentPayload`, `accepted.scheme` MUST be `"statechannel-hub-v1"`. If using raw SCP envelope shape, `scheme` MUST be `"statechannel-hub-v1"`.
 3. **Ticket signature** — Recover signer from `ticket.sig` using `eth_sign` over the canonicalized ticket hash. Recovered address MUST match `ticket.hub`, which MUST be a known hub address.
-4. **Ticket expiry** — `ticket.expiry` MUST be in the future.
-5. **Payee match** — `ticket.payee` MUST match the verifying payee's own address.
-6. **Amount match** — `ticket.amount` MUST be ≥ the required payment amount for this resource.
-7. **Asset match** — `ticket.asset` MUST match the resource's required asset.
-8. **Invoice binding** — `ticket.invoiceId` MUST match the invoice issued for this request.
-9. **Idempotency** — `paymentId` MUST NOT have been previously consumed (replay protection).
-10. **Optional: Hub confirmation** — Payee MAY call `GET /v1/payments/{paymentId}` on the hub to confirm ticket status.
+4. **State-hash binding** — If `channelProof.channelState` is present, `channelProof.stateHash` MUST equal `hash(channelProof.channelState)`. If `ticket.stateHash` is present, it MUST equal `channelProof.stateHash`.
+5. **Ticket expiry** — `ticket.expiry` MUST be in the future.
+6. **Payee match** — `ticket.payee` MUST match the verifying payee's own address.
+7. **Amount match** — `ticket.amount` MUST be ≥ the required payment amount for this resource.
+8. **Asset match** — `ticket.asset` MUST match the resource's required asset.
+9. **Invoice binding** — `ticket.invoiceId` MUST match the invoice issued for this request.
+10. **Idempotency** — `paymentId` MUST NOT have been previously consumed (replay protection).
+11. **Optional: Hub confirmation** — Payee MAY call `GET /v1/payments/{paymentId}` on the hub to confirm ticket status.
 
 ### 4.2 Direct Profile
 
 The **payee** MUST validate the following in order:
 
-1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)).
-2. **Scheme check** — `accepted.scheme` is `"statechannel-direct-v1"`.
+1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)). For compatibility with existing SCP reference deployments, implementations MAY fall back to parsing raw JSON directly if base64 decoding fails.
+2. **Scheme check** — If the parsed value is wrapped as x402 `PaymentPayload`, `accepted.scheme` MUST be `"statechannel-direct-v1"`. If using raw SCP envelope shape, `scheme` MUST be `"statechannel-direct-v1"`.
 3. **Signer recovery** — Recover signer from `sigA` via EIP-712 typed data recovery over `channelState`. Recovered address MUST match `payer` and MUST be `participantA` in the channel.
 4. **Nonce ordering** — `channelState.stateNonce` MUST be strictly greater than the last accepted nonce for this channel.
 5. **Balance conservation** — `channelState.balA + channelState.balB` MUST equal the channel's on-chain `totalBalance`.
-6. **Debit sufficiency** — `previousState.balA - channelState.balA` MUST be ≥ `accepted.amount`.
+6. **Debit sufficiency** — `previousState.balA - channelState.balA` MUST be ≥ the required payment amount.
 7. **State expiry** — If `channelState.stateExpiry > 0`, it MUST be in the future.
-8. **Asset and network match** — `accepted.asset` and `accepted.network` MUST match the channel's on-chain parameters.
+8. **Asset and network match** — `accepted.asset` and `accepted.network` (or their direct-envelope equivalents) MUST match the channel's on-chain parameters.
 9. **Idempotency** — `paymentId` MUST NOT have been previously consumed.
 
 ### 4.3 Hub Internal Validation

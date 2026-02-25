@@ -89,7 +89,7 @@ While implementation details vary by network, verifiers MUST enforce security co
 - **Balance conservation:** `balA + balB` MUST equal the channel's on-chain `totalBalance`.
 - **Debit correctness:** The balance delta (`previous.balA - current.balA`) MUST be greater than or equal to `accepted.amount`.
 - **Expiry validity:** States with `stateExpiry > 0 && now > stateExpiry` MUST be rejected.
-- **Ticket binding (hub profile):** `ticket.stateHash` MUST equal the hash of the submitted channel state. `ticket.sig` MUST recover to the hub's advertised address.
+- **Ticket binding (hub profile):** `channelProof.stateHash` MUST equal the hash of the submitted channel state. If `ticket.stateHash` is present, it MUST match `channelProof.stateHash`. `ticket.sig` MUST recover to the hub's advertised address.
 
 Network-specific rules are in: `scheme_statechannel_evm.md` (EVM).
 
