@@ -1,3 +1,0 @@
-kind: changed
-body: Pre-compile constant regex patterns in http server for better performance
-time: 2026-02-25T09:31:42.16463+09:00
