@@ -1,0 +1,7 @@
+{
+  "name": "MoonMaker",
+  "description": "AI-native crypto intelligence API. Real-time market signals, 25-indicator context data, regime classification, institutional flow tracking, and on-chain risk analysis — all payable via x402 on Base mainnet USDC. Built for AI trading agents that need market awareness without subscriptions.",
+  "logoUrl": "/logos/moonmaker.png",
+  "websiteUrl": "https://moonmaker.cc",
+  "category": "Services/Endpoints"
+}
