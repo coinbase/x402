@@ -1,185 +1,71 @@
 /**
- * Type definitions for the Bazaar Discovery Extension
+ * Shared type definitions for the Bazaar Discovery Extension
+ *
+ * Protocol-specific types live in their own directories (http/, mcp/).
+ * This file defines the shared unions, constants, and utility types,
+ * and re-exports all protocol-specific types for backwards compatibility.
  */
 
-import type { BodyMethods, QueryParamMethods } from "@x402/core/http";
+import type { FacilitatorExtension } from "@x402/core/types";
+
+// --- Shared union types ---
+
+import type { QueryDiscoveryInfo, BodyDiscoveryInfo } from "./http/types";
+import type { McpDiscoveryInfo } from "./mcp/types";
+import type { QueryDiscoveryExtension, BodyDiscoveryExtension } from "./http/types";
+import type { McpDiscoveryExtension } from "./mcp/types";
+import type {
+  DeclareQueryDiscoveryExtensionConfig,
+  DeclareBodyDiscoveryExtensionConfig,
+} from "./http/types";
+import type { DeclareMcpDiscoveryExtensionConfig } from "./mcp/types";
+
+// Re-export protocol-specific types
+export type {
+  QueryDiscoveryInfo,
+  BodyDiscoveryInfo,
+  QueryDiscoveryExtension,
+  BodyDiscoveryExtension,
+  DeclareQueryDiscoveryExtensionConfig,
+  DeclareBodyDiscoveryExtensionConfig,
+  DiscoveredHTTPResource,
+} from "./http/types";
+
+export { isQueryExtensionConfig, isBodyExtensionConfig } from "./http/types";
+
+export type {
+  McpDiscoveryInfo,
+  McpDiscoveryExtension,
+  DeclareMcpDiscoveryExtensionConfig,
+  DiscoveredMCPResource,
+} from "./mcp/types";
+
+export { isMcpExtensionConfig } from "./mcp/types";
+
+// --- Shared constants ---
 
 /**
- * Extension identifier constant for the Bazaar discovery extension
+ * Extension identifier for the Bazaar discovery extension.
  */
-export const BAZAAR = "bazaar";
-
-/**
- * Discovery info for query parameter methods (GET, HEAD, DELETE)
- */
-export interface QueryDiscoveryInfo {
-  input: {
-    type: "http";
-    method: QueryParamMethods;
-    queryParams?: Record<string, unknown>;
-    headers?: Record<string, string>;
-  };
-  output?: {
-    type?: string;
-    format?: string;
-    example?: unknown;
-  };
-}
-
-/**
- * Discovery info for body methods (POST, PUT, PATCH)
- */
-export interface BodyDiscoveryInfo {
-  input: {
-    type: "http";
-    method: BodyMethods;
-    bodyType: "json" | "form-data" | "text";
-    body: Record<string, unknown>;
-    queryParams?: Record<string, unknown>;
-    headers?: Record<string, string>;
-  };
-  output?: {
-    type?: string;
-    format?: string;
-    example?: unknown;
-  };
-}
+export const BAZAAR: FacilitatorExtension = { key: "bazaar" };
 
 /**
  * Combined discovery info type
  */
-export type DiscoveryInfo = QueryDiscoveryInfo | BodyDiscoveryInfo;
-
-/**
- * Discovery extension for query parameter methods (GET, HEAD, DELETE)
- */
-export interface QueryDiscoveryExtension {
-  info: QueryDiscoveryInfo;
-
-  schema: {
-    $schema: "https://json-schema.org/draft/2020-12/schema";
-    type: "object";
-    properties: {
-      input: {
-        type: "object";
-        properties: {
-          type: {
-            type: "string";
-            const: "http";
-          };
-          method: {
-            type: "string";
-            enum: QueryParamMethods[];
-          };
-          queryParams?: {
-            type: "object";
-            properties?: Record<string, unknown>;
-            required?: string[];
-            additionalProperties?: boolean;
-          };
-          headers?: {
-            type: "object";
-            additionalProperties: {
-              type: "string";
-            };
-          };
-        };
-        required: ("type" | "method")[];
-        additionalProperties?: boolean;
-      };
-      output?: {
-        type: "object";
-        properties?: Record<string, unknown>;
-        required?: readonly string[];
-        additionalProperties?: boolean;
-      };
-    };
-    required: ["input"];
-  };
-}
-
-/**
- * Discovery extension for body methods (POST, PUT, PATCH)
- */
-export interface BodyDiscoveryExtension {
-  info: BodyDiscoveryInfo;
-
-  schema: {
-    $schema: "https://json-schema.org/draft/2020-12/schema";
-    type: "object";
-    properties: {
-      input: {
-        type: "object";
-        properties: {
-          type: {
-            type: "string";
-            const: "http";
-          };
-          method: {
-            type: "string";
-            enum: BodyMethods[];
-          };
-          bodyType: {
-            type: "string";
-            enum: ["json", "form-data", "text"];
-          };
-          body: Record<string, unknown>;
-          queryParams?: {
-            type: "object";
-            properties?: Record<string, unknown>;
-            required?: string[];
-            additionalProperties?: boolean;
-          };
-          headers?: {
-            type: "object";
-            additionalProperties: {
-              type: "string";
-            };
-          };
-        };
-        required: ("type" | "method" | "bodyType" | "body")[];
-        additionalProperties?: boolean;
-      };
-      output?: {
-        type: "object";
-        properties?: Record<string, unknown>;
-        required?: readonly string[];
-        additionalProperties?: boolean;
-      };
-    };
-    required: ["input"];
-  };
-}
+export type DiscoveryInfo = QueryDiscoveryInfo | BodyDiscoveryInfo | McpDiscoveryInfo;
 
 /**
  * Combined discovery extension type
  */
-export type DiscoveryExtension = QueryDiscoveryExtension | BodyDiscoveryExtension;
-
-export interface DeclareQueryDiscoveryExtensionConfig {
-  method?: QueryParamMethods;
-  input?: Record<string, unknown>;
-  inputSchema?: Record<string, unknown>;
-  output?: {
-    example?: unknown;
-    schema?: Record<string, unknown>;
-  };
-}
-
-export interface DeclareBodyDiscoveryExtensionConfig {
-  method?: BodyMethods;
-  input?: Record<string, unknown>;
-  inputSchema?: Record<string, unknown>;
-  bodyType: "json" | "form-data" | "text";
-  output?: {
-    example?: unknown;
-    schema?: Record<string, unknown>;
-  };
-}
+export type DiscoveryExtension =
+  | QueryDiscoveryExtension
+  | BodyDiscoveryExtension
+  | McpDiscoveryExtension;
 
 export type DeclareDiscoveryExtensionConfig =
   | DeclareQueryDiscoveryExtensionConfig
-  | DeclareBodyDiscoveryExtensionConfig;
+  | DeclareBodyDiscoveryExtensionConfig
+  | DeclareMcpDiscoveryExtensionConfig;
 
 /**
  * Distributive Omit - properly distributes Omit over union types.
@@ -194,21 +80,10 @@ export type DistributiveOmit<T, K extends keyof T> = T extends T ? Omit<T, K> : 
 
 /**
  * Config type for declareDiscoveryExtension function.
- * Uses DistributiveOmit to preserve bodyType discriminant in the union.
+ * Uses DistributiveOmit to preserve bodyType discriminant in the union for HTTP configs.
+ * MCP config has no `method` field so it's included directly.
  */
-export type DeclareDiscoveryExtensionInput = DistributiveOmit<
-  DeclareDiscoveryExtensionConfig,
-  "method"
->;
-
-export const isQueryExtensionConfig = (
-  config: DeclareDiscoveryExtensionConfig,
-): config is DeclareQueryDiscoveryExtensionConfig => {
-  return !("bodyType" in config);
-};
-
-export const isBodyExtensionConfig = (
-  config: DeclareDiscoveryExtensionConfig,
-): config is DeclareBodyDiscoveryExtensionConfig => {
-  return "bodyType" in config;
-};
+export type DeclareDiscoveryExtensionInput =
+  | DistributiveOmit<DeclareQueryDiscoveryExtensionConfig, "method">
+  | DistributiveOmit<DeclareBodyDiscoveryExtensionConfig, "method">
+  | DeclareMcpDiscoveryExtensionConfig;

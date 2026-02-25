@@ -15,7 +15,7 @@ package eip2612gassponsor
 //	// Include in PaymentRequired.Extensions
 func DeclareEip2612GasSponsoringExtension() map[string]interface{} {
 	return map[string]interface{}{
-		EIP2612GasSponsoring: Extension{
+		EIP2612GasSponsoring.Key(): Extension{
 			Info: ServerInfo{
 				Description: "The facilitator accepts EIP-2612 gasless Permit to `Permit2` canonical contract.",
 				Version:     "1",

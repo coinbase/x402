@@ -56,7 +56,7 @@ class x402Facilitator(x402FacilitatorBase):
             ["eip155:8453", "eip155:84532"],
             ExactEvmFacilitatorScheme(wallet=facilitator_wallet),
         )
-        facilitator.register_extension("bazaar")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
 
         # Verify payment
         result = await facilitator.verify(payload, requirements)
@@ -140,9 +140,7 @@ class x402Facilitator(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._verify_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -179,9 +177,7 @@ class x402Facilitator(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._settle_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -298,9 +294,7 @@ class x402FacilitatorSync(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._verify_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:
@@ -337,9 +331,7 @@ class x402FacilitatorSync(x402FacilitatorBase):
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        gen = self._settle_core(
-            payload, requirements, payload_bytes, requirements_bytes
-        )
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
         result = None
         try:
             while True:

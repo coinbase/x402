@@ -1,6 +1,7 @@
 import { x402Version } from "..";
 import { SettleResponse, VerifyResponse } from "../types/facilitator";
-import { SchemeNetworkFacilitator } from "../types/mechanisms";
+import { FacilitatorExtension } from "../types/extensions";
+import { SchemeNetworkFacilitator, FacilitatorContext } from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
 import { Network } from "../types";
 import { type SchemeData } from "../utils";
@@ -68,7 +69,7 @@ export class x402Facilitator {
     number,
     SchemeData<SchemeNetworkFacilitator>[] // Array to support multiple facilitators per version
   > = new Map();
-  private readonly extensions: string[] = [];
+  private readonly extensions: Map<string, FacilitatorExtension> = new Map();
 
   private beforeVerifyHooks: FacilitatorBeforeVerifyHook[] = [];
   private afterVerifyHooks: FacilitatorAfterVerifyHook[] = [];
@@ -109,24 +110,31 @@ export class x402Facilitator {
   /**
    * Registers a protocol extension.
    *
-   * @param extension - The extension name to register (e.g., "bazaar", "sign_in_with_x")
+   * @param extension - The extension object to register
    * @returns The x402Facilitator instance for chaining
    */
-  registerExtension(extension: string): x402Facilitator {
-    // Check if already registered
-    if (!this.extensions.includes(extension)) {
-      this.extensions.push(extension);
-    }
+  registerExtension(extension: FacilitatorExtension): x402Facilitator {
+    this.extensions.set(extension.key, extension);
     return this;
   }
 
   /**
-   * Gets the list of registered extensions.
+   * Gets the list of registered extension keys.
    *
-   * @returns Array of extension names
+   * @returns Array of extension key strings
    */
   getExtensions(): string[] {
-    return [...this.extensions];
+    return Array.from(this.extensions.keys());
+  }
+
+  /**
+   * Gets a registered extension by key.
+   *
+   * @param key - The extension key to look up
+   * @returns The extension object, or undefined if not registered
+   */
+  getExtension<T extends FacilitatorExtension = FacilitatorExtension>(key: string): T | undefined {
+    return this.extensions.get(key) as T | undefined;
   }
 
   /**
@@ -260,7 +268,7 @@ export class x402Facilitator {
 
     return {
       kinds,
-      extensions: this.extensions,
+      extensions: this.getExtensions(),
       signers,
     };
   }
@@ -324,9 +332,11 @@ export class x402Facilitator {
         );
       }
 
+      const facilitatorContext = this.buildFacilitatorContext();
       const verifyResult = await schemeNetworkFacilitator.verify(
         paymentPayload,
         paymentRequirements,
+        facilitatorContext,
       );
 
       // Check if verification failed (isValid: false)
@@ -440,9 +450,11 @@ export class x402Facilitator {
         );
       }
 
+      const facilitatorContext = this.buildFacilitatorContext();
       const settleResult = await schemeNetworkFacilitator.settle(
         paymentPayload,
         paymentRequirements,
+        facilitatorContext,
       );
 
       // Execute afterSettle hooks
@@ -472,6 +484,23 @@ export class x402Facilitator {
 
       throw error;
     }
+  }
+
+  /**
+   * Builds a FacilitatorContext from the registered extensions map.
+   * Passed to mechanism verify/settle so they can access extension capabilities.
+   *
+   * @returns A FacilitatorContext backed by this facilitator's registered extensions
+   */
+  private buildFacilitatorContext(): FacilitatorContext {
+    const extensionsMap = this.extensions;
+    return {
+      getExtension<T extends FacilitatorExtension = FacilitatorExtension>(
+        key: string,
+      ): T | undefined {
+        return extensionsMap.get(key) as T | undefined;
+      },
+    };
   }
 
   /**

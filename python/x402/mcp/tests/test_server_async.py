@@ -27,9 +27,7 @@ class MockAsyncResourceServer:
             )
         )
         # Create an AsyncMock that wraps the real method so we can track calls
-        self._create_payment_required_response_impl = (
-            self._create_payment_required_response_real
-        )
+        self._create_payment_required_response_impl = self._create_payment_required_response_real
         self.create_payment_required_response = AsyncMock(
             side_effect=self._create_payment_required_response_real
         )
@@ -50,9 +48,7 @@ class MockAsyncResourceServer:
                 return req
         return None
 
-    async def _create_payment_required_response_real(
-        self, accepts, resource_info, error_msg
-    ):
+    async def _create_payment_required_response_real(self, accepts, resource_info, error_msg):
         """Real implementation of create payment required response."""
         from x402.schemas import PaymentRequired
 
@@ -111,9 +107,7 @@ async def test_create_payment_wrapper_async_basic_flow():
     args = {"test": "value"}
     extra = {
         "_meta": {
-            "x402/payment": (
-                payload.model_dump() if hasattr(payload, "model_dump") else payload
-            )
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
         },
         "toolName": "test",
     }
@@ -204,9 +198,7 @@ async def test_create_payment_wrapper_async_verification_failure():
     args = {}
     extra = {
         "_meta": {
-            "x402/payment": (
-                payload.model_dump() if hasattr(payload, "model_dump") else payload
-            )
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
         },
         "toolName": "test",
     }
@@ -384,10 +376,7 @@ async def test_create_payment_wrapper_async_settlement_failure():
     )
 
     assert result.is_error is True
-    assert (
-        "settlement" in str(result.content).lower()
-        or result.structured_content is not None
-    )
+    assert "settlement" in str(result.content).lower() or result.structured_content is not None
 
 
 @pytest.mark.asyncio

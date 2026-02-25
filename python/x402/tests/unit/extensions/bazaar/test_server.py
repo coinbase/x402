@@ -23,23 +23,21 @@ class TestBazaarResourceServerExtension:
 
     def test_extension_key(self) -> None:
         """Test extension key is correct."""
-        assert bazaar_resource_server_extension.key == BAZAAR
+        assert bazaar_resource_server_extension.key == BAZAAR.key
 
     def test_enrich_with_http_context(self) -> None:
         """Test enriching declaration with HTTP context."""
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         # Convert to dict if needed
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="GET")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         assert enriched["info"]["input"]["method"] == "GET"
 
@@ -49,15 +47,13 @@ class TestBazaarResourceServerExtension:
             input={"data": "test"},
             body_type="json",
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="POST")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         assert enriched["info"]["input"]["method"] == "POST"
 
@@ -66,15 +62,13 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
 
         # Pass None context
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, None
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, None)
 
         # Should return unchanged (no method injection)
         assert enriched == declaration
@@ -84,7 +78,7 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
@@ -101,15 +95,13 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="DELETE")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         schema = enriched.get("schema", {})
         input_schema = schema.get("properties", {}).get("input", {})
@@ -127,15 +119,13 @@ class TestBazaarResourceServerExtension:
                 },
             },
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
 
         context = MockHTTPRequest(method="GET")
-        enriched = bazaar_resource_server_extension.enrich_declaration(
-            declaration, context
-        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         # Check original data preserved
         assert enriched["info"]["input"]["type"] == "http"

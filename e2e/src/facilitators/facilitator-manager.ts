@@ -35,6 +35,7 @@ export class FacilitatorManager {
       port: this.port,
       evmPrivateKey: process.env.FACILITATOR_EVM_PRIVATE_KEY,
       svmPrivateKey: process.env.FACILITATOR_SVM_PRIVATE_KEY,
+      aptosPrivateKey: process.env.FACILITATOR_APTOS_PRIVATE_KEY,
       networks,
     });
 

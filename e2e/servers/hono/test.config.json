@@ -32,6 +32,13 @@
       "protocolFamily": "svm"
     },
     {
+      "path": "/protected-aptos",
+      "method": "GET",
+      "description": "Protected endpoint requiring payment on Aptos network",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
+    },
+    {
       "path": "/health",
       "method": "GET",
       "description": "Health check endpoint",
@@ -51,6 +58,8 @@
       "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PAYEE_ADDRESS"
+    ]
   }
 }

@@ -1,3 +1,0 @@
-kind: fixed
-body: Add validAfter and validBefore timing validation to EIP-3009 verification in the Go facilitator SDK
-time: 2026-02-17T12:30:03.757642-08:00

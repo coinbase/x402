@@ -28,7 +28,7 @@ export function extractEip2612GasSponsoringInfo(
     return null;
   }
 
-  const extension = paymentPayload.extensions[EIP2612_GAS_SPONSORING] as
+  const extension = paymentPayload.extensions[EIP2612_GAS_SPONSORING.key] as
     | Eip2612GasSponsoringExtension
     | undefined;
 

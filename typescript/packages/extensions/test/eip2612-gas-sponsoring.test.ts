@@ -18,7 +18,7 @@ import type { PaymentPayload } from "@x402/core/types";
 describe("EIP-2612 Gas Sponsoring Extension", () => {
   describe("EIP2612_GAS_SPONSORING constant", () => {
     it("should export the correct extension identifier", () => {
-      expect(EIP2612_GAS_SPONSORING).toBe("eip2612GasSponsoring");
+      expect(EIP2612_GAS_SPONSORING.key).toBe("eip2612GasSponsoring");
     });
   });
 

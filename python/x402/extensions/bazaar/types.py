@@ -6,8 +6,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-# Extension identifier constant for the Bazaar discovery extension
-BAZAAR = "bazaar"
+from x402.interfaces import FacilitatorExtension
+
+# Extension identifier for the Bazaar discovery extension.
+BAZAAR = FacilitatorExtension(key="bazaar")
 
 # HTTP method types
 QueryParamMethods = Literal["GET", "HEAD", "DELETE"]

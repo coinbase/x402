@@ -103,7 +103,7 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 	if extensions == nil {
 		return nil, nil
 	}
-	if _, ok := extensions[eip2612gassponsor.EIP2612GasSponsoring]; !ok {
+	if _, ok := extensions[eip2612gassponsor.EIP2612GasSponsoring.Key()]; !ok {
 		return nil, nil
 	}
 
@@ -152,14 +152,15 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 		deadline = fmt.Sprintf("%d", time.Now().Unix()+int64(requirements.MaxTimeoutSeconds))
 	}
 
-	// Sign the EIP-2612 permit
-	info, err := SignEip2612Permit(ctx, c.signer, tokenAddress, tokenName, tokenVersion, chainID, deadline)
+	// Sign the EIP-2612 permit with the exact Permit2 permitted amount
+	// (the contract enforces permit2612.value == permit.permitted.amount)
+	info, err := SignEip2612Permit(ctx, c.signer, tokenAddress, tokenName, tokenVersion, chainID, deadline, requirements.Amount)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]interface{}{
-		eip2612gassponsor.EIP2612GasSponsoring: map[string]interface{}{
+		eip2612gassponsor.EIP2612GasSponsoring.Key(): map[string]interface{}{
 			"info": info,
 		},
 	}, nil

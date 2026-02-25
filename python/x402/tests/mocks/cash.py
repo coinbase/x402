@@ -58,9 +58,7 @@ class CashSchemeNetworkClient:
         Returns:
             Inner payload dict with signature and validity.
         """
-        valid_until = int(time.time() * 1000) + (
-            requirements.max_timeout_seconds * 1000
-        )
+        valid_until = int(time.time() * 1000) + (requirements.max_timeout_seconds * 1000)
         return {
             "signature": f"~{self._payer}",
             "validUntil": str(valid_until),
@@ -107,6 +105,7 @@ class CashSchemeNetworkFacilitator:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> VerifyResponse:
         """Verify a cash payment.
 
@@ -117,6 +116,7 @@ class CashSchemeNetworkFacilitator:
         Args:
             payload: The payment payload.
             requirements: The payment requirements.
+            context: Optional facilitator context.
 
         Returns:
             VerifyResponse with is_valid=True or False.
@@ -151,6 +151,7 @@ class CashSchemeNetworkFacilitator:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> SettleResponse:
         """Settle a cash payment.
 
@@ -163,7 +164,7 @@ class CashSchemeNetworkFacilitator:
         Returns:
             SettleResponse with success=True or False.
         """
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
 
         if not verify_result.is_valid:
             return SettleResponse(

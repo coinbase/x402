@@ -6,10 +6,12 @@
  * facilitator submits it on-chain via `x402Permit2Proxy.settleWithPermit`.
  */
 
+import type { FacilitatorExtension } from "@x402/core/types";
+
 /**
- * Extension identifier constant for the EIP-2612 gas sponsoring extension.
+ * Extension identifier for the EIP-2612 gas sponsoring extension.
  */
-export const EIP2612_GAS_SPONSORING = "eip2612GasSponsoring";
+export const EIP2612_GAS_SPONSORING: FacilitatorExtension = { key: "eip2612GasSponsoring" };
 
 /**
  * EIP-2612 gas sponsoring info populated by the client.

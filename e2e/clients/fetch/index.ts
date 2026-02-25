@@ -3,9 +3,13 @@ import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactSvmSchemeV1 } from "@x402/svm/v1";
+import { ExactAptosScheme } from "@x402/aptos/exact/client";
+import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
@@ -27,10 +31,24 @@ const publicClient = createPublicClient({
 // Compose account + publicClient into a full ClientEvmSigner
 const evmSigner = toClientEvmSigner(evmAccount, publicClient);
 
-// Create client and register EVM and SVM schemes using the new register helpers
-const client = new x402Client();
-registerExactEvmScheme(client, { signer: evmSigner });
-registerExactSvmScheme(client, { signer: svmSigner });
+// Initialize Aptos signer if key is provided
+let aptosAccount: Account | undefined;
+if (process.env.APTOS_PRIVATE_KEY) {
+  const formattedKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY, PrivateKeyVariants.Ed25519);
+  const aptosPrivateKey = new Ed25519PrivateKey(formattedKey);
+  aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+}
+
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(evmSigner))
+  .registerV1("base-sepolia", new ExactEvmSchemeV1(evmSigner))
+  .registerV1("base", new ExactEvmSchemeV1(evmSigner))
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .registerV1("solana-devnet", new ExactSvmSchemeV1(svmSigner))
+  .registerV1("solana", new ExactSvmSchemeV1(svmSigner));
+if (aptosAccount) {
+  client.register("aptos:*", new ExactAptosScheme(aptosAccount));
+}
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
