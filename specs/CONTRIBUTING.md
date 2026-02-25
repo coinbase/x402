@@ -23,6 +23,9 @@ specs/
 │       ├── scheme_exact_evm.md
 │       ├── scheme_exact_svm.md
 │       └── scheme_exact_sui.md
+│   └── statechannel/
+│       ├── scheme_statechannel.md
+│       └── scheme_statechannel_evm.md
 ├── transports/
 │   ├── http.md
 │   ├── mcp.md
@@ -43,6 +46,7 @@ Schemes define how funds are transferred from client to server. Each scheme has:
 
 Current schemes:
 - `exact` - Transfers a specific amount for resource access
+- `statechannel` - Off-chain state updates with on-chain dispute-backed settlement
 
 ### Transports
 
@@ -191,4 +195,3 @@ For schemes, include a section on:
 - Open an issue for spec questions
 - Reference existing specs for patterns
 - Discuss in the proposal issue before extensive writing
-
