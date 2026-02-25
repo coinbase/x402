@@ -175,6 +175,8 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 		networkStr = "eip155:8453"
 	case "base-sepolia":
 		networkStr = "eip155:84532"
+	case "polygon":
+		networkStr = "eip155:137"
 	}
 
 	// Check if we have a pre-configured network with default asset
