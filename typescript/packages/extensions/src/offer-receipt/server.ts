@@ -14,7 +14,7 @@ import type {
   SettleResultContext,
 } from "@x402/core/types";
 import type { PaymentRequirements } from "@x402/core/types";
-import type { HTTPRequestContext } from "@x402/core/http";
+import type { HTTPTransportContext } from "@x402/core/http";
 import {
   OFFER_RECEIPT,
   type OfferReceiptIssuer,
@@ -105,21 +105,6 @@ const RECEIPT_SCHEMA = {
 };
 
 // ============================================================================
-// HTTP Transport Context
-// ============================================================================
-
-/**
- * Extract resource URL from transport context
- *
- * @param transportContext - The transport context from the request
- * @returns The resource URL or undefined
- */
-function extractResourceUrl(transportContext: unknown): string | undefined {
-  const ctx = transportContext as HTTPRequestContext | undefined;
-  return ctx?.adapter?.getUrl?.();
-}
-
-// ============================================================================
 // Extension Factory
 // ============================================================================
 
@@ -171,7 +156,7 @@ export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): Resourc
       // Get resource URL from transport context or payment required response
       const resourceUrl =
         context.paymentRequiredResponse.resource?.url ||
-        extractResourceUrl(context.transportContext);
+        (context.transportContext as HTTPTransportContext)?.request?.adapter?.getUrl?.();
 
       if (!resourceUrl) {
         console.warn("[offer-receipt] No resource URL available for signing offers");
@@ -233,7 +218,9 @@ export function createOfferReceiptExtension(issuer: OfferReceiptIssuer): Resourc
       const transaction = context.result.transaction;
 
       // Get resource URL from transport context
-      const resourceUrl = extractResourceUrl(context.transportContext);
+      const resourceUrl = (
+        context.transportContext as HTTPTransportContext
+      )?.request?.adapter?.getUrl?.();
 
       if (!resourceUrl) {
         console.warn("[offer-receipt] No resource URL available for signing receipt");

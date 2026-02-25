@@ -148,6 +148,11 @@ async function main(): Promise<void> {
   const responseBody = await paidResponse.json();
   console.log("Response:", responseBody);
 
+  const paymentResponse = httpClient.getPaymentSettleResponse(name =>
+    paidResponse.headers.get(name),
+  );
+  console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
+
   // =========================================================================
   // Step 6: Extract signed receipt from success response
   // =========================================================================
