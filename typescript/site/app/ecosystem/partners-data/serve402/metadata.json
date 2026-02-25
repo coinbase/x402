@@ -1,0 +1,7 @@
+{
+  "name": "serve402",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/serve402.png",
+  "description": "Multi-service x402 payment gateway for AI agents. Pay-per-request web scraping and code execution with USDC micropayments on Base — no accounts, no API keys.",
+  "websiteUrl": "https://serve402.com"
+}
