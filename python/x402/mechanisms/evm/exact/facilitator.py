@@ -13,7 +13,6 @@ from ....schemas import (
 )
 from ..constants import (
     AUTHORIZATION_STATE_ABI,
-    ERR_FAILED_TO_GET_ASSET_INFO,
     ERR_FAILED_TO_GET_NETWORK_CONFIG,
     ERR_FAILED_TO_VERIFY_SIGNATURE,
     ERR_INSUFFICIENT_AMOUNT,
@@ -38,7 +37,7 @@ from ..eip712 import hash_eip3009_authorization
 from ..erc6492 import has_deployment_info, parse_erc6492_signature
 from ..signer import FacilitatorEvmSigner
 from ..types import ERC6492SignatureData, ExactEIP3009Payload
-from ..utils import bytes_to_hex, get_asset_info, get_network_config, hex_to_bytes
+from ..utils import bytes_to_hex, get_evm_chain_id, hex_to_bytes, normalize_address
 from ..verify import verify_universal_signature
 
 
@@ -137,9 +136,9 @@ class ExactEvmScheme:
         if payload.accepted.network != requirements.network:
             return VerifyResponse(is_valid=False, invalid_reason=ERR_NETWORK_MISMATCH, payer=payer)
 
-        # Get configs
+        # Parse chain ID from network identifier
         try:
-            config = get_network_config(network)
+            chain_id = get_evm_chain_id(network)
         except ValueError as e:
             return VerifyResponse(
                 is_valid=False,
@@ -148,15 +147,7 @@ class ExactEvmScheme:
                 payer=payer,
             )
 
-        try:
-            asset_info = get_asset_info(network, requirements.asset)
-        except ValueError as e:
-            return VerifyResponse(
-                is_valid=False,
-                invalid_reason=ERR_FAILED_TO_GET_ASSET_INFO,
-                invalid_message=str(e),
-                payer=payer,
-            )
+        token_address = normalize_address(requirements.asset)
 
         # Check EIP-712 domain params
         extra = requirements.extra or {}
@@ -195,7 +186,7 @@ class ExactEvmScheme:
         # Check nonce
         try:
             nonce_used = self._check_nonce_used(
-                payer, evm_payload.authorization.nonce, asset_info["address"]
+                payer, evm_payload.authorization.nonce, token_address
             )
             if nonce_used:
                 return VerifyResponse(
@@ -206,7 +197,7 @@ class ExactEvmScheme:
 
         # Check balance
         try:
-            balance = self._signer.get_balance(payer, asset_info["address"])
+            balance = self._signer.get_balance(payer, token_address)
             if balance < int(evm_payload.authorization.value):
                 return VerifyResponse(
                     is_valid=False, invalid_reason=ERR_INSUFFICIENT_BALANCE, payer=payer
@@ -221,8 +212,8 @@ class ExactEvmScheme:
         signature = hex_to_bytes(evm_payload.signature)
         hash_bytes = hash_eip3009_authorization(
             evm_payload.authorization,
-            config["chain_id"],
-            asset_info["address"],
+            chain_id,
+            token_address,
             extra["name"],
             extra["version"],
         )
@@ -279,7 +270,7 @@ class ExactEvmScheme:
         evm_payload = ExactEIP3009Payload.from_dict(payload.payload)
         payer = evm_payload.authorization.from_address
         network = str(requirements.network)
-        asset_info = get_asset_info(network, requirements.asset)
+        token_address = normalize_address(requirements.asset)
 
         signature = hex_to_bytes(evm_payload.signature)
         sig_data = parse_erc6492_signature(signature)
@@ -318,7 +309,7 @@ class ExactEvmScheme:
                 # EOA: v,r,s overload
                 r, s, v = inner_sig[:32], inner_sig[32:64], inner_sig[64]
                 tx_hash = self._signer.write_contract(
-                    asset_info["address"],
+                    token_address,
                     TRANSFER_WITH_AUTHORIZATION_VRS_ABI,
                     "transferWithAuthorization",
                     payer,
@@ -334,7 +325,7 @@ class ExactEvmScheme:
             else:
                 # Smart wallet: bytes overload
                 tx_hash = self._signer.write_contract(
-                    asset_info["address"],
+                    token_address,
                     TRANSFER_WITH_AUTHORIZATION_BYTES_ABI,
                     "transferWithAuthorization",
                     payer,
