@@ -196,5 +196,5 @@ pnpm format
 - `@x402/core` - Core protocol types and client
 - `@x402/fetch` - HTTP wrapper with automatic payment handling
 - `@x402/evm` - EVM/Ethereum implementation
+- `@x402/stellar` - Stellar implementation
 - `@solana/web3.js` - Solana JavaScript SDK (peer dependency)
-
