@@ -2,53 +2,100 @@
 
 ## Summary
 
-`statechannel` is an off-chain micropayment scheme for x402. A payer and counterparty
-maintain a bidirectional channel and exchange signed balance updates per payment.
-On-chain transactions are required only for lifecycle events (open, fund, challenge,
-close), not for every request.
+`statechannel` is a scheme for **off-chain micropayments** backed by on-chain state channels. A payer and counterparty maintain a bidirectional channel funded with ERC-20 tokens (or native ETH) and exchange cryptographically signed balance updates as payment. On-chain transactions are required only for lifecycle events (open, deposit, dispute, close), not for individual payments.
 
-This scheme defines two interoperable profile identifiers in `PaymentRequirements.scheme`:
+This scheme defines two profiles in `PaymentRequirements.scheme`:
 
-- `statechannel-hub-v1`: payer pays a hub, hub routes settlement to payees
-- `statechannel-direct-v1`: payer and payee settle directly through a shared channel
+| Profile | Route | Description |
+|---------|-------|-------------|
+| `statechannel-hub-v1` | Hub-routed | Payer opens one channel with a hub. Hub routes payments to any registered payee. |
+| `statechannel-direct-v1` | Direct | Payer opens a channel directly with the payee. No intermediary. |
+
+Both profiles preserve standard x402 `402` challenge-and-retry semantics. Payees return `402 Payment Required` with statechannel offers; clients construct payment proofs and retry. The only difference from `exact` is that the payment proof is a signed off-chain state update (or hub-issued ticket) instead of a token transfer authorization.
 
 ## Use Cases
 
-- High-frequency AI tool/API calls where per-request on-chain settlement is too expensive
-- Multi-payee routing through a single funded channel to a hub
-- Low-latency "pay and retry" flows over HTTP 402
+- **High-frequency AI tool/API calls** — An agent paying $0.001 per API call across dozens of services through a single hub channel, with zero gas cost per call.
+- **Metered streaming** — Pay-per-second audio/video, pay-per-token LLM generation, or pay-per-reading IoT sensor data via interval-based ticks.
+- **Multi-payee routing** — One funded channel to a hub enables payment to any payee, eliminating per-payee channel overhead.
+- **Low-latency "pay and retry"** — Payment completes in a single HTTP round-trip with no on-chain confirmation wait.
 
-## Profile Requirements
+## How It Differs from `exact`
 
-For both profiles, resource servers MUST return standard x402 `PaymentRequirements`
-fields and MAY include profile-specific metadata in `extensions[scheme]`.
+| Property | `exact` | `statechannel` |
+|----------|---------|----------------|
+| On-chain transactions per payment | 1 | 0 (amortized over channel lifetime) |
+| Payments before on-chain settlement | 1 | Unlimited (bounded by channel balance) |
+| Latency per payment | Block confirmation time | Single HTTP round-trip |
+| Minimum viable payment | Gas-bound (~$0.01+) | Arbitrary (1 wei+) |
+| Client state | Stateless | Stateful (channel nonce, balance) |
+| Trust model | Trustless (on-chain transfer) | Trust-minimizing (off-chain with on-chain dispute) |
 
-Recommended profile metadata:
+## Trust Model
 
-| Field | Type | Applies To | Description |
-|---|---|---|---|
-| `hubEndpoint` | string (URL) | `statechannel-hub-v1` | Quote/issue API endpoint for hub-routed tickets |
-| `mode` | string | `statechannel-hub-v1` | Settlement policy hint (for example `proxy_hold`) |
-| `quoteExpiry` | number | `statechannel-hub-v1` | Unix timestamp when quote expires |
-| `challengePeriodSec` | number | both | Challenge window for unilateral close |
+### Hub-Routed (`proxy_hold`)
 
-Servers SHOULD expose both a statechannel profile and at least one fallback scheme
-(for example `exact`) during rollout.
+- **Payer risk:** Bounded by the signed debit amount plus `maxFee`. The payer never authorizes more than they explicitly sign.
+- **Payee risk:** Bounded by hub signature validity and ticket expiry. Payee trusts that the hub will settle according to ticket terms.
+- **Hub risk:** Protected by valid channel state updates proving the payer's debit authorization. Hub cannot move funds without a co-signed state.
+
+### Direct
+
+- **Payer risk:** Same as hub-routed — bounded by signed debit.
+- **Payee risk:** Payee has on-chain dispute rights. Can submit the highest-nonce signed state to the channel contract for settlement.
 
 ## Core Security Requirements
 
 Implementations MUST enforce:
 
-1. Strictly increasing channel nonces per channel.
-2. Signature recovery that binds each state update to the expected payer identity.
-3. Expiry checks on quotes, tickets, and state update validity windows.
-4. Bounded debit per request (requested amount + disclosed fees).
-5. Replay protection for `paymentId`/`invoiceId` style identifiers when present.
+1. **Nonce monotonicity** — `stateNonce` MUST strictly increase for each accepted update per channel.
+2. **Balance conservation** — `balA + balB` MUST equal the channel's on-chain `totalBalance`.
+3. **Signature binding** — Every state update MUST be verified via EIP-712 typed data recovery, binding the signer to the channel, nonce, and balance split.
+4. **Expiry enforcement** — Quotes, tickets, and state updates with elapsed expiry MUST be rejected.
+5. **Bounded debit** — Each payment MUST debit no more than `amount + disclosed fees` from the payer's balance.
+6. **Replay protection** — `channelId` (scoped to chain + contract + participants + salt) plus `stateNonce` plus EIP-712 `chainId` prevent cross-channel and cross-chain replay. `paymentId`/`invoiceId` identifiers MUST be idempotent when present.
+7. **Challenge-period dispute** — Unilateral close MUST include a challenge window during which the counterparty can submit a higher-nonce state.
 
-Detailed EVM payload and verification requirements are in
-[`scheme_statechannel_evm.md`](./scheme_statechannel_evm.md).
+## Profile Metadata
+
+Both profiles use the standard x402 v2 `extensions` object to convey profile-specific configuration. Servers MUST include the profile identifier as the extension key.
+
+### `statechannel-hub-v1` Extension Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `hubEndpoint` | string (URL) | Yes | Hub API base URL (e.g., `https://pay.eth/.well-known/x402`) |
+| `mode` | string | No | Settlement policy hint. Default: `"proxy_hold"` |
+| `feeModel` | object | No | `{ "base": "<uint>", "bps": <int> }` — hub fee formula |
+| `quoteExpiry` | number | No | Unix timestamp when quote expires |
+
+### `statechannel-direct-v1` Extension Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `payeeAddress` | EVM address | Yes | Payee's on-chain address (channel counterparty) |
+| `challengePeriodSec` | number | No | Challenge window duration for dispute |
+
+Servers SHOULD offer at least one fallback scheme (e.g., `exact`) alongside statechannel profiles during rollout.
+
+## Critical Validation Requirements
+
+While implementation details vary by network, verifiers MUST enforce security constraints that prevent fund theft and replay:
+
+### EVM
+
+- **Signer recovery:** The recovered signer from the EIP-712 digest MUST match the expected payer (`participantA` for hub-routed, channel counterparty for direct).
+- **Nonce ordering:** `stateNonce` MUST be strictly greater than the last accepted nonce for the same channel.
+- **Balance conservation:** `balA + balB` MUST equal the channel's on-chain `totalBalance`.
+- **Debit correctness:** The balance delta (`previous.balA - current.balA`) MUST be greater than or equal to `accepted.amount`.
+- **Expiry validity:** States with `stateExpiry > 0 && now > stateExpiry` MUST be rejected.
+- **Ticket binding (hub profile):** `ticket.stateHash` MUST equal the hash of the submitted channel state. `ticket.hubSig` MUST recover to the hub's advertised address.
+
+Network-specific rules are in: `scheme_statechannel_evm.md` (EVM).
 
 ## Appendix
 
-- Core protocol types: `specs/x402-specification-v2.md`
-- Transport semantics: `specs/transports-v2/http.md`
+- Core protocol types: [`x402-specification-v2.md`](../../x402-specification-v2.md)
+- EVM payload, verification, and settlement: [`scheme_statechannel_evm.md`](./scheme_statechannel_evm.md)
+- Reference implementation: [github.com/Keychain-Inc/x402s](https://github.com/Keychain-Inc/x402s)
+- Full SCP specification: [X402S_SPEC_V2.md](https://github.com/Keychain-Inc/x402s/blob/main/docs/X402S_SPEC_V2.md)

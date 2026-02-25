@@ -1,39 +1,59 @@
 ---
-title: "State Channels (SCP Draft)"
-description: "Draft documentation for the x402 state-channel profile family. SCP enables off-chain, high-frequency micropayments while preserving x402 402 challenge-and-retry semantics."
+title: "State Channels (SCP)"
+description: "Off-chain micropayments for x402. Pay thousands of API calls through a single funded channel with zero per-payment gas cost."
 ---
 
-State channels reduce per-request settlement cost by moving repeated payments off-chain.
-With SCP, on-chain transactions are primarily used for channel lifecycle operations
-(open, fund, challenge, close), while API-call payments are represented as signed
-state updates.
-
-This page documents the current SCP draft profile family and links to the draft
-specification and reference implementation.
+State channels reduce per-request settlement cost by moving repeated payments off-chain. A payer opens one funded channel, then pays any number of API calls by signing balance updates — no on-chain transaction until the channel closes.
 
 ## Profile Family
 
-SCP introduces two profile identifiers used in `accepts[].scheme`:
+SCP introduces two scheme identifiers used in `accepts[].scheme`:
 
-| Scheme | Route | Description |
-|---|---|---|
-| `statechannel-hub-v1` | Hub-routed | Payer -> hub -> payee |
-| `statechannel-direct-v1` | Direct | Payer -> payee, no intermediary |
+| Scheme | Route | How it works |
+|--------|-------|-------------|
+| `statechannel-hub-v1` | Payer → Hub → Payee | One channel, many payees. Hub routes payments. |
+| `statechannel-direct-v1` | Payer → Payee | Direct channel. No intermediary. |
 
-## Payment Flow (High Level)
+Both preserve standard x402 request/retry semantics — the payee returns `402`, the client signs a payment proof, the client retries.
 
-1. Client requests a protected resource.
-2. Server returns HTTP 402 with a statechannel-compatible offer in `accepts[]`.
-3. Client constructs payment proof (hub ticket + channel proof, or direct channel state proof).
-4. Client retries with `PAYMENT-SIGNATURE`.
-5. Server verifies proof and returns resource.
+## When to Use State Channels vs `exact`
 
-This preserves normal x402 request/retry behavior.
+| Use case | Recommended scheme |
+|----------|-------------------|
+| One-off API call, article purchase | `exact` |
+| Agent making 100+ API calls per session | `statechannel-hub-v1` |
+| Pay-per-second media streaming | `statechannel-hub-v1` with streaming extension |
+| Direct bilateral payment channel | `statechannel-direct-v1` |
 
-## 402 Response (v2 Shape)
+## Payment Flow (Hub-Routed)
 
-The example below uses current x402 v2 fields (`amount`, `maxTimeoutSeconds`) and
-the standard top-level `extensions` object.
+```
+Agent (A)              Hub (H)                   Payee API (B)
+  │                      │                            │
+  │  GET /resource       │                            │
+  │─────────────────────────────────────────────────>│
+  │<─────────────── 402 + offers ────────────────────│
+  │                      │                            │
+  │  POST /v1/tickets/quote                           │
+  │─────────────────────>│                            │
+  │<──── quote + draft ──│                            │
+  │                      │                            │
+  │  POST /v1/tickets/issue (signed channel state)    │
+  │─────────────────────>│                            │
+  │<── ticket + ack ─────│                            │
+  │                      │                            │
+  │  GET /resource + PAYMENT-SIGNATURE ──────────────>│
+  │<──────────────── 200 + receipt ───────────────────│
+```
+
+1. Agent requests a resource, gets a `402` with statechannel offer.
+2. Agent asks the hub for a fee quote.
+3. Agent signs a channel state update debiting the payment + fee.
+4. Hub issues a signed ticket.
+5. Agent retries the request with the ticket as payment proof.
+6. Payee verifies the ticket and serves the resource.
+
+## 402 Response Example
 
 ```json
 {
@@ -62,74 +82,6 @@ the standard top-level `extensions` object.
         "feeModel": {
           "base": "10",
           "bps": 30
-        },
-        "quoteExpiry": 1770000000
-      },
-      "schema": {
-        "type": "object"
-      }
-    }
-  }
-}
-```
-
-## On-Chain Contract Surface
-
-Typical channel lifecycle operations include:
-
-- `openChannel(...)`
-- `deposit(...)`
-- `cooperativeClose(...)`
-- `startClose(...)`
-- `challenge(...)`
-- `finalizeClose(...)`
-- `rebalance(...)` (hub profile)
-
-See the draft scheme docs for details:
-
-- `specs/schemes/statechannel/scheme_statechannel.md`
-- `specs/schemes/statechannel/scheme_statechannel_evm.md`
-
-## Hub API (Reference Implementation)
-
-The endpoints below are from the current **reference implementation** and are not
-yet standardized by x402 core docs:
-
-- `GET /.well-known/x402`
-- `POST /v1/tickets/quote`
-- `POST /v1/tickets/issue`
-- `GET /v1/payments/{paymentId}`
-- `GET /v1/channels/{channelId}`
-- `POST /v1/refunds`
-
-Payee-facing reference endpoints:
-
-- `GET /v1/payee/inbox`
-- `GET /v1/payee/balance`
-- `POST /v1/payee/settle`
-
-## Fee Model
-
-Hub-routed implementations commonly use:
-
-```text
-fee = base + floor(amount * bps / 10000) + gasSurcharge
-```
-
-Clients should set max-fee constraints before signing channel updates.
-
-## Streaming Profile (Draft)
-
-SCP can support interval-based payment streaming via extension metadata, for example:
-
-```json
-{
-  "extensions": {
-    "statechannel-hub-v1": {
-      "info": {
-        "stream": {
-          "amount": "100000000000",
-          "t": 5
         }
       },
       "schema": {
@@ -140,31 +92,93 @@ SCP can support interval-based payment streaming via extension metadata, for exa
 }
 ```
 
-Where:
+## On-Chain Contract
 
-- `stream.amount`: amount debited per tick
-- `stream.t`: tick cadence in seconds
+The `X402StateChannel` contract is the on-chain adjudicator. It handles:
 
-## Reference Implementation
+| Function | Purpose |
+|----------|---------|
+| `openChannel(...)` | Open and fund a new channel |
+| `deposit(...)` | Add funds to an existing channel |
+| `cooperativeClose(...)` | Instant close — both parties sign the final state |
+| `startClose(...)` | Begin unilateral close (starts challenge period) |
+| `challenge(...)` | Submit a higher-nonce state during dispute |
+| `finalizeClose(...)` | Settle after challenge period expires |
+| `rebalance(...)` | Hub moves earned funds between channels atomically |
 
-- Repository: [github.com/Keychain-Inc/x402s](https://github.com/Keychain-Inc/x402s)
-- Draft spec: [X402S_SPEC_V2.md](https://github.com/Keychain-Inc/x402s/blob/main/docs/X402S_SPEC_V2.md)
-- Example components:
-  - `contracts/X402StateChannel.sol`
-  - `node/scp-hub/server.js`
-  - `node/scp-agent/agent-client.js`
-  - `node/scp-demo/payee-server.js`
-  - `node/music-api/server.js`
-  - `scp-agent/index.html`
+Canonical deployment via CREATE2: `0x07ECA6701062Db12eDD04bEa391eD226C95aaD4b` (same address on all supported EVM chains).
+
+## Security Model
+
+- **Payer** signs state updates with EIP-712 typed data. Can never be debited more than the signed amount.
+- **Hub** routes payments but cannot move funds without a co-signed state. No unilateral custody.
+- **Payee** holds a hub-signed ticket as payment proof (hub-routed) or the latest signed state with on-chain dispute rights (direct).
+- **Unilateral close** includes a challenge period — if one party submits a stale state, the counterparty can submit a newer one.
+
+## Streaming Extension
+
+SCP supports interval-based payment streaming. The payee advertises a tick cadence and per-tick amount:
+
+```json
+{
+  "extensions": {
+    "statechannel-hub-v1": {
+      "info": {
+        "stream": {
+          "amount": "100000000000",
+          "t": 5
+        },
+        "hubEndpoint": "https://pay.eth/.well-known/x402"
+      },
+      "schema": { "type": "object" }
+    }
+  }
+}
+```
+
+The client signs a new state update every `t` seconds. The server delivers content and returns stream metadata (`nextCursor`, `hasMore`). When `hasMore` is `false`, the stream ends.
+
+Use cases: pay-per-second audio, pay-per-token LLM generation, metered data feeds.
+
+## Fee Model
+
+Hub fees follow: `fee = base + floor(amount × bps / 10000) + gasSurcharge`
+
+Agents set a `maxFee` ceiling in quote requests. The hub rejects if the computed fee exceeds it.
+
+## Hub API (Reference Implementation)
+
+These endpoints are from the current reference implementation:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/x402` | GET | Hub metadata, supported assets, public key |
+| `/v1/tickets/quote` | POST | Get fee quote and payment draft |
+| `/v1/tickets/issue` | POST | Submit signed state, receive ticket |
+| `/v1/payments/{id}` | GET | Payment status lookup |
+| `/v1/channels/{id}` | GET | Channel state lookup |
+| `/v1/refunds` | POST | Request a refund |
+| `/v1/payee/inbox` | GET | Payee payment inbox |
+| `/v1/payee/balance` | GET | Payee balance at hub |
+| `/v1/payee/settle` | POST | Request on-chain settlement |
 
 ## FAQ
 
 **How does this differ from `exact`?**
-`exact` generally settles each payment on-chain; SCP amortizes cost by using off-chain
-state updates and on-chain dispute-backed settlement.
+`exact` settles each payment on-chain. SCP amortizes cost over a channel lifetime — open once, pay thousands of times off-chain, close once.
 
 **Can SCP run without a hub?**
-Yes. Use `statechannel-direct-v1`.
+Yes. Use `statechannel-direct-v1`. The payer opens a channel directly with the payee.
 
 **What if the hub goes offline?**
-Participants can still use on-chain close/challenge paths based on the latest signed state.
+Both parties can use the on-chain close/challenge paths with the latest signed state. Funds are never locked.
+
+**Is this a custodial wallet?**
+No. The hub cannot move funds without the payer's signature. Every balance change requires a co-signed state update.
+
+## Specifications
+
+- Scheme overview: [`specs/schemes/statechannel/scheme_statechannel.md`](https://github.com/coinbase/x402/blob/main/specs/schemes/statechannel/scheme_statechannel.md)
+- EVM implementation: [`specs/schemes/statechannel/scheme_statechannel_evm.md`](https://github.com/coinbase/x402/blob/main/specs/schemes/statechannel/scheme_statechannel_evm.md)
+- Full SCP specification: [X402S_SPEC_V2.md](https://github.com/Keychain-Inc/x402s/blob/main/docs/X402S_SPEC_V2.md)
+- Reference implementation: [github.com/Keychain-Inc/x402s](https://github.com/Keychain-Inc/x402s)
