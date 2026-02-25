@@ -1,6 +1,7 @@
 changelogPath: CHANGELOG.md
 changesDir: .changes
 unreleasedDir: unreleased
+versionExt: md
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
 kindFormat: "### {{.Kind}}"
 changeFormat: "- {{.Body}}"
