@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
+import { wrapFetchWithPayment } from "@x402/fetch";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -10,6 +10,8 @@ import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { ExactSvmSchemeV1 } from "@x402/svm/v1";
 import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer, Ed25519Signer } from "@x402/stellar";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
@@ -37,6 +39,12 @@ if (process.env.APTOS_PRIVATE_KEY) {
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
 }
 
+// Initialize Stellar signer if key is provided
+let stellarSigner: Ed25519Signer | undefined;
+if (process.env.STELLAR_PRIVATE_KEY) {
+  stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
+}
+
 const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(evmSigner))
   .registerV1("base-sepolia", new ExactEvmSchemeV1(evmSigner))
@@ -46,6 +54,9 @@ const client = new x402Client()
   .registerV1("solana", new ExactSvmSchemeV1(svmSigner));
 if (aptosAccount) {
   client.register("aptos:*", new ExactAptosScheme(aptosAccount));
+}
+if (stellarSigner) {
+  client.register("stellar:*", new ExactStellarScheme(stellarSigner));
 }
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
