@@ -64,7 +64,7 @@ Both profiles use the standard x402 v2 `extensions` object to convey profile-spe
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `hubEndpoint` | string (URL) | Yes | Hub API base URL (e.g., `https://pay.eth/.well-known/x402`) |
+| `hubEndpoint` | string (URL) | Yes | Hub metadata discovery URL (e.g., `https://pay.eth/.well-known/x402`). Clients fetch this to discover hub capabilities, then derive API routes (`/v1/tickets/quote`, `/v1/tickets/issue`, etc.) from the same origin. |
 | `mode` | string | No | Settlement policy hint. Default: `"proxy_hold"` |
 | `feeModel` | object | No | `{ "base": "<uint>", "bps": <int> }` — hub fee formula |
 | `quoteExpiry` | number | No | Unix timestamp when quote expires |
@@ -89,7 +89,7 @@ While implementation details vary by network, verifiers MUST enforce security co
 - **Balance conservation:** `balA + balB` MUST equal the channel's on-chain `totalBalance`.
 - **Debit correctness:** The balance delta (`previous.balA - current.balA`) MUST be greater than or equal to `accepted.amount`.
 - **Expiry validity:** States with `stateExpiry > 0 && now > stateExpiry` MUST be rejected.
-- **Ticket binding (hub profile):** `ticket.stateHash` MUST equal the hash of the submitted channel state. `ticket.hubSig` MUST recover to the hub's advertised address.
+- **Ticket binding (hub profile):** `ticket.stateHash` MUST equal the hash of the submitted channel state. `ticket.sig` MUST recover to the hub's advertised address.
 
 Network-specific rules are in: `scheme_statechannel_evm.md` (EVM).
 

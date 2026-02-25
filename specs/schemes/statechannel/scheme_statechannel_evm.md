@@ -272,7 +272,7 @@ The client sends the signed channel state directly to the payee:
 
 The **payee** MUST validate the following in order:
 
-1. **Parse** — Decode the `PAYMENT-SIGNATURE` header as JSON.
+1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)).
 2. **Scheme check** — `accepted.scheme` is `"statechannel-hub-v1"`.
 3. **Ticket signature** — Recover signer from `ticket.sig` using `eth_sign` over the canonicalized ticket hash. Recovered address MUST match `ticket.hub`, which MUST be a known hub address.
 4. **Ticket expiry** — `ticket.expiry` MUST be in the future.
@@ -287,7 +287,7 @@ The **payee** MUST validate the following in order:
 
 The **payee** MUST validate the following in order:
 
-1. **Parse** — Decode the `PAYMENT-SIGNATURE` header as JSON.
+1. **Parse** — Base64-decode the `PAYMENT-SIGNATURE` header, then parse the result as JSON (per the [HTTP transport spec](../../transports-v2/http.md)).
 2. **Scheme check** — `accepted.scheme` is `"statechannel-direct-v1"`.
 3. **Signer recovery** — Recover signer from `sigA` via EIP-712 typed data recovery over `channelState`. Recovered address MUST match `payer` and MUST be `participantA` in the channel.
 4. **Nonce ordering** — `channelState.stateNonce` MUST be strictly greater than the last accepted nonce for this channel.
