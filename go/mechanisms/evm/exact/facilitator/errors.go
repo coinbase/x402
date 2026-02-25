@@ -8,7 +8,7 @@ const (
 	ErrInvalidPayload            = "invalid_exact_evm_payload"
 	ErrMissingSignature          = "invalid_exact_evm_payload_missing_signature"
 	ErrFailedToGetNetworkConfig  = "invalid_exact_evm_failed_to_get_network_config"
-	ErrFailedToGetAssetInfo      = "invalid_exact_evm_failed_to_get_asset_info"
+	ErrMissingEip712Domain       = "invalid_exact_evm_missing_eip712_domain"
 	ErrRecipientMismatch         = "invalid_exact_evm_recipient_mismatch"
 	ErrInvalidAuthorizationValue = "invalid_exact_evm_authorization_value"
 	ErrInvalidRequiredAmount     = "invalid_exact_evm_required_amount"
