@@ -15,6 +15,12 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
+// Pre-compiled regex patterns to avoid recompilation on every call.
+var (
+	multiSlashRegex = regexp.MustCompile(`/+`)
+	paramRegex      = regexp.MustCompile(`\\\[([^\]]+)\\\]`)
+)
+
 // ============================================================================
 // HTTP Adapter Interface
 // ============================================================================
@@ -783,7 +789,6 @@ func parseRoutePattern(pattern string) (string, *regexp.Regexp) {
 	regexPattern := "^" + regexp.QuoteMeta(path)
 	regexPattern = strings.ReplaceAll(regexPattern, `\*`, `.*?`)
 	// Handle parameters like [id]
-	paramRegex := regexp.MustCompile(`\\\[([^\]]+)\\\]`)
 	regexPattern = paramRegex.ReplaceAllString(regexPattern, `[^/]+`)
 	regexPattern += "$"
 
@@ -807,8 +812,7 @@ func normalizePath(path string) string {
 	// Normalize slashes
 	path = strings.ReplaceAll(path, `\`, `/`)
 	// Replace multiple slashes with single slash
-	multiSlash := regexp.MustCompile(`/+`)
-	path = multiSlash.ReplaceAllString(path, `/`)
+	path = multiSlashRegex.ReplaceAllString(path, `/`)
 	// Remove trailing slash
 	path = strings.TrimSuffix(path, `/`)
 
