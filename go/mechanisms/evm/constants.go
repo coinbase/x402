@@ -52,6 +52,9 @@ const (
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
 	Permit2DeadlineBuffer = 6
+
+	// ERC20ApproveGasLimit is the gas limit for a standard ERC-20 approve() transaction.
+	ERC20ApproveGasLimit = 70000
 )
 
 var (
