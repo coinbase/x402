@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+
+	goethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // ExactEIP3009Authorization represents the EIP-3009 TransferWithAuthorization data
@@ -181,6 +183,22 @@ func IsPermit2Payload(data map[string]interface{}) bool {
 func IsEIP3009Payload(data map[string]interface{}) bool {
 	_, ok := data["authorization"]
 	return ok
+}
+
+// ClientEvmSignerWithTxSigning extends ClientEvmSigner with raw transaction signing capabilities.
+// Required for the ERC-20 approval gas sponsoring extension, where the client signs
+// (but does not broadcast) an approve(Permit2, MaxUint256) transaction.
+type ClientEvmSignerWithTxSigning interface {
+	ClientEvmSigner
+
+	// SignTransaction signs an EIP-1559 transaction and returns the RLP-encoded bytes.
+	SignTransaction(ctx context.Context, tx *goethtypes.Transaction) ([]byte, error)
+
+	// GetTransactionCount returns the pending nonce for an address.
+	GetTransactionCount(ctx context.Context, address string) (uint64, error)
+
+	// EstimateFeesPerGas returns the EIP-1559 maxFeePerGas and maxPriorityFeePerGas.
+	EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error)
 }
 
 // ClientEvmSigner defines the interface for client-side EVM signing operations.
