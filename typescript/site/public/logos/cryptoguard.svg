@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <rect width="256" height="256" rx="32" fill="#0f172a"/>
+  <!-- Shield outline -->
+  <path d="M 128 30 L 215 68 L 215 145 Q 215 200, 128 235 Q 41 200, 41 145 L 41 68 Z"
+        stroke="#22d3ee" stroke-width="4" fill="none" opacity="0.4"/>
+  <!-- Candlestick chart (crypto) -->
+  <!-- Candle 1 - green (up) -->
+  <line x1="80" y1="95" x2="80" y2="170" stroke="#22c55e" stroke-width="2"/>
+  <rect x="74" y="110" width="12" height="35" fill="#22c55e" rx="1"/>
+  <!-- Candle 2 - red (down) -->
+  <line x1="108" y1="85" x2="108" y2="165" stroke="#ef4444" stroke-width="2"/>
+  <rect x="102" y="95" width="12" height="40" fill="#ef4444" rx="1"/>
+  <!-- Candle 3 - green (up) -->
+  <line x1="136" y1="90" x2="136" y2="175" stroke="#22c55e" stroke-width="2"/>
+  <rect x="130" y="105" width="12" height="45" fill="#22c55e" rx="1"/>
+  <!-- Candle 4 - red (down, anomaly) -->
+  <line x1="164" y1="80" x2="164" y2="160" stroke="#ef4444" stroke-width="2"/>
+  <rect x="158" y="88" width="12" height="42" fill="#ef4444" rx="1"/>
+  <!-- Anomaly alert dot on candle 4 -->
+  <circle cx="178" cy="85" r="7" fill="#f43f5e"/>
+  <circle cx="178" cy="85" r="11" stroke="#f43f5e" stroke-width="2" fill="none" opacity="0.5"/>
+  <!-- Checkmark (verdict) -->
+  <path d="M 105 195 L 120 210 L 150 180"
+        stroke="#22d3ee" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
