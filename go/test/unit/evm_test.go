@@ -53,17 +53,17 @@ func TestEVMVersionMismatch(t *testing.T) {
 	t.Run("V1 Client with V2 Requirements Should Fail", func(t *testing.T) {
 		ctx := context.Background()
 
-		// Setup V1 client
+		// Setup V1 client with legacy network name
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterV1("eip155:8453", evmClientV1)
+		client.RegisterV1("base", evmClientV1)
 
-		// V1 client should succeed
+		// V1 client should succeed with legacy network name
 		v1Requirements := types.PaymentRequirementsV1{
 			Scheme:            evm.SchemeExact,
-			Network:           "eip155:8453",
-			Asset:             "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+			Network:           "base",
+			Asset:             "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			MaxAmountRequired: "1000000",
 			PayTo:             "0x9876543210987654321098765432109876543210",
 		}
@@ -124,19 +124,19 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
 
-		// Register V1 implementation
+		// Register V1 implementation with legacy network name
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterV1("eip155:8453", evmClientV1)
+		client.RegisterV1("base", evmClientV1)
 
-		// Register V2 implementation
+		// Register V2 implementation with CAIP-2
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.Register("eip155:8453", evmClient)
 
-		// V1 requirements (typed)
+		// V1 requirements use legacy network name
 		v1Requirements := types.PaymentRequirementsV1{
 			Scheme:            evm.SchemeExact,
-			Network:           "eip155:8453",
-			Asset:             "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+			Network:           "base",
+			Asset:             "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			MaxAmountRequired: "1000000",
 			PayTo:             "0x9876543210987654321098765432109876543210",
 		}
@@ -156,11 +156,11 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			t.Error("Expected V1 payload to have top-level Scheme")
 		}
 
-		// V2 requirements (typed, uses Amount)
+		// V2 requirements use CAIP-2
 		v2Requirements := types.PaymentRequirements{
 			Scheme:  evm.SchemeExact,
 			Network: "eip155:8453",
-			Asset:   "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+			Asset:   "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			Amount:  "1000000",
 			PayTo:   "0x9876543210987654321098765432109876543210",
 			Extra: map[string]interface{}{
@@ -190,19 +190,19 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
 
-		// Register V1 implementation
+		// Register V1 implementation with legacy name
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterV1("eip155:8453", evmClientV1)
+		client.RegisterV1("base", evmClientV1)
 
-		// Register V2 implementation
+		// Register V2 implementation with CAIP-2
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.Register("eip155:8453", evmClient)
 
-		// V2 requirements (typed)
+		// V2 requirements use CAIP-2
 		requirements := types.PaymentRequirements{
 			Scheme:  evm.SchemeExact,
 			Network: "eip155:8453",
-			Asset:   "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+			Asset:   "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			Amount:  "1000000",
 			PayTo:   "0x9876543210987654321098765432109876543210",
 		}

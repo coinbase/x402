@@ -499,19 +499,27 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 	t.Run("EVM V2 Permit2 Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
+		rpcURL := "https://sepolia.base.org"
 
 		// Wait for any pending transactions from previous tests (shared facilitator wallet)
-		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
+		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, rpcURL)
 
 		// Revoke Permit2 approval so the test exercises the settleWithPermit path
 		// via EIP-2612 gas sponsoring (instead of hiding behind pre-existing allowance)
 		revokePermit2Approval(t, ctx, clientPrivateKey,
 			"0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-			"https://sepolia.base.org",
+			rpcURL,
 		)
 
-		// Create real client signer
-		clientSigner, err := newRealClientEvmSigner(clientPrivateKey)
+		// Create real client signer with RPC connectivity so it can:
+		// - Read Permit2 allowance before deciding whether to sign EIP-2612 permit
+		// - Query the EIP-2612 nonce from the token contract
+		clientEthClient, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			t.Fatalf("Failed to connect to Base Sepolia: %v", err)
+		}
+		defer clientEthClient.Close()
+		clientSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(clientPrivateKey, clientEthClient)
 		if err != nil {
 			t.Fatalf("Failed to create client signer: %v", err)
 		}
