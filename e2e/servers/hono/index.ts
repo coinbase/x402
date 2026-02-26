@@ -6,7 +6,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
-import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
+import {
+  declareEip2612GasSponsoringExtension,
+  declareErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -207,6 +210,23 @@ app.use(
           ...declareEip2612GasSponsoringExtension(),
         },
       },
+      "GET /protected-permit2-erc20": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "exact",
+          network: EVM_NETWORK,
+          price: {
+            amount: "1000",
+            asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
+        },
+        extensions: {
+          ...declareErc20ApprovalGasSponsoringExtension(),
+        },
+      },
     },
     x402Server, // Pass pre-configured server instance
   ),
@@ -264,6 +284,17 @@ app.get("/protected-permit2", (c) => {
 });
 
 /**
+ * Protected Permit2 ERC-20 endpoint - requires Permit2 payment with ERC-20 approval gas sponsoring
+ */
+app.get("/protected-permit2-erc20", (c) => {
+  return c.json({
+    message: "Permit2 ERC-20 approval endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "permit2-erc20-approval",
+  });
+});
+
+/**
  * Health check endpoint - no payment required
  *
  * Used to verify the server is running and responsive.
@@ -312,11 +343,12 @@ console.log(`
 ║  Aptos Payee:    ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected          (EIP-3009 payment)        ║
-║  • GET  /protected-permit2  (Permit2 + EIP-2612)      ║
-║  • GET  /protected-svm      (SVM payment)             ║
-║  • GET  /protected-aptos    (Aptos payment)           ║
-║  • GET  /health             (no payment required)     ║
-║  • POST /close              (shutdown server)         ║
+║  • GET  /protected               (EIP-3009 payment)        ║
+║  • GET  /protected-permit2       (Permit2 + EIP-2612)      ║
+║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval)║
+║  • GET  /protected-svm           (SVM payment)             ║
+║  • GET  /protected-aptos         (Aptos payment)           ║
+║  • GET  /health                  (no payment required)     ║
+║  • POST /close                   (shutdown server)         ║
 ╚════════════════════════════════════════════════════════╝
   `);
