@@ -1,0 +1,7 @@
+{
+  "name": "Spraay x402 Gateway",
+  "description": "Pay-per-request AI gateway, batch payment engine, and DeFi data API on Base mainnet. AI agents pay USDC per call to access 200+ AI models (OpenAI-compatible), execute batch USDC payments via Spraay protocol, and get live swap quotes from Uniswap V3. 6 paid endpoints with Bazaar discovery. No API keys, no accounts.",
+  "logoUrl": "/logos/spraay.png",
+  "websiteUrl": "https://gateway.spraay.app",
+  "category": "Services/Endpoints"
+}

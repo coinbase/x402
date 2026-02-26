@@ -1,5 +1,39 @@
 # @x402/evm Changelog
 
+## 2.5.0
+
+### Minor Changes
+
+- 7fe268f: Implemented the erc20 approval gas sponsorship extension
+- 33a9cab: Update Permit2 witness struct (remove extra field), contract addresses, and error names for post-audit x402 proxy contracts on Base Sepolia
+
+### Patch Changes
+
+- 55a4396: Separated v1 legacy network name resolution from v2 CAIP-2 resolution; getEvmChainId now only accepts eip155:CHAIN_ID format, v1 code uses getEvmChainIdV1 from v1/index
+- Updated dependencies [96a9db0]
+- Updated dependencies [7fe268f]
+- Updated dependencies [1ab1c86]
+- Updated dependencies [d0a2b11]
+- Updated dependencies
+  - @x402/core@2.5.0
+  - @x402/extensions@2.5.0
+
+## 2.4.0
+
+### Minor Changes
+
+- 018181b: Implement EIP-2612 gasless Permit2 approval extension
+
+  - Implemented EIP-2612 gas sponsoring for the exact EVM scheme — clients automatically sign EIP-2612 permits when Permit2 allowance is insufficient, and facilitators route to `settleWithPermit` when the extension is present
+
+### Patch Changes
+
+- Updated dependencies [57a5488]
+- Updated dependencies [018181b]
+- Updated dependencies [3fb55d7]
+  - @x402/core@2.4.0
+  - @x402/extensions@2.4.0
+
 ## 2.3.1
 
 ### Patch Changes

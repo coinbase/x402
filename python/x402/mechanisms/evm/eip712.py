@@ -86,9 +86,7 @@ def _encode_data(
             if isinstance(value, bytes):
                 encoded_values.append(keccak(value))
             else:
-                encoded_values.append(
-                    keccak(bytes.fromhex(str(value).removeprefix("0x")))
-                )
+                encoded_values.append(keccak(bytes.fromhex(str(value).removeprefix("0x"))))
         elif field_type == "bytes32":
             if isinstance(value, bytes):
                 encoded_values.append(value)
@@ -210,9 +208,7 @@ def hash_eip3009_authorization(
         "nonce": bytes.fromhex(authorization.nonce.removeprefix("0x")),
     }
 
-    return hash_typed_data(
-        domain, AUTHORIZATION_TYPES, "TransferWithAuthorization", message
-    )
+    return hash_typed_data(domain, AUTHORIZATION_TYPES, "TransferWithAuthorization", message)
 
 
 def build_typed_data_for_signing(

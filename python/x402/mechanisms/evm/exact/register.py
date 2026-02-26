@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, TypeVar
 
-from ..constants import V1_NETWORKS
+from ..v1.constants import V1_NETWORKS
 
 if TYPE_CHECKING:
     from x402 import (
@@ -124,9 +124,7 @@ def register_exact_evm_facilitator(
     from .v1.facilitator import ExactEvmSchemeV1 as ExactEvmFacilitatorSchemeV1
     from .v1.facilitator import ExactEvmSchemeV1Config
 
-    config = ExactEvmSchemeConfig(
-        deploy_erc4337_with_eip6492=deploy_erc4337_with_eip6492
-    )
+    config = ExactEvmSchemeConfig(deploy_erc4337_with_eip6492=deploy_erc4337_with_eip6492)
     scheme = ExactEvmFacilitatorScheme(signer, config)
 
     if isinstance(networks, str):
@@ -134,9 +132,7 @@ def register_exact_evm_facilitator(
     facilitator.register(networks, scheme)
 
     # Register V1
-    v1_config = ExactEvmSchemeV1Config(
-        deploy_erc4337_with_eip6492=deploy_erc4337_with_eip6492
-    )
+    v1_config = ExactEvmSchemeV1Config(deploy_erc4337_with_eip6492=deploy_erc4337_with_eip6492)
     v1_scheme = ExactEvmFacilitatorSchemeV1(signer, v1_config)
     facilitator.register_v1(V1_NETWORKS, v1_scheme)
 

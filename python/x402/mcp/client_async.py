@@ -188,9 +188,7 @@ class x402MCPClient:
                 hook_result = await hook_result
             if hook_result:
                 if hook_result.abort:
-                    raise PaymentRequiredError(
-                        "Payment aborted by hook", payment_required
-                    )
+                    raise PaymentRequiredError("Payment aborted by hook", payment_required)
                 if hook_result.payment:
                     return await self.call_tool_with_payment(
                         name, args, hook_result.payment, **kwargs
@@ -296,9 +294,7 @@ class x402MCPClient:
         result = await self._call_mcp_tool(call_params, **kwargs)
         return extract_payment_required_from_result(result)
 
-    async def _call_mcp_tool(
-        self, params: dict[str, Any], **kwargs: Any
-    ) -> MCPToolResult:
+    async def _call_mcp_tool(self, params: dict[str, Any], **kwargs: Any) -> MCPToolResult:
         """Call underlying async MCP client tool method.
 
         Args:
@@ -362,9 +358,7 @@ class x402MCPClient:
         if hasattr(self._mcp_client, "unsubscribe_resource"):
             await self._mcp_client.unsubscribe_resource(uri)
         else:
-            raise NotImplementedError(
-                "MCP client does not support unsubscribe_resource"
-            )
+            raise NotImplementedError("MCP client does not support unsubscribe_resource")
 
     async def list_prompts(self) -> Any:
         """List available prompts from the server."""
@@ -421,9 +415,7 @@ class x402MCPClient:
         if hasattr(self._mcp_client, "send_roots_list_changed"):
             await self._mcp_client.send_roots_list_changed()
         else:
-            raise NotImplementedError(
-                "MCP client does not support send_roots_list_changed"
-            )
+            raise NotImplementedError("MCP client does not support send_roots_list_changed")
 
 
 # ============================================================================

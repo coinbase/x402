@@ -22,7 +22,7 @@ class TestValidateDiscoveryExtension:
             input_schema={"properties": {"query": {"type": "string"}}},
         )
 
-        result = validate_discovery_extension(ext[BAZAAR])
+        result = validate_discovery_extension(ext[BAZAAR.key])
         assert result.valid is True
         assert len(result.errors) == 0
 
@@ -34,7 +34,7 @@ class TestValidateDiscoveryExtension:
             body_type="json",
         )
 
-        result = validate_discovery_extension(ext[BAZAAR])
+        result = validate_discovery_extension(ext[BAZAAR.key])
         assert result.valid is True
 
 
@@ -49,14 +49,14 @@ class TestExtractDiscoveryInfo:
         )
 
         # Convert extension to dict format for payload
-        ext_dict = ext[BAZAAR]
+        ext_dict = ext[BAZAAR.key]
         if hasattr(ext_dict, "model_dump"):
             ext_dict = ext_dict.model_dump(by_alias=True)
 
         payload = {
             "x402Version": 2,
             "resource": {"url": "https://api.example.com/weather"},
-            "extensions": {BAZAAR: ext_dict},
+            "extensions": {BAZAAR.key: ext_dict},
             "accepted": {},
         }
         requirements = {"scheme": "exact", "network": "eip155:8453"}
@@ -75,14 +75,14 @@ class TestExtractDiscoveryInfo:
             body_type="json",
         )
 
-        ext_dict = ext[BAZAAR]
+        ext_dict = ext[BAZAAR.key]
         if hasattr(ext_dict, "model_dump"):
             ext_dict = ext_dict.model_dump(by_alias=True)
 
         payload = {
             "x402Version": 2,
             "resource": {"url": "https://api.example.com/translate"},
-            "extensions": {BAZAAR: ext_dict},
+            "extensions": {BAZAAR.key: ext_dict},
             "accepted": {},
         }
         requirements = {}
@@ -124,16 +124,14 @@ class TestExtractDiscoveryInfo:
             input_schema={"properties": {"city": {"type": "string"}}},
         )
 
-        ext_dict = ext[BAZAAR]
+        ext_dict = ext[BAZAAR.key]
         if hasattr(ext_dict, "model_dump"):
             ext_dict = ext_dict.model_dump(by_alias=True)
 
         payload = {
             "x402Version": 2,
-            "resource": {
-                "url": "https://api.example.com/weather?city=NYC&units=metric"
-            },
-            "extensions": {BAZAAR: ext_dict},
+            "resource": {"url": "https://api.example.com/weather?city=NYC&units=metric"},
+            "extensions": {BAZAAR.key: ext_dict},
             "accepted": {},
         }
 
@@ -149,14 +147,14 @@ class TestExtractDiscoveryInfo:
             input_schema={"properties": {}},
         )
 
-        ext_dict = ext[BAZAAR]
+        ext_dict = ext[BAZAAR.key]
         if hasattr(ext_dict, "model_dump"):
             ext_dict = ext_dict.model_dump(by_alias=True)
 
         payload = {
             "x402Version": 2,
             "resource": {"url": "https://api.example.com/docs#section-1"},
-            "extensions": {BAZAAR: ext_dict},
+            "extensions": {BAZAAR.key: ext_dict},
             "accepted": {},
         }
 
@@ -172,14 +170,14 @@ class TestExtractDiscoveryInfo:
             input_schema={"properties": {}},
         )
 
-        ext_dict = ext[BAZAAR]
+        ext_dict = ext[BAZAAR.key]
         if hasattr(ext_dict, "model_dump"):
             ext_dict = ext_dict.model_dump(by_alias=True)
 
         payload = {
             "x402Version": 2,
             "resource": {"url": "https://api.example.com/page?foo=bar#anchor"},
-            "extensions": {BAZAAR: ext_dict},
+            "extensions": {BAZAAR.key: ext_dict},
             "accepted": {},
         }
 
@@ -267,7 +265,7 @@ class TestExtractDiscoveryInfoFromExtension:
             input={"q": "test"},
         )
 
-        info = extract_discovery_info_from_extension(ext[BAZAAR])
+        info = extract_discovery_info_from_extension(ext[BAZAAR.key])
         assert isinstance(info, QueryDiscoveryInfo)
 
     def test_extract_without_validation(self) -> None:
@@ -276,7 +274,7 @@ class TestExtractDiscoveryInfoFromExtension:
             input={"q": "test"},
         )
 
-        info = extract_discovery_info_from_extension(ext[BAZAAR], validate=False)
+        info = extract_discovery_info_from_extension(ext[BAZAAR.key], validate=False)
         assert info is not None
 
 
@@ -289,7 +287,7 @@ class TestValidateAndExtract:
             input={"query": "test"},
         )
 
-        result = validate_and_extract(ext[BAZAAR])
+        result = validate_and_extract(ext[BAZAAR.key])
         assert result.valid is True
         assert result.info is not None
         assert len(result.errors) == 0
@@ -301,6 +299,6 @@ class TestValidateAndExtract:
             body_type="json",
         )
 
-        result = validate_and_extract(ext[BAZAAR])
+        result = validate_and_extract(ext[BAZAAR.key])
         assert result.valid is True
         assert isinstance(result.info, BodyDiscoveryInfo)

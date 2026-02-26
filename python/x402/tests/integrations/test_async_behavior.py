@@ -85,9 +85,7 @@ class TestAsyncHTTPHooks:
 
     def setup_method(self) -> None:
         """Set up async test fixtures."""
-        self.facilitator = x402Facilitator().register(
-            ["x402:cash"], CashSchemeNetworkFacilitator()
-        )
+        self.facilitator = x402Facilitator().register(["x402:cash"], CashSchemeNetworkFacilitator())
         facilitator_client = CashFacilitatorClient(self.facilitator)
         self.resource_server = x402ResourceServer(facilitator_client)
         self.resource_server.register("x402:cash", CashSchemeNetworkServer())
@@ -285,9 +283,7 @@ class TestAsyncClientHooks:
 
     def setup_method(self) -> None:
         """Set up async test fixtures."""
-        self.facilitator = x402Facilitator().register(
-            ["x402:cash"], CashSchemeNetworkFacilitator()
-        )
+        self.facilitator = x402Facilitator().register(["x402:cash"], CashSchemeNetworkFacilitator())
         facilitator_client = CashFacilitatorClient(self.facilitator)
         self.server = x402ResourceServer(facilitator_client)
         self.server.register("x402:cash", CashSchemeNetworkServer())
@@ -377,9 +373,7 @@ class TestAsyncPaymentFlow:
             description="Async resource",
             mime_type="application/json",
         )
-        payment_required = self.server.create_payment_required_response(
-            accepts, resource
-        )
+        payment_required = self.server.create_payment_required_response(accepts, resource)
 
         # Native async calls
         payment_payload = await self.client.create_payment_payload(payment_required)

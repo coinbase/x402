@@ -226,6 +226,13 @@ describe("paymentProxy", () => {
       mockPaymentPayload,
       mockPaymentRequirements,
       undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/api/test",
+          method: "GET",
+        }),
+        responseBody: expect.any(Buffer),
+      }),
     );
   });
 

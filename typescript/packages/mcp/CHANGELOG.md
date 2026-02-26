@@ -1,5 +1,23 @@
 # @x402/mcp Changelog
 
+## 2.5.0
+
+### Minor Changes
+
+- Updated dependencies [96a9db0]
+- Updated dependencies [d0a2b11]
+- Updated dependencies
+  - @x402/core@2.5.0
+
+## 2.4.0
+
+### Minor Changes
+
+- Updated dependencies [57a5488]
+- Updated dependencies [018181b]
+- Updated dependencies [3fb55d7]
+  - @x402/core@2.4.0
+
 ## 2.3.0
 
 ### Patch Changes

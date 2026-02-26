@@ -52,7 +52,7 @@ Launches an interactive CLI where you can select:
 - **Servers** - Protected endpoints requiring payment (Express, Gin, Hono, Next.js, FastAPI, Flask, etc.)
 - **Clients** - Payment-capable HTTP clients (axios, fetch, httpx, requests, etc.)
 - **Extensions** - Additional features like Bazaar discovery
-- **Protocols** - EVM and/or SVM networks
+- **Protocols** - EVM, SVM, and/or Aptos networks
 
 Every valid combination of your selections will be tested. For example, selecting 2 facilitators, 3 servers, and 2 clients will generate and run all compatible test scenarios.
 
@@ -93,14 +93,17 @@ Required environment variables (set in `.env` file):
 # Client wallets
 CLIENT_EVM_PRIVATE_KEY=0x...        # EVM private key for client payments
 CLIENT_SVM_PRIVATE_KEY=...          # Solana private key for client payments
+CLIENT_APTOS_PRIVATE_KEY=...        # Aptos private key for client payments (hex string)
 
 # Server payment addresses
 SERVER_EVM_ADDRESS=0x...            # Where servers receive EVM payments
 SERVER_SVM_ADDRESS=...              # Where servers receive Solana payments
+SERVER_APTOS_ADDRESS=0x...          # Where servers receive Aptos payments
 
 # Facilitator wallets (for payment verification/settlement)
 FACILITATOR_EVM_PRIVATE_KEY=0x...   # EVM private key for facilitator
 FACILITATOR_SVM_PRIVATE_KEY=...     # Solana private key for facilitator
+FACILITATOR_APTOS_PRIVATE_KEY=...   # Aptos private key for facilitator (hex string)
 ```
 
 ## Example Session
@@ -115,7 +118,7 @@ $ pnpm test --min
 ✔ Select servers › express, hono, legacy-express
 ✔ Select clients › axios, fetch, httpx
 ✔ Select extensions › bazaar
-✔ Select protocol families › EVM, SVM
+✔ Select protocol families › EVM, SVM, Aptos
 
 📊 Coverage-Based Minimization
 Total scenarios: 156

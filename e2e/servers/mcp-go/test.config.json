@@ -10,7 +10,8 @@
       "method": "tool",
       "description": "Paid weather tool via MCP transport",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/health",

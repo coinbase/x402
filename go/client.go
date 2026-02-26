@@ -21,6 +21,9 @@ type x402Client struct {
 	requirementsSelector PaymentRequirementsSelector
 	policies             []PaymentPolicy
 
+	// Registered client extensions (keyed by extension key)
+	extensions map[string]ClientExtension
+
 	// Lifecycle hooks
 	beforePaymentCreationHooks    []BeforePaymentCreationHook
 	afterPaymentCreationHooks     []AfterPaymentCreationHook
@@ -51,6 +54,7 @@ func Newx402Client(opts ...ClientOption) *x402Client {
 		schemes:              make(map[Network]map[string]SchemeNetworkClient),
 		requirementsSelector: DefaultPaymentSelector,
 		policies:             []PaymentPolicy{},
+		extensions:           make(map[string]ClientExtension),
 	}
 
 	for _, opt := range opts {
@@ -89,6 +93,17 @@ func (c *x402Client) RegisterPolicy(policy PaymentPolicy) *x402Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.policies = append(c.policies, policy)
+	return c
+}
+
+// RegisterExtension registers a client extension that can enrich payment payloads.
+// Extensions are invoked after the scheme creates the base payload. If the extension's
+// key is present in paymentRequired.Extensions, the extension's EnrichPaymentPayload
+// method is called to modify the payload.
+func (c *x402Client) RegisterExtension(ext ClientExtension) *x402Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.extensions[ext.Key()] = ext
 	return c
 }
 
@@ -266,8 +281,15 @@ func (c *x402Client) CreatePaymentPayload(
 		}
 	}
 
-	// Get partial payload from mechanism
-	partial, err := client.CreatePaymentPayload(ctx, requirements)
+	// Get partial payload from mechanism.
+	// If the scheme supports extensions (e.g., EIP-2612), pass them for enrichment.
+	var partial types.PaymentPayload
+	var err error
+	if extAware, ok := client.(ExtensionAwareClient); ok && extensions != nil {
+		partial, err = extAware.CreatePaymentPayloadWithExtensions(ctx, requirements, extensions)
+	} else {
+		partial, err = client.CreatePaymentPayload(ctx, requirements)
+	}
 	if err != nil {
 		return types.PaymentPayload{}, err
 	}
@@ -275,7 +297,19 @@ func (c *x402Client) CreatePaymentPayload(
 	// Wrap with accepted/resource/extensions
 	partial.Accepted = requirements
 	partial.Resource = resource
-	partial.Extensions = extensions
+	// Merge server extensions with any scheme-provided extensions
+	partial.Extensions = mergeExtensions(extensions, partial.Extensions)
+
+	// Enrich payload via registered client extensions (for non-scheme extensions)
+	partial, err = c.enrichPaymentPayloadWithExtensions(ctx, partial, types.PaymentRequired{
+		X402Version: 2,
+		Accepts:     []types.PaymentRequirements{requirements},
+		Extensions:  partial.Extensions,
+		Resource:    resource,
+	})
+	if err != nil {
+		return types.PaymentPayload{}, err
+	}
 
 	return partial, nil
 }
@@ -320,6 +354,67 @@ func (c *x402Client) GetRegisteredSchemes() map[int][]struct {
 	}
 
 	return result
+}
+
+// enrichPaymentPayloadWithExtensions invokes registered client extensions
+// to enrich the payment payload. For each registered extension whose key is
+// present in the PaymentRequired extensions, calls EnrichPaymentPayload.
+func (c *x402Client) enrichPaymentPayloadWithExtensions(
+	ctx context.Context,
+	payload types.PaymentPayload,
+	required types.PaymentRequired,
+) (types.PaymentPayload, error) {
+	if len(required.Extensions) == 0 || len(c.extensions) == 0 {
+		return payload, nil
+	}
+
+	enriched := payload
+	for key, ext := range c.extensions {
+		if _, exists := required.Extensions[key]; exists {
+			var err error
+			enriched, err = ext.EnrichPaymentPayload(ctx, enriched, required)
+			if err != nil {
+				return types.PaymentPayload{}, fmt.Errorf("extension %s enrichment failed: %w", key, err)
+			}
+		}
+	}
+
+	return enriched, nil
+}
+
+// mergeExtensions merges server-declared extensions with scheme-provided extensions.
+// Scheme extensions overlay on top of server extensions at each key.
+func mergeExtensions(server, scheme map[string]interface{}) map[string]interface{} {
+	if scheme == nil {
+		return server
+	}
+	if server == nil {
+		return scheme
+	}
+	merged := make(map[string]interface{})
+	for k, v := range server {
+		merged[k] = v
+	}
+	for k, schemeVal := range scheme {
+		if serverVal, exists := merged[k]; exists {
+			serverMap, sOk := serverVal.(map[string]interface{})
+			schemeMap, cOk := schemeVal.(map[string]interface{})
+			if sOk && cOk {
+				// Deep merge: scheme overlays server
+				m := make(map[string]interface{})
+				for mk, mv := range serverMap {
+					m[mk] = mv
+				}
+				for mk, mv := range schemeMap {
+					m[mk] = mv
+				}
+				merged[k] = m
+				continue
+			}
+		}
+		merged[k] = schemeVal
+	}
+	return merged
 }
 
 // Helper functions use the generic findSchemesByNetwork from utils.go

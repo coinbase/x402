@@ -2,6 +2,7 @@ import {
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
+  FacilitatorContext,
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
@@ -22,7 +23,9 @@ export interface ExactEvmSchemeConfig {
 
 /**
  * EVM facilitator implementation for the Exact payment scheme.
- * Routes between EIP-3009 and Permit2 based on payload type.
+ * Thin router that delegates to EIP-3009 or Permit2 based on payload type.
+ * All extension handling (EIP-2612, ERC-20 approval gas sponsoring) is owned
+ * by the Permit2 functions via FacilitatorContext.
  */
 export class ExactEvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
@@ -30,10 +33,10 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   private readonly config: Required<ExactEvmSchemeConfig>;
 
   /**
-   * Creates a new ExactEvmFacilitator instance.
+   * Creates a new ExactEvmScheme facilitator instance.
    *
    * @param signer - The EVM signer for facilitator operations
-   * @param config - Optional configuration for the facilitator
+   * @param config - Optional configuration
    */
   constructor(
     private readonly signer: FacilitatorEvmSigner,
@@ -45,21 +48,19 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For EVM, no extra data is needed.
+   * Returns undefined — EVM has no mechanism-specific extra data.
    *
-   * @param _ - The network identifier (unused for EVM)
-   * @returns undefined (EVM has no extra data)
+   * @param _ - The network identifier (unused)
+   * @returns undefined
    */
   getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
   }
 
   /**
-   * Get signer addresses used by this facilitator.
-   * Returns all addresses this facilitator can use for signing/settling transactions.
+   * Returns facilitator wallet addresses for the supported response.
    *
-   * @param _ - The network identifier (unused for EVM, addresses are network-agnostic)
+   * @param _ - The network identifier (unused, addresses are network-agnostic)
    * @returns Array of facilitator wallet addresses
    */
   getSigners(_: string): string[] {
@@ -67,49 +68,47 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Verifies a payment payload.
-   * Routes to the appropriate verification logic based on payload type.
+   * Verifies a payment payload. Routes to Permit2 or EIP-3009 based on payload type.
    *
    * @param payload - The payment payload to verify
    * @param requirements - The payment requirements
+   * @param context - Optional facilitator context for extension capabilities
    * @returns Promise resolving to verification response
    */
   async verify(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
+    context?: FacilitatorContext,
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
 
-    // Route based on payload type
     if (isPermit2Payload(rawPayload)) {
-      return verifyPermit2(this.signer, payload, requirements, rawPayload);
+      return verifyPermit2(this.signer, payload, requirements, rawPayload, context);
     }
 
-    // Type-narrowed to EIP-3009 payload
     const eip3009Payload: ExactEIP3009Payload = rawPayload;
     return verifyEIP3009(this.signer, payload, requirements, eip3009Payload);
   }
 
   /**
-   * Settles a payment by executing the transfer.
-   * Routes to the appropriate settlement logic based on payload type.
+   * Settles a payment. Routes to Permit2 or EIP-3009 based on payload type.
    *
    * @param payload - The payment payload to settle
    * @param requirements - The payment requirements
+   * @param context - Optional facilitator context for extension capabilities
    * @returns Promise resolving to settlement response
    */
   async settle(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
+    context?: FacilitatorContext,
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
 
-    // Route based on payload type
     if (isPermit2Payload(rawPayload)) {
-      return settlePermit2(this.signer, payload, requirements, rawPayload);
+      return settlePermit2(this.signer, payload, requirements, rawPayload, context);
     }
 
-    // Type-narrowed to EIP-3009 payload
     const eip3009Payload: ExactEIP3009Payload = rawPayload;
     return settleEIP3009(this.signer, payload, requirements, eip3009Payload, this.config);
   }

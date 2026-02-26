@@ -9,7 +9,8 @@ from ...constants import SCHEME_EXACT
 from ...eip712 import build_typed_data_for_signing
 from ...signer import ClientEvmSigner
 from ...types import ExactEIP3009Authorization, ExactEIP3009Payload, TypedDataField
-from ...utils import create_nonce, get_asset_info, get_evm_chain_id
+from ...utils import create_nonce
+from ...v1.utils import get_asset_info, get_evm_chain_id
 
 
 class ExactEvmSchemeV1:
@@ -126,8 +127,6 @@ class ExactEvmSchemeV1:
                 TypedDataField(name=f["name"], type=f["type"]) for f in fields
             ]
 
-        sig_bytes = self._signer.sign_typed_data(
-            domain, typed_fields, primary_type, message
-        )
+        sig_bytes = self._signer.sign_typed_data(domain, typed_fields, primary_type, message)
 
         return "0x" + sig_bytes.hex()

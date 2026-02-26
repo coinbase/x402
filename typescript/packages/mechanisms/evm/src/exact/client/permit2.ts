@@ -4,10 +4,12 @@ import {
   permit2WitnessTypes,
   PERMIT2_ADDRESS,
   x402ExactPermit2ProxyAddress,
+  erc20ApproveAbi,
+  erc20AllowanceAbi,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
 import { ExactPermit2Payload } from "../../types";
-import { createPermit2Nonce } from "../../utils";
+import { createPermit2Nonce, getEvmChainId } from "../../utils";
 
 /** Maximum uint256 value for unlimited approval. */
 const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -47,7 +49,6 @@ export async function createPermit2Payload(
     witness: {
       to: getAddress(paymentRequirements.payTo),
       validAfter,
-      extra: "0x",
     },
   };
 
@@ -82,7 +83,7 @@ async function signPermit2Authorization(
   permit2Authorization: ExactPermit2Payload["permit2Authorization"],
   requirements: PaymentRequirements,
 ): Promise<`0x${string}`> {
-  const chainId = parseInt(requirements.network.split(":")[1]);
+  const chainId = getEvmChainId(requirements.network);
 
   const domain = {
     name: "Permit2",
@@ -101,7 +102,6 @@ async function signPermit2Authorization(
     witness: {
       to: getAddress(permit2Authorization.witness.to),
       validAfter: BigInt(permit2Authorization.witness.validAfter),
-      extra: permit2Authorization.witness.extra,
     },
   };
 
@@ -112,38 +112,6 @@ async function signPermit2Authorization(
     message,
   });
 }
-
-/**
- * ERC20 approve ABI for encoding approval transactions.
- */
-const erc20ApproveAbi = [
-  {
-    type: "function",
-    name: "approve",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-    stateMutability: "nonpayable",
-  },
-] as const;
-
-/**
- * ERC20 allowance ABI for checking approval status.
- */
-export const erc20AllowanceAbi = [
-  {
-    type: "function",
-    name: "allowance",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ type: "uint256" }],
-    stateMutability: "view",
-  },
-] as const;
 
 /**
  * Creates transaction data to approve Permit2 to spend tokens.

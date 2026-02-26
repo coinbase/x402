@@ -3,8 +3,8 @@ package bazaar
 // Re-export types from the shared types package for convenience
 import "github.com/coinbase/x402/go/extensions/types"
 
-// Re-export extension constant
-const BAZAAR = types.BAZAAR
+// Re-export extension identifier
+var BAZAAR = types.BAZAAR
 
 // Re-export method constants
 const (

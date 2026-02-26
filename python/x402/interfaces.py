@@ -6,6 +6,9 @@ to integrate with x402Client, x402ResourceServer, and x402Facilitator.
 Note: All protocols are sync-first (matching legacy SDK pattern).
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .schemas import (
@@ -19,6 +22,46 @@ from .schemas import (
     SupportedKind,
     VerifyResponse,
 )
+
+# ============================================================================
+# Facilitator Extension Types
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class FacilitatorExtension:
+    """Base type for extensions registered with x402Facilitator.
+
+    Extensions are stored by key and made available to mechanism implementations
+    via FacilitatorContext. Specific extensions subclass this to add capabilities.
+
+    frozen=True makes this hashable so it can be used as a dict key.
+    """
+
+    key: str
+
+
+class FacilitatorContext:
+    """Provides access to registered facilitator extensions.
+
+    Passed to SchemeNetworkFacilitator.verify/settle so mechanism implementations
+    can retrieve extension-provided capabilities.
+    """
+
+    def __init__(self, extensions: dict[str, FacilitatorExtension]) -> None:
+        self._extensions = extensions
+
+    def get_extension(self, key: str) -> FacilitatorExtension | None:
+        """Get a registered extension by key.
+
+        Args:
+            key: The extension key to look up.
+
+        Returns:
+            The extension object, or None if not registered.
+        """
+        return self._extensions.get(key)
+
 
 # ============================================================================
 # Client-Side Protocols
@@ -238,12 +281,14 @@ class SchemeNetworkFacilitator(Protocol):
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context: FacilitatorContext | None = None,
     ) -> VerifyResponse:
         """Verify a payment.
 
         Args:
             payload: Payment payload to verify.
             requirements: Requirements to verify against.
+            context: Optional facilitator context with registered extensions.
 
         Returns:
             VerifyResponse with is_valid=True on success,
@@ -255,12 +300,14 @@ class SchemeNetworkFacilitator(Protocol):
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context: FacilitatorContext | None = None,
     ) -> SettleResponse:
         """Settle a payment.
 
         Args:
             payload: Payment payload to settle.
             requirements: Requirements for settlement.
+            context: Optional facilitator context with registered extensions.
 
         Returns:
             SettleResponse with success=True and transaction on success,
@@ -295,16 +342,18 @@ class SchemeNetworkFacilitatorV1(Protocol):
 
     def verify(
         self,
-        payload: "PaymentPayloadV1",
+        payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context: FacilitatorContext | None = None,
     ) -> VerifyResponse:
         """Verify a V1 payment."""
         ...
 
     def settle(
         self,
-        payload: "PaymentPayloadV1",
+        payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context: FacilitatorContext | None = None,
     ) -> SettleResponse:
         """Settle a V1 payment."""
         ...

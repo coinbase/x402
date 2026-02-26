@@ -110,26 +110,18 @@ class x402AsyncTransport(AsyncBaseTransport):
             except json.JSONDecodeError:
                 pass
 
-            payment_required = self._http_client.get_payment_required_response(
-                get_header, body
-            )
+            payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload
-            payment_payload = await self._client.create_payment_payload(
-                payment_required
-            )
+            payment_payload = await self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
-            payment_headers = self._http_client.encode_payment_signature_header(
-                payment_payload
-            )
+            payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
 
             # Clone request with payment headers and retry flag
             new_headers = dict(request.headers)
             new_headers.update(payment_headers)
-            new_headers["Access-Control-Expose-Headers"] = (
-                "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
-            )
+            new_headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
 
             # Mark as retry in extensions
             new_extensions = dict(request.extensions)

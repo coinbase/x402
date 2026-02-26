@@ -42,7 +42,7 @@ class BazaarResourceServerExtension:
     @property
     def key(self) -> str:
         """Extension key."""
-        return BAZAAR
+        return BAZAAR.key
 
     def enrich_declaration(
         self,

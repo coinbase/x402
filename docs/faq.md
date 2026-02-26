@@ -33,15 +33,15 @@ Nothing prevents you from implementing the spec in Rust, Java, or other language
 
 #### Who runs facilitators today?
 
-Multiple organizations operate production facilitators. The protocol is **permissionless**—anyone can run a facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options, including:
+Multiple organizations operate production facilitators. The protocol is **permissionless**—anyone can run a facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options, including:
 
 * Community‑run facilitators for various networks and assets
 * Private facilitators for enterprises that need custom KYT / KYC flows.
 
 #### What stops a malicious facilitator from stealing funds or lying about settlement?
 
-Every `x402PaymentPayload` is **signed by the buyer** and settles **directly on‑chain**.\
-A facilitator that tampers with the transaction will fail signature checks.
+Every x402 `PaymentPayload` is **signed by the buyer** and settled **directly on‑chain**.\
+A facilitator that tampers with the transaction would fail signature checks and would **not be able to** settle the transaction.
 
 ### Pricing & Schemes
 
@@ -65,10 +65,10 @@ Yes. x402 handles the _payment execution_. You can still meter usage, aggregate 
 | -------------- | --------- | ----- | -------- | ----------- |
 | Base           | `eip155:8453` | Any EIP-3009 token  | fee-free | **Mainnet** |
 | Base Sepolia   | `eip155:84532` | Any EIP-3009 token  | fee-free | **Testnet** |
-| Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Mainnet** |
-| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token; Token-2022 (v2 only)  | fee-free | **Testnet** |
+| Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token or Token-2022 token | fee-free | **Mainnet** |
+| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token or Token-2022 | fee-free | **Testnet** |
 
-\* Gas paid on chain; many facilitators offer **zero** facilitator fees (see [ecosystem](https://www.x402.org/ecosystem?category=facilitators) for details).
+\* Gas paid on chain; many facilitators offer **zero** facilitator fees (see [ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for details).
 
 _Support for additional chains and assets is on the roadmap and community‑driven._
 
@@ -105,7 +105,7 @@ Agents follow the same flow as humans:
 
 #### Do agents need wallets?
 
-Yes. Programmatic wallets (e.g., **CDP Wallet API**, **viem**, **ethers‑v6** HD wallets) let agents sign `EIP‑712` payloads without exposing seed phrases.
+Yes. Programmatic wallets (e.g., **CDP Wallet API**, **viem**, **ethers‑v6** HD wallets) let agents sign `EIP‑712` payloads without exposing seed phrases. For Solana-based payments, agents can use **@solana/kit** to sign transactions (see the [Solana buyer quickstart](https://docs.x402.org/getting-started/quickstart-for-buyers#solana-svm) for an example).
 
 ### Governance & Roadmap
 

@@ -679,9 +679,7 @@ class TestErrorHandlingTransport:
     async def test_should_raise_payment_error_on_client_error(self):
         """Should raise PaymentError when client fails."""
         mock_client = MagicMock()
-        mock_client.create_payment_payload = AsyncMock(
-            side_effect=Exception("Client error")
-        )
+        mock_client.create_payment_payload = AsyncMock(side_effect=Exception("Client error"))
 
         payment_required = PaymentRequired(
             x402_version=2,
