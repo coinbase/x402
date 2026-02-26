@@ -1,0 +1,116 @@
+---
+title: "ERC-20 Approval Gas Sponsoring"
+description: "Enable gasless Permit2 approval for generic ERC-20 tokens that do not implement EIP-2612"
+---
+
+The ERC-20 Approval Gas Sponsoring extension enables gasless payments with generic ERC-20 tokens that do NOT implement EIP-2612. The client signs (but does not broadcast) a raw `approve(Permit2, MaxUint256)` transaction, and the facilitator broadcasts it atomically before settling the Permit2 payment.
+
+## Overview
+
+This extension solves a critical problem: many ERC-20 tokens don't support EIP-2612 permit signatures, requiring users to make a separate approval transaction before they can use Permit2. With this extension:
+
+* **For Buyers**: No need to broadcast approval transactions or hold native tokens for gas
+* **For Sellers**: Support any ERC-20 token, not just EIP-2612 compatible ones
+* **For Facilitators**: Atomic approve+settle flow ensures payment security
+
+## How It Works
+
+1. **Server declares support**: The resource server includes the extension in its PaymentRequired response
+2. **Client signs approval**: The client creates and signs an `approve(Permit2, MaxUint256)` transaction but doesn't broadcast it
+3. **Client sends payment**: The signed approval transaction is included in the payment payload
+4. **Facilitator broadcasts**: The facilitator broadcasts the approval transaction, then settles the Permit2 payment atomically
+
+## For Resource Servers
+
+Declare the extension in your route configuration to advertise support for ERC-20 approval gas sponsoring:
+
+```typescript
+import { declareErc20ApprovalGasSponsoringExtension } from '@x402/extensions';
+
+const routes = [
+  {
+    path: "/api/data",
+    price: { amount: "1000", asset: "0x...", extra: { assetTransferMethod: "permit2" } },
+    extensions: {
+      ...declareErc20ApprovalGasSponsoringExtension(),
+    },
+  },
+];
+```
+
+**Note**: This extension is only relevant for Permit2 payments with non-EIP-2612 tokens. For EIP-3009 tokens, no approval is needed.
+
+## For Facilitators
+
+Extract and validate the ERC-20 approval gas sponsoring info from the payment payload:
+
+```typescript
+import {
+  extractErc20ApprovalGasSponsoringInfo,
+  validateErc20ApprovalGasSponsoringInfo,
+} from '@x402/extensions';
+
+const info = extractErc20ApprovalGasSponsoringInfo(paymentPayload);
+if (info && validateErc20ApprovalGasSponsoringInfo(info)) {
+  // Broadcast the pre-signed approve tx, then call standard settle()
+}
+```
+
+### Facilitator Signer Requirements
+
+The facilitator must register a signer with `sendRawTransaction` capability:
+
+```typescript
+import { ERC20_APPROVAL_GAS_SPONSORING } from '@x402/extensions';
+
+const erc20GasSponsorshipExtension = {
+  ...ERC20_APPROVAL_GAS_SPONSORING,
+  signer: {
+    ...evmSigner,
+    sendRawTransaction: (args) => viemClient.sendRawTransaction(args),
+  },
+};
+
+facilitator.registerExtension(erc20GasSponsorshipExtension);
+```
+
+The signer owns the full approve+settle flow, enabling production implementations to bundle both atomically (e.g., using Flashbots or multicall).
+
+## Extension Schema
+
+The extension info contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | `0x${string}` | The address of the sender (token owner) |
+| `asset` | `0x${string}` | The address of the ERC-20 token contract |
+| `spender` | `0x${string}` | The address of the spender (Canonical Permit2) |
+| `amount` | `string` | The amount approved (always MaxUint256) |
+| `signedTransaction` | `0x${string}` | The RLP-encoded signed EIP-1559 transaction |
+| `version` | `string` | Schema version identifier |
+
+## Comparison with EIP-2612
+
+| Feature | EIP-2612 | ERC-20 Approval Gas Sponsoring |
+|---------|----------|-------------------------------|
+| Token requirement | Must implement `permit()` | Any ERC-20 token |
+| Client action | Sign permit message | Sign approval transaction |
+| Gas cost | None (signature only) | None (facilitator pays) |
+| Approval method | Off-chain signature | On-chain transaction (facilitator broadcasts) |
+| Use case | EIP-2612 compatible tokens | Generic ERC-20 tokens |
+
+## Security Considerations
+
+* The signed approval transaction grants Permit2 unlimited allowance (`MaxUint256`)
+* The facilitator must broadcast the approval atomically with the settlement to prevent front-running
+* The client should verify the facilitator supports this extension before signing the approval transaction
+
+## SDK Support
+
+| SDK | Status |
+|-----|--------|
+| TypeScript | ✅ |
+| Go | ❌ |
+| Python | ❌ |
+
+See [SDK Features](/sdk-features) for the latest support status.
