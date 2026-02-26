@@ -8,6 +8,11 @@ import { Network } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
+import {
+  EIP2612_GAS_SPONSORING,
+  ERC20_APPROVAL_GAS_SPONSORING,
+  type Erc20ApprovalGasSponsoringFacilitatorExtension,
+} from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
@@ -109,6 +114,20 @@ async function createFacilitator(): Promise<x402Facilitator> {
     const aptosSigner = toFacilitatorAptosSigner(aptosAccount);
     facilitator.register("aptos:2", new ExactAptosScheme(aptosSigner));
   }
+
+  // Register gas sponsorship extensions for Permit2 support
+  const erc20GasSponsorshipExtension: Erc20ApprovalGasSponsoringFacilitatorExtension = {
+    ...ERC20_APPROVAL_GAS_SPONSORING,
+    signer: {
+      ...evmSigner,
+      sendRawTransaction: (args: { serializedTransaction: `0x${string}` }) =>
+        viemClient.sendRawTransaction(args),
+    },
+  };
+
+  facilitator
+    .registerExtension(EIP2612_GAS_SPONSORING)
+    .registerExtension(erc20GasSponsorshipExtension);
 
   return facilitator;
 }
