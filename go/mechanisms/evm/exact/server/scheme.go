@@ -180,10 +180,14 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 		return x402.AssetAmount{}, fmt.Errorf("no default stablecoin configured for network %s; use RegisterMoneyParser or specify an explicit AssetAmount", networkStr)
 	}
 
-	// Build extra map with EIP-712 metadata
-	extra := map[string]interface{}{
-		"name":    config.DefaultAsset.Name,
-		"version": config.DefaultAsset.Version,
+	// EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
+	// Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).
+	// Omitting name/version for permit2 tokens signals the client to skip EIP-2612 and use ERC-20 approval gas sponsoring instead.
+	extra := map[string]interface{}{}
+	includeEip712Domain := config.DefaultAsset.AssetTransferMethod == "" || config.DefaultAsset.SupportsEip2612
+	if includeEip712Domain {
+		extra["name"] = config.DefaultAsset.Name
+		extra["version"] = config.DefaultAsset.Version
 	}
 	if config.DefaultAsset.AssetTransferMethod != "" {
 		extra["assetTransferMethod"] = string(config.DefaultAsset.AssetTransferMethod)
@@ -260,13 +264,15 @@ func (s *ExactEvmScheme) EnhancePaymentRequirements(
 		requirements.Extra = make(map[string]interface{})
 	}
 
-	// Add token name and version for EIP-712 signing
-	// ONLY add if not already present (client may have specified exact values)
-	if _, ok := requirements.Extra["name"]; !ok {
-		requirements.Extra["name"] = assetInfo.Name
-	}
-	if _, ok := requirements.Extra["version"]; !ok {
-		requirements.Extra["version"] = assetInfo.Version
+	// EIP-3009 tokens always need name/version; permit2 tokens only if they support EIP-2612
+	includeEip712Domain := assetInfo.AssetTransferMethod == "" || assetInfo.SupportsEip2612
+	if includeEip712Domain {
+		if _, ok := requirements.Extra["name"]; !ok {
+			requirements.Extra["name"] = assetInfo.Name
+		}
+		if _, ok := requirements.Extra["version"]; !ok {
+			requirements.Extra["version"] = assetInfo.Version
+		}
 	}
 
 	// Copy extensions from supportedKind if provided

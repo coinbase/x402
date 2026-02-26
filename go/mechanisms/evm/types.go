@@ -279,6 +279,7 @@ type AssetInfo struct {
 	Version             string
 	Decimals            int
 	AssetTransferMethod AssetTransferMethod
+	SupportsEip2612     bool
 }
 
 // NetworkConfig contains network-specific configuration

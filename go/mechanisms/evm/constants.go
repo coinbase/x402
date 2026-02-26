@@ -95,7 +95,7 @@ var (
 				Decimals: DefaultDecimals,
 			},
 		},
-		// MegaETH Mainnet
+		// MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
 		"eip155:4326": {
 			ChainID: ChainIDMegaETH,
 			DefaultAsset: AssetInfo{
@@ -104,6 +104,7 @@ var (
 				Version:             "1",
 				Decimals:            18,
 				AssetTransferMethod: AssetTransferMethodPermit2,
+				SupportsEip2612:     true,
 			},
 		},
 		// Monad Mainnet
