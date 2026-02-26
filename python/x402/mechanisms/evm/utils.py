@@ -13,7 +13,6 @@ except ImportError as e:
     ) from e
 
 from .constants import (
-    DEFAULT_DECIMALS,
     DEFAULT_VALIDITY_BUFFER,
     DEFAULT_VALIDITY_PERIOD,
     NETWORK_CONFIGS,
@@ -74,8 +73,7 @@ def get_network_config(network: str) -> NetworkConfig:
 def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     """Get asset info by address.
 
-    Returns the full default asset info if the address matches the network's default asset,
-    otherwise returns a minimal AssetInfo with just the address.
+    Returns the full default asset info if the address matches the network's default asset.
 
     Args:
         network: Network identifier in CAIP-2 format.
@@ -83,6 +81,9 @@ def get_asset_info(network: str, asset_address: str) -> AssetInfo:
 
     Returns:
         Asset information.
+
+    Raises:
+        ValueError: If the address does not match any registered asset for the network.
     """
     config = get_network_config(network)
     default = config.get("default_asset")
@@ -90,7 +91,7 @@ def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     if default and default["address"].lower() == asset_address.lower():
         return default
 
-    return {"address": asset_address, "name": "", "version": "", "decimals": DEFAULT_DECIMALS}
+    raise ValueError(f"Token {asset_address} is not a registered asset for network {network}.")
 
 
 def is_valid_network(network: str) -> bool:

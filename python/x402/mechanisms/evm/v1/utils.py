@@ -25,8 +25,6 @@ def get_evm_chain_id(network: str) -> int:
 def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     """Get asset info for a v1 network by legacy network name.
 
-    Falls back to the network's default asset metadata for unrecognized addresses.
-
     Args:
         network: V1 legacy network name (e.g., "base", "polygon").
         asset_address: Asset contract address (0x...).
@@ -35,7 +33,8 @@ def get_asset_info(network: str, asset_address: str) -> AssetInfo:
         Asset information.
 
     Raises:
-        ValueError: If the network has no known default asset.
+        ValueError: If the network has no known default asset, or the address does not
+            match the registered asset for the network.
     """
     default = V1_DEFAULT_ASSETS.get(network)
 
@@ -45,9 +44,4 @@ def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     if default["address"].lower() == asset_address.lower():
         return default
 
-    return {
-        "address": asset_address,
-        "name": default["name"],
-        "version": default["version"],
-        "decimals": default["decimals"],
-    }
+    raise ValueError(f"Token {asset_address} is not a registered asset for v1 network {network}.")

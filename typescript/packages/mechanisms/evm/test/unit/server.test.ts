@@ -63,7 +63,11 @@ describe("ExactEvmScheme (Server)", () => {
         const result = await server.parsePrice("$0.10", network);
         expect(result.asset).toBe("0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7");
         expect(result.amount).toBe("100000000000000000"); // 0.10 * 10^18
-        expect(result.extra).toEqual({ name: "MegaUSD", version: "1", assetTransferMethod: "permit2" });
+        expect(result.extra).toEqual({
+          name: "MegaUSD",
+          version: "1",
+          assetTransferMethod: "permit2",
+        });
       });
 
       it("should produce correct 18-decimal amount", async () => {

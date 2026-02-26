@@ -193,17 +193,16 @@ class TestGetAssetInfo:
     def test_should_return_asset_info_by_address(self):
         """Should return asset info by address."""
         network = "eip155:8453"
-        usdc_address = get_asset_info(network, "USDC")["address"]
+        usdc_address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
         asset_info = get_asset_info(network, usdc_address)
 
         assert asset_info["address"].lower() == usdc_address.lower()
 
-    def test_should_return_minimal_info_for_unknown_asset(self):
-        """Should return minimal asset info for an unrecognised address."""
+    def test_should_raise_for_unknown_asset(self):
+        """Should raise ValueError for an unregistered asset address."""
         unknown_address = "0x1234567890123456789012345678901234567890"
-        asset_info = get_asset_info("eip155:8453", unknown_address)
-        assert asset_info["address"] == unknown_address
-        assert asset_info["decimals"] == 6
+        with pytest.raises(ValueError, match="not a registered asset"):
+            get_asset_info("eip155:8453", unknown_address)
 
 
 class TestIsValidNetwork:

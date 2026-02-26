@@ -175,7 +175,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network="eip155:8453",  # Base Mainnet
-                asset=get_network_config("eip155:8453")["default_asset"]["address"],
+            asset=get_network_config("eip155:8453")["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
