@@ -3,7 +3,7 @@
  *
  * This facilitator provides HTTP endpoints for payment verification and settlement
  * using the x402 TypeScript SDK.
- * 
+ *
  * Features:
  * - Payment verification and settlement
  * - Bazaar discovery extension support
@@ -11,7 +11,12 @@
  * - Discovery resource cataloging
  */
 
-import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
+import {
+  Account,
+  Ed25519PrivateKey,
+  PrivateKey,
+  PrivateKeyVariants,
+} from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { toFacilitatorAptosSigner } from "@x402/aptos";
@@ -50,7 +55,8 @@ dotenv.config();
 // Configuration
 const PORT = process.env.PORT || "4022";
 const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
-const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const SVM_NETWORK =
+  process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const APTOS_NETWORK = process.env.APTOS_NETWORK || "aptos:2";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
@@ -85,22 +91,30 @@ if (!process.env.SVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
-
 // Initialize the EVM account from private key
-const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Initialize the SVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+const svmAccount = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
 // Initialize the Aptos account from private key (format to AIP-80 compliant format) if provided
 let aptosAccount: Account | undefined;
 if (process.env.APTOS_PRIVATE_KEY) {
-  const formattedAptosKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY as string, PrivateKeyVariants.Ed25519);
+  const formattedAptosKey = PrivateKey.formatPrivateKey(
+    process.env.APTOS_PRIVATE_KEY as string,
+    PrivateKeyVariants.Ed25519,
+  );
   const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
-  console.info(`Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`);
+  console.info(
+    `Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`,
+  );
 }
 
 // Create a Viem client with both wallet and public capabilities
@@ -152,11 +166,19 @@ const evmSigner = toFacilitatorEvmSigner({
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
+const svmSigner = toFacilitatorSvmSigner(
+  svmAccount,
+  SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined,
+);
 
 // Facilitator can handle all Aptos networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const aptosSigner = aptosAccount ? toFacilitatorAptosSigner(aptosAccount, APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined) : undefined;
+const aptosSigner = aptosAccount
+  ? toFacilitatorAptosSigner(
+      aptosAccount,
+      APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined,
+    )
+  : undefined;
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -177,10 +199,14 @@ facilitator
   .register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner))
   .registerV1(SVM_V1_NETWORKS as Network[], new ExactSvmSchemeV1(svmSigner));
 if (aptosSigner) {
-  facilitator.register(APTOS_NETWORK as Network, new ExactAptosScheme(aptosSigner));
+  facilitator.register(
+    APTOS_NETWORK as Network,
+    new ExactAptosScheme(aptosSigner),
+  );
 }
 
-facilitator.registerExtension(BAZAAR)
+facilitator
+  .registerExtension(BAZAAR)
   .registerExtension(EIP2612_GAS_SPONSORING)
   .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient))
   // Lifecycle hooks for payment tracking and discovery
@@ -191,8 +217,11 @@ facilitator.registerExtension(BAZAAR)
       verifiedPayments.set(paymentHash, Date.now());
 
       // Hook 2: Extract and catalog bazaar discovery info
-      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
-      if (discovered) {
+      const discovered = extractDiscoveryInfo(
+        context.paymentPayload,
+        context.requirements,
+      );
+      if (discovered && "method" in discovered && discovered.method) {
         bazaarCatalog.catalogResource(
           discovered.resourceUrl,
           discovered.method,
@@ -200,7 +229,9 @@ facilitator.registerExtension(BAZAAR)
           discovered.discoveryInfo,
           context.requirements,
         );
-        console.log(`📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`);
+        console.log(
+          `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
+        );
       }
     }
   })
@@ -250,12 +281,15 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
- * 
+ *
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -283,7 +317,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
@@ -310,7 +344,10 @@ app.post("/settle", async (req, res) => {
     console.error("Settle error:", error);
 
     // Check if this was an abort from hook
-    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Settlement aborted:")
+    ) {
       // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,
