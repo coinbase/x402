@@ -1,6 +1,6 @@
 """Tests for ExactEvmScheme facilitator."""
 
-from x402.mechanisms.evm import get_asset_info
+from x402.mechanisms.evm import get_network_config
 from x402.mechanisms.evm.exact import ExactEvmFacilitatorScheme, ExactEvmSchemeConfig
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
 
@@ -104,7 +104,7 @@ class TestVerify:
             accepted=PaymentRequirements(
                 scheme="wrong",  # Wrong scheme
                 network=network,
-                asset=get_asset_info(network, "USDC")["address"],
+                asset=get_network_config(network)["default_asset"]["address"],
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -126,7 +126,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_network_config(network)["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
@@ -153,7 +153,7 @@ class TestVerify:
             accepted=PaymentRequirements(
                 scheme="exact",
                 network="eip155:1",  # Ethereum Mainnet
-                asset=get_asset_info("eip155:1", "USDC")["address"],
+                asset="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -175,7 +175,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network="eip155:8453",  # Base Mainnet
-            asset=get_asset_info("eip155:8453", "USDC")["address"],
+                asset=get_network_config("eip155:8453")["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
@@ -204,7 +204,7 @@ class TestVerify:
             accepted=PaymentRequirements(
                 scheme="exact",
                 network=network,
-                asset=get_asset_info(network, "USDC")["address"],
+                asset=get_network_config(network)["default_asset"]["address"],
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -226,7 +226,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_network_config(network)["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
@@ -254,7 +254,7 @@ class TestVerify:
             accepted=PaymentRequirements(
                 scheme="exact",
                 network=network,
-                asset=get_asset_info(network, "USDC")["address"],
+                asset=get_network_config(network)["default_asset"]["address"],
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -276,7 +276,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_network_config(network)["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
@@ -304,7 +304,7 @@ class TestVerify:
             accepted=PaymentRequirements(
                 scheme="exact",
                 network=network,
-                asset=get_asset_info(network, "USDC")["address"],
+                asset=get_network_config(network)["default_asset"]["address"],
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -326,7 +326,7 @@ class TestVerify:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_network_config(network)["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
@@ -358,7 +358,7 @@ class TestSettle:
             accepted=PaymentRequirements(
                 scheme="wrong",  # Wrong scheme
                 network=network,
-                asset=get_asset_info(network, "USDC")["address"],
+                asset=get_network_config(network)["default_asset"]["address"],
                 amount="100000",
                 pay_to="0x0987654321098765432109876543210987654321",
                 max_timeout_seconds=3600,
@@ -380,7 +380,7 @@ class TestSettle:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_network_config(network)["default_asset"]["address"],
             amount="100000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,

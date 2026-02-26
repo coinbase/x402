@@ -91,7 +91,6 @@ from .utils import (
 
 # V1 legacy constants (re-exported for backward compatibility)
 from .v1.constants import (
-    NETWORK_ALIASES,
     V1_NETWORK_CHAIN_IDS,
     V1_NETWORKS,
 )
@@ -113,7 +112,6 @@ __all__ = [
     "ERC6492_MAGIC_VALUE",
     "EIP1271_MAGIC_VALUE",
     "NETWORK_CONFIGS",
-    "NETWORK_ALIASES",
     "V1_NETWORKS",
     "V1_NETWORK_CHAIN_IDS",
     "ERR_INVALID_SIGNATURE",
