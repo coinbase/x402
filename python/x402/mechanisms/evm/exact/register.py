@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, TypeVar
 
-from ..constants import V1_NETWORKS
+from ..v1.constants import V1_NETWORKS
 
 if TYPE_CHECKING:
     from x402 import (

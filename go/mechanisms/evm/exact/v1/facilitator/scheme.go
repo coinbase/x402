@@ -13,6 +13,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -107,8 +108,8 @@ func (f *ExactEvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError(ErrMissingSignature, "", "missing signature")
 	}
 
-	// Parse chain ID from network identifier
-	chainID, err := evm.GetEvmChainId(string(requirements.Network))
+	// Parse chain ID from v1 network name
+	chainID, err := evmv1.GetEvmChainId(string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrFailedToGetNetworkConfig, "", err.Error())
 	}

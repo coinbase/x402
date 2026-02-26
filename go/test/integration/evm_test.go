@@ -510,8 +510,15 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 			"https://sepolia.base.org",
 		)
 
-		// Create real client signer
-		clientSigner, err := newRealClientEvmSigner(clientPrivateKey)
+		// Create real client signer with RPC connectivity
+		// (required for EIP-2612 nonce reads when signing the gasless approval permit)
+		clientEthClient, err := ethclient.Dial("https://sepolia.base.org")
+		if err != nil {
+			t.Fatalf("Failed to connect to RPC for client signer: %v", err)
+		}
+		defer clientEthClient.Close()
+
+		clientSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(clientPrivateKey, clientEthClient)
 		if err != nil {
 			t.Fatalf("Failed to create client signer: %v", err)
 		}
