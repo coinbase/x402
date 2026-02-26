@@ -31,8 +31,7 @@ import { NETWORKS as EVM_V1_NETWORKS } from "@x402/evm/v1";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
 import {
   EIP2612_GAS_SPONSORING,
-  ERC20_APPROVAL_GAS_SPONSORING,
-  type Erc20ApprovalGasSponsoringFacilitatorExtension,
+  createErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
@@ -181,18 +180,9 @@ if (aptosSigner) {
   facilitator.register(APTOS_NETWORK as Network, new ExactAptosScheme(aptosSigner));
 }
 
-const erc20GasSponsorshipExtension: Erc20ApprovalGasSponsoringFacilitatorExtension = {
-  ...ERC20_APPROVAL_GAS_SPONSORING,
-  signer: {
-    ...evmSigner,
-    sendRawTransaction: (args: { serializedTransaction: `0x${string}` }) =>
-      viemClient.sendRawTransaction(args),
-  },
-};
-
 facilitator.registerExtension(BAZAAR)
   .registerExtension(EIP2612_GAS_SPONSORING)
-  .registerExtension(erc20GasSponsorshipExtension)
+  .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient))
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation

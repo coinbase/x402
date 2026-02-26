@@ -51,9 +51,9 @@ export interface Erc20ApprovalGasSponsoringSigner {
 /**
  * Extension identifier for the ERC-20 approval gas sponsoring extension.
  */
-export const ERC20_APPROVAL_GAS_SPONSORING: FacilitatorExtension = {
+export const ERC20_APPROVAL_GAS_SPONSORING = {
   key: "erc20ApprovalGasSponsoring",
-};
+} as const satisfies FacilitatorExtension;
 
 /** Current schema version for the ERC-20 approval gas sponsoring extension info. */
 export const ERC20_APPROVAL_GAS_SPONSORING_VERSION = "1";
@@ -66,20 +66,49 @@ export const ERC20_APPROVAL_GAS_SPONSORING_VERSION = "1";
  *
  * @example
  * ```typescript
- * const erc20GasSponsorshipExtension: Erc20ApprovalGasSponsoringFacilitatorExtension = {
- *   ...ERC20_APPROVAL_GAS_SPONSORING,
- *   signer: {
- *     ...evmSigner,
- *     sendRawTransaction: (args) => viemClient.sendRawTransaction(args),
- *   },
- * };
- * facilitator.registerExtension(erc20GasSponsorshipExtension);
+ * import { createErc20ApprovalGasSponsoringExtension } from '@x402/extensions';
+ *
+ * facilitator.registerExtension(
+ *   createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient),
+ * );
  * ```
  */
 export interface Erc20ApprovalGasSponsoringFacilitatorExtension extends FacilitatorExtension {
   key: "erc20ApprovalGasSponsoring";
   /** Signer with broadcast + settle capability. Optional — settlement fails gracefully if absent. */
   signer?: Erc20ApprovalGasSponsoringSigner;
+}
+
+/**
+ * Signer input for {@link createErc20ApprovalGasSponsoringExtension}.
+ * Matches the FacilitatorEvmSigner shape from @x402/evm (duplicated to avoid circular dep).
+ */
+export type Erc20ApprovalGasSponsoringBaseSigner = Omit<
+  Erc20ApprovalGasSponsoringSigner,
+  "sendRawTransaction"
+>;
+
+/**
+ * Create an ERC-20 approval gas sponsoring extension ready to register in a facilitator.
+ *
+ * @param signer - The EVM facilitator signer (e.g. from `toFacilitatorEvmSigner()`)
+ * @param client - Object providing `sendRawTransaction` (e.g. a viem WalletClient)
+ * @param client.sendRawTransaction - Broadcasts a signed transaction to the network
+ * @returns A fully configured extension to pass to `facilitator.registerExtension()`
+ */
+export function createErc20ApprovalGasSponsoringExtension(
+  signer: Erc20ApprovalGasSponsoringBaseSigner,
+  client: {
+    sendRawTransaction: (args: { serializedTransaction: `0x${string}` }) => Promise<`0x${string}`>;
+  },
+): Erc20ApprovalGasSponsoringFacilitatorExtension {
+  return {
+    ...ERC20_APPROVAL_GAS_SPONSORING,
+    signer: {
+      ...signer,
+      sendRawTransaction: client.sendRawTransaction.bind(client),
+    },
+  };
 }
 
 /**
