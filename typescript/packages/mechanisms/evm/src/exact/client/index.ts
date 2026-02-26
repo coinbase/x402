@@ -4,6 +4,6 @@ export type { EvmClientConfig } from "./register";
 export {
   createPermit2ApprovalTx,
   getPermit2AllowanceReadParams,
-  erc20AllowanceAbi,
   type Permit2AllowanceParams,
 } from "./permit2";
+export { erc20AllowanceAbi } from "../../constants";

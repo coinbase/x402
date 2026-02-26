@@ -1,3 +1,14 @@
+## 2.4.1 - 2026-02-25
+### Fixed
+- Fixed changelog generation to include version extension and eliminate trailing dots which prevent go from importing
+
+## v2.4.0 - 2026-02-25
+### Changed
+- Update Permit2 witness struct (remove extra field), contract addresses, and error names for post-audit x402 proxy contracts on Base Sepolia
+- Pre-compile constant regex patterns in http server for better performance
+### Fixed
+- preserve query params in paywall redirect
+
 ## v2.3.0 - 2026-02-20
 ### Added
 - Added payment-identifier extension — Enables idempotent payment requests.

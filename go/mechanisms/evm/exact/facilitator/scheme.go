@@ -76,7 +76,7 @@ func (f *ExactEvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
-	_ *x402.FacilitatorContext,
+	fctx *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
@@ -84,7 +84,7 @@ func (f *ExactEvmScheme) Verify(
 		if err != nil {
 			return nil, x402.NewVerifyError(ErrInvalidPayload, "", fmt.Sprintf("failed to parse Permit2 payload: %s", err.Error()))
 		}
-		return VerifyPermit2(ctx, f.signer, payload, requirements, permit2Payload)
+		return VerifyPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
 	}
 
 	// Default to EIP-3009 verification
@@ -118,18 +118,13 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		return nil, x402.NewVerifyError(ErrMissingSignature, "", "missing signature")
 	}
 
-	// Get network configuration
-	networkStr := string(requirements.Network)
-	config, err := evm.GetNetworkConfig(networkStr)
+	// Parse chain ID from network identifier
+	chainID, err := evm.GetEvmChainId(string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrFailedToGetNetworkConfig, "", err.Error())
 	}
 
-	// Get asset info
-	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrFailedToGetAssetInfo, "", err.Error())
-	}
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
 	// Validate authorization matches requirements
 	if !strings.EqualFold(evmPayload.Authorization.To, requirements.PayTo) {
@@ -174,7 +169,7 @@ func (f *ExactEvmScheme) verifyEIP3009(
 	}
 
 	// Check if nonce has been used
-	nonceUsed, err := f.checkNonceUsed(ctx, evmPayload.Authorization.From, evmPayload.Authorization.Nonce, assetInfo.Address)
+	nonceUsed, err := f.checkNonceUsed(ctx, evmPayload.Authorization.From, evmPayload.Authorization.Nonce, tokenAddress)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrFailedToCheckNonce, evmPayload.Authorization.From, err.Error())
 	}
@@ -183,7 +178,7 @@ func (f *ExactEvmScheme) verifyEIP3009(
 	}
 
 	// Check balance
-	balance, err := f.signer.GetBalance(ctx, evmPayload.Authorization.From, assetInfo.Address)
+	balance, err := f.signer.GetBalance(ctx, evmPayload.Authorization.From, tokenAddress)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrFailedToGetBalance, evmPayload.Authorization.From, err.Error())
 	}
@@ -191,16 +186,11 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		return nil, x402.NewVerifyError(ErrInsufficientBalance, evmPayload.Authorization.From, fmt.Sprintf("insufficient balance: %s < %s", balance.String(), authValue.String()))
 	}
 
-	// Extract token info from requirements
-	tokenName := assetInfo.Name
-	tokenVersion := assetInfo.Version
-	if requirements.Extra != nil {
-		if name, ok := requirements.Extra["name"].(string); ok {
-			tokenName = name
-		}
-		if version, ok := requirements.Extra["version"].(string); ok {
-			tokenVersion = version
-		}
+	// Extract EIP-712 domain parameters from requirements
+	tokenName, _ := requirements.Extra["name"].(string)
+	tokenVersion, _ := requirements.Extra["version"].(string)
+	if tokenName == "" || tokenVersion == "" {
+		return nil, x402.NewVerifyError(ErrMissingEip712Domain, evmPayload.Authorization.From, "missing EIP-712 domain name/version in requirements.extra")
 	}
 
 	// Verify signature
@@ -213,8 +203,8 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		ctx,
 		evmPayload.Authorization,
 		signatureBytes,
-		config.ChainID,
-		assetInfo.Address,
+		chainID,
+		tokenAddress,
 		tokenName,
 		tokenVersion,
 	)
@@ -238,7 +228,7 @@ func (f *ExactEvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
-	_ *x402.FacilitatorContext,
+	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	// Check if this is a Permit2 payload and route accordingly
 	if evm.IsPermit2Payload(payload.Payload) {
@@ -247,7 +237,7 @@ func (f *ExactEvmScheme) Settle(
 			network := x402.Network(payload.Accepted.Network)
 			return nil, x402.NewSettleError(ErrInvalidPayload, "", network, "", fmt.Sprintf("failed to parse Permit2 payload: %s", err.Error()))
 		}
-		return SettlePermit2(ctx, f.signer, payload, requirements, permit2Payload)
+		return SettlePermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
 	}
 
 	// Default to EIP-3009 settlement
@@ -279,12 +269,7 @@ func (f *ExactEvmScheme) settleEIP3009(
 		return nil, x402.NewSettleError(ErrInvalidPayload, verifyResp.Payer, network, "", err.Error())
 	}
 
-	// Get asset info
-	networkStr := string(requirements.Network)
-	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrFailedToGetAssetInfo, verifyResp.Payer, network, "", err.Error())
-	}
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
 	// Parse signature
 	signatureBytes, err := evm.HexToBytes(evmPayload.Signature)
@@ -357,7 +342,7 @@ func (f *ExactEvmScheme) settleEIP3009(
 
 		txHash, err = f.signer.WriteContract(
 			ctx,
-			assetInfo.Address,
+			tokenAddress,
 			evm.TransferWithAuthorizationVRSABI,
 			evm.FunctionTransferWithAuthorization,
 			common.HexToAddress(evmPayload.Authorization.From),
@@ -374,7 +359,7 @@ func (f *ExactEvmScheme) settleEIP3009(
 		// For smart wallets, use bytes signature overload
 		txHash, err = f.signer.WriteContract(
 			ctx,
-			assetInfo.Address,
+			tokenAddress,
 			evm.TransferWithAuthorizationBytesABI,
 			evm.FunctionTransferWithAuthorization,
 			common.HexToAddress(evmPayload.Authorization.From),

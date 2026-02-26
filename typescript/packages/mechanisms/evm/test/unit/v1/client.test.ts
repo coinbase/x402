@@ -202,7 +202,7 @@ describe("ExactEvmSchemeV1", () => {
       };
 
       await expect(client.createPaymentPayload(1, requirements as never)).rejects.toThrow(
-        "Unsupported network: unknown-network",
+        "Unsupported v1 network: unknown-network",
       );
     });
   });

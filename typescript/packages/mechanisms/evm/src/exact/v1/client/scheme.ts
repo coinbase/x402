@@ -9,8 +9,8 @@ import { getAddress } from "viem";
 import { authorizationTypes } from "../../../constants";
 import { ClientEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
-import { createNonce, getEvmChainId } from "../../../utils";
-import { EvmNetworkV1 } from "../../../v1";
+import { createNonce } from "../../../utils";
+import { EvmNetworkV1, getEvmChainIdV1 } from "../../../v1";
 
 /**
  * EVM client implementation for the Exact payment scheme (V1).
@@ -78,7 +78,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkClient {
     authorization: ExactEvmPayloadV1["authorization"],
     requirements: PaymentRequirementsV1,
   ): Promise<`0x${string}`> {
-    const chainId = getEvmChainId(requirements.network as EvmNetworkV1);
+    const chainId = getEvmChainIdV1(requirements.network as EvmNetworkV1);
 
     if (!requirements.extra?.name || !requirements.extra?.version) {
       throw new Error(

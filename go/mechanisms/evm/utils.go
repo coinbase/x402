@@ -9,32 +9,17 @@ import (
 	"time"
 )
 
-// GetEvmChainId returns the chain ID for a given network
+// GetEvmChainId returns the chain ID for a given CAIP-2 network identifier (eip155:CHAIN_ID).
 func GetEvmChainId(network string) (*big.Int, error) {
-	networkStr := network
-
-	// Normalize network name
-	switch networkStr {
-	case "base", "base-mainnet":
-		networkStr = "eip155:8453"
-	case "base-sepolia":
-		networkStr = "eip155:84532"
-	}
-
-	if config, ok := NetworkConfigs[networkStr]; ok {
-		return config.ChainID, nil
-	}
-
-	// Try to parse from CAIP-2 format (eip155:chainId)
-	if strings.HasPrefix(networkStr, "eip155:") {
-		chainIdStr := strings.TrimPrefix(networkStr, "eip155:")
+	if strings.HasPrefix(network, "eip155:") {
+		chainIdStr := strings.TrimPrefix(network, "eip155:")
 		chainId, ok := new(big.Int).SetString(chainIdStr, 10)
 		if ok {
 			return chainId, nil
 		}
 	}
 
-	return nil, fmt.Errorf("unsupported network: %s", network)
+	return nil, fmt.Errorf("unsupported network: %s (expected eip155:CHAIN_ID)", network)
 }
 
 // CreateNonce generates a random 32-byte nonce for EIP-3009
@@ -156,40 +141,20 @@ func FormatAmount(amount *big.Int, decimals int) string {
 	return quotient.String() + "." + decStr
 }
 
-// GetNetworkConfig returns the configuration for a network.
-// For networks with configured defaults (Base, Base Sepolia), returns the full config.
+// GetNetworkConfig returns the configuration for a CAIP-2 network identifier (eip155:CHAIN_ID).
+// For networks with configured defaults, returns the full config.
 // For other valid EIP-155 networks, returns a config with just the chain ID (no default asset).
-//
-// Args:
-//   - network: The network identifier (eip155:CHAIN_ID or legacy name)
-//
-// Returns:
-//   - NetworkConfig with chain ID (and default asset if configured)
-//   - Error if the network format is invalid
 func GetNetworkConfig(network string) (*NetworkConfig, error) {
-	networkStr := network
-
-	// Normalize network name
-	switch networkStr {
-	case "base", "base-mainnet":
-		networkStr = "eip155:8453"
-	case "base-sepolia":
-		networkStr = "eip155:84532"
-	}
-
-	// Check if we have a pre-configured network with default asset
-	if config, ok := NetworkConfigs[networkStr]; ok {
+	if config, ok := NetworkConfigs[network]; ok {
 		return &config, nil
 	}
 
-	// For any valid EIP-155 network, dynamically create a config with just the chain ID
-	if strings.HasPrefix(networkStr, "eip155:") {
-		chainIdStr := strings.TrimPrefix(networkStr, "eip155:")
+	if strings.HasPrefix(network, "eip155:") {
+		chainIdStr := strings.TrimPrefix(network, "eip155:")
 		chainId, ok := new(big.Int).SetString(chainIdStr, 10)
 		if ok {
 			return &NetworkConfig{
 				ChainID: chainId,
-				// No DefaultAsset - callers using TokenAsset don't need it
 			}, nil
 		}
 	}

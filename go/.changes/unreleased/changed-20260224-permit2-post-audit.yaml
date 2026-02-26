@@ -1,3 +1,0 @@
-kind: changed
-body: Update Permit2 witness struct (remove extra field), contract addresses, and error names for post-audit x402 proxy contracts on Base Sepolia
-time: 2026-02-24T00:00:00.000000Z
