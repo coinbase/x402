@@ -10,20 +10,13 @@ When a server uses `price: "$0.10"` syntax (USD string pricing), x402 needs to k
 
 To add support for a new EVM chain, add an entry to the `stablecoins` map in `getDefaultAsset()`:
 ```typescript
-const stablecoins: Record<string, { address: string; name: string; version: string; decimals: number; assetTransferMethod?: string }> = {
+const stablecoins: Record<string, { address: string; name: string; version: string; decimals: number; assetTransferMethod?: string; supportsEip2612?: boolean }> = {
   "eip155:8453": {
     address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     name: "USD Coin",
     version: "2",
     decimals: 6,
   }, // Base mainnet USDC (EIP-3009)
-  "eip155:4326": {
-    address: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-    name: "MegaUSD",
-    version: "1",
-    decimals: 18,
-    assetTransferMethod: "permit2",  // No EIP-3009 support
-  }, // MegaETH mainnet MegaUSD (Permit2)
   // Add your chain here:
   "eip155:YOUR_CHAIN_ID": {
     address: "0xYOUR_STABLECOIN_ADDRESS",
@@ -31,6 +24,7 @@ const stablecoins: Record<string, { address: string; name: string; version: stri
     version: "1",                    // Must match EIP-712 domain version
     decimals: 6,                     // Token decimals (typically 6 for USDC)
     // assetTransferMethod: "permit2",  // Uncomment if token doesn't support EIP-3009
+    // supportsEip2612: true,           // Set if permit2 token implements EIP-2612 permit()
   },
 };
 ```
@@ -44,6 +38,7 @@ const stablecoins: Record<string, { address: string; name: string; version: stri
 | `version` | EIP-712 domain version (must match the token's domain separator) |
 | `decimals` | Token decimal places (typically 6 for USDC) |
 | `assetTransferMethod` | Transfer method override: `"permit2"` for tokens that don't support EIP-3009. Omit for EIP-3009 tokens (default behavior). |
+| `supportsEip2612` | Set to `true` for permit2 tokens that implement EIP-2612 `permit()`. When true, `name` and `version` are included in `extra` so the client can sign a gasless EIP-2612 permit for Permit2 approval. When false/absent on a permit2 token, the client skips EIP-2612 and uses ERC-20 approval gas sponsoring instead. Ignored for EIP-3009 tokens (which always include `name`/`version`). |
 
 ## Asset Transfer Methods
 
@@ -143,6 +138,9 @@ To add a new chain's default asset:
 2. Check whether the token supports EIP-3009 (`transferWithAuthorization`):
    - If yes: add the entry without `assetTransferMethod` (EIP-3009 is the default)
    - If no: add `assetTransferMethod: "permit2"` to the entry so the client uses Permit2 automatically
-3. Add the entry to `getDefaultAsset()` in `scheme.ts`
-4. Submit a PR with the chain name and rationale for the asset selection
+3. For permit2 tokens, check whether the token supports EIP-2612 (`permit()`):
+   - If yes: add `supportsEip2612: true` so clients can use gasless EIP-2612 permits for Permit2 approval
+   - If no: omit `supportsEip2612` — clients will fall back to ERC-20 approval gas sponsoring
+4. Add the entry to `getDefaultAsset()` in `scheme.ts`
+5. Submit a PR with the chain name and rationale for the asset selection
 

@@ -146,14 +146,16 @@ class ExactEvmScheme:
         if requirements.extra is None:
             requirements.extra = {}
         if asset_info is not None:
-            if "name" not in requirements.extra:
-                requirements.extra["name"] = asset_info["name"]
-            if "version" not in requirements.extra:
-                requirements.extra["version"] = asset_info["version"]
-            if "assetTransferMethod" not in requirements.extra:
-                atm = asset_info.get("asset_transfer_method")
-                if atm:
-                    requirements.extra["assetTransferMethod"] = atm
+            atm = asset_info.get("asset_transfer_method")
+            include_eip712_domain = not atm or asset_info.get("supports_eip2612", False)
+
+            if include_eip712_domain:
+                if "name" not in requirements.extra:
+                    requirements.extra["name"] = asset_info["name"]
+                if "version" not in requirements.extra:
+                    requirements.extra["version"] = asset_info["version"]
+            if "assetTransferMethod" not in requirements.extra and atm:
+                requirements.extra["assetTransferMethod"] = atm
 
         return requirements
 
@@ -181,8 +183,13 @@ class ExactEvmScheme:
 
         token_amount = int(amount * (10 ** asset["decimals"]))
 
-        extra: dict = {"name": asset["name"], "version": asset["version"]}
         atm = asset.get("asset_transfer_method")
+        include_eip712_domain = not atm or asset.get("supports_eip2612", False)
+
+        extra: dict = {}
+        if include_eip712_domain:
+            extra["name"] = asset["name"]
+            extra["version"] = asset["version"]
         if atm:
             extra["assetTransferMethod"] = atm
 

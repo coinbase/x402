@@ -63,6 +63,7 @@ class AssetInfo(_AssetInfoRequired, total=False):
     """Information about a token asset."""
 
     asset_transfer_method: str
+    supports_eip2612: bool
 
 
 class _NetworkConfigRequired(TypedDict):
@@ -99,7 +100,7 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "decimals": 6,
         },
     },
-    # MegaETH Mainnet (uses Permit2 instead of EIP-3009)
+    # MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
     "eip155:4326": {
         "chain_id": 4326,
         "default_asset": {
@@ -108,6 +109,7 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "version": "1",
             "decimals": 18,
             "asset_transfer_method": "permit2",
+            "supports_eip2612": True,
         },
     },
     # Monad Mainnet

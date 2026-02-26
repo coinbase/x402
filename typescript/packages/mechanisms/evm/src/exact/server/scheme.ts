@@ -140,12 +140,20 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     const assetInfo = this.getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
 
+    // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
+    // Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).
+    // Omitting name/version for permit2 tokens signals the client to skip EIP-2612 and use
+    // ERC-20 approval gas sponsoring instead.
+    const includeEip712Domain = !assetInfo.assetTransferMethod || assetInfo.supportsEip2612;
+
     return {
       amount: tokenAmount,
       asset: assetInfo.address,
       extra: {
-        name: assetInfo.name,
-        version: assetInfo.version,
+        ...(includeEip712Domain && {
+          name: assetInfo.name,
+          version: assetInfo.version,
+        }),
         ...(assetInfo.assetTransferMethod && {
           assetTransferMethod: assetInfo.assetTransferMethod,
         }),
@@ -184,10 +192,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     version: string;
     decimals: number;
     assetTransferMethod?: string;
+    supportsEip2612?: boolean;
   } {
     // Map of network to stablecoin info including EIP-712 domain parameters.
     // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers.
     // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
+    // For permit2 tokens, set supportsEip2612: true if the token implements EIP-2612 permit().
+    // When supportsEip2612 is false/absent on a permit2 token, name/version are omitted from
+    // extra so the client skips the EIP-2612 path and falls back to ERC-20 approval gas sponsoring.
     const stablecoins: Record<
       string,
       {
@@ -196,6 +208,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         version: string;
         decimals: number;
         assetTransferMethod?: string;
+        supportsEip2612?: boolean;
       }
     > = {
       "eip155:8453": {
@@ -216,7 +229,8 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         version: "1",
         decimals: 18,
         assetTransferMethod: "permit2",
-      }, // MegaETH mainnet MegaUSD (no EIP-3009 support)
+        supportsEip2612: true,
+      }, // MegaETH mainnet MegaUSD (no EIP-3009, supports EIP-2612)
       "eip155:143": {
         address: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
         name: "USD Coin",
