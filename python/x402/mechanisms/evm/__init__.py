@@ -25,17 +25,21 @@ from .constants import (
     ERR_VALID_AFTER_FUTURE,
     ERR_VALID_BEFORE_EXPIRED,
     IS_VALID_SIGNATURE_ABI,
-    NETWORK_ALIASES,
     NETWORK_CONFIGS,
     SCHEME_EXACT,
     TRANSFER_WITH_AUTHORIZATION_BYTES_ABI,
     TRANSFER_WITH_AUTHORIZATION_VRS_ABI,
     TX_STATUS_FAILED,
     TX_STATUS_SUCCESS,
-    V1_NETWORK_CHAIN_IDS,
-    V1_NETWORKS,
     AssetInfo,
     NetworkConfig,
+)
+
+# V1 legacy constants (re-exported for backward compatibility)
+from .v1.constants import (
+    NETWORK_ALIASES,
+    V1_NETWORK_CHAIN_IDS,
+    V1_NETWORKS,
 )
 
 # EIP-712

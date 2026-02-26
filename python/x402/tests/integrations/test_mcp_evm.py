@@ -20,11 +20,12 @@ import threading
 import time
 
 import pytest
-from mcp.client.streamable_http import streamable_http_client
-from mcp.server.fastmcp import FastMCP
 
-from mcp import ClientSession
-from mcp.types import TextContent
+mcp = pytest.importorskip("mcp", reason="mcp package not available")
+from mcp.client.streamable_http import streamable_http_client  # noqa: E402
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp import ClientSession  # noqa: E402
+from mcp.types import TextContent  # noqa: E402
 from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
 from x402.mcp import create_payment_wrapper, x402MCPClientSync
 from x402.mechanisms.evm.exact import (

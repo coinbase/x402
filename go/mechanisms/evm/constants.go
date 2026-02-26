@@ -82,31 +82,11 @@ var (
 				Decimals: DefaultDecimals,
 			},
 		},
-		// Base Mainnet (legacy v1 format)
-		"base": {
-			ChainID: ChainIDBase,
-			DefaultAsset: AssetInfo{
-				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-				Name:     "USD Coin",
-				Version:  "2",
-				Decimals: DefaultDecimals,
-			},
-		},
 		// Base Sepolia Testnet
 		"eip155:84532": {
 			ChainID: ChainIDBaseSepolia,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-				Name:     "USDC",
-				Version:  "2",
-				Decimals: DefaultDecimals,
-			},
-		},
-		// Base Sepolia Testnet (legacy v1 format)
-		"base-sepolia": {
-			ChainID: ChainIDBaseSepolia,
-			DefaultAsset: AssetInfo{
-				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
@@ -122,31 +102,11 @@ var (
 				Decimals: 18,
 			},
 		},
-		// MegaETH Mainnet (legacy v1 format)
-		"megaeth": {
-			ChainID: ChainIDMegaETH,
-			DefaultAsset: AssetInfo{
-				Address:  "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-				Name:     "MegaUSD",
-				Version:  "1",
-				Decimals: 18,
-			},
-		},
 		// Monad Mainnet
 		"eip155:143": {
 			ChainID: ChainIDMonad,
 			DefaultAsset: AssetInfo{
 				Address:  "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", // USDC on Monad
-				Name:     "USD Coin",
-				Version:  "2",
-				Decimals: DefaultDecimals,
-			},
-		},
-		// Monad Mainnet (legacy v1 format)
-		"monad": {
-			ChainID: ChainIDMonad,
-			DefaultAsset: AssetInfo{
-				Address:  "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
 				Name:     "USD Coin",
 				Version:  "2",
 				Decimals: DefaultDecimals,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -35,14 +36,14 @@ func (c *ExactEvmSchemeV1) CreatePaymentPayload(
 ) (types.PaymentPayloadV1, error) {
 	networkStr := requirements.Network
 
-	// Get chain ID - works for any EIP-155 network (eip155:CHAIN_ID)
-	chainID, err := evm.GetEvmChainId(networkStr)
+	// Get chain ID from v1 network name
+	chainID, err := evmv1.GetEvmChainId(networkStr)
 	if err != nil {
 		return types.PaymentPayloadV1{}, err
 	}
 
-	// Get asset info - works for any explicit address, or uses default if configured
-	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
+	// Get asset info from v1 network config
+	assetInfo, err := evmv1.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
 		return types.PaymentPayloadV1{}, err
 	}
