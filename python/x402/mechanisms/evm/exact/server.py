@@ -128,23 +128,32 @@ class ExactEvmScheme:
                 )
             requirements.asset = default["address"]
 
-        asset_info = get_asset_info(str(requirements.network), requirements.asset)
+        try:
+            asset_info = get_asset_info(str(requirements.network), requirements.asset)
+        except ValueError:
+            asset_info = None
 
         # Ensure amount is in smallest unit
         if "." in requirements.amount:
+            if asset_info is None:
+                raise ValueError(
+                    f"Token {requirements.asset} is not a registered asset for network "
+                    f"{requirements.network}; provide amount in atomic units"
+                )
             requirements.amount = str(parse_amount(requirements.amount, asset_info["decimals"]))
 
         # Add EIP-712 domain params
         if requirements.extra is None:
             requirements.extra = {}
-        if "name" not in requirements.extra:
-            requirements.extra["name"] = asset_info["name"]
-        if "version" not in requirements.extra:
-            requirements.extra["version"] = asset_info["version"]
-        if "assetTransferMethod" not in requirements.extra:
-            atm = asset_info.get("asset_transfer_method")
-            if atm:
-                requirements.extra["assetTransferMethod"] = atm
+        if asset_info is not None:
+            if "name" not in requirements.extra:
+                requirements.extra["name"] = asset_info["name"]
+            if "version" not in requirements.extra:
+                requirements.extra["version"] = asset_info["version"]
+            if "assetTransferMethod" not in requirements.extra:
+                atm = asset_info.get("asset_transfer_method")
+                if atm:
+                    requirements.extra["assetTransferMethod"] = atm
 
         return requirements
 

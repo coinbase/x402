@@ -146,7 +146,9 @@ export class ExactEvmScheme implements SchemeNetworkServer {
       extra: {
         name: assetInfo.name,
         version: assetInfo.version,
-        ...(assetInfo.assetTransferMethod && { assetTransferMethod: assetInfo.assetTransferMethod }),
+        ...(assetInfo.assetTransferMethod && {
+          assetTransferMethod: assetInfo.assetTransferMethod,
+        }),
       },
     };
   }
@@ -188,7 +190,13 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
     const stablecoins: Record<
       string,
-      { address: string; name: string; version: string; decimals: number; assetTransferMethod?: string }
+      {
+        address: string;
+        name: string;
+        version: string;
+        decimals: number;
+        assetTransferMethod?: string;
+      }
     > = {
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -209,6 +217,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         decimals: 18,
         assetTransferMethod: "permit2",
       }, // MegaETH mainnet MegaUSD (no EIP-3009 support)
+      "eip155:143": {
+        address: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Monad mainnet USDC
     };
 
     const assetInfo = stablecoins[network];

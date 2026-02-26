@@ -59,4 +59,9 @@ class TestV1GetAssetInfo:
 
     def test_should_raise_for_unknown_v1_network(self):
         with pytest.raises(ValueError, match="No default asset for v1 network"):
-            get_asset_info("eip155:8453", "USDC")
+            get_asset_info("eip155:8453", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+
+    def test_should_raise_for_unregistered_asset_address(self):
+        unknown_address = "0x1234567890123456789012345678901234567890"
+        with pytest.raises(ValueError, match="not a registered asset"):
+            get_asset_info("base", unknown_address)
