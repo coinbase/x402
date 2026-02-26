@@ -23,7 +23,8 @@ dotenv.config();
 
 const PORT = process.env.PORT || "4023";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
@@ -39,7 +40,6 @@ if (!SVM_PAYEE_ADDRESS) {
   console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
-
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -76,10 +76,13 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
  */
 app.use("/protected-aptos", async (c, next) => {
   if (!APTOS_PAYEE_ADDRESS) {
-    return c.json({
-      error: "Aptos payments not configured",
-      message: "APTOS_PAYEE_ADDRESS environment variable is not set",
-    }, 501);
+    return c.json(
+      {
+        error: "Aptos payments not configured",
+        message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+      },
+      501,
+    );
   }
   await next();
 });
@@ -179,15 +182,9 @@ app.use(
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "exact",
           network: EVM_NETWORK,
-          price: {
-            amount: "1000",
-            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            extra: {
-              assetTransferMethod: "permit2",
-              name: "USDC",
-              version: "2",
-            },
-          },
+          price: "$0.001",
+          // Use pre-parsed price with assetTransferMethod to force Permit2
+          extra: { assetTransferMethod: "permit2" },
         },
         extensions: {
           ...declareDiscoveryExtension({
@@ -238,7 +235,7 @@ app.use(
  * This endpoint demonstrates a resource protected by x402 payment middleware.
  * Clients must provide a valid payment signature to access this endpoint.
  */
-app.get("/protected", (c) => {
+app.get("/protected", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -251,7 +248,7 @@ app.get("/protected", (c) => {
  * This endpoint demonstrates a resource protected by x402 payment middleware for SVM.
  * Clients must provide a valid payment signature to access this endpoint.
  */
-app.get("/protected-svm", (c) => {
+app.get("/protected-svm", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -265,7 +262,7 @@ app.get("/protected-svm", (c) => {
  * Clients must provide a valid payment signature to access this endpoint.
  * Note: 501 check is handled by pre-middleware guard above.
  */
-app.get("/protected-aptos", (c) => {
+app.get("/protected-aptos", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -275,7 +272,7 @@ app.get("/protected-aptos", (c) => {
 /**
  * Protected Permit2 endpoint - requires Permit2 payment with EIP-2612 gas sponsoring
  */
-app.get("/protected-permit2", (c) => {
+app.get("/protected-permit2", c => {
   return c.json({
     message: "Permit2 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -286,7 +283,7 @@ app.get("/protected-permit2", (c) => {
 /**
  * Protected Permit2 ERC-20 endpoint - requires Permit2 payment with ERC-20 approval gas sponsoring
  */
-app.get("/protected-permit2-erc20", (c) => {
+app.get("/protected-permit2-erc20", c => {
   return c.json({
     message: "Permit2 ERC-20 approval endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -299,7 +296,7 @@ app.get("/protected-permit2-erc20", (c) => {
  *
  * Used to verify the server is running and responsive.
  */
-app.get("/health", (c) => {
+app.get("/health", c => {
   return c.json({
     status: "ok",
     network: EVM_NETWORK,
@@ -313,7 +310,7 @@ app.get("/health", (c) => {
  *
  * Allows graceful shutdown of the server during testing.
  */
-app.post("/close", (c) => {
+app.post("/close", c => {
   console.log("Received shutdown request");
 
   // Give time for response to be sent

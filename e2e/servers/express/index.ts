@@ -22,7 +22,8 @@ dotenv.config();
 
 const PORT = process.env.PORT || "4021";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
@@ -38,7 +39,6 @@ if (!SVM_PAYEE_ADDRESS) {
   console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
-
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -64,7 +64,9 @@ if (APTOS_PAYEE_ADDRESS) {
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
 
-console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
+console.log(
+  `Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + "..." : "not configured"}`,
+);
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 /**
@@ -195,16 +197,9 @@ app.use(
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "exact",
           network: EVM_NETWORK,
+          price: "$0.001",
           // Use pre-parsed price with assetTransferMethod to force Permit2
-          price: {
-            amount: "1000", // 0.001 USDC (6 decimals)
-            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-            extra: {
-              assetTransferMethod: "permit2",
-              name: "USDC",
-              version: "2",
-            },
-          },
+          extra: { assetTransferMethod: "permit2" },
         },
         extensions: {
           ...declareDiscoveryExtension({

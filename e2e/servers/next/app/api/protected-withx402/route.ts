@@ -46,4 +46,3 @@ export const GET = withX402(
   },
   server,
 );
-
