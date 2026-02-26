@@ -146,6 +146,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
       extra: {
         name: assetInfo.name,
         version: assetInfo.version,
+        ...(assetInfo.assetTransferMethod && { assetTransferMethod: assetInfo.assetTransferMethod }),
       },
     };
   }
@@ -180,14 +181,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     name: string;
     version: string;
     decimals: number;
+    assetTransferMethod?: string;
   } {
-    // Map of network to USDC info including EIP-712 domain parameters
-    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers
-    // NOTE: Currently only EIP-3009 supporting stablecoins can be used with this scheme
-    // Generic ERC20 support via EIP-2612/permit2 is planned, but not yet implemented.
+    // Map of network to stablecoin info including EIP-712 domain parameters.
+    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers.
+    // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
     const stablecoins: Record<
       string,
-      { address: string; name: string; version: string; decimals: number }
+      { address: string; name: string; version: string; decimals: number; assetTransferMethod?: string }
     > = {
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -206,7 +207,8 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         name: "MegaUSD",
         version: "1",
         decimals: 18,
-      }, // MegaETH mainnet USDM
+        assetTransferMethod: "permit2",
+      }, // MegaETH mainnet MegaUSD (no EIP-3009 support)
     };
 
     const assetInfo = stablecoins[network];
