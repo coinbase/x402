@@ -800,7 +800,7 @@ export class x402HTTPResourceServer {
   /**
    * Parse route pattern into verb and regex
    *
-   * @param pattern - Route pattern like "GET /api/*" or "/api/[id]"
+   * @param pattern - Route pattern like "GET /api/*", "/api/[id]", or "/api/:id"
    * @returns Parsed pattern with verb and regex
    */
   private parseRoutePattern(pattern: string): { verb: string; regex: RegExp } {
@@ -811,7 +811,8 @@ export class x402HTTPResourceServer {
         path
           .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
           .replace(/\*/g, ".*?") // Wildcards
-          .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters
+          .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters (Next.js style [param])
+          .replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "[^/]+") // Parameters (Express style :param)
           .replace(/\//g, "\\/") // Escape slashes
       }$`,
       "i",
