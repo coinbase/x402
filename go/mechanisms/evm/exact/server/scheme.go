@@ -176,6 +176,19 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 		return x402.AssetAmount{}, err
 	}
 
+	if config.DefaultAsset.Address == "" {
+		return x402.AssetAmount{}, fmt.Errorf("no default stablecoin configured for network %s; use RegisterMoneyParser or specify an explicit AssetAmount", networkStr)
+	}
+
+	// Build extra map with EIP-712 metadata
+	extra := map[string]interface{}{
+		"name":    config.DefaultAsset.Name,
+		"version": config.DefaultAsset.Version,
+	}
+	if config.DefaultAsset.AssetTransferMethod != "" {
+		extra["assetTransferMethod"] = string(config.DefaultAsset.AssetTransferMethod)
+	}
+
 	// Check if amount appears to already be in smallest unit
 	// (e.g., 1500000 for $1.50 USDC is likely already in smallest unit, not $1.5M)
 	oneUnit := float64(1)
@@ -188,7 +201,7 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 		return x402.AssetAmount{
 			Asset:  config.DefaultAsset.Address,
 			Amount: fmt.Sprintf("%.0f", amount),
-			Extra:  make(map[string]interface{}),
+			Extra:  extra,
 		}, nil
 	}
 
@@ -202,7 +215,7 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 	return x402.AssetAmount{
 		Asset:  config.DefaultAsset.Address,
 		Amount: parsedAmount.String(),
-		Extra:  make(map[string]interface{}),
+		Extra:  extra,
 	}, nil
 }
 

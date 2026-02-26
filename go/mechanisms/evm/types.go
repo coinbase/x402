@@ -274,10 +274,11 @@ type TransactionReceipt struct {
 
 // AssetInfo contains information about an ERC20 token
 type AssetInfo struct {
-	Address  string
-	Name     string
-	Version  string
-	Decimals int
+	Address             string
+	Name                string
+	Version             string
+	Decimals            int
+	AssetTransferMethod AssetTransferMethod
 }
 
 // NetworkConfig contains network-specific configuration
