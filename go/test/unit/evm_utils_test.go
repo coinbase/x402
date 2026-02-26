@@ -24,10 +24,9 @@ func TestGetEvmChainId(t *testing.T) {
 		{"Polygon CAIP-2", "eip155:137", 137, false},
 		{"Arbitrum CAIP-2", "eip155:42161", 42161, false},
 
-		// Legacy names
-		{"Base legacy", "base", 8453, false},
-		{"Base mainnet legacy", "base-mainnet", 8453, false},
-		{"Base Sepolia legacy", "base-sepolia", 84532, false},
+		// Legacy names should now fail (use evm/v1.GetEvmChainId for v1 networks)
+		{"Legacy name rejected", "base", 0, true},
+		{"Legacy name rejected 2", "base-sepolia", 0, true},
 
 		// Invalid formats
 		{"Invalid prefix", "ethereum:1", 0, true},
@@ -467,14 +466,10 @@ func TestGetNetworkConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("Legacy names work", func(t *testing.T) {
-		config, err := evm.GetNetworkConfig("base")
-		if err != nil {
-			t.Fatalf("Failed to get config: %v", err)
-		}
-
-		if config.ChainID.Int64() != 8453 {
-			t.Errorf("Expected chain ID 8453, got %d", config.ChainID.Int64())
+	t.Run("Legacy names rejected", func(t *testing.T) {
+		_, err := evm.GetNetworkConfig("base")
+		if err == nil {
+			t.Error("Expected error for legacy network name; use evm/v1 package for v1 networks")
 		}
 	})
 
