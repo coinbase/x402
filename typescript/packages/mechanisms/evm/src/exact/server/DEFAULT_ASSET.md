@@ -10,24 +10,32 @@ When a server uses `price: "$0.10"` syntax (USD string pricing), x402 needs to k
 
 To add support for a new EVM chain, add an entry to the `stablecoins` map in `getDefaultAsset()`:
 ```typescript
-const stablecoins: Record<string, { address: string; name: string; version: string; decimals: number }> = {
+const stablecoins: Record<string, { address: string; name: string; version: string; decimals: number; assetTransferMethod?: string }> = {
   "eip155:8453": {
     address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     name: "USD Coin",
     version: "2",
-    decimals: 6
-  }, // Base mainnet USDC
+    decimals: 6,
+  }, // Base mainnet USDC (EIP-3009)
+  "eip155:4326": {
+    address: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+    name: "MegaUSD",
+    version: "1",
+    decimals: 18,
+    assetTransferMethod: "permit2",  // No EIP-3009 support
+  }, // MegaETH mainnet MegaUSD (Permit2)
   // Add your chain here:
   "eip155:YOUR_CHAIN_ID": {
     address: "0xYOUR_STABLECOIN_ADDRESS",
-    name: "Token Name",      // Must match EIP-712 domain name
-    version: "1",            // Must match EIP-712 domain version
-    decimals: 6,             // Token decimals (typically 6 for USDC)
+    name: "Token Name",              // Must match EIP-712 domain name
+    version: "1",                    // Must match EIP-712 domain version
+    decimals: 6,                     // Token decimals (typically 6 for USDC)
+    // assetTransferMethod: "permit2",  // Uncomment if token doesn't support EIP-3009
   },
 };
 ```
 
-### Required Fields
+### Fields
 
 | Field | Description |
 |-------|-------------|
@@ -35,6 +43,7 @@ const stablecoins: Record<string, { address: string; name: string; version: stri
 | `name` | EIP-712 domain name (must match the token's domain separator) |
 | `version` | EIP-712 domain version (must match the token's domain separator) |
 | `decimals` | Token decimal places (typically 6 for USDC) |
+| `assetTransferMethod` | Transfer method override: `"permit2"` for tokens that don't support EIP-3009. Omit for EIP-3009 tokens (default behavior). |
 
 ## Asset Transfer Methods
 
@@ -51,7 +60,7 @@ If no `assetTransferMethod` is specified, the client defaults to **EIP-3009**. T
 
 ### Using Permit2 for Custom Tokens
 
-For tokens that don't support EIP-3009, use the `registerMoneyParser` method to specify Permit2:
+For tokens that don't support EIP-3009 and aren't in the default config, use the `registerMoneyParser` method to specify Permit2:
 
 ```typescript
 import { ExactEvmScheme } from "@x402/evm/exact/server";
@@ -123,7 +132,6 @@ The default asset is chosen **per chain** based on the following guidelines:
 2. **No official stance**: If the chain team has not taken a public position on a preferred stablecoin, we encourage the team behind that chain to make the selection and submit a PR.
 
 3. **Community PRs welcome**: Chain teams and community members may submit PRs to add their chain's default asset, provided:
-   - The stablecoin implements EIP-3009
    - The selection aligns with the chain's ecosystem preferences
    - The EIP-712 domain parameters are correctly specified
 
@@ -131,10 +139,10 @@ The default asset is chosen **per chain** based on the following guidelines:
 
 To add a new chain's default asset:
 
-1. Check if the stablecoin implements EIP-3009 (recommended for default assets)
-2. Obtain the correct EIP-712 domain `name` and `version` from the token contract
+1. Obtain the correct EIP-712 domain `name` and `version` from the token contract
+2. Check whether the token supports EIP-3009 (`transferWithAuthorization`):
+   - If yes: add the entry without `assetTransferMethod` (EIP-3009 is the default)
+   - If no: add `assetTransferMethod: "permit2"` to the entry so the client uses Permit2 automatically
 3. Add the entry to `getDefaultAsset()` in `scheme.ts`
 4. Submit a PR with the chain name and rationale for the asset selection
-
-> **Note**: Default assets should support EIP-3009 for the best user experience (no approval required). Tokens requiring Permit2 can be added via `registerMoneyParser` as shown above.
 
