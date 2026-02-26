@@ -2,6 +2,6 @@
   "name": "tollbooth",
   "description": "Open-source x402 API gateway. Turn any API into a paid x402 API with a single YAML config. Dynamic pricing, multi-upstream proxy, SSE streaming, lifecycle hooks, and Docker support.",
   "logoUrl": "/logos/tollbooth.png",
-  "websiteUrl": "https://tollbooth.loa212.com",
+  "websiteUrl": "https://tollbooth.sh",
   "category": "Infrastructure & Tooling"
 }
