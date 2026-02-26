@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
@@ -161,6 +163,73 @@ func (s *ClientSigner) SignTypedData(
 	signature[64] += 27
 
 	return signature, nil
+}
+
+// GetTransactionCount returns the pending nonce for the given address.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) GetTransactionCount(ctx context.Context, address string) (uint64, error) {
+	if s.ethClient == nil {
+		return 0, fmt.Errorf("GetTransactionCount requires an ethclient; use NewClientSignerFromPrivateKeyWithClient")
+	}
+	nonce, err := s.ethClient.PendingNonceAt(ctx, common.HexToAddress(address))
+	if err != nil {
+		return 0, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+	return nonce, nil
+}
+
+// EstimateFeesPerGas returns EIP-1559 fee parameters by querying the connected node.
+// Returns maxFeePerGas and maxPriorityFeePerGas. Falls back to 1 gwei / 0.1 gwei on error.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error) {
+	gwei := big.NewInt(1_000_000_000)
+	fallbackMax := new(big.Int).Mul(big.NewInt(1), gwei)  // 1 gwei
+	fallbackTip := new(big.Int).Div(gwei, big.NewInt(10)) // 0.1 gwei
+
+	if s.ethClient == nil {
+		return fallbackMax, fallbackTip, nil
+	}
+
+	tip, err := s.ethClient.SuggestGasTipCap(ctx)
+	if err != nil {
+		return fallbackMax, fallbackTip, err
+	}
+
+	// Get base fee from the latest block header
+	header, err := s.ethClient.HeaderByNumber(ctx, nil)
+	if err != nil {
+		// Use tip + 1 gwei as maxFee
+		maxFee := new(big.Int).Add(tip, gwei)
+		return maxFee, tip, err
+	}
+
+	// maxFeePerGas = 2 * baseFee + tip (EIP-1559 convention)
+	baseFee := header.BaseFee
+	if baseFee == nil {
+		baseFee = gwei // fallback to 1 gwei
+	}
+	maxFee := new(big.Int).Add(new(big.Int).Mul(big.NewInt(2), baseFee), tip)
+	return maxFee, tip, nil
+}
+
+// SignTransaction signs an EIP-1559 transaction using the signer's private key
+// and returns the RLP-encoded signed transaction bytes.
+func (s *ClientSigner) SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error) {
+	// Derive chain ID from tx
+	chainID := tx.ChainId()
+	signer := types.LatestSignerForChainID(chainID)
+
+	signedTx, err := types.SignTx(tx, signer, s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	rlpBytes, err := signedTx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to RLP-encode transaction: %w", err)
+	}
+
+	return rlpBytes, nil
 }
 
 // ReadContract reads data from a smart contract.
