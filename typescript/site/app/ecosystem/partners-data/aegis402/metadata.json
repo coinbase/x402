@@ -1,0 +1,7 @@
+{
+  "name": "Aegis402",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/aegis402.png",
+  "description": "Pay-per-request blockchain security API for AI agents and DeFi apps. Scans transactions, tokens, and addresses for scams, honeypots, and poisoning attacks before execution. $0.005–$0.05 per check via USDC on Base and Solana.",
+  "websiteUrl": "https://aegis402.xyz"
+}
