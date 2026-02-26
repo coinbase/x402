@@ -128,7 +128,7 @@ class TestNormalizeAddress:
 
 
 class TestGetEvmChainId:
-    """Test get_evm_chain_id function."""
+    """Test get_evm_chain_id function (CAIP-2 only)."""
 
     def test_should_extract_chain_id_from_caip2_format(self):
         """Should extract chain ID from CAIP-2 format."""
@@ -136,29 +136,27 @@ class TestGetEvmChainId:
         assert get_evm_chain_id("eip155:1") == 1
         assert get_evm_chain_id("eip155:84532") == 84532
 
-    def test_should_handle_network_aliases(self):
-        """Should handle network aliases."""
-        assert get_evm_chain_id("base") == 8453
-        assert get_evm_chain_id("base-mainnet") == 8453
-        assert get_evm_chain_id("base-sepolia") == 84532
+    def test_should_handle_arbitrary_caip2_chain(self):
+        """Should handle any valid CAIP-2 chain ID."""
+        assert get_evm_chain_id("eip155:999999") == 999999
 
-    def test_should_handle_v1_legacy_names(self):
-        """Should handle V1 legacy network names."""
-        assert get_evm_chain_id("base-sepolia") == 84532
-        assert get_evm_chain_id("base") == 8453
+    def test_should_reject_legacy_names(self):
+        """Should reject legacy network names (use evm.v1.utils for v1)."""
+        with pytest.raises(ValueError, match="expected eip155:CHAIN_ID"):
+            get_evm_chain_id("base")
+        with pytest.raises(ValueError, match="expected eip155:CHAIN_ID"):
+            get_evm_chain_id("base-sepolia")
 
-    def test_should_raise_for_unsupported_networks(self):
-        """Should raise ValueError for unsupported networks."""
-        # get_evm_chain_id accepts any CAIP-2 format, so it won't raise for "eip155:99999"
-        # It only raises for non-CAIP-2 formats that aren't in aliases/V1 networks
-        with pytest.raises(ValueError, match="Unknown network"):
+    def test_should_raise_for_unsupported_formats(self):
+        """Should raise ValueError for unsupported formats."""
+        with pytest.raises(ValueError, match="expected eip155:CHAIN_ID"):
             get_evm_chain_id("unknown-network")
         with pytest.raises(ValueError, match="Invalid CAIP-2 network format"):
             get_evm_chain_id("eip155:")  # Invalid format
 
 
 class TestGetNetworkConfig:
-    """Test get_network_config function."""
+    """Test get_network_config function (CAIP-2 only)."""
 
     def test_should_return_config_for_supported_networks(self):
         """Should return config for supported networks."""
@@ -169,12 +167,10 @@ class TestGetNetworkConfig:
         assert "default_asset" in config
         assert "supported_assets" in config
 
-    def test_should_handle_network_aliases(self):
-        """Should handle network aliases."""
-        config1 = get_network_config("base")
-        config2 = get_network_config("eip155:8453")
-
-        assert config1["chain_id"] == config2["chain_id"]
+    def test_should_reject_legacy_names(self):
+        """Should reject legacy network names (use evm.v1.utils for v1)."""
+        with pytest.raises(ValueError, match="expected eip155:CHAIN_ID"):
+            get_network_config("base")
 
     def test_should_raise_for_unsupported_networks(self):
         """Should raise ValueError for unsupported networks."""
@@ -209,13 +205,16 @@ class TestGetAssetInfo:
 
 
 class TestIsValidNetwork:
-    """Test is_valid_network function."""
+    """Test is_valid_network function (CAIP-2 only)."""
 
     def test_should_return_true_for_supported_networks(self):
-        """Should return True for supported networks."""
+        """Should return True for supported CAIP-2 networks."""
         assert is_valid_network("eip155:8453") is True
         assert is_valid_network("eip155:1") is True
-        assert is_valid_network("base") is True
+
+    def test_should_return_false_for_legacy_names(self):
+        """Should return False for legacy network names."""
+        assert is_valid_network("base") is False
 
     def test_should_return_false_for_unsupported_networks(self):
         """Should return False for unsupported networks."""

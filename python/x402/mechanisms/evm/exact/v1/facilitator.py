@@ -31,7 +31,8 @@ from ...eip712 import hash_eip3009_authorization
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData, ExactEIP3009Payload
-from ...utils import bytes_to_hex, get_evm_chain_id, hex_to_bytes, normalize_address
+from ...utils import bytes_to_hex, hex_to_bytes, normalize_address
+from ...v1.utils import get_evm_chain_id
 from ...verify import verify_universal_signature
 
 

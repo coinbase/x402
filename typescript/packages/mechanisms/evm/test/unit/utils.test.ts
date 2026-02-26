@@ -1,81 +1,85 @@
 import { describe, it, expect } from "vitest";
 import { getEvmChainId, createNonce } from "../../src/utils";
-import { EvmNetworkV1 } from "../../src/v1";
+import { getEvmChainIdV1 } from "../../src/v1";
 
 describe("EVM Utils", () => {
-  describe("getEvmChainId", () => {
+  describe("getEvmChainId (CAIP-2 only)", () => {
+    it("should return correct chain ID for CAIP-2 Base", () => {
+      expect(getEvmChainId("eip155:8453")).toBe(8453);
+    });
+
+    it("should return correct chain ID for CAIP-2 Base Sepolia", () => {
+      expect(getEvmChainId("eip155:84532")).toBe(84532);
+    });
+
+    it("should return correct chain ID for CAIP-2 Ethereum", () => {
+      expect(getEvmChainId("eip155:1")).toBe(1);
+    });
+
+    it("should return correct chain ID for CAIP-2 Polygon", () => {
+      expect(getEvmChainId("eip155:137")).toBe(137);
+    });
+
+    it("should return correct chain ID for arbitrary CAIP-2 chain", () => {
+      expect(getEvmChainId("eip155:999999")).toBe(999999);
+    });
+
+    it("should throw for legacy network names", () => {
+      expect(() => getEvmChainId("base")).toThrow();
+    });
+
+    it("should throw for unsupported format", () => {
+      expect(() => getEvmChainId("unknown-network")).toThrow();
+    });
+
+    it("should throw for invalid CAIP-2 chain ID", () => {
+      expect(() => getEvmChainId("eip155:abc")).toThrow("Invalid CAIP-2 chain ID");
+    });
+  });
+
+  describe("getEvmChainIdV1 (legacy names)", () => {
     it("should return correct chain ID for Base", () => {
-      expect(getEvmChainId("base")).toBe(8453);
+      expect(getEvmChainIdV1("base")).toBe(8453);
     });
 
     it("should return correct chain ID for Base Sepolia", () => {
-      expect(getEvmChainId("base-sepolia")).toBe(84532);
+      expect(getEvmChainIdV1("base-sepolia")).toBe(84532);
     });
 
-    it("should return correct chain ID for Ethereum mainnet", () => {
-      expect(getEvmChainId("ethereum")).toBe(1);
-    });
-
-    it("should return correct chain ID for Sepolia", () => {
-      expect(getEvmChainId("sepolia")).toBe(11155111);
+    it("should return correct chain ID for Ethereum", () => {
+      expect(getEvmChainIdV1("ethereum")).toBe(1);
     });
 
     it("should return correct chain ID for Polygon", () => {
-      expect(getEvmChainId("polygon")).toBe(137);
+      expect(getEvmChainIdV1("polygon")).toBe(137);
     });
 
     it("should return correct chain ID for Polygon Amoy", () => {
-      expect(getEvmChainId("polygon-amoy")).toBe(80002);
+      expect(getEvmChainIdV1("polygon-amoy")).toBe(80002);
     });
 
     it("should return correct chain ID for Abstract", () => {
-      expect(getEvmChainId("abstract")).toBe(2741);
-    });
-
-    it("should return correct chain ID for Abstract Testnet", () => {
-      expect(getEvmChainId("abstract-testnet")).toBe(11124);
-    });
-
-    it("should return correct chain ID for Avalanche Fuji", () => {
-      expect(getEvmChainId("avalanche-fuji")).toBe(43113);
+      expect(getEvmChainIdV1("abstract")).toBe(2741);
     });
 
     it("should return correct chain ID for Avalanche", () => {
-      expect(getEvmChainId("avalanche")).toBe(43114);
+      expect(getEvmChainIdV1("avalanche")).toBe(43114);
     });
 
-    it("should return correct chain ID for IoTeX", () => {
-      expect(getEvmChainId("iotex")).toBe(4689);
+    it("should return correct chain ID for MegaETH", () => {
+      expect(getEvmChainIdV1("megaeth")).toBe(4326);
     });
 
-    it("should return correct chain ID for Sei", () => {
-      expect(getEvmChainId("sei")).toBe(1329);
+    it("should return correct chain ID for Monad", () => {
+      expect(getEvmChainIdV1("monad")).toBe(143);
     });
 
-    it("should return correct chain ID for Sei Testnet", () => {
-      expect(getEvmChainId("sei-testnet")).toBe(1328);
+    it("should throw for CAIP-2 format", () => {
+      expect(() => getEvmChainIdV1("eip155:8453")).toThrow("Unsupported v1 network");
     });
 
-    it("should return correct chain ID for Peaq", () => {
-      expect(getEvmChainId("peaq")).toBe(3338);
-    });
-
-    it("should return correct chain ID for Story", () => {
-      expect(getEvmChainId("story")).toBe(1514);
-    });
-
-    it("should return correct chain ID for Educhain", () => {
-      expect(getEvmChainId("educhain")).toBe(41923);
-    });
-
-    it("should return correct chain ID for Skale Base Sepolia", () => {
-      expect(getEvmChainId("skale-base-sepolia")).toBe(324705682);
-    });
-
-    it("should throw for unsupported network", () => {
-      expect(() => getEvmChainId("unknown-network" as EvmNetworkV1)).toThrow(
-        "Unsupported network: unknown-network",
-      );
+    it("should throw for unknown network", () => {
+      expect(() => getEvmChainIdV1("unknown-network")).toThrow("Unsupported v1 network");
     });
   });
 
