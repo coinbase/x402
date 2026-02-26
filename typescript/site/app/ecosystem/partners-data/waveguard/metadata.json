@@ -1,7 +1,7 @@
 {
   "name": "WaveGuard",
-  "description": "Physics-based anomaly detection API for AI agents. Verify ticker data, detect price manipulation, and flag data integrity issues — no training data or ML models required. Supports real-time time-series scanning and general anomaly detection. $0.001/scan via USDC on Base.",
+  "category": "Services/Endpoints",
   "logoUrl": "/logos/waveguard.svg",
-  "websiteUrl": "https://gpartin--waveguard-api-fastapi-app.modal.run/v1/pricing",
-  "category": "Services/Endpoints"
+  "description": "Physics-based anomaly detection API for AI agents. Verify ticker data, detect price manipulation, and flag data integrity issues — no training data or ML models required. Supports real-time time-series scanning and general anomaly detection. $0.001/scan via USDC on Base.",
+  "websiteUrl": "https://gpartin--waveguard-api-fastapi-app.modal.run"
 }
