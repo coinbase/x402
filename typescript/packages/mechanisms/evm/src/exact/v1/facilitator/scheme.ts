@@ -11,8 +11,7 @@ import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature 
 import { authorizationTypes, eip3009ABI } from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
-import { getEvmChainId } from "../../../utils";
-import { EvmNetworkV1 } from "../../../v1";
+import { EvmNetworkV1, getEvmChainIdV1 } from "../../../v1";
 
 export interface ExactEvmSchemeV1Config {
   /**
@@ -96,7 +95,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     // Get chain configuration
     let chainId: number;
     try {
-      chainId = getEvmChainId(payloadV1.network as EvmNetworkV1);
+      chainId = getEvmChainIdV1(payloadV1.network as EvmNetworkV1);
     } catch {
       return {
         isValid: false,
