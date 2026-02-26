@@ -1,0 +1,149 @@
+---
+title: "EIP-2612 Gas Sponsoring"
+description: "Enable gasless Permit2 approvals for tokens that implement EIP-2612, allowing buyers to pay without holding native tokens for gas."
+---
+
+The EIP-2612 Gas Sponsoring extension enables gasless Permit2 approvals for ERC-20 tokens that implement the EIP-2612 permit standard. This allows buyers to authorize token transfers without needing native tokens (ETH, MATIC, etc.) for gas fees.
+
+## Overview
+
+When using Permit2 for token transfers, buyers typically need to first approve the Permit2 contract to spend their tokens. The EIP-2612 Gas Sponsoring extension eliminates this friction by:
+
+1. **Client signs an off-chain permit** - No gas required
+2. **Facilitator submits the permit on-chain** - Gas is sponsored by the facilitator
+3. **Payment is settled atomically** - The permit and payment happen in one transaction
+
+This is ideal for tokens that implement EIP-2612 (like USDC, DAI, and many modern ERC-20 tokens).
+
+## For Resource Servers
+
+Declare support for EIP-2612 gas sponsoring in your route configuration:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { declareEip2612GasSponsoringExtension } from '@x402/extensions';
+
+    const routes = {
+      "GET /api/data": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.01",
+          network: "eip155:8453",
+          payTo: "0xYourAddress",
+          extra: {
+            assetTransferMethod: "permit2"
+          }
+        },
+        extensions: {
+          ...declareEip2612GasSponsoringExtension(),
+        },
+      },
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## For Facilitators
+
+Register the EIP-2612 gas sponsoring extension in your facilitator:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402Facilitator } from "@x402/core/facilitator";
+    import { EIP2612_GAS_SPONSORING } from "@x402/extensions";
+
+    const facilitator = new x402Facilitator();
+    facilitator.registerExtension(EIP2612_GAS_SPONSORING);
+    ```
+  </Tab>
+</Tabs>
+
+To extract and validate the permit data from payment payloads:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import {
+      extractEip2612GasSponsoringInfo,
+      validateEip2612GasSponsoringInfo,
+    } from '@x402/extensions';
+
+    const info = extractEip2612GasSponsoringInfo(paymentPayload);
+    if (info && validateEip2612GasSponsoringInfo(info)) {
+      // Use settleWithPermit instead of settle
+      // The facilitator will submit the permit on-chain
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## How It Works
+
+1. **Server advertises support** - Include the extension in PaymentRequired response
+2. **Client creates permit signature** - Signs EIP-2612 permit off-chain (no gas)
+3. **Client sends payment with permit** - Includes permit data in payment payload
+4. **Facilitator validates permit** - Checks signature and parameters
+5. **Facilitator settles with permit** - Calls `x402Permit2Proxy.settleWithPermit` to submit permit and settle payment atomically
+
+## Extension Schema
+
+The extension info contains the following fields:
+
+```typescript
+{
+  owner: `0x${string}`;        // Token owner address
+  spender: `0x${string}`;      // Permit2 contract address
+  value: string;               // Amount to approve (uint256)
+  nonce: string;               // Permit nonce (uint256)
+  deadline: string;            // Permit deadline (unix timestamp)
+  signature: `0x${string}`;    // EIP-2612 permit signature
+  version: string;             // Schema version
+}
+```
+
+## Requirements
+
+- Token must implement EIP-2612 `permit()` function
+- Facilitator must support the EIP-2612 gas sponsoring extension
+- Client must have sufficient token balance
+- Permit deadline must not be expired
+
+## Comparison with ERC-20 Approval Gas Sponsoring
+
+| Feature | EIP-2612 Gas Sponsoring | ERC-20 Approval Gas Sponsoring |
+|---------|------------------------|-------------------------------|
+| Token requirement | Must implement EIP-2612 | Any ERC-20 token |
+| Client action | Sign off-chain permit | Sign transaction (no broadcast) |
+| Gas cost | None for client | None for client |
+| Transaction count | 1 (atomic) | 2 (approve + settle) |
+| Best for | Modern tokens (USDC, DAI) | Legacy tokens without EIP-2612 |
+
+## Supported Tokens
+
+Common tokens that support EIP-2612:
+- USDC (on most chains)
+- DAI
+- WETH (on some chains)
+- Many modern ERC-20 tokens
+
+To check if a token supports EIP-2612, verify it has a `permit()` function with the standard signature.
+
+## FAQ
+
+**Q: What if my token doesn't support EIP-2612?**
+
+A: Use the [ERC-20 Approval Gas Sponsoring](/extensions/erc20-approval-gas-sponsoring) extension instead, which works with any ERC-20 token.
+
+**Q: Does the client need native tokens for gas?**
+
+A: No, the facilitator sponsors all gas fees for the permit submission and settlement.
+
+**Q: Can I use this with direct token transfers (not Permit2)?**
+
+A: No, this extension is specifically designed for Permit2-based payments. For direct transfers, use EIP-3009 compatible tokens.
+
+**Q: What happens if the permit is invalid?**
+
+A: The facilitator will reject the payment during verification, and no on-chain transaction will be submitted.
