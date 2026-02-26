@@ -1,0 +1,7 @@
+{
+  "name": "Kimchi Premium API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/kimchi-premium-api.png",
+  "description": "Real-time Kimchi Premium Index API — tracks the price spread between Korean (Upbit) and global (Binance) crypto exchanges for BTC, ETH, SOL, and XRP. Pay $0.003/call via Solana USDC. A key indicator of Korean market sentiment and capital flow dynamics.",
+  "websiteUrl": "https://github.com/leadbrain/kimchi-premium-api"
+}
