@@ -67,7 +67,9 @@
         "pages": [
           "extensions/bazaar",
           "extensions/sign-in-with-x",
-          "extensions/payment-identifier"
+          "extensions/payment-identifier",
+          "extensions/eip2612-gas-sponsoring",
+          "extensions/erc20-approval-gas-sponsoring"
         ]
       },
       {
