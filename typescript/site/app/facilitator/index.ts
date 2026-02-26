@@ -10,8 +10,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
 import {
   EIP2612_GAS_SPONSORING,
-  ERC20_APPROVAL_GAS_SPONSORING,
-  type Erc20ApprovalGasSponsoringFacilitatorExtension,
+  createErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
@@ -116,18 +115,9 @@ async function createFacilitator(): Promise<x402Facilitator> {
   }
 
   // Register gas sponsorship extensions for Permit2 support
-  const erc20GasSponsorshipExtension: Erc20ApprovalGasSponsoringFacilitatorExtension = {
-    ...ERC20_APPROVAL_GAS_SPONSORING,
-    signer: {
-      ...evmSigner,
-      sendRawTransaction: (args: { serializedTransaction: `0x${string}` }) =>
-        viemClient.sendRawTransaction(args),
-    },
-  };
-
   facilitator
     .registerExtension(EIP2612_GAS_SPONSORING)
-    .registerExtension(erc20GasSponsorshipExtension);
+    .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient));
 
   return facilitator;
 }

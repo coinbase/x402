@@ -43,10 +43,15 @@ export type {
   Erc20ApprovalGasSponsoringServerInfo,
   Erc20ApprovalGasSponsoringExtension,
   Erc20ApprovalGasSponsoringSigner,
+  Erc20ApprovalGasSponsoringBaseSigner,
   Erc20ApprovalGasSponsoringFacilitatorExtension,
 } from "./types";
 
-export { ERC20_APPROVAL_GAS_SPONSORING, ERC20_APPROVAL_GAS_SPONSORING_VERSION } from "./types";
+export {
+  ERC20_APPROVAL_GAS_SPONSORING,
+  ERC20_APPROVAL_GAS_SPONSORING_VERSION,
+  createErc20ApprovalGasSponsoringExtension,
+} from "./types";
 
 // Export resource service functions (for servers)
 export {

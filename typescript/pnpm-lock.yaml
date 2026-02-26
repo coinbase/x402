@@ -1319,6 +1319,9 @@ importers:
       '@x402/evm':
         specifier: workspace:*
         version: link:../packages/mechanisms/evm
+      '@x402/extensions':
+        specifier: workspace:*
+        version: link:../packages/extensions
       '@x402/next':
         specifier: workspace:*
         version: link:../packages/http/next
