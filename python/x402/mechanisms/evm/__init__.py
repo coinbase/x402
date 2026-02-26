@@ -35,13 +35,6 @@ from .constants import (
     NetworkConfig,
 )
 
-# V1 legacy constants (re-exported for backward compatibility)
-from .v1.constants import (
-    NETWORK_ALIASES,
-    V1_NETWORK_CHAIN_IDS,
-    V1_NETWORKS,
-)
-
 # EIP-712
 from .eip712 import (
     build_typed_data_for_signing,
@@ -94,6 +87,13 @@ from .utils import (
     normalize_address,
     parse_amount,
     parse_money_to_decimal,
+)
+
+# V1 legacy constants (re-exported for backward compatibility)
+from .v1.constants import (
+    NETWORK_ALIASES,
+    V1_NETWORK_CHAIN_IDS,
+    V1_NETWORKS,
 )
 
 # Verification
