@@ -5,7 +5,8 @@
   "x402Version": 2,
   "extensions": [
     "bazaar",
-    "eip2612GasSponsoring"
+    "eip2612GasSponsoring",
+    "erc20ApprovalGasSponsoring"
   ],
   "endpoints": [
     {
@@ -23,6 +24,15 @@
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "permit2"
+    },
+    {
+      "path": "/protected-permit2-erc20",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment with ERC-20 approval gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2",
+      "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
       "path": "/protected-svm",

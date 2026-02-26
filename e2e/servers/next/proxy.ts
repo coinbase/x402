@@ -4,7 +4,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
-import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
+import {
+  declareEip2612GasSponsoringExtension,
+  declareErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 
 export const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 export const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
@@ -154,11 +157,27 @@ export const proxy = paymentProxy(
         ...declareEip2612GasSponsoringExtension(),
       },
     },
+    "/api/protected-permit2-erc20-proxy": {
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        network: EVM_NETWORK,
+        price: {
+          amount: "1000",
+          asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
+      },
+      extensions: {
+        ...declareErc20ApprovalGasSponsoringExtension(),
+      },
+    },
   },
   server, // Pass pre-configured server instance
 );
 
-// Configure which paths the middleware should run on
 export const config = {
-  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy", "/api/protected-permit2-proxy"],
+  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy", "/api/protected-permit2-proxy", "/api/protected-permit2-erc20-proxy"],
 };
