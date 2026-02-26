@@ -109,6 +109,43 @@ export const eip2612NoncesAbi = [
   },
 ] as const;
 
+/** ERC-20 approve(address,uint256) ABI for encoding/decoding approval calldata. */
+export const erc20ApproveAbi = [
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+/** ERC-20 allowance(address,address) ABI for checking spender approval. */
+export const erc20AllowanceAbi = [
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+/** Gas limit for a standard ERC-20 approve() transaction. */
+export const ERC20_APPROVE_GAS_LIMIT = 70_000n;
+
+/** Fallback max fee per gas (1 gwei) when fee estimation fails. */
+export const DEFAULT_MAX_FEE_PER_GAS = 1_000_000_000n;
+
+/** Fallback max priority fee per gas (0.1 gwei) when fee estimation fails. */
+export const DEFAULT_MAX_PRIORITY_FEE_PER_GAS = 100_000_000n;
+
 /**
  * Canonical Permit2 contract address.
  * Same address on all EVM chains via CREATE2 deployment.

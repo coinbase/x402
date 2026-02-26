@@ -25,13 +25,11 @@ const svmSigner = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SVM_PRIVATE_KEY as string),
 );
 
-// Create a public client for on-chain reads (needed for EIP-2612 extension)
 const publicClient = createPublicClient({
   chain: baseSepolia,
   transport: http(),
 });
 
-// Compose account + publicClient into a full ClientEvmSigner
 const evmSigner = toClientEvmSigner(evmAccount, publicClient);
 
 // Initialize Aptos signer if key is provided
