@@ -1,5 +1,19 @@
 # @x402/extensions Changelog
 
+## 2.5.0
+
+### Minor Changes
+
+- 7fe268f: Implemented the erc20 approval gas sponsorship extension
+
+### Patch Changes
+
+- 1ab1c86: Guard against undefined `resource` in SIWX settle hook to prevent runtime crash when `PaymentPayload.resource` is absent
+- Updated dependencies [96a9db0]
+- Updated dependencies [d0a2b11]
+- Updated dependencies
+  - @x402/core@2.5.0
+
 ## 2.4.0
 
 ### Minor Changes

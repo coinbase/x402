@@ -1,5 +1,16 @@
 # @x402/core Changelog
 
+## 2.5.0
+
+### Minor Changes
+
+- Bumped to align version with dependent packages (@x402/evm, @x402/extensions)
+
+### Patch Changes
+
+- 96a9db0: Fix extra field passthrough in buildPaymentRequirementsFromOptions for custom schemes
+- d0a2b11: Added transport context to enrichSettleResponse and enrichPaymentRequiredResponse hooks
+
 ## 2.4.0
 
 ### Minor Changes

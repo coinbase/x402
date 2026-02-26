@@ -1,5 +1,14 @@
 # @x402/aptos
 
+## 2.5.0
+
+### Patch Changes
+
+- Updated dependencies [96a9db0]
+- Updated dependencies [d0a2b11]
+- Updated dependencies
+  - @x402/core@2.5.0
+
 ## 2.4.0
 
 ### Minor Changes
