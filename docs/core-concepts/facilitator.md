@@ -49,7 +49,7 @@ Multiple facilitators are live in production, supporting various networks includ
 9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `networkId` of the `Payment Payload`.
 10. `Facilitator server` waits for the payment to be confirmed on the blockchain.
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
-12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64-encoded JSON if the payment was executed successfully.
+12. `Resource server` returns a response to the `Client` with a `PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64-encoded JSON. On success, this is a `200 OK` with the requested resource. On failure, this is a `402 Payment Required` with error details.
 
 ### Summary
 
