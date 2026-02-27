@@ -8,10 +8,10 @@
  * ## Server Usage (auth-only)
  *
  * ```typescript
- * import { declareSIWxExtension, verifySIWxHeader } from '@x402/extensions/sign-in-with-x';
+ * import { createSIWxChallenge, verifySIWxHeader } from '@x402/extensions/sign-in-with-x';
  *
- * // Declare challenge (nonce/issuedAt generated automatically)
- * const extensions = declareSIWxExtension({
+ * // Create per-request challenge (nonce/issuedAt generated every call)
+ * const extensions = createSIWxChallenge({
  *   domain: 'api.example.com',
  *   resourceUri: 'https://api.example.com/data',
  *   network: 'eip155:8453',
@@ -62,6 +62,8 @@ export type { CompleteSIWxInfo } from "./client";
 
 // Server
 export { declareSIWxExtension } from "./declare";
+export { createSIWxChallenge } from "./challenge";
+export type { SIWxChallengeOptions } from "./challenge";
 export { siwxResourceServerExtension } from "./server";
 export { parseSIWxHeader } from "./parse";
 export { validateSIWxMessage } from "./validate";
