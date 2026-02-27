@@ -1,0 +1,1 @@
+"""Stellar split scheme implementation."""
