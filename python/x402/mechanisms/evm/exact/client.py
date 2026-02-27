@@ -1,5 +1,7 @@
 """EVM client implementation for the Exact payment scheme (V2)."""
 
+from __future__ import annotations
+
 from datetime import timedelta
 from typing import Any
 
@@ -14,6 +16,20 @@ from ..utils import (
     get_asset_info,
     get_evm_chain_id,
 )
+
+
+def _wrap_if_local_account(signer: Any) -> ClientEvmSigner:
+    """Auto-wrap eth_account LocalAccount in EthAccountSigner if needed."""
+    try:
+        from eth_account.signers.local import LocalAccount
+
+        if isinstance(signer, LocalAccount):
+            from ..signers import EthAccountSigner
+
+            return EthAccountSigner(signer)
+    except ImportError:
+        pass
+    return signer
 
 
 class ExactEvmScheme:
@@ -32,9 +48,11 @@ class ExactEvmScheme:
         """Create ExactEvmScheme.
 
         Args:
-            signer: EVM signer for payment authorizations.
+            signer: EVM signer for payment authorizations. Can also be an
+                eth_account LocalAccount, which will be auto-wrapped in
+                EthAccountSigner.
         """
-        self._signer = signer
+        self._signer = _wrap_if_local_account(signer)
 
     def create_payment_payload(
         self,
