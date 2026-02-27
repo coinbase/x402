@@ -1,5 +1,7 @@
 """EVM client implementation for Exact payment scheme (V1 legacy)."""
 
+from __future__ import annotations
+
 import json
 import time
 from typing import Any
@@ -33,9 +35,13 @@ class ExactEvmSchemeV1:
         """Create ExactEvmSchemeV1.
 
         Args:
-            signer: EVM signer for payment authorizations.
+            signer: EVM signer for payment authorizations. Can also be an
+                eth_account LocalAccount, which will be auto-wrapped in
+                EthAccountSigner.
         """
-        self._signer = signer
+        from ..client import _wrap_if_local_account
+
+        self._signer = _wrap_if_local_account(signer)
 
     def create_payment_payload(
         self,

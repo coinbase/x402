@@ -44,8 +44,10 @@ def register_exact_evm_client(
         Client for chaining.
     """
     from .client import ExactEvmScheme as ExactEvmClientScheme
+    from .client import _wrap_if_local_account
     from .v1.client import ExactEvmSchemeV1 as ExactEvmClientSchemeV1
 
+    signer = _wrap_if_local_account(signer)
     scheme = ExactEvmClientScheme(signer)
 
     if networks:

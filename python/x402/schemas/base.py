@@ -26,6 +26,7 @@ class BaseX402Model(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
+        serialize_by_alias=True,
         from_attributes=True,
     )
 
