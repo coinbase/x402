@@ -10,6 +10,7 @@ import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import {
   declareSIWxExtension,
+  createSIWxChallenge,
   siwxResourceServerExtension,
   createSIWxSettleHook,
   createSIWxRequestHook,
@@ -117,14 +118,14 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
 const app = express();
 
 // Auth-only route: SIWX signature required, no payment.
-// declareSIWxExtension generates nonce/issuedAt directly (no enrichment pipeline).
+// createSIWxChallenge generates a complete per-request challenge (nonce/issuedAt/expiration).
 app.get("/profile", async (req, res) => {
   const siwxHeader = req.headers["sign-in-with-x"] as string | undefined;
   const resourceUri = `http://localhost:${PORT}/profile`;
 
   if (!siwxHeader) {
     return res.status(402).json({
-      extensions: declareSIWxExtension({
+      extensions: createSIWxChallenge({
         domain: `localhost:${PORT}`,
         resourceUri,
         network: EVM_NETWORK,
