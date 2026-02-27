@@ -393,10 +393,10 @@ class TestDuplicateSettlementCache:
 
     def test_shared_cache_blocks_cross_version_duplicates(self):
         """V1 and V2 sharing a cache should catch cross-version duplicates."""
-        from x402.mechanisms.svm.settlement_cache import SettlementCache
         from x402.mechanisms.svm.exact.v1.facilitator import (
             ExactSvmSchemeV1 as ExactSvmFacilitatorSchemeV1,
         )
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
         from x402.schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
 
         signer = MockFacilitatorSigner()
@@ -483,3 +483,79 @@ class TestVerifyFeePayer:
 
         assert result.is_valid is False
         assert result.invalid_reason == "fee_payer_not_managed_by_facilitator"
+
+
+class TestSettlementCachePruneOptimization:
+    """Verify the early-break prune optimization preserves insertion-order semantics."""
+
+    def test_prunes_only_expired_entries_preserves_fresh_ones(self):
+        """Entries older than TTL are pruned; newer entries survive."""
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
+
+        cache = SettlementCache()
+
+        cache.is_duplicate("tx-a")
+        cache.is_duplicate("tx-b")
+        cache.is_duplicate("tx-c")
+
+        # Backdate tx-a past TTL (121s), leave tx-b and tx-c fresh
+        base = cache.entries["tx-a"]
+        cache.entries["tx-a"] = base - 121.0
+
+        assert cache.is_duplicate("tx-a") is False, "expired entry should have been pruned"
+        assert cache.is_duplicate("tx-b") is True, "fresh entry should still be cached"
+        assert cache.is_duplicate("tx-c") is True, "fresh entry should still be cached"
+
+    def test_prunes_all_entries_when_all_expired(self):
+        """When every entry is expired, all should be pruned."""
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
+
+        cache = SettlementCache()
+
+        cache.is_duplicate("tx-1")
+        cache.is_duplicate("tx-2")
+        cache.is_duplicate("tx-3")
+
+        for k in list(cache.entries):
+            cache.entries[k] -= 121.0
+
+        assert cache.is_duplicate("tx-1") is False
+        assert cache.is_duplicate("tx-2") is False
+        assert cache.is_duplicate("tx-3") is False
+
+    def test_prunes_nothing_when_all_fresh(self):
+        """When no entries are expired, none should be pruned."""
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
+
+        cache = SettlementCache()
+
+        cache.is_duplicate("tx-x")
+        cache.is_duplicate("tx-y")
+        cache.is_duplicate("tx-z")
+
+        assert cache.is_duplicate("tx-x") is True
+        assert cache.is_duplicate("tx-y") is True
+        assert cache.is_duplicate("tx-z") is True
+
+    def test_early_break_preserves_ordered_entries(self):
+        """Insertion-order iteration means the break fires at the first fresh entry."""
+        from x402.mechanisms.svm.settlement_cache import SettlementCache
+
+        cache = SettlementCache()
+
+        # Insert A, B, C in order with small gaps
+        cache.is_duplicate("tx-old-1")
+        cache.is_duplicate("tx-old-2")
+        cache.is_duplicate("tx-fresh")
+
+        # Expire only the first two
+        for k in ("tx-old-1", "tx-old-2"):
+            cache.entries[k] -= 121.0
+
+        # Trigger prune
+        cache.is_duplicate("tx-new")
+
+        assert "tx-old-1" not in cache.entries, "first expired entry should be pruned"
+        assert "tx-old-2" not in cache.entries, "second expired entry should be pruned"
+        assert "tx-fresh" in cache.entries, "fresh entry after expired ones should survive"
+        assert "tx-new" in cache.entries, "newly inserted entry should be present"

@@ -38,6 +38,8 @@ export class SettlementCache {
     for (const [key, timestamp] of this.entries) {
       if (timestamp < cutoff) {
         this.entries.delete(key);
+      } else {
+        break;
       }
     }
   }

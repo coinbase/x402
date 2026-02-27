@@ -406,3 +406,63 @@ describe("ExactSvmScheme", () => {
     });
   });
 });
+
+describe("SettlementCache prune optimization", () => {
+  it("should prune only expired entries and preserve non-expired ones", () => {
+    vi.useFakeTimers();
+    try {
+      const cache = new SettlementCache();
+
+      // Insert three entries 10s apart
+      cache.isDuplicate("tx-a");
+      vi.advanceTimersByTime(10_000);
+      cache.isDuplicate("tx-b");
+      vi.advanceTimersByTime(10_000);
+      cache.isDuplicate("tx-c");
+
+      // Advance so tx-a and tx-b are expired (> 120s old) but tx-c is not
+      vi.advanceTimersByTime(101_000); // total: tx-a=121s, tx-b=111s, tx-c=101s
+
+      // tx-a should be expired, tx-b and tx-c should still be cached
+      // Trigger prune via a new isDuplicate call
+      expect(cache.isDuplicate("tx-a")).toBe(false); // expired, re-inserted as new
+      expect(cache.isDuplicate("tx-b")).toBe(true); // still cached
+      expect(cache.isDuplicate("tx-c")).toBe(true); // still cached
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should prune all entries when all are expired", () => {
+    vi.useFakeTimers();
+    try {
+      const cache = new SettlementCache();
+
+      cache.isDuplicate("tx-1");
+      cache.isDuplicate("tx-2");
+      cache.isDuplicate("tx-3");
+
+      vi.advanceTimersByTime(121_000);
+
+      // All expired — none should be detected as duplicates
+      expect(cache.isDuplicate("tx-1")).toBe(false);
+      expect(cache.isDuplicate("tx-2")).toBe(false);
+      expect(cache.isDuplicate("tx-3")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("should not prune any entries when none are expired", () => {
+    const cache = new SettlementCache();
+
+    cache.isDuplicate("tx-x");
+    cache.isDuplicate("tx-y");
+    cache.isDuplicate("tx-z");
+
+    // All still fresh — all should be detected as duplicates
+    expect(cache.isDuplicate("tx-x")).toBe(true);
+    expect(cache.isDuplicate("tx-y")).toBe(true);
+    expect(cache.isDuplicate("tx-z")).toBe(true);
+  });
+});

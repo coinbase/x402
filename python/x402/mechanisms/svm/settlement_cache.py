@@ -43,6 +43,11 @@ class SettlementCache:
     def _prune(self) -> None:
         """Remove entries older than the settlement TTL. Caller must hold _lock."""
         cutoff = time.monotonic() - SETTLEMENT_TTL_SECONDS
-        expired = [k for k, ts in self._entries.items() if ts < cutoff]
+        expired = []
+        for k, ts in self._entries.items():
+            if ts < cutoff:
+                expired.append(k)
+            else:
+                break
         for k in expired:
             del self._entries[k]
