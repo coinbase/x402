@@ -1,0 +1,7 @@
+{
+  "name": "Maiat Protocol",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/maiat-protocol.png",
+  "description": "Trust infrastructure for AI agents. Maiat Protocol provides x402-gated trust scoring and gate verdicts for any EVM address — helping agents verify counterparties before transacting. Powers the Virtuals ACP ecosystem as a pre-swap trust layer.",
+  "websiteUrl": "https://maiat-protocol.vercel.app/api/v1/trust-gate"
+}
