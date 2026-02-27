@@ -182,6 +182,9 @@ export function paymentMiddlewareFromHTTPServer(
               },
               402,
             );
+            Object.entries(settleResult.headers).forEach(([key, value]) => {
+              res.headers.set(key, value);
+            });
           } else {
             // Settlement succeeded - add headers to response
             Object.entries(settleResult.headers).forEach(([key, value]) => {

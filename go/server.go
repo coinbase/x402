@@ -149,6 +149,32 @@ func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 	return nil
 }
 
+// HasRegisteredScheme checks if a scheme is registered for a given network
+func (s *x402ResourceServer) HasRegisteredScheme(network Network, scheme string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	networkSchemes, ok := s.schemes[network]
+	if !ok {
+		return false
+	}
+	_, exists := networkSchemes[scheme]
+	return exists
+}
+
+// HasFacilitatorSupport checks if a facilitator client supports a given network/scheme combination
+func (s *x402ResourceServer) HasFacilitatorSupport(network Network, scheme string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	networkClients, ok := s.facilitatorClients[network]
+	if !ok {
+		return false
+	}
+	_, exists := networkClients[scheme]
+	return exists
+}
+
 // Register registers a payment mechanism (V2, default)
 func (s *x402ResourceServer) Register(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
 	s.mu.Lock()
