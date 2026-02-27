@@ -1,0 +1,7 @@
+{
+  "name": "OpSpawn Agent Payment Gateway",
+  "description": "Autonomous AI agent payment infrastructure using x402 protocol. Features A2A (Agent-to-Agent) interoperability, multi-chain support, and real-time USDC settlements for agent commerce.",
+  "logoUrl": "/logos/opspawn.png",
+  "websiteUrl": "https://opspawn.com",
+  "category": "Infrastructure & Tooling"
+}
