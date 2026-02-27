@@ -57,7 +57,7 @@ The typical flow between a client and a server in the x402 protocol is as follow
 3. **Client prepares and submits a payment payload** based on the provided requirements, including it in the `PAYMENT-SIGNATURE` header (Base64-encoded).
 4. **Server verifies the payment payload**, either locally or through a facilitator service.
 5. **Server settles the payment** and confirms transaction completion.
-6. **Server responds with the requested resource**, including a `PAYMENT-RESPONSE` header (Base64-encoded) with settlement confirmation, assuming payment was successful.
+6. **Server responds with the requested resource** (on success) or an error response (on failure), including a `PAYMENT-RESPONSE` header (Base64-encoded) with settlement details in both cases.
 
 ### Summary
 
