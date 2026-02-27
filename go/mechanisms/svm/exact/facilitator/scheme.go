@@ -121,28 +121,46 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", err.Error())
 	}
 
-	// Allow 3-6 instructions:
+	// ── Swig flattening pre-step ──────────────────────────────────────────
+	// Normalize a Swig transaction into the same instruction layout as a
+	// regular one, then let the existing verification handle it unchanged.
+	instructions := tx.Message.Instructions
+	var payer string
+
+	if svm.IsSwigTransaction(tx) {
+		result, parseErr := svm.ParseSwigTransaction(tx)
+		if parseErr != nil {
+			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", parseErr.Error())
+		}
+		instructions = result.Instructions
+		payer = result.SwigPDA
+	} else {
+		var payerErr error
+		payer, payerErr = svm.GetTokenPayerFromTransaction(tx)
+		if payerErr != nil {
+			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", payerErr.Error())
+		}
+	}
+
+	// Instruction count check AFTER flattening (3-6)
 	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
 	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
 	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
 	// - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
 	// See: https://github.com/coinbase/x402/issues/828
-	numInstructions := len(tx.Message.Instructions)
+	numInstructions := len(instructions)
 	if numInstructions < 3 || numInstructions > 6 {
 		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 6", numInstructions, numInstructions))
 	}
 
 	// Step 3: Verify Compute Budget Instructions
-	if err := f.verifyComputeLimitInstruction(tx, tx.Message.Instructions[0]); err != nil {
+	if err := f.verifyComputeLimitInstruction(tx, instructions[0]); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	if err := f.verifyComputePriceInstruction(tx, tx.Message.Instructions[1]); err != nil {
+	if err := f.verifyComputePriceInstruction(tx, instructions[1]); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
-
-	// V2: payload.Accepted.Network is already validated by scheme lookup
-	// Network matching is implicit - facilitator was selected based on requirements.Network
 
 	// Convert requirements to old struct format for helper methods
 	reqStruct := x402.PaymentRequirements{
@@ -154,35 +172,9 @@ func (f *ExactSvmScheme) Verify(
 		Extra:   requirements.Extra,
 	}
 
-	// Step 4: Verify Transfer Instruction and determine payer
-	inst := tx.Message.Instructions[2]
-	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
-	swigPubkey := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
-
-	var payer string
-	if progID.Equals(swigPubkey) {
-		// ── Swig smart wallet path ────────────────────────────────────────────
-		// The outer instruction is a Swig signV1/signV2 that embeds a compact
-		// SPL TransferChecked. Decode and verify the embedded transfer.
-		swigPayer, swigErr := svm.VerifySwigTransfer(
-			tx, inst,
-			requirements.Asset, requirements.PayTo, requirements.Amount,
-			signerAddressStrs,
-		)
-		if swigErr != nil {
-			return nil, x402.NewVerifyError(swigErr.Error(), "", swigErr.Error())
-		}
-		payer = swigPayer
-	} else {
-		// ── Regular SPL token wallet path ─────────────────────────────────────
-		var payerErr error
-		payer, payerErr = svm.GetTokenPayerFromTransaction(tx)
-		if payerErr != nil {
-			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", payerErr.Error())
-		}
-		if verifyErr := f.verifyTransferInstruction(tx, inst, reqStruct, signerAddressStrs); verifyErr != nil {
-			return nil, x402.NewVerifyError(verifyErr.Error(), payer, verifyErr.Error())
-		}
+	// Step 4: Verify Transfer Instruction (unified — works for both regular and Swig)
+	if verifyErr := f.verifyTransferInstruction(tx, instructions[2], reqStruct, signerAddressStrs); verifyErr != nil {
+		return nil, x402.NewVerifyError(verifyErr.Error(), payer, verifyErr.Error())
 	}
 
 	// Step 5: Verify optional instructions (if present)
@@ -190,7 +182,7 @@ func (f *ExactSvmScheme) Verify(
 	if numInstructions >= 4 {
 		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
 		memoPubkey := solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)
-		optionalInstructions := tx.Message.Instructions[3:]
+		optionalInstructions := instructions[3:]
 		invalidReasons := []string{
 			ErrUnknownFourthInstruction,
 			ErrUnknownFifthInstruction,

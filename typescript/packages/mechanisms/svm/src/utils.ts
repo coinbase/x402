@@ -16,7 +16,7 @@ import {
   type SolanaRpcApiMainnet,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { findAssociatedTokenPda, TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
+import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
 import type { Network } from "@x402/core/types";
 import {
   SVM_ADDRESS_REGEX,
@@ -30,9 +30,10 @@ import {
   SOLANA_DEVNET_CAIP2,
   SOLANA_TESTNET_CAIP2,
   V1_TO_V2_NETWORK_MAP,
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
   SWIG_PROGRAM_ADDRESS,
-  SWIG_SIGN_V1_DISCRIMINATOR,
   SWIG_SIGN_V2_DISCRIMINATOR,
+  SECP256R1_PRECOMPILE_ADDRESS,
 } from "./constants";
 import type { ExactSvmPayloadV1 } from "./types";
 
@@ -209,23 +210,85 @@ export interface SwigCompactInstruction {
 }
 
 /**
- * Returns true when the given program address is the Swig program AND the
- * instruction discriminator is signV1 (4) or signV2 (11).
+ * Returns true when the transaction has a Swig layout:
+ *   - All instructions except the last are compute budget or secp256r1 precompile
+ *   - The last instruction is Swig program with SignV2 discriminator
  *
- * @param programAddress - The instruction's program address string
- * @param data - The raw instruction data bytes
+ * @param instructions - Decompiled instruction array
  */
-export function isSwigSignInstruction(
-  programAddress: string,
-  data: Readonly<Uint8Array> | undefined,
+export function isSwigTransaction(
+  instructions: ReadonlyArray<{ programAddress: { toString(): string }; data?: Readonly<Uint8Array> }>,
 ): boolean {
-  if (programAddress !== SWIG_PROGRAM_ADDRESS) return false;
+  if (instructions.length === 0) return false;
+
+  // All instructions except the last must be compute budget or secp256r1 precompile
+  for (let i = 0; i < instructions.length - 1; i++) {
+    const addr = instructions[i].programAddress.toString();
+    if (addr !== COMPUTE_BUDGET_PROGRAM_ADDRESS && addr !== SECP256R1_PRECOMPILE_ADDRESS) {
+      return false;
+    }
+  }
+
+  // Last instruction must be Swig program with SignV2 discriminator
+  const lastIx = instructions[instructions.length - 1];
+  if (lastIx.programAddress.toString() !== SWIG_PROGRAM_ADDRESS) return false;
+
+  const data = lastIx.data;
   if (!data || data.length < 2) return false;
+
   const discriminator = data[0] | (data[1] << 8); // U16 LE
-  return (
-    discriminator === SWIG_SIGN_V1_DISCRIMINATOR ||
-    discriminator === SWIG_SIGN_V2_DISCRIMINATOR
-  );
+  return discriminator === SWIG_SIGN_V2_DISCRIMINATOR;
+}
+
+/**
+ * Flatten a Swig transaction into the same instruction layout as a regular one.
+ * Collects non-precompile outer instructions (compute budgets) and resolves
+ * the compact instructions embedded in the SignV2 instruction.
+ *
+ * @param instructions  - Decompiled instruction array (from a Swig transaction)
+ * @param staticAccounts - Ordered account list from the compiled transaction message
+ * @returns Object with flattened `instructions` array and `swigPda` address
+ */
+export function parseSwigTransaction(
+  instructions: ReadonlyArray<{
+    programAddress: { toString(): string };
+    accounts?: ReadonlyArray<{ address: { toString(): string } }>;
+    data?: Readonly<Uint8Array>;
+  }>,
+  staticAccounts: ReadonlyArray<Address>,
+): { instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: any[] = [];
+
+  // 1. Collect non-precompile outer instructions (compute budgets)
+  for (let i = 0; i < instructions.length - 1; i++) {
+    if (instructions[i].programAddress.toString() !== SECP256R1_PRECOMPILE_ADDRESS) {
+      result.push(instructions[i]);
+    }
+  }
+
+  // 2. Extract Swig PDA from SignV2's first account
+  const signV2Ix = instructions[instructions.length - 1];
+  const swigPda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
+  if (!swigPda) throw "invalid_exact_svm_payload_no_transfer_instruction";
+
+  // 3. Decode compact instructions from SignV2 data
+  const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
+  const compactInstructions = decodeSwigCompactInstructions(rawData);
+
+  // 4. Resolve compact instruction indices to addresses using staticAccounts
+  for (const ci of compactInstructions) {
+    result.push({
+      programAddress: staticAccounts[ci.programIdIndex],
+      accounts: ci.accounts.map(idx => ({
+        address: staticAccounts[idx],
+        role: 1, // AccountRole.WRITABLE — exact role doesn't matter for parsing
+      })),
+      data: ci.data,
+    });
+  }
+
+  return { instructions: result, swigPda };
 }
 
 /**
@@ -294,106 +357,3 @@ export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInst
   return results;
 }
 
-/**
- * Verify that a Swig signV1/signV2 instruction contains a valid SPL TransferChecked
- * compact instruction satisfying the payment requirements.
- *
- * Security invariants checked (mirrors the regular wallet path):
- *   - Swig PDA is not one of the facilitator's signer addresses
- *   - Inner compact instruction uses the correct mint
- *   - Inner destination ATA matches the expected ATA for requirements.payTo
- *   - Inner transfer amount >= requirements.amount
- *
- * @param ix             - Decompiled outer Swig instruction (accounts already resolved)
- * @param staticAccounts - Ordered account list from the compiled transaction message
- * @param requirements   - Payment requirements (asset, payTo, amount)
- * @param signerAddresses - Facilitator signer addresses (must not match Swig PDA)
- * @returns Object with `payer` set to the Swig PDA address
- * @throws A string error reason on any validation failure
- */
-export async function verifySwigTransfer(
-  ix: { accounts: ReadonlyArray<{ readonly address: Address }>; data?: Readonly<Uint8Array> },
-  staticAccounts: ReadonlyArray<Address>,
-  requirements: { asset: string; payTo: string; amount: string },
-  signerAddresses: string[],
-): Promise<{ payer: string }> {
-  // Swig PDA is the first account of the outer instruction
-  if (!ix.accounts[0]?.address) {
-    throw "invalid_exact_svm_payload_no_transfer_instruction";
-  }
-  const swigPda = ix.accounts[0].address.toString();
-
-  // SECURITY: Swig PDA must not be a facilitator signer address
-  if (signerAddresses.includes(swigPda)) {
-    throw "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds";
-  }
-
-  // Decode compact instructions from the signV1/signV2 data
-  const rawData = ix.data ? new Uint8Array(ix.data) : new Uint8Array(0);
-  const compactInstructions = decodeSwigCompactInstructions(rawData);
-
-  // Find the SPL TransferChecked compact instruction
-  // transferChecked discriminator = 12
-  const SPL_TRANSFER_CHECKED_DISCRIMINATOR = 12;
-  let transferIx: SwigCompactInstruction | undefined;
-
-  for (const compactIx of compactInstructions) {
-    const programAddress = staticAccounts[compactIx.programIdIndex]?.toString();
-    if (
-      (programAddress === TOKEN_PROGRAM_ADDRESS.toString() ||
-        programAddress === TOKEN_2022_PROGRAM_ADDRESS.toString()) &&
-      compactIx.data.length >= 1 &&
-      compactIx.data[0] === SPL_TRANSFER_CHECKED_DISCRIMINATOR
-    ) {
-      transferIx = compactIx;
-      break;
-    }
-  }
-
-  if (!transferIx) {
-    throw "invalid_exact_svm_payload_no_transfer_instruction";
-  }
-
-  const tokenProgramAddress = staticAccounts[transferIx.programIdIndex]?.toString();
-
-  // Verify mint address — accounts[1] for TransferChecked
-  const mintAddress = staticAccounts[transferIx.accounts[1]]?.toString();
-  if (mintAddress !== requirements.asset) {
-    throw "invalid_exact_svm_payload_mint_mismatch";
-  }
-
-  // Verify destination ATA — accounts[2] for TransferChecked
-  const destATA = staticAccounts[transferIx.accounts[2]]?.toString();
-  try {
-    const [expectedDestATA] = await findAssociatedTokenPda({
-      mint: requirements.asset as Address,
-      owner: requirements.payTo as Address,
-      tokenProgram:
-        tokenProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()
-          ? (TOKEN_PROGRAM_ADDRESS as Address)
-          : (TOKEN_2022_PROGRAM_ADDRESS as Address),
-    });
-
-    if (destATA !== expectedDestATA.toString()) {
-      throw "invalid_exact_svm_payload_recipient_mismatch";
-    }
-  } catch (e) {
-    if (typeof e === "string") throw e;
-    throw "invalid_exact_svm_payload_recipient_mismatch";
-  }
-
-  // Verify amount — bytes 1-8 of compact instruction data (U64 LE)
-  // transferChecked data layout: [0]=discriminator, [1..8]=amount, [9]=decimals
-  if (transferIx.data.length < 9) {
-    throw "invalid_exact_svm_payload_no_transfer_instruction";
-  }
-  const amountBuf = new Uint8Array(8);
-  amountBuf.set(transferIx.data.slice(1, 9));
-  const amount = new DataView(amountBuf.buffer).getBigUint64(0, true); // LE
-
-  if (amount < BigInt(requirements.amount)) {
-    throw "invalid_exact_svm_payload_amount_insufficient";
-  }
-
-  return { payer: swigPda };
-}
