@@ -744,6 +744,8 @@ describe("x402HTTPResourceServer", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.errorReason).toBe("Insufficient funds");
+        expect(result.headers).toBeDefined();
+        expect(result.headers["PAYMENT-RESPONSE"]).toBeDefined();
       }
     });
   });
