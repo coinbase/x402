@@ -2,8 +2,8 @@ import { Network } from "./";
 
 export interface ResourceInfo {
   url: string;
-  description: string;
-  mimeType: string;
+  description?: string;
+  mimeType?: string;
 }
 
 export type PaymentRequirements = {
@@ -26,7 +26,7 @@ export type PaymentRequired = {
 
 export type PaymentPayload = {
   x402Version: number;
-  resource: ResourceInfo;
+  resource?: ResourceInfo;
   accepted: PaymentRequirements;
   payload: Record<string, unknown>;
   extensions?: Record<string, unknown>;
