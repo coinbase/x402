@@ -35,8 +35,8 @@ export interface PaymentRequired {
   error?: string;
   resource?: {
     url: string;
-    description: string;
-    mimeType: string;
+    description?: string;
+    mimeType?: string;
   };
   accepts: PaymentRequirements[];
   extensions?: Record<string, unknown>;
