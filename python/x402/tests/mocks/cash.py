@@ -105,6 +105,7 @@ class CashSchemeNetworkFacilitator:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> VerifyResponse:
         """Verify a cash payment.
 
@@ -115,6 +116,7 @@ class CashSchemeNetworkFacilitator:
         Args:
             payload: The payment payload.
             requirements: The payment requirements.
+            context: Optional facilitator context.
 
         Returns:
             VerifyResponse with is_valid=True or False.
@@ -149,6 +151,7 @@ class CashSchemeNetworkFacilitator:
         self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
+        context=None,
     ) -> SettleResponse:
         """Settle a cash payment.
 
@@ -161,7 +164,7 @@ class CashSchemeNetworkFacilitator:
         Returns:
             SettleResponse with success=True or False.
         """
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
 
         if not verify_result.is_valid:
             return SettleResponse(
@@ -231,7 +234,7 @@ class CashSchemeNetworkServer:
             )
 
         # Handle numeric prices
-        if isinstance(price, (int, float)):
+        if isinstance(price, int | float):
             return AssetAmount(
                 amount=str(price),
                 asset="USD",

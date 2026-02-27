@@ -26,6 +26,7 @@ Facilitators allow clients to create payments without needing to interact with t
 - **`main.go`** - Entry point dispatcher
 - **`all_networks.go`** - Facilitator with all supported networks (`go run . all-networks`)
 - **`bazaar.go`** - Facilitator with bazaar discovery extension (`go run . bazaar`)
+- **`payment-identifier.go`** - Facilitator with payment identifier idempotency (`go run . payment-identifier`)
 - **`signer.go`** - Facilitator signer implementations for EVM and SVM
 - **`README.md`** - This file
 
@@ -253,6 +254,49 @@ facilitator.Register([]x402.Network{"eip155:84532"}, evm.NewExactEvmScheme(evmSi
 // Register SVM scheme
 facilitator.Register([]x402.Network{"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"}, svm.NewExactSvmScheme(svmSigner))
 ```
+
+### Payment Identifier (Idempotency)
+
+Extract and validate payment identifiers for deduplication:
+
+```go
+import "github.com/coinbase/x402/go/extensions/paymentidentifier"
+
+// In verification hook, extract and track payment ID
+facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
+    // Extract payment identifier from the payload
+    paymentID, err := paymentidentifier.ExtractPaymentIdentifierFromBytes(ctx.PayloadBytes, true)
+    if err != nil {
+        log.Printf("Failed to extract payment ID: %v", err)
+        return nil
+    }
+
+    if paymentID != "" {
+        // Check for duplicate payment
+        if existing, found := idempotencyStore.Get(paymentID); found {
+            log.Printf("Duplicate payment: %s (status: %s)", paymentID, existing.Status)
+            return nil
+        }
+
+        // Record the payment for future deduplication
+        idempotencyStore.Set(paymentID, PaymentRecord{
+            PaymentID: paymentID,
+            Status:    "verified",
+        })
+    }
+
+    return nil
+})
+
+// In settle endpoint, check for already-settled payments
+paymentID, _ := paymentidentifier.ExtractPaymentIdentifierFromBytes(payloadBytes, false)
+if existing, found := store.Get(paymentID); found && existing.Status == "settled" {
+    // Return cached result instead of settling again
+    return existing.Transaction, nil
+}
+```
+
+**Use case:** Prevent duplicate settlements, provide exactly-once semantics, track payment lifecycle.
 
 ### Lifecycle Hooks
 

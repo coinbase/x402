@@ -17,47 +17,36 @@ package main
 
 import (
     "context"
-    "log"
     "github.com/coinbase/x402/go/mcp"
-    x402 "github.com/coinbase/x402/go"
+    mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
     // Create x402 resource server
-    facilitatorClient := // ... create facilitator client
-    resourceServer := x402.NewX402ResourceServer(facilitatorClient)
+    resourceServer := x402.Newx402ResourceServer(...)
     resourceServer.Register("eip155:84532", evmServerScheme)
     
     // Build payment requirements
-    accepts, err := resourceServer.BuildPaymentRequirements(context.Background(), config)
-    if err != nil {
-        log.Fatal(err)
-    }
+    accepts, _ := resourceServer.BuildPaymentRequirementsFromConfig(ctx, config)
 
     // Create payment wrapper
-    paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+    wrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
         Accepts: accepts,
+        Resource: &mcp.ResourceInfo{URL: "mcp://tool/get_weather", Description: "Get weather"},
     })
-    if err != nil {
-        log.Fatal(err)
-    }
 
-    // Register paid tool - wrap handler
-    toolHandler := func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-        // Your tool logic here
-        return mcp.MCPToolResult{
-            Content: []mcp.MCPContentItem{
-                {Type: "text", Text: "Result"},
-            },
-        }, nil
-    }
-    
-    wrappedHandler := paid(toolHandler)
-    // Use wrappedHandler with your MCP server
+    // Register paid tool - wrap handler (SDK-style)
+    mcpServer.AddTool(&mcpsdk.Tool{Name: "get_weather", ...}, wrapper.Wrap(
+        func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+            return &mcpsdk.CallToolResult{
+                Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "Result"}},
+            }, nil
+        },
+    ))
 }
 ```
 
-### Client - Using SDK Adapter + Factory Function
+### Client - Wrap Session with x402
 
 ```go
 package main
@@ -81,12 +70,8 @@ func main() {
     }
     defer session.Close()
 
-    // Create adapter to bridge MCP SDK with x402
-    adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-
-    // Create x402 MCP client with scheme registrations
-    // AutoPayment defaults to true
-    x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+    // Wrap session with x402 payment handling (AutoPayment defaults to true)
+    x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
         {Network: "eip155:84532", Client: evmClientScheme},
     }, mcp.Options{})
 
@@ -106,73 +91,51 @@ func main() {
 
 ### Client
 
-#### `NewMCPClientAdapter`
-
-Creates an `MCPClientInterface` from the official Go MCP SDK types. This is the
-recommended way to bridge the official MCP SDK with x402.
-
-```go
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-```
-
 #### `NewX402MCPClient`
 
-Creates an x402 MCP client from an existing MCP client and payment client.
+Creates an x402 MCP client from an MCP session (MCPCaller) and payment client.
 
 ```go
 paymentClient := x402.Newx402Client()
 paymentClient.Register("eip155:84532", evmClientScheme)
 
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-x402Mcp := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{})
+x402Mcp := mcp.NewX402MCPClient(session, paymentClient, mcp.Options{})
 ```
 
 #### `NewX402MCPClientFromConfig`
 
 Creates a fully configured x402 MCP client with scheme registrations.
+Pass `*mcp.ClientSession` from the official MCP SDK.
 
 ```go
-adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
     {Network: "eip155:84532", Client: evmClientScheme},
 }, mcp.Options{}) // AutoPayment defaults to true
 ```
 
 ### Server
 
-#### `CreatePaymentWrapper`
+#### `NewPaymentWrapper` + `Wrap`
 
-Creates a payment wrapper for MCP tool handlers. Returns an error if the
-configuration is invalid (e.g. empty `Accepts`). Supports multiple payment
-requirements in the `Accepts` array -- the wrapper matches the client's chosen
-payment method against the correct requirement automatically.
+For servers using the official `modelcontextprotocol/go-sdk`. The MCP SDK's `AddTool` expects
+handlers with signature `(ctx, *mcp.CallToolRequest) → (*mcp.CallToolResult, error)`.
+
+Supports server hooks (OnBeforeExecution, OnAfterExecution, OnAfterSettlement):
 
 ```go
-beforeExecHook := mcp.BeforeExecutionHook(func(ctx mcp.ServerHookContext) (bool, error) {
-    // Called after payment verification, before tool execution
-    // Return false to abort execution
-    return true, nil
-})
-afterExecHook := mcp.AfterExecutionHook(func(ctx mcp.AfterExecutionContext) error {
-    // Called after tool execution, before settlement
-    return nil
-})
-afterSettleHook := mcp.AfterSettlementHook(func(ctx mcp.SettlementContext) error {
-    // Called after successful settlement
-    return nil
-})
-
-paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+wrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
     Accepts: accepts,
+    Resource: &mcp.ResourceInfo{URL: "mcp://tool/get_weather", Description: "Get weather"},
     Hooks: &mcp.PaymentWrapperHooks{
         OnBeforeExecution: &beforeExecHook,
         OnAfterExecution:  &afterExecHook,
         OnAfterSettlement: &afterSettleHook,
     },
 })
-if err != nil {
-    log.Fatal(err)
-}
+wrappedHandler := wrapper.Wrap(func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+    return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "result"}}}, nil
+})
+mcpServer.AddTool(tool, wrappedHandler)
 ```
 
 ### Utilities

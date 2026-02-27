@@ -142,7 +142,7 @@ class x402ResourceServerBase:
 
     def __init__(
         self,
-        facilitator_clients: _AnyFacilitatorClient | list[_AnyFacilitatorClient] | None = None,
+        facilitator_clients: (_AnyFacilitatorClient | list[_AnyFacilitatorClient] | None) = None,
     ) -> None:
         """Initialize base server."""
         # Normalize to list

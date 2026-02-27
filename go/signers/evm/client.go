@@ -4,11 +4,16 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
 	x402evm "github.com/coinbase/x402/go/mechanisms/evm"
@@ -19,6 +24,7 @@ import (
 type ClientSigner struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
+	ethClient  *ethclient.Client
 }
 
 // NewClientSignerFromPrivateKey creates a client signer from a hex-encoded private key.
@@ -41,6 +47,14 @@ type ClientSigner struct {
 //	client := x402.Newx402Client().
 //	    Register("eip155:*", evm.NewExactEvmClient(signer))
 func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigner, error) {
+	return NewClientSignerFromPrivateKeyWithClient(privateKeyHex, nil)
+}
+
+// NewClientSignerFromPrivateKeyWithClient creates a client signer from a private key
+// and an optional ethclient for contract reads (e.g., querying EIP-2612 nonces).
+//
+// If ethClient is nil, ReadContract will return an error when called.
+func NewClientSignerFromPrivateKeyWithClient(privateKeyHex string, ethClient *ethclient.Client) (x402evm.ClientEvmSigner, error) {
 	// Strip 0x prefix if present
 	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
 
@@ -56,6 +70,7 @@ func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigne
 	return &ClientSigner{
 		privateKey: privateKey,
 		address:    address,
+		ethClient:  ethClient,
 	}, nil
 }
 
@@ -148,4 +163,124 @@ func (s *ClientSigner) SignTypedData(
 	signature[64] += 27
 
 	return signature, nil
+}
+
+// GetTransactionCount returns the pending nonce for the given address.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) GetTransactionCount(ctx context.Context, address string) (uint64, error) {
+	if s.ethClient == nil {
+		return 0, fmt.Errorf("GetTransactionCount requires an ethclient; use NewClientSignerFromPrivateKeyWithClient")
+	}
+	nonce, err := s.ethClient.PendingNonceAt(ctx, common.HexToAddress(address))
+	if err != nil {
+		return 0, fmt.Errorf("failed to get pending nonce: %w", err)
+	}
+	return nonce, nil
+}
+
+// EstimateFeesPerGas returns EIP-1559 fee parameters by querying the connected node.
+// Returns maxFeePerGas and maxPriorityFeePerGas. Falls back to 1 gwei / 0.1 gwei on error.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error) {
+	gwei := big.NewInt(1_000_000_000)
+	fallbackMax := new(big.Int).Mul(big.NewInt(1), gwei)  // 1 gwei
+	fallbackTip := new(big.Int).Div(gwei, big.NewInt(10)) // 0.1 gwei
+
+	if s.ethClient == nil {
+		return fallbackMax, fallbackTip, nil
+	}
+
+	tip, err := s.ethClient.SuggestGasTipCap(ctx)
+	if err != nil {
+		return fallbackMax, fallbackTip, err
+	}
+
+	// Get base fee from the latest block header
+	header, err := s.ethClient.HeaderByNumber(ctx, nil)
+	if err != nil {
+		// Use tip + 1 gwei as maxFee
+		maxFee := new(big.Int).Add(tip, gwei)
+		return maxFee, tip, err
+	}
+
+	// maxFeePerGas = 2 * baseFee + tip (EIP-1559 convention)
+	baseFee := header.BaseFee
+	if baseFee == nil {
+		baseFee = gwei // fallback to 1 gwei
+	}
+	maxFee := new(big.Int).Add(new(big.Int).Mul(big.NewInt(2), baseFee), tip)
+	return maxFee, tip, nil
+}
+
+// SignTransaction signs an EIP-1559 transaction using the signer's private key
+// and returns the RLP-encoded signed transaction bytes.
+func (s *ClientSigner) SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error) {
+	// Derive chain ID from tx
+	chainID := tx.ChainId()
+	signer := types.LatestSignerForChainID(chainID)
+
+	signedTx, err := types.SignTx(tx, signer, s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	rlpBytes, err := signedTx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to RLP-encode transaction: %w", err)
+	}
+
+	return rlpBytes, nil
+}
+
+// ReadContract reads data from a smart contract.
+// Requires an ethclient to be provided via NewClientSignerFromPrivateKeyWithClient.
+func (s *ClientSigner) ReadContract(
+	ctx context.Context,
+	contractAddress string,
+	abiBytes []byte,
+	functionName string,
+	args ...interface{},
+) (interface{}, error) {
+	if s.ethClient == nil {
+		return nil, fmt.Errorf("ReadContract requires an ethclient; use NewClientSignerFromPrivateKeyWithClient")
+	}
+
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(functionName, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Create call message
+	addr := common.HexToAddress(contractAddress)
+	msg := ethereum.CallMsg{
+		To:   &addr,
+		Data: data,
+	}
+
+	// Execute call
+	result, err := s.ethClient.CallContract(ctx, msg, nil)
+	if err != nil {
+		return nil, fmt.Errorf("contract call failed: %w", err)
+	}
+
+	// Unpack result
+	outputs, err := contractABI.Unpack(functionName, result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack result: %w", err)
+	}
+
+	if len(outputs) == 0 {
+		return nil, nil
+	}
+	if len(outputs) == 1 {
+		return outputs[0], nil
+	}
+	return outputs, nil
 }

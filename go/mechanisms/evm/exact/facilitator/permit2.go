@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -21,6 +23,7 @@ func VerifyPermit2(
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.ExactPermit2Payload,
+	facilCtx *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	payer := permit2Payload.Permit2Authorization.From
 
@@ -106,7 +109,31 @@ func VerifyPermit2(
 		common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address))
 	if err == nil {
 		if allowanceBig, ok := allowance.(*big.Int); ok && allowanceBig.Cmp(requiredAmount) < 0 {
-			return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
+			// Allowance insufficient - try EIP-2612 first, then ERC-20 approval extension
+			eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
+			if eip2612Info != nil {
+				// Validate the EIP-2612 extension data
+				if validErr := validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress); validErr != "" {
+					return nil, x402.NewVerifyError(validErr, payer, "eip2612 validation failed")
+				}
+				// EIP-2612 extension is valid, allowance will be set during settlement
+			} else {
+				// Try ERC-20 approval extension
+				erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
+				if erc20Info != nil && facilCtx != nil {
+					ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
+					if ok && ext != nil && ext.Signer != nil {
+						if reason, msg := ValidateErc20ApprovalForPayment(erc20Info, payer, tokenAddress); reason != "" {
+							return nil, x402.NewVerifyError(reason, payer, msg)
+						}
+						// ERC-20 approval valid, tx will be broadcast during settlement
+					} else {
+						return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
+					}
+				} else {
+					return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
+				}
+			}
 		}
 	}
 
@@ -129,12 +156,13 @@ func SettlePermit2(
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.ExactPermit2Payload,
+	facilCtx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
 	payer := permit2Payload.Permit2Authorization.From
 
 	// Re-verify before settling
-	verifyResp, err := VerifyPermit2(ctx, signer, payload, requirements, permit2Payload)
+	verifyResp, err := VerifyPermit2(ctx, signer, payload, requirements, permit2Payload, facilCtx)
 	if err != nil {
 		ve := &x402.VerifyError{}
 		if errors.As(err, &ve) {
@@ -159,10 +187,6 @@ func SettlePermit2(
 	validAfter, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Witness.ValidAfter, 10)
 	if !ok {
 		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid validAfter")
-	}
-	extraBytes, err := evm.HexToBytes(permit2Payload.Permit2Authorization.Witness.Extra)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid witness extra")
 	}
 	signatureBytes, err := evm.HexToBytes(permit2Payload.Signature)
 	if err != nil {
@@ -193,24 +217,116 @@ func SettlePermit2(
 	witnessStruct := struct {
 		To         common.Address
 		ValidAfter *big.Int
-		Extra      []byte
 	}{
 		To:         common.HexToAddress(permit2Payload.Permit2Authorization.Witness.To),
 		ValidAfter: validAfter,
-		Extra:      extraBytes,
 	}
 
-	// Call x402ExactPermit2Proxy.settle()
-	txHash, err := signer.WriteContract(
-		ctx,
-		evm.X402ExactPermit2ProxyAddress,
-		evm.X402ExactPermit2ProxySettleABI,
-		evm.FunctionSettle,
-		permitStruct,
-		common.HexToAddress(payer),
-		witnessStruct,
-		signatureBytes,
-	)
+	// Check for EIP-2612 gas sponsoring extension
+	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
+	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
+
+	var txHash string
+
+	switch {
+	case eip2612Info != nil:
+		// Use settleWithPermit - includes the EIP-2612 permit
+		v, r, s, splitErr := splitEip2612Signature(eip2612Info.Signature)
+		if splitErr != nil {
+			return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid eip2612 signature format")
+		}
+
+		eip2612Value, ok := new(big.Int).SetString(eip2612Info.Amount, 10)
+		if !ok {
+			return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid eip2612 amount")
+		}
+		eip2612Deadline, ok := new(big.Int).SetString(eip2612Info.Deadline, 10)
+		if !ok {
+			return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid eip2612 deadline")
+		}
+
+		permit2612Struct := struct {
+			Value    *big.Int
+			Deadline *big.Int
+			R        [32]byte
+			S        [32]byte
+			V        uint8
+		}{
+			Value:    eip2612Value,
+			Deadline: eip2612Deadline,
+			R:        r,
+			S:        s,
+			V:        v,
+		}
+
+		txHash, err = signer.WriteContract(
+			ctx,
+			evm.X402ExactPermit2ProxyAddress,
+			evm.X402ExactPermit2ProxySettleWithPermitABI,
+			evm.FunctionSettleWithPermit,
+			permit2612Struct,
+			permitStruct,
+			common.HexToAddress(payer),
+			witnessStruct,
+			signatureBytes,
+		)
+	case erc20Info != nil && facilCtx != nil:
+		// ERC-20 approval path: broadcast pre-signed approve tx, then settle
+		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
+		if ok && ext != nil && ext.Signer != nil {
+			// 1. Broadcast the pre-signed approve transaction
+			approveTxHash, broadcastErr := ext.Signer.SendRawTransaction(ctx, erc20Info.SignedTransaction)
+			if broadcastErr != nil {
+				return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, payer, network, "", broadcastErr.Error())
+			}
+
+			// 2. Wait for approve tx confirmation
+			approveReceipt, receiptErr := ext.Signer.WaitForTransactionReceipt(ctx, approveTxHash)
+			if receiptErr != nil || approveReceipt.Status != evm.TxStatusSuccess {
+				msg := "approve tx failed"
+				if receiptErr != nil {
+					msg = receiptErr.Error()
+				}
+				return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, payer, network, approveTxHash, msg)
+			}
+
+			// 3. Call settle via extension signer
+			txHash, err = ext.Signer.WriteContract(
+				ctx,
+				evm.X402ExactPermit2ProxyAddress,
+				evm.X402ExactPermit2ProxySettleABI,
+				evm.FunctionSettle,
+				permitStruct,
+				common.HexToAddress(payer),
+				witnessStruct,
+				signatureBytes,
+			)
+		} else {
+			// Extension not properly configured, fall through to standard settle
+			txHash, err = signer.WriteContract(
+				ctx,
+				evm.X402ExactPermit2ProxyAddress,
+				evm.X402ExactPermit2ProxySettleABI,
+				evm.FunctionSettle,
+				permitStruct,
+				common.HexToAddress(payer),
+				witnessStruct,
+				signatureBytes,
+			)
+		}
+	default:
+		// Standard settle - no gas sponsoring extension
+		txHash, err = signer.WriteContract(
+			ctx,
+			evm.X402ExactPermit2ProxyAddress,
+			evm.X402ExactPermit2ProxySettleABI,
+			evm.FunctionSettle,
+			permitStruct,
+			common.HexToAddress(payer),
+			witnessStruct,
+			signatureBytes,
+		)
+	}
 
 	if err != nil {
 		errorReason := parsePermit2Error(err)
@@ -256,12 +372,66 @@ func verifyPermit2Signature(
 	return valid, err
 }
 
+// validateEip2612PermitForPayment validates the EIP-2612 extension data.
+// Returns an empty string if valid, or an error reason string.
+func validateEip2612PermitForPayment(info *eip2612gassponsor.Info, payer string, tokenAddress string) string {
+	if !eip2612gassponsor.ValidateEip2612GasSponsoringInfo(info) {
+		return "invalid_eip2612_extension_format"
+	}
+
+	// Verify from matches payer
+	if !strings.EqualFold(info.From, payer) {
+		return "eip2612_from_mismatch"
+	}
+
+	// Verify asset matches token
+	if !strings.EqualFold(info.Asset, tokenAddress) {
+		return "eip2612_asset_mismatch"
+	}
+
+	// Verify spender is Permit2
+	if !strings.EqualFold(info.Spender, evm.PERMIT2Address) {
+		return "eip2612_spender_not_permit2"
+	}
+
+	// Verify deadline not expired
+	// Use 6 second buffer consistent with Permit2 deadline check
+	now := time.Now().Unix()
+	deadline, ok := new(big.Int).SetString(info.Deadline, 10)
+	if !ok || deadline.Int64() < now+evm.Permit2DeadlineBuffer {
+		return "eip2612_deadline_expired"
+	}
+
+	return ""
+}
+
+// splitEip2612Signature splits a 65-byte hex signature into v, r, s.
+func splitEip2612Signature(signature string) (uint8, [32]byte, [32]byte, error) {
+	sigBytes, err := evm.HexToBytes(signature)
+	if err != nil {
+		return 0, [32]byte{}, [32]byte{}, err
+	}
+
+	if len(sigBytes) != 65 {
+		return 0, [32]byte{}, [32]byte{}, errors.New("signature must be 65 bytes")
+	}
+
+	var r, s [32]byte
+	copy(r[:], sigBytes[0:32])
+	copy(s[:], sigBytes[32:64])
+	v := sigBytes[64]
+
+	return v, r, s, nil
+}
+
 // parsePermit2Error extracts meaningful error codes from contract reverts.
 func parsePermit2Error(err error) string {
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "AmountExceedsPermitted"):
-		return ErrPermit2AmountExceedsPermitted
+	case strings.Contains(msg, "Permit2612AmountMismatch"):
+		return ErrPermit2612AmountMismatch
+	case strings.Contains(msg, "InvalidAmount"):
+		return ErrPermit2InvalidAmount
 	case strings.Contains(msg, "InvalidDestination"):
 		return ErrPermit2InvalidDestination
 	case strings.Contains(msg, "InvalidOwner"):

@@ -54,7 +54,7 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
   const { storage, onEvent } = options;
 
   return async (ctx: {
-    paymentPayload: { payload: unknown; resource: { url: string } };
+    paymentPayload: { payload: unknown; resource?: { url: string } };
     result: { success: boolean; payer?: string };
   }): Promise<void> => {
     // Only record payment if settlement succeeded
@@ -64,7 +64,11 @@ export function createSIWxSettleHook(options: CreateSIWxHookOptions) {
     const address = ctx.result.payer;
     if (!address) return;
 
-    const resource = new URL(ctx.paymentPayload.resource.url).pathname;
+    // resource is optional per the v2 spec (section 5.2.2)
+    const resourceUrl = ctx.paymentPayload.resource?.url;
+    if (!resourceUrl) return;
+
+    const resource = new URL(resourceUrl).pathname;
     await storage.recordPayment(resource, address);
     onEvent?.({ type: "payment_recorded", resource, address });
   };

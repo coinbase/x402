@@ -14,10 +14,11 @@ describe("ExactEvmScheme (Client)", () => {
   let mockSigner: ClientEvmSigner;
 
   beforeEach(() => {
-    // Create mock signer
+    // Create mock signer with readContract (required for ClientEvmSigner)
     mockSigner = {
       address: "0x1234567890123456789012345678901234567890",
       signTypedData: vi.fn().mockResolvedValue("0xmocksignature123456789"),
+      readContract: vi.fn().mockResolvedValue(BigInt(0)),
     };
     client = new ExactEvmScheme(mockSigner);
   });
@@ -620,6 +621,271 @@ describe("Permit2 Approval Flow", () => {
 
       expect(isPermit2Payload(result.payload)).toBe(true);
       expect(result.payload.permit2Authorization).toBeDefined();
+    });
+  });
+
+  describe("EIP-2612 Gas Sponsoring (Scheme-level)", () => {
+    const permit2Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: {
+        assetTransferMethod: "permit2",
+        name: "USDC",
+        version: "2",
+      },
+    };
+
+    it("should not return extensions when eip2612GasSponsoring not in context", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, permit2Requirements, {
+        extensions: {},
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should not return extensions when allowance is sufficient", async () => {
+      const signerWithReader: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt("999999999999999999")),
+      };
+      const schemeWithReader = new ExactEvmScheme(signerWithReader);
+
+      const result = await schemeWithReader.createPaymentPayload(2, permit2Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should return EIP-2612 extensions when allowance insufficient and extension advertised", async () => {
+      const signerWithReader: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue(
+          "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b", // 65 byte sig
+        ),
+        readContract: vi
+          .fn()
+          .mockResolvedValueOnce(BigInt(0)) // allowance check returns 0
+          .mockResolvedValueOnce(BigInt(5)), // nonce query returns 5
+      };
+      const schemeWithReader = new ExactEvmScheme(signerWithReader);
+
+      const result = await schemeWithReader.createPaymentPayload(2, permit2Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeDefined();
+      expect(result.extensions!.eip2612GasSponsoring).toBeDefined();
+      const ext = result.extensions!.eip2612GasSponsoring as Record<string, unknown>;
+      const info = ext.info as Record<string, unknown>;
+      expect(info.from).toBe("0x1234567890123456789012345678901234567890");
+      expect(info.spender).toBeDefined();
+      expect(info.signature).toBeDefined();
+      expect(info.version).toBe("1");
+    });
+
+    it("should not return extensions for EIP-3009 asset transfer method", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const eip3009Requirements: PaymentRequirements = {
+        ...permit2Requirements,
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      };
+
+      const result = await scheme.createPaymentPayload(2, eip3009Requirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+  });
+
+  describe("ERC-20 Approval Gas Sponsoring (Scheme-level)", () => {
+    const erc20Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: {
+        assetTransferMethod: "permit2",
+        // No name/version - generic ERC-20 without EIP-2612
+      },
+    };
+
+    it("should not return extensions when erc20ApprovalGasSponsoring not in context", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        signTransaction: vi.fn().mockResolvedValue("0x02ab"),
+        getTransactionCount: vi.fn().mockResolvedValue(0),
+        estimateFeesPerGas: vi
+          .fn()
+          .mockResolvedValue({ maxFeePerGas: 1n, maxPriorityFeePerGas: 1n }),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, erc20Requirements, {
+        extensions: {}, // No erc20ApprovalGasSponsoring
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should not return extensions when allowance is sufficient", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt("999999999999999999")),
+        signTransaction: vi.fn().mockResolvedValue("0x02ab"),
+        getTransactionCount: vi.fn().mockResolvedValue(0),
+        estimateFeesPerGas: vi
+          .fn()
+          .mockResolvedValue({ maxFeePerGas: 1n, maxPriorityFeePerGas: 1n }),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, erc20Requirements, {
+        extensions: {
+          erc20ApprovalGasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should not return extensions when signer lacks signTransaction capability", async () => {
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)),
+        // No signTransaction, getTransactionCount, estimateFeesPerGas
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, erc20Requirements, {
+        extensions: {
+          erc20ApprovalGasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeUndefined();
+    });
+
+    it("should return ERC-20 extensions when allowance insufficient + extension advertised + signer capable", async () => {
+      const mockSignedTx = "0x02f8ab" as `0x${string}`;
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)), // zero allowance
+        signTransaction: vi.fn().mockResolvedValue(mockSignedTx),
+        getTransactionCount: vi.fn().mockResolvedValue(5),
+        estimateFeesPerGas: vi
+          .fn()
+          .mockResolvedValue({ maxFeePerGas: 1_000_000_000n, maxPriorityFeePerGas: 100_000_000n }),
+      };
+      const scheme = new ExactEvmScheme(signer);
+      const result = await scheme.createPaymentPayload(2, erc20Requirements, {
+        extensions: {
+          erc20ApprovalGasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeDefined();
+      expect(result.extensions!.erc20ApprovalGasSponsoring).toBeDefined();
+      const ext = result.extensions!.erc20ApprovalGasSponsoring as Record<string, unknown>;
+      const info = ext.info as Record<string, unknown>;
+      expect(info.from).toBe("0x1234567890123456789012345678901234567890");
+      expect(info.spender).toBeDefined();
+      expect(info.signedTransaction).toBe(mockSignedTx);
+      expect(info.version).toBe("1");
+    });
+
+    it("should use EIP-2612 over ERC-20 approval when token has EIP-2612 support", async () => {
+      const eip2612CompatibleRequirements: PaymentRequirements = {
+        ...erc20Requirements,
+        extra: {
+          assetTransferMethod: "permit2",
+          name: "TOKEN",
+          version: "1",
+        },
+      };
+
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0x" + "ab".repeat(32) + "cd".repeat(32) + "1b"),
+        readContract: vi
+          .fn()
+          .mockResolvedValueOnce(BigInt(0)) // allowance check
+          .mockResolvedValueOnce(BigInt(3)), // nonce for EIP-2612
+        signTransaction: vi.fn(), // Should NOT be called
+        getTransactionCount: vi.fn(),
+        estimateFeesPerGas: vi.fn(),
+      };
+      const scheme = new ExactEvmScheme(signer);
+
+      const result = await scheme.createPaymentPayload(2, eip2612CompatibleRequirements, {
+        extensions: {
+          eip2612GasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+          erc20ApprovalGasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      // Should have EIP-2612 extension (not ERC-20 approval)
+      expect(result.extensions).toBeDefined();
+      expect(result.extensions!.eip2612GasSponsoring).toBeDefined();
+      expect(result.extensions!.erc20ApprovalGasSponsoring).toBeUndefined();
+      // signTransaction should NOT have been called
+      expect(signer.signTransaction).not.toHaveBeenCalled();
+    });
+
+    it("should use ERC-20 approval when EIP-2612 not advertised but ERC-20 is", async () => {
+      const mockSignedTx = "0x02f8ab" as `0x${string}`;
+      const signer: ClientEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
+        signTypedData: vi.fn().mockResolvedValue("0xmocksig"),
+        readContract: vi.fn().mockResolvedValue(BigInt(0)), // zero allowance
+        signTransaction: vi.fn().mockResolvedValue(mockSignedTx),
+        getTransactionCount: vi.fn().mockResolvedValue(0),
+        estimateFeesPerGas: vi
+          .fn()
+          .mockResolvedValue({ maxFeePerGas: 1n, maxPriorityFeePerGas: 1n }),
+      };
+      const scheme = new ExactEvmScheme(signer);
+
+      const result = await scheme.createPaymentPayload(2, erc20Requirements, {
+        extensions: {
+          // Only ERC-20, no EIP-2612
+          erc20ApprovalGasSponsoring: { info: { description: "test", version: "1" }, schema: {} },
+        },
+      });
+
+      expect(result.extensions).toBeDefined();
+      expect(result.extensions!.erc20ApprovalGasSponsoring).toBeDefined();
+      expect(result.extensions!.eip2612GasSponsoring).toBeUndefined();
     });
   });
 });

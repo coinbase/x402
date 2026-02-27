@@ -41,3 +41,6 @@ jobs:
 
       - name: Lint
         run: uvx ruff check
+
+      - name: Check formatting
+        run: uvx ruff format --check

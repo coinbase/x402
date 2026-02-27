@@ -17,7 +17,12 @@ from x402.http.utils import (
     safe_base64_decode,
     safe_base64_encode,
 )
-from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    SettleResponse,
+)
 from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
 
 

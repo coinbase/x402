@@ -134,9 +134,9 @@ Payment made: true
 ### X402MCPClientOptions
 
 ```go
-x402Mcp := mcp.NewX402MCPClient(mcpClient, paymentClient, mcp.Options{
-    // Enable automatic payment (default: false)
-    AutoPayment: true,
+x402Mcp := mcp.NewX402MCPClient(session, paymentClient, mcp.Options{
+    // Enable automatic payment (default: true)
+    AutoPayment: mcp.BoolPtr(true),
 
     // Custom approval logic (optional)
     OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {

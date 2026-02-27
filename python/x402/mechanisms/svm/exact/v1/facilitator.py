@@ -41,7 +41,11 @@ from ...constants import (
 )
 from ...signer import FacilitatorSvmSigner
 from ...types import ExactSvmPayload
-from ...utils import decode_transaction_from_payload, derive_ata, get_token_payer_from_transaction
+from ...utils import (
+    decode_transaction_from_payload,
+    derive_ata,
+    get_token_payer_from_transaction,
+)
 
 
 class ExactSvmSchemeV1:
@@ -98,6 +102,7 @@ class ExactSvmSchemeV1:
         self,
         payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context=None,
     ) -> VerifyResponse:
         """Verify SPL token payment payload (V1).
 
@@ -308,6 +313,7 @@ class ExactSvmSchemeV1:
         self,
         payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context=None,
     ) -> SettleResponse:
         """Settle SPL token payment on-chain (V1).
 
@@ -324,7 +330,7 @@ class ExactSvmSchemeV1:
         network = payload.network
 
         # First verify
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
         if not verify_result.is_valid:
             return SettleResponse(
                 success=False,

@@ -11,7 +11,7 @@ import (
 //
 // Usage:
 //
-//	go run . simple           - Run simple example (NewX402MCPClientFromConfig factory)
+//	go run . simple           - Run simple example (NewX402MCPClient with x402Client)
 //	go run . advanced         - Run advanced example (X402MCPClient with manual setup)
 
 func main() {

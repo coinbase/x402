@@ -9,7 +9,12 @@ from collections.abc import Awaitable, Callable, Generator
 from dataclasses import dataclass
 from typing import Any, Generic, Literal, TypeVar
 
-from .interfaces import SchemeNetworkFacilitator, SchemeNetworkFacilitatorV1
+from .interfaces import (
+    FacilitatorContext,
+    FacilitatorExtension,
+    SchemeNetworkFacilitator,
+    SchemeNetworkFacilitatorV1,
+)
 from .schemas import (
     AbortResult,
     Network,
@@ -98,7 +103,7 @@ class x402FacilitatorBase:
         """Initialize base facilitator."""
         self._schemes: list[SchemeData[SchemeNetworkFacilitator]] = []
         self._schemes_v1: list[SchemeData[SchemeNetworkFacilitatorV1]] = []
-        self._extensions: list[str] = []
+        self._extensions: dict[str, FacilitatorExtension] = {}
 
         # Hooks (typed in subclasses)
         self._before_verify_hooks: list[Any] = []
@@ -161,18 +166,28 @@ class x402FacilitatorBase:
         )
         return self
 
-    def register_extension(self, extension: str) -> x402FacilitatorBase:
-        """Register an extension name.
+    def register_extension(self, extension: FacilitatorExtension) -> x402FacilitatorBase:
+        """Register a facilitator extension.
 
         Args:
-            extension: Extension key (e.g., "bazaar").
+            extension: FacilitatorExtension object with a key property.
 
         Returns:
             Self for chaining.
         """
-        if extension not in self._extensions:
-            self._extensions.append(extension)
+        self._extensions[extension.key] = extension
         return self
+
+    def get_extension(self, key: str) -> FacilitatorExtension | None:
+        """Get a registered extension by key.
+
+        Args:
+            key: The extension key to look up.
+
+        Returns:
+            The extension object, or None if not registered.
+        """
+        return self._extensions.get(key)
 
     # ========================================================================
     # Supported
@@ -235,17 +250,17 @@ class x402FacilitatorBase:
 
         return SupportedResponse(
             kinds=kinds,
-            extensions=self._extensions,
+            extensions=list(self._extensions.keys()),
             signers=signers,
         )
 
     def get_extensions(self) -> list[str]:
-        """Get registered extension names.
+        """Get registered extension keys.
 
         Returns:
-            List of extension keys.
+            List of extension key strings.
         """
-        return list(self._extensions)
+        return list(self._extensions.keys())
 
     # ========================================================================
     # Internal Helpers
@@ -291,6 +306,10 @@ class x402FacilitatorBase:
 
         return None
 
+    def _build_facilitator_context(self) -> FacilitatorContext:
+        """Build a FacilitatorContext from the registered extensions."""
+        return FacilitatorContext(self._extensions)
+
     def _verify_v2(
         self,
         payload: PaymentPayload,
@@ -304,7 +323,7 @@ class x402FacilitatorBase:
         if facilitator is None:
             raise SchemeNotFoundError(scheme, network)
 
-        return facilitator.verify(payload, requirements)
+        return facilitator.verify(payload, requirements, self._build_facilitator_context())
 
     def _verify_v1(
         self,
@@ -319,7 +338,7 @@ class x402FacilitatorBase:
         if facilitator is None:
             raise SchemeNotFoundError(scheme, network)
 
-        return facilitator.verify(payload, requirements)
+        return facilitator.verify(payload, requirements, self._build_facilitator_context())
 
     def _settle_v2(
         self,
@@ -334,7 +353,7 @@ class x402FacilitatorBase:
         if facilitator is None:
             raise SchemeNotFoundError(scheme, network)
 
-        return facilitator.settle(payload, requirements)
+        return facilitator.settle(payload, requirements, self._build_facilitator_context())
 
     def _settle_v1(
         self,
@@ -349,7 +368,7 @@ class x402FacilitatorBase:
         if facilitator is None:
             raise SchemeNotFoundError(scheme, network)
 
-        return facilitator.settle(payload, requirements)
+        return facilitator.settle(payload, requirements, self._build_facilitator_context())
 
     # ========================================================================
     # Core Logic Generators (shared between async/sync)

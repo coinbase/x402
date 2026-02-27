@@ -4,7 +4,7 @@
 //
 // # Client Usage
 //
-// Wrap an MCP client with payment handling using the built-in SDK adapter:
+// Wrap an MCP session with payment handling:
 //
 //	import (
 //	    "context"
@@ -16,9 +16,8 @@
 //	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "my-agent", Version: "1.0.0"}, nil)
 //	session, _ := mcpClient.Connect(ctx, transport, nil)
 //
-//	// Create adapter and wrap with x402 (AutoPayment defaults to true)
-//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+//	// Wrap session with x402 (AutoPayment defaults to true)
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
 //	}, mcp.Options{})
 //
@@ -43,20 +42,20 @@
 //	accepts, _ := resourceServer.BuildPaymentRequirements(ctx, config)
 //
 //	// Create payment wrapper
-//	paid, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+//	wrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 //	    Accepts: accepts,
 //	})
-//	if err != nil { ... }
 //
 //	// Register paid tool
-//	mcpServer.Tool("get_weather", "Get weather", schema, paid(handler))
+//	mcpServer.AddTool(tool, wrapper.Wrap(func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//	    return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "result"}}}, nil
+//	}))
 //
 // # Factory Functions
 //
 // NewX402MCPClientFromConfig creates a client with scheme registrations:
 //
-//	adapter := mcp.NewMCPClientAdapter(mcpClient, session)
-//	x402Mcp := mcp.NewX402MCPClientFromConfig(adapter, []mcp.SchemeRegistration{
+//	x402Mcp := mcp.NewX402MCPClientFromConfig(session, []mcp.SchemeRegistration{
 //	    {Network: "eip155:84532", Client: evmClientScheme},
 //	}, mcp.Options{})
 //

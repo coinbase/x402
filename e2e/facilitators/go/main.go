@@ -18,6 +18,8 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
@@ -29,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -426,6 +429,24 @@ func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) 
 	return code, nil
 }
 
+func (s *realFacilitatorEvmSigner) SendRawTransaction(ctx context.Context, signedTx string) (string, error) {
+	txBytes, err := hexutil.Decode(signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode signed transaction: %w", err)
+	}
+
+	tx := new(types.Transaction)
+	if err := tx.UnmarshalBinary(txBytes); err != nil {
+		return "", fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+
+	if err := s.client.SendTransaction(ctx, tx); err != nil {
+		return "", fmt.Errorf("failed to send raw transaction: %w", err)
+	}
+
+	return tx.Hash().Hex(), nil
+}
+
 // Helper functions for type conversion
 func getStringFromInterface(v interface{}) string {
 	if v == nil {
@@ -774,6 +795,13 @@ func main() {
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
 
+	// Register the EIP-2612 Gas Sponsoring extension
+	facilitator.RegisterExtension(eip2612gassponsor.EIP2612GasSponsoring)
+
+	// Register the ERC-20 Approval Gas Sponsoring extension
+	erc20Ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: evmSigner}
+	facilitator.RegisterExtension(erc20Ext)
+
 	// Lifecycle hooks for payment tracking and discovery
 	facilitator.
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
@@ -1070,7 +1098,7 @@ func main() {
 			"svmNetwork":          svmNetwork,
 			"facilitator":         "go",
 			"version":             "2.0.0",
-			"extensions":          []string{exttypes.BAZAAR},
+			"extensions":          []string{exttypes.BAZAAR.Key()},
 			"discoveredResources": bazaarCatalog.GetCount(),
 		})
 	})

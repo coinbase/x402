@@ -14,7 +14,8 @@
       "method": "<GET/POST/PATCH/DELETE/OPTIONS/HEAD>",
       "description": "<endpoint-description>",
       "requiresPayment": true,
-      "protocolFamily": "<evm/svm>"
+      "protocolFamily": "<evm/svm>",
+      "transferMethod": "<eip3009/permit2> (EVM only)"
     },
     {
       "path": "/health",

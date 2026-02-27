@@ -4,7 +4,9 @@
   "language": "typescript",
   "x402Version": 2,
   "extensions": [
-    "bazaar"
+    "bazaar",
+    "eip2612GasSponsoring",
+    "erc20ApprovalGasSponsoring"
   ],
   "endpoints": [
     {
@@ -12,7 +14,8 @@
       "method": "GET",
       "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/protected-permit2",
@@ -20,7 +23,16 @@
       "description": "Protected endpoint requiring Permit2 payment",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "permit2": true
+      "transferMethod": "permit2"
+    },
+    {
+      "path": "/protected-permit2-erc20",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment with ERC-20 approval gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2",
+      "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
       "path": "/protected-svm",
@@ -28,6 +40,13 @@
       "description": "Protected endpoint requiring payment on SVM network",
       "requiresPayment": true,
       "protocolFamily": "svm"
+    },
+    {
+      "path": "/protected-aptos",
+      "method": "GET",
+      "description": "Protected endpoint requiring payment on Aptos network",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
     },
     {
       "path": "/health",
@@ -49,6 +68,8 @@
       "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PAYEE_ADDRESS"
+    ]
   }
 }

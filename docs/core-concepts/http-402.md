@@ -25,12 +25,19 @@ Using the 402 status code keeps x402 protocol natively web-compatible and easy t
 
 ### Payment Headers in V2
 
-x402 V2 uses two standardized headers for payment communication:
+x402 V2 uses three standardized headers for payment communication:
 
+| Header | Direction | Description |
+|--------|-----------|-------------|
+| `PAYMENT-REQUIRED` | Server → Client | Base64-encoded `PaymentRequired` object |
+| `PAYMENT-SIGNATURE` | Client → Server | Base64-encoded `PaymentPayload` object |
+| `PAYMENT-RESPONSE` | Server → Client | Base64-encoded `SettlementResponse` object |
+
+* **`PAYMENT-REQUIRED`**: Contains the Base64-encoded payment requirements from the server. This header is returned alongside the 402 status code and includes details such as accepted payment schemes, price, network, and destination address.
 * **`PAYMENT-SIGNATURE`**: Contains the Base64-encoded payment payload from the client. This header is sent by the client when retrying a request after receiving a 402 response, proving they have authorized payment.
-* **`PAYMENT-RESPONSE`**: Contains the Base64-encoded settlement response from the server. This header is returned by the server in the successful response, confirming the payment was verified and settled.
+* **`PAYMENT-RESPONSE`**: Contains the Base64-encoded settlement response from the server. This header is returned by the server after attempting settlement, whether successful or failed, providing structured feedback about the payment outcome.
 
-Both headers must contain valid Base64-encoded JSON strings. This encoding ensures compatibility across different HTTP implementations and prevents issues with special characters in JSON payloads.
+All headers contain valid Base64-encoded JSON strings. This encoding ensures compatibility across different HTTP implementations and prevents issues with special characters in JSON payloads.
 
 ### Summary
 

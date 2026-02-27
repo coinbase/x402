@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -117,54 +118,59 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	functionName string,
 	args ...interface{},
 ) (string, error) {
-	// Parse ABI
 	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
-	// Pack the method call
 	data, err := contractABI.Pack(functionName, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to pack method call: %w", err)
 	}
 
-	// Get nonce
-	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
-	if err != nil {
-		return "", fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	// Get gas price
-	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get gas price: %w", err)
-	}
-
-	// Create transaction
 	to := common.HexToAddress(contractAddress)
-	tx := ethtypes.NewTransaction(
-		nonce,
-		to,
-		big.NewInt(0), // value
-		300000,        // gas limit
-		gasPrice,
-		data,
-	)
+	return s.sendTxWithRetry(ctx, to, data, 300000)
+}
 
-	// Sign transaction
-	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+// sendTxWithRetry sends a transaction, retrying on nonce conflicts from back-to-back tests.
+func (s *realFacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to common.Address, data []byte, gasLimit uint64) (string, error) {
+	const maxRetries = 5
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+		if err != nil {
+			return "", fmt.Errorf("failed to get nonce: %w", err)
+		}
+
+		gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get gas price: %w", err)
+		}
+
+		// Bump gas price on retry to replace any stuck pending tx
+		if attempt > 0 {
+			bump := new(big.Int).Div(gasPrice, big.NewInt(5))
+			gasPrice.Add(gasPrice, bump)
+		}
+
+		tx := ethtypes.NewTransaction(nonce, to, big.NewInt(0), gasLimit, gasPrice, data)
+		signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to sign transaction: %w", err)
+		}
+
+		err = s.ethClient.SendTransaction(ctx, signedTx)
+		if err != nil {
+			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
+				continue
+			}
+			return "", fmt.Errorf("failed to send transaction: %w", err)
+		}
+
+		return signedTx.Hash().Hex(), nil
 	}
-
-	// Send transaction
-	err = s.ethClient.SendTransaction(ctx, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to send transaction: %w", err)
-	}
-
-	return signedTx.Hash().Hex(), nil
+	return "", fmt.Errorf("failed to send transaction after %d retries", maxRetries)
 }
 
 func (s *realFacilitatorEvmSigner) SendTransaction(
@@ -172,42 +178,8 @@ func (s *realFacilitatorEvmSigner) SendTransaction(
 	to string,
 	data []byte,
 ) (string, error) {
-	// Get nonce
-	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
-	if err != nil {
-		return "", fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	// Get gas price
-	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get gas price: %w", err)
-	}
-
-	// Create transaction with raw data
 	toAddr := common.HexToAddress(to)
-	tx := ethtypes.NewTransaction(
-		nonce,
-		toAddr,
-		big.NewInt(0), // value
-		300000,        // gas limit
-		gasPrice,
-		data,
-	)
-
-	// Sign transaction
-	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
-	}
-
-	// Send transaction
-	err = s.ethClient.SendTransaction(ctx, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to send transaction: %w", err)
-	}
-
-	return signedTx.Hash().Hex(), nil
+	return s.sendTxWithRetry(ctx, toAddr, data, 300000)
 }
 
 func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
@@ -527,9 +499,27 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 	t.Run("EVM V2 Permit2 Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
+		rpcURL := "https://sepolia.base.org"
 
-		// Create real client signer
-		clientSigner, err := newRealClientEvmSigner(clientPrivateKey)
+		// Wait for any pending transactions from previous tests (shared facilitator wallet)
+		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, rpcURL)
+
+		// Revoke Permit2 approval so the test exercises the settleWithPermit path
+		// via EIP-2612 gas sponsoring (instead of hiding behind pre-existing allowance)
+		revokePermit2Approval(t, ctx, clientPrivateKey,
+			"0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
+			rpcURL,
+		)
+
+		// Create real client signer with RPC connectivity so it can:
+		// - Read Permit2 allowance before deciding whether to sign EIP-2612 permit
+		// - Query the EIP-2612 nonce from the token contract
+		clientEthClient, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			t.Fatalf("Failed to connect to Base Sepolia: %v", err)
+		}
+		defer clientEthClient.Close()
+		clientSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(clientPrivateKey, clientEthClient)
 		if err != nil {
 			t.Fatalf("Failed to create client signer: %v", err)
 		}
@@ -580,6 +570,8 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 				MaxTimeoutSeconds: 300,
 				Extra: map[string]interface{}{
 					"assetTransferMethod": "permit2", // Request Permit2 flow
+					"name":                "USDC",
+					"version":             "2",
 				},
 			},
 		}
@@ -588,7 +580,16 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 			Description: "Permit2 API Access",
 			MimeType:    "application/json",
 		}
-		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+
+		// Advertise eip2612GasSponsoring so client signs an EIP-2612 permit
+		// when Permit2 allowance is insufficient
+		serverExtensions := map[string]interface{}{
+			"eip2612GasSponsoring": map[string]interface{}{
+				"info":   map[string]interface{}{"description": "EIP-2612 gas sponsoring", "version": "1"},
+				"schema": map[string]interface{}{},
+			},
+		}
+		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", serverExtensions)
 
 		// Verify it's V2
 		if paymentRequiredResponse.X402Version != 2 {
@@ -735,18 +736,36 @@ func (s *permit2FacilitatorEvmSigner) GetCode(ctx context.Context, address strin
 func (s *permit2FacilitatorEvmSigner) ReadContract(
 	ctx context.Context,
 	contractAddress string,
-	abi []byte,
+	abiBytes []byte,
 	functionName string,
 	args ...interface{},
 ) (interface{}, error) {
-	// For authorizationState, assume nonce not used
+	// For authorizationState, assume nonce not used (random nonces are unique)
 	if functionName == "authorizationState" {
 		return false, nil
 	}
-	// For allowance check, return max uint256 (assume approved)
+
+	// For allowance, read real on-chain value (fall back to MaxUint256 on any error)
 	if functionName == "allowance" {
-		return evm.MaxUint256(), nil
+		contractABI, parseErr := abi.JSON(strings.NewReader(string(abiBytes)))
+		if parseErr != nil {
+			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
+		}
+		callData, packErr := contractABI.Pack(functionName, args...)
+		if packErr != nil {
+			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
+		}
+		addr := common.HexToAddress(contractAddress)
+		result, callErr := s.ethClient.CallContract(ctx, ethereum.CallMsg{
+			To:   &addr,
+			Data: callData,
+		}, nil)
+		if callErr != nil {
+			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
+		}
+		return new(big.Int).SetBytes(result), nil
 	}
+
 	return nil, fmt.Errorf("read contract not fully implemented for integration tests")
 }
 
@@ -757,54 +776,18 @@ func (s *permit2FacilitatorEvmSigner) WriteContract(
 	functionName string,
 	args ...interface{},
 ) (string, error) {
-	// Parse ABI
 	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
-	// Pack the method call
 	data, err := contractABI.Pack(functionName, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to pack method call: %w", err)
 	}
 
-	// Get nonce
-	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
-	if err != nil {
-		return "", fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	// Get gas price
-	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get gas price: %w", err)
-	}
-
-	// Create transaction
 	to := common.HexToAddress(contractAddress)
-	tx := ethtypes.NewTransaction(
-		nonce,
-		to,
-		big.NewInt(0), // value
-		300000,        // gas limit
-		gasPrice,
-		data,
-	)
-
-	// Sign transaction
-	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
-	}
-
-	// Send transaction
-	err = s.ethClient.SendTransaction(ctx, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to send transaction: %w", err)
-	}
-
-	return signedTx.Hash().Hex(), nil
+	return s.sendTxWithRetry(ctx, to, data, 300000)
 }
 
 func (s *permit2FacilitatorEvmSigner) SendTransaction(
@@ -812,42 +795,48 @@ func (s *permit2FacilitatorEvmSigner) SendTransaction(
 	to string,
 	data []byte,
 ) (string, error) {
-	// Get nonce
-	nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
-	if err != nil {
-		return "", fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	// Get gas price
-	gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get gas price: %w", err)
-	}
-
-	// Create transaction with raw data
 	toAddr := common.HexToAddress(to)
-	tx := ethtypes.NewTransaction(
-		nonce,
-		toAddr,
-		big.NewInt(0), // value
-		300000,        // gas limit
-		gasPrice,
-		data,
-	)
+	return s.sendTxWithRetry(ctx, toAddr, data, 300000)
+}
 
-	// Sign transaction
-	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+// sendTxWithRetry sends a transaction, retrying on nonce conflicts from back-to-back tests.
+func (s *permit2FacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to common.Address, data []byte, gasLimit uint64) (string, error) {
+	const maxRetries = 5
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		nonce, err := s.ethClient.PendingNonceAt(ctx, s.address)
+		if err != nil {
+			return "", fmt.Errorf("failed to get nonce: %w", err)
+		}
+
+		gasPrice, err := s.ethClient.SuggestGasPrice(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get gas price: %w", err)
+		}
+
+		if attempt > 0 {
+			bump := new(big.Int).Div(gasPrice, big.NewInt(5))
+			gasPrice.Add(gasPrice, bump)
+		}
+
+		tx := ethtypes.NewTransaction(nonce, to, big.NewInt(0), gasLimit, gasPrice, data)
+		signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(s.chainID), s.privateKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to sign transaction: %w", err)
+		}
+
+		err = s.ethClient.SendTransaction(ctx, signedTx)
+		if err != nil {
+			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
+				continue
+			}
+			return "", fmt.Errorf("failed to send transaction: %w", err)
+		}
+
+		return signedTx.Hash().Hex(), nil
 	}
-
-	// Send transaction
-	err = s.ethClient.SendTransaction(ctx, signedTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to send transaction: %w", err)
-	}
-
-	return signedTx.Hash().Hex(), nil
+	return "", fmt.Errorf("failed to send transaction after %d retries", maxRetries)
 }
 
 func (s *permit2FacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
@@ -960,6 +949,169 @@ func (s *permit2FacilitatorEvmSigner) VerifyTypedData(
 	return recoveredAddress == expectedAddress, nil
 }
 
+// waitForPendingTransactions waits until the given wallet has no pending transactions.
+// This prevents "replacement transaction underpriced" errors when tests share the same
+// wallet and run back-to-back.
+func waitForPendingTransactions(t *testing.T, ctx context.Context, privateKeyHex string, rpcURL string) {
+	t.Helper()
+
+	pkHex := strings.TrimPrefix(privateKeyHex, "0x")
+	pk, err := crypto.HexToECDSA(pkHex)
+	if err != nil {
+		t.Fatalf("Failed to parse private key for nonce check: %v", err)
+	}
+	address := crypto.PubkeyToAddress(pk.PublicKey)
+
+	client, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		t.Fatalf("Failed to connect to RPC for nonce check: %v", err)
+	}
+	defer client.Close()
+
+	deadline := time.Now().Add(2 * time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		confirmedNonce, err := client.NonceAt(ctx, address, nil)
+		if err != nil {
+			t.Fatalf("Failed to get confirmed nonce: %v", err)
+		}
+		pendingNonce, err := client.PendingNonceAt(ctx, address)
+		if err != nil {
+			t.Fatalf("Failed to get pending nonce: %v", err)
+		}
+
+		if pendingNonce == confirmedNonce {
+			return
+		}
+
+		t.Logf("⏳ Waiting for pending transactions to clear (confirmed=%d, pending=%d)...", confirmedNonce, pendingNonce)
+
+		if time.Now().After(deadline) {
+			t.Fatalf("Pending transactions did not clear after 2 minutes")
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("Context cancelled waiting for pending transactions")
+		case <-ticker.C:
+		}
+	}
+}
+
+// revokePermit2Approval sets the Permit2 allowance to 0 so the test exercises the settleWithPermit path.
+func revokePermit2Approval(t *testing.T, ctx context.Context, clientPrivateKey string, tokenAddress string, rpcURL string) {
+	t.Helper()
+
+	privateKeyHex := strings.TrimPrefix(clientPrivateKey, "0x")
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	if err != nil {
+		t.Fatalf("Failed to parse client private key: %v", err)
+	}
+
+	clientAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
+	ethClient, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		t.Fatalf("Failed to connect to RPC: %v", err)
+	}
+	defer ethClient.Close()
+
+	permit2Addr := common.HexToAddress(evm.PERMIT2Address)
+	tokenAddr := common.HexToAddress(tokenAddress)
+
+	// Check current allowance
+	erc20ABI, err := abi.JSON(strings.NewReader(string(evm.ERC20AllowanceABI)))
+	if err != nil {
+		t.Fatalf("Failed to parse ERC20 allowance ABI: %v", err)
+	}
+
+	callData, err := erc20ABI.Pack("allowance", clientAddress, permit2Addr)
+	if err != nil {
+		t.Fatalf("Failed to pack allowance call: %v", err)
+	}
+
+	result, err := ethClient.CallContract(ctx, ethereum.CallMsg{
+		To:   &tokenAddr,
+		Data: callData,
+	}, nil)
+	if err != nil {
+		t.Fatalf("Failed to call allowance: %v", err)
+	}
+
+	allowance := new(big.Int).SetBytes(result)
+	if allowance.Sign() == 0 {
+		t.Logf("✅ Permit2 allowance already revoked")
+		return
+	}
+
+	t.Logf("🔓 Revoking Permit2 approval (current allowance: %s)...", allowance.String())
+
+	// Build approve(PERMIT2, 0) transaction
+	approveABI, err := abi.JSON(strings.NewReader(string(evm.ERC20ApproveABI)))
+	if err != nil {
+		t.Fatalf("Failed to parse ERC20 approve ABI: %v", err)
+	}
+
+	approveData, err := approveABI.Pack("approve", permit2Addr, big.NewInt(0))
+	if err != nil {
+		t.Fatalf("Failed to pack approve call: %v", err)
+	}
+
+	nonce, err := ethClient.PendingNonceAt(ctx, clientAddress)
+	if err != nil {
+		t.Fatalf("Failed to get nonce: %v", err)
+	}
+
+	gasPrice, err := ethClient.SuggestGasPrice(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get gas price: %v", err)
+	}
+
+	chainID, err := ethClient.ChainID(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get chain ID: %v", err)
+	}
+
+	tx := ethtypes.NewTransaction(nonce, tokenAddr, big.NewInt(0), 100000, gasPrice, approveData)
+	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(chainID), privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign revoke transaction: %v", err)
+	}
+
+	err = ethClient.SendTransaction(ctx, signedTx)
+	if err != nil {
+		t.Fatalf("Failed to send revoke transaction: %v", err)
+	}
+
+	t.Logf("📤 Revoke tx sent: %s", signedTx.Hash().Hex())
+
+	deadline := time.Now().Add(2 * time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		receipt, err := ethClient.TransactionReceipt(ctx, signedTx.Hash())
+		if err == nil && receipt != nil {
+			if receipt.Status == 1 {
+				t.Logf("✅ Permit2 approval revoked in block %d", receipt.BlockNumber.Uint64())
+				return
+			}
+			t.Fatalf("Permit2 revoke transaction reverted (status=0)")
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("Permit2 revoke transaction not mined after 2 minutes")
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("Context cancelled waiting for revoke receipt")
+		case <-ticker.C:
+		}
+	}
+}
+
 // TestPermit2TypeGuards tests the Permit2 type guard functions
 func TestPermit2TypeGuards(t *testing.T) {
 	t.Run("IsPermit2Payload returns true for Permit2 payloads", func(t *testing.T) {
@@ -1010,7 +1162,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				"witness": map[string]interface{}{
 					"to":         "0x9876543210987654321098765432109876543210",
 					"validAfter": "0",
-					"extra":      "0x",
 				},
 			},
 		}
@@ -1140,36 +1291,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Permit2PayloadFromMap defaults extra to 0x when missing", func(t *testing.T) {
-		payloadMap := map[string]interface{}{
-			"signature": "0xabcdef",
-			"permit2Authorization": map[string]interface{}{
-				"from":     "0x1234567890123456789012345678901234567890",
-				"spender":  evm.X402ExactPermit2ProxyAddress,
-				"nonce":    "12345",
-				"deadline": "9999999999",
-				"permitted": map[string]interface{}{
-					"token":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					"amount": "1000000",
-				},
-				"witness": map[string]interface{}{
-					"to":         "0x9876543210987654321098765432109876543210",
-					"validAfter": "0",
-					// extra is missing - should default to "0x"
-				},
-			},
-		}
-
-		payload, err := evm.Permit2PayloadFromMap(payloadMap)
-		if err != nil {
-			t.Fatalf("Failed to parse payload: %v", err)
-		}
-
-		if payload.Permit2Authorization.Witness.Extra != "0x" {
-			t.Errorf("Expected extra to default to 0x, got %s", payload.Permit2Authorization.Witness.Extra)
-		}
-	})
-
 	t.Run("Permit2Payload ToMap round-trips correctly", func(t *testing.T) {
 		original := &evm.ExactPermit2Payload{
 			Signature: "0xsignature",
@@ -1185,7 +1306,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x3333333333333333333333333333333333333333",
 					ValidAfter: "100",
-					Extra:      "0x",
 				},
 			},
 		}

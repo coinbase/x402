@@ -43,6 +43,7 @@ export interface PaymentRequiredContext {
   resourceInfo: ResourceInfo;
   error?: string;
   paymentRequiredResponse: PaymentRequired;
+  transportContext?: unknown;
 }
 
 export interface VerifyContext {
@@ -65,6 +66,7 @@ export interface SettleContext {
 
 export interface SettleResultContext extends SettleContext {
   result: SettleResponse;
+  transportContext?: unknown;
 }
 
 export interface SettleFailureContext extends SettleContext {
@@ -347,6 +349,12 @@ export class x402ResourceServer {
         console.warn(`Failed to fetch supported kinds from facilitator: ${error}`);
       }
     }
+
+    if (this.supportedResponsesMap.size === 0) {
+      throw new Error(
+        "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+      );
+    }
   }
 
   /**
@@ -488,6 +496,7 @@ export class x402ResourceServer {
       price: Price | ((context: TContext) => Price | Promise<Price>);
       network: Network;
       maxTimeoutSeconds?: number;
+      extra?: Record<string, unknown>;
     }>,
     context: TContext,
   ): Promise<PaymentRequirements[]> {
@@ -506,6 +515,7 @@ export class x402ResourceServer {
         price: resolvedPrice,
         network: option.network,
         maxTimeoutSeconds: option.maxTimeoutSeconds,
+        extra: option.extra,
       };
 
       // Use existing buildPaymentRequirements for each option
@@ -523,6 +533,7 @@ export class x402ResourceServer {
    * @param resourceInfo - Resource information
    * @param error - Error message
    * @param extensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional transport-specific context (e.g., HTTP request, MCP tool context)
    * @returns Payment required response object
    */
   async createPaymentRequiredResponse(
@@ -530,6 +541,7 @@ export class x402ResourceServer {
     resourceInfo: ResourceInfo,
     error?: string,
     extensions?: Record<string, unknown>,
+    transportContext?: unknown,
   ): Promise<PaymentRequired> {
     // V2 response with resource at top level
     let response: PaymentRequired = {
@@ -555,6 +567,7 @@ export class x402ResourceServer {
               resourceInfo,
               error,
               paymentRequiredResponse: response,
+              transportContext,
             };
             const extensionData = await extension.enrichPaymentRequiredResponse(
               declaration,
@@ -686,12 +699,14 @@ export class x402ResourceServer {
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional transport-specific context (e.g., HTTP request/response, MCP tool context)
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
+    transportContext?: unknown,
   ): Promise<SettleResponse> {
     const context: SettleContext = {
       paymentPayload,
@@ -712,6 +727,9 @@ export class x402ResourceServer {
           });
         }
       } catch (error) {
+        if (error instanceof SettleError) {
+          throw error;
+        }
         throw new SettleError(400, {
           success: false,
           errorReason: "before_settle_hook_error",
@@ -762,6 +780,7 @@ export class x402ResourceServer {
       const resultContext: SettleResultContext = {
         ...context,
         result: settleResult,
+        transportContext,
       };
 
       for (const hook of this.afterSettleHooks) {

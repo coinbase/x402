@@ -22,7 +22,7 @@ import (
 // - Full control over the payment flow
 // - Integration with existing MCP clients
 //
-// The mcpClientAdapter type is defined in adapter.go and shared across examples.
+// The session from the official MCP SDK is passed directly to NewX402MCPClient.
 //
 // Run with: go run . advanced
 
@@ -79,18 +79,12 @@ func runAdvanced() error {
 	}
 	defer clientSession.Close()
 
-	// Create adapter
-	adapter := &mcpClientAdapter{
-		client:  mcpClient,
-		session: clientSession,
-	}
-
 	// Step 2: Create x402 payment client manually
 	paymentClient := x402.Newx402Client()
 	paymentClient.Register("eip155:84532", evm.NewExactEvmScheme(evmSigner))
 
-	// Step 3: Compose into X402MCPClient using adapter
-	x402Mcp := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{
+	// Step 3: Compose into X402MCPClient with session
+	x402Mcp := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
 		AutoPayment: mcp.BoolPtr(true),
 		OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
 			price := context.PaymentRequired.Accepts[0]
@@ -137,18 +131,14 @@ func runAdvanced() error {
 
 	// List tools
 	fmt.Println("📋 Discovering available tools...")
-	toolsResult, err := adapter.ListTools(ctx)
+	toolsResult, err := clientSession.ListTools(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
 
-	if tools, ok := toolsResult.([]map[string]interface{}); ok {
-		fmt.Println("Available tools:")
-		for _, tool := range tools {
-			name, _ := tool["name"].(string)
-			desc, _ := tool["description"].(string)
-			fmt.Printf("   - %s: %s\n", name, desc)
-		}
+	fmt.Println("Available tools:")
+	for _, tool := range toolsResult.Tools {
+		fmt.Printf("   - %s: %s\n", tool.Name, tool.Description)
 	}
 	fmt.Println()
 
@@ -196,7 +186,7 @@ func runAdvanced() error {
 	fmt.Println("\n━" + string(make([]byte, 50)) + "━")
 	fmt.Println("🔧 Test 3: Accessing underlying clients")
 	fmt.Println("━" + string(make([]byte, 50)) + "━")
-	fmt.Printf("MCP Client: %T\n", x402Mcp.Client())
+	fmt.Printf("MCP Session: %T\n", x402Mcp.Client())
 	fmt.Printf("Payment Client: %T\n", x402Mcp.PaymentClient())
 
 	fmt.Println("\n✅ Demo complete!")
