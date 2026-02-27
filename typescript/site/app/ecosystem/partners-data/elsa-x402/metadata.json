@@ -1,0 +1,7 @@
+{
+  "name": "Elsa x402",
+  "description": "DeFi API endpoints with x402 micropayments. Access portfolio data, token prices, swap quotes, wallet analytics, yield suggestions, and more - pay per request with USDC on Base.",
+  "logoUrl": "/logos/elsa-x402.png",
+  "websiteUrl": "https://x402.heyelsa.ai",
+  "category": "Services/Endpoints"
+}

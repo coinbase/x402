@@ -1,0 +1,7 @@
+{
+  "name": "ClawPay MCP",
+  "description": "Open-source, non-custodial x402 MCP payment layer for AI agents. Agents sign locally with no custodial infrastructure. Supports x402 V2 session payments, USDC on Base Mainnet, and CCTP cross-chain transfers. Drop-in MCP server for Claude Desktop, Agent Zero, and OpenClaw.",
+  "logoUrl": "/logos/clawpay-mcp.png",
+  "websiteUrl": "https://www.npmjs.com/package/clawpay-mcp",
+  "category": "Infrastructure & Tooling"
+}

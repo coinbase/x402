@@ -1,0 +1,216 @@
+"""Flask e2e test server using x402 v2 SDK."""
+
+import os
+import signal
+import sys
+import logging
+from flask import Flask, jsonify
+
+from dotenv import load_dotenv
+
+# Import from new x402 package (sync variants for Flask)
+from x402 import x402ResourceServerSync
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync
+from x402.http.middleware.flask import PaymentMiddleware
+from x402.mechanisms.evm.exact import register_exact_evm_server
+from x402.mechanisms.svm.exact import register_exact_svm_server
+from x402.extensions.bazaar import (
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+    OutputConfig,
+)
+
+# Configure logging to reduce verbosity
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
+logging.getLogger("flask").setLevel(logging.ERROR)
+
+# Load environment variables
+load_dotenv()
+
+# Get configuration from environment
+EVM_ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
+SVM_ADDRESS = os.getenv("SVM_PAYEE_ADDRESS")
+PORT = int(os.getenv("PORT", "4021"))
+FACILITATOR_URL = os.getenv("FACILITATOR_URL")
+
+if not EVM_ADDRESS:
+    print("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
+    sys.exit(1)
+
+if not SVM_ADDRESS:
+    print("Error: Missing required environment variable SVM_PAYEE_ADDRESS")
+    sys.exit(1)
+
+# Network configurations (CAIP-2 format)
+EVM_NETWORK = "eip155:84532"  # Base Sepolia
+SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
+
+app = Flask(__name__)
+
+# Create HTTP facilitator client (sync for Flask)
+if FACILITATOR_URL:
+    print(f"Using remote facilitator at: {FACILITATOR_URL}")
+    config = FacilitatorConfig(url=FACILITATOR_URL)
+    facilitator = HTTPFacilitatorClientSync(config)
+else:
+    print("Using default facilitator")
+    facilitator = HTTPFacilitatorClientSync()
+
+# Create resource server (sync for Flask)
+server = x402ResourceServerSync(facilitator)
+
+# Register EVM and SVM exact schemes
+register_exact_evm_server(server, EVM_NETWORK)
+register_exact_svm_server(server, SVM_NETWORK)
+
+# Register Bazaar discovery extension
+server.register_extension(bazaar_resource_server_extension)
+
+# Define routes with payment requirements
+routes = {
+    "GET /protected": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "price": "$0.001",
+            "network": EVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "data": {"resource": "premium_content", "access_level": "paid"},
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                            "data": {"type": "object"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+    "GET /protected-svm": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": SVM_ADDRESS,
+            "price": "$0.001",
+            "network": SVM_NETWORK,
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to SVM protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
+}
+
+# Apply payment middleware
+PaymentMiddleware(app, routes, server)
+
+# Global flag to track if server should accept new requests
+shutdown_requested = False
+
+
+@app.route("/protected")
+def protected_endpoint():
+    """Protected endpoint that requires payment."""
+    if shutdown_requested:
+        return jsonify({"error": "Server shutting down"}), 503
+
+    return jsonify(
+        {
+            "message": "Access granted to protected resource",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "data": {"resource": "premium_content", "access_level": "paid"},
+        }
+    )
+
+
+@app.route("/protected-svm")
+def protected_svm_endpoint():
+    """Protected endpoint that requires SVM (Solana) payment."""
+    if shutdown_requested:
+        return jsonify({"error": "Server shutting down"}), 503
+
+    return jsonify(
+        {
+            "message": "Access granted to SVM protected resource",
+            "timestamp": "2024-01-01T00:00:00Z",
+        }
+    )
+
+
+@app.route("/health")
+def health_check():
+    """Health check endpoint."""
+    return jsonify(
+        {"status": "healthy", "timestamp": "2024-01-01T00:00:00Z", "server": "flask"}
+    )
+
+
+@app.route("/close", methods=["POST"])
+def close_server():
+    """Graceful shutdown endpoint."""
+    global shutdown_requested
+    shutdown_requested = True
+
+    # Schedule server shutdown after response
+    def shutdown():
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    import threading
+
+    timer = threading.Timer(0.1, shutdown)
+    timer.start()
+
+    return jsonify(
+        {
+            "message": "Server shutting down gracefully",
+            "timestamp": "2024-01-01T00:00:00Z",
+        }
+    )
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    print("Received shutdown signal, exiting...")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    print(f"Starting Flask server on port {PORT}")
+    print(f"EVM address: {EVM_ADDRESS}")
+    print(f"SVM address: {SVM_ADDRESS}")
+    print(f"EVM Network: {EVM_NETWORK}")
+    print(f"SVM Network: {SVM_NETWORK}")
+    print(f"Using facilitator: {FACILITATOR_URL}")
+    print("Server listening on port", PORT)
+
+    app.run(
+        host="0.0.0.0",
+        port=PORT,
+        debug=False,  # Disable debug mode to reduce logs
+        use_reloader=False,  # Disable reloader to reduce logs
+    )
