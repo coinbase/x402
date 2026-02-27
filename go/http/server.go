@@ -127,6 +127,23 @@ type CompiledRoute struct {
 // Request/Response Types
 // ============================================================================
 
+// ProtectedRequestHookResult represents the result of a protected request hook.
+// A nil result means the hook has no opinion and the next hook (or payment flow) should proceed.
+type ProtectedRequestHookResult struct {
+	// GrantAccess bypasses payment and grants free access to the resource.
+	GrantAccess bool
+	// Abort denies the request with a 403 status and the provided Reason.
+	Abort  bool
+	Reason string
+}
+
+// ProtectedRequestHook is called on every request to a protected route, before payment processing.
+// It receives the request context and the matched route configuration.
+// Return nil to continue to the next hook or payment flow.
+// Return a result with GrantAccess=true to bypass payment.
+// Return a result with Abort=true to deny the request with a 403 status.
+type ProtectedRequestHook func(ctx context.Context, reqCtx HTTPRequestContext, routeConfig RouteConfig) (*ProtectedRequestHookResult, error)
+
 // HTTPRequestContext encapsulates an HTTP request
 type HTTPRequestContext struct {
 	Adapter       HTTPAdapter
@@ -213,7 +230,8 @@ func (e *RouteConfigurationError) Error() string {
 // x402HTTPResourceServer provides HTTP-specific payment handling
 type x402HTTPResourceServer struct {
 	*x402.X402ResourceServer
-	compiledRoutes []CompiledRoute
+	compiledRoutes        []CompiledRoute
+	protectedRequestHooks []ProtectedRequestHook
 }
 
 // Newx402HTTPResourceServer creates a new HTTP resource server
@@ -245,6 +263,15 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// OnProtectedRequest registers a hook that runs on every request to a protected route,
+// before payment processing. Hooks are executed in registration order; the first hook
+// to return a non-nil result determines the outcome.
+// Returns the server instance for method chaining.
+func (s *x402HTTPResourceServer) OnProtectedRequest(hook ProtectedRequestHook) *x402HTTPResourceServer {
+	s.protectedRequestHooks = append(s.protectedRequestHooks, hook)
+	return s
 }
 
 // Initialize initializes the server by populating facilitator data and validating route configuration.
@@ -373,6 +400,36 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	routeConfig := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
 	if routeConfig == nil {
 		return HTTPProcessResult{Type: ResultNoPaymentRequired}
+	}
+
+	// Execute protected request hooks before any payment processing
+	for _, hook := range s.protectedRequestHooks {
+		result, err := hook(ctx, reqCtx, *routeConfig)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("protected request hook error: %v", err)},
+				},
+			}
+		}
+		if result != nil {
+			if result.GrantAccess {
+				return HTTPProcessResult{Type: ResultNoPaymentRequired}
+			}
+			if result.Abort {
+				return HTTPProcessResult{
+					Type: ResultPaymentError,
+					Response: &HTTPResponseInstructions{
+						Status:  403,
+						Headers: map[string]string{"Content-Type": "application/json"},
+						Body:    map[string]string{"error": result.Reason},
+					},
+				}
+			}
+		}
 	}
 
 	// Get payment options from route config

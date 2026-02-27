@@ -832,3 +832,248 @@ func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 func (m *mockFacilitatorClient) Identifier() string {
 	return "mock"
 }
+
+// ============================================================================
+// OnProtectedRequest Hook Tests
+// ============================================================================
+
+func TestOnProtectedRequest_GrantAccess(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			return &ProtectedRequestHookResult{GrantAccess: true}, nil
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	if result.Type != ResultNoPaymentRequired {
+		t.Errorf("Expected no-payment-required, got %s", result.Type)
+	}
+}
+
+func TestOnProtectedRequest_Abort(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			return &ProtectedRequestHookResult{Abort: true, Reason: "forbidden"}, nil
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	if result.Type != ResultPaymentError {
+		t.Errorf("Expected payment-error, got %s", result.Type)
+	}
+	if result.Response == nil {
+		t.Fatal("Expected response instructions")
+	}
+	if result.Response.Status != 403 {
+		t.Errorf("Expected status 403, got %d", result.Response.Status)
+	}
+	body, ok := result.Response.Body.(map[string]string)
+	if !ok {
+		t.Fatal("Expected body to be map[string]string")
+	}
+	if body["error"] != "forbidden" {
+		t.Errorf("Expected error 'forbidden', got '%s'", body["error"])
+	}
+}
+
+func TestOnProtectedRequest_Continue(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	mockServer := &mockSchemeServer{scheme: "exact"}
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds:      []x402.SupportedKind{{X402Version: 2, Scheme: "exact", Network: "eip155:1"}},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	// Hook returns nil — should continue to payment flow
+	server := Newx402HTTPResourceServer(routes, x402.WithFacilitatorClient(mockClient), x402.WithSchemeServer("eip155:1", mockServer)).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			return nil, nil
+		})
+	_ = server.Initialize(ctx)
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api", accept: "application/json"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
+	// Without a payment header, should get 402
+	if result.Type != ResultPaymentError {
+		t.Errorf("Expected payment-error (402), got %s", result.Type)
+	}
+	if result.Response != nil && result.Response.Status != 402 {
+		t.Errorf("Expected status 402, got %d", result.Response.Status)
+	}
+}
+
+func TestOnProtectedRequest_MultipleHooks_FirstNonNilWins(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	callOrder := []string{}
+
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			callOrder = append(callOrder, "hook1")
+			return nil, nil // no opinion
+		}).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			callOrder = append(callOrder, "hook2")
+			return &ProtectedRequestHookResult{GrantAccess: true}, nil
+		}).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			callOrder = append(callOrder, "hook3")
+			return &ProtectedRequestHookResult{Abort: true, Reason: "should not reach"}, nil
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	if result.Type != ResultNoPaymentRequired {
+		t.Errorf("Expected no-payment-required, got %s", result.Type)
+	}
+	if len(callOrder) != 2 || callOrder[0] != "hook1" || callOrder[1] != "hook2" {
+		t.Errorf("Expected [hook1, hook2], got %v", callOrder)
+	}
+}
+
+func TestOnProtectedRequest_HookError(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			return nil, errors.New("hook failed")
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	if result.Type != ResultPaymentError {
+		t.Errorf("Expected payment-error, got %s", result.Type)
+	}
+	if result.Response == nil {
+		t.Fatal("Expected response instructions")
+	}
+	if result.Response.Status != 500 {
+		t.Errorf("Expected status 500, got %d", result.Response.Status)
+	}
+}
+
+func TestOnProtectedRequest_ContextPassing(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api/data": {
+			Accepts:     PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$2.00", Network: "eip155:1"}},
+			Description: "Data endpoint",
+		},
+	}
+
+	var capturedReqCtx HTTPRequestContext
+	var capturedRoute RouteConfig
+
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			capturedReqCtx = reqCtx
+			capturedRoute = route
+			return &ProtectedRequestHookResult{GrantAccess: true}, nil
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api/data", url: "http://example.com/api/data"},
+		Path:    "/api/data",
+		Method:  "GET",
+	}
+
+	server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+
+	if capturedReqCtx.Path != "/api/data" {
+		t.Errorf("Expected path '/api/data', got '%s'", capturedReqCtx.Path)
+	}
+	if capturedReqCtx.Method != "GET" {
+		t.Errorf("Expected method 'GET', got '%s'", capturedReqCtx.Method)
+	}
+	if capturedRoute.Description != "Data endpoint" {
+		t.Errorf("Expected description 'Data endpoint', got '%s'", capturedRoute.Description)
+	}
+	if len(capturedRoute.Accepts) != 1 || capturedRoute.Accepts[0].Price != "$2.00" {
+		t.Errorf("Expected route accepts with price $2.00, got %+v", capturedRoute.Accepts)
+	}
+}
+
+func TestOnProtectedRequest_UnmatchedRoute_HookNotCalled(t *testing.T) {
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:1"}},
+		},
+	}
+
+	hookCalled := false
+	server := Newx402HTTPResourceServer(routes).
+		OnProtectedRequest(func(ctx context.Context, reqCtx HTTPRequestContext, route RouteConfig) (*ProtectedRequestHookResult, error) {
+			hookCalled = true
+			return &ProtectedRequestHookResult{Abort: true, Reason: "should not be called"}, nil
+		})
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/public", url: "http://example.com/public"},
+		Path:    "/public",
+		Method:  "GET",
+	}
+
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	if result.Type != ResultNoPaymentRequired {
+		t.Errorf("Expected no-payment-required, got %s", result.Type)
+	}
+	if hookCalled {
+		t.Error("Hook should not be called for unmatched routes")
+	}
+}
