@@ -141,12 +141,6 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	// Extract payer from transaction
-	payer, err := svm.GetTokenPayerFromTransaction(tx)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrNoTransferInstruction, payer, err.Error())
-	}
-
 	// V2: payload.Accepted.Network is already validated by scheme lookup
 	// Network matching is implicit - facilitator was selected based on requirements.Network
 
@@ -160,9 +154,35 @@ func (f *ExactSvmScheme) Verify(
 		Extra:   requirements.Extra,
 	}
 
-	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], reqStruct, signerAddressStrs); err != nil {
-		return nil, x402.NewVerifyError(err.Error(), payer, err.Error())
+	// Step 4: Verify Transfer Instruction and determine payer
+	inst := tx.Message.Instructions[2]
+	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
+	swigPubkey := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
+
+	var payer string
+	if progID.Equals(swigPubkey) {
+		// ── Swig smart wallet path ────────────────────────────────────────────
+		// The outer instruction is a Swig signV1/signV2 that embeds a compact
+		// SPL TransferChecked. Decode and verify the embedded transfer.
+		swigPayer, swigErr := svm.VerifySwigTransfer(
+			tx, inst,
+			requirements.Asset, requirements.PayTo, requirements.Amount,
+			signerAddressStrs,
+		)
+		if swigErr != nil {
+			return nil, x402.NewVerifyError(swigErr.Error(), "", swigErr.Error())
+		}
+		payer = swigPayer
+	} else {
+		// ── Regular SPL token wallet path ─────────────────────────────────────
+		var payerErr error
+		payer, payerErr = svm.GetTokenPayerFromTransaction(tx)
+		if payerErr != nil {
+			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", payerErr.Error())
+		}
+		if verifyErr := f.verifyTransferInstruction(tx, inst, reqStruct, signerAddressStrs); verifyErr != nil {
+			return nil, x402.NewVerifyError(verifyErr.Error(), payer, verifyErr.Error())
+		}
 	}
 
 	// Step 5: Verify optional instructions (if present)

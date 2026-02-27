@@ -28,10 +28,15 @@ import {
   LIGHTHOUSE_PROGRAM_ADDRESS,
   MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
   MEMO_PROGRAM_ADDRESS,
+  SWIG_PROGRAM_ADDRESS,
 } from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
-import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
+import {
+  decodeTransactionFromPayload,
+  getTokenPayerFromTransaction,
+  verifySwigTransfer,
+} from "../../utils";
 
 /**
  * SVM facilitator implementation for the Exact payment scheme.
@@ -168,102 +173,126 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const payer = getTokenPayerFromTransaction(transaction);
-    if (!payer) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer: "",
-      };
-    }
-
     // Step 4: Verify Transfer Instruction
     const transferIx = instructions[2];
-    const programAddress = transferIx.programAddress.toString();
+    const transferProgramAddress = transferIx.programAddress.toString();
 
-    if (
-      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
-      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
-    ) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
-      };
-    }
+    let payer: string;
 
-    // Parse the transfer instruction using the appropriate library helper
-    let parsedTransfer;
-    try {
-      if (programAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
-        parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
-      } else {
-        parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
+    if (transferProgramAddress === SWIG_PROGRAM_ADDRESS) {
+      // ── Swig smart wallet path ────────────────────────────────────────────
+      // The outer instruction is a Swig signV1/signV2 that embeds a compact
+      // SPL TransferChecked. Decode and verify the embedded transfer.
+      let swigResult: { payer: string };
+      try {
+        swigResult = await verifySwigTransfer(
+          transferIx as {
+            accounts: ReadonlyArray<{ readonly address: Address }>;
+            data?: Readonly<Uint8Array>;
+          },
+          compiled.staticAccounts ?? [],
+          requirements,
+          signerAddresses,
+        );
+      } catch (errorReason) {
+        return { isValid: false, invalidReason: String(errorReason), payer: "" };
       }
-    } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
-      };
-    }
+      payer = swigResult.payer;
+    } else {
+      // ── Regular SPL token wallet path ─────────────────────────────────────
+      payer = getTokenPayerFromTransaction(transaction);
+      if (!payer) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+          payer: "",
+        };
+      }
 
-    // Verify that the facilitator's signers are not transferring their own funds
-    // SECURITY: Prevent facilitator from signing away their own tokens
-    const authorityAddress = parsedTransfer.accounts.authority.address.toString();
-    if (signerAddresses.includes(authorityAddress)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
-        payer,
-      };
-    }
+      if (
+        transferProgramAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
+        transferProgramAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
+      ) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+          payer,
+        };
+      }
 
-    // Verify mint address matches requirements
-    const mintAddress = parsedTransfer.accounts.mint.address.toString();
-    if (mintAddress !== requirements.asset) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_mint_mismatch",
-        payer,
-      };
-    }
+      // Parse the transfer instruction using the appropriate library helper
+      let parsedTransfer;
+      try {
+        if (transferProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
+          parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
+        } else {
+          parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
+        }
+      } catch {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+          payer,
+        };
+      }
 
-    // Verify destination ATA matches expected ATA for payTo address
-    const destATA = parsedTransfer.accounts.destination.address.toString();
-    try {
-      const [expectedDestATA] = await findAssociatedTokenPda({
-        mint: requirements.asset as Address,
-        owner: requirements.payTo as Address,
-        tokenProgram:
-          programAddress === TOKEN_PROGRAM_ADDRESS.toString()
-            ? (TOKEN_PROGRAM_ADDRESS as Address)
-            : (TOKEN_2022_PROGRAM_ADDRESS as Address),
-      });
+      // Verify that the facilitator's signers are not transferring their own funds
+      // SECURITY: Prevent facilitator from signing away their own tokens
+      const authorityAddress = parsedTransfer.accounts.authority.address.toString();
+      if (signerAddresses.includes(authorityAddress)) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
+          payer,
+        };
+      }
 
-      if (destATA !== expectedDestATA.toString()) {
+      // Verify mint address matches requirements
+      const mintAddress = parsedTransfer.accounts.mint.address.toString();
+      if (mintAddress !== requirements.asset) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_mint_mismatch",
+          payer,
+        };
+      }
+
+      // Verify destination ATA matches expected ATA for payTo address
+      const destATA = parsedTransfer.accounts.destination.address.toString();
+      try {
+        const [expectedDestATA] = await findAssociatedTokenPda({
+          mint: requirements.asset as Address,
+          owner: requirements.payTo as Address,
+          tokenProgram:
+            transferProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()
+              ? (TOKEN_PROGRAM_ADDRESS as Address)
+              : (TOKEN_2022_PROGRAM_ADDRESS as Address),
+        });
+
+        if (destATA !== expectedDestATA.toString()) {
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
+            payer,
+          };
+        }
+      } catch {
         return {
           isValid: false,
           invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
           payer,
         };
       }
-    } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
-        payer,
-      };
-    }
 
-    // Verify transfer amount meets requirements
-    const amount = parsedTransfer.data.amount;
-    if (amount < BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_amount_insufficient",
-        payer,
-      };
+      // Verify transfer amount meets requirements
+      const amount = parsedTransfer.data.amount;
+      if (amount < BigInt(requirements.amount)) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_amount_insufficient",
+          payer,
+        };
+      }
     }
 
     // Step 5: Verify optional instructions (if present)

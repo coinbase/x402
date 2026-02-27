@@ -3,6 +3,7 @@ import {
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
   type Transaction,
+  type Address,
   createSolanaRpc,
   devnet,
   testnet,
@@ -15,7 +16,7 @@ import {
   type SolanaRpcApiMainnet,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
+import { findAssociatedTokenPda, TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
 import type { Network } from "@x402/core/types";
 import {
   SVM_ADDRESS_REGEX,
@@ -29,6 +30,9 @@ import {
   SOLANA_DEVNET_CAIP2,
   SOLANA_TESTNET_CAIP2,
   V1_TO_V2_NETWORK_MAP,
+  SWIG_PROGRAM_ADDRESS,
+  SWIG_SIGN_V1_DISCRIMINATOR,
+  SWIG_SIGN_V2_DISCRIMINATOR,
 } from "./constants";
 import type { ExactSvmPayloadV1 } from "./types";
 
@@ -190,4 +194,206 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
   const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
   const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
   return tokenAmount;
+}
+
+// ─── Swig wallet support ──────────────────────────────────────────────────────
+
+/**
+ * A decoded compact instruction extracted from a Swig signV1/signV2 payload.
+ * Indices reference the outer transaction's static account list.
+ */
+export interface SwigCompactInstruction {
+  programIdIndex: number;
+  accounts: number[];
+  data: Uint8Array;
+}
+
+/**
+ * Returns true when the given program address is the Swig program AND the
+ * instruction discriminator is signV1 (4) or signV2 (11).
+ *
+ * @param programAddress - The instruction's program address string
+ * @param data - The raw instruction data bytes
+ */
+export function isSwigSignInstruction(
+  programAddress: string,
+  data: Readonly<Uint8Array> | undefined,
+): boolean {
+  if (programAddress !== SWIG_PROGRAM_ADDRESS) return false;
+  if (!data || data.length < 2) return false;
+  const discriminator = data[0] | (data[1] << 8); // U16 LE
+  return (
+    discriminator === SWIG_SIGN_V1_DISCRIMINATOR ||
+    discriminator === SWIG_SIGN_V2_DISCRIMINATOR
+  );
+}
+
+/**
+ * Decode the compact instructions embedded inside a Swig signV1/signV2 instruction.
+ *
+ * Layout of the outer instruction data:
+ *   [0..1]  discriminator         U16 LE
+ *   [2..3]  instructionPayloadLen U16 LE (byte count of compact instructions)
+ *   [4..7]  roleId                U32 LE
+ *   [8..]   compact instructions  (instructionPayloadLen bytes)
+ *
+ * Each CompactInstruction:
+ *   [0]       programIdIndex U8
+ *   [1]       numAccounts    U8
+ *   [2..N+1]  accounts       U8[numAccounts]
+ *   [N+2..N+3] dataLen       U16 LE
+ *   [N+4..]   data           raw bytes
+ *
+ * @param data - The full instruction data bytes of the outer Swig instruction
+ * @returns Array of decoded compact instructions (may be empty if data is malformed)
+ */
+export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInstruction[] {
+  if (data.length < 4) return [];
+
+  // instructionPayloadLen at bytes 2-3 (U16 LE)
+  const instructionPayloadLen = data[2] | (data[3] << 8);
+
+  // Compact instructions start at byte 8 (after discriminator + payloadLen + roleId)
+  const startOffset = 8;
+  if (data.length < startOffset + instructionPayloadLen) return [];
+
+  const results: SwigCompactInstruction[] = [];
+  let offset = startOffset;
+  const endOffset = startOffset + instructionPayloadLen;
+
+  while (offset < endOffset) {
+    if (offset >= data.length) break;
+
+    // programIdIndex: U8
+    const programIdIndex = data[offset];
+    offset += 1;
+
+    // numAccounts: U8
+    if (offset >= endOffset) break;
+    const numAccounts = data[offset];
+    offset += 1;
+
+    // accounts: U8[numAccounts]
+    if (offset + numAccounts > endOffset) break;
+    const accounts = Array.from(data.slice(offset, offset + numAccounts));
+    offset += numAccounts;
+
+    // dataLen: U16 LE
+    if (offset + 2 > endOffset) break;
+    const dataLen = data[offset] | (data[offset + 1] << 8);
+    offset += 2;
+
+    // instruction data
+    if (offset + dataLen > endOffset) break;
+    const instrData = new Uint8Array(data.slice(offset, offset + dataLen));
+    offset += dataLen;
+
+    results.push({ programIdIndex, accounts, data: instrData });
+  }
+
+  return results;
+}
+
+/**
+ * Verify that a Swig signV1/signV2 instruction contains a valid SPL TransferChecked
+ * compact instruction satisfying the payment requirements.
+ *
+ * Security invariants checked (mirrors the regular wallet path):
+ *   - Swig PDA is not one of the facilitator's signer addresses
+ *   - Inner compact instruction uses the correct mint
+ *   - Inner destination ATA matches the expected ATA for requirements.payTo
+ *   - Inner transfer amount >= requirements.amount
+ *
+ * @param ix             - Decompiled outer Swig instruction (accounts already resolved)
+ * @param staticAccounts - Ordered account list from the compiled transaction message
+ * @param requirements   - Payment requirements (asset, payTo, amount)
+ * @param signerAddresses - Facilitator signer addresses (must not match Swig PDA)
+ * @returns Object with `payer` set to the Swig PDA address
+ * @throws A string error reason on any validation failure
+ */
+export async function verifySwigTransfer(
+  ix: { accounts: ReadonlyArray<{ readonly address: Address }>; data?: Readonly<Uint8Array> },
+  staticAccounts: ReadonlyArray<Address>,
+  requirements: { asset: string; payTo: string; amount: string },
+  signerAddresses: string[],
+): Promise<{ payer: string }> {
+  // Swig PDA is the first account of the outer instruction
+  if (!ix.accounts[0]?.address) {
+    throw "invalid_exact_svm_payload_no_transfer_instruction";
+  }
+  const swigPda = ix.accounts[0].address.toString();
+
+  // SECURITY: Swig PDA must not be a facilitator signer address
+  if (signerAddresses.includes(swigPda)) {
+    throw "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds";
+  }
+
+  // Decode compact instructions from the signV1/signV2 data
+  const rawData = ix.data ? new Uint8Array(ix.data) : new Uint8Array(0);
+  const compactInstructions = decodeSwigCompactInstructions(rawData);
+
+  // Find the SPL TransferChecked compact instruction
+  // transferChecked discriminator = 12
+  const SPL_TRANSFER_CHECKED_DISCRIMINATOR = 12;
+  let transferIx: SwigCompactInstruction | undefined;
+
+  for (const compactIx of compactInstructions) {
+    const programAddress = staticAccounts[compactIx.programIdIndex]?.toString();
+    if (
+      (programAddress === TOKEN_PROGRAM_ADDRESS.toString() ||
+        programAddress === TOKEN_2022_PROGRAM_ADDRESS.toString()) &&
+      compactIx.data.length >= 1 &&
+      compactIx.data[0] === SPL_TRANSFER_CHECKED_DISCRIMINATOR
+    ) {
+      transferIx = compactIx;
+      break;
+    }
+  }
+
+  if (!transferIx) {
+    throw "invalid_exact_svm_payload_no_transfer_instruction";
+  }
+
+  const tokenProgramAddress = staticAccounts[transferIx.programIdIndex]?.toString();
+
+  // Verify mint address — accounts[1] for TransferChecked
+  const mintAddress = staticAccounts[transferIx.accounts[1]]?.toString();
+  if (mintAddress !== requirements.asset) {
+    throw "invalid_exact_svm_payload_mint_mismatch";
+  }
+
+  // Verify destination ATA — accounts[2] for TransferChecked
+  const destATA = staticAccounts[transferIx.accounts[2]]?.toString();
+  try {
+    const [expectedDestATA] = await findAssociatedTokenPda({
+      mint: requirements.asset as Address,
+      owner: requirements.payTo as Address,
+      tokenProgram:
+        tokenProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()
+          ? (TOKEN_PROGRAM_ADDRESS as Address)
+          : (TOKEN_2022_PROGRAM_ADDRESS as Address),
+    });
+
+    if (destATA !== expectedDestATA.toString()) {
+      throw "invalid_exact_svm_payload_recipient_mismatch";
+    }
+  } catch (e) {
+    if (typeof e === "string") throw e;
+    throw "invalid_exact_svm_payload_recipient_mismatch";
+  }
+
+  // Verify amount — bytes 1-8 of compact instruction data (U64 LE)
+  // transferChecked data layout: [0]=discriminator, [1..8]=amount, [9]=decimals
+  if (transferIx.data.length < 9) {
+    throw "invalid_exact_svm_payload_no_transfer_instruction";
+  }
+  const amountBuf = new Uint8Array(8);
+  amountBuf.set(transferIx.data.slice(1, 9));
+  const amount = new DataView(amountBuf.buffer).getBigUint64(0, true); // LE
+
+  if (amount < BigInt(requirements.amount)) {
+    throw "invalid_exact_svm_payload_amount_insufficient";
+  }
+
+  return { payer: swigPda };
 }

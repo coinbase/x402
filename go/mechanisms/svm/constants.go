@@ -35,6 +35,18 @@ const (
 	// MemoProgramAddress is the SPL Memo program address
 	MemoProgramAddress = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 
+	// SwigProgramAddress is the Swig smart wallet program address.
+	// Swig wraps inner instructions (e.g. SPL transferChecked) inside a signV1/signV2
+	// instruction and executes them via CPI using the Swig PDA as authority.
+	// See: https://github.com/anagram-xyz/swig
+	SwigProgramAddress = "swigypWHEksbC64pWKwah1WTeh9JXwx8H1rJHLdbQMB"
+
+	// SwigSignV1Discriminator is the U16 LE discriminator for Swig signV1 instructions
+	SwigSignV1Discriminator uint16 = 4
+
+	// SwigSignV2Discriminator is the U16 LE discriminator for Swig signV2 instructions
+	SwigSignV2Discriminator uint16 = 11
+
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
 
