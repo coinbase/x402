@@ -2,6 +2,7 @@
 
 try:
     from eth_account import Account
+    from eth_account.signers.local import LocalAccount
 except ImportError:
     import pytest
 
@@ -119,3 +120,62 @@ class TestClientSchemeAttributes:
 
         # Client should have access to signer (internal attribute)
         assert client._signer is signer
+
+
+class TestLocalAccountAutoWrap:
+    """Test that raw LocalAccount is auto-wrapped in EthAccountSigner."""
+
+    def test_should_auto_wrap_local_account(self):
+        """Passing a raw LocalAccount should auto-wrap it in EthAccountSigner."""
+        account = Account.create()
+        assert isinstance(account, LocalAccount)
+
+        client = ExactEvmClientScheme(signer=account)
+
+        assert isinstance(client._signer, EthAccountSigner)
+
+    def test_auto_wrapped_signer_has_correct_address(self):
+        """Auto-wrapped signer should preserve the account address."""
+        account = Account.create()
+
+        client = ExactEvmClientScheme(signer=account)
+
+        assert client._signer.address == account.address
+
+    def test_pre_wrapped_signer_is_not_double_wrapped(self):
+        """An EthAccountSigner should pass through without re-wrapping."""
+        account = Account.create()
+        signer = EthAccountSigner(account)
+
+        client = ExactEvmClientScheme(signer=signer)
+
+        assert client._signer is signer
+
+    def test_raw_local_account_can_sign_payload(self):
+        """End-to-end: raw LocalAccount should produce a valid signed payload."""
+        account = Account.create()
+        network = "eip155:8453"
+
+        # Pass raw LocalAccount — no manual EthAccountSigner wrapping
+        client = ExactEvmClientScheme(signer=account)
+
+        requirements = PaymentRequirements(
+            scheme="exact",
+            network=network,
+            asset=get_asset_info(network, "USDC")["address"],
+            amount="500000",
+            pay_to="0x0987654321098765432109876543210987654321",
+            max_timeout_seconds=3600,
+            extra={
+                "name": "USD Coin",
+                "version": "2",
+            },
+        )
+
+        payload = client.create_payment_payload(requirements)
+
+        assert isinstance(payload, dict)
+        assert "authorization" in payload
+        assert "signature" in payload
+        assert payload["signature"].startswith("0x")
+        assert len(payload["signature"]) > 2  # not just "0x"
