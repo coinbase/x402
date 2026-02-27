@@ -74,9 +74,7 @@ export interface SIWxChallengeOptions {
  * });
  * ```
  */
-export function createSIWxChallenge(
-  options: SIWxChallengeOptions,
-): Record<string, SIWxExtension> {
+export function createSIWxChallenge(options: SIWxChallengeOptions): Record<string, SIWxExtension> {
   const nonce = randomBytes(16).toString("hex");
   const issuedAt = new Date().toISOString();
   const expirationTime =

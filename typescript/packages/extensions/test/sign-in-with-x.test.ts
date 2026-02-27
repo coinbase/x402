@@ -1437,6 +1437,127 @@ describe("SIWX Hooks", () => {
         expect(result2).toEqual({ grantAccess: true });
       });
     });
+
+    describe("auth-only routes (accepts: [])", () => {
+      it("should grant access with valid SIWX when accepts is empty array", async () => {
+        const storage = new InMemorySIWxStorage();
+        const account = privateKeyToAccount(generatePrivateKey());
+
+        // Do NOT record any payment — auth-only should not require it
+
+        const extension = createSIWxChallenge({
+          domain: "example.com",
+          resourceUri: "http://example.com/profile",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        const hook = createSIWxRequestHook({ storage });
+        const result = await hook(
+          {
+            adapter: {
+              getHeader: (name: string) =>
+                name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+              getUrl: () => "http://example.com/profile",
+            },
+            path: "/profile",
+          },
+          { accepts: [] },
+        );
+
+        expect(result).toEqual({ grantAccess: true });
+      });
+
+      it("should reject nonce replay on auth-only routes", async () => {
+        const base = new InMemorySIWxStorage();
+        const usedNonces = new Set<string>();
+        const storage = {
+          ...base,
+          hasPaid: base.hasPaid.bind(base),
+          recordPayment: base.recordPayment.bind(base),
+          hasUsedNonce: (nonce: string) => usedNonces.has(nonce),
+          recordNonce: (nonce: string) => {
+            usedNonces.add(nonce);
+          },
+        };
+
+        const account = privateKeyToAccount(generatePrivateKey());
+        const events: SIWxHookEvent[] = [];
+
+        const extension = createSIWxChallenge({
+          domain: "example.com",
+          resourceUri: "http://example.com/profile",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        const hook = createSIWxRequestHook({ storage, onEvent: e => events.push(e) });
+        const authOnlyRoute = { accepts: [] };
+        const context = {
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/profile",
+          },
+          path: "/profile",
+        };
+
+        // First request should succeed
+        const result1 = await hook(context, authOnlyRoute);
+        expect(result1).toEqual({ grantAccess: true });
+
+        // Second request with same nonce should be rejected
+        const result2 = await hook(context, authOnlyRoute);
+        expect(result2).toBeUndefined();
+        expect(events.some(e => e.type === "nonce_reused")).toBe(true);
+      });
+
+      it("should NOT grant access without routeConfig when address has not paid", async () => {
+        const storage = new InMemorySIWxStorage();
+        const account = privateKeyToAccount(generatePrivateKey());
+
+        // No payment recorded, no routeConfig passed — should behave as before
+        const extension = createSIWxChallenge({
+          domain: "example.com",
+          resourceUri: "http://example.com/resource",
+          network: "eip155:8453",
+        });
+        const ext = extension["sign-in-with-x"];
+        const completeInfo = {
+          ...ext.info,
+          chainId: ext.supportedChains[0].chainId,
+          type: ext.supportedChains[0].type,
+        };
+        const payload = await createSIWxPayload(completeInfo, account);
+        const header = encodeSIWxHeader(payload);
+
+        const hook = createSIWxRequestHook({ storage });
+        const result = await hook({
+          adapter: {
+            getHeader: (name: string) =>
+              name === "sign-in-with-x" || name === "SIGN-IN-WITH-X" ? header : undefined,
+            getUrl: () => "http://example.com/resource",
+          },
+          path: "/resource",
+        });
+
+        expect(result).toBeUndefined();
+      });
+    });
   });
 
   describe("createSIWxClientHook", () => {

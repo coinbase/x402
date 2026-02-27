@@ -10,7 +10,6 @@ import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import {
   declareSIWxExtension,
-  createSIWxChallenge,
   siwxResourceServerExtension,
   createSIWxSettleHook,
   createSIWxRequestHook,
@@ -97,6 +96,15 @@ function routeConfig(path: string) {
 const routes = {
   "GET /weather": routeConfig("/weather"),
   "GET /joke": routeConfig("/joke"),
+  "GET /profile": {
+    accepts: [] as [],
+    description: "Auth-only: wallet signature required",
+    extensions: declareSIWxExtension({
+      network: EVM_NETWORK,
+      statement: "Sign in to view your profile",
+      expirationSeconds: 300,
+    }),
+  },
 };
 
 // Configure resource server with SIWX extension and settle hook
@@ -117,36 +125,20 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
 
 const app = express();
 
-// Auth-only route: SIWX signature required, no payment.
-// createSIWxChallenge generates a complete per-request challenge (nonce/issuedAt/expiration).
-app.get("/profile", async (req, res) => {
-  const siwxHeader = req.headers["sign-in-with-x"] as string | undefined;
-  const resourceUri = `http://localhost:${PORT}/profile`;
-
-  if (!siwxHeader) {
-    return res.status(402).json({
-      extensions: createSIWxChallenge({
-        domain: `localhost:${PORT}`,
-        resourceUri,
-        network: EVM_NETWORK,
-        statement: "Sign in to view your profile",
-        expirationSeconds: 300,
-      }),
-    });
-  }
-
-  const result = await verifySIWxHeader(siwxHeader, resourceUri);
-  if (!result.valid) return res.status(401).json({ error: result.error });
-
-  res.json({ address: result.address, data: "Your profile data" });
-});
-
 app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 app.get("/weather", (_req, res) => res.json({ weather: "sunny", temperature: 72 }));
 app.get("/joke", (_req, res) =>
   res.json({ joke: "Why do programmers prefer dark mode? Because light attracts bugs." }),
 );
+app.get("/profile", async (req, res) => {
+  const siwxHeader = req.headers["sign-in-with-x"] as string | undefined;
+  const resourceUri = `${req.protocol}://${req.get("host")}/profile`;
+
+  // Re-verify to extract the wallet address (fast, no RPC)
+  const result = await verifySIWxHeader(siwxHeader ?? "", resourceUri);
+  res.json({ address: result.address, data: "Your profile data" });
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
