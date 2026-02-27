@@ -1,0 +1,7 @@
+{
+  "name": "Agent Economy",
+  "description": "AI-powered crypto intelligence API with 5 pay-per-use services: market research ($0.10), trading signals ($0.25), news summarization ($0.05), signal critique ($0.05), and article writing ($0.10). Built on FastAPI + x402 Python SDK + Coinbase AgentKit on Base Mainnet.",
+  "logoUrl": "/logos/agent-economy.png",
+  "websiteUrl": "https://agents.elnawk.com",
+  "category": "Services/Endpoints"
+}
