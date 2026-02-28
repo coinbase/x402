@@ -2,6 +2,6 @@
   "name": "Sam's Agent Data API",
   "description": "Pay-per-use data APIs for AI agents — crypto prices, web summarization, search, and on-chain analysis. Built with x402 for self-sustaining agent economics. Zero-unnecessary-token-burn architecture with 3-tier model stack.",
   "logoUrl": "/logos/sam-api.png",
-  "websiteUrl": "https://samapi.xyz/.well-known/x402.json",
+  "websiteUrl": "https://samapi.xyz/",
   "category": "Services/Endpoints"
 }
