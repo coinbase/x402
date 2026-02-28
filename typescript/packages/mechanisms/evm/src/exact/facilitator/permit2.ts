@@ -117,10 +117,11 @@ export async function verifyPermit2(
     };
   }
 
-  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
+  // Verify amount exactly matches requirements
+  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)) {
     return {
       isValid: false,
-      invalidReason: "permit2_insufficient_amount",
+      invalidReason: "permit2_amount_mismatch",
       payer,
     };
   }
