@@ -2,6 +2,6 @@
   "name": "TokenSafe",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/tokensafe.svg",
-  "description": "Check if a Solana token is safe to trade. Analyzes mint authority, freeze authority, liquidity, honeypot risk, holder concentration, metadata, and Token-2022 extensions. Returns a risk score 0-100. Single check $0.005, batch $0.008, portfolio monitor $0.005 — all USDC via x402.",
+  "description": "Check if a Solana token is safe to trade. Analyzes mint authority, freeze authority, liquidity, honeypot risk, holder concentration, metadata, and Token-2022 extensions. Returns a risk score 0-100. Full check $0.008, free lite tier — all USDC via x402.",
   "websiteUrl": "https://tokensafe-production.up.railway.app"
 }
