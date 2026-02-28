@@ -118,7 +118,9 @@ export async function verifyPermit2(
   }
 
   // Verify amount exactly matches requirements
-  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)) {
+  if (
+    BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)
+  ) {
     return {
       isValid: false,
       invalidReason: "permit2_amount_mismatch",
