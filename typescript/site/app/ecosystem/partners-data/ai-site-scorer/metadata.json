@@ -1,0 +1,7 @@
+{
+  "name": "AI Site Scorer",
+  "description": "x402-paid MCP server and REST API for AI readiness analysis. Analyzes any website across 14 checks (Schema.org, llms.txt, robots.txt, content quality) and returns a 0-100 score with fix recommendations. AI agents pay $0.01/analysis, $0.05 for LLM deep analysis, $0.02 for IDE fix prompts — no API keys or registration required.",
+  "logoUrl": "/logos/ai-site-scorer.svg",
+  "websiteUrl": "https://ai-readiness.mingles.ai/docs",
+  "category": "Services/Endpoints"
+}
