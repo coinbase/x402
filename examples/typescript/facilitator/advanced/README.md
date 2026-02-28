@@ -42,10 +42,10 @@ pnpm dev:bazaar         # Bazaar discovery extension
 
 Each example demonstrates a specific advanced pattern:
 
-| Example | Command | Description |
-| --- | --- | --- |
+| Example        | Command                 | Description                                              |
+| -------------- | ----------------------- | -------------------------------------------------------- |
 | `all-networks` | `pnpm dev:all-networks` | All supported networks with optional chain configuration |
-| `bazaar` | `pnpm dev:bazaar` | Bazaar discovery extension for cataloging x402 resources |
+| `bazaar`       | `pnpm dev:bazaar`       | Bazaar discovery extension for cataloging x402 resources |
 
 ## API Endpoints
 
