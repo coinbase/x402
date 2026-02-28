@@ -387,8 +387,9 @@ describe("paymentMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(402);
     expect(res.json).toHaveBeenCalledWith({
-      error: "Settlement failed",
-      details: "Settlement rejected",
+      x402Version: 2,
+      error: "Settlement failed: Settlement rejected",
+      accepts: [mockPaymentRequirements],
     });
   });
 
@@ -425,8 +426,9 @@ describe("paymentMiddleware", () => {
     expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settlement-failed-encoded");
     expect(res.status).toHaveBeenCalledWith(402);
     expect(res.json).toHaveBeenCalledWith({
-      error: "Settlement failed",
-      details: "Insufficient funds",
+      x402Version: 2,
+      error: "Settlement failed: Insufficient funds",
+      accepts: [mockPaymentRequirements],
     });
   });
 

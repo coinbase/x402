@@ -281,9 +281,10 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(402);
-    const body = (await result.json()) as { error: string; details: string };
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Insufficient funds");
+    const body = (await result.json()) as { x402Version: number; error: string; accepts: unknown[] };
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Insufficient funds");
+    expect(body.accepts).toEqual([mockRequirements]);
     expect(result.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 
@@ -299,8 +300,9 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(402);
-    const body = (await result.json()) as { error: string; details: string };
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Settlement rejected");
+    const body = (await result.json()) as { x402Version: number; error: string; accepts: unknown[] };
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Settlement rejected");
+    expect(body.accepts).toEqual([mockRequirements]);
   });
 });

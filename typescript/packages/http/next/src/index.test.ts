@@ -274,7 +274,9 @@ describe("paymentProxy", () => {
 
     expect(response.status).toBe(402);
     const body = await response.json();
-    expect(body.error).toBe("Settlement failed");
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Settlement rejected");
+    expect(body.accepts).toEqual([mockPaymentRequirements]);
   });
 
   it("returns 402 when settlement returns success: false, not the resource", async () => {
@@ -297,8 +299,9 @@ describe("paymentProxy", () => {
 
     expect(response.status).toBe(402);
     const body = await response.json();
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Insufficient funds");
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Insufficient funds");
+    expect(body.accepts).toEqual([mockPaymentRequirements]);
     expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 });
@@ -397,7 +400,8 @@ describe("withX402", () => {
     expect(handler).toHaveBeenCalled();
     expect(response.status).toBe(402);
     const body = await response.json();
-    expect(body.error).toBe("Settlement failed");
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Settlement rejected");
   });
 
   it("returns 402 when settlement returns success: false, not the handler response", async () => {
@@ -422,8 +426,8 @@ describe("withX402", () => {
     expect(handler).toHaveBeenCalled();
     expect(response.status).toBe(402);
     const body = await response.json();
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Insufficient funds");
+    expect(body.x402Version).toBe(2);
+    expect(body.error).toBe("Settlement failed: Insufficient funds");
     expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 });
