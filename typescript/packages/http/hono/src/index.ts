@@ -177,8 +177,9 @@ export function paymentMiddlewareFromHTTPServer(
             // Settlement failed - do not return the protected resource
             res = c.json(
               {
-                error: "Settlement failed",
-                details: settleResult.errorReason,
+                x402Version: 2,
+                error: `Settlement failed: ${settleResult.errorReason}`,
+                accepts: [paymentRequirements],
               },
               402,
             );
@@ -196,8 +197,9 @@ export function paymentMiddlewareFromHTTPServer(
           // If settlement fails, return an error response
           res = c.json(
             {
-              error: "Settlement failed",
-              details: error instanceof Error ? error.message : "Unknown error",
+              x402Version: 2,
+              error: `Settlement failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              accepts: [paymentRequirements],
             },
             402,
           );
