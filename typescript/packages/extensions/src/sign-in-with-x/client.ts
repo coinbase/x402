@@ -5,10 +5,17 @@
  * Supports both EVM and Solana wallets.
  */
 
-import type { SIWxExtensionInfo, SIWxPayload, SignatureType, SignatureScheme } from "./types";
+import type {
+  SIWxExtension,
+  SIWxExtensionInfo,
+  SIWxPayload,
+  SignatureType,
+  SignatureScheme,
+} from "./types";
 import type { SIWxSigner, EVMSigner, SolanaSigner } from "./sign";
 import { getEVMAddress, getSolanaAddress, signEVMMessage, signSolanaMessage } from "./sign";
 import { createSIWxMessage } from "./message";
+import { encodeSIWxHeader } from "./encode";
 
 /**
  * Complete SIWX info with chain-specific fields.
@@ -72,4 +79,39 @@ export async function createSIWxPayload(
     signatureScheme: serverExtension.signatureScheme,
     signature,
   };
+}
+
+/**
+ * Sign a SIWX challenge from a 402 response extension.
+ *
+ * Convenience wrapper: selects the first supported chain, creates the
+ * payload, signs it, and returns the base64-encoded header string ready
+ * for the `sign-in-with-x` HTTP header.
+ *
+ * @param extension - The `sign-in-with-x` extension object from a 402 response
+ * @param signer - Wallet that can sign messages (EVMSigner or SolanaSigner)
+ * @param chainIndex - Index into supportedChains to select (default: 0)
+ * @returns Base64-encoded header string
+ *
+ * @example
+ * ```typescript
+ * const res = await fetch(url);
+ * const { extensions } = await res.json();
+ * const header = await signSIWxChallenge(extensions["sign-in-with-x"], wallet);
+ * await fetch(url, { headers: { "sign-in-with-x": header } });
+ * ```
+ */
+export async function signSIWxChallenge(
+  extension: SIWxExtension,
+  signer: SIWxSigner,
+  chainIndex = 0,
+): Promise<string> {
+  const chain = extension.supportedChains[chainIndex];
+  const completeInfo: CompleteSIWxInfo = {
+    ...extension.info,
+    chainId: chain.chainId,
+    type: chain.type,
+  };
+  const payload = await createSIWxPayload(completeInfo, signer);
+  return encodeSIWxHeader(payload);
 }
