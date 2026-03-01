@@ -2,6 +2,7 @@ packages:
   - packages/core
   - packages/extensions
   - packages/mcp
+  - packages/ws
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*
