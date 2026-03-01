@@ -39,3 +39,7 @@ export {
   eip3009ABI,
   x402ExactPermit2ProxyABI,
 } from "./constants";
+
+// ERC-4337
+export { isErc4337Payload } from "./erc4337/types";
+export type { Erc4337Payload, UserOperation07Json, UserOperationCapability } from "./erc4337/types";

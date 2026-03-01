@@ -9,6 +9,11 @@ const baseConfig = {
     "exact/facilitator/index": "src/exact/facilitator/index.ts",
     "exact/v1/client/index": "src/exact/v1/client/index.ts",
     "exact/v1/facilitator/index": "src/exact/v1/facilitator/index.ts",
+    "erc4337/index": "src/erc4337/index.ts",
+    "erc4337/accounts/index": "src/erc4337/accounts/index.ts",
+    "erc4337/factories/index": "src/erc4337/factories/index.ts",
+    "erc4337/networks/index": "src/erc4337/networks/index.ts",
+    "erc4337/stamp/index": "src/erc4337/stamp/index.ts",
   },
   dts: {
     resolve: true,

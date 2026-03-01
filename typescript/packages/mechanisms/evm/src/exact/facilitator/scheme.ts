@@ -8,8 +8,11 @@ import {
 } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEvmPayloadV2, ExactEIP3009Payload, isPermit2Payload } from "../../types";
+import { isErc4337Payload } from "../../erc4337/types";
 import { verifyEIP3009, settleEIP3009 } from "./eip3009";
 import { verifyPermit2, settlePermit2 } from "./permit2";
+import { ExactEvmSchemeNetworkERC4337 } from "./erc4337/scheme";
+import type { ExactEvmSchemeNetworkERC4337Config } from "./erc4337/scheme";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -19,6 +22,12 @@ export interface ExactEvmSchemeConfig {
    * @default false
    */
   deployERC4337WithEIP6492?: boolean;
+
+  /**
+   * Configuration for ERC-4337 UserOperation handling.
+   * When provided, ERC-4337 payloads will be routed to the ERC-4337 facilitator.
+   */
+  erc4337Config?: ExactEvmSchemeNetworkERC4337Config;
 }
 
 /**
@@ -30,7 +39,8 @@ export interface ExactEvmSchemeConfig {
 export class ExactEvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = "eip155:*";
-  private readonly config: Required<ExactEvmSchemeConfig>;
+  private readonly config: Required<Omit<ExactEvmSchemeConfig, "erc4337Config">>;
+  private readonly erc4337Facilitator?: ExactEvmSchemeNetworkERC4337;
 
   /**
    * Creates a new ExactEvmScheme facilitator instance.
@@ -45,6 +55,9 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
     };
+    if (config?.erc4337Config) {
+      this.erc4337Facilitator = new ExactEvmSchemeNetworkERC4337(config.erc4337Config);
+    }
   }
 
   /**
@@ -80,13 +93,20 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
     context?: FacilitatorContext,
   ): Promise<VerifyResponse> {
-    const rawPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload;
 
-    if (isPermit2Payload(rawPayload)) {
-      return verifyPermit2(this.signer, payload, requirements, rawPayload, context);
+    // Route ERC-4337 payloads to the ERC-4337 facilitator
+    if (isErc4337Payload(rawPayload) && this.erc4337Facilitator) {
+      return this.erc4337Facilitator.verify(payload, requirements);
     }
 
-    const eip3009Payload: ExactEIP3009Payload = rawPayload;
+    const evmPayload = rawPayload as ExactEvmPayloadV2;
+
+    if (isPermit2Payload(evmPayload)) {
+      return verifyPermit2(this.signer, payload, requirements, evmPayload, context);
+    }
+
+    const eip3009Payload: ExactEIP3009Payload = evmPayload;
     return verifyEIP3009(this.signer, payload, requirements, eip3009Payload);
   }
 
@@ -103,13 +123,20 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
     context?: FacilitatorContext,
   ): Promise<SettleResponse> {
-    const rawPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload;
 
-    if (isPermit2Payload(rawPayload)) {
-      return settlePermit2(this.signer, payload, requirements, rawPayload, context);
+    // Route ERC-4337 payloads to the ERC-4337 facilitator
+    if (isErc4337Payload(rawPayload) && this.erc4337Facilitator) {
+      return this.erc4337Facilitator.settle(payload, requirements);
     }
 
-    const eip3009Payload: ExactEIP3009Payload = rawPayload;
+    const evmPayload = rawPayload as ExactEvmPayloadV2;
+
+    if (isPermit2Payload(evmPayload)) {
+      return settlePermit2(this.signer, payload, requirements, evmPayload, context);
+    }
+
+    const eip3009Payload: ExactEIP3009Payload = evmPayload;
     return settleEIP3009(this.signer, payload, requirements, eip3009Payload, this.config);
   }
 }

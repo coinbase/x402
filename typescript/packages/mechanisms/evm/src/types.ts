@@ -59,6 +59,10 @@ export type ExactEvmPayloadV1 = ExactEIP3009Payload;
 
 export type ExactEvmPayloadV2 = ExactEIP3009Payload | ExactPermit2Payload;
 
+// Re-export ERC-4337 type guard and payload type for convenience
+export { isErc4337Payload } from "./erc4337/types";
+export type { Erc4337Payload, UserOperation07Json } from "./erc4337/types";
+
 /**
  * Type guard to check if a payload is a Permit2 payload.
  * Permit2 payloads have a `permit2Authorization` field.
