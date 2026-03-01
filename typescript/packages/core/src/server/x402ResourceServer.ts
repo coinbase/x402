@@ -5,7 +5,12 @@ import {
   SupportedResponse,
   SupportedKind,
 } from "../types/facilitator";
-import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
+import {
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequired,
+  ResourceInfo,
+} from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
 import { Price, Network, ResourceServerExtension, VerifyError } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
@@ -23,15 +28,6 @@ export interface ResourceConfig {
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>; // Scheme-specific additional data
-}
-
-/**
- * Resource information for PaymentRequired response
- */
-export interface ResourceInfo {
-  url: string;
-  description: string;
-  mimeType: string;
 }
 
 /**
