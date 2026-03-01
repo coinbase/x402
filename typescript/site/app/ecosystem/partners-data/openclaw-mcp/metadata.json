@@ -1,0 +1,7 @@
+{
+  "name": "OpenClaw MCP Tools",
+  "description": "9 MCP servers with 49 AI tools on Cloudflare Workers edge — JSON processing, regex engine, color palettes, timestamp conversion, prompt enhancement, market intelligence, fortune generation, publishing, and model comparison. All x402-ready with USDC micropayments on Base.",
+  "logoUrl": "/logos/openclaw-mcp.svg",
+  "websiteUrl": "https://product-store.yagami8095.workers.dev",
+  "category": "Services/Endpoints"
+}
