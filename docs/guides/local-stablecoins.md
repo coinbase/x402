@@ -18,7 +18,7 @@ Local stablecoins solve this by letting agents pay in the currency the service i
 |-------|----------|-------|---------|----------|
 | wARS | Argentine Peso (ARS) | Base | `0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D` | 18 |
 
-*More local stablecoins (wBRL, wCOP, wMXN) are in development.*
+wARS is part of the [latam-stables](https://github.com/ripio/latam-stables) project by [Ripio](https://ripio.com) — Foundry-based contracts with cross-chain bridge infrastructure. More local stablecoins (wBRL, wCOP, wMXN) are in development.
 
 ## How It Works
 
