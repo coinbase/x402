@@ -52,7 +52,7 @@ Multiple production-ready facilitators are available supporting various networks
 
 x402 supports tokens on EVM, Solana, and Aptos networks:
 
-* **EVM**: Any ERC-20 token that implements the EIP-3009 standard
+* **EVM**: Any ERC-20 token that implements the EIP-3009 standard, or any ERC-20 token via Permit2 with gas sponsoring extensions
 * **Solana**: Any SPL or token-2022 token
 * **Aptos**: Any fungible asset using Aptos's native fungible asset framework
 
@@ -65,6 +65,15 @@ Tokens must implement the `transferWithAuthorization` function from the EIP-3009
 * **Gasless transfers**: The facilitator sponsors gas fees
 * **Signature-based authorization**: Users sign transfer authorizations off-chain
 * **Secure payments**: Transfers are authorized by cryptographic signatures
+
+#### EVM: Permit2 with Gas Sponsoring Extensions
+
+For tokens that don't implement EIP-3009, x402 supports Permit2-based payments with gas sponsoring extensions:
+
+* **[EIP-2612 Gas Sponsoring](/extensions/eip2612-gas-sponsoring)**: For tokens that implement EIP-2612 (like USDC, DAI). The facilitator submits the permit on-chain, enabling gasless approvals.
+* **[ERC-20 Approval Gas Sponsoring](/extensions/erc20-approval-gas-sponsoring)**: For any ERC-20 token. The client signs an approval transaction (without broadcasting), and the facilitator broadcasts it before settling the payment.
+
+These extensions enable gasless payments for a wider range of tokens beyond EIP-3009.
 
 #### Specifying Payment Amounts
 
