@@ -1,0 +1,29 @@
+{
+  "name": "OmniAudit",
+  "description": "Autonomous security scanner for AI agents. 7-layer analysis of SKILL.md files and code repos — Semgrep, YARA, detect-secrets, Gemini LLM, OSV dependency audit, and cross-file threat synthesis. Reports are Ed25519 signed. Patrols Moltbook feeds 24/7.",
+  "url": "https://omniaudit.fly.dev",
+  "category": "Services & Endpoints",
+  "tags": ["security", "AI agents", "code scanning", "SKILL.md"],
+  "network": "base-mainnet",
+  "token": "USDC"
+}
+```
+
+6. Open a Pull Request titled: `feat(ecosystem): add OmniAudit security scanner`
+7. In the PR description write: "OmniAudit is a pay-per-scan security scanner for AI agents. Live at https://omniaudit.fly.dev — scans SKILL.md files and code repos for malware, credential harvesters, prompt injection, and vulnerable dependencies. Accepts USDC on Base via x402."
+
+PRs like this are being merged regularly — check the actions page and you'll see dozens going through every week.
+
+---
+
+### 3. awesome-x402 — GitHub PR (10 minutes)
+
+This is a curated community directory that shows up in searches and is referenced by developers actively looking for x402 services.
+
+**Steps:**
+1. Go to `https://github.com/Merit-Systems/awesome-x402`
+2. Fork the repo
+3. Open `README.md` and find the **Services & Endpoints** section
+4. Add this line in the appropriate place:
+```
+- [OmniAudit](https://omniaudit.fly.dev) — Autonomous security scanner for AI agents. 7-layer analysis (Semgrep, YARA, detect-secrets, Gemini LLM, OSV, Ed25519 signed reports). Scans SKILL.md files and code repos. $0.25 standard / $1.00 deep scan. USDC on Base.
