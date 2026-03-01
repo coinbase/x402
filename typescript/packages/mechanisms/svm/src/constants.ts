@@ -8,6 +8,22 @@ export const COMPUTE_BUDGET_PROGRAM_ADDRESS = "ComputeBudget11111111111111111111
 export const MEMO_PROGRAM_ADDRESS = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 /**
+ * Swig smart wallet program address and instruction discriminators.
+ * Swig wraps inner instructions (e.g. SPL transferChecked) inside a signV1/signV2
+ * instruction and executes them via CPI using the Swig PDA as authority.
+ * See: https://github.com/anagram-xyz/swig
+ */
+export const SWIG_PROGRAM_ADDRESS = "swigypWHEksbC64pWKwah1WTeh9JXwx8H1rJHLdbQMB";
+export const SWIG_SIGN_V2_DISCRIMINATOR = 11; // U16 LE
+
+/**
+ * Secp256r1 precompile program address (used by Swig passkey wallets)
+ * Swig transactions may include secp256r1 signature verification instructions
+ * before the SignV2 instruction. These are filtered out during transaction flattening.
+ */
+export const SECP256R1_PRECOMPILE_ADDRESS = "Secp256r1SigVerify1111111111111111111111111";
+
+/**
  * Phantom/Solflare Lighthouse program address
  * Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
  * - Phantom adds 1 Lighthouse instruction (4th instruction)

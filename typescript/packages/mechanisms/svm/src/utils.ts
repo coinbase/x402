@@ -3,6 +3,7 @@ import {
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
   type Transaction,
+  type Address,
   createSolanaRpc,
   devnet,
   testnet,
@@ -29,6 +30,10 @@ import {
   SOLANA_DEVNET_CAIP2,
   SOLANA_TESTNET_CAIP2,
   V1_TO_V2_NETWORK_MAP,
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  SWIG_PROGRAM_ADDRESS,
+  SWIG_SIGN_V2_DISCRIMINATOR,
+  SECP256R1_PRECOMPILE_ADDRESS,
 } from "./constants";
 import type { ExactSvmPayloadV1 } from "./types";
 
@@ -191,3 +196,164 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
   const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
   return tokenAmount;
 }
+
+// ─── Swig wallet support ──────────────────────────────────────────────────────
+
+/**
+ * A decoded compact instruction extracted from a Swig signV1/signV2 payload.
+ * Indices reference the outer transaction's static account list.
+ */
+export interface SwigCompactInstruction {
+  programIdIndex: number;
+  accounts: number[];
+  data: Uint8Array;
+}
+
+/**
+ * Returns true when the transaction has a Swig layout:
+ *   - All instructions except the last are compute budget or secp256r1 precompile
+ *   - The last instruction is Swig program with SignV2 discriminator
+ *
+ * @param instructions - Decompiled instruction array
+ */
+export function isSwigTransaction(
+  instructions: ReadonlyArray<{ programAddress: { toString(): string }; data?: Readonly<Uint8Array> }>,
+): boolean {
+  if (instructions.length === 0) return false;
+
+  // All instructions except the last must be compute budget or secp256r1 precompile
+  for (let i = 0; i < instructions.length - 1; i++) {
+    const addr = instructions[i].programAddress.toString();
+    if (addr !== COMPUTE_BUDGET_PROGRAM_ADDRESS && addr !== SECP256R1_PRECOMPILE_ADDRESS) {
+      return false;
+    }
+  }
+
+  // Last instruction must be Swig program with SignV2 discriminator
+  const lastIx = instructions[instructions.length - 1];
+  if (lastIx.programAddress.toString() !== SWIG_PROGRAM_ADDRESS) return false;
+
+  const data = lastIx.data;
+  if (!data || data.length < 2) return false;
+
+  const discriminator = data[0] | (data[1] << 8); // U16 LE
+  return discriminator === SWIG_SIGN_V2_DISCRIMINATOR;
+}
+
+/**
+ * Flatten a Swig transaction into the same instruction layout as a regular one.
+ * Collects non-precompile outer instructions (compute budgets) and resolves
+ * the compact instructions embedded in the SignV2 instruction.
+ *
+ * @param instructions  - Decompiled instruction array (from a Swig transaction)
+ * @param staticAccounts - Ordered account list from the compiled transaction message
+ * @returns Object with flattened `instructions` array and `swigPda` address
+ */
+export function parseSwigTransaction(
+  instructions: ReadonlyArray<{
+    programAddress: { toString(): string };
+    accounts?: ReadonlyArray<{ address: { toString(): string } }>;
+    data?: Readonly<Uint8Array>;
+  }>,
+  staticAccounts: ReadonlyArray<Address>,
+): { instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: any[] = [];
+
+  // 1. Collect non-precompile outer instructions (compute budgets)
+  for (let i = 0; i < instructions.length - 1; i++) {
+    if (instructions[i].programAddress.toString() !== SECP256R1_PRECOMPILE_ADDRESS) {
+      result.push(instructions[i]);
+    }
+  }
+
+  // 2. Extract Swig PDA from SignV2's first account
+  const signV2Ix = instructions[instructions.length - 1];
+  const swigPda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
+  if (!swigPda) throw "invalid_exact_svm_payload_no_transfer_instruction";
+
+  // 3. Decode compact instructions from SignV2 data
+  const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
+  const compactInstructions = decodeSwigCompactInstructions(rawData);
+
+  // 4. Resolve compact instruction indices to addresses using staticAccounts
+  for (const ci of compactInstructions) {
+    result.push({
+      programAddress: staticAccounts[ci.programIdIndex],
+      accounts: ci.accounts.map(idx => ({
+        address: staticAccounts[idx],
+        role: 1, // AccountRole.WRITABLE — exact role doesn't matter for parsing
+      })),
+      data: ci.data,
+    });
+  }
+
+  return { instructions: result, swigPda };
+}
+
+/**
+ * Decode the compact instructions embedded inside a Swig signV1/signV2 instruction.
+ *
+ * Layout of the outer instruction data:
+ *   [0..1]  discriminator         U16 LE
+ *   [2..3]  instructionPayloadLen U16 LE (byte count of compact instructions)
+ *   [4..7]  roleId                U32 LE
+ *   [8..]   compact instructions  (instructionPayloadLen bytes)
+ *
+ * Each CompactInstruction:
+ *   [0]       programIdIndex U8
+ *   [1]       numAccounts    U8
+ *   [2..N+1]  accounts       U8[numAccounts]
+ *   [N+2..N+3] dataLen       U16 LE
+ *   [N+4..]   data           raw bytes
+ *
+ * @param data - The full instruction data bytes of the outer Swig instruction
+ * @returns Array of decoded compact instructions (may be empty if data is malformed)
+ */
+export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInstruction[] {
+  if (data.length < 4) return [];
+
+  // instructionPayloadLen at bytes 2-3 (U16 LE)
+  const instructionPayloadLen = data[2] | (data[3] << 8);
+
+  // Compact instructions start at byte 8 (after discriminator + payloadLen + roleId)
+  const startOffset = 8;
+  if (data.length < startOffset + instructionPayloadLen) return [];
+
+  const results: SwigCompactInstruction[] = [];
+  let offset = startOffset;
+  const endOffset = startOffset + instructionPayloadLen;
+
+  while (offset < endOffset) {
+    if (offset >= data.length) break;
+
+    // programIdIndex: U8
+    const programIdIndex = data[offset];
+    offset += 1;
+
+    // numAccounts: U8
+    if (offset >= endOffset) break;
+    const numAccounts = data[offset];
+    offset += 1;
+
+    // accounts: U8[numAccounts]
+    if (offset + numAccounts > endOffset) break;
+    const accounts = Array.from(data.slice(offset, offset + numAccounts));
+    offset += numAccounts;
+
+    // dataLen: U16 LE
+    if (offset + 2 > endOffset) break;
+    const dataLen = data[offset] | (data[offset + 1] << 8);
+    offset += 2;
+
+    // instruction data
+    if (offset + dataLen > endOffset) break;
+    const instrData = new Uint8Array(data.slice(offset, offset + dataLen));
+    offset += dataLen;
+
+    results.push({ programIdIndex, accounts, data: instrData });
+  }
+
+  return results;
+}
+

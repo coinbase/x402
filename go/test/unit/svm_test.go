@@ -2,6 +2,7 @@
 package unit_test
 
 import (
+	"encoding/binary"
 	"testing"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -288,6 +289,368 @@ func TestSolanaMessageVersioning(t *testing.T) {
 		// First byte should be version marker (128 for v0)
 		if msgBytes[0] != 128 {
 			t.Errorf("Expected first byte to be 128 (v0 marker), got %d", msgBytes[0])
+		}
+	})
+}
+
+// ─── Swig wallet tests ────────────────────────────────────────────────────────
+
+// buildSwigInstructionData constructs synthetic Swig signV2 instruction bytes
+// containing a single compact instruction entry.
+func buildSwigInstructionData(
+	programIDIndex uint8,
+	accounts []uint8,
+	instrData []byte,
+) []byte {
+	// Compact instruction entry:
+	//   [0]      programIDIndex U8
+	//   [1]      numAccounts    U8
+	//   [2..N+1] accounts       []U8
+	//   [N+2..N+3] dataLen      U16 LE
+	//   [N+4..]  data
+	entry := []byte{programIDIndex, uint8(len(accounts))}
+	entry = append(entry, accounts...)
+	dl := make([]byte, 2)
+	binary.LittleEndian.PutUint16(dl, uint16(len(instrData)))
+	entry = append(entry, dl...)
+	entry = append(entry, instrData...)
+
+	// Outer Swig instruction:
+	//   [0..1] discriminator         = 11 (signV2, U16 LE)
+	//   [2..3] instructionPayloadLen = len(entry) (U16 LE)
+	//   [4..7] roleId               = 0
+	//   [8..]  entry
+	outer := make([]byte, 8+len(entry))
+	binary.LittleEndian.PutUint16(outer[0:], svm.SwigSignV2Discriminator)
+	binary.LittleEndian.PutUint16(outer[2:], uint16(len(entry)))
+	copy(outer[8:], entry)
+	return outer
+}
+
+// buildTransferCheckedData constructs the 10-byte data payload for SPL TransferChecked.
+// Layout: [0]=12 (discriminator), [1..8]=amount U64 LE, [9]=decimals
+func buildTransferCheckedData(amount uint64, decimals uint8) []byte {
+	data := make([]byte, 10)
+	data[0] = 12 // transferChecked discriminator
+	binary.LittleEndian.PutUint64(data[1:], amount)
+	data[9] = decimals
+	return data
+}
+
+// TestDecodeSwigCompactInstructions tests DecodeSwigCompactInstructions with crafted data.
+func TestDecodeSwigCompactInstructions(t *testing.T) {
+	t.Run("error on data shorter than 4 bytes", func(t *testing.T) {
+		_, err := svm.DecodeSwigCompactInstructions([]byte{1, 2, 3})
+		if err == nil {
+			t.Fatal("expected error for data < 4 bytes")
+		}
+	})
+
+	t.Run("error when instructionPayloadLen exceeds available data", func(t *testing.T) {
+		// header claims payloadLen=100 but only 8 bytes total
+		data := make([]byte, 8)
+		binary.LittleEndian.PutUint16(data[2:], 100)
+		_, err := svm.DecodeSwigCompactInstructions(data)
+		if err == nil {
+			t.Fatal("expected error for truncated payload")
+		}
+	})
+
+	t.Run("decodes a single TransferChecked compact instruction", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		// programIDIndex=5, accounts=[1,2,3,0]
+		outer := buildSwigInstructionData(5, []uint8{1, 2, 3, 0}, instrData)
+
+		result, err := svm.DecodeSwigCompactInstructions(outer)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 {
+			t.Fatalf("expected 1 compact instruction, got %d", len(result))
+		}
+		ci := result[0]
+		if ci.ProgramIDIndex != 5 {
+			t.Errorf("expected ProgramIDIndex=5, got %d", ci.ProgramIDIndex)
+		}
+		if len(ci.Accounts) != 4 || ci.Accounts[0] != 1 || ci.Accounts[1] != 2 || ci.Accounts[2] != 3 || ci.Accounts[3] != 0 {
+			t.Errorf("unexpected accounts: %v", ci.Accounts)
+		}
+		if len(ci.Data) < 9 {
+			t.Fatalf("expected ≥9 data bytes, got %d", len(ci.Data))
+		}
+		if ci.Data[0] != 12 {
+			t.Errorf("expected discriminator 12, got %d", ci.Data[0])
+		}
+		amount := binary.LittleEndian.Uint64(ci.Data[1:9])
+		if amount != 100000 {
+			t.Errorf("expected amount 100000, got %d", amount)
+		}
+	})
+
+	t.Run("returns empty slice when payload is zero length", func(t *testing.T) {
+		data := make([]byte, 8) // payloadLen=0 → no compact instructions
+		result, err := svm.DecodeSwigCompactInstructions(data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected 0 instructions, got %d", len(result))
+		}
+	})
+}
+
+// TestIsSwigTransaction tests the IsSwigTransaction helper.
+func TestIsSwigTransaction(t *testing.T) {
+	swigKey := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
+	secp256r1Key := solana.MustPublicKeyFromBase58(svm.Secp256r1PrecompileAddress)
+	tokenKey := solana.TokenProgramID
+
+	mkSignV2Data := func() []byte {
+		data := make([]byte, 4)
+		binary.LittleEndian.PutUint16(data, svm.SwigSignV2Discriminator)
+		return data
+	}
+
+	t.Run("true for 2 compute budgets + SignV2", func(t *testing.T) {
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{solana.ComputeBudget, swigKey},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 0, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Data: mkSignV2Data()},
+				},
+			},
+		}
+		if !svm.IsSwigTransaction(tx) {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("true with secp256r1 precompile instructions", func(t *testing.T) {
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{solana.ComputeBudget, secp256r1Key, swigKey},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 0, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Data: []byte{}}, // secp256r1
+					{ProgramIDIndex: 2, Data: mkSignV2Data()},
+				},
+			},
+		}
+		if !svm.IsSwigTransaction(tx) {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("false when last instruction is not Swig program", func(t *testing.T) {
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{solana.ComputeBudget, tokenKey},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 0, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Data: []byte{12, 0, 0, 0}}, // TOKEN_PROGRAM, not swig
+				},
+			},
+		}
+		if svm.IsSwigTransaction(tx) {
+			t.Error("expected false")
+		}
+	})
+
+	t.Run("false when a non-allowed instruction precedes the last", func(t *testing.T) {
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{solana.ComputeBudget, tokenKey, swigKey},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Data: []byte{12, 0, 0, 0}}, // token program — not allowed
+					{ProgramIDIndex: 2, Data: mkSignV2Data()},
+				},
+			},
+		}
+		if svm.IsSwigTransaction(tx) {
+			t.Error("expected false")
+		}
+	})
+
+	t.Run("false for unknown discriminator", func(t *testing.T) {
+		data := make([]byte, 4)
+		binary.LittleEndian.PutUint16(data, 99) // unknown
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{solana.ComputeBudget, swigKey},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 0, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Data: data},
+				},
+			},
+		}
+		if svm.IsSwigTransaction(tx) {
+			t.Error("expected false")
+		}
+	})
+
+	t.Run("false for empty instructions", func(t *testing.T) {
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys:  []solana.PublicKey{},
+				Instructions: []solana.CompiledInstruction{},
+			},
+		}
+		if svm.IsSwigTransaction(tx) {
+			t.Error("expected false")
+		}
+	})
+}
+
+// TestParseSwigTransaction tests the ParseSwigTransaction helper.
+func TestParseSwigTransaction(t *testing.T) {
+	swigPDA := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress) // reuse as a PDA for test
+	swigKey := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
+	secp256r1Key := solana.MustPublicKeyFromBase58(svm.Secp256r1PrecompileAddress)
+	mintPubkey := solana.MustPublicKeyFromBase58(svm.USDCDevnetAddress)
+	sourcePubkey := solana.MustPublicKeyFromBase58("11111111111111111111111111111112")
+	destPubkey := solana.MustPublicKeyFromBase58("11111111111111111111111111111111")
+
+	// Account keys: [0]=swigPDA, [1]=TOKEN_PROGRAM, [2]=source, [3]=mint, [4]=dest, [5]=swigProgram, [6]=computeBudget, [7]=secp256r1
+	accountKeys := []solana.PublicKey{
+		swigPDA,
+		solana.TokenProgramID,
+		sourcePubkey,
+		mintPubkey,
+		destPubkey,
+		swigKey,
+		solana.ComputeBudget,
+		secp256r1Key,
+	}
+
+	t.Run("flattens Swig transaction with embedded TransferChecked", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		// inner ix: programIDIndex=1 (TOKEN_PROGRAM), accounts=[2,3,4,0] (source, mint, dest, swigPDA)
+		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},         // compute limit
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}}, // compute price
+					{ProgramIDIndex: 5, Accounts: []uint16{0, 1, 2, 3, 4}, Data: signV2Data}, // SignV2
+				},
+			},
+		}
+
+		result, err := svm.ParseSwigTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Should have 3 instructions: 2 compute budgets + 1 TransferChecked
+		if len(result.Instructions) != 3 {
+			t.Fatalf("expected 3 instructions, got %d", len(result.Instructions))
+		}
+		if result.SwigPDA != swigPDA.String() {
+			t.Errorf("expected SwigPDA=%s, got %s", swigPDA.String(), result.SwigPDA)
+		}
+
+		// First two are compute budget (unchanged)
+		if result.Instructions[0].ProgramIDIndex != 6 {
+			t.Errorf("expected compute budget at index 0")
+		}
+		if result.Instructions[1].ProgramIDIndex != 6 {
+			t.Errorf("expected compute budget at index 1")
+		}
+
+		// Third is the resolved TransferChecked
+		transferIx := result.Instructions[2]
+		if transferIx.ProgramIDIndex != 1 {
+			t.Errorf("expected ProgramIDIndex=1 (TOKEN_PROGRAM), got %d", transferIx.ProgramIDIndex)
+		}
+		if len(transferIx.Accounts) != 4 {
+			t.Fatalf("expected 4 accounts, got %d", len(transferIx.Accounts))
+		}
+		if transferIx.Accounts[0] != 2 || transferIx.Accounts[1] != 3 || transferIx.Accounts[2] != 4 || transferIx.Accounts[3] != 0 {
+			t.Errorf("unexpected accounts: %v", transferIx.Accounts)
+		}
+		if transferIx.Data[0] != 12 {
+			t.Errorf("expected transferChecked discriminator 12, got %d", transferIx.Data[0])
+		}
+	})
+
+	t.Run("filters out secp256r1 precompile instructions", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},             // compute limit
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}}, // compute price
+					{ProgramIDIndex: 7, Data: []byte{}},                            // secp256r1 precompile
+					{ProgramIDIndex: 5, Accounts: []uint16{0}, Data: signV2Data},   // SignV2
+				},
+			},
+		}
+
+		result, err := svm.ParseSwigTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Should have 3 instructions: 2 compute budgets + 1 TransferChecked (precompile filtered)
+		if len(result.Instructions) != 3 {
+			t.Fatalf("expected 3 instructions, got %d", len(result.Instructions))
+		}
+	})
+
+	t.Run("extracts SwigPDA from first account of SignV2", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 5, Accounts: []uint16{0}, Data: signV2Data},
+				},
+			},
+		}
+
+		result, err := svm.ParseSwigTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.SwigPDA != swigPDA.String() {
+			t.Errorf("expected SwigPDA=%s, got %s", swigPDA.String(), result.SwigPDA)
+		}
+	})
+
+	t.Run("error when SignV2 has no accounts", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 5, Accounts: []uint16{}, Data: signV2Data}, // no accounts
+				},
+			},
+		}
+
+		_, err := svm.ParseSwigTransaction(tx)
+		if err == nil {
+			t.Fatal("expected error for SignV2 with no accounts")
 		}
 	})
 }
