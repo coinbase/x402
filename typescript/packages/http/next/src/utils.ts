@@ -152,8 +152,9 @@ export async function handleSettlement(
       // Settlement failed - do not return the protected resource
       return new NextResponse(
         JSON.stringify({
-          error: "Settlement failed",
-          details: result.errorReason,
+          x402Version: 2,
+          error: `Settlement failed: ${result.errorReason}`,
+          accepts: [paymentRequirements],
         }),
         {
           status: 402,
@@ -173,8 +174,9 @@ export async function handleSettlement(
     // If settlement fails, return an error response
     return new NextResponse(
       JSON.stringify({
-        error: "Settlement failed",
-        details: error instanceof Error ? error.message : "Unknown error",
+        x402Version: 2,
+        error: `Settlement failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        accepts: [paymentRequirements],
       }),
       {
         status: 402,

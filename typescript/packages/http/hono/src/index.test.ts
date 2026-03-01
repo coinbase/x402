@@ -390,8 +390,9 @@ describe("paymentMiddleware", () => {
 
     expect(context.json).toHaveBeenCalledWith(
       {
-        error: "Settlement failed",
-        details: "Settlement rejected",
+        x402Version: 2,
+        error: "Settlement failed: Settlement rejected",
+        accepts: [mockPaymentRequirements],
       },
       402,
     );
@@ -435,8 +436,9 @@ describe("paymentMiddleware", () => {
 
     expect(context.json).toHaveBeenCalledWith(
       {
-        error: "Settlement failed",
-        details: "Insufficient funds",
+        x402Version: 2,
+        error: "Settlement failed: Insufficient funds",
+        accepts: [mockPaymentRequirements],
       },
       402,
     );

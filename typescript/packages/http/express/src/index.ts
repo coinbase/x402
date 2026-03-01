@@ -252,8 +252,9 @@ export function paymentMiddlewareFromHTTPServer(
               res.setHeader(key, value);
             });
             res.status(402).json({
-              error: "Settlement failed",
-              details: settleResult.errorReason,
+              x402Version: 2,
+              error: `Settlement failed: ${settleResult.errorReason}`,
+              accepts: [paymentRequirements],
             });
             return;
           }
@@ -267,8 +268,9 @@ export function paymentMiddlewareFromHTTPServer(
           // If settlement fails, don't send the buffered response
           bufferedCalls = [];
           res.status(402).json({
-            error: "Settlement failed",
-            details: error instanceof Error ? error.message : "Unknown error",
+            x402Version: 2,
+            error: `Settlement failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+            accepts: [paymentRequirements],
           });
           return;
         } finally {
