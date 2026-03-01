@@ -4,6 +4,7 @@ import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import {
   declareEip2612GasSponsoringExtension,
@@ -24,9 +25,11 @@ const PORT = process.env.PORT || "4021";
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
 const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
+const STELLAR_NETWORK = (process.env.STELLAR_NETWORK || "stellar:testnet") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
+const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -60,6 +63,9 @@ server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
   server.register("aptos:*", new ExactAptosScheme());
 }
+if (STELLAR_PAYEE_ADDRESS) {
+  server.register("stellar:*", new ExactStellarScheme());
+}
 
 // Register Bazaar discovery extension
 server.registerExtension(bazaarResourceServerExtension);
@@ -82,10 +88,24 @@ app.get("/protected-aptos", (req, res, next) => {
 });
 
 /**
+ * Pre-middleware guard for optional Stellar endpoint
+ * Returns 501 Not Implemented if Stellar is not configured
+ */
+app.use("/protected-stellar", (req, res, next) => {
+  if (!STELLAR_PAYEE_ADDRESS) {
+    return res.status(501).json({
+      error: "Stellar payments not configured",
+      message: "STELLAR_PAYEE_ADDRESS environment variable is not set",
+    });
+  }
+  next();
+});
+
+/**
  * Configure x402 payment middleware using builder pattern
  *
  * This middleware protects endpoints with $0.001 USDC payment requirements
- * on Base Sepolia, Solana Devnet, and Aptos Testnet with bazaar discovery extension.
+ * on Base Sepolia, Solana Devnet, Aptos Testnet, and Stellar Testnet with bazaar discovery extension.
  */
 app.use(
   paymentMiddleware(
@@ -227,6 +247,35 @@ app.use(
           ...declareEip2612GasSponsoringExtension(),
         },
       },
+      ...(STELLAR_PAYEE_ADDRESS
+        ? {
+            "GET /protected-stellar": {
+              accepts: {
+                payTo: STELLAR_PAYEE_ADDRESS!,
+                scheme: "exact",
+                price: "$0.001",
+                network: STELLAR_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected Stellar endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
+                    },
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
+                  },
+                }),
+              },
+            },
+          }
+        : {}),
     },
     server, // Pass pre-configured server instance
   ),
@@ -302,6 +351,22 @@ app.get("/protected-permit2", (req, res) => {
 });
 
 /**
+ * Protected Stellar endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for Stellar.
+ * Clients must provide a valid payment signature to access this endpoint.
+ * Note: 501 check is handled by pre-middleware guard above.
+ */
+if (STELLAR_PAYEE_ADDRESS) {
+  app.get("/protected-stellar", (req, res) => {
+    res.json({
+      message: "Protected Stellar endpoint accessed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  });
+}
+
+/**
  * Health check endpoint - no payment required
  *
  * Used to verify the server is running and responsive.
@@ -340,9 +405,11 @@ app.listen(parseInt(PORT), () => {
 ║  EVM Network:  ${EVM_NETWORK}                          ║
 ║  SVM Network:  ${SVM_NETWORK}                          ║
 ║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  Stellar Network: ${STELLAR_NETWORK}║
 ║  EVM Payee:    ${EVM_PAYEE_ADDRESS}                    ║
 ║  SVM Payee:    ${SVM_PAYEE_ADDRESS}                    ║
 ║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS || "(not configured)"}
+║  Stellar Payee: ${STELLAR_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected             (EIP-3009 payment - EVM)    ║
@@ -350,6 +417,7 @@ app.listen(parseInt(PORT), () => {
 ║  • GET  /protected-aptos       (Aptos payment)             ║
 ║  • GET  /protected-permit2     (Permit2 payment - EVM)     ║
 ║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval) ║
+║  • GET  /protected-stellar     (Stellar payment)           ║
 ║  • GET  /health                (no payment required)       ║
 ║  • POST /close                 (shutdown server)           ║
 ╚════════════════════════════════════════════════════════╝

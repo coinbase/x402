@@ -1,6 +1,6 @@
 import type { NetworkSet } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm' | 'aptos';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
 export type Transport = 'http' | 'mcp';
 export type TransferMethod = 'eip3009' | 'permit2';
 
@@ -16,6 +16,7 @@ export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
   aptosPrivateKey: string;
+  stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
 }
@@ -25,6 +26,7 @@ export interface ServerConfig {
   evmPayTo: string;
   svmPayTo: string;
   aptosPayTo: string;
+  stellarPayTo: string;
   networks: NetworkSet;
   facilitatorUrl?: string;
 }

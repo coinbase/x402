@@ -11,6 +11,8 @@ import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { ExactSvmSchemeV1 } from "@x402/svm/v1";
 import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer, type Ed25519Signer } from "@x402/stellar";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client } from "@x402/core/client";
@@ -35,9 +37,18 @@ const evmSigner = toClientEvmSigner(evmAccount, publicClient);
 // Initialize Aptos signer if key is provided
 let aptosAccount: Account | undefined;
 if (process.env.APTOS_PRIVATE_KEY) {
-  const formattedKey = PrivateKey.formatPrivateKey(process.env.APTOS_PRIVATE_KEY, PrivateKeyVariants.Ed25519);
+  const formattedKey = PrivateKey.formatPrivateKey(
+    process.env.APTOS_PRIVATE_KEY,
+    PrivateKeyVariants.Ed25519,
+  );
   const aptosPrivateKey = new Ed25519PrivateKey(formattedKey);
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+}
+
+// Initialize Stellar signer if key is provided
+let stellarSigner: Ed25519Signer | undefined;
+if (process.env.STELLAR_PRIVATE_KEY) {
+  stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
 }
 
 const client = new x402Client()
@@ -49,6 +60,9 @@ const client = new x402Client()
   .registerV1("solana", new ExactSvmSchemeV1(svmSigner));
 if (aptosAccount) {
   client.register("aptos:*", new ExactAptosScheme(aptosAccount));
+}
+if (stellarSigner) {
+  client.register("stellar:*", new ExactStellarScheme(stellarSigner));
 }
 
 const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);

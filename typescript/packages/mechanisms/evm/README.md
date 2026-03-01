@@ -181,3 +181,4 @@ npm run format
 - `@x402/core` - Core protocol types and client
 - `@x402/fetch` - HTTP wrapper with automatic payment handling
 - `@x402/svm` - Solana/SVM implementation
+- `@x402/stellar` - Stellar implementation
