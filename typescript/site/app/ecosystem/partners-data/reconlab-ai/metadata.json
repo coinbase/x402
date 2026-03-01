@@ -1,0 +1,7 @@
+{
+  "name": "Reconlab AI",
+  "description": "Reconlab AI is a comprehensive OSINT (Open Source Intelligence) platform providing advanced data analysis, identity lookup, and investigation tools for researchers, analysts, and cybersecurity professionals. Designed for simplicity and power, Reconlab helps you uncover valuable insights from publicly available information through a unified API and intuitive interface.",
+  "logoUrl": "/logos/reconlab-ai.png",
+  "websiteUrl": "https://api.reconlab.io/",
+  "category": "Services/Endpoints"
+}
