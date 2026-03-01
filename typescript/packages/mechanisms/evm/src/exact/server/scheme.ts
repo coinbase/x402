@@ -140,12 +140,23 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     const assetInfo = this.getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
 
+    // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
+    // Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).
+    // Omitting name/version for permit2 tokens signals the client to skip EIP-2612 and use
+    // ERC-20 approval gas sponsoring instead.
+    const includeEip712Domain = !assetInfo.assetTransferMethod || assetInfo.supportsEip2612;
+
     return {
       amount: tokenAmount,
       asset: assetInfo.address,
       extra: {
-        name: assetInfo.name,
-        version: assetInfo.version,
+        ...(includeEip712Domain && {
+          name: assetInfo.name,
+          version: assetInfo.version,
+        }),
+        ...(assetInfo.assetTransferMethod && {
+          assetTransferMethod: assetInfo.assetTransferMethod,
+        }),
       },
     };
   }
@@ -180,14 +191,25 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     name: string;
     version: string;
     decimals: number;
+    assetTransferMethod?: string;
+    supportsEip2612?: boolean;
   } {
-    // Map of network to USDC info including EIP-712 domain parameters
-    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers
-    // NOTE: Currently only EIP-3009 supporting stablecoins can be used with this scheme
-    // Generic ERC20 support via EIP-2612/permit2 is planned, but not yet implemented.
+    // Map of network to stablecoin info including EIP-712 domain parameters.
+    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers.
+    // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
+    // For permit2 tokens, set supportsEip2612: true if the token implements EIP-2612 permit().
+    // When supportsEip2612 is false/absent on a permit2 token, name/version are omitted from
+    // extra so the client skips the EIP-2612 path and falls back to ERC-20 approval gas sponsoring.
     const stablecoins: Record<
       string,
-      { address: string; name: string; version: string; decimals: number }
+      {
+        address: string;
+        name: string;
+        version: string;
+        decimals: number;
+        assetTransferMethod?: string;
+        supportsEip2612?: boolean;
+      }
     > = {
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -206,7 +228,15 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         name: "MegaUSD",
         version: "1",
         decimals: 18,
-      }, // MegaETH mainnet USDM
+        assetTransferMethod: "permit2",
+        supportsEip2612: true,
+      }, // MegaETH mainnet MegaUSD (no EIP-3009, supports EIP-2612)
+      "eip155:143": {
+        address: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Monad mainnet USDC
     };
 
     const assetInfo = stablecoins[network];
