@@ -1,0 +1,7 @@
+{
+  "name": "P-Link",
+  "description": "Solana payment gateway - Request, Send, Receive, Pay with email - x402 payments",
+  "logoUrl": "/logos/p-link.png",
+  "websiteUrl": "https://www.p-link.io/",
+  "category": "Client-Side Integrations"
+}
