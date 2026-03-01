@@ -258,10 +258,10 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
     // Verify transfer amount meets requirements
     const amount = parsedTransfer.data.amount;
-    if (amount < BigInt(requirements.amount)) {
+    if (amount !== BigInt(requirements.amount)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_svm_payload_amount_insufficient",
+        invalidReason: "invalid_exact_svm_payload_amount_mismatch",
         payer,
       };
     }
