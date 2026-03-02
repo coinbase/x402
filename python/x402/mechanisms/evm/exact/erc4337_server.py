@@ -1,8 +1,7 @@
 """ERC-4337 server implementation for the Exact payment scheme."""
 
 from ....schemas import AssetAmount, Network, PaymentRequirements, Price, SupportedKind
-from ..constants import SCHEME_EXACT
-from ..erc4337_networks import get_erc4337_chain, resolve_erc4337_chain_id, ERC4337_SUPPORTED_CHAINS
+from ..erc4337_networks import ERC4337_SUPPORTED_CHAINS, get_erc4337_chain, resolve_erc4337_chain_id
 from ..erc4337_types import extract_user_operation_capability
 from .server import ExactEvmScheme
 
@@ -35,9 +34,7 @@ class ExactEvmSchemeERC4337(ExactEvmScheme):
             Enhanced payment requirements with UserOperation preserved.
         """
         # Extract userOperation capability before enhancement
-        user_op_cap = extract_user_operation_capability(
-            getattr(requirements, "extra", None)
-        )
+        user_op_cap = extract_user_operation_capability(getattr(requirements, "extra", None))
 
         # Try parent enhancement
         try:

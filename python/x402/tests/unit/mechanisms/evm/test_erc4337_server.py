@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from x402.mechanisms.evm.exact.erc4337_server import ExactEvmSchemeERC4337
 from x402.schemas import PaymentRequirements, SupportedKind
 
@@ -15,10 +13,13 @@ def _make_requirements(**kwargs):
     req.amount = kwargs.get("amount", "1000000")
     req.asset = kwargs.get("asset", "0x036CbD53842c5426634e7929541eC2318f3dCF7e")
     req.pay_to = kwargs.get("pay_to", "0xRecipient")
-    req.extra = kwargs.get("extra", {
-        "name": "USDC",
-        "version": "2",
-    })
+    req.extra = kwargs.get(
+        "extra",
+        {
+            "name": "USDC",
+            "version": "2",
+        },
+    )
     return req
 
 

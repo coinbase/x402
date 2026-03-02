@@ -1,7 +1,8 @@
 """Tests for ERC-4337 client scheme."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from x402.mechanisms.evm.erc4337_types import UserOperation07Json
 from x402.mechanisms.evm.exact.erc4337_client import ExactEvmSchemeERC4337

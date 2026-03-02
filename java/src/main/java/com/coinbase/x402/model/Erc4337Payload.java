@@ -34,7 +34,9 @@ public class Erc4337Payload {
      * @return true if the payload is an ERC-4337 payload
      */
     public static boolean isErc4337Payload(Map<String, Object> payload) {
-        if (payload == null) return false;
+        if (payload == null) {
+            return false;
+        }
         Object userOp = payload.get("userOperation");
         return userOp != null
                 && userOp instanceof Map

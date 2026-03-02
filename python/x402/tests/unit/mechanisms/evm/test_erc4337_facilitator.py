@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from x402.mechanisms.evm.erc4337_constants import (
     ERR_GAS_ESTIMATION_FAILED,
     ERR_MISSING_BUNDLER_URL,

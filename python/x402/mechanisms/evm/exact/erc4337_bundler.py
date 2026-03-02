@@ -2,8 +2,8 @@
 
 import json
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -89,7 +89,9 @@ class UserOperationReceipt:
             reason=data.get("reason"),
             logs=data.get("logs", []),
             transaction_hash=data.get("transactionHash"),
-            receipt_transaction_hash=receipt.get("transactionHash") if isinstance(receipt, dict) else None,
+            receipt_transaction_hash=receipt.get("transactionHash")
+            if isinstance(receipt, dict)
+            else None,
         )
 
 
@@ -100,16 +102,12 @@ class BundlerClient:
         self._rpc_url = rpc_url
         self._config = config or BundlerClientConfig()
 
-    def estimate_user_operation_gas(
-        self, user_op: dict[str, Any], entry_point: str
-    ) -> GasEstimate:
+    def estimate_user_operation_gas(self, user_op: dict[str, Any], entry_point: str) -> GasEstimate:
         """Estimate gas for a user operation."""
         result = self._call("eth_estimateUserOperationGas", [user_op, entry_point])
         return GasEstimate.from_dict(result)
 
-    def send_user_operation(
-        self, user_op: dict[str, Any], entry_point: str
-    ) -> str:
+    def send_user_operation(self, user_op: dict[str, Any], entry_point: str) -> str:
         """Send a user operation and return the hash."""
         result = self._call("eth_sendUserOperation", [user_op, entry_point])
         if not isinstance(result, str):
@@ -120,9 +118,7 @@ class BundlerClient:
             )
         return result
 
-    def get_user_operation_receipt(
-        self, user_op_hash: str
-    ) -> UserOperationReceipt | None:
+    def get_user_operation_receipt(self, user_op_hash: str) -> UserOperationReceipt | None:
         """Get the receipt for a user operation."""
         result = self._call("eth_getUserOperationReceipt", [user_op_hash])
         if result is None:
@@ -131,15 +127,16 @@ class BundlerClient:
 
     def _call(self, method: str, params: list[Any]) -> Any:
         """Make a JSON-RPC call with timeout and retry."""
-        request_body = json.dumps({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params,
-        }).encode("utf-8")
+        request_body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": method,
+                "params": params,
+            }
+        ).encode("utf-8")
 
         max_attempts = self._config.retries + 1
-        last_error: Exception | None = None
 
         for attempt in range(max_attempts):
             try:
@@ -175,7 +172,6 @@ class BundlerClient:
             except BundlerError:
                 raise
             except urllib.error.URLError as e:
-                last_error = e
                 if attempt < max_attempts - 1:
                     time.sleep(2**attempt * 0.1)
                     continue
@@ -185,7 +181,6 @@ class BundlerClient:
                     bundler_url=self._rpc_url,
                 ) from e
             except Exception as e:
-                last_error = e
                 if attempt < max_attempts - 1:
                     time.sleep(2**attempt * 0.1)
                     continue

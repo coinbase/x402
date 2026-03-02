@@ -1,7 +1,6 @@
 """ERC-4337 network registry for x402 EVM mechanism."""
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass

@@ -114,7 +114,7 @@ func (c *ExactEvmSchemeERC4337) CreatePaymentPayload(
 	}
 
 	// Build ERC20 transfer calldata
-	callData, err := BuildERC20TransferCallData(requirements.Asset, requirements.PayTo, amount)
+	callData, err := BuildERC20TransferCallData(requirements.PayTo, amount)
 	if err != nil {
 		return types.PaymentPayload{}, NewPaymentCreationError(PhasePreparation, "failed to build calldata", string(requirements.Network), err)
 	}

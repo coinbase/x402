@@ -21,7 +21,7 @@ const (
 	WebAuthnSignerFactory = "0xF7488fFbe67327ac9f37D5F722d83Fc900852Fbf"
 )
 
-// AA error codes and their human-readable messages
+// AAErrorMessages maps AA error codes to their human-readable messages.
 var AAErrorMessages = map[string]string{
 	"AA10": "Sender already constructed",
 	"AA13": "InitCode failed or OOG",

@@ -8,7 +8,7 @@ import (
 )
 
 // BuildERC20TransferCallData builds the calldata for an ERC20 transfer(to, amount) call.
-func BuildERC20TransferCallData(token, to string, amount *big.Int) (string, error) {
+func BuildERC20TransferCallData(to string, amount *big.Int) (string, error) {
 	// ERC20 transfer function signature
 	addressType, _ := abi.NewType("address", "", nil)
 	uint256Type, _ := abi.NewType("uint256", "", nil)

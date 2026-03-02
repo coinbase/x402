@@ -23,6 +23,19 @@ public final class Erc4337Network {
         public final String safeTransactionServiceUrl;
         public final boolean testnet;
 
+        /**
+         * Creates chain info for an ERC-4337 supported network.
+         *
+         * @param chainId the numeric chain ID
+         * @param name human-readable chain name
+         * @param v1Name v1 network name (e.g. "base", "optimism")
+         * @param caip2 CAIP-2 identifier (e.g. "eip155:8453")
+         * @param rpcUrl default RPC endpoint URL
+         * @param blockExplorerUrl block explorer URL
+         * @param usdcAddress USDC token contract address
+         * @param safeTransactionServiceUrl Safe transaction service URL, or null
+         * @param testnet whether this is a testnet
+         */
         public ChainInfo(int chainId, String name, String v1Name, String caip2,
                          String rpcUrl, String blockExplorerUrl, String usdcAddress,
                          String safeTransactionServiceUrl, boolean testnet) {

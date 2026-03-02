@@ -104,9 +104,7 @@ class ExactEvmSchemeERC4337:
         Raises:
             PaymentCreationError: If creation fails.
         """
-        capability = extract_user_operation_capability(
-            getattr(requirements, "extra", None)
-        )
+        capability = extract_user_operation_capability(getattr(requirements, "extra", None))
 
         # Resolve entrypoint
         entry_point = self._entrypoint
@@ -146,17 +144,13 @@ class ExactEvmSchemeERC4337:
             {
                 "to": requirements.asset,
                 "value": "0x0",
-                "data": _build_erc20_transfer_calldata(
-                    requirements.pay_to, int(amount)
-                ),
+                "data": _build_erc20_transfer_calldata(requirements.pay_to, int(amount)),
             }
         ]
 
         # Prepare user operation
         try:
-            unsigned_user_op = self._bundler_client.prepare_user_operation(
-                calls, entry_point
-            )
+            unsigned_user_op = self._bundler_client.prepare_user_operation(calls, entry_point)
         except Exception as e:
             aa_error = parse_aa_error(e)
             reason = aa_error["reason"] if aa_error else str(e)

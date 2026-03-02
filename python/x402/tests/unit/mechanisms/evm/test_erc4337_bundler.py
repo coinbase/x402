@@ -1,15 +1,9 @@
 """Tests for ERC-4337 bundler client."""
 
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from threading import Thread
-from unittest.mock import patch
-
-import pytest
+from http.server import BaseHTTPRequestHandler
 
 from x402.mechanisms.evm.exact.erc4337_bundler import (
-    BundlerClient,
-    BundlerClientConfig,
     BundlerError,
     GasEstimate,
     UserOperationReceipt,

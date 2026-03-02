@@ -29,14 +29,20 @@ public class UserOperationCapability {
      */
     @SuppressWarnings("unchecked")
     public static UserOperationCapability extract(Map<String, Object> extra) {
-        if (extra == null) return null;
+        if (extra == null) {
+            return null;
+        }
 
         Object userOpObj = extra.get("userOperation");
-        if (!(userOpObj instanceof Map)) return null;
+        if (!(userOpObj instanceof Map)) {
+            return null;
+        }
 
         Map<String, Object> userOp = (Map<String, Object>) userOpObj;
         Object supported = userOp.get("supported");
-        if (!Boolean.TRUE.equals(supported)) return null;
+        if (!Boolean.TRUE.equals(supported)) {
+            return null;
+        }
 
         UserOperationCapability cap = new UserOperationCapability();
         cap.supported = true;

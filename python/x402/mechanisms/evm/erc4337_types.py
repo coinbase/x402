@@ -1,6 +1,6 @@
 """ERC-4337 type definitions for x402 EVM mechanism."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -130,11 +130,7 @@ def is_erc4337_payload(payload: Any) -> bool:
     if not isinstance(payload, dict):
         return False
     user_op = payload.get("userOperation")
-    return (
-        user_op is not None
-        and isinstance(user_op, dict)
-        and "entryPoint" in payload
-    )
+    return user_op is not None and isinstance(user_op, dict) and "entryPoint" in payload
 
 
 def extract_user_operation_capability(

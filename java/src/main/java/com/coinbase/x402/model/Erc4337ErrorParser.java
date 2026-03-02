@@ -18,6 +18,12 @@ public final class Erc4337ErrorParser {
         public final String code;
         public final String reason;
 
+        /**
+         * Creates an AA error with the given code and reason.
+         *
+         * @param code the AA error code (e.g. "AA21")
+         * @param reason human-readable error reason
+         */
         public AAError(String code, String reason) {
             this.code = code;
             this.reason = reason;
@@ -31,10 +37,14 @@ public final class Erc4337ErrorParser {
      * @return the parsed AA error, or null if no AA code found
      */
     public static AAError parseAAError(String message) {
-        if (message == null || message.isEmpty()) return null;
+        if (message == null || message.isEmpty()) {
+            return null;
+        }
 
         Matcher matcher = AA_ERROR_PATTERN.matcher(message);
-        if (!matcher.find()) return null;
+        if (!matcher.find()) {
+            return null;
+        }
 
         String code = matcher.group(1);
         String reason = Erc4337Constants.AA_ERROR_MESSAGES.getOrDefault(code, "Unknown AA error");

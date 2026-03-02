@@ -1,11 +1,8 @@
 """Tests for ERC-4337 types."""
 
-import pytest
-
 from x402.mechanisms.evm.erc4337_types import (
     Erc4337Payload,
     UserOperation07Json,
-    UserOperationCapability,
     extract_user_operation_capability,
     is_erc4337_payload,
 )
