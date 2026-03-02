@@ -1,10 +1,8 @@
- {
-    "name": "AiPayGent",
-    "description": "Pay-per-use AI API powered by Claude. Research, write,
-  analyze, translate, summarize, generate code and social media posts.
-  $0.01–$0.05 per call. Fully x402-compatible — hit /discover to see all
-  endpoints and pricing.",
-    "logoUrl": "/logos/aipaygent-logo.png",
-    "websiteUrl": "https://api.aipaygent.xyz",
-    "category": "Services/Endpoints"
-  }
+{
+  "name": "AiPayGent",
+  "description": "AI agent marketplace with 113 endpoints and 74 MCP tools. Free real-time data (weather, crypto, stocks, news, exchange rates, IP geo). Paid: Claude-powered research, writing, code execution, vision, RAG, web scraping (Google Maps, Twitter, Instagram, LinkedIn, YouTube, TikTok). Agent infrastructure: messaging, shared knowledge base, task broker. 8 specialist agents, 32 marketplace listings. No API key needed — pay per call in USDC.",
+  "logoUrl": "/logos/aipaygent-logo.png",
+  "websiteUrl": "https://api.aipaygent.xyz",
+  "category": "Services/Endpoints",
+  "typeLabel": "AI Marketplace"
+}
