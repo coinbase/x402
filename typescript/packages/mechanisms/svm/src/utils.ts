@@ -201,7 +201,8 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
 
 /**
  * A decoded compact instruction extracted from a Swig signV1/signV2 payload.
- * Indices reference the outer transaction's static account list.
+ * Indices reference the SignV2 instruction's own account list, not the outer
+ * transaction's static account keys.
  */
 export interface SwigCompactInstruction {
   programIdIndex: number;
@@ -276,14 +277,24 @@ export function parseSwigTransaction(
   const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
   const compactInstructions = decodeSwigCompactInstructions(rawData);
 
-  // 4. Resolve compact instruction indices to addresses using staticAccounts
+  // 4. Resolve compact instruction indices through signV2's account list
+  const signV2Accounts = signV2Ix.accounts ?? [];
   for (const ci of compactInstructions) {
+    if (ci.programIdIndex >= signV2Accounts.length) {
+      throw new Error(
+        `compact instruction programIdIndex ${ci.programIdIndex} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+      );
+    }
     result.push({
-      programAddress: staticAccounts[ci.programIdIndex],
-      accounts: ci.accounts.map(idx => ({
-        address: staticAccounts[idx],
-        role: 1, // AccountRole.WRITABLE — exact role doesn't matter for parsing
-      })),
+      programAddress: signV2Accounts[ci.programIdIndex].address as Address,
+      accounts: ci.accounts.map(idx => {
+        if (idx >= signV2Accounts.length) {
+          throw new Error(
+            `compact instruction account index ${idx} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+          );
+        }
+        return { address: signV2Accounts[idx].address as Address, role: 1 };
+      }),
       data: ci.data,
     });
   }

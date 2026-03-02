@@ -381,6 +381,16 @@ describe("ExactSvmScheme", () => {
       COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
     ];
 
+    // Non-identity SignV2 account list to exercise index remapping:
+    // pos 0 → swigPDA, pos 1 → dest, pos 2 → TOKEN_PROGRAM, pos 3 → mint, pos 4 → source
+    const signV2Accounts = [
+      { address: SWIG_PDA as Address },
+      { address: "destinationATA11111111111111111111111111" as Address },
+      { address: TOKEN_PROGRAM as Address },
+      { address: USDC_DEVNET_ADDRESS as Address },
+      { address: "sourceAccount111111111111111111111111111" as Address },
+    ];
+
     function buildSwigV2Data(payload: Uint8Array, numInstructions = 1): Uint8Array {
       // Prepend numInstructions count byte
       const withCount = new Uint8Array(1 + payload.length);
@@ -418,7 +428,10 @@ describe("ExactSvmScheme", () => {
     }
 
     it("should flatten a Swig transaction with embedded TransferChecked", () => {
-      const compact = buildTransferCheckedCompact(1, [2, 3, 4, 0], 100000n);
+      // compact indices reference signV2's account list, not global:
+      // programIdIndex=2 → signV2Accounts[2]=TOKEN_PROGRAM
+      // accounts=[4,3,1,0] → signV2Accounts[4,3,1,0] = [source, mint, dest, swigPDA]
+      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -426,7 +439,7 @@ describe("ExactSvmScheme", () => {
         { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
         {
           programAddress: SWIG_PROGRAM_ADDRESS as Address,
-          accounts: [{ address: SWIG_PDA as Address }],
+          accounts: signV2Accounts,
           data: signV2Data,
         },
       ];
@@ -447,7 +460,7 @@ describe("ExactSvmScheme", () => {
     });
 
     it("should filter out secp256r1 precompile instructions", () => {
-      const compact = buildTransferCheckedCompact(1, [2, 3, 4, 0], 100000n);
+      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -456,7 +469,7 @@ describe("ExactSvmScheme", () => {
         { programAddress: SECP256R1_PRECOMPILE_ADDRESS as Address, data: new Uint8Array([]) },
         {
           programAddress: SWIG_PROGRAM_ADDRESS as Address,
-          accounts: [{ address: SWIG_PDA as Address }],
+          accounts: signV2Accounts,
           data: signV2Data,
         },
       ];
@@ -469,8 +482,8 @@ describe("ExactSvmScheme", () => {
     });
 
     it("should resolve compact instruction account indices to addresses", () => {
-      // accounts=[2, 3, 4, 0] → [source, mint, destATA, swigPDA]
-      const compact = buildTransferCheckedCompact(1, [2, 3, 4, 0], 100000n);
+      // compact accounts=[4,3,1,0] → signV2Accounts[4,3,1,0] = [source, mint, dest, swigPDA]
+      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -478,7 +491,7 @@ describe("ExactSvmScheme", () => {
         { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
         {
           programAddress: SWIG_PROGRAM_ADDRESS as Address,
-          accounts: [{ address: SWIG_PDA as Address }],
+          accounts: signV2Accounts,
           data: signV2Data,
         },
       ];
@@ -494,7 +507,7 @@ describe("ExactSvmScheme", () => {
     });
 
     it("should extract swigPda from first account of SignV2 instruction", () => {
-      const compact = buildTransferCheckedCompact(1, [2, 3, 4, 0], 100000n);
+      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -502,13 +515,31 @@ describe("ExactSvmScheme", () => {
         { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
         {
           programAddress: SWIG_PROGRAM_ADDRESS as Address,
-          accounts: [{ address: SWIG_PDA as Address }],
+          accounts: signV2Accounts,
           data: signV2Data,
         },
       ];
 
       const result = parseSwigTransaction(instructions, staticAccounts);
       expect(result.swigPda).toBe(SWIG_PDA);
+    });
+
+    it("should throw when compact instruction index exceeds signV2 accounts", () => {
+      // programIdIndex=5 is out of range for signV2Accounts (len 5, valid 0-4)
+      const compact = buildTransferCheckedCompact(5, [0, 1, 2, 3], 100000n);
+      const signV2Data = buildSwigV2Data(compact);
+
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts,
+          data: signV2Data,
+        },
+      ];
+
+      expect(() => parseSwigTransaction(instructions, staticAccounts)).toThrow(/out of range/);
     });
   });
 

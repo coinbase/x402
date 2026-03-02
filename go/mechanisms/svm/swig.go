@@ -9,8 +9,8 @@ import (
 )
 
 // SwigCompactInstruction is a decoded compact instruction embedded in a Swig
-// signV1/signV2 instruction payload.  Indices reference the outer transaction's
-// account key list.
+// signV1/signV2 instruction payload.  Indices reference the SignV2 instruction's
+// own account list, not the outer transaction's global account keys.
 type SwigCompactInstruction struct {
 	ProgramIDIndex uint8
 	Accounts       []uint8
@@ -188,14 +188,22 @@ func ParseSwigTransaction(tx *solana.Transaction) (*ParseSwigResult, error) {
 		return nil, err
 	}
 
-	// 5. Resolve compact instructions: widen uint8 → uint16 for CompiledInstruction
+	// 5. Resolve compact instructions: remap local indices through signV2.Accounts
 	for _, ci := range compactInstructions {
+		if int(ci.ProgramIDIndex) >= len(signV2.Accounts) {
+			return nil, fmt.Errorf("compact instruction programIDIndex %d out of range (signV2 has %d accounts)",
+				ci.ProgramIDIndex, len(signV2.Accounts))
+		}
 		accounts := make([]uint16, len(ci.Accounts))
 		for j, a := range ci.Accounts {
-			accounts[j] = uint16(a)
+			if int(a) >= len(signV2.Accounts) {
+				return nil, fmt.Errorf("compact instruction account index %d out of range (signV2 has %d accounts)",
+					a, len(signV2.Accounts))
+			}
+			accounts[j] = signV2.Accounts[a]
 		}
 		result = append(result, solana.CompiledInstruction{
-			ProgramIDIndex: uint16(ci.ProgramIDIndex),
+			ProgramIDIndex: signV2.Accounts[ci.ProgramIDIndex],
 			Accounts:       accounts,
 			Data:           ci.Data,
 		})

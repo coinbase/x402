@@ -531,18 +531,24 @@ func TestParseSwigTransaction(t *testing.T) {
 		secp256r1Key,
 	}
 
+	// Non-identity SignV2 account mapping to exercise index remapping:
+	// signV2 pos → global index: [0→0(swigPDA), 1→4(dest), 2→1(TOKEN_PROGRAM), 3→3(mint), 4→2(source)]
+	signV2Accounts := []uint16{0, 4, 1, 3, 2}
+
 	t.Run("flattens Swig transaction with embedded TransferChecked", func(t *testing.T) {
 		instrData := buildTransferCheckedData(100000, 6)
-		// inner ix: programIDIndex=1 (TOKEN_PROGRAM), accounts=[2,3,4,0] (source, mint, dest, swigPDA)
-		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+		// compact indices reference signV2's account list, not global:
+		// programIDIndex=2 → signV2[2]=global 1 (TOKEN_PROGRAM)
+		// accounts=[4,3,1,0] → signV2[4,3,1,0] = global [2,3,4,0] (source, mint, dest, swigPDA)
+		signV2Data := buildSwigInstructionData(2, []uint8{4, 3, 1, 0}, instrData)
 
 		tx := &solana.Transaction{
 			Message: solana.Message{
 				AccountKeys: accountKeys,
 				Instructions: []solana.CompiledInstruction{
-					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},         // compute limit
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},             // compute limit
 					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}}, // compute price
-					{ProgramIDIndex: 5, Accounts: []uint16{0, 1, 2, 3, 4}, Data: signV2Data}, // SignV2
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data}, // SignV2
 				},
 			},
 		}
@@ -586,7 +592,7 @@ func TestParseSwigTransaction(t *testing.T) {
 
 	t.Run("filters out secp256r1 precompile instructions", func(t *testing.T) {
 		instrData := buildTransferCheckedData(100000, 6)
-		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+		signV2Data := buildSwigInstructionData(2, []uint8{4, 3, 1, 0}, instrData)
 
 		tx := &solana.Transaction{
 			Message: solana.Message{
@@ -595,7 +601,7 @@ func TestParseSwigTransaction(t *testing.T) {
 					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},             // compute limit
 					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}}, // compute price
 					{ProgramIDIndex: 7, Data: []byte{}},                            // secp256r1 precompile
-					{ProgramIDIndex: 5, Accounts: []uint16{0}, Data: signV2Data},   // SignV2
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data}, // SignV2
 				},
 			},
 		}
@@ -613,7 +619,7 @@ func TestParseSwigTransaction(t *testing.T) {
 
 	t.Run("extracts SwigPDA from first account of SignV2", func(t *testing.T) {
 		instrData := buildTransferCheckedData(100000, 6)
-		signV2Data := buildSwigInstructionData(1, []uint8{2, 3, 4, 0}, instrData)
+		signV2Data := buildSwigInstructionData(2, []uint8{4, 3, 1, 0}, instrData)
 
 		tx := &solana.Transaction{
 			Message: solana.Message{
@@ -621,7 +627,7 @@ func TestParseSwigTransaction(t *testing.T) {
 				Instructions: []solana.CompiledInstruction{
 					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
 					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
-					{ProgramIDIndex: 5, Accounts: []uint16{0}, Data: signV2Data},
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data},
 				},
 			},
 		}
@@ -654,6 +660,28 @@ func TestParseSwigTransaction(t *testing.T) {
 		_, err := svm.ParseSwigTransaction(tx)
 		if err == nil {
 			t.Fatal("expected error for SignV2 with no accounts")
+		}
+	})
+
+	t.Run("error when compact instruction index exceeds signV2 accounts", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		// programIDIndex=5 is out of range for signV2Accounts (len 5, valid 0-4)
+		signV2Data := buildSwigInstructionData(5, []uint8{0, 1, 2, 3}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data},
+				},
+			},
+		}
+
+		_, err := svm.ParseSwigTransaction(tx)
+		if err == nil {
+			t.Fatal("expected error for out-of-range compact instruction index")
 		}
 	})
 }
