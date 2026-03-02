@@ -121,26 +121,13 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", err.Error())
 	}
 
-	// ── Swig flattening pre-step ──────────────────────────────────────────
-	// Normalize a Swig transaction into the same instruction layout as a
-	// regular one, then let the existing verification handle it unchanged.
-	instructions := tx.Message.Instructions
-	var payer string
-
-	if svm.IsSwigTransaction(tx) {
-		result, parseErr := svm.ParseSwigTransaction(tx)
-		if parseErr != nil {
-			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", parseErr.Error())
-		}
-		instructions = result.Instructions
-		payer = result.SwigPDA
-	} else {
-		var payerErr error
-		payer, payerErr = svm.GetTokenPayerFromTransaction(tx)
-		if payerErr != nil {
-			return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", payerErr.Error())
-		}
+	// Normalize the transaction (handles Swig, regular, and future wallet types)
+	normalized, err := svm.NormalizeTransaction(tx)
+	if err != nil {
+		return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", err.Error())
 	}
+	instructions := normalized.Instructions
+	payer := normalized.Payer
 
 	// Instruction count check AFTER flattening (3-6)
 	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked

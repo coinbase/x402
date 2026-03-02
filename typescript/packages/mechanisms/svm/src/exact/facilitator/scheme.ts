@@ -31,12 +31,8 @@ import {
 } from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
-import {
-  decodeTransactionFromPayload,
-  getTokenPayerFromTransaction,
-  isSwigTransaction,
-  parseSwigTransaction,
-} from "../../utils";
+import { decodeTransactionFromPayload } from "../../utils";
+import { normalizeTransaction, type NormalizedTransaction } from "../../normalizer";
 
 /**
  * SVM facilitator implementation for the Exact payment scheme.
@@ -146,25 +142,23 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     const decompiled = decompileTransactionMessage(compiled);
     let instructions = decompiled.instructions ?? [];
 
-    // ── Swig flattening pre-step ──────────────────────────────────────────
-    // Normalize a Swig transaction into the same instruction layout as a
-    // regular one, then let the existing verification handle it unchanged.
-    let payer: string;
-
-    if (isSwigTransaction(instructions as never)) {
-      const result = parseSwigTransaction(instructions as never, compiled.staticAccounts ?? []);
-      instructions = result.instructions;
-      payer = result.swigPda;
-    } else {
-      payer = getTokenPayerFromTransaction(transaction);
-      if (!payer) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-          payer: "",
-        };
-      }
+    // Normalize the transaction (handles Swig, regular, and future wallet types)
+    let normalized: NormalizedTransaction;
+    try {
+      normalized = normalizeTransaction(
+        instructions as never,
+        compiled.staticAccounts ?? [],
+        transaction,
+      );
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer: "",
+      };
     }
+    instructions = normalized.instructions;
+    const payer = normalized.payer;
 
     // Instruction count check AFTER flattening (3-6)
     // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked

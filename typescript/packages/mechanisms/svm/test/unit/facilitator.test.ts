@@ -15,7 +15,8 @@ import {
   isSwigTransaction,
   parseSwigTransaction,
 } from "../../src/utils";
-import type { Address } from "@solana/kit";
+import { normalizeTransaction } from "../../src/normalizer";
+import type { Address, Transaction } from "@solana/kit";
 
 describe("ExactSvmScheme", () => {
   let mockSigner: FacilitatorSvmSigner;
@@ -540,6 +541,182 @@ describe("ExactSvmScheme", () => {
       ];
 
       expect(() => parseSwigTransaction(instructions, staticAccounts)).toThrow(/out of range/);
+    });
+  });
+
+  describe("normalizeTransaction", () => {
+    const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+    const SWIG_PDA = "swigPDA1111111111111111111111111111111111111";
+
+    const staticAccounts = [
+      SWIG_PDA as Address,
+      TOKEN_PROGRAM as Address,
+      "sourceAccount111111111111111111111111111" as Address,
+      USDC_DEVNET_ADDRESS as Address,
+      "destinationATA11111111111111111111111111" as Address,
+      SWIG_PROGRAM_ADDRESS as Address,
+      COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
+    ];
+
+    const signV2Accounts = [
+      { address: SWIG_PDA as Address },
+      { address: "destinationATA11111111111111111111111111" as Address },
+      { address: TOKEN_PROGRAM as Address },
+      { address: USDC_DEVNET_ADDRESS as Address },
+      { address: "sourceAccount111111111111111111111111111" as Address },
+    ];
+
+    function buildSwigV2Data(payload: Uint8Array, numInstructions = 1): Uint8Array {
+      const withCount = new Uint8Array(1 + payload.length);
+      withCount[0] = numInstructions;
+      withCount.set(payload, 1);
+      const buf = new Uint8Array(8 + withCount.length);
+      buf[0] = SWIG_SIGN_V2_DISCRIMINATOR;
+      buf[1] = 0;
+      buf[2] = withCount.length & 0xff;
+      buf[3] = (withCount.length >> 8) & 0xff;
+      buf.set(withCount, 8);
+      return buf;
+    }
+
+    function buildTransferCheckedCompact(
+      programIdIndex: number,
+      accountIndices: number[],
+      amount: bigint,
+      decimals = 6,
+    ): Uint8Array {
+      const instrData = new Uint8Array(10);
+      instrData[0] = 12;
+      new DataView(instrData.buffer).setBigUint64(1, amount, true);
+      instrData[9] = decimals;
+      const accounts = new Uint8Array(accountIndices);
+      const entry = new Uint8Array(1 + 1 + accounts.length + 2 + instrData.length);
+      let off = 0;
+      entry[off++] = programIdIndex;
+      entry[off++] = accounts.length;
+      entry.set(accounts, off); off += accounts.length;
+      entry[off++] = instrData.length & 0xff;
+      entry[off++] = (instrData.length >> 8) & 0xff;
+      entry.set(instrData, off);
+      return entry;
+    }
+
+    it("should dispatch to SwigNormalizer for Swig transactions", () => {
+      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+      const signV2Data = buildSwigV2Data(compact);
+
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts,
+          data: signV2Data,
+        },
+      ];
+
+      const result = normalizeTransaction(instructions, staticAccounts, {} as Transaction);
+      expect(result.payer).toBe(SWIG_PDA);
+      expect(result.instructions).toHaveLength(3);
+    });
+
+    it("should dispatch to RegularNormalizer for non-Swig transactions", () => {
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
+        { programAddress: TOKEN_PROGRAM as Address, data: new Uint8Array([12, 0, 0, 0]) },
+      ];
+
+      // Build a minimal mock transaction whose messageBytes contain a token
+      // TransferChecked so getTokenPayerFromTransaction can extract the payer.
+      // We use the @solana/kit encoders to build valid bytes.
+      const {
+        getBase64Encoder,
+        getTransactionDecoder,
+        getTransactionEncoder,
+        getCompiledTransactionMessageEncoder,
+      } = require("@solana/kit");
+
+      const compiledMessage = {
+        version: 0,
+        header: {
+          numSignerAccounts: 1,
+          numReadonlySignerAccounts: 0,
+          numReadonlyNonSignerAccounts: 2,
+        },
+        staticAccounts: [
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" as Address, // fee payer / authority
+          "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" as Address, // source
+          TOKEN_PROGRAM as Address, // token program
+          USDC_DEVNET_ADDRESS as Address, // mint
+          "11111111111111111111111111111111" as Address, // dest
+        ],
+        lifetimeToken: "11111111111111111111111111111111",
+        instructions: [
+          {
+            programAddressIndex: 2,
+            accountIndices: [1, 3, 4, 0], // source, mint, dest, authority
+            data: new Uint8Array([12, 160, 134, 1, 0, 0, 0, 0, 0, 6]), // transferChecked 100000, 6 decimals
+          },
+        ],
+        addressTableLookups: [],
+      };
+
+      const messageEncoder = getCompiledTransactionMessageEncoder();
+      const messageBytes = messageEncoder.encode(compiledMessage);
+
+      const mockTransaction: Transaction = {
+        signatures: [new Uint8Array(64)],
+        messageBytes,
+      } as Transaction;
+
+      const result = normalizeTransaction(instructions, [], mockTransaction);
+      expect(result.payer).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+      // Instructions are passed through from the input
+      expect(result.instructions).toHaveLength(3);
+    });
+
+    it("should throw when no normalizer can handle the transaction", () => {
+      // RegularNormalizer always canHandle, so this test verifies it throws
+      // when the regular path can't find a payer (empty transaction)
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+      ];
+
+      // Mock transaction with no token instructions → getTokenPayerFromTransaction returns ""
+      const compiledMessage = {
+        version: 0,
+        header: {
+          numSignerAccounts: 1,
+          numReadonlySignerAccounts: 0,
+          numReadonlyNonSignerAccounts: 0,
+        },
+        staticAccounts: [
+          COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
+        ],
+        lifetimeToken: "11111111111111111111111111111111",
+        instructions: [
+          {
+            programAddressIndex: 0,
+            accountIndices: [],
+            data: new Uint8Array([2, 0, 0, 0, 0]),
+          },
+        ],
+        addressTableLookups: [],
+      };
+
+      const { getCompiledTransactionMessageEncoder } = require("@solana/kit");
+      const messageEncoder = getCompiledTransactionMessageEncoder();
+      const messageBytes = messageEncoder.encode(compiledMessage);
+
+      const mockTransaction: Transaction = {
+        signatures: [new Uint8Array(64)],
+        messageBytes,
+      } as Transaction;
+
+      expect(() => normalizeTransaction(instructions, [], mockTransaction)).toThrow(
+        "invalid_exact_svm_payload_no_transfer_instruction",
+      );
     });
   });
 

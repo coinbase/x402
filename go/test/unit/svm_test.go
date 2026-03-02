@@ -686,6 +686,115 @@ func TestParseSwigTransaction(t *testing.T) {
 	})
 }
 
+// TestNormalizeTransaction tests the NormalizeTransaction dispatch function.
+func TestNormalizeTransaction(t *testing.T) {
+	swigPDA := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
+	swigKey := solana.MustPublicKeyFromBase58(svm.SwigProgramAddress)
+	mintPubkey := solana.MustPublicKeyFromBase58(svm.USDCDevnetAddress)
+	sourcePubkey := solana.MustPublicKeyFromBase58("11111111111111111111111111111112")
+	destPubkey := solana.MustPublicKeyFromBase58("11111111111111111111111111111111")
+
+	accountKeys := []solana.PublicKey{
+		swigPDA,
+		solana.TokenProgramID,
+		sourcePubkey,
+		mintPubkey,
+		destPubkey,
+		swigKey,
+		solana.ComputeBudget,
+	}
+
+	signV2Accounts := []uint16{0, 4, 1, 3, 2}
+
+	t.Run("dispatches to SwigNormalizer for Swig transactions", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		signV2Data := buildSwigInstructionData(2, []uint8{4, 3, 1, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data},
+				},
+			},
+		}
+
+		normalized, err := svm.NormalizeTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if normalized.Payer != swigPDA.String() {
+			t.Errorf("expected payer=%s, got %s", swigPDA.String(), normalized.Payer)
+		}
+		if len(normalized.Instructions) != 3 {
+			t.Fatalf("expected 3 instructions, got %d", len(normalized.Instructions))
+		}
+	})
+
+	t.Run("dispatches to RegularNormalizer for regular transactions", func(t *testing.T) {
+		transferData := buildTransferCheckedData(100000, 6)
+		// Regular transaction: compute budget + compute price + TransferChecked
+		// authority is the 4th account (index 3 in the token instruction accounts)
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: []solana.PublicKey{
+					solana.ComputeBudget,
+					solana.TokenProgramID,
+					sourcePubkey,   // source
+					mintPubkey,     // mint
+					destPubkey,     // dest
+					solana.MustPublicKeyFromBase58("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), // authority
+				},
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 0, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 0, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 1, Accounts: []uint16{2, 3, 4, 5}, Data: transferData},
+				},
+			},
+		}
+
+		normalized, err := svm.NormalizeTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Payer should be the authority from TransferChecked (index 5 = EPjFWd...)
+		if normalized.Payer != "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
+			t.Errorf("expected payer=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, got %s", normalized.Payer)
+		}
+		if len(normalized.Instructions) != 3 {
+			t.Fatalf("expected 3 instructions, got %d", len(normalized.Instructions))
+		}
+	})
+
+	t.Run("SwigNormalizer takes priority over RegularNormalizer", func(t *testing.T) {
+		instrData := buildTransferCheckedData(100000, 6)
+		signV2Data := buildSwigInstructionData(2, []uint8{4, 3, 1, 0}, instrData)
+
+		tx := &solana.Transaction{
+			Message: solana.Message{
+				AccountKeys: accountKeys,
+				Instructions: []solana.CompiledInstruction{
+					{ProgramIDIndex: 6, Data: []byte{2, 0, 0, 0, 0}},
+					{ProgramIDIndex: 6, Data: []byte{3, 0, 0, 0, 0, 0, 0, 0, 0}},
+					{ProgramIDIndex: 5, Accounts: signV2Accounts, Data: signV2Data},
+				},
+			},
+		}
+
+		// For a Swig transaction, the payer should be the SwigPDA, not the
+		// token authority (which is what RegularNormalizer would return).
+		normalized, err := svm.NormalizeTransaction(tx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if normalized.Payer != swigPDA.String() {
+			t.Errorf("SwigNormalizer should take priority: expected payer=%s, got %s", swigPDA.String(), normalized.Payer)
+		}
+	})
+}
+
 // TestSolanaGetAssetInfo tests asset info retrieval
 func TestSolanaGetAssetInfo(t *testing.T) {
 	t.Run("By symbol", func(t *testing.T) {

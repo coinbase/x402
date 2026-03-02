@@ -8,6 +8,25 @@ import (
 	solana "github.com/gagliardetto/solana-go"
 )
 
+// SwigNormalizer detects and flattens Swig smart-wallet transactions into the
+// same NormalizedTransaction shape used by regular transactions.
+type SwigNormalizer struct{}
+
+func (s *SwigNormalizer) CanHandle(tx *solana.Transaction) bool {
+	return IsSwigTransaction(tx)
+}
+
+func (s *SwigNormalizer) Normalize(tx *solana.Transaction) (*NormalizedTransaction, error) {
+	result, err := ParseSwigTransaction(tx)
+	if err != nil {
+		return nil, err
+	}
+	return &NormalizedTransaction{
+		Instructions: result.Instructions,
+		Payer:        result.SwigPDA,
+	}, nil
+}
+
 // SwigCompactInstruction is a decoded compact instruction embedded in a Swig
 // signV1/signV2 instruction payload.  Indices reference the SignV2 instruction's
 // own account list, not the outer transaction's global account keys.
