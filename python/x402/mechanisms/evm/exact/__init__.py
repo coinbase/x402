@@ -10,6 +10,13 @@ from .register import (
 )
 from .server import ExactEvmScheme as ExactEvmServerScheme
 
+# ERC-4337 exports
+from .erc4337_client import ExactEvmSchemeERC4337 as ExactEvmSchemeERC4337Client
+from .erc4337_facilitator import ExactEvmSchemeERC4337 as ExactEvmSchemeERC4337Facilitator
+from .erc4337_facilitator import ExactEvmSchemeERC4337Config
+from .erc4337_server import ExactEvmSchemeERC4337 as ExactEvmSchemeERC4337Server
+from .erc4337_errors import PaymentCreationError, parse_aa_error
+
 # Unified export (context determines which is used)
 ExactEvmScheme = ExactEvmClientScheme  # Most common use case
 
@@ -22,4 +29,11 @@ __all__ = [
     "register_exact_evm_client",
     "register_exact_evm_server",
     "register_exact_evm_facilitator",
+    # ERC-4337
+    "ExactEvmSchemeERC4337Client",
+    "ExactEvmSchemeERC4337Facilitator",
+    "ExactEvmSchemeERC4337Config",
+    "ExactEvmSchemeERC4337Server",
+    "PaymentCreationError",
+    "parse_aa_error",
 ]
