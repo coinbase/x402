@@ -238,10 +238,11 @@ export class ExactHypercoreScheme implements SchemeNetworkFacilitator {
     action: HypercoreSendAssetAction,
     signature: { r: string; s: string; v: number },
   ): Promise<string> {
+    const chainId = parseInt(action.signatureChainId, 16);
     const address = await recoverTypedDataAddress({
       domain: {
         ...HYPERCORE_EIP712_DOMAIN,
-        chainId: Number(HYPERCORE_EIP712_DOMAIN.chainId),
+        chainId,
       },
       types: HYPERCORE_EIP712_TYPES,
       primaryType: "HyperliquidTransaction:SendAsset",

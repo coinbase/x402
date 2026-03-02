@@ -233,10 +233,14 @@ func (f *ExactHypercoreScheme) recoverPayer(
 	action hypercore.HypercoreSendAssetAction,
 	signature hypercore.HypercoreSignature,
 ) (string, error) {
+	chainID := new(big.Int)
+	chainIDHex := strings.TrimPrefix(action.SignatureChainID, "0x")
+	chainID.SetString(chainIDHex, 16)
+
 	domain := evm.TypedDataDomain{
 		Name:              "HyperliquidSignTransaction",
 		Version:           "1",
-		ChainID:           big.NewInt(421614),
+		ChainID:           chainID,
 		VerifyingContract: "0x0000000000000000000000000000000000000000",
 	}
 
