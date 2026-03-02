@@ -2,6 +2,6 @@
   "name": "Maiat Protocol",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/maiat-protocol.png",
-  "description": "Trust infrastructure for AI agents. Maiat Protocol provides x402-gated trust scoring and gate verdicts for any EVM address — helping agents verify counterparties before transacting. Powers the Virtuals ACP ecosystem as a pre-swap trust layer.",
-  "websiteUrl": "https://maiat-protocol.vercel.app/api/v1/trust-gate"
+  "description": "AI agent trust infrastructure on Base. Maiat Protocol provides real-time trust scores and safety verdicts for any EVM wallet or agent — sourced from on-chain Virtuals ACP job history. Also offers token safety checks (honeypot detection, buy/sell tax analysis) before swapping. Used as a pre-transaction trust layer in the Virtuals ACP ecosystem. Premium API access via x402 on Base mainnet (eip155:8453).",
+  "websiteUrl": "https://maiat-protocol.vercel.app"
 }
