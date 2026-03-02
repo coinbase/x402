@@ -4,7 +4,7 @@ const (
 	SchemeExact           = "exact"
 	NetworkMainnet        = "hypercore:mainnet"
 	NetworkTestnet        = "hypercore:testnet"
-	SignatureChainID      = 999
+	SignatureChainID      = 421614
 	MaxNonceAgeSeconds    = 3600
 	HyperliquidAPIMainnet = "https://api.hyperliquid.xyz"
 	HyperliquidAPITestnet = "https://api.hyperliquid-testnet.xyz"

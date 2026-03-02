@@ -11,7 +11,7 @@ export const HYPERCORE_NETWORKS = {
 export const HYPERCORE_EIP712_DOMAIN = {
   name: "HyperliquidSignTransaction",
   version: "1",
-  chainId: 999n,
+  chainId: 421614n,
   verifyingContract: "0x0000000000000000000000000000000000000000" as const,
 } as const;
 

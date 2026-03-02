@@ -50,7 +50,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -101,7 +101,7 @@ class TestVerify:
                 "action": {
                     "type": "wrongType",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -152,7 +152,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0xWrongDestination1234567890123456789012345",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -203,7 +203,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -254,7 +254,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -307,7 +307,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -358,7 +358,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",
@@ -409,7 +409,7 @@ class TestVerify:
                 "action": {
                     "type": "sendAsset",
                     "hyperliquidChain": "Mainnet",
-                    "signatureChainId": "0x3e7",
+                    "signatureChainId": "0x66eee",
                     "destination": "0x0987654321098765432109876543210987654321",
                     "sourceDex": "spot",
                     "destinationDex": "spot",

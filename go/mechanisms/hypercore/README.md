@@ -114,7 +114,7 @@ The **exact** scheme implements fixed-amount payments:
 - **Method**: EIP-712 signed SendAsset actions
 - **Token**: USDH (Hyperliquid USD) - 6 decimals (default)
 - **Default Token**: `USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b`
-- **Signing**: EIP-712 with domain `HyperliquidSignTransaction` (chainId: 999)
+- **Signing**: EIP-712 with domain `HyperliquidSignTransaction` (chainId: 421614)
 - **Nonces**: Timestamp-based (milliseconds since epoch) - max age 1 hour
 - **Settlement**: API-based submission (no gas fees)
 - **Confirmation**: Transaction hash retrieved via ledger query
@@ -186,7 +186,7 @@ scheme.RegisterMoneyParser(func(amount float64, network string) (*x402.AssetAmou
 type HypercoreSendAssetAction struct {
     Type             string `json:"type"`              // "sendAsset"
     HyperliquidChain string `json:"hyperliquidChain"`  // "Mainnet" or "Testnet"
-    SignatureChainID string `json:"signatureChainId"`  // "0x3e7" (999 in hex)
+    SignatureChainID string `json:"signatureChainId"`  // "0x66eee" (421614 in hex)
     Destination      string `json:"destination"`       // Recipient address (0x...)
     SourceDex        string `json:"sourceDex"`         // "spot"
     DestinationDex   string `json:"destinationDex"`    // "spot"

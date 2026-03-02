@@ -186,7 +186,7 @@ class ExactHypercoreScheme:
                 "domain": {
                     "name": "HyperliquidSignTransaction",
                     "version": "1",
-                    "chainId": 999,
+                    "chainId": 421614,
                     "verifyingContract": "0x0000000000000000000000000000000000000000",
                 },
                 "message": {

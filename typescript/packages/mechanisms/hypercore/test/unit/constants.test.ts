@@ -23,7 +23,7 @@ describe("constants", () => {
   it("should have correct EIP-712 domain", () => {
     expect(HYPERCORE_EIP712_DOMAIN.name).toBe("HyperliquidSignTransaction");
     expect(HYPERCORE_EIP712_DOMAIN.version).toBe("1");
-    expect(HYPERCORE_EIP712_DOMAIN.chainId).toBe(999n);
+    expect(HYPERCORE_EIP712_DOMAIN.chainId).toBe(421614n);
     expect(HYPERCORE_EIP712_DOMAIN.verifyingContract).toBe(
       "0x0000000000000000000000000000000000000000",
     );

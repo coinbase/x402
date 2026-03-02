@@ -236,7 +236,7 @@ func (f *ExactHypercoreScheme) recoverPayer(
 	domain := evm.TypedDataDomain{
 		Name:              "HyperliquidSignTransaction",
 		Version:           "1",
-		ChainID:           big.NewInt(999),
+		ChainID:           big.NewInt(421614),
 		VerifyingContract: "0x0000000000000000000000000000000000000000",
 	}
 

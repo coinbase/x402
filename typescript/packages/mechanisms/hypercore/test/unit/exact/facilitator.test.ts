@@ -7,7 +7,7 @@ function createTestAction(overrides?: Partial<HypercoreSendAssetAction>): Hyperc
   return {
     type: "sendAsset",
     hyperliquidChain: "Mainnet",
-    signatureChainId: "0x3e7",
+    signatureChainId: "0x66eee",
     destination: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     sourceDex: "spot",
     destinationDex: "spot",

@@ -59,7 +59,7 @@ func TestVerify_InvalidNetwork(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -110,7 +110,7 @@ func TestVerify_InvalidActionType(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "wrongType", // Invalid action type
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -156,7 +156,7 @@ func TestVerify_DestinationMismatch(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0xWrongDestination1234567890123456789012345", // Wrong destination
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -202,7 +202,7 @@ func TestVerify_InsufficientAmount(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -248,7 +248,7 @@ func TestVerify_TokenMismatch(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -297,7 +297,7 @@ func TestVerify_NonceTooOld(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -343,7 +343,7 @@ func TestVerify_InvalidSignatureStructure(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",
@@ -393,7 +393,7 @@ func TestVerify_ValidPayment(t *testing.T) {
 			"action": hypercore.HypercoreSendAssetAction{
 				Type:             "sendAsset",
 				HyperliquidChain: "Mainnet",
-				SignatureChainID: "0x3e7",
+				SignatureChainID: "0x66eee",
 				Destination:      "0x0987654321098765432109876543210987654321",
 				SourceDex:        "spot",
 				DestinationDex:   "spot",

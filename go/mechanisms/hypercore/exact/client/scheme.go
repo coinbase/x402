@@ -54,7 +54,7 @@ func (c *ExactHypercoreScheme) CreatePaymentPayload(
 	action := hypercore.HypercoreSendAssetAction{
 		Type:             "sendAsset",
 		HyperliquidChain: hyperliquidChain,
-		SignatureChainID: "0x3e7",
+		SignatureChainID: "0x66eee",
 		Destination:      hypercore.NormalizeAddress(requirements.PayTo),
 		SourceDex:        "spot",
 		DestinationDex:   "spot",

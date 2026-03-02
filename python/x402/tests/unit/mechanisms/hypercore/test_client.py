@@ -163,7 +163,7 @@ class TestCreatePaymentPayload:
 
         action = result["action"]
         assert action["type"] == "sendAsset"
-        assert action["signatureChainId"] == "0x3e7"
+        assert action["signatureChainId"] == "0x66eee"
         assert action["sourceDex"] == "spot"
         assert action["destinationDex"] == "spot"
         assert action["fromSubAccount"] == ""

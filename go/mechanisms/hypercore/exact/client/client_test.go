@@ -337,8 +337,8 @@ func TestCreatePaymentPayload_AllActionFields(t *testing.T) {
 		t.Errorf("Expected action.Type='sendAsset', got '%s'", action.Type)
 	}
 
-	if action.SignatureChainID != "0x3e7" {
-		t.Errorf("Expected action.SignatureChainID='0x3e7', got '%s'", action.SignatureChainID)
+	if action.SignatureChainID != "0x66eee" {
+		t.Errorf("Expected action.SignatureChainID='0x66eee', got '%s'", action.SignatureChainID)
 	}
 
 	if action.SourceDex != "spot" {

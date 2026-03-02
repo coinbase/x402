@@ -43,7 +43,7 @@ export class ExactHypercoreScheme implements SchemeNetworkClient {
     const action: HypercoreSendAssetAction = {
       type: "sendAsset",
       hyperliquidChain: isMainnet ? "Mainnet" : "Testnet",
-      signatureChainId: "0x3e7",
+      signatureChainId: "0x66eee",
       destination: requirements.payTo.toLowerCase(),
       sourceDex: "spot",
       destinationDex: "spot",

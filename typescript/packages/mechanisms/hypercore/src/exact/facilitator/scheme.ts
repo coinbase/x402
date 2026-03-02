@@ -183,6 +183,7 @@ export class ExactHypercoreScheme implements SchemeNetworkFacilitator {
       }
 
       const result = (await response.json()) as HyperliquidApiResponse;
+      console.log(`[Hypercore] Exchange response:`, JSON.stringify(result));
 
       if (result.status !== "ok") {
         throw new Error(`Settlement failed: ${JSON.stringify(result)}`);

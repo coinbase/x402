@@ -51,7 +51,7 @@ class ExactHypercoreScheme:
         action = {
             "type": "sendAsset",
             "hyperliquidChain": hyperliquid_chain,
-            "signatureChainId": "0x3e7",
+            "signatureChainId": "0x66eee",
             "destination": requirements.pay_to.lower(),
             "sourceDex": "spot",
             "destinationDex": "spot",

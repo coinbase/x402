@@ -11,7 +11,7 @@ describe("Hypercore Types", () => {
       const action: HypercoreSendAssetAction = {
         type: "sendAsset",
         hyperliquidChain: "Mainnet",
-        signatureChainId: "0x3e7",
+        signatureChainId: "0x66eee",
         destination: "0x9876543210987654321098765432109876543210",
         sourceDex: "spot",
         destinationDex: "spot",
@@ -23,7 +23,7 @@ describe("Hypercore Types", () => {
 
       expect(action.type).toBe("sendAsset");
       expect(action.hyperliquidChain).toBe("Mainnet");
-      expect(action.signatureChainId).toBe("0x3e7");
+      expect(action.signatureChainId).toBe("0x66eee");
       expect(action.destination).toMatch(/^0x[0-9a-fA-F]{40}$/);
       expect(action.nonce).toBeGreaterThan(0);
     });
@@ -32,7 +32,7 @@ describe("Hypercore Types", () => {
       const action: HypercoreSendAssetAction = {
         type: "sendAsset",
         hyperliquidChain: "Testnet",
-        signatureChainId: "0x3e7",
+        signatureChainId: "0x66eee",
         destination: "0x1234567890123456789012345678901234567890",
         sourceDex: "spot",
         destinationDex: "spot",
@@ -50,7 +50,7 @@ describe("Hypercore Types", () => {
       const action: HypercoreSendAssetAction = {
         type: "sendAsset",
         hyperliquidChain: "Mainnet",
-        signatureChainId: "0x3e7",
+        signatureChainId: "0x66eee",
         destination: "0x1234567890123456789012345678901234567890",
         sourceDex: "perp",
         destinationDex: "perp",
@@ -68,7 +68,7 @@ describe("Hypercore Types", () => {
       const action: HypercoreSendAssetAction = {
         type: "sendAsset",
         hyperliquidChain: "Mainnet",
-        signatureChainId: "0x3e7",
+        signatureChainId: "0x66eee",
         destination: "0x1234567890123456789012345678901234567890",
         sourceDex: "spot",
         destinationDex: "spot",
@@ -88,7 +88,7 @@ describe("Hypercore Types", () => {
         action: {
           type: "sendAsset",
           hyperliquidChain: "Mainnet",
-          signatureChainId: "0x3e7",
+          signatureChainId: "0x66eee",
           destination: "0x9876543210987654321098765432109876543210",
           sourceDex: "spot",
           destinationDex: "spot",
@@ -120,7 +120,7 @@ describe("Hypercore Types", () => {
         action: {
           type: "sendAsset",
           hyperliquidChain: "Testnet",
-          signatureChainId: "0x3e7",
+          signatureChainId: "0x66eee",
           destination: "0x1234567890123456789012345678901234567890",
           sourceDex: "spot",
           destinationDex: "spot",

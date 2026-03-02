@@ -60,7 +60,7 @@ const signer = {
       domain: {
         name: "HyperliquidSignTransaction",
         version: "1",
-        chainId: 999n,
+        chainId: 421614n,
         verifyingContract: "0x0000000000000000000000000000000000000000",
       },
       message: action,
@@ -217,7 +217,7 @@ server.registerMoneyParser((amount, network) => {
 ## Transaction Structure
 
 The exact payment scheme uses EIP-712 signed SendAsset actions with:
-- **Signing Domain**: `HyperliquidSignTransaction` (chainId: 999)
+- **Signing Domain**: `HyperliquidSignTransaction` (chainId: 421614)
 - **Nonces**: Timestamp-based (milliseconds since epoch)
 - **Max Age**: 1 hour (nonces older than 1 hour are rejected)
 - **Settlement**: API-based submission (no on-chain transaction required)
@@ -240,7 +240,7 @@ The exact payment scheme uses EIP-712 signed SendAsset actions with:
 {
   type: "sendAsset",
   hyperliquidChain: "Mainnet" | "Testnet",
-  signatureChainId: "0x3e7", // 999 in hex
+  signatureChainId: "0x66eee", // 421614 in hex
   destination: "0x...", // Recipient address
   sourceDex: "spot",
   destinationDex: "spot",

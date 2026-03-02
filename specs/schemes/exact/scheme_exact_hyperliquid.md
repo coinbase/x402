@@ -77,7 +77,7 @@ Example `payload`:
   "action": {
     "type": "sendAsset",
     "hyperliquidChain": "Mainnet",
-    "signatureChainId": "0x3e7",
+    "signatureChainId": "0x66eee",
     "destination": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "sourceDex": "spot",
     "destinationDex": "spot",
@@ -117,7 +117,7 @@ Full `PaymentPayload` object:
     "action": {
       "type": "sendAsset",
       "hyperliquidChain": "Mainnet",
-      "signatureChainId": "0x3e7",
+      "signatureChainId": "0x66eee",
       "destination": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
       "sourceDex": "spot",
       "destinationDex": "spot",
@@ -143,7 +143,7 @@ Full `PaymentPayload` object:
 {
   "name": "HyperliquidSignTransaction",
   "version": "1",
-  "chainId": 999,
+  "chainId": 421614,
   "verifyingContract": "0x0000000000000000000000000000000000000000"
 }
 ```
@@ -216,7 +216,7 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 
 ### 9. Fixed Field Validation
 
-- `action.signatureChainId` MUST equal `"0x3e7"` (999 in hex).
+- `action.signatureChainId` MUST equal `"0x66eee"` (421614 in hex).
 - `action.sourceDex` MUST equal `"spot"`.
 - `action.destinationDex` MUST equal `"spot"`.
 - `action.fromSubAccount` MUST be an empty string `""`.
@@ -241,7 +241,7 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
      "action": {
        "type": "sendAsset",
        "hyperliquidChain": "Mainnet",
-       "signatureChainId": "0x3e7",
+       "signatureChainId": "0x66eee",
        "destination": "0x...",
        "sourceDex": "spot",
        "destinationDex": "spot",

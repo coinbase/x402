@@ -23,7 +23,7 @@ describe("Hypercore Signer Converters", () => {
       const mockAction = {
         type: "sendAsset" as const,
         hyperliquidChain: "Mainnet" as const,
-        signatureChainId: "0x3e7",
+        signatureChainId: "0x66eee",
         destination: "0x9876543210987654321098765432109876543210",
         sourceDex: "spot" as const,
         destinationDex: "spot" as const,

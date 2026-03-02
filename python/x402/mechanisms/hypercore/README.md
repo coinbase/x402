@@ -171,7 +171,7 @@ The Exact scheme uses EIP-712 signed actions:
 {
     "type": "sendAsset",
     "hyperliquidChain": "Mainnet",  # or "Testnet"
-    "signatureChainId": "0x3e7",    # 999 in hex
+    "signatureChainId": "0x66eee",   # 421614 in hex
     "destination": "0x...",          # Recipient (payTo)
     "sourceDex": "spot",
     "destinationDex": "spot",
@@ -188,7 +188,7 @@ The Exact scheme uses EIP-712 signed actions:
 {
     "name": "HyperliquidSignTransaction",
     "version": "1",
-    "chainId": 999,
+    "chainId": 421614,
     "verifyingContract": "0x0000000000000000000000000000000000000000",
 }
 ```
