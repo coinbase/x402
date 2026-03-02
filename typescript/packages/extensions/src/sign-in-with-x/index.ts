@@ -5,64 +5,34 @@
  * Allows clients to prove control of a wallet that may have previously paid
  * for a resource, enabling servers to grant access without requiring repurchase.
  *
- * ## Server Usage
+ * ## Server Usage (auth-only)
  *
  * ```typescript
- * import {
- *   declareSIWxExtension,
- *   parseSIWxHeader,
- *   validateSIWxMessage,
- *   verifySIWxSignature,
- *   SIGN_IN_WITH_X,
- * } from '@x402/extensions/sign-in-with-x';
+ * import { createSIWxChallenge, verifySIWxHeader } from '@x402/extensions/sign-in-with-x';
  *
- * // 1. Declare auth requirement in PaymentRequired response
- * const extensions = declareSIWxExtension({
+ * // Create per-request challenge (nonce/issuedAt generated every call)
+ * const extensions = createSIWxChallenge({
  *   domain: 'api.example.com',
  *   resourceUri: 'https://api.example.com/data',
  *   network: 'eip155:8453',
- *   statement: 'Sign in to access your purchased content',
  * });
  *
- * // 2. Verify incoming proof
- * const header = request.headers.get('SIGN-IN-WITH-X');
- * if (header) {
- *   const payload = parseSIWxHeader(header);
- *
- *   const validation = await validateSIWxMessage(
- *     payload,
- *     'https://api.example.com/data'
- *   );
- *
- *   if (validation.valid) {
- *     const verification = await verifySIWxSignature(payload);
- *     if (verification.valid) {
- *       // Authentication successful!
- *       // verification.address is the verified wallet
- *     }
- *   }
+ * // Verify incoming proof (parse + validate + verify in one call)
+ * const result = await verifySIWxHeader(header, 'https://api.example.com/data');
+ * if (result.valid) {
+ *   // result.address is the verified wallet
  * }
  * ```
  *
  * ## Client Usage
  *
  * ```typescript
- * import {
- *   createSIWxPayload,
- *   encodeSIWxHeader,
- * } from '@x402/extensions/sign-in-with-x';
+ * import { signSIWxChallenge } from '@x402/extensions/sign-in-with-x';
  *
- * // 1. Get extension info from 402 response
- * const serverInfo = paymentRequired.extensions['sign-in-with-x'].info;
- *
- * // 2. Create signed payload
- * const payload = await createSIWxPayload(serverInfo, wallet);
- *
- * // 3. Encode for header
- * const header = encodeSIWxHeader(payload);
- *
- * // 4. Send authenticated request
- * fetch(url, { headers: { 'SIGN-IN-WITH-X': header } });
+ * // Get extension from 402 response, sign it, send header
+ * const ext = body.extensions['sign-in-with-x'];
+ * const header = await signSIWxChallenge(ext, wallet);
+ * fetch(url, { headers: { 'sign-in-with-x': header } });
  * ```
  *
  * @module sign-in-with-x
@@ -92,6 +62,8 @@ export type { CompleteSIWxInfo } from "./client";
 
 // Server
 export { declareSIWxExtension } from "./declare";
+export { createSIWxChallenge } from "./challenge";
+export type { SIWxChallengeOptions } from "./challenge";
 export { siwxResourceServerExtension } from "./server";
 export { parseSIWxHeader } from "./parse";
 export { validateSIWxMessage } from "./validate";
@@ -100,7 +72,7 @@ export { buildSIWxSchema } from "./schema";
 
 // Client
 export { createSIWxMessage } from "./message";
-export { createSIWxPayload } from "./client";
+export { createSIWxPayload, signSIWxChallenge } from "./client";
 export { encodeSIWxHeader } from "./encode";
 export { wrapFetchWithSIWx } from "./fetch";
 export {
@@ -125,6 +97,9 @@ export {
   extractSolanaChainReference,
   isSolanaSigner,
 } from "./solana";
+
+// Convenience
+export { verifySIWxHeader } from "./header";
 
 // Storage
 export { type SIWxStorage, InMemorySIWxStorage } from "./storage";
