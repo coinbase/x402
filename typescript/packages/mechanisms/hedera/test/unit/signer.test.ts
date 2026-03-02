@@ -31,7 +31,7 @@ describe("Hedera signer helpers", () => {
 
   it("creates default SDK-backed client signer", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
     });
 
@@ -53,7 +53,7 @@ describe("Hedera signer helpers", () => {
 
   it("creates token transfer transaction for HTS assets", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
     });
 
@@ -76,7 +76,7 @@ describe("Hedera signer helpers", () => {
 
   it("requires feePayer in requirements.extra", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
     });
 
@@ -95,7 +95,7 @@ describe("Hedera signer helpers", () => {
 
   it("rejects zero/negative transfer amounts", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
     });
 
@@ -116,7 +116,7 @@ describe("Hedera signer helpers", () => {
 
   it("rejects invalid payTo account format", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
     });
 
@@ -137,7 +137,7 @@ describe("Hedera signer helpers", () => {
 
   it("supports custom node URL client configuration", async () => {
     const privateKey = PrivateKey.generateED25519();
-    const signer = createClientHederaSigner("0.0.1001", privateKey.toString(), {
+    const signer = createClientHederaSigner("0.0.1001", privateKey, {
       network: "hedera:testnet",
       nodeUrl: "127.0.0.1:50211",
     });

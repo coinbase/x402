@@ -272,6 +272,23 @@ describe("ExactHedera facilitator scheme", () => {
     expect(result.invalidReason).toBe("network_mismatch");
   });
 
+  it("returns invalid response for unsupported network value", async () => {
+    const signer = createSigner();
+    const scheme = new ExactHederaScheme(signer);
+    const invalidNetworkRequirements = {
+      ...baseRequirements,
+      network: "eip155:1",
+    } as unknown as PaymentRequirements;
+    const payload: PaymentPayload = {
+      ...basePayload,
+      accepted: invalidNetworkRequirements,
+    };
+
+    const result = await scheme.verify(payload, invalidNetworkRequirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("network_mismatch");
+  });
+
   it("rejects invalid asset in requirements", async () => {
     const signer = createSigner();
     const scheme = new ExactHederaScheme(signer);
@@ -367,6 +384,26 @@ describe("ExactHedera facilitator scheme", () => {
     const result = await scheme.verify(payload, baseRequirements);
     expect(result.isValid).toBe(false);
     expect(result.invalidReason).toBe("invalid_exact_hedera_payload_hbar_sum_non_zero");
+  });
+
+  it("rejects token payment payloads that include hbar transfers", async () => {
+    const signer = createSigner();
+    const scheme = new ExactHederaScheme(signer);
+    const tx = new TransferTransaction();
+    tx.addHbarTransfer(AccountId.fromString("0.0.9001"), Hbar.fromTinybars("-10"));
+    tx.addHbarTransfer(AccountId.fromString("0.0.7001"), Hbar.fromTinybars("10"));
+    tx.addTokenTransfer(TokenId.fromString("0.0.6001"), AccountId.fromString("0.0.9001"), "-1000");
+    tx.addTokenTransfer(TokenId.fromString("0.0.6001"), AccountId.fromString("0.0.7001"), "1000");
+    tx.setTransactionId(TransactionId.generate(AccountId.fromString("0.0.5001")));
+    await tx.freezeWith(Client.forTestnet());
+    const payload: PaymentPayload = {
+      ...basePayload,
+      payload: { transaction: Buffer.from(tx.toBytes()).toString("base64") },
+    };
+
+    const result = await scheme.verify(payload, baseRequirements);
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe("invalid_exact_hedera_payload_unexpected_hbar_transfers");
   });
 
   it("rejects feePayer sending hbar", async () => {
@@ -586,5 +623,13 @@ describe("ExactHedera facilitator scheme", () => {
     const scheme = new ExactHederaScheme(signer);
     const extra = scheme.getExtra("hedera:testnet");
     expect(extra).toEqual({ feePayer: "0.0.5001" });
+  });
+
+  it("returns undefined getExtra when no signer addresses are available", () => {
+    const signer = createSigner();
+    signer.getAddresses = () => [];
+    const scheme = new ExactHederaScheme(signer);
+    const extra = scheme.getExtra("hedera:testnet");
+    expect(extra).toBeUndefined();
   });
 });

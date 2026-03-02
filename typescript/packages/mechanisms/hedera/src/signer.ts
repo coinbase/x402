@@ -137,18 +137,18 @@ export function toClientHederaSigner(signer: ClientHederaSigner): ClientHederaSi
  * Creates a default SDK-backed client signer from account credentials.
  *
  * @param accountId - Hedera account id of the payer
- * @param privateKey - Private key string accepted by Hedera SDK
+ * @param privateKey - Hedera SDK private key for signing
  * @param config - Optional client configuration
  * @returns Client signer implementation
  */
 export function createClientHederaSigner(
   accountId: string,
-  privateKey: string,
+  privateKey: PrivateKey,
   config: HederaClientSignerConfig = {},
 ): ClientHederaSigner {
   const normalizedNetwork = normalizeHederaNetwork(config.network ?? "hedera:testnet");
   const parsedAccountId = AccountId.fromString(accountId);
-  const parsedPrivateKey = PrivateKey.fromString(privateKey);
+  const parsedPrivateKey = privateKey;
   const client = createHederaClient(normalizedNetwork, config.nodeUrl);
 
   return {
@@ -180,6 +180,7 @@ export function createClientHederaSigner(
       tx.setTransactionId(TransactionId.generate(AccountId.fromString(feePayer)));
       tx.setTransactionMemo(`x402:${Date.now().toString(36)}`);
       await tx.freezeWith(client);
+
       const signed = await tx.sign(parsedPrivateKey);
       return Buffer.from(signed.toBytes()).toString("base64");
     },

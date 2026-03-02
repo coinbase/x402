@@ -54,23 +54,32 @@ describe("Hedera integration", () => {
   const deterministicResourceServerAccount = "0.0.7001";
 
   const liveClientAccount = process.env.HEDERA_CLIENT_ACCOUNT_ID;
-  const liveClientPrivateKey = process.env.HEDERA_CLIENT_PRIVATE_KEY;
+  const liveClientPrivateKeyRaw = process.env.HEDERA_CLIENT_PRIVATE_KEY;
   const liveFeePayerAccount = process.env.HEDERA_FACILITATOR_ACCOUNT_ID;
-  const liveFeePayerPrivateKey = process.env.HEDERA_FACILITATOR_PRIVATE_KEY;
+  const liveFeePayerPrivateKeyRaw = process.env.HEDERA_FACILITATOR_PRIVATE_KEY;
   const liveResourceServerAccount = process.env.HEDERA_RESOURCE_SERVER_ACCOUNT_ID;
   const hasLiveEnv = Boolean(
     liveClientAccount &&
-    liveClientPrivateKey &&
+    liveClientPrivateKeyRaw &&
     liveFeePayerAccount &&
-    liveFeePayerPrivateKey &&
+    liveFeePayerPrivateKeyRaw &&
     liveResourceServerAccount,
   );
 
+  function parseEcdsaPrivateKeyFromEnv(name: string, value: string): PrivateKey {
+    try {
+      return PrivateKey.fromStringECDSA(value);
+    } catch {
+      throw new Error(
+        `${name} must be a valid ECDSA private key string (0x-prefixed raw key or DER-encoded key).`,
+      );
+    }
+  }
+
   function createLocalFinalizerSigner(
     feePayerAccountId: string,
-    feePayerPrivateKey: string,
+    feePayerPrivateKey: PrivateKey,
   ): ReturnType<typeof toFacilitatorHederaSigner> {
-    const parsedFeePayerKey = PrivateKey.fromString(feePayerPrivateKey);
     return toFacilitatorHederaSigner({
       getAddresses: () => [feePayerAccountId],
       signAndSubmitTransaction: async (transactionBase64: string) => {
@@ -78,7 +87,7 @@ describe("Hedera integration", () => {
         if (!(tx instanceof TransferTransaction)) {
           throw new Error("expected TransferTransaction");
         }
-        const signed = await tx.sign(parsedFeePayerKey);
+        const signed = await tx.sign(feePayerPrivateKey);
         return { transactionId: signed.transactionId?.toString() ?? "" };
       },
       resolveAccount: async () => ({ exists: true, isAlias: false }),
@@ -87,9 +96,8 @@ describe("Hedera integration", () => {
 
   function createLiveNetworkSigner(
     feePayerAccountId: string,
-    feePayerPrivateKey: string,
+    feePayerPrivateKey: PrivateKey,
   ): ReturnType<typeof toFacilitatorHederaSigner> {
-    const parsedFeePayerKey = PrivateKey.fromString(feePayerPrivateKey);
     return toFacilitatorHederaSigner({
       getAddresses: () => [feePayerAccountId],
       signAndSubmitTransaction: async (transactionBase64: string, _, network: string) => {
@@ -97,9 +105,9 @@ describe("Hedera integration", () => {
         if (!(tx instanceof TransferTransaction)) {
           throw new Error("expected TransferTransaction");
         }
-        const signed = await tx.sign(parsedFeePayerKey);
+        const signed = await tx.sign(feePayerPrivateKey);
         const client = network === "hedera:mainnet" ? Client.forMainnet() : Client.forTestnet();
-        client.setOperator(AccountId.fromString(feePayerAccountId), parsedFeePayerKey);
+        client.setOperator(AccountId.fromString(feePayerAccountId), feePayerPrivateKey);
         const response = await signed.execute(client);
         return { transactionId: response.transactionId.toString() };
       },
@@ -114,8 +122,8 @@ describe("Hedera integration", () => {
     let resource: { url: string; description: string; mimeType: string };
 
     beforeEach(async () => {
-      const clientPrivateKey = PrivateKey.generateED25519().toString();
-      const feePayerPrivateKey = PrivateKey.generateED25519().toString();
+      const clientPrivateKey = PrivateKey.generateED25519();
+      const feePayerPrivateKey = PrivateKey.generateED25519();
       const clientSigner = createClientHederaSigner(deterministicClientAccount, clientPrivateKey, {
         network: "hedera:testnet",
       });
@@ -217,8 +225,8 @@ describe("Hedera integration", () => {
     };
 
     beforeEach(async () => {
-      const clientPrivateKey = PrivateKey.generateED25519().toString();
-      const feePayerPrivateKey = PrivateKey.generateED25519().toString();
+      const clientPrivateKey = PrivateKey.generateED25519();
+      const feePayerPrivateKey = PrivateKey.generateED25519();
       const clientSigner = createClientHederaSigner(deterministicClientAccount, clientPrivateKey, {
         network: "hedera:testnet",
       });
@@ -293,11 +301,23 @@ describe("Hedera integration", () => {
   describe.skipIf(!hasLiveEnv)("Live Hedera network integration (env-gated)", () => {
     it("verifies and settles using real Hedera submission", async () => {
       const network = "hedera:testnet" as Network;
-      const clientSigner = createClientHederaSigner(liveClientAccount!, liveClientPrivateKey!, {
-        network,
-      });
+      const parsedLiveClientPrivateKey = parseEcdsaPrivateKeyFromEnv(
+        "HEDERA_CLIENT_PRIVATE_KEY",
+        liveClientPrivateKeyRaw!,
+      );
+      const parsedLiveFeePayerPrivateKey = parseEcdsaPrivateKeyFromEnv(
+        "HEDERA_FACILITATOR_PRIVATE_KEY",
+        liveFeePayerPrivateKeyRaw!,
+      );
+      const clientSigner = createClientHederaSigner(
+        liveClientAccount!,
+        parsedLiveClientPrivateKey,
+        {
+          network,
+        },
+      );
       const hederaFacilitator = new ExactHederaFacilitator(
-        createLiveNetworkSigner(liveFeePayerAccount!, liveFeePayerPrivateKey!),
+        createLiveNetworkSigner(liveFeePayerAccount!, parsedLiveFeePayerPrivateKey),
       );
       const facilitator = new x402Facilitator().register(network, hederaFacilitator);
       const server = new x402ResourceServer(new HederaFacilitatorClient(facilitator));
@@ -331,7 +351,6 @@ describe("Hedera integration", () => {
       expect(verifyResponse.isValid).toBe(true);
 
       const settleResponse = await server.settlePayment(paymentPayload, accepted!);
-      console.log("settleResponse", JSON.stringify(settleResponse, null, 2));
       expect(settleResponse.success).toBe(true);
       expect(settleResponse.transaction.length).toBeGreaterThan(0);
     });

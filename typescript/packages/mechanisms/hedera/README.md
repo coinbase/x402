@@ -24,10 +24,15 @@ pnpm add @x402/hedera
 import { x402Client } from "@x402/core/client";
 import { createClientHederaSigner } from "@x402/hedera";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
+import { PrivateKey } from "@hashgraph/sdk";
 
-const signer = createClientHederaSigner("0.0.1111", process.env.HEDERA_PRIVATE_KEY!, {
-  network: "hedera:testnet",
-});
+const signer = createClientHederaSigner(
+  "0.0.1111",
+  PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY!),
+  {
+    network: "hedera:testnet",
+  },
+);
 
 const client = new x402Client().register("hedera:*", new ExactHederaScheme(signer));
 ```
@@ -78,3 +83,20 @@ const facilitator = new x402Facilitator().register(
 - `allow`: facilitator allows alias destinations.
 
 Implementations should document and monitor this policy because alias-based auto-account creation may introduce additional cost.
+
+## Live Integration Testing
+
+The integration suite supports an env-gated live Hedera test in
+`test/integrations/exact-hedera.test.ts`.
+
+- Create or update `typescript/packages/mechanisms/hedera/.env.test`.
+- This live suite currently assumes **ECDSA** private keys for both client and facilitator.
+- Use `0x`-prefixed ECDSA key strings in:
+  - `HEDERA_CLIENT_PRIVATE_KEY`
+  - `HEDERA_FACILITATOR_PRIVATE_KEY`
+
+Run:
+
+```bash
+pnpm test:integration
+```

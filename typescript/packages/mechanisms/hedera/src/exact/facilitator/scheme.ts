@@ -64,6 +64,9 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
    */
   getExtra(_: string): Record<string, unknown> | undefined {
     const addresses = this.signer.getAddresses();
+    if (addresses.length === 0) {
+      return undefined;
+    }
     const randomIndex = Math.floor(Math.random() * addresses.length);
     return { feePayer: addresses[randomIndex] };
   }
@@ -354,7 +357,11 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
       return { isValid: false, invalidReason: "accepted_payment_requirements_mismatch", payer: "" };
     }
 
-    normalizeHederaNetwork(requirements.network);
+    try {
+      normalizeHederaNetwork(requirements.network);
+    } catch {
+      return { isValid: false, invalidReason: "network_mismatch", payer: "" };
+    }
     if (!isValidHederaAsset(requirements.asset)) {
       return { isValid: false, invalidReason: "invalid_asset", payer: "" };
     }
@@ -419,6 +426,13 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
       return {
         isValid: false,
         invalidReason: "invalid_exact_hedera_payload_fee_payer_transferring_hbar",
+        payer: "",
+      };
+    }
+    if (!isHbarAsset(requirements.asset) && inspected.hbarTransfers.length > 0) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_hedera_payload_unexpected_hbar_transfers",
         payer: "",
       };
     }
