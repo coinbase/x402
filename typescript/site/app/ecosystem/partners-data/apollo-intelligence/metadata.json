@@ -1,0 +1,7 @@
+{
+  "name": "Apollo Intelligence Network",
+  "description": "27 x402-gated API endpoints delivering curated intelligence feeds, DeFi data, OSINT tools, crypto prices, real-time X/Twitter search, and residential proxy infrastructure for AI agents. Pay per request with USDC on Base — no API keys, no subscriptions.",
+  "logoUrl": "/logos/apollo-intelligence.svg",
+  "websiteUrl": "https://apolloai.team",
+  "category": "Services/Endpoints"
+}
