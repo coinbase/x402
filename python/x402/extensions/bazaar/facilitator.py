@@ -107,15 +107,11 @@ def validate_discovery_extension(extension: DiscoveryExtension) -> ValidationRes
         return ValidationResult(valid=True)
 
     except jsonschema.ValidationError as e:
-        path = (
-            "/".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
-        )
+        path = "/".join(str(p) for p in e.absolute_path) if e.absolute_path else "(root)"
         return ValidationResult(valid=False, errors=[f"{path}: {e.message}"])
 
     except Exception as e:
-        return ValidationResult(
-            valid=False, errors=[f"Schema validation failed: {e!s}"]
-        )
+        return ValidationResult(valid=False, errors=[f"Schema validation failed: {e!s}"])
 
 
 def _get_method_from_info(info: DiscoveryInfo | dict[str, Any]) -> str:
@@ -131,8 +127,8 @@ def _get_method_from_info(info: DiscoveryInfo | dict[str, Any]) -> str:
         input_data = info.get("input", {})
         return input_data.get("method", "UNKNOWN")
 
-    if isinstance(info, (QueryDiscoveryInfo, BodyDiscoveryInfo)):
-        if isinstance(info.input, (QueryInput, BodyInput)):
+    if isinstance(info, QueryDiscoveryInfo | BodyDiscoveryInfo):
+        if isinstance(info.input, QueryInput | BodyInput):
             return info.input.method or "UNKNOWN"
 
     return "UNKNOWN"
@@ -189,8 +185,8 @@ def extract_discovery_info(
         resource_url = resource.get("url", "") if isinstance(resource, dict) else ""
 
         extensions = payload_dict.get("extensions", {})
-        if extensions and BAZAAR in extensions:
-            bazaar_ext = extensions[BAZAAR]
+        if extensions and BAZAAR.key in extensions:
+            bazaar_ext = extensions[BAZAAR.key]
 
             if bazaar_ext and isinstance(bazaar_ext, dict):
                 try:
@@ -242,11 +238,7 @@ def extract_discovery_info(
     else:
         # V1: description and mime_type are in PaymentRequirements
         description = requirements_dict.get("description") or None
-        mime_type = (
-            requirements_dict.get("mimeType")
-            or requirements_dict.get("mime_type")
-            or None
-        )
+        mime_type = requirements_dict.get("mimeType") or requirements_dict.get("mime_type") or None
 
     return DiscoveredResource(
         resource_url=normalized_url,

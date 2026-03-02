@@ -1,6 +1,6 @@
 {
   "name": "@x402/express",
-  "version": "2.3.0",
+  "version": "2.5.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.22.0",
-    "@solana/kit": "^2.1.1",
+    "@solana/kit": "^6.1.0",
     "@x402/core": "workspace:~",
     "@x402/extensions": "workspace:~",
     "viem": "^2.39.3",

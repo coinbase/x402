@@ -77,9 +77,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         if self._http_client is None:
             import httpx
 
-            self._http_client = httpx.AsyncClient(
-                timeout=self._timeout, follow_redirects=True
-            )
+            self._http_client = httpx.AsyncClient(timeout=self._timeout, follow_redirects=True)
         return self._http_client
 
     async def aclose(self) -> None:
@@ -235,9 +233,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
     ) -> VerifyResponse:
         """Internal verify via HTTP (async)."""
         client = self._get_async_client()
-        request_body = self._build_request_body(
-            version, payload_dict, requirements_dict
-        )
+        request_body = self._build_request_body(version, payload_dict, requirements_dict)
 
         response = await client.post(
             f"{self._url}/verify",
@@ -246,9 +242,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator verify failed ({response.status_code}): {response.text}"
-            )
+            raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         return VerifyResponse.model_validate(response.json())
 
@@ -260,9 +254,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
     ) -> SettleResponse:
         """Internal settle via HTTP (async)."""
         client = self._get_async_client()
-        request_body = self._build_request_body(
-            version, payload_dict, requirements_dict
-        )
+        request_body = self._build_request_body(version, payload_dict, requirements_dict)
 
         response = await client.post(
             f"{self._url}/settle",
@@ -271,9 +263,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator settle failed ({response.status_code}): {response.text}"
-            )
+            raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         return SettleResponse.model_validate(response.json())
 
@@ -305,9 +295,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         if self._http_client is None:
             import httpx
 
-            self._http_client = httpx.Client(
-                timeout=self._timeout, follow_redirects=True
-            )
+            self._http_client = httpx.Client(timeout=self._timeout, follow_redirects=True)
         return self._http_client
 
     def close(self) -> None:
@@ -461,9 +449,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
     ) -> VerifyResponse:
         """Internal verify via HTTP."""
         client = self._get_client()
-        request_body = self._build_request_body(
-            version, payload_dict, requirements_dict
-        )
+        request_body = self._build_request_body(version, payload_dict, requirements_dict)
 
         response = client.post(
             f"{self._url}/verify",
@@ -472,9 +458,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator verify failed ({response.status_code}): {response.text}"
-            )
+            raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         return VerifyResponse.model_validate(response.json())
 
@@ -486,9 +470,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
     ) -> SettleResponse:
         """Internal settle via HTTP."""
         client = self._get_client()
-        request_body = self._build_request_body(
-            version, payload_dict, requirements_dict
-        )
+        request_body = self._build_request_body(version, payload_dict, requirements_dict)
 
         response = client.post(
             f"{self._url}/settle",
@@ -497,8 +479,6 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator settle failed ({response.status_code}): {response.text}"
-            )
+            raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         return SettleResponse.model_validate(response.json())

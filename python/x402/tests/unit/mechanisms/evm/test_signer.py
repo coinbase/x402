@@ -63,9 +63,7 @@ class TestEthAccountSigner:
             "nonce": "0x" + "00" * 32,
         }
 
-        signature = signer.sign_typed_data(
-            domain, types, "TransferWithAuthorization", message
-        )
+        signature = signer.sign_typed_data(domain, types, "TransferWithAuthorization", message)
 
         assert signature is not None
         assert isinstance(signature, bytes)

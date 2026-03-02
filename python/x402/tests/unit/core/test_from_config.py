@@ -236,10 +236,7 @@ class TestFromConfigMatchesManualRegistration:
         config_client = x402Client.from_config(config)
 
         # Both should have same registered schemes
-        assert (
-            manual_client.get_registered_schemes()
-            == config_client.get_registered_schemes()
-        )
+        assert manual_client.get_registered_schemes() == config_client.get_registered_schemes()
         assert len(manual_client._policies) == len(config_client._policies)
 
     def test_sync_client_equivalence(self):
@@ -262,8 +259,5 @@ class TestFromConfigMatchesManualRegistration:
         config_client = x402ClientSync.from_config(config)
 
         # Both should have same registered schemes
-        assert (
-            manual_client.get_registered_schemes()
-            == config_client.get_registered_schemes()
-        )
+        assert manual_client.get_registered_schemes() == config_client.get_registered_schemes()
         assert len(manual_client._policies) == len(config_client._policies)

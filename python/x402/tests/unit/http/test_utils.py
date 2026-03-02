@@ -47,6 +47,41 @@ def make_v2_payload(signature: str = "0x123") -> PaymentPayload:
     )
 
 
+class TestCamelCaseSerialization:
+    """Tests that model_dump_json() produces camelCase by default (#1120)."""
+
+    def test_payment_payload_serializes_camel_case(self):
+        """model_dump_json() should produce camelCase without by_alias."""
+        payload = make_v2_payload()
+        data = json.loads(payload.model_dump_json())
+
+        assert "x402Version" in data
+        assert "x402_version" not in data
+
+    def test_payment_requirements_serializes_camel_case(self):
+        """PaymentRequirements fields should serialize as camelCase."""
+        req = make_payment_requirements()
+        data = json.loads(req.model_dump_json())
+
+        assert "payTo" in data
+        assert "pay_to" not in data
+        assert "maxTimeoutSeconds" in data
+        assert "max_timeout_seconds" not in data
+
+    def test_payment_required_serializes_camel_case(self):
+        """PaymentRequired should serialize as camelCase."""
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        data = json.loads(payment_required.model_dump_json())
+
+        assert "x402Version" in data
+        assert "x402_version" not in data
+        assert "payTo" in data["accepts"][0]
+        assert "maxTimeoutSeconds" in data["accepts"][0]
+
+
 class TestSafeBase64:
     """Tests for base64 encode/decode utilities."""
 

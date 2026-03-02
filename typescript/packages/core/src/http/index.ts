@@ -82,6 +82,7 @@ export { x402HTTPResourceServer, RouteConfigurationError } from "./x402HTTPResou
 export type {
   HTTPAdapter,
   HTTPRequestContext,
+  HTTPTransportContext,
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,

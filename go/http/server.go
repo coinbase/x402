@@ -15,6 +15,12 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
+// Pre-compiled regex patterns to avoid recompilation on every call.
+var (
+	multiSlashRegex = regexp.MustCompile(`/+`)
+	paramRegex      = regexp.MustCompile(`\\\[([^\]]+)\\\]`)
+)
+
 // ============================================================================
 // HTTP Adapter Interface
 // ============================================================================
@@ -163,6 +169,44 @@ type ProcessSettleResult struct {
 }
 
 // ============================================================================
+// Route Validation Types
+// ============================================================================
+
+// RouteValidationError represents a single validation failure for a route's payment option
+type RouteValidationError struct {
+	// RoutePattern is the route pattern (e.g., "GET /api/weather")
+	RoutePattern string
+
+	// Scheme is the payment scheme that failed validation
+	Scheme string
+
+	// Network is the network that failed validation
+	Network x402.Network
+
+	// Reason is the type of validation failure: "missing_scheme" or "missing_facilitator"
+	Reason string
+
+	// Message is a human-readable error message
+	Message string
+}
+
+// RouteConfigurationError collects all route validation errors
+type RouteConfigurationError struct {
+	// Errors contains all validation failures
+	Errors []RouteValidationError
+}
+
+// Error returns a formatted error message listing all validation failures
+func (e *RouteConfigurationError) Error() string {
+	lines := make([]string, 0, len(e.Errors)+1)
+	lines = append(lines, "x402 Route Configuration Errors:")
+	for _, err := range e.Errors {
+		lines = append(lines, "  - "+err.Message)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ============================================================================
 // x402HTTPResourceServer
 // ============================================================================
 
@@ -201,6 +245,59 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// Initialize initializes the server by populating facilitator data and validating route configuration.
+// It calls the parent server's Initialize to fetch facilitator support, then validates that all
+// configured routes have matching scheme registrations and facilitator support.
+func (s *x402HTTPResourceServer) Initialize(ctx context.Context) error {
+	// First, initialize the parent (populates facilitatorClients from GetSupported)
+	if err := s.X402ResourceServer.Initialize(ctx); err != nil {
+		return err
+	}
+
+	// Then validate route configuration against registered schemes and facilitator support
+	return s.validateRouteConfiguration()
+}
+
+// validateRouteConfiguration checks that all configured routes have matching scheme registrations
+// and facilitator support. Returns a RouteConfigurationError if any mismatches are found.
+func (s *x402HTTPResourceServer) validateRouteConfiguration() error {
+	var errors []RouteValidationError
+
+	for _, route := range s.compiledRoutes {
+		for _, option := range route.Config.Accepts {
+			// Check 1: Is the scheme registered for this network?
+			if !s.HasRegisteredScheme(option.Network, option.Scheme) {
+				errors = append(errors, RouteValidationError{
+					RoutePattern: route.Verb + " " + route.Regex.String(),
+					Scheme:       option.Scheme,
+					Network:      option.Network,
+					Reason:       "missing_scheme",
+					Message:      fmt.Sprintf("Route %q: No scheme implementation registered for %q on network %q", route.Verb+" "+route.Regex.String(), option.Scheme, option.Network),
+				})
+				// Skip facilitator check if scheme isn't registered
+				continue
+			}
+
+			// Check 2: Does a facilitator support this scheme/network combination?
+			if !s.HasFacilitatorSupport(option.Network, option.Scheme) {
+				errors = append(errors, RouteValidationError{
+					RoutePattern: route.Verb + " " + route.Regex.String(),
+					Scheme:       option.Scheme,
+					Network:      option.Network,
+					Reason:       "missing_facilitator",
+					Message:      fmt.Sprintf("Route %q: Facilitator does not support scheme %q on network %q", route.Verb+" "+route.Regex.String(), option.Scheme, option.Network),
+				})
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return &RouteConfigurationError{Errors: errors}
+	}
+
+	return nil
 }
 
 // BuildPaymentRequirementsFromOptions builds payment requirements from multiple payment options
@@ -783,7 +880,6 @@ func parseRoutePattern(pattern string) (string, *regexp.Regexp) {
 	regexPattern := "^" + regexp.QuoteMeta(path)
 	regexPattern = strings.ReplaceAll(regexPattern, `\*`, `.*?`)
 	// Handle parameters like [id]
-	paramRegex := regexp.MustCompile(`\\\[([^\]]+)\\\]`)
 	regexPattern = paramRegex.ReplaceAllString(regexPattern, `[^/]+`)
 	regexPattern += "$"
 
@@ -807,8 +903,7 @@ func normalizePath(path string) string {
 	// Normalize slashes
 	path = strings.ReplaceAll(path, `\`, `/`)
 	// Replace multiple slashes with single slash
-	multiSlash := regexp.MustCompile(`/+`)
-	path = multiSlash.ReplaceAllString(path, `/`)
+	path = multiSlashRegex.ReplaceAllString(path, `/`)
 	// Remove trailing slash
 	path = strings.TrimSuffix(path, `/`)
 

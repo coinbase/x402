@@ -3,6 +3,22 @@ import type { PaymentRequiredContext, SettleResultContext } from "../server/x402
 // Re-export context types from x402ResourceServer for convenience
 export type { PaymentRequiredContext, SettleResultContext };
 
+/**
+ * Base interface for facilitator extensions.
+ * Extensions registered with x402Facilitator are stored by key and made
+ * available to mechanism implementations via FacilitatorContext.
+ *
+ * Specific extensions extend this with additional capabilities:
+ *
+ * @example
+ * interface Erc20GasSponsoringExtension extends FacilitatorExtension {
+ *   batchSigner: SmartWalletBatchSigner;
+ * }
+ */
+export interface FacilitatorExtension {
+  key: string;
+}
+
 export interface ResourceServerExtension {
   key: string;
   /**
@@ -18,7 +34,7 @@ export interface ResourceServerExtension {
    * Return extension data to add to extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
-   * @param context - PaymentRequired context containing response and requirements
+   * @param context - PaymentRequired context containing response, requirements, and optional transportContext
    * @returns Extension data to add to response.extensions[key]
    */
   enrichPaymentRequiredResponse?: (
@@ -30,7 +46,7 @@ export interface ResourceServerExtension {
    * Return extension data to add to response.extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
-   * @param context - Settlement result context containing payment payload, requirements, and result
+   * @param context - Settlement result context containing payment payload, requirements, result and optional transportContext
    * @returns Extension data to add to response.extensions[key]
    */
   enrichSettlementResponse?: (

@@ -25,10 +25,7 @@ from .utils import (
 # Async tool handler type
 AsyncToolHandler = Callable[
     [dict[str, Any], MCPToolContext],
-    MCPToolResult
-    | dict[str, Any]
-    | Awaitable[MCPToolResult]
-    | Awaitable[dict[str, Any]],
+    MCPToolResult | dict[str, Any] | Awaitable[MCPToolResult] | Awaitable[dict[str, Any]],
 ]
 
 
@@ -136,15 +133,11 @@ def create_payment_wrapper(
         ```
     """
     if not config.accepts:
-        raise ValueError(
-            "PaymentWrapperConfig.accepts must have at least one payment requirement"
-        )
+        raise ValueError("PaymentWrapperConfig.accepts must have at least one payment requirement")
 
     # Return wrapper function that takes a handler and returns a wrapped handler
     def wrapper(handler: AsyncToolHandler) -> AsyncToolHandler:
-        async def wrapped_handler(
-            args: dict[str, Any], extra: dict[str, Any]
-        ) -> MCPToolResult:
+        async def wrapped_handler(args: dict[str, Any], extra: dict[str, Any]) -> MCPToolResult:
             # Extract _meta from extra
             meta = extra.get("_meta", {})
             if not isinstance(meta, dict):
@@ -327,12 +320,8 @@ async def _create_payment_required_result_async(
     from ..schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
+        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
+        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 
@@ -379,12 +368,8 @@ async def _create_settlement_failed_result_async(
     from ..schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(
-            tool_name, config.resource.url if config.resource else None
-        ),
-        description=(
-            config.resource.description if config.resource else f"Tool: {tool_name}"
-        ),
+        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
+        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
         mime_type=config.resource.mime_type if config.resource else "application/json",
     )
 

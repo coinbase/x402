@@ -189,6 +189,16 @@ export interface HTTPRequestContext {
 }
 
 /**
+ * HTTP transport context contains both request context and optional response data.
+ */
+export interface HTTPTransportContext {
+  /** The HTTP request context */
+  request: HTTPRequestContext;
+  /** The response body buffer */
+  responseBody?: Buffer;
+}
+
+/**
  * HTTP response instructions for the framework middleware
  */
 export interface HTTPResponseInstructions {
@@ -224,6 +234,7 @@ export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
   errorMessage?: string;
+  headers: Record<string, string>;
 };
 
 export type ProcessSettleResultResponse =
@@ -435,11 +446,13 @@ export class x402HTTPResourceServer {
     }
 
     // createPaymentRequiredResponse already handles extension enrichment in the core layer
+    const transportContext: HTTPTransportContext = { request: context };
     const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
       extensions,
+      transportContext,
     );
 
     // If no payment provided
@@ -474,6 +487,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           "No matching payment requirements",
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -492,6 +506,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           verifyResult.invalidReason,
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -512,6 +527,7 @@ export class x402HTTPResourceServer {
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
         routeConfig.extensions,
+        transportContext,
       );
       return {
         type: "payment-error",
@@ -526,18 +542,21 @@ export class x402HTTPResourceServer {
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional HTTP transport context
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
+    transportContext?: HTTPTransportContext,
   ): Promise<ProcessSettleResultResponse> {
     try {
       const settleResponse = await this.ResourceServer.settlePayment(
         paymentPayload,
         requirements,
         declaredExtensions,
+        transportContext,
       );
 
       if (!settleResponse.success) {
@@ -547,6 +566,7 @@ export class x402HTTPResourceServer {
           errorReason: settleResponse.errorReason || "Settlement failed",
           errorMessage:
             settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
+          headers: this.createSettlementHeaders(settleResponse),
         };
       }
 
@@ -558,21 +578,35 @@ export class x402HTTPResourceServer {
       };
     } catch (error) {
       if (error instanceof SettleError) {
-        return {
+        const errorReason = error.errorReason || error.message;
+        const settleResponse: SettleResponse = {
           success: false,
-          errorReason: error.errorReason || error.message,
-          errorMessage: error.errorMessage || error.errorReason || error.message,
+          errorReason,
+          errorMessage: error.errorMessage || errorReason,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
         };
+        return {
+          ...settleResponse,
+          success: false as const,
+          errorReason,
+          headers: this.createSettlementHeaders(settleResponse),
+        };
       }
-      return {
+      const errorReason = error instanceof Error ? error.message : "Settlement failed";
+      const settleResponse: SettleResponse = {
         success: false,
-        errorReason: error instanceof Error ? error.message : "Settlement failed",
-        errorMessage: error instanceof Error ? error.message : "Settlement failed",
+        errorReason,
+        errorMessage: errorReason,
         network: requirements.network as Network,
         transaction: "",
+      };
+      return {
+        ...settleResponse,
+        success: false as const,
+        errorReason,
+        headers: this.createSettlementHeaders(settleResponse),
       };
     }
   }
