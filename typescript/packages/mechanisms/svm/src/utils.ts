@@ -271,7 +271,7 @@ export function parseSwigTransaction(
   // 2. Extract Swig PDA from SignV2's first account
   const signV2Ix = instructions[instructions.length - 1];
   const swigPda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
-  if (!swigPda) throw "invalid_exact_svm_payload_no_transfer_instruction";
+  if (!swigPda) throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
 
   // 3. Decode compact instructions from SignV2 data
   const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
