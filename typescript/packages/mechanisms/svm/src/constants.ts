@@ -9,7 +9,7 @@ export const MEMO_PROGRAM_ADDRESS = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr
 
 /**
  * Swig smart wallet program address and instruction discriminators.
- * Swig wraps inner instructions (e.g. SPL transferChecked) inside a signV1/signV2
+ * Swig wraps inner instructions (e.g. SPL transferChecked) inside a SignV2
  * instruction and executes them via CPI using the Swig PDA as authority.
  * See: https://github.com/anagram-xyz/swig
  */

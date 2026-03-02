@@ -201,7 +201,7 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
 // ─── Swig wallet support ──────────────────────────────────────────────────────
 
 /**
- * A decoded compact instruction extracted from a Swig signV1/signV2 payload.
+ * A decoded compact instruction extracted from a Swig SignV2 payload.
  * Indices reference the SignV2 instruction's own account list, not the outer
  * transaction's static account keys.
  */
@@ -300,7 +300,7 @@ export function parseSwigTransaction(
 }
 
 /**
- * Decode the compact instructions embedded inside a Swig signV1/signV2 instruction.
+ * Decode the compact instructions embedded inside a Swig SignV2 instruction.
  *
  * Layout of the outer instruction data:
  *   [0..1]  discriminator         U16 LE

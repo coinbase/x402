@@ -28,7 +28,7 @@ func (s *SwigNormalizer) Normalize(tx *solana.Transaction) (*NormalizedTransacti
 }
 
 // SwigCompactInstruction is a decoded compact instruction embedded in a Swig
-// signV1/signV2 instruction payload.  Indices reference the SignV2 instruction's
+// SignV2 instruction payload.  Indices reference the SignV2 instruction's
 // own account list, not the outer transaction's global account keys.
 type SwigCompactInstruction struct {
 	ProgramIDIndex uint8
@@ -37,7 +37,7 @@ type SwigCompactInstruction struct {
 }
 
 // DecodeSwigCompactInstructions parses the compact instructions embedded in the
-// data payload of a Swig signV1/signV2 instruction.
+// data payload of a Swig SignV2 instruction.
 //
 // Outer instruction data layout:
 //
