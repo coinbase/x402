@@ -81,7 +81,7 @@ func (f *SchemeNetworkFacilitator) GetSigners(_ x402.Network) []string {
 }
 
 // Verify verifies a V2 payment payload against requirements (typed)
-func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*x402.VerifyResponse, error) {
+func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, _ *x402.FacilitatorContext) (*x402.VerifyResponse, error) {
 	// Extract payload fields
 	signature, ok := payload.Payload["signature"].(string)
 	if !ok {
@@ -121,11 +121,11 @@ func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.Pay
 }
 
 // Settle settles a V2 payment (typed)
-func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*x402.SettleResponse, error) {
+func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, fctx *x402.FacilitatorContext) (*x402.SettleResponse, error) {
 	network := x402.Network(requirements.Network)
 
 	// First verify the payment
-	verifyResponse, err := f.Verify(ctx, payload, requirements)
+	verifyResponse, err := f.Verify(ctx, payload, requirements, fctx)
 	if err != nil {
 		// Convert VerifyError to SettleError
 		var ve *x402.VerifyError

@@ -7,6 +7,8 @@ GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v2.7.2
 MOCKGEN := $(GOBIN)/mockgen
 GOIMPORTS := $(GOBIN)/goimports
+CHANGIE := $(GOBIN)/changie
+CHANGIE_VERSION := v1.20.0
 
 # Default target
 all: fmt lint test build
@@ -33,9 +35,20 @@ test-cover:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-## test-integration: Run integration tests
+## test-integration: Run integration tests (includes MCP tests if SDK is installed)
 test-integration:
 	@echo "Running integration tests..."
+	@if [ -f .env ]; then \
+		echo "Loading environment variables from .env..."; \
+		export $$(grep -v '^#' .env | xargs) && go test -v -race -tags="integration,mcp" ./test/integration/...; \
+	else \
+		echo "No .env file found, running without environment variables..."; \
+		go test -v -race -tags="integration,mcp" ./test/integration/...; \
+	fi
+
+## test-integration-no-mcp: Run integration tests without MCP tests
+test-integration-no-mcp:
+	@echo "Running integration tests (excluding MCP tests)..."
 	@if [ -f .env ]; then \
 		echo "Loading environment variables from .env..."; \
 		export $$(grep -v '^#' .env | xargs) && go test -v -race -tags=integration ./test/integration/...; \
@@ -84,13 +97,30 @@ deps:
 	@go mod tidy
 
 ## deps-dev: Install development dependencies
-deps-dev: $(GOLANGCI_LINT) $(MOCKGEN) $(GOIMPORTS)
+deps-dev: $(GOLANGCI_LINT) $(MOCKGEN) $(GOIMPORTS) $(CHANGIE)
 	@echo "Development dependencies installed"
 
 ## generate: Generate code (mocks, etc.)
 generate: $(MOCKGEN)
 	@echo "Generating code..."
 	@go generate ./...
+
+.PHONY: changelog-new changelog-batch changelog-merge
+## changelog-new: Create a new unreleased changelog fragment
+changelog-new: $(CHANGIE)
+	@$(CHANGIE) new
+
+## changelog-batch: Batch unreleased fragments into a version (requires VERSION)
+changelog-batch: $(CHANGIE)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "VERSION is required. Usage: make changelog-batch VERSION=v0.1.0"; \
+		exit 1; \
+	fi
+	@$(CHANGIE) batch $(VERSION)
+
+## changelog-merge: Merge batched changes into CHANGELOG.md
+changelog-merge: $(CHANGIE)
+	@$(CHANGIE) merge
 
 ## docs: Generate documentation
 docs:
@@ -132,6 +162,10 @@ $(MOCKGEN):
 $(GOIMPORTS):
 	@echo "Installing goimports..."
 	@go install golang.org/x/tools/cmd/goimports@latest
+
+$(CHANGIE):
+	@echo "Installing changie $(CHANGIE_VERSION)..."
+	@go install github.com/miniscruff/changie@$(CHANGIE_VERSION)
 
 # Print variables for debugging
 ## vars: Print Makefile variables

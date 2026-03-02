@@ -15,6 +15,12 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
+// Pre-compiled regex patterns to avoid recompilation on every call.
+var (
+	multiSlashRegex = regexp.MustCompile(`/+`)
+	paramRegex      = regexp.MustCompile(`\\\[([^\]]+)\\\]`)
+)
+
 // ============================================================================
 // HTTP Adapter Interface
 // ============================================================================
@@ -163,6 +169,44 @@ type ProcessSettleResult struct {
 }
 
 // ============================================================================
+// Route Validation Types
+// ============================================================================
+
+// RouteValidationError represents a single validation failure for a route's payment option
+type RouteValidationError struct {
+	// RoutePattern is the route pattern (e.g., "GET /api/weather")
+	RoutePattern string
+
+	// Scheme is the payment scheme that failed validation
+	Scheme string
+
+	// Network is the network that failed validation
+	Network x402.Network
+
+	// Reason is the type of validation failure: "missing_scheme" or "missing_facilitator"
+	Reason string
+
+	// Message is a human-readable error message
+	Message string
+}
+
+// RouteConfigurationError collects all route validation errors
+type RouteConfigurationError struct {
+	// Errors contains all validation failures
+	Errors []RouteValidationError
+}
+
+// Error returns a formatted error message listing all validation failures
+func (e *RouteConfigurationError) Error() string {
+	lines := make([]string, 0, len(e.Errors)+1)
+	lines = append(lines, "x402 Route Configuration Errors:")
+	for _, err := range e.Errors {
+		lines = append(lines, "  - "+err.Message)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ============================================================================
 // x402HTTPResourceServer
 // ============================================================================
 
@@ -201,6 +245,59 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// Initialize initializes the server by populating facilitator data and validating route configuration.
+// It calls the parent server's Initialize to fetch facilitator support, then validates that all
+// configured routes have matching scheme registrations and facilitator support.
+func (s *x402HTTPResourceServer) Initialize(ctx context.Context) error {
+	// First, initialize the parent (populates facilitatorClients from GetSupported)
+	if err := s.X402ResourceServer.Initialize(ctx); err != nil {
+		return err
+	}
+
+	// Then validate route configuration against registered schemes and facilitator support
+	return s.validateRouteConfiguration()
+}
+
+// validateRouteConfiguration checks that all configured routes have matching scheme registrations
+// and facilitator support. Returns a RouteConfigurationError if any mismatches are found.
+func (s *x402HTTPResourceServer) validateRouteConfiguration() error {
+	var errors []RouteValidationError
+
+	for _, route := range s.compiledRoutes {
+		for _, option := range route.Config.Accepts {
+			// Check 1: Is the scheme registered for this network?
+			if !s.HasRegisteredScheme(option.Network, option.Scheme) {
+				errors = append(errors, RouteValidationError{
+					RoutePattern: route.Verb + " " + route.Regex.String(),
+					Scheme:       option.Scheme,
+					Network:      option.Network,
+					Reason:       "missing_scheme",
+					Message:      fmt.Sprintf("Route %q: No scheme implementation registered for %q on network %q", route.Verb+" "+route.Regex.String(), option.Scheme, option.Network),
+				})
+				// Skip facilitator check if scheme isn't registered
+				continue
+			}
+
+			// Check 2: Does a facilitator support this scheme/network combination?
+			if !s.HasFacilitatorSupport(option.Network, option.Scheme) {
+				errors = append(errors, RouteValidationError{
+					RoutePattern: route.Verb + " " + route.Regex.String(),
+					Scheme:       option.Scheme,
+					Network:      option.Network,
+					Reason:       "missing_facilitator",
+					Message:      fmt.Sprintf("Route %q: Facilitator does not support scheme %q on network %q", route.Verb+" "+route.Regex.String(), option.Scheme, option.Network),
+				})
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return &RouteConfigurationError{Errors: errors}
+	}
+
+	return nil
 }
 
 // BuildPaymentRequirementsFromOptions builds payment requirements from multiple payment options
@@ -355,15 +452,26 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			unpaidResponse = unpaidResp
 		}
 
+		response, err := s.createHTTPResponseV2(
+			paymentRequired,
+			s.isWebBrowser(reqCtx.Adapter),
+			paywallConfig,
+			routeConfig.CustomPaywallHTML,
+			unpaidResponse,
+		)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
-			Type: ResultPaymentError,
-			Response: s.createHTTPResponseV2(
-				paymentRequired,
-				s.isWebBrowser(reqCtx.Adapter),
-				paywallConfig,
-				routeConfig.CustomPaywallHTML,
-				unpaidResponse,
-			),
+			Type:     ResultPaymentError,
+			Response: response,
 		}
 	}
 
@@ -377,9 +485,20 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			extensions,
 		)
 
+		response, err := s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
+			Response: response,
 		}
 	}
 
@@ -396,9 +515,20 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			extensions,
 		)
 
+		response, err := s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil)
+		if err != nil {
+			return HTTPProcessResult{
+				Type: ResultPaymentError,
+				Response: &HTTPResponseInstructions{
+					Status:  500,
+					Headers: map[string]string{"Content-Type": "application/json"},
+					Body:    map[string]string{"error": fmt.Sprintf("Failed to create payment response: %v", err)},
+				},
+			}
+		}
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
+			Response: response,
 		}
 	}
 
@@ -434,9 +564,17 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 		}
 	}
 
+	headers, err := s.createSettlementHeaders(settleResult)
+	if err != nil {
+		return &ProcessSettleResult{
+			Success:     false,
+			ErrorReason: fmt.Sprintf("failed to create settlement headers: %v", err),
+		}
+	}
+
 	return &ProcessSettleResult{
 		Success:     true,
-		Headers:     s.createSettlementHeaders(settleResult),
+		Headers:     headers,
 		Transaction: settleResult.Transaction,
 		Network:     settleResult.Network,
 		Payer:       settleResult.Payer,
@@ -541,7 +679,7 @@ func (s *x402HTTPResourceServer) isWebBrowser(adapter HTTPAdapter) bool {
 //	paywallConfig: Optional paywall configuration
 //	customHTML: Optional custom HTML for the paywall
 //	unpaidResponse: Optional custom response for API clients (ignored for browser requests)
-func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string, unpaidResponse *UnpaidResponse) *HTTPResponseInstructions {
+func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string, unpaidResponse *UnpaidResponse) (*HTTPResponseInstructions, error) {
 	if isWebBrowser {
 		html := s.generatePaywallHTMLV2(paymentRequired, paywallConfig, customHTML)
 		return &HTTPResponseInstructions{
@@ -551,7 +689,7 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 			},
 			Body:   html,
 			IsHTML: true,
-		}
+		}, nil
 	}
 
 	// Use custom unpaid response if provided, otherwise default to JSON with no body
@@ -563,20 +701,25 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 		body = unpaidResponse.Body
 	}
 
+	encodedHeader, err := encodePaymentRequiredHeader(paymentRequired)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode payment required header: %w", err)
+	}
+
 	return &HTTPResponseInstructions{
 		Status: 402,
 		Headers: map[string]string{
 			"Content-Type":     contentType,
-			"PAYMENT-REQUIRED": encodePaymentRequiredHeader(paymentRequired),
+			"PAYMENT-REQUIRED": encodedHeader,
 		},
 		Body: body,
-	}
+	}, nil
 }
 
 // createHTTPResponse creates response instructions (legacy method)
 //
 //nolint:unused // Legacy method kept for API compatibility
-func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) (*HTTPResponseInstructions, error) {
 	// Convert to V2 and call V2 method
 	v2Required := types.PaymentRequired{
 		X402Version: 2,
@@ -588,10 +731,14 @@ func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.Payment
 }
 
 // createSettlementHeaders creates settlement response headers
-func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleResponse) map[string]string {
-	return map[string]string{
-		"PAYMENT-RESPONSE": encodePaymentResponseHeader(*response),
+func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleResponse) (map[string]string, error) {
+	encodedHeader, err := encodePaymentResponseHeader(*response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode payment response header: %w", err)
 	}
+	return map[string]string{
+		"PAYMENT-RESPONSE": encodedHeader,
+	}, nil
 }
 
 // generatePaywallHTMLV2 generates HTML paywall for V2 PaymentRequired
@@ -733,7 +880,6 @@ func parseRoutePattern(pattern string) (string, *regexp.Regexp) {
 	regexPattern := "^" + regexp.QuoteMeta(path)
 	regexPattern = strings.ReplaceAll(regexPattern, `\*`, `.*?`)
 	// Handle parameters like [id]
-	paramRegex := regexp.MustCompile(`\\\[([^\]]+)\\\]`)
 	regexPattern = paramRegex.ReplaceAllString(regexPattern, `[^/]+`)
 	regexPattern += "$"
 
@@ -757,8 +903,7 @@ func normalizePath(path string) string {
 	// Normalize slashes
 	path = strings.ReplaceAll(path, `\`, `/`)
 	// Replace multiple slashes with single slash
-	multiSlash := regexp.MustCompile(`/+`)
-	path = multiSlash.ReplaceAllString(path, `/`)
+	path = multiSlashRegex.ReplaceAllString(path, `/`)
 	// Remove trailing slash
 	path = strings.TrimSuffix(path, `/`)
 

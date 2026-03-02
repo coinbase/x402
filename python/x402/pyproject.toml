@@ -1,6 +1,6 @@
 [project]
 name = "x402"
-version = "2.0.0"
+version = "2.2.0"
 description = "x402 Payment Protocol SDK for Python"
 readme = "README.md"
 license = { text = "MIT" }
@@ -20,6 +20,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "nest-asyncio>=1.6.0",
     "pydantic>=2.0.0",
     "typing_extensions>=4.0.0",
 ]
@@ -46,6 +47,9 @@ svm = [
     "solana>=0.36.0",
 ]
 
+# MCP (Model Context Protocol) integration
+mcp = ["mcp>=1.0.0"]
+
 # Extensions - optional functionality
 extensions = ["jsonschema>=4.0.0"]
 
@@ -53,7 +57,7 @@ extensions = ["jsonschema>=4.0.0"]
 clients = ["x402[httpx,requests]"]
 servers = ["x402[flask,fastapi]"]
 mechanisms = ["x402[evm,svm]"]
-all = ["x402[httpx,requests,flask,fastapi,evm,svm,extensions]"]
+all = ["x402[httpx,requests,flask,fastapi,evm,svm,mcp,extensions]"]
 
 [dependency-groups]
 dev = [
@@ -62,6 +66,7 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "black>=23.0.0",
+    "towncrier>=24.8.0,<25",
     # Include all optional deps for testing
     "httpx>=0.28.1",
     "requests>=2.31.0",
@@ -77,6 +82,9 @@ dev = [
     # SVM dependencies
     "solders>=0.27.0",
     "solana>=0.36.0",
+    # MCP dependencies
+    "mcp>=1.26.0",
+    "nest-asyncio>=1.6.0",
     # Extensions dependencies
     "jsonschema>=4.0.0",
 ]
@@ -117,6 +125,7 @@ exclude = [
 "http" = "x402/http"
 "mechanisms" = "x402/mechanisms"
 "extensions" = "x402/extensions"
+"mcp" = "x402/mcp"
 
 [tool.ruff]
 line-length = 100
@@ -148,3 +157,24 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.towncrier]
+package = "x402"
+filename = "CHANGELOG.md"
+directory = "changelog.d/"
+title_format = "## [{version}] - {project_date}"
+issue_format = "[#{issue}](https://github.com/coinbase/x402/pull/{issue})"
+
+[tool.towncrier.fragment.feature]
+name = "Added"
+
+[tool.towncrier.fragment.bugfix]
+name = "Fixed"
+
+[tool.towncrier.fragment.doc]
+name = "Documentation"
+
+[tool.towncrier.fragment.removal]
+name = "Removals"
+
+[tool.towncrier.fragment.misc]
+name = "Misc"

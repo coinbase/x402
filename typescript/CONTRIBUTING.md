@@ -274,6 +274,24 @@ Examples live in `examples/typescript/`. When adding a new example:
 3. Add a `README.md` with setup and run instructions
 4. The example will be included in the workspace automatically via `pnpm-workspace.yaml`
 
+## Changelog
+
+A changeset is required for any change that should be published — this includes code changes, public API or type changes, and documentation updates that affect published packages. To create a changeset, run:
+
+```bash
+pnpm changeset
+```
+
+Follow the interactive prompts to:
+1. Select the packages that should be published.
+2. Provide a short, past‑tense summary of the change (for example, "Fixed bug where X failed" or "Added support for Y").
+3. Pick the appropriate release type:
+   - Patch: Bug fixes, no API changes
+   - Minor: New features, backward compatible
+   - Major: Breaking changes
+
+When unsure, prefer a patch for fixes and a minor for non‑breaking features; maintainers may adjust bumps during review and release.
+
 ## Publishing
 
 Package publishing is handled by maintainers. Version bumps follow semver:

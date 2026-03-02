@@ -69,6 +69,7 @@ Each example demonstrates a specific advanced pattern:
 
 | Example | Command | Description |
 | --- | --- | --- |
+| `all-networks` | `pnpm dev:all-networks` | All supported networks with optional chain configuration |
 | `bazaar` | `pnpm dev:bazaar` | API discoverability via Bazaar |
 | `hooks` | `pnpm dev:hooks` | Payment lifecycle hooks |
 | `dynamic-price` | `pnpm dev:dynamic-price` | Context-based pricing |

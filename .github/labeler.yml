@@ -55,6 +55,16 @@ specs:
   - changed-files:
       - any-glob-to-any-file: 'specs/**'
 
+# Documentation
+docs:
+  - changed-files:
+      - any-glob-to-any-file: 'docs/**'
+
+# Website
+website:
+  - changed-files:
+      - any-glob-to-any-file: 'typescript/site/**'
+
 # CI/CD workflows
 ci:
   - changed-files:

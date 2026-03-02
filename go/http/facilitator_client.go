@@ -60,6 +60,12 @@ type FacilitatorConfig struct {
 // DefaultFacilitatorURL is the default public facilitator
 const DefaultFacilitatorURL = "https://x402.org/facilitator"
 
+// getSupportedRetries is the number of retry attempts for GetSupported on 429 rate limit errors
+const getSupportedRetries = 3
+
+// getSupportedRetryBaseDelay is the base delay for exponential backoff on retries
+const getSupportedRetryBaseDelay = 1 * time.Second
+
 // NewHTTPFacilitatorClient creates a new HTTP facilitator client
 func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient {
 	if config == nil {
@@ -121,47 +127,71 @@ func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte,
 	return c.settleHTTP(ctx, version, payloadBytes, requirementsBytes)
 }
 
-// GetSupported gets supported payment kinds (shared by both V1 and V2)
+// GetSupported gets supported payment kinds (shared by both V1 and V2).
+// Retries up to 3 times with exponential backoff on 429 rate limit errors.
 func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, "GET", c.url+"/supported", nil)
-	if err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("failed to create supported request: %w", err)
-	}
+	var lastErr error
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// Add auth headers if available
-	if c.authProvider != nil {
-		authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
+	for attempt := range getSupportedRetries {
+		// Create request
+		req, err := http.NewRequestWithContext(ctx, "GET", c.url+"/supported", nil)
 		if err != nil {
-			return x402.SupportedResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
+			return x402.SupportedResponse{}, fmt.Errorf("failed to create supported request: %w", err)
 		}
-		for k, v := range authHeaders.Supported {
-			req.Header.Set(k, v)
+
+		req.Header.Set("Content-Type", "application/json")
+
+		// Add auth headers if available
+		if c.authProvider != nil {
+			authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
+			if err != nil {
+				return x402.SupportedResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
+			}
+			for k, v := range authHeaders.Supported {
+				req.Header.Set(k, v)
+			}
 		}
+
+		// Make request
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return x402.SupportedResponse{}, fmt.Errorf("supported request failed: %w", err)
+		}
+
+		// Read response body
+		responseBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return x402.SupportedResponse{}, fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		// Success
+		if resp.StatusCode == http.StatusOK {
+			var supportedResponse x402.SupportedResponse
+			if err := json.Unmarshal(responseBody, &supportedResponse); err != nil {
+				return x402.SupportedResponse{}, fmt.Errorf("failed to decode supported response: %w", err)
+			}
+			return supportedResponse, nil
+		}
+
+		lastErr = fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(responseBody))
+
+		// Retry on 429 with exponential backoff, except on the last attempt
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < getSupportedRetries-1 {
+			delay := getSupportedRetryBaseDelay * time.Duration(1<<uint(attempt))
+			select {
+			case <-time.After(delay):
+				continue
+			case <-ctx.Done():
+				return x402.SupportedResponse{}, ctx.Err()
+			}
+		}
+
+		// Non-429 errors or last attempt: return immediately
+		return x402.SupportedResponse{}, lastErr
 	}
 
-	// Make request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("supported request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return x402.SupportedResponse{}, fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var supportedResponse x402.SupportedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&supportedResponse); err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("failed to decode supported response: %w", err)
-	}
-
-	return supportedResponse, nil
+	return x402.SupportedResponse{}, lastErr
 }
 
 // ============================================================================

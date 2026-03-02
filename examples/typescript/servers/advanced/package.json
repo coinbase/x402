@@ -5,6 +5,7 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx index.ts bazaar",
+    "dev:all-networks": "tsx all_networks.ts",
     "dev:bazaar": "tsx index.ts bazaar",
     "dev:custom-money-definition": "tsx index.ts custom-money-definition",
     "dev:dynamic-pay-to": "tsx index.ts dynamic-pay-to",

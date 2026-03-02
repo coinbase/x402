@@ -1,10 +1,17 @@
+import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { toFacilitatorAptosSigner } from "@x402/aptos";
+import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import { Network } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
+import {
+  EIP2612_GAS_SPONSORING,
+  createErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
@@ -13,7 +20,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
 /**
- * Initialize and configure the x402 facilitator with EVM and SVM support
+ * Initialize and configure the x402 facilitator with EVM, SVM, and Aptos support
  * This is called lazily on first use to support Next.js module loading
  *
  * @returns A configured x402Facilitator instance
@@ -88,12 +95,29 @@ async function createFacilitator(): Promise<x402Facilitator> {
   // Initialize SVM signer - handles all Solana networks with automatic RPC creation
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
-  // Create and configure the facilitator
+  // Create and configure the facilitator with EVM and SVM
   const facilitator = new x402Facilitator()
     .register("eip155:84532", new ExactEvmScheme(evmSigner))
     .registerV1("base-sepolia" as Network, new ExactEvmSchemeV1(evmSigner))
     .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
     .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
+
+  // Optionally register Aptos if configured
+  if (process.env.FACILITATOR_APTOS_PRIVATE_KEY) {
+    const formattedAptosKey = PrivateKey.formatPrivateKey(
+      process.env.FACILITATOR_APTOS_PRIVATE_KEY,
+      PrivateKeyVariants.Ed25519,
+    );
+    const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
+    const aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+    const aptosSigner = toFacilitatorAptosSigner(aptosAccount);
+    facilitator.register("aptos:2", new ExactAptosScheme(aptosSigner));
+  }
+
+  // Register gas sponsorship extensions for Permit2 support
+  facilitator
+    .registerExtension(EIP2612_GAS_SPONSORING)
+    .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient));
 
   return facilitator;
 }

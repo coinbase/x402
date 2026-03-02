@@ -170,6 +170,10 @@ class FacilitatorKeypairSigner:
     ) -> str:
         """Sign a partially-signed transaction.
 
+        Supports both legacy and versioned (v0) transactions:
+        - Legacy transactions: Sign message bytes directly
+        - Versioned (v0) transactions: Sign with 0x80 version prefix
+
         Args:
             tx_base64: Base64 encoded partially-signed transaction.
             fee_payer: Fee payer address.
@@ -191,10 +195,19 @@ class FacilitatorKeypairSigner:
         tx_bytes = base64.b64decode(tx_base64)
         tx = VersionedTransaction.from_bytes(tx_bytes)
 
-        # For VersionedTransaction with MessageV0, prepend 0x80 version byte before signing
+        # Determine if this is a versioned (v0) or legacy transaction
+        # Versioned transactions have a version byte prefix >= 128 (0x80)
+        # Legacy transactions have their first byte (numRequiredSignatures) < 128
+        is_versioned = self._is_versioned_transaction(tx_bytes)
+
         message = tx.message
-        msg_bytes_with_version = bytes([0x80]) + bytes(message)
-        facilitator_signature = keypair.sign_message(msg_bytes_with_version)
+        if is_versioned:
+            # Versioned transaction (MessageV0): prepend 0x80 version byte before signing
+            msg_bytes_with_version = bytes([0x80]) + bytes(message)
+            facilitator_signature = keypair.sign_message(msg_bytes_with_version)
+        else:
+            # Legacy transaction: sign message bytes directly (no version prefix)
+            facilitator_signature = keypair.sign_message(bytes(message))
 
         # Fee payer is always at index 0, client signature at index 1
         signatures = list(tx.signatures)
@@ -203,6 +216,51 @@ class FacilitatorKeypairSigner:
 
         # Re-encode
         return base64.b64encode(bytes(signed_tx)).decode("utf-8")
+
+    def _is_versioned_transaction(self, tx_bytes: bytes) -> bool:
+        """Determine if transaction bytes represent a versioned or legacy transaction.
+
+        Versioned transactions (v0) have a version byte prefix where the first byte
+        of the message portion is >= 128 (0x80). Legacy transactions have their
+        first message byte (numRequiredSignatures header) < 128.
+
+        Args:
+            tx_bytes: Raw transaction bytes.
+
+        Returns:
+            True if versioned (v0), False if legacy.
+        """
+        # Transaction structure:
+        # - CompactU16 length prefix for signatures count
+        # - Signatures (64 bytes each)
+        # - Message bytes
+        #
+        # To find where the message starts, we need to skip the signatures.
+        # CompactU16: if first byte < 128, it's the value; otherwise it's multi-byte
+
+        offset = 0
+
+        # Read compact u16 for signature count
+        first_byte = tx_bytes[offset]
+        if first_byte < 0x80:
+            # Single byte encoding
+            num_signatures = first_byte
+            offset += 1
+        else:
+            # Multi-byte encoding (shouldn't happen for reasonable signature counts)
+            num_signatures = (first_byte & 0x7F) | ((tx_bytes[offset + 1] & 0x7F) << 7)
+            offset += 2
+
+        # Skip signatures (64 bytes each)
+        offset += num_signatures * 64
+
+        # First byte of message determines version
+        # >= 128 (0x80) means versioned (v0), < 128 means legacy
+        if offset < len(tx_bytes):
+            message_first_byte = tx_bytes[offset]
+            return message_first_byte >= 0x80
+
+        return False
 
     def simulate_transaction(self, tx_base64: str, network: str) -> None:
         """Simulate a transaction.

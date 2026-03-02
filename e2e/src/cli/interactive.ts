@@ -78,8 +78,46 @@ export async function runInteractiveMode(
     return null; // User cancelled
   }
 
-  // Question 2: Select servers (multi-select)
-  const serverChoices = allServers.map(s => {
+  // Question 2: Select transports (multi-select)
+  const availableTransports = getAvailableTransports(allServers, allClients);
+  let selectedTransports: string[] | undefined;
+
+  if (availableTransports.length > 1) {
+    const transportChoices = availableTransports.map(t => ({
+      title: t.toUpperCase(),
+      value: t,
+      selected: t === 'http' // only HTTP selected by default
+    }));
+
+    const transportResponse = await prompts({
+      type: 'multiselect',
+      name: 'transports',
+      message: 'Select transports',
+      choices: transportChoices,
+      min: 1,
+      hint: 'Space to select, Enter to confirm',
+      instructions: false
+    });
+
+    if (!transportResponse.transports || transportResponse.transports.length === 0) {
+      return null;
+    }
+
+    selectedTransports = transportResponse.transports;
+  } else {
+    selectedTransports = availableTransports;
+  }
+
+  // Filter servers and clients by selected transport
+  const transportFilteredServers = allServers.filter(s =>
+    selectedTransports?.includes(s.config.transport || 'http')
+  );
+  const transportFilteredClients = allClients.filter(c =>
+    selectedTransports?.includes(c.config.transport || 'http')
+  );
+
+  // Question 3: Select servers (multi-select)
+  const serverChoices = transportFilteredServers.map(s => {
     const families = Array.from(new Set(s.config.endpoints?.map(e => e.protocolFamily).filter(Boolean))) || [];
     const extInfo = s.config.extensions ? ' {' + s.config.extensions.join(', ') + '}' : '';
     return {
@@ -103,12 +141,15 @@ export async function runInteractiveMode(
     return null;
   }
 
-  // Question 3: Select clients (multi-select)
-  const clientChoices = allClients.map(c => ({
-    title: `${c.name} (${formatVersions(c.config.x402Versions)}) [${c.config.protocolFamilies?.join(', ') || ''}]`,
-    value: c.name,
-    selected: minimize // With --min: all selected. Without --min: none selected
-  }));
+  // Question 4: Select clients (multi-select)
+  const clientChoices = transportFilteredClients.map(c => {
+    const extInfo = c.config.extensions ? ' {' + c.config.extensions.join(', ') + '}' : '';
+    return {
+      title: `${c.name} (${formatVersions(c.config.x402Versions)}) [${c.config.protocolFamilies?.join(', ') || ''}]${extInfo}`,
+      value: c.name,
+      selected: minimize // With --min: all selected. Without --min: none selected
+    };
+  });
 
   const clientsResponse = await prompts({
     type: 'multiselect',
@@ -124,14 +165,16 @@ export async function runInteractiveMode(
     return null;
   }
 
-  // Question 4: Select extensions (ALWAYS shown if any available, determines test output visibility)
+  // Question 5: Select extensions (ALWAYS shown if any available, determines test output visibility)
   log('\n🔍 Detecting available extensions from selections...\n');
 
   const availableExtensions = getAvailableExtensions(
     facilitatorsResponse.facilitators,
     serversResponse.servers,
+    clientsResponse.clients,
     allFacilitators,
-    allServers
+    allServers,
+    allClients,
   );
 
   let selectedExtensions: string[] | undefined;
@@ -172,7 +215,7 @@ export async function runInteractiveMode(
     }
   );
 
-  // Question 5 (CONDITIONAL): Select versions IF multiple versions exist in remaining scenarios
+  // Question 6 (CONDITIONAL): Select versions IF multiple versions exist in remaining scenarios
   const availableVersions = getUniqueVersions(preliminaryScenarios);
   let selectedVersions: number[] | undefined;
 
@@ -206,7 +249,7 @@ export async function runInteractiveMode(
     selectedVersions = availableVersions;
   }
 
-  // Question 6 (CONDITIONAL): Select protocol families IF multiple families exist
+  // Question 7 (CONDITIONAL): Select protocol families IF multiple families exist
   const availableFamilies = getUniqueProtocolFamilies(preliminaryScenarios);
   let selectedFamilies: string[] | undefined;
 
@@ -240,7 +283,7 @@ export async function runInteractiveMode(
     selectedFamilies = availableFamilies;
   }
 
-  // Question 7: Select network mode (testnet/mainnet) - LAST question
+  // Question 8: Select network mode (testnet/mainnet) - LAST question
   // Skip if preselected via CLI flag
   let networkMode: NetworkMode;
 
@@ -282,6 +325,7 @@ export async function runInteractiveMode(
   }
 
   return {
+    transports: selectedTransports,
     facilitators: facilitatorsResponse.facilitators,
     servers: serversResponse.servers,
     clients: clientsResponse.clients,
@@ -293,17 +337,20 @@ export async function runInteractiveMode(
 }
 
 /**
- * Get available extensions from selected facilitators and servers
+ * Get available extensions from selected facilitators, servers, and clients
  */
 function getAvailableExtensions(
   facilitatorNames: string[],
   serverNames: string[],
+  clientNames: string[],
   allFacilitators: DiscoveredFacilitator[],
-  allServers: DiscoveredServer[]
+  allServers: DiscoveredServer[],
+  allClients: DiscoveredClient[],
 ): Array<{ name: string; description: string }> {
   const extensions = new Set<string>();
   const extensionInfo: Record<string, string> = {
     'bazaar': 'Discovery extension for resource discovery',
+    'eip2612GasSponsoring': 'EIP-2612 gasless Permit2 approval',
   };
 
   // Collect from facilitators
@@ -322,10 +369,31 @@ function getAvailableExtensions(
     }
   });
 
+  // Collect from clients
+  clientNames.forEach(name => {
+    const client = allClients.find(c => c.name === name);
+    if (client?.config.extensions) {
+      client.config.extensions.forEach(ext => extensions.add(ext));
+    }
+  });
+
   return Array.from(extensions).map(ext => ({
     name: ext,
     description: extensionInfo[ext] || ext
   }));
+}
+
+/**
+ * Get available transports from discovered servers and clients
+ */
+function getAvailableTransports(
+  allServers: DiscoveredServer[],
+  allClients: DiscoveredClient[]
+): string[] {
+  const transports = new Set<string>();
+  allServers.forEach(s => transports.add(s.config.transport || 'http'));
+  allClients.forEach(c => transports.add(c.config.transport || 'http'));
+  return Array.from(transports).sort();
 }
 
 /**

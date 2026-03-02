@@ -31,7 +31,10 @@ if not base_url or not endpoint_path:
     exit(1)
 
 if not evm_private_key and not svm_private_key:
-    error_result = {"success": False, "error": "At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY must be set"}
+    error_result = {
+        "success": False,
+        "error": "At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY must be set",
+    }
     print(json.dumps(error_result))
     exit(1)
 
@@ -76,7 +79,9 @@ async def main():
             }
 
             # Check for payment response header (V2: PAYMENT-RESPONSE, V1: X-PAYMENT-RESPONSE)
-            payment_header = response.headers.get("PAYMENT-RESPONSE") or response.headers.get("X-PAYMENT-RESPONSE")
+            payment_header = response.headers.get(
+                "PAYMENT-RESPONSE"
+            ) or response.headers.get("X-PAYMENT-RESPONSE")
             if payment_header:
                 payment_response = decode_payment_response_header(payment_header)
                 result["payment_response"] = payment_response.model_dump()

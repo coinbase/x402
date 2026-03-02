@@ -133,21 +133,21 @@ export class TestDiscovery {
 
     for (const facilitatorName of facilitatorDirs) {
       const facilitatorDir = join(facilitatorsDir, facilitatorName);
-      
+
       // Special case: external-proxies is a nested directory of more facilitators
       if (facilitatorName === 'external-proxies') {
         verboseLog(`  🔍 Found external-proxies directory, discovering nested facilitators...`);
         this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', true);
         continue;
       }
-      
+
       // Special case: local is a nested directory of more facilitators (inherits isExternal from parent)
       if (facilitatorName === 'local') {
         verboseLog(`  🔍 Found local directory, discovering nested facilitators...`);
         this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', isExternal);
         continue;
       }
-      
+
       const configPath = join(facilitatorDir, 'test.config.json');
 
       if (existsSync(configPath)) {
@@ -237,6 +237,14 @@ export class TestDiscovery {
           continue;
         }
 
+        // Check transport compatibility (default to 'http' if not specified)
+        const clientTransport = client.config.transport || 'http';
+        const serverTransport = server.config.transport || 'http';
+        if (clientTransport !== serverTransport) {
+          verboseLog(`  ⚠️  Skipping ${client.name} ↔ ${server.name}: Transport mismatch (client=${clientTransport}, server=${serverTransport})`);
+          continue;
+        }
+
         // Check if client and server have compatible versions
         if (!clientVersions.includes(serverVersion)) {
           verboseLog(`  ⚠️  Skipping ${client.name} ↔ ${server.name}: Version mismatch (client supports [${clientVersions.join(', ')}], server implements ${serverVersion})`);
@@ -257,10 +265,26 @@ export class TestDiscovery {
             continue;
           }
 
+          // For EVM endpoints, check transfer method compatibility with client
+          if (endpointProtocolFamily === 'evm') {
+            const endpointTransferMethod = endpoint.transferMethod || 'eip3009';
+            const clientTransferMethods = client.config.evm?.transferMethods || ['eip3009'];
+            if (!clientTransferMethods.includes(endpointTransferMethod)) {
+              verboseLog(`  ⚠️  Skipping ${client.name} ↔ ${server.name} ${endpoint.path}: Transfer method mismatch (client supports [${clientTransferMethods.join(', ')}], endpoint requires ${endpointTransferMethod})`);
+              continue;
+            }
+          }
+
           // Find facilitators that support this protocol family and version
           const matchingFacilitators = facilitators.filter(f => {
             const supportsProtocol = f.config.protocolFamilies?.includes(endpointProtocolFamily);
             const supportsVersion = f.config.x402Versions?.includes(serverVersion);
+            // For EVM, also check transfer method support
+            if (endpointProtocolFamily === 'evm') {
+              const endpointTransferMethod = endpoint.transferMethod || 'eip3009';
+              const facilTransferMethods = f.config.evm?.transferMethods || ['eip3009'];
+              if (!facilTransferMethods.includes(endpointTransferMethod)) return false;
+            }
             return supportsProtocol && supportsVersion;
           });
 
@@ -301,33 +325,43 @@ export class TestDiscovery {
         server.config.endpoints?.filter(e => e.requiresPayment).map(e => e.protocolFamily || 'evm') || ['evm']
       );
       const version = server.config.x402Version || 1;
-      log(`   - ${server.name} (${server.config.language}) v${version} - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
+      const transport = server.config.transport || 'http';
+      log(`   - ${server.name} (${server.config.language}) [${transport}] v${version} - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
     });
 
     log(`📱 Clients found: ${clients.length}`);
     clients.forEach(client => {
       const protocolFamilies = client.config.protocolFamilies || ['evm'];
       const versions = client.config.x402Versions || [1];
-      log(`   - ${client.name} (${client.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+      const transport = client.config.transport || 'http';
+      const evmTransferMethods = client.config.evm?.transferMethods || ['eip3009'];
+      const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
+      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
+      const extInfo = client.config.extensions ? ` {${client.config.extensions.join(', ')}}` : '';
+      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${extInfo}`);
     });
 
     log(`🏛️ Facilitators found: ${facilitators.length}`);
-    
+
     const regularFacilitators = facilitators.filter(f => !f.isExternal);
     const externalFacilitators = facilitators.filter(f => f.isExternal);
-    
+
     regularFacilitators.forEach(facilitator => {
       const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
       const versions = facilitator.config.x402Versions || [2];
-      log(`   - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+      const evmTransferMethods = facilitator.config.evm?.transferMethods || ['eip3009'];
+      const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
+      log(`   - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
     });
-    
+
     if (externalFacilitators.length > 0) {
       log(`   External:`);
       externalFacilitators.forEach(facilitator => {
         const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
         const versions = facilitator.config.x402Versions || [2];
-        log(`     - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+        const evmTransferMethods = facilitator.config.evm?.transferMethods || ['eip3009'];
+        const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
+        log(`     - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
       });
     }
 

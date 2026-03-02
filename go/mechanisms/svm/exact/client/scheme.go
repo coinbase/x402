@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -161,17 +163,34 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildTransferIx+": %w", err)
 	}
 
+	// Memo with random nonce for transaction uniqueness (empty accounts - SPL Memo doesn't require signers)
+	memoBytes := make([]byte, 16)
+	if _, err := rand.Read(memoBytes); err != nil {
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildMemoIx+": %w", err)
+	}
+	memoIx := solana.NewInstruction(
+		solana.MustPublicKeyFromBase58(svm.MemoProgramAddress),
+		solana.AccountMetaSlice{},
+		[]byte(hex.EncodeToString(memoBytes)),
+	)
+
 	// Create final transaction
 	tx, err := solana.NewTransactionBuilder().
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
 		AddInstruction(transferIx).
+		AddInstruction(memoIx).
 		SetRecentBlockHash(recentBlockhash).
 		SetFeePayer(feePayer).
 		Build()
 	if err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToCreateTransaction+": %w", err)
 	}
+
+	// Set message version to V0 (versioned transaction) for cross-platform compatibility
+	// This ensures the transaction can be correctly signed by facilitators in all languages
+	// (TypeScript, Python, Go) as they all expect versioned transactions
+	tx.Message.SetVersion(solana.MessageVersionV0)
 
 	// Partially sign with client's key
 	if err := c.signer.SignTransaction(ctx, tx); err != nil {

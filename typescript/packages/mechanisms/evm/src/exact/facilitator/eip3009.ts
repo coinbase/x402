@@ -7,6 +7,7 @@ import {
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
+import { getEvmChainId } from "../../utils";
 import { ExactEIP3009Payload } from "../../types";
 
 export interface EIP3009FacilitatorConfig {
@@ -73,7 +74,7 @@ export async function verifyEIP3009(
     domain: {
       name,
       version,
-      chainId: parseInt(requirements.network.split(":")[1]),
+      chainId: getEvmChainId(requirements.network),
       verifyingContract: erc20Address,
     },
     message: {
@@ -188,6 +189,7 @@ export async function verifyEIP3009(
       return {
         isValid: false,
         invalidReason: "insufficient_funds",
+        invalidMessage: `Insufficient funds to complete the payment. Required: ${requirements.amount} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
         payer,
       };
     }

@@ -23,7 +23,7 @@ const account = privateKeyToAccount("0xYourPrivateKey");
 const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
   schemes: [
     {
-      network: "eip155:8453", // Base Sepolia
+      network: "eip155:8453", // Base Mainnet
       client: new ExactEvmScheme(account),
     },
   ],
@@ -151,7 +151,7 @@ const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
   schemes: [
     // EVM chains
     {
-      network: "eip155:8453", // Base Sepolia
+      network: "eip155:8453", // Base Mainnet
       client: new ExactEvmScheme(evmAccount),
     },
     // SVM chains

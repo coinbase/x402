@@ -35,7 +35,7 @@ jobs:
         working-directory: ./typescript
         run: |
           pnpm install --frozen-lockfile
-          pnpm -r --filter=@x402/core --filter=@x402/evm run build
+          pnpm -r --filter=@x402/core --filter=@x402/extensions --filter=@x402/evm run build
       
       - name: Publish @x402/evm package
         working-directory: ./typescript/packages/mechanisms/evm

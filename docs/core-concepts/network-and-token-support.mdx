@@ -11,14 +11,25 @@ x402 V2 uses [CAIP-2](https://chainagnostic.org/CAIPs/caip-2) standard network i
 
 | V1 Name | V2 CAIP-2 ID | Chain ID | Description |
 |---------|--------------|----------|-------------|
-| `base-sepolia` | `eip155:84532` | 84532 | Base Sepolia testnet |
 | `base` | `eip155:8453` | 8453 | Base mainnet |
+| `base-sepolia` | `eip155:84532` | 84532 | Base Sepolia testnet |
+| `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana mainnet |
 | `solana-devnet` | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | - | Solana Devnet |
-| `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana Mainnet |
+| - | `aptos:1` | 1 | Aptos Mainnet |
+| - | `aptos:2` | 2 | Aptos Testnet |
+| `avalanche` | `eip155:43114` | 43114 | Avalanche C-Chain mainnet |
+| `avalanche-fuji` | `eip155:43113` | 43113 | Avalanche Fuji testnet |
+| `polygon` | `eip155:137` | 137 | Polygon mainnet |
+| `polygon-amoy` | `eip155:80002` | 80002 | Polygon Amoy testnet |
+| `sei` | `eip155:1329` | 1329 | Sei mainnet |
+| `sei-testnet` | `eip155:713715` | 713715 | Sei testnet |
+| `skale-base` | `eip155:1187947933` | 1187947933 | SKALE mainnet |
+| `skale-base-sepolia` | `eip155:324705682` | 324705682 | SKALE testnet |
 
 ### Format Explanation
 - **EVM networks**: `eip155:<chainId>` where chainId is the numeric chain identifier
 - **Solana**: `solana:<genesisHash>` where genesisHash is the first 32 bytes of the genesis block hash
+- **Aptos**: `aptos:<chainId>` where chainId is the numeric chain identifier
 
 ## Overview
 
@@ -26,7 +37,7 @@ x402 is designed to work across multiple blockchain networks, with different lev
 
 ### Supported Facilitators
 
-Network support in x402 depends on which facilitator you use. For a complete and up-to-date list of available facilitators and their supported networks, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
+Network support in x402 depends on which facilitator you use. For a complete and up-to-date list of available facilitators and their supported networks, see the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators).
 
 #### x402.org Facilitator
 
@@ -35,16 +46,17 @@ Network support in x402 depends on which facilitator you use. For a complete and
 
 #### Production Facilitators
 
-Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options and their documentation.
+Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options and their documentation.
 
 ### Token Support
 
-x402 supports tokens on both EVM and Solana networks:
+x402 supports tokens on EVM, Solana, and Aptos networks:
 
 * **EVM**: Any ERC-20 token that implements the EIP-3009 standard
 * **Solana**: Any SPL or token-2022 token
+* **Aptos**: Any fungible asset using Aptos's native fungible asset framework
 
-**Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
+**Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, any SPL/token-2022 token works on Solana, and any fungible asset works on Aptos, for the facilitators that support those networks.
 
 #### EVM: EIP-3009 Requirement
 
@@ -91,6 +103,10 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 
 On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL/token-2022 token, including USDC (SPL). No EIP-712 configuration is required on Solana.
 
+#### Aptos: Fungible Assets
+
+On Aptos, x402 supports all fungible assets using Aptos's native fungible asset framework. Payments use the `primary_fungible_store::transfer` function for automatic store creation and management. The TypeScript SDK supports sponsored transactions where facilitators pay gas fees on behalf of clients.
+
 #### USDC - The Default Token
 
 * **Status**: Supported by default across all networks
@@ -110,7 +126,7 @@ The EIP-3009 standard is essential for x402 because it enables:
 | Facilitator Type | Networks Supported | Production Ready | Requirements |
 | ---------------- | ------------------ | ---------------- | ------------ |
 | x402.org (Default) | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testnet only | None |
-| [Production Facilitators](https://www.x402.org/ecosystem?category=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
+| [Production Facilitators](https://www.x402.org/ecosystem?filter=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
 | Self-hosted | Any EVM network (CAIP-2 format) | Yes | Technical setup |
 
 **Note**: On EVM networks, facilitators support any EIP-3009 compatible token; on Solana, facilitators support any SPL/Token-2022 token.
@@ -127,14 +143,14 @@ In V2, networks are supported through the registration pattern using CAIP-2 iden
   <Tab title="TypeScript">
     ```typescript
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://your-facilitator.com"  // Facilitator that supports your network
     });
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
+    server.register("eip155:*", new ExactEvmScheme());  // Registers wildcard support for all EVM chains
 
     // Now use any CAIP-2 network identifier in your routes:
     const routes = {
@@ -237,7 +253,7 @@ x402's network support is designed to be extensible while maintaining security a
 
 Key takeaways:
 
-* Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) have the best out-of-the-box support
+* Base (`eip155:8453`), Base Sepolia (`eip155:84532`), Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`), and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) have the best out-of-the-box support
 * Any EVM network can be supported with a custom facilitator using CAIP-2 format
 * Any EIP-3009 token (with `transferWithAuthorization`) works on any facilitator
 * Use price strings for USDC or TokenAmount for custom tokens

@@ -1,6 +1,8 @@
 """SVM client implementation for Exact payment scheme (V1 legacy)."""
 
 import base64
+import binascii
+import os
 from typing import Any
 
 try:
@@ -8,6 +10,7 @@ try:
     from solders.instruction import AccountMeta, Instruction
     from solders.message import MessageV0
     from solders.pubkey import Pubkey
+    from solders.signature import Signature
     from solders.transaction import VersionedTransaction
 except ImportError as e:
     raise ImportError(
@@ -19,6 +22,7 @@ from ...constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     DEFAULT_COMPUTE_UNIT_LIMIT,
     DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+    MEMO_PROGRAM_ADDRESS,
     NETWORK_CONFIGS,
     SCHEME_EXACT,
     TOKEN_2022_PROGRAM_ADDRESS,
@@ -174,6 +178,13 @@ class ExactSvmSchemeV1:
             data=transfer_data,
         )
 
+        # Memo with random nonce for uniqueness (empty accounts - SPL Memo doesn't require signers)
+        memo_ix = Instruction(
+            program_id=Pubkey.from_string(MEMO_PROGRAM_ADDRESS),
+            accounts=[],
+            data=binascii.hexlify(os.urandom(16)),
+        )
+
         # Get latest blockhash
         blockhash_resp = client.get_latest_blockhash()
         blockhash = blockhash_resp.value.blockhash
@@ -181,16 +192,20 @@ class ExactSvmSchemeV1:
         # Build message
         message = MessageV0.try_compile(
             payer=fee_payer,
-            instructions=[set_cu_limit_ix, set_cu_price_ix, transfer_ix],
+            instructions=[set_cu_limit_ix, set_cu_price_ix, transfer_ix, memo_ix],
             address_lookup_table_accounts=[],
             recent_blockhash=blockhash,
         )
 
-        # Create transaction
-        tx = VersionedTransaction(message, [])
+        # Create a partially-signed transaction
+        # Signers: index 0 = fee_payer (facilitator), index 1 = payer_pubkey (client)
+        # For VersionedTransaction with MessageV0, prepend 0x80 version byte before signing
+        msg_bytes_with_version = bytes([0x80]) + bytes(message)
+        client_signature = self._signer.keypair.sign_message(msg_bytes_with_version)
 
-        # Sign with client keypair (as token authority)
-        tx.sign([self._signer.keypair])
+        # Client is at index 1, fee_payer placeholder at index 0
+        signatures = [Signature.default(), client_signature]
+        tx = VersionedTransaction.populate(message, signatures)
 
         # Encode to base64
         tx_base64 = base64.b64encode(bytes(tx)).decode("utf-8")
