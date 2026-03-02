@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -544,6 +545,233 @@ func TestGetDisplayAmount(t *testing.T) {
 				t.Errorf("Expected %f, got %f", tt.expected, result)
 			}
 		})
+	}
+}
+
+// ============================================================================
+// ValidateRouteConfiguration Tests
+// ============================================================================
+
+func TestValidateRouteConfiguration_Success(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:8453"},
+			},
+		},
+	}
+
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:8453", &mockSchemeServer{scheme: "exact"}),
+	)
+
+	err := server.Initialize(ctx)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+}
+
+func TestValidateRouteConfiguration_MissingScheme(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:8453"},
+			},
+		},
+	}
+
+	// Facilitator supports the scheme/network, but no scheme server is registered
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	// No WithSchemeServer - scheme is not registered
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+	)
+
+	// Manually call parent Initialize to populate facilitatorClients without validation
+	_ = server.X402ResourceServer.Initialize(ctx)
+
+	// Now validate routes
+	err := server.validateRouteConfiguration()
+	if err == nil {
+		t.Fatal("Expected validation error for missing scheme")
+	}
+
+	var configErr *RouteConfigurationError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("Expected RouteConfigurationError, got %T: %v", err, err)
+	}
+
+	if len(configErr.Errors) != 1 {
+		t.Fatalf("Expected 1 error, got %d", len(configErr.Errors))
+	}
+	if configErr.Errors[0].Reason != "missing_scheme" {
+		t.Errorf("Expected reason 'missing_scheme', got %q", configErr.Errors[0].Reason)
+	}
+	if configErr.Errors[0].Network != "eip155:8453" {
+		t.Errorf("Expected network 'eip155:8453', got %q", configErr.Errors[0].Network)
+	}
+}
+
+func TestValidateRouteConfiguration_MissingFacilitator(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:8453"},
+			},
+		},
+	}
+
+	// Facilitator does NOT support this network/scheme combo
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds:      []x402.SupportedKind{},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:8453", &mockSchemeServer{scheme: "exact"}),
+	)
+
+	err := server.Initialize(ctx)
+	if err == nil {
+		t.Fatal("Expected validation error for missing facilitator")
+	}
+
+	var configErr *RouteConfigurationError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("Expected RouteConfigurationError, got %T: %v", err, err)
+	}
+
+	if len(configErr.Errors) != 1 {
+		t.Fatalf("Expected 1 error, got %d", len(configErr.Errors))
+	}
+	if configErr.Errors[0].Reason != "missing_facilitator" {
+		t.Errorf("Expected reason 'missing_facilitator', got %q", configErr.Errors[0].Reason)
+	}
+}
+
+func TestValidateRouteConfiguration_MultipleErrors(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "eip155:8453"},
+				{Scheme: "exact", PayTo: "0xtest", Price: "$1.00", Network: "solana:mainnet"},
+			},
+		},
+	}
+
+	// Facilitator supports neither network
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds:      []x402.SupportedKind{},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	// No scheme servers registered
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+	)
+
+	err := server.Initialize(ctx)
+	if err == nil {
+		t.Fatal("Expected validation errors")
+	}
+
+	var configErr *RouteConfigurationError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("Expected RouteConfigurationError, got %T: %v", err, err)
+	}
+
+	if len(configErr.Errors) != 2 {
+		t.Fatalf("Expected 2 errors, got %d: %v", len(configErr.Errors), configErr.Errors)
+	}
+
+	// Both should be missing_scheme since no schemes are registered
+	for _, e := range configErr.Errors {
+		if e.Reason != "missing_scheme" {
+			t.Errorf("Expected reason 'missing_scheme', got %q", e.Reason)
+		}
+	}
+}
+
+func TestValidateRouteConfiguration_EmptyRoutes(t *testing.T) {
+	ctx := context.Background()
+
+	server := Newx402HTTPResourceServer(RoutesConfig{})
+
+	err := server.Initialize(ctx)
+	if err != nil {
+		t.Fatalf("Expected no error for empty routes, got: %v", err)
+	}
+}
+
+func TestValidateRouteConfiguration_ErrorMessage(t *testing.T) {
+	configErr := &RouteConfigurationError{
+		Errors: []RouteValidationError{
+			{
+				RoutePattern: "GET /api",
+				Scheme:       "exact",
+				Network:      "eip155:8453",
+				Reason:       "missing_scheme",
+				Message:      `Route "GET /api": No scheme implementation registered for "exact" on network "eip155:8453"`,
+			},
+		},
+	}
+
+	errMsg := configErr.Error()
+	if !strings.Contains(errMsg, "x402 Route Configuration Errors:") {
+		t.Error("Expected error message header")
+	}
+	if !strings.Contains(errMsg, "eip155:8453") {
+		t.Errorf("Expected network in error message, got: %s", errMsg)
+	}
+	if !strings.Contains(errMsg, "No scheme implementation registered") {
+		t.Errorf("Expected scheme error detail in message, got: %s", errMsg)
 	}
 }
 

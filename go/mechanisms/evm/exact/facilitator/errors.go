@@ -8,7 +8,7 @@ const (
 	ErrInvalidPayload            = "invalid_exact_evm_payload"
 	ErrMissingSignature          = "invalid_exact_evm_payload_missing_signature"
 	ErrFailedToGetNetworkConfig  = "invalid_exact_evm_failed_to_get_network_config"
-	ErrFailedToGetAssetInfo      = "invalid_exact_evm_failed_to_get_asset_info"
+	ErrMissingEip712Domain       = "invalid_exact_evm_missing_eip712_domain"
 	ErrRecipientMismatch         = "invalid_exact_evm_recipient_mismatch"
 	ErrInvalidAuthorizationValue = "invalid_exact_evm_authorization_value"
 	ErrInvalidRequiredAmount     = "invalid_exact_evm_required_amount"
@@ -47,9 +47,23 @@ const (
 	ErrPermit2AllowanceRequired  = "permit2_allowance_required"
 
 	// Permit2 settle errors (from contract reverts)
-	ErrPermit2AmountExceedsPermitted = "permit2_amount_exceeds_permitted"
-	ErrPermit2InvalidDestination     = "permit2_invalid_destination"
-	ErrPermit2InvalidOwner           = "permit2_invalid_owner"
-	ErrPermit2PaymentTooEarly        = "permit2_payment_too_early"
-	ErrPermit2InvalidNonce           = "permit2_invalid_nonce"
+	ErrPermit2InvalidAmount      = "permit2_invalid_amount"
+	ErrPermit2InvalidDestination = "permit2_invalid_destination"
+	ErrPermit2InvalidOwner       = "permit2_invalid_owner"
+	ErrPermit2PaymentTooEarly    = "permit2_payment_too_early"
+	ErrPermit2InvalidNonce       = "permit2_invalid_nonce"
+	ErrPermit2612AmountMismatch  = "permit2_2612_amount_mismatch"
+
+	// ERC-20 approval gas sponsoring errors
+	ErrErc20ApprovalInvalidFormat   = "invalid_erc20_approval_extension_format"
+	ErrErc20ApprovalFromMismatch    = "erc20_approval_from_mismatch"
+	ErrErc20ApprovalAssetMismatch   = "erc20_approval_asset_mismatch"
+	ErrErc20ApprovalWrongSpender    = "erc20_approval_spender_not_permit2"
+	ErrErc20ApprovalTxParseFailed   = "erc20_approval_tx_parse_failed"
+	ErrErc20ApprovalWrongTarget     = "erc20_approval_tx_wrong_target"
+	ErrErc20ApprovalWrongSelector   = "erc20_approval_tx_wrong_selector"
+	ErrErc20ApprovalWrongCalldata   = "erc20_approval_tx_wrong_spender"
+	ErrErc20ApprovalSignerMismatch  = "erc20_approval_tx_signer_mismatch"
+	ErrErc20ApprovalInvalidSig      = "erc20_approval_tx_invalid_signature"
+	ErrErc20ApprovalBroadcastFailed = "erc20_approval_broadcast_failed"
 )

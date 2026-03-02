@@ -5,7 +5,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
-import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
+import {
+  declareEip2612GasSponsoringExtension,
+  declareErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -167,6 +170,25 @@ app.use(
             },
           }
         : {}),
+      // Permit2 endpoint for generic ERC-20 tokens (no EIP-2612, uses raw approve tx)
+      "GET /protected-permit2-erc20": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "exact",
+          network: EVM_NETWORK,
+          price: {
+            amount: "1000",
+            asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a", // Generic MockERC20 token (no EIP-2612)
+            extra: {
+              assetTransferMethod: "permit2",
+              // No name/version - generic ERC-20 without EIP-2612
+            },
+          },
+        },
+        extensions: {
+          ...declareErc20ApprovalGasSponsoringExtension(),
+        },
+      },
       // Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
       "GET /protected-permit2": {
         accepts: {
@@ -251,6 +273,21 @@ app.get("/protected-aptos", (req, res) => {
 });
 
 /**
+ * Protected Permit2 ERC-20 endpoint - requires payment via Permit2 flow with ERC-20 approval
+ *
+ * This endpoint demonstrates the ERC-20 approval gas sponsoring flow for tokens
+ * that do NOT implement EIP-2612. The facilitator broadcasts the pre-signed
+ * approve() transaction on the client's behalf before settling.
+ */
+app.get("/protected-permit2-erc20", (req, res) => {
+  res.json({
+    message: "Permit2 ERC-20 approval endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "permit2-erc20-approval",
+  });
+});
+
+/**
  * Protected Permit2 endpoint - requires payment via Permit2 flow
  *
  * This endpoint demonstrates the Permit2 payment flow.
@@ -308,12 +345,13 @@ app.listen(parseInt(PORT), () => {
 ║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected        (EIP-3009 payment - EVM)    ║
-║  • GET  /protected-svm    (SVM payment)               ║
-║  • GET  /protected-aptos  (Aptos payment)             ║
-║  • GET  /protected-permit2 (Permit2 payment - EVM)    ║
-║  • GET  /health           (no payment required)       ║
-║  • POST /close            (shutdown server)           ║
+║  • GET  /protected             (EIP-3009 payment - EVM)    ║
+║  • GET  /protected-svm         (SVM payment)               ║
+║  • GET  /protected-aptos       (Aptos payment)             ║
+║  • GET  /protected-permit2     (Permit2 payment - EVM)     ║
+║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval) ║
+║  • GET  /health                (no payment required)       ║
+║  • POST /close                 (shutdown server)           ║
 ╚════════════════════════════════════════════════════════╝
   `);
 });
