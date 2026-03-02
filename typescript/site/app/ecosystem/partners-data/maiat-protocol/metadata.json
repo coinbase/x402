@@ -1,0 +1,7 @@
+{
+  "name": "Maiat Protocol",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/maiat-protocol.png",
+  "description": "AI agent trust infrastructure on Base. Maiat Protocol provides real-time trust scores and safety verdicts for any EVM wallet or agent — sourced from on-chain Virtuals ACP job history. Also offers token safety checks (honeypot detection, buy/sell tax analysis) before swapping. Used as a pre-transaction trust layer in the Virtuals ACP ecosystem. Premium API access via x402 on Base mainnet (eip155:8453).",
+  "websiteUrl": "https://maiat-protocol.vercel.app"
+}
