@@ -315,15 +315,18 @@ func buildSwigInstructionData(
 	entry = append(entry, dl...)
 	entry = append(entry, instrData...)
 
+	// Prepend numInstructions count byte (1 instruction)
+	payload := append([]byte{1}, entry...)
+
 	// Outer Swig instruction:
 	//   [0..1] discriminator         = 11 (signV2, U16 LE)
-	//   [2..3] instructionPayloadLen = len(entry) (U16 LE)
+	//   [2..3] instructionPayloadLen = len(payload) (U16 LE)
 	//   [4..7] roleId               = 0
-	//   [8..]  entry
-	outer := make([]byte, 8+len(entry))
+	//   [8..]  payload (count byte + entry)
+	outer := make([]byte, 8+len(payload))
 	binary.LittleEndian.PutUint16(outer[0:], svm.SwigSignV2Discriminator)
-	binary.LittleEndian.PutUint16(outer[2:], uint16(len(entry)))
-	copy(outer[8:], entry)
+	binary.LittleEndian.PutUint16(outer[2:], uint16(len(payload)))
+	copy(outer[8:], payload)
 	return outer
 }
 

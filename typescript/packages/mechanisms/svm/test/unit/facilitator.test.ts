@@ -290,14 +290,18 @@ describe("ExactSvmScheme", () => {
 
   describe("decodeSwigCompactInstructions", () => {
     // Helper: build a Swig signV2 instruction data buffer with the given compact instruction payload
-    function buildSwigData(payload: Uint8Array): Uint8Array {
-      const buf = new Uint8Array(8 + payload.length);
+    function buildSwigData(payload: Uint8Array, numInstructions = 1): Uint8Array {
+      // Prepend numInstructions count byte
+      const withCount = new Uint8Array(1 + payload.length);
+      withCount[0] = numInstructions;
+      withCount.set(payload, 1);
+      const buf = new Uint8Array(8 + withCount.length);
       buf[0] = SWIG_SIGN_V2_DISCRIMINATOR;
       buf[1] = 0;
-      buf[2] = payload.length & 0xff;
-      buf[3] = (payload.length >> 8) & 0xff;
+      buf[2] = withCount.length & 0xff;
+      buf[3] = (withCount.length >> 8) & 0xff;
       // bytes 4-7: roleId = 0
-      buf.set(payload, 8);
+      buf.set(withCount, 8);
       return buf;
     }
 
@@ -377,13 +381,17 @@ describe("ExactSvmScheme", () => {
       COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
     ];
 
-    function buildSwigV2Data(payload: Uint8Array): Uint8Array {
-      const buf = new Uint8Array(8 + payload.length);
+    function buildSwigV2Data(payload: Uint8Array, numInstructions = 1): Uint8Array {
+      // Prepend numInstructions count byte
+      const withCount = new Uint8Array(1 + payload.length);
+      withCount[0] = numInstructions;
+      withCount.set(payload, 1);
+      const buf = new Uint8Array(8 + withCount.length);
       buf[0] = SWIG_SIGN_V2_DISCRIMINATOR;
       buf[1] = 0;
-      buf[2] = payload.length & 0xff;
-      buf[3] = (payload.length >> 8) & 0xff;
-      buf.set(payload, 8);
+      buf[2] = withCount.length & 0xff;
+      buf[3] = (withCount.length >> 8) & 0xff;
+      buf.set(withCount, 8);
       return buf;
     }
 

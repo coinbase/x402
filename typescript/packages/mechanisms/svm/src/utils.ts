@@ -300,6 +300,10 @@ export function parseSwigTransaction(
  *   [4..7]  roleId                U32 LE
  *   [8..]   compact instructions  (instructionPayloadLen bytes)
  *
+ * Compact instructions payload:
+ *   [0]       numInstructions U8
+ *   [1..]     compact instruction entries...
+ *
  * Each CompactInstruction:
  *   [0]       programIdIndex U8
  *   [1]       numAccounts    U8
@@ -321,7 +325,7 @@ export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInst
   if (data.length < startOffset + instructionPayloadLen) return [];
 
   const results: SwigCompactInstruction[] = [];
-  let offset = startOffset;
+  let offset = startOffset + 1; // skip numInstructions count byte
   const endOffset = startOffset + instructionPayloadLen;
 
   while (offset < endOffset) {

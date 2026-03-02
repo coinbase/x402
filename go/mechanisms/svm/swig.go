@@ -27,6 +27,11 @@ type SwigCompactInstruction struct {
 //	[4..7]  roleId                U32 LE
 //	[8..]   compact instructions  (instructionPayloadLen bytes)
 //
+// Compact instructions payload:
+//
+//	[0]         numInstructions U8
+//	[1..]       compact instruction entries...
+//
 // Each CompactInstruction:
 //
 //	[0]         programIDIndex U8
@@ -47,7 +52,7 @@ func DecodeSwigCompactInstructions(data []byte) ([]SwigCompactInstruction, error
 	}
 
 	var results []SwigCompactInstruction
-	offset := startOffset
+	offset := startOffset + 1 // skip numInstructions count byte
 	endOffset := startOffset + instructionPayloadLen
 
 	for offset < endOffset {
