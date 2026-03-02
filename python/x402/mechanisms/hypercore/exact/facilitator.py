@@ -90,9 +90,7 @@ class ExactHypercoreScheme:
         """
         return []
 
-    def verify(
-        self, payload: PaymentPayload, requirements: PaymentRequirements
-    ) -> VerifyResponse:
+    def verify(self, payload: PaymentPayload, requirements: PaymentRequirements) -> VerifyResponse:
         """Verify a Hypercore payment payload.
 
         Args:
@@ -130,7 +128,7 @@ class ExactHypercoreScheme:
 
         decimals = config["default_asset"]["decimals"]
         payload_amount = float(hypercore_payload["action"]["amount"])
-        payload_amount_int = int(payload_amount * (10 ** decimals))
+        payload_amount_int = int(payload_amount * (10**decimals))
         required_amount = int(requirements.amount)
 
         if payload_amount_int < required_amount:
@@ -215,9 +213,7 @@ class ExactHypercoreScheme:
             print(f"Failed to recover payer: {e}")
             return "0x0000000000000000000000000000000000000000"
 
-    def settle(
-        self, payload: PaymentPayload, requirements: PaymentRequirements
-    ) -> SettleResponse:
+    def settle(self, payload: PaymentPayload, requirements: PaymentRequirements) -> SettleResponse:
         """Settle a Hypercore payment by submitting to Hyperliquid API.
 
         Args:
@@ -241,9 +237,7 @@ class ExactHypercoreScheme:
         network = str(requirements.network)
         api_url = self._get_api_url(network)
 
-        payer = self._recover_payer(
-            hypercore_payload["action"], hypercore_payload["signature"]
-        )
+        payer = self._recover_payer(hypercore_payload["action"], hypercore_payload["signature"])
 
         start_time = time.time()
 
@@ -337,4 +331,3 @@ class ExactHypercoreScheme:
                         return update["hash"]
 
         raise Exception(f"Transaction hash not found after {TX_HASH_MAX_RETRIES} attempts")
-

@@ -22,9 +22,7 @@ class ExactHypercoreScheme:
         self.signer = signer
         self.scheme = SCHEME_EXACT
 
-    def create_payment_payload(
-        self, requirements: PaymentRequirements
-    ) -> dict[str, Any]:
+    def create_payment_payload(self, requirements: PaymentRequirements) -> dict[str, Any]:
         """Create a payment payload for Hypercore L1.
 
         Args:
@@ -46,7 +44,7 @@ class ExactHypercoreScheme:
 
         amount_int = int(requirements.amount)
         decimals = config["default_asset"]["decimals"]
-        amount_usd = f"{(amount_int / (10 ** decimals)):.{decimals}f}"
+        amount_usd = f"{(amount_int / (10**decimals)):.{decimals}f}"
 
         action = {
             "type": "sendAsset",
