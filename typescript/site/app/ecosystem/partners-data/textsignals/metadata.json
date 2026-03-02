@@ -1,0 +1,6 @@
+{
+  "name": "TextSignals",
+  "description": "Pay-per-request NLP text analysis API. 5 endpoints: sentiment scoring, keyword extraction, text summarization, entity extraction, and readability analysis. $0.002/call via x402 on Base. Built for AI agents that need cheap, fast text signals. No API keys — just pay and query.",
+  "websiteUrl": "https://ashtonseven46-source.github.io/textsignals/",
+  "category": "Services/Endpoints"
+}
