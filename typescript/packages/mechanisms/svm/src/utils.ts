@@ -4,6 +4,7 @@ import {
   getCompiledTransactionMessageDecoder,
   type Transaction,
   type Address,
+  type Instruction,
   createSolanaRpc,
   devnet,
   testnet,
@@ -218,7 +219,7 @@ export interface SwigCompactInstruction {
  * @param instructions - Decompiled instruction array
  */
 export function isSwigTransaction(
-  instructions: ReadonlyArray<{ programAddress: { toString(): string }; data?: Readonly<Uint8Array> }>,
+  instructions: ReadonlyArray<Instruction>,
 ): boolean {
   if (instructions.length === 0) return false;
 
@@ -251,11 +252,7 @@ export function isSwigTransaction(
  * @returns Object with flattened `instructions` array and `swigPda` address
  */
 export function parseSwigTransaction(
-  instructions: ReadonlyArray<{
-    programAddress: { toString(): string };
-    accounts?: ReadonlyArray<{ address: { toString(): string } }>;
-    data?: Readonly<Uint8Array>;
-  }>,
+  instructions: ReadonlyArray<Instruction>,
   staticAccounts: ReadonlyArray<Address>,
 ): { instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string } {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

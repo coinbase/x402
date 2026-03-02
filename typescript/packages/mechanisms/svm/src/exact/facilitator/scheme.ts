@@ -146,7 +146,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     let normalized: NormalizedTransaction;
     try {
       normalized = normalizeTransaction(
-        instructions as never,
+        instructions,
         compiled.staticAccounts ?? [],
         transaction,
       );

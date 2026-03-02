@@ -1,4 +1,4 @@
-import type { Address, Transaction } from "@solana/kit";
+import type { Address, Instruction, Transaction } from "@solana/kit";
 import {
   isSwigTransaction,
   parseSwigTransaction,
@@ -15,39 +15,21 @@ export interface NormalizedTransaction {
 }
 
 export interface TransactionNormalizer {
-  canHandle(
-    instructions: ReadonlyArray<{
-      programAddress: { toString(): string };
-      data?: Readonly<Uint8Array>;
-    }>,
-  ): boolean;
+  canHandle(instructions: ReadonlyArray<Instruction>): boolean;
   normalize(
-    instructions: ReadonlyArray<{
-      programAddress: { toString(): string };
-      accounts?: ReadonlyArray<{ address: { toString(): string } }>;
-      data?: Readonly<Uint8Array>;
-    }>,
+    instructions: ReadonlyArray<Instruction>,
     staticAccounts: ReadonlyArray<Address>,
     transaction: Transaction,
   ): NormalizedTransaction;
 }
 
 class SwigNormalizer implements TransactionNormalizer {
-  canHandle(
-    instructions: ReadonlyArray<{
-      programAddress: { toString(): string };
-      data?: Readonly<Uint8Array>;
-    }>,
-  ): boolean {
+  canHandle(instructions: ReadonlyArray<Instruction>): boolean {
     return isSwigTransaction(instructions);
   }
 
   normalize(
-    instructions: ReadonlyArray<{
-      programAddress: { toString(): string };
-      accounts?: ReadonlyArray<{ address: { toString(): string } }>;
-      data?: Readonly<Uint8Array>;
-    }>,
+    instructions: ReadonlyArray<Instruction>,
     staticAccounts: ReadonlyArray<Address>,
   ): NormalizedTransaction {
     const result = parseSwigTransaction(instructions, staticAccounts);
@@ -64,11 +46,7 @@ class RegularNormalizer implements TransactionNormalizer {
   }
 
   normalize(
-    instructions: ReadonlyArray<{
-      programAddress: { toString(): string };
-      accounts?: ReadonlyArray<{ address: { toString(): string } }>;
-      data?: Readonly<Uint8Array>;
-    }>,
+    instructions: ReadonlyArray<Instruction>,
     _staticAccounts: ReadonlyArray<Address>,
     transaction: Transaction,
   ): NormalizedTransaction {
@@ -92,11 +70,7 @@ const defaultNormalizers: TransactionNormalizer[] = [
 ];
 
 export function normalizeTransaction(
-  instructions: ReadonlyArray<{
-    programAddress: { toString(): string };
-    accounts?: ReadonlyArray<{ address: { toString(): string } }>;
-    data?: Readonly<Uint8Array>;
-  }>,
+  instructions: ReadonlyArray<Instruction>,
   staticAccounts: ReadonlyArray<Address>,
   transaction: Transaction,
 ): NormalizedTransaction {
