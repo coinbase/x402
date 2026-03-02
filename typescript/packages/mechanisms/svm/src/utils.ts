@@ -323,14 +323,20 @@ export function parseSwigTransaction(
  * @returns Array of decoded compact instructions (may be empty if data is malformed)
  */
 export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInstruction[] {
-  if (data.length < 4) return [];
+  if (data.length < 4) {
+    throw new Error(`swig instruction data too short: need ≥4 bytes, got ${data.length}`);
+  }
 
   // instructionPayloadLen at bytes 2-3 (U16 LE)
   const instructionPayloadLen = data[2] | (data[3] << 8);
 
   // Compact instructions start at byte 8 (after discriminator + payloadLen + roleId)
   const startOffset = 8;
-  if (data.length < startOffset + instructionPayloadLen) return [];
+  if (data.length < startOffset + instructionPayloadLen) {
+    throw new Error(
+      `swig instruction data truncated: payload needs ${instructionPayloadLen} bytes but only ${data.length - startOffset} available after offset ${startOffset}`,
+    );
+  }
 
   const results: SwigCompactInstruction[] = [];
   let offset = startOffset + 1; // skip numInstructions count byte

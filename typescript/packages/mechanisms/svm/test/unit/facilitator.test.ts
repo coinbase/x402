@@ -333,14 +333,18 @@ describe("ExactSvmScheme", () => {
       return entry;
     }
 
-    it("should return empty array when data is shorter than 4 bytes", () => {
-      expect(decodeSwigCompactInstructions(new Uint8Array([1, 2, 3]))).toEqual([]);
+    it("should throw when data is shorter than 4 bytes", () => {
+      expect(() => decodeSwigCompactInstructions(new Uint8Array([1, 2, 3]))).toThrow(
+        "swig instruction data too short",
+      );
     });
 
-    it("should return empty array when instructionPayloadLen exceeds available data", () => {
+    it("should throw when instructionPayloadLen exceeds available data", () => {
       // instructionPayloadLen = 100 but only 8 bytes total
       const data = new Uint8Array([4, 0, 100, 0, 0, 0, 0, 0]);
-      expect(decodeSwigCompactInstructions(data)).toEqual([]);
+      expect(() => decodeSwigCompactInstructions(data)).toThrow(
+        "swig instruction data truncated",
+      );
     });
 
     it("should correctly decode a single TransferChecked compact instruction", () => {
@@ -360,10 +364,12 @@ describe("ExactSvmScheme", () => {
       expect(amount).toBe(100000n);
     });
 
-    it("should return empty array when compact instruction data is truncated", () => {
+    it("should throw when compact instruction data is truncated", () => {
       // payload length = 5 in header but actual payload is empty → truncated
       const data = new Uint8Array([4, 0, 5, 0, 0, 0, 0, 0]); // payloadLen=5 but no payload bytes
-      expect(decodeSwigCompactInstructions(data)).toEqual([]);
+      expect(() => decodeSwigCompactInstructions(data)).toThrow(
+        "swig instruction data truncated",
+      );
     });
   });
 
