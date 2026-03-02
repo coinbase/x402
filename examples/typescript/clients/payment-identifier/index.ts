@@ -50,7 +50,22 @@ async function main(): Promise<void> {
     }
   });
 
-  const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+  const httpClient = new x402HTTPClient(client);
+
+  // After the first request is signed, capture the exact encoded payment header.
+  let capturedPaymentHeaders: Record<string, string> | undefined;
+  client.onAfterPaymentCreation(async ({ paymentPayload }) => {
+    capturedPaymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
+  });
+
+  // On any subsequent 402, replay the captured headers instead of creating a new signature.
+  httpClient.onPaymentRequired(async () => {
+    if (capturedPaymentHeaders) {
+      return { headers: capturedPaymentHeaders };
+    }
+  });
+
+  const fetchWithPayment = wrapFetchWithPayment(fetch, httpClient);
 
   // First request - will process payment
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -66,7 +81,7 @@ async function main(): Promise<void> {
   console.log(`Response (${duration1}ms):`, JSON.stringify(body1, null, 2));
 
   if (response1.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    const paymentResponse = httpClient.getPaymentSettleResponse(name =>
       response1.headers.get(name),
     );
     if (paymentResponse) {
@@ -89,10 +104,7 @@ async function main(): Promise<void> {
   console.log(`Response (${duration2}ms):`, JSON.stringify(body2, null, 2));
 
   if (response2.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
-      response2.headers.get(name),
-    );
-    if (paymentResponse) {
+    if (response2.headers.get("PAYMENT-RESPONSE")) {
       console.log(`\n💰 Payment settled (unexpected - should have been cached)`);
     } else {
       console.log(`\n✅ No payment processed - response served from cache!`);
