@@ -1,0 +1,1 @@
+export { computeSafeMessageHash } from "./safeMessageHash";

@@ -3,6 +3,7 @@ package com.coinbase.x402.server;
 import com.coinbase.x402.client.FacilitatorClient;
 import com.coinbase.x402.client.SettlementResponse;
 import com.coinbase.x402.client.VerificationResponse;
+import com.coinbase.x402.model.Erc4337Payload;
 import com.coinbase.x402.model.ExactSchemePayload;
 import com.coinbase.x402.model.PaymentPayload;
 import com.coinbase.x402.model.PaymentRequirements;
@@ -225,8 +226,29 @@ public class PaymentFilter implements Filter {
 
     /** Extract the payer wallet address from payment payload. */
     private String extractPayerFromPayload(PaymentPayload payload) {
+        // Check for ERC-4337 payload (userOperation.sender)
+        if (Erc4337Payload.isErc4337Payload(payload.payload)) {
+            try {
+                Erc4337Payload erc4337Payload = Erc4337Payload.fromMap(payload.payload);
+                if (erc4337Payload.userOperation != null && erc4337Payload.userOperation.sender != null) {
+                    return erc4337Payload.userOperation.sender;
+                }
+            } catch (Exception ex) {
+                // Fall back to manual extraction
+                try {
+                    Object userOp = payload.payload.get("userOperation");
+                    if (userOp instanceof Map) {
+                        Object sender = ((Map<?, ?>) userOp).get("sender");
+                        return sender instanceof String ? (String) sender : null;
+                    }
+                } catch (Exception ignored) {
+                    // Ignore extraction errors
+                }
+            }
+        }
+
+        // EIP-3009 payload (authorization.from)
         try {
-            // Convert the generic payload map to a typed ExactSchemePayload
             ExactSchemePayload exactPayload = Json.MAPPER.convertValue(payload.payload, ExactSchemePayload.class);
             return exactPayload.authorization != null ? exactPayload.authorization.from : null;
         } catch (Exception ex) {

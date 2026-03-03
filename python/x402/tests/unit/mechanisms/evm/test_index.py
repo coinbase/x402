@@ -35,7 +35,13 @@ from x402.mechanisms.evm import (
 from x402.mechanisms.evm.exact import (
     ExactEvmClientScheme,
     ExactEvmFacilitatorScheme,
+    ExactEvmSchemeERC4337Client,
+    ExactEvmSchemeERC4337Config,
+    ExactEvmSchemeERC4337Facilitator,
+    ExactEvmSchemeERC4337Server,
     ExactEvmServerScheme,
+    PaymentCreationError,
+    parse_aa_error,
 )
 
 
@@ -409,3 +415,111 @@ class TestConstants:
         assert ERR_INVALID_SIGNATURE is not None
         assert ERR_UNSUPPORTED_SCHEME is not None
         assert ERR_NETWORK_MISMATCH is not None
+
+
+class TestERC4337Exports:
+    """Test that ERC-4337 symbols are importable from the package."""
+
+    def test_erc4337_client_importable_from_exact(self):
+        """ExactEvmSchemeERC4337Client is importable from x402.mechanisms.evm.exact."""
+        assert ExactEvmSchemeERC4337Client is not None
+
+    def test_erc4337_facilitator_importable_from_exact(self):
+        """ExactEvmSchemeERC4337Facilitator is importable from x402.mechanisms.evm.exact."""
+        assert ExactEvmSchemeERC4337Facilitator is not None
+
+    def test_erc4337_server_importable_from_exact(self):
+        """ExactEvmSchemeERC4337Server is importable from x402.mechanisms.evm.exact."""
+        assert ExactEvmSchemeERC4337Server is not None
+
+    def test_erc4337_config_importable_from_exact(self):
+        """ExactEvmSchemeERC4337Config is importable from x402.mechanisms.evm.exact."""
+        assert ExactEvmSchemeERC4337Config is not None
+
+    def test_payment_creation_error_importable_from_exact(self):
+        """PaymentCreationError is importable from x402.mechanisms.evm.exact."""
+        assert PaymentCreationError is not None
+
+    def test_parse_aa_error_importable_from_exact(self):
+        """parse_aa_error is importable from x402.mechanisms.evm.exact."""
+        assert parse_aa_error is not None
+
+    def test_erc4337_types_importable_from_evm(self):
+        """ERC-4337 types are importable from x402.mechanisms.evm."""
+        from x402.mechanisms.evm import (
+            AA_ERROR_MESSAGES,
+            ENTRY_POINT_07_ADDRESS,
+            ERC4337_SUPPORTED_CHAINS,
+            ERR_GAS_ESTIMATION_FAILED,
+            ERR_MISSING_BUNDLER_URL,
+            ERR_MISSING_ENTRY_POINT,
+            ERR_MISSING_USER_OPERATION,
+            ERR_RECEIPT_TIMEOUT,
+            ERR_SEND_FAILED,
+            Erc4337Payload,
+            UserOperation07Json,
+            UserOperationCapability,
+            extract_user_operation_capability,
+            is_erc4337_payload,
+        )
+
+        assert UserOperation07Json is not None
+        assert Erc4337Payload is not None
+        assert UserOperationCapability is not None
+        assert is_erc4337_payload is not None
+        assert extract_user_operation_capability is not None
+        assert ENTRY_POINT_07_ADDRESS is not None
+        assert AA_ERROR_MESSAGES is not None
+        assert ERR_MISSING_USER_OPERATION is not None
+        assert ERR_MISSING_BUNDLER_URL is not None
+        assert ERR_MISSING_ENTRY_POINT is not None
+        assert ERR_GAS_ESTIMATION_FAILED is not None
+        assert ERR_SEND_FAILED is not None
+        assert ERR_RECEIPT_TIMEOUT is not None
+        assert ERC4337_SUPPORTED_CHAINS is not None
+
+    def test_erc4337_bundler_module_importable(self):
+        """ERC-4337 bundler classes are importable."""
+        from x402.mechanisms.evm.exact.erc4337_bundler import (
+            BundlerClient,
+            BundlerClientConfig,
+            BundlerError,
+            GasEstimate,
+            UserOperationReceipt,
+        )
+
+        assert BundlerClient is not None
+        assert BundlerClientConfig is not None
+        assert BundlerError is not None
+        assert GasEstimate is not None
+        assert UserOperationReceipt is not None
+
+    def test_erc4337_networks_module_importable(self):
+        """ERC-4337 network registry functions are importable from x402.mechanisms.evm."""
+        from x402.mechanisms.evm import (
+            ERC4337ChainInfo,
+            get_erc4337_chain,
+            get_mainnets,
+            get_supported_chains,
+            get_testnets,
+            is_erc4337_supported,
+            resolve_erc4337_chain_id,
+        )
+
+        assert ERC4337ChainInfo is not None
+        assert get_erc4337_chain is not None
+        assert is_erc4337_supported is not None
+        assert resolve_erc4337_chain_id is not None
+        assert get_supported_chains is not None
+        assert get_mainnets is not None
+        assert get_testnets is not None
+
+    def test_erc4337_errors_module_importable(self):
+        """ERC-4337 error types are importable directly from the errors module."""
+        from x402.mechanisms.evm.exact.erc4337_errors import (
+            PaymentCreationError,
+            parse_aa_error,
+        )
+
+        assert PaymentCreationError is not None
+        assert parse_aa_error is not None

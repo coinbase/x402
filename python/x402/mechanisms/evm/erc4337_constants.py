@@ -1,0 +1,41 @@
+"""ERC-4337 constants for x402 EVM mechanism."""
+
+# ERC-4337 contract addresses
+ENTRY_POINT_07_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+SAFE_4337_MODULE_ADDRESS = "0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226"
+SAFE_WEBAUTHN_SHARED_SIGNER = "0xfD90FAd33ee8b58f32c00aceEad1358e4AFC23f9"
+FCL_P256_VERIFIER = "0xA86e0054C51E4894D88762a017ECc5E5235f5DBA"
+P256_OWNER_FACTORY = "0x349c03Eb61e26528cbf79F5D3Ba071FcA2aE82cB"
+WEBAUTHN_SIGNER_FACTORY = "0xF7488fFbe67327ac9f37D5F722d83Fc900852Fbf"
+
+# AA error codes and their human-readable messages
+AA_ERROR_MESSAGES: dict[str, str] = {
+    "AA10": "Sender already constructed",
+    "AA13": "InitCode failed or OOG",
+    "AA14": "InitCode must return sender",
+    "AA15": "InitCode must create sender",
+    "AA20": "Account not deployed",
+    "AA21": "Insufficient funds for gas prefund",
+    "AA22": "Expired or not due",
+    "AA23": "Reverted (or OOG)",
+    "AA24": "Signature validation failed",
+    "AA25": "Nonce validation failed",
+    "AA26": "Account accessed global state",
+    "AA30": "Paymaster not deployed",
+    "AA31": "Paymaster deposit too low",
+    "AA32": "Paymaster expired or not due",
+    "AA33": "Paymaster reverted (or OOG)",
+    "AA34": "Paymaster context reverted",
+    "AA40": "Over verification gas limit",
+    "AA41": "Over max fee per gas",
+    "AA50": "Over max priority fee per gas",
+    "AA51": "Prefund below actualGasCost",
+}
+
+# ERC-4337 error constants
+ERR_MISSING_USER_OPERATION = "erc4337_missing_user_operation"
+ERR_MISSING_BUNDLER_URL = "erc4337_missing_bundler_url"
+ERR_MISSING_ENTRY_POINT = "erc4337_missing_entry_point"
+ERR_GAS_ESTIMATION_FAILED = "erc4337_gas_estimation_failed"
+ERR_SEND_FAILED = "erc4337_send_failed"
+ERR_RECEIPT_TIMEOUT = "erc4337_receipt_timeout"

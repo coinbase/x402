@@ -32,10 +32,12 @@
     "@types/node": "^22.13.4",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsdoc": "^50.6.9",
     "eslint-plugin-prettier": "^5.2.6",
+    "permissionless": "^0.3.4",
     "prettier": "3.5.2",
     "tsup": "^8.4.0",
     "tsx": "^4.19.2",
@@ -49,6 +51,14 @@
     "@x402/extensions": "workspace:~",
     "viem": "^2.39.3",
     "zod": "^3.24.2"
+  },
+  "peerDependencies": {
+    "permissionless": ">=0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "permissionless": {
+      "optional": true
+    }
   },
   "exports": {
     ".": {
@@ -119,6 +129,56 @@
       "require": {
         "types": "./dist/cjs/exact/v1/facilitator/index.d.ts",
         "default": "./dist/cjs/exact/v1/facilitator/index.js"
+      }
+    },
+    "./erc4337": {
+      "import": {
+        "types": "./dist/esm/erc4337/index.d.mts",
+        "default": "./dist/esm/erc4337/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc4337/index.d.ts",
+        "default": "./dist/cjs/erc4337/index.js"
+      }
+    },
+    "./erc4337/accounts": {
+      "import": {
+        "types": "./dist/esm/erc4337/accounts/index.d.mts",
+        "default": "./dist/esm/erc4337/accounts/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc4337/accounts/index.d.ts",
+        "default": "./dist/cjs/erc4337/accounts/index.js"
+      }
+    },
+    "./erc4337/factories": {
+      "import": {
+        "types": "./dist/esm/erc4337/factories/index.d.mts",
+        "default": "./dist/esm/erc4337/factories/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc4337/factories/index.d.ts",
+        "default": "./dist/cjs/erc4337/factories/index.js"
+      }
+    },
+    "./erc4337/networks": {
+      "import": {
+        "types": "./dist/esm/erc4337/networks/index.d.mts",
+        "default": "./dist/esm/erc4337/networks/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc4337/networks/index.d.ts",
+        "default": "./dist/cjs/erc4337/networks/index.js"
+      }
+    },
+    "./erc4337/stamp": {
+      "import": {
+        "types": "./dist/esm/erc4337/stamp/index.d.mts",
+        "default": "./dist/esm/erc4337/stamp/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/erc4337/stamp/index.d.ts",
+        "default": "./dist/cjs/erc4337/stamp/index.js"
       }
     }
   },

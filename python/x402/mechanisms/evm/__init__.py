@@ -44,6 +44,44 @@ from .eip712 import (
     hash_typed_data,
 )
 
+# ERC-4337 constants
+from .erc4337_constants import (
+    AA_ERROR_MESSAGES,
+    ENTRY_POINT_07_ADDRESS,
+    ERR_GAS_ESTIMATION_FAILED,
+    ERR_MISSING_BUNDLER_URL,
+    ERR_MISSING_ENTRY_POINT,
+    ERR_MISSING_USER_OPERATION,
+    ERR_RECEIPT_TIMEOUT,
+    ERR_SEND_FAILED,
+    FCL_P256_VERIFIER,
+    P256_OWNER_FACTORY,
+    SAFE_4337_MODULE_ADDRESS,
+    SAFE_WEBAUTHN_SHARED_SIGNER,
+    WEBAUTHN_SIGNER_FACTORY,
+)
+
+# ERC-4337 networks
+from .erc4337_networks import (
+    ERC4337_SUPPORTED_CHAINS,
+    ERC4337ChainInfo,
+    get_erc4337_chain,
+    get_mainnets,
+    get_supported_chains,
+    get_testnets,
+    is_erc4337_supported,
+    resolve_erc4337_chain_id,
+)
+
+# ERC-4337 types
+from .erc4337_types import (
+    Erc4337Payload,
+    UserOperation07Json,
+    UserOperationCapability,
+    extract_user_operation_capability,
+    is_erc4337_payload,
+)
+
 # ERC-6492
 from .erc6492 import (
     has_deployment_info,
@@ -185,4 +223,33 @@ __all__ = [
     "verify_eoa_signature",
     "verify_eip1271_signature",
     "verify_universal_signature",
+    # ERC-4337 types
+    "UserOperation07Json",
+    "Erc4337Payload",
+    "UserOperationCapability",
+    "is_erc4337_payload",
+    "extract_user_operation_capability",
+    # ERC-4337 constants
+    "ENTRY_POINT_07_ADDRESS",
+    "SAFE_4337_MODULE_ADDRESS",
+    "SAFE_WEBAUTHN_SHARED_SIGNER",
+    "FCL_P256_VERIFIER",
+    "P256_OWNER_FACTORY",
+    "WEBAUTHN_SIGNER_FACTORY",
+    "AA_ERROR_MESSAGES",
+    "ERR_MISSING_USER_OPERATION",
+    "ERR_MISSING_BUNDLER_URL",
+    "ERR_MISSING_ENTRY_POINT",
+    "ERR_GAS_ESTIMATION_FAILED",
+    "ERR_SEND_FAILED",
+    "ERR_RECEIPT_TIMEOUT",
+    # ERC-4337 networks
+    "ERC4337ChainInfo",
+    "ERC4337_SUPPORTED_CHAINS",
+    "get_erc4337_chain",
+    "is_erc4337_supported",
+    "resolve_erc4337_chain_id",
+    "get_supported_chains",
+    "get_mainnets",
+    "get_testnets",
 ]

@@ -516,6 +516,136 @@ class PaymentFilterTest {
             "Settlement response should contain null payer when authorization malformed: " + jsonString);
     }
 
+    /* ------------ settlement returns null from facilitator.settle() -------- */
+    @Test
+    void settlementReturnsNullReturns402() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Settlement returns null
+        when(fac.settle(eq(header), any())).thenReturn(null);
+
+        filter.doFilter(req, resp, chain);
+
+        // Request should be processed
+        verify(chain).doFilter(req, resp);
+        // But settlement null should trigger 402
+        verify(resp).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+    }
+
+    /* ------------ settlement failure with sr.error == null → default msg -- */
+    @Test
+    void settlementFailureWithNullErrorUsesDefaultMessage() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Settlement fails with null error
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = false;
+        sr.error = null;
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        filter.doFilter(req, resp, chain);
+
+        // Request should be processed
+        verify(chain).doFilter(req, resp);
+        // Settlement failure should trigger 402
+        verify(resp).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+    }
+
+    /* ------------ settlement failure when response already committed ------ */
+    @Test
+    void settlementFailureWhenResponseCommittedDoesNotCall402() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Response is already committed (headers already sent to client)
+        when(resp.isCommitted()).thenReturn(true);
+
+        // Settlement fails
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = false;
+        sr.error = "some error";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        filter.doFilter(req, resp, chain);
+
+        // Request should be processed
+        verify(chain).doFilter(req, resp);
+        // Settlement was attempted
+        verify(fac).settle(eq(header), any());
+        // But 402 should NOT be set because response is already committed
+        verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+    }
+
+    /* ------------ settlement exception when response already committed ---- */
+    @Test
+    void settlementExceptionWhenResponseCommittedDoesNotCall402() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Response is already committed
+        when(resp.isCommitted()).thenReturn(true);
+
+        // Settlement throws exception
+        doThrow(new IOException("Network error")).when(fac).settle(any(), any());
+
+        filter.doFilter(req, resp, chain);
+
+        // Request should be processed
+        verify(chain).doFilter(req, resp);
+        // But 402 should NOT be set because response is already committed
+        verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+    }
+
     /* ------------ facilitator IOException returns 500 --------------------- */
     @Test
     void facilitatorIOExceptionReturns500() throws Exception {
@@ -548,7 +678,7 @@ class PaymentFilterTest {
     @Test
     void facilitatorUnexpectedExceptionReturns500() throws Exception {
         when(req.getRequestURI()).thenReturn("/private");
-        
+
         // Create a valid header
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
@@ -557,18 +687,234 @@ class PaymentFilterTest {
         p.payload = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
-        
+
         // Make facilitator throw unexpected exception during verify
         when(fac.verify(any(), any())).thenThrow(new RuntimeException("Unexpected error"));
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Should return 500 status for unexpected errors
         verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         verify(resp).setContentType("application/json");
         verify(chain, never()).doFilter(any(), any());
-        
+
         // Verify error message is written to response
         verify(resp).getWriter();
+    }
+
+    /* ------------ IOException catch: writer also throws during verify IOException -- */
+    @Test
+    void verifyIOExceptionAndWriterAlsoThrowsSetsStatusOnly() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // facilitator.verify throws IOException
+        when(fac.verify(any(), any())).thenThrow(new IOException("Network error"));
+
+        // response.getWriter() itself throws IOException (nested catch at line ~124-127)
+        when(resp.getWriter()).thenThrow(new IOException("Broken pipe"));
+
+        filter.doFilter(req, resp, chain);
+
+        // Status and content type should still be set before the writer call
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    /* ------------ RuntimeException catch: writer also throws during verify generic ex -- */
+    @Test
+    void verifyRuntimeExceptionAndWriterAlsoThrowsSetsStatusOnly() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // facilitator.verify throws RuntimeException (caught by generic Exception handler)
+        when(fac.verify(any(), any())).thenThrow(new RuntimeException("Unexpected"));
+
+        // response.getWriter() throws IOException (nested catch at line ~135-137)
+        when(resp.getWriter()).thenThrow(new IOException("Broken pipe"));
+
+        filter.doFilter(req, resp, chain);
+
+        // Status and content type should still be set
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    /* ------------ settlement succeeds but createPaymentResponseHeader throws -- */
+    @Test
+    void settlementSuccessButHeaderCreationThrowsReturns500() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = "0xabcdef";
+        sr.networkId = "base-sepolia";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        // First call to getWriter() is for the settlement header creation path.
+        // Make it throw so that createPaymentResponseHeader / setHeader internals fail.
+        // Actually, the exception happens in createPaymentResponseHeader which calls
+        // Json.MAPPER.writeValueAsString. We need something that causes an exception
+        // *inside* the try block at line 167-175. The easiest way: make getWriter()
+        // throw on the second call (when the error response is being written inside
+        // the catch block at lines 181-184).
+        // But to trigger the outer catch (line 176), we need setHeader to throw.
+        // Let's make resp.setHeader("X-PAYMENT-RESPONSE", ...) throw a RuntimeException.
+        doThrow(new RuntimeException("Header write failed"))
+                .when(resp).setHeader(eq("X-PAYMENT-RESPONSE"), any());
+
+        filter.doFilter(req, resp, chain);
+
+        // Request should have been processed
+        verify(chain).doFilter(req, resp);
+        // The catch block at line 176 should set 500
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+    }
+
+    /* ------------ settlement succeeds, header creation fails, writer also throws -- */
+    @Test
+    void settlementSuccessHeaderCreationFailsAndWriterThrows() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = "0xabcdef";
+        sr.networkId = "base-sepolia";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        // Make setHeader throw to trigger the catch at line 176
+        doThrow(new RuntimeException("Header write failed"))
+                .when(resp).setHeader(eq("X-PAYMENT-RESPONSE"), any());
+
+        // Also make getWriter throw to trigger the nested IOException catch at lines 183-185
+        when(resp.getWriter()).thenThrow(new IOException("Broken pipe"));
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+        // Status should still be set even though writing the error body failed
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+    }
+
+    /* ------------ settlement succeeds, header creation fails, response already committed -- */
+    @Test
+    void settlementSuccessHeaderCreationFailsResponseCommitted() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = "0xabcdef";
+        sr.networkId = "base-sepolia";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        // Make setHeader throw to trigger the catch at line 176
+        doThrow(new RuntimeException("Header write failed"))
+                .when(resp).setHeader(eq("X-PAYMENT-RESPONSE"), any());
+
+        // Response already committed -- cannot set status
+        when(resp.isCommitted()).thenReturn(true);
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+        // Since response is committed, status should NOT be changed
+        verify(resp, never()).setStatus(anyInt());
+    }
+
+    /* ------------ authorization is not a Map (e.g., Integer) in EIP-3009 fallback -- */
+    @Test
+    void authorizationNotAMapReturnsNullPayer() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        // Build payload where "authorization" is an Integer, not a Map
+        Map<String, Object> payloadMap = new java.util.HashMap<>();
+        payloadMap.put("resource", "/private");
+        payloadMap.put("authorization", 42);  // Integer, not Map
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = payloadMap;
+
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = "0xabcdef";
+        sr.networkId = "base-sepolia";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+        verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+
+        // Capture the settlement response header and verify null payer
+        org.mockito.ArgumentCaptor<String> headerCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), headerCaptor.capture());
+
+        String jsonString = new String(Base64.getDecoder().decode(headerCaptor.getValue()));
+        org.junit.jupiter.api.Assertions.assertTrue(jsonString.contains("\"payer\":null"),
+            "Payer should be null when authorization is an Integer, not a Map: " + jsonString);
     }
 }
