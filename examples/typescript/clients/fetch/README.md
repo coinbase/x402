@@ -6,13 +6,23 @@ Example client demonstrating how to use `@x402/fetch` to make HTTP requests to e
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { registerExactHederaScheme } from "@x402/hedera/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
+import { createClientHederaSigner } from "@x402/hedera";
+import { PrivateKey } from "@hashgraph/sdk";
 
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.EVM_PRIVATE_KEY) });
 registerExactSvmScheme(client, { signer: (await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY))) });
+registerExactHederaScheme(client, {
+  signer: createClientHederaSigner(
+    process.env.HEDERA_ACCOUNT_ID,
+    PrivateKey.fromStringECDSA(process.env.HEDERA_PRIVATE_KEY),
+    { network: process.env.HEDERA_NETWORK || "hedera:testnet" },
+  ),
+});
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
@@ -47,6 +57,9 @@ Required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
 - `SVM_PRIVATE_KEY` - Solana private key for SVM payments
+- `HEDERA_ACCOUNT_ID` - Hedera account id for Hedera payments (optional)
+- `HEDERA_PRIVATE_KEY` - Hedera **ECDSA** private key (0x-prefixed or DER-encoded) for Hedera payments (optional)
+- `HEDERA_NETWORK` - Hedera network (optional, default `hedera:testnet`)
 
 3. Run the client:
 

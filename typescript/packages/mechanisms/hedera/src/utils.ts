@@ -29,11 +29,11 @@ export function isValidHederaEntityId(entityId: string): boolean {
  * @param network - Network identifier
  * @returns Normalized network
  */
-export function normalizeHederaNetwork(network: Network): string {
+export function normalizeHederaNetwork(network: string): Network {
   if (!SUPPORTED_HEDERA_NETWORKS.includes(network as (typeof SUPPORTED_HEDERA_NETWORKS)[number])) {
     throw new Error(`Unsupported Hedera network: ${network}`);
   }
-  return network;
+  return network as Network;
 }
 
 /**

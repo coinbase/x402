@@ -19,10 +19,13 @@ import {
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { toFacilitatorHederaSigner } from "@x402/hedera";
+import { ExactHederaScheme } from "@x402/hedera/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import dotenv from "dotenv";
 import express from "express";
+import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hashgraph/sdk";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -35,17 +38,21 @@ const PORT = process.env.PORT || "4022";
 // Configuration - optional per network
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string | undefined;
+const hederaAccountId = process.env.HEDERA_ACCOUNT_ID;
+// Hedera private key should be an ECDSA key string (0x-prefixed or DER-encoded).
+const hederaPrivateKey = process.env.HEDERA_PRIVATE_KEY;
 
 // Validate at least one private key is provided
-if (!evmPrivateKey && !svmPrivateKey) {
+if (!evmPrivateKey && !svmPrivateKey && !(hederaAccountId && hederaPrivateKey)) {
   console.error(
-    "❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required",
+    "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY is required",
   );
   process.exit(1);
 }
 
 // Network configuration
 const EVM_NETWORK = "eip155:84532"; // Base Sepolia
+const HEDERA_NETWORK = "hedera:testnet"; // Hedera Testnet
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"; // Solana Devnet
 
 // Initialize the x402 Facilitator
@@ -135,6 +142,27 @@ if (svmPrivateKey) {
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
   facilitator.register(SVM_NETWORK, new ExactSvmScheme(svmSigner));
+}
+
+// Register Hedera scheme if account and private key are provided
+if (hederaAccountId && hederaPrivateKey) {
+  const hederaKey = PrivateKey.fromStringECDSA(hederaPrivateKey);
+  const hederaSigner = toFacilitatorHederaSigner({
+    getAddresses: () => [hederaAccountId],
+    signAndSubmitTransaction: async (transactionBase64: string, _, network: string) => {
+      const tx = Transaction.fromBytes(Buffer.from(transactionBase64, "base64"));
+      if (!(tx instanceof TransferTransaction)) {
+        throw new Error("expected TransferTransaction");
+      }
+      const signed = await tx.sign(hederaKey);
+      const client = network === "hedera:mainnet" ? Client.forMainnet() : Client.forTestnet();
+      client.setOperator(AccountId.fromString(hederaAccountId), hederaKey);
+      const response = await signed.execute(client);
+      return { transactionId: response.transactionId.toString() };
+    },
+  });
+  facilitator.register(HEDERA_NETWORK, new ExactHederaScheme(hederaSigner));
+  console.info(`Hedera Facilitator account: ${hederaAccountId}`);
 }
 
 // Initialize Express app

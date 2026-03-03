@@ -48,6 +48,8 @@ and fill required environment variables:
 
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_ADDRESS` - Ethereum address to receive payments
+- `SVM_ADDRESS` - Solana address to receive payments (optional for `all-networks`)
+- `HEDERA_ADDRESS` - Hedera account id to receive payments (optional for `all-networks`)
 
 2. Install and build all packages from the typescript examples root:
 
