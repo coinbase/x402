@@ -145,7 +145,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // Normalize the transaction (handles Swig, regular, and future wallet types)
     let normalized: NormalizedTransaction;
     try {
-      normalized = normalizeTransaction(
+      normalized = await normalizeTransaction(
         instructions,
         compiled.staticAccounts ?? [],
         transaction,

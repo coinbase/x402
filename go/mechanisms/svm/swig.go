@@ -193,21 +193,39 @@ func ParseSwigTransaction(tx *solana.Transaction) (*ParseSwigResult, error) {
 	signV2 := instructions[len(instructions)-1]
 
 	// 3. Extract Swig PDA from SignV2's first account
-	if len(signV2.Accounts) < 1 {
+	if len(signV2.Accounts) < 2 {
 		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
 	}
 	if int(signV2.Accounts[0]) >= len(tx.Message.AccountKeys) {
 		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
 	}
-	swigPDA := tx.Message.AccountKeys[signV2.Accounts[0]].String()
+	swigConfigKey := tx.Message.AccountKeys[signV2.Accounts[0]]
+	swigPDA := swigConfigKey.String()
 
-	// 4. Decode compact instructions from SignV2 data
+	// 4. Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
+	if int(signV2.Accounts[1]) >= len(tx.Message.AccountKeys) {
+		return nil, errors.New("invalid_swig_wallet_address_derivation")
+	}
+	actualWalletAddress := tx.Message.AccountKeys[signV2.Accounts[1]]
+	swigPubkey := solana.MustPublicKeyFromBase58(SwigProgramAddress)
+	expectedWalletAddress, _, err := solana.FindProgramAddress(
+		[][]byte{[]byte("swig-wallet-address"), swigConfigKey.Bytes()},
+		swigPubkey,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive swig wallet address: %w", err)
+	}
+	if !actualWalletAddress.Equals(expectedWalletAddress) {
+		return nil, errors.New("invalid_swig_wallet_address_derivation")
+	}
+
+	// 5. Decode compact instructions from SignV2 data
 	compactInstructions, err := DecodeSwigCompactInstructions(signV2.Data)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. Resolve compact instructions: remap local indices through signV2.Accounts
+	// 6. Resolve compact instructions: remap local indices through signV2.Accounts
 	for _, ci := range compactInstructions {
 		if int(ci.ProgramIDIndex) >= len(signV2.Accounts) {
 			return nil, fmt.Errorf("compact instruction programIDIndex %d out of range (signV2 has %d accounts)",

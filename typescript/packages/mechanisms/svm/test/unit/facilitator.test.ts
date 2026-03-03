@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { ExactSvmScheme } from "../../src/exact/facilitator/scheme";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import type { PaymentRequirements, PaymentPayload } from "@x402/core/types";
@@ -16,7 +16,23 @@ import {
   parseSwigTransaction,
 } from "../../src/utils";
 import { normalizeTransaction } from "../../src/normalizer";
-import type { Address, Transaction } from "@solana/kit";
+import { type Address, type Transaction, getProgramDerivedAddress, getAddressEncoder } from "@solana/kit";
+
+// Derive the SwigWalletAddress PDA from the test SWIG_PDA at module level
+const SWIG_PDA = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+let SWIG_WALLET_ADDRESS: string;
+
+beforeAll(async () => {
+  const addressEncoder = getAddressEncoder();
+  const [walletAddress] = await getProgramDerivedAddress({
+    programAddress: SWIG_PROGRAM_ADDRESS as Address,
+    seeds: [
+      new TextEncoder().encode("swig-wallet-address"),
+      addressEncoder.encode(SWIG_PDA as Address),
+    ],
+  });
+  SWIG_WALLET_ADDRESS = walletAddress.toString();
+});
 
 describe("ExactSvmScheme", () => {
   let mockSigner: FacilitatorSvmSigner;
@@ -375,7 +391,6 @@ describe("ExactSvmScheme", () => {
 
   describe("parseSwigTransaction", () => {
     const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-    const SWIG_PDA = "swigPDA1111111111111111111111111111111111111";
 
     // staticAccounts: [swigPDA, TOKEN_PROGRAM, source, mint, destATA, SWIG_PROGRAM, COMPUTE_BUDGET]
     const staticAccounts = [
@@ -388,15 +403,18 @@ describe("ExactSvmScheme", () => {
       COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
     ];
 
-    // Non-identity SignV2 account list to exercise index remapping:
-    // pos 0 → swigPDA, pos 1 → dest, pos 2 → TOKEN_PROGRAM, pos 3 → mint, pos 4 → source
-    const signV2Accounts = [
-      { address: SWIG_PDA as Address },
-      { address: "destinationATA11111111111111111111111111" as Address },
-      { address: TOKEN_PROGRAM as Address },
-      { address: USDC_DEVNET_ADDRESS as Address },
-      { address: "sourceAccount111111111111111111111111111" as Address },
-    ];
+    // SignV2 account list with SwigWalletAddress at index 1:
+    // pos 0 → swigPDA, pos 1 → swigWalletAddress, pos 2 → dest, pos 3 → TOKEN_PROGRAM, pos 4 → mint, pos 5 → source
+    function getSignV2Accounts() {
+      return [
+        { address: SWIG_PDA as Address },
+        { address: SWIG_WALLET_ADDRESS as Address },
+        { address: "destinationATA11111111111111111111111111" as Address },
+        { address: TOKEN_PROGRAM as Address },
+        { address: USDC_DEVNET_ADDRESS as Address },
+        { address: "sourceAccount111111111111111111111111111" as Address },
+      ];
+    }
 
     function buildSwigV2Data(payload: Uint8Array, numInstructions = 1): Uint8Array {
       // Prepend numInstructions count byte
@@ -434,11 +452,12 @@ describe("ExactSvmScheme", () => {
       return entry;
     }
 
-    it("should flatten a Swig transaction with embedded TransferChecked", () => {
-      // compact indices reference signV2's account list, not global:
-      // programIdIndex=2 → signV2Accounts[2]=TOKEN_PROGRAM
-      // accounts=[4,3,1,0] → signV2Accounts[4,3,1,0] = [source, mint, dest, swigPDA]
-      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+    it("should flatten a Swig transaction with embedded TransferChecked", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      // compact indices reference signV2's account list:
+      // programIdIndex=3 → signV2Accounts[3]=TOKEN_PROGRAM
+      // accounts=[5,4,2,0] → signV2Accounts[5,4,2,0] = [source, mint, dest, swigPDA]
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -451,7 +470,7 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      const result = parseSwigTransaction(instructions, staticAccounts);
+      const result = await parseSwigTransaction(instructions, staticAccounts);
 
       // Should have 3 instructions: 2 compute budgets + 1 TransferChecked
       expect(result.instructions).toHaveLength(3);
@@ -466,8 +485,9 @@ describe("ExactSvmScheme", () => {
       expect(result.instructions[2].data[0]).toBe(12); // transferChecked discriminator
     });
 
-    it("should filter out secp256r1 precompile instructions", () => {
-      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+    it("should filter out secp256r1 precompile instructions", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -481,16 +501,17 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      const result = parseSwigTransaction(instructions, staticAccounts);
+      const result = await parseSwigTransaction(instructions, staticAccounts);
 
       // Should have 3 instructions: 2 compute budgets + 1 TransferChecked (precompile filtered)
       expect(result.instructions).toHaveLength(3);
       expect(result.swigPda).toBe(SWIG_PDA);
     });
 
-    it("should resolve compact instruction account indices to addresses", () => {
-      // compact accounts=[4,3,1,0] → signV2Accounts[4,3,1,0] = [source, mint, dest, swigPDA]
-      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+    it("should resolve compact instruction account indices to addresses", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      // compact accounts=[5,4,2,0] → signV2Accounts[5,4,2,0] = [source, mint, dest, swigPDA]
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -503,7 +524,7 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      const result = parseSwigTransaction(instructions, staticAccounts);
+      const result = await parseSwigTransaction(instructions, staticAccounts);
       const transferIx = result.instructions[2];
 
       expect(transferIx.accounts).toHaveLength(4);
@@ -513,8 +534,9 @@ describe("ExactSvmScheme", () => {
       expect(transferIx.accounts[3].address.toString()).toBe(staticAccounts[0].toString()); // swigPDA (authority)
     });
 
-    it("should extract swigPda from first account of SignV2 instruction", () => {
-      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+    it("should extract swigPda from first account of SignV2 instruction", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -527,13 +549,14 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      const result = parseSwigTransaction(instructions, staticAccounts);
+      const result = await parseSwigTransaction(instructions, staticAccounts);
       expect(result.swigPda).toBe(SWIG_PDA);
     });
 
-    it("should throw when compact instruction index exceeds signV2 accounts", () => {
-      // programIdIndex=5 is out of range for signV2Accounts (len 5, valid 0-4)
-      const compact = buildTransferCheckedCompact(5, [0, 1, 2, 3], 100000n);
+    it("should throw when compact instruction index exceeds signV2 accounts", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      // programIdIndex=6 is out of range for signV2Accounts (len 6, valid 0-5)
+      const compact = buildTransferCheckedCompact(6, [0, 1, 2, 3], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -546,13 +569,41 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      expect(() => parseSwigTransaction(instructions, staticAccounts)).toThrow(/out of range/);
+      await expect(parseSwigTransaction(instructions, staticAccounts)).rejects.toThrow(/out of range/);
+    });
+
+    it("should throw when SwigWalletAddress does not match expected derivation", async () => {
+      // Use a wrong address at signV2Accounts[1] instead of the real derived address
+      const badSignV2Accounts = [
+        { address: SWIG_PDA as Address },
+        { address: "WrongWalletAddr1111111111111111111111111111" as Address },
+        { address: "destinationATA11111111111111111111111111" as Address },
+        { address: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address },
+        { address: USDC_DEVNET_ADDRESS as Address },
+        { address: "sourceAccount111111111111111111111111111" as Address },
+      ];
+
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
+      const signV2Data = buildSwigV2Data(compact);
+
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: badSignV2Accounts,
+          data: signV2Data,
+        },
+      ];
+
+      await expect(parseSwigTransaction(instructions, staticAccounts)).rejects.toThrow(
+        "invalid_swig_wallet_address_derivation",
+      );
     });
   });
 
   describe("normalizeTransaction", () => {
     const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-    const SWIG_PDA = "swigPDA1111111111111111111111111111111111111";
 
     const staticAccounts = [
       SWIG_PDA as Address,
@@ -564,13 +615,16 @@ describe("ExactSvmScheme", () => {
       COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
     ];
 
-    const signV2Accounts = [
-      { address: SWIG_PDA as Address },
-      { address: "destinationATA11111111111111111111111111" as Address },
-      { address: TOKEN_PROGRAM as Address },
-      { address: USDC_DEVNET_ADDRESS as Address },
-      { address: "sourceAccount111111111111111111111111111" as Address },
-    ];
+    function getSignV2Accounts() {
+      return [
+        { address: SWIG_PDA as Address },
+        { address: SWIG_WALLET_ADDRESS as Address },
+        { address: "destinationATA11111111111111111111111111" as Address },
+        { address: TOKEN_PROGRAM as Address },
+        { address: USDC_DEVNET_ADDRESS as Address },
+        { address: "sourceAccount111111111111111111111111111" as Address },
+      ];
+    }
 
     function buildSwigV2Data(payload: Uint8Array, numInstructions = 1): Uint8Array {
       const withCount = new Uint8Array(1 + payload.length);
@@ -607,8 +661,9 @@ describe("ExactSvmScheme", () => {
       return entry;
     }
 
-    it("should dispatch to SwigNormalizer for Swig transactions", () => {
-      const compact = buildTransferCheckedCompact(2, [4, 3, 1, 0], 100000n);
+    it("should dispatch to SwigNormalizer for Swig transactions", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
       const signV2Data = buildSwigV2Data(compact);
 
       const instructions = [
@@ -621,12 +676,12 @@ describe("ExactSvmScheme", () => {
         },
       ];
 
-      const result = normalizeTransaction(instructions, staticAccounts, {} as Transaction);
+      const result = await normalizeTransaction(instructions, staticAccounts, {} as Transaction);
       expect(result.payer).toBe(SWIG_PDA);
       expect(result.instructions).toHaveLength(3);
     });
 
-    it("should dispatch to RegularNormalizer for non-Swig transactions", () => {
+    it("should dispatch to RegularNormalizer for non-Swig transactions", async () => {
       const instructions = [
         { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
         { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 0]) },
@@ -676,13 +731,13 @@ describe("ExactSvmScheme", () => {
         messageBytes,
       } as Transaction;
 
-      const result = normalizeTransaction(instructions, [], mockTransaction);
+      const result = await normalizeTransaction(instructions, [], mockTransaction);
       expect(result.payer).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
       // Instructions are passed through from the input
       expect(result.instructions).toHaveLength(3);
     });
 
-    it("should throw when no normalizer can handle the transaction", () => {
+    it("should throw when no normalizer can handle the transaction", async () => {
       // RegularNormalizer always canHandle, so this test verifies it throws
       // when the regular path can't find a payer (empty transaction)
       const instructions = [
@@ -720,7 +775,7 @@ describe("ExactSvmScheme", () => {
         messageBytes,
       } as Transaction;
 
-      expect(() => normalizeTransaction(instructions, [], mockTransaction)).toThrow(
+      await expect(normalizeTransaction(instructions, [], mockTransaction)).rejects.toThrow(
         "invalid_exact_svm_payload_no_transfer_instruction",
       );
     });

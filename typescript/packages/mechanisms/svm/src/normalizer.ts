@@ -20,7 +20,7 @@ export interface TransactionNormalizer {
     instructions: ReadonlyArray<Instruction>,
     staticAccounts: ReadonlyArray<Address>,
     transaction: Transaction,
-  ): NormalizedTransaction;
+  ): Promise<NormalizedTransaction>;
 }
 
 class SwigNormalizer implements TransactionNormalizer {
@@ -28,11 +28,11 @@ class SwigNormalizer implements TransactionNormalizer {
     return isSwigTransaction(instructions);
   }
 
-  normalize(
+  async normalize(
     instructions: ReadonlyArray<Instruction>,
     staticAccounts: ReadonlyArray<Address>,
-  ): NormalizedTransaction {
-    const result = parseSwigTransaction(instructions, staticAccounts);
+  ): Promise<NormalizedTransaction> {
+    const result = await parseSwigTransaction(instructions, staticAccounts);
     return {
       instructions: result.instructions,
       payer: result.swigPda,
@@ -45,11 +45,11 @@ class RegularNormalizer implements TransactionNormalizer {
     return true;
   }
 
-  normalize(
+  async normalize(
     instructions: ReadonlyArray<Instruction>,
     _staticAccounts: ReadonlyArray<Address>,
     transaction: Transaction,
-  ): NormalizedTransaction {
+  ): Promise<NormalizedTransaction> {
     const payer = getTokenPayerFromTransaction(transaction);
     if (!payer) {
       throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
@@ -69,14 +69,14 @@ const defaultNormalizers: TransactionNormalizer[] = [
   new RegularNormalizer(),
 ];
 
-export function normalizeTransaction(
+export async function normalizeTransaction(
   instructions: ReadonlyArray<Instruction>,
   staticAccounts: ReadonlyArray<Address>,
   transaction: Transaction,
-): NormalizedTransaction {
+): Promise<NormalizedTransaction> {
   for (const n of defaultNormalizers) {
     if (n.canHandle(instructions)) {
-      return n.normalize(instructions, staticAccounts, transaction);
+      return await n.normalize(instructions, staticAccounts, transaction);
     }
   }
   throw new Error("no normalizer found for transaction");

@@ -2,6 +2,8 @@ import {
   getBase64Encoder,
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
+  getProgramDerivedAddress,
+  getAddressEncoder,
   type Transaction,
   type Address,
   type Instruction,
@@ -251,10 +253,10 @@ export function isSwigTransaction(
  * @param staticAccounts - Ordered account list from the compiled transaction message
  * @returns Object with flattened `instructions` array and `swigPda` address
  */
-export function parseSwigTransaction(
+export async function parseSwigTransaction(
   instructions: ReadonlyArray<Instruction>,
   staticAccounts: ReadonlyArray<Address>,
-): { instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string } {
+): Promise<{ instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any[] = [];
 
@@ -270,11 +272,28 @@ export function parseSwigTransaction(
   const swigPda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
   if (!swigPda) throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
 
-  // 3. Decode compact instructions from SignV2 data
+  // 3. Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
+  const swigWalletAddress = signV2Ix.accounts?.[1]?.address?.toString() ?? "";
+  if (!swigWalletAddress) throw new Error("invalid_swig_wallet_address_derivation");
+
+  const addressEncoder = getAddressEncoder();
+  const [expectedWalletAddress] = await getProgramDerivedAddress({
+    programAddress: SWIG_PROGRAM_ADDRESS as Address,
+    seeds: [
+      new TextEncoder().encode("swig-wallet-address"),
+      addressEncoder.encode(swigPda as Address),
+    ],
+  });
+
+  if (swigWalletAddress !== expectedWalletAddress.toString()) {
+    throw new Error("invalid_swig_wallet_address_derivation");
+  }
+
+  // 4. Decode compact instructions from SignV2 data
   const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
   const compactInstructions = decodeSwigCompactInstructions(rawData);
 
-  // 4. Resolve compact instruction indices through signV2's account list
+  // 5. Resolve compact instruction indices through signV2's account list
   const signV2Accounts = signV2Ix.accounts ?? [];
   for (const ci of compactInstructions) {
     if (ci.programIdIndex >= signV2Accounts.length) {
