@@ -273,6 +273,17 @@ export async function parseSwigTransaction(
     }
   }
 
+  // Sort compute budget instructions so SetComputeUnitLimit (disc=2) precedes
+  // SetComputeUnitPrice (disc=3), matching the order the facilitator expects.
+  result.sort((a, b) => {
+    const aIsCB = a.programAddress.toString() === COMPUTE_BUDGET_PROGRAM_ADDRESS;
+    const bIsCB = b.programAddress.toString() === COMPUTE_BUDGET_PROGRAM_ADDRESS;
+    if (aIsCB && bIsCB && a.data?.length > 0 && b.data?.length > 0) {
+      return a.data[0] - b.data[0];
+    }
+    return 0;
+  });
+
   if (signV2Instructions.length === 0) {
     throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
   }

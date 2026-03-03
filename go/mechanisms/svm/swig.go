@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sort"
 
 	solana "github.com/gagliardetto/solana-go"
 )
@@ -196,6 +197,17 @@ func ParseSwigTransaction(tx *solana.Transaction) (*ParseSwigResult, error) {
 			result = append(result, inst) // compute budget and other non-precompile instructions
 		}
 	}
+
+	// Sort compute budget instructions so SetComputeUnitLimit (disc=2) precedes
+	// SetComputeUnitPrice (disc=3), matching the order the facilitator expects.
+	sort.Slice(result, func(i, j int) bool {
+		iIsComputeBudget := tx.Message.AccountKeys[result[i].ProgramIDIndex].Equals(solana.ComputeBudget)
+		jIsComputeBudget := tx.Message.AccountKeys[result[j].ProgramIDIndex].Equals(solana.ComputeBudget)
+		if iIsComputeBudget && jIsComputeBudget && len(result[i].Data) > 0 && len(result[j].Data) > 0 {
+			return result[i].Data[0] < result[j].Data[0]
+		}
+		return false
+	})
 
 	if len(signV2Instructions) == 0 {
 		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")

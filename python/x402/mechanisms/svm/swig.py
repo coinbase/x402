@@ -206,6 +206,15 @@ def parse_swig_transaction(tx: VersionedTransaction) -> ParseSwigResult:
     if len(sign_v2_instructions) == 0:
         raise ValueError("invalid_exact_svm_payload_no_transfer_instruction")
 
+    # Sort compute budget instructions so SetComputeUnitLimit (disc=2) precedes
+    # SetComputeUnitPrice (disc=3), matching the order the facilitator expects.
+    compute_budget = Pubkey.from_string(COMPUTE_BUDGET_PROGRAM_ADDRESS)
+    result.sort(
+        key=lambda ix: ix.data[0]
+        if account_keys[ix.program_id_index] == compute_budget and len(ix.data) > 0
+        else 0
+    )
+
     # 2. Process each SignV2 instruction
     swig_pda = ""
     for sign_v2 in sign_v2_instructions:
