@@ -197,11 +197,11 @@ export async function verifyEIP3009(
     // If we can't check balance, continue with other validations
   }
 
-  // Verify amount is sufficient
-  if (BigInt(eip3009Payload.authorization.value) < BigInt(requirements.amount)) {
+  // Verify amount exactly matches requirements
+  if (BigInt(eip3009Payload.authorization.value) !== BigInt(requirements.amount)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_authorization_value",
+      invalidReason: "invalid_exact_evm_payload_authorization_value_mismatch",
       payer,
     };
   }
