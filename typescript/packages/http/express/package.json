@@ -40,8 +40,6 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.22.0",
-    "@solana/kit": "^6.1.0",
     "@x402/core": "workspace:~",
     "@x402/extensions": "workspace:~",
     "viem": "^2.39.3",
