@@ -132,6 +132,55 @@ Fetch the list of available x402 services using the facilitator client:
     );
     ```
   </Tab>
+  <Tab title="Go">
+    ```go
+    package main
+
+    import (
+        "context"
+        "fmt"
+
+        "github.com/coinbase/x402/go/extensions/bazaar"
+        x402http "github.com/coinbase/x402/go/http"
+    )
+
+    func main() {
+        ctx := context.Background()
+
+        // Create facilitator client and extend with bazaar
+        facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+            URL: "https://x402.org/facilitator",
+        })
+        client := bazaar.WithBazaar(facilitatorClient)
+
+        // List discovery resources
+        response, err := client.ListDiscoveryResources(ctx, &bazaar.ListDiscoveryResourcesParams{
+            Type:   "http",
+            Limit:  20,
+            Offset: 0,
+        })
+        if err != nil {
+            panic(err)
+        }
+
+        // Filter services under $0.10
+        usdcAsset := "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        maxPrice := 100000 // $0.10 in USDC atomic units (6 decimals)
+
+        for _, item := range response.Items {
+            for _, paymentReq := range item.Accepts {
+                // Parse asset and maxAmountRequired from payment requirements
+                if asset, ok := paymentReq["asset"].(string); ok && asset == usdcAsset {
+                    if maxAmount, ok := paymentReq["maxAmountRequired"].(string); ok {
+                        // Convert and compare price
+                        fmt.Printf("Found service: %s\n", item.Resource)
+                    }
+                }
+            }
+        }
+    }
+    ```
+  </Tab>
   <Tab title="Python">
     ```python
     from x402.http import FacilitatorConfig, HTTPFacilitatorClient
@@ -167,14 +216,14 @@ Once you've found a suitable service, use an x402 client to call it:
   <Tab title="TypeScript">
     ```typescript
     import { wrapAxiosWithPayment, x402Client } from "@x402/axios";
-    import { registerExactEvmScheme } from "@x402/evm/exact/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
     import axios from "axios";
     import { privateKeyToAccount } from "viem/accounts";
 
     // Set up your payment account
     const account = privateKeyToAccount("0xYourPrivateKey");
     const client = new x402Client();
-    registerExactEvmScheme(client, { signer: account });
+    client.register("eip155:*", new ExactEvmScheme(account));
 
     // Select a service from discovery
     const selectedService = affordableServices[0];
@@ -258,14 +307,14 @@ To enhance your listing with descriptions and schemas, include them when setting
     ```typescript
     import { paymentMiddleware } from "@x402/express";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
     import { bazaarResourceServerExtension } from "@x402/extensions";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://x402.org/facilitator"
     });
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
 
     const routes = {
       "GET /weather": {

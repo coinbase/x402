@@ -1,20 +1,23 @@
 import { toHex } from "viem";
-import { EVM_NETWORK_CHAIN_ID_MAP, EvmNetworkV1 } from "./v1";
 
 /**
- * Extract chain ID from network string (e.g., "base-sepolia" -> 84532)
- * Used by v1 implementations
+ * Extract chain ID from a CAIP-2 network identifier (eip155:CHAIN_ID).
  *
- * @param network - The network identifier
+ * @param network - The network identifier in CAIP-2 format (e.g., "eip155:8453")
  * @returns The numeric chain ID
- * @throws Error if the network is not supported
+ * @throws Error if the network format is invalid
  */
-export function getEvmChainId(network: EvmNetworkV1): number {
-  const chainId = EVM_NETWORK_CHAIN_ID_MAP[network];
-  if (!chainId) {
-    throw new Error(`Unsupported network: ${network}`);
+export function getEvmChainId(network: string): number {
+  if (network.startsWith("eip155:")) {
+    const idStr = network.split(":")[1];
+    const chainId = parseInt(idStr, 10);
+    if (isNaN(chainId)) {
+      throw new Error(`Invalid CAIP-2 chain ID: ${network}`);
+    }
+    return chainId;
   }
-  return chainId;
+
+  throw new Error(`Unsupported network format: ${network} (expected eip155:CHAIN_ID)`);
 }
 
 /**

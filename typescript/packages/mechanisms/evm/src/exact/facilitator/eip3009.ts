@@ -7,6 +7,7 @@ import {
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
+import { getEvmChainId } from "../../utils";
 import { ExactEIP3009Payload } from "../../types";
 
 export interface EIP3009FacilitatorConfig {
@@ -73,7 +74,7 @@ export async function verifyEIP3009(
     domain: {
       name,
       version,
-      chainId: parseInt(requirements.network.split(":")[1]),
+      chainId: getEvmChainId(requirements.network),
       verifyingContract: erc20Address,
     },
     message: {
@@ -196,11 +197,11 @@ export async function verifyEIP3009(
     // If we can't check balance, continue with other validations
   }
 
-  // Verify amount is sufficient
-  if (BigInt(eip3009Payload.authorization.value) < BigInt(requirements.amount)) {
+  // Verify amount exactly matches requirements
+  if (BigInt(eip3009Payload.authorization.value) !== BigInt(requirements.amount)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_authorization_value",
+      invalidReason: "invalid_exact_evm_payload_authorization_value_mismatch",
       payer,
     };
   }

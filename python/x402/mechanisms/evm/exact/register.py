@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, TypeVar
 
-from ..constants import V1_NETWORKS
+from ..v1.constants import V1_NETWORKS
 
 if TYPE_CHECKING:
     from x402 import (
@@ -44,8 +44,10 @@ def register_exact_evm_client(
         Client for chaining.
     """
     from .client import ExactEvmScheme as ExactEvmClientScheme
+    from .client import _wrap_if_local_account
     from .v1.client import ExactEvmSchemeV1 as ExactEvmClientSchemeV1
 
+    signer = _wrap_if_local_account(signer)
     scheme = ExactEvmClientScheme(signer)
 
     if networks:

@@ -143,14 +143,14 @@ In V2, networks are supported through the registration pattern using CAIP-2 iden
   <Tab title="TypeScript">
     ```typescript
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://your-facilitator.com"  // Facilitator that supports your network
     });
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
+    server.register("eip155:*", new ExactEvmScheme());  // Registers wildcard support for all EVM chains
 
     // Now use any CAIP-2 network identifier in your routes:
     const routes = {

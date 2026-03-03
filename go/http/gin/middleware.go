@@ -53,7 +53,7 @@ func (a *GinAdapter) GetURL() string {
 	if host == "" {
 		host = a.ctx.GetHeader("Host")
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.Path)
+	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.RequestURI())
 }
 
 // GetAcceptHeader gets the Accept header
@@ -177,6 +177,45 @@ func PaymentMiddleware(routes x402http.RoutesConfig, server *x402.X402ResourceSe
 
 	// Wrap the resource server with HTTP functionality
 	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, server)
+
+	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
+
+	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
+	if config.SyncFacilitatorOnStart {
+		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+		defer cancel()
+		if err := httpServer.Initialize(ctx); err != nil {
+			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
+		}
+	}
+
+	// Create middleware handler using shared logic
+	return createMiddlewareHandler(httpServer, config)
+}
+
+// PaymentMiddlewareFromHTTPServer creates Gin middleware using a pre-configured HTTPServer.
+// This allows registering hooks (e.g., OnProtectedRequest) on the server before attaching to the router.
+//
+// Example:
+//
+//	resourceServer := x402.Newx402ResourceServer(
+//	    x402.WithFacilitatorClient(facilitator),
+//	).Register("eip155:*", evm.NewExactEvmScheme())
+//
+//	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer).
+//	    OnProtectedRequest(requestHook)
+//
+//	r.Use(ginmw.PaymentMiddlewareFromHTTPServer(httpServer))
+func PaymentMiddlewareFromHTTPServer(httpServer *x402http.HTTPServer, opts ...MiddlewareOption) gin.HandlerFunc {
+	config := &MiddlewareConfig{
+		SyncFacilitatorOnStart: true,
+		Timeout:                30 * time.Second,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(config)
+	}
 
 	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
 

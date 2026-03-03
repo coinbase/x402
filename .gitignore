@@ -28,3 +28,6 @@ e2e/legacy/servers/gin/gin
 
 # Agent artifacts
 TASK.md
+.claude/
+skills/
+REVIEW_PROMPT.md

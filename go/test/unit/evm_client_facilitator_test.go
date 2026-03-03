@@ -521,15 +521,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "9999999999",
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for invalid spender")
 		}
@@ -550,12 +546,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0xWrongRecipient23456789012345678901234567", // Wrong recipient!
 					ValidAfter: "0",
-					Extra:      "0x",
 				},
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for recipient mismatch")
 		}
@@ -573,15 +568,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "1", // Expired!
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for expired deadline")
 		}
@@ -602,12 +593,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x9876543210987654321098765432109876543210",
 					ValidAfter: "9999999999", // Far in the future!
-					Extra:      "0x",
 				},
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for not-yet-valid payment")
 		}
@@ -625,15 +615,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "9999999999",
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for insufficient amount")
 		}
@@ -651,15 +637,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "9999999999",
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for token mismatch")
 		}
@@ -677,15 +659,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "not_a_number", // Invalid!
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, validPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for invalid deadline format")
 		}
@@ -711,15 +689,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "9999999999",
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongSchemePayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongSchemePayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for scheme mismatch")
 		}
@@ -745,15 +719,11 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 				},
 				Nonce:    "12345",
 				Deadline: "9999999999",
-				Witness: evm.Permit2Witness{
-					To:         "0x9876543210987654321098765432109876543210",
-					ValidAfter: "0",
-					Extra:      "0x",
-				},
+				Witness:  defaultTestWitness(),
 			},
 		}
 
-		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongNetworkPayload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.VerifyPermit2(ctx, signer, wrongNetworkPayload, validRequirements, permit2Payload, nil)
 		if err == nil {
 			t.Error("Expected error for network mismatch")
 		}
@@ -994,11 +964,7 @@ func signedPermit2TestData(t *testing.T) (*evm.ExactPermit2Payload, string) {
 		},
 		Nonce:    "12345",
 		Deadline: "9999999999",
-		Witness: evm.Permit2Witness{
-			To:         "0x9876543210987654321098765432109876543210",
-			ValidAfter: "0",
-			Extra:      "0x",
-		},
+		Witness:  defaultTestWitness(),
 	}
 
 	// Compute the EIP-712 hash and sign it
@@ -1059,7 +1025,7 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 						"from":      payerAddress,
 						"asset":     "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 						"spender":   evm.PERMIT2Address,
-						"amount":    "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+						"amount":    "1000000", // Must match Permit2 permitted.amount exactly
 						"nonce":     "0",
 						"deadline":  "9999999999",
 						"signature": mockSignature65Bytes(),
@@ -1069,7 +1035,7 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 			},
 		}
 
-		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -1103,7 +1069,7 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 			// No extensions
 		}
 
-		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload)
+		_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload, nil)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -1112,4 +1078,99 @@ func TestSettlePermit2_EIP2612Routing(t *testing.T) {
 			t.Errorf("Expected function %s, got %s", evm.FunctionSettle, signer.lastWriteFunctionName)
 		}
 	})
+}
+
+// TestSettlePermit2_ContractRevertErrors tests that parsePermit2Error maps
+// contract revert strings to the correct named error constants.
+func TestSettlePermit2_ContractRevertErrors(t *testing.T) {
+	ctx := context.Background()
+
+	validRequirements := types.PaymentRequirements{
+		Scheme:  evm.SchemeExact,
+		Network: "eip155:84532",
+		Asset:   "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		Amount:  "1000000",
+		PayTo:   "0x9876543210987654321098765432109876543210",
+	}
+
+	// signedPermit2TestData creates a valid payload with real ECDSA signature
+	permit2Payload, _ := signedPermit2TestData(t)
+
+	testCases := []struct {
+		name           string
+		revertMessage  string
+		expectedReason string
+	}{
+		{
+			name:           "Permit2612AmountMismatch maps to permit2_2612_amount_mismatch",
+			revertMessage:  "execution reverted: Permit2612AmountMismatch()",
+			expectedReason: evmfacilitator.ErrPermit2612AmountMismatch,
+		},
+		{
+			name:           "InvalidAmount maps to permit2_invalid_amount",
+			revertMessage:  "execution reverted: InvalidAmount()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidAmount,
+		},
+		{
+			name:           "InvalidDestination maps to permit2_invalid_destination",
+			revertMessage:  "execution reverted: InvalidDestination()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidDestination,
+		},
+		{
+			name:           "InvalidOwner maps to permit2_invalid_owner",
+			revertMessage:  "execution reverted: InvalidOwner()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidOwner,
+		},
+		{
+			name:           "PaymentTooEarly maps to permit2_payment_too_early",
+			revertMessage:  "execution reverted: PaymentTooEarly()",
+			expectedReason: evmfacilitator.ErrPermit2PaymentTooEarly,
+		},
+		{
+			name:           "InvalidSignature maps to invalid_permit2_signature",
+			revertMessage:  "execution reverted: InvalidSignature()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidSignature,
+		},
+		{
+			name:           "SignatureExpired maps to invalid_permit2_signature",
+			revertMessage:  "execution reverted: SignatureExpired()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidSignature,
+		},
+		{
+			name:           "InvalidNonce maps to permit2_invalid_nonce",
+			revertMessage:  "execution reverted: InvalidNonce()",
+			expectedReason: evmfacilitator.ErrPermit2InvalidNonce,
+		},
+		{
+			name:           "Unknown revert maps to failed_to_execute_transfer",
+			revertMessage:  "execution reverted: SomeUnknownError()",
+			expectedReason: evmfacilitator.ErrFailedToExecuteTransfer,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			signer := &mockFacilitatorSigner{
+				verifyTypedDataResult: true,
+				writeContractError:    fmt.Errorf("%s", tc.revertMessage),
+			}
+
+			payload := types.PaymentPayload{
+				X402Version: 2,
+				Accepted: types.PaymentRequirements{
+					Scheme:  evm.SchemeExact,
+					Network: "eip155:84532",
+				},
+			}
+
+			_, err := evmfacilitator.SettlePermit2(ctx, signer, payload, validRequirements, permit2Payload, nil)
+			if err == nil {
+				t.Fatal("Expected error from SettlePermit2")
+			}
+
+			if !strings.Contains(err.Error(), tc.expectedReason) {
+				t.Errorf("Expected error to contain %q, got: %s", tc.expectedReason, err.Error())
+			}
+		})
+	}
 }

@@ -15,52 +15,38 @@ except ImportError as e:
 from .constants import (
     DEFAULT_VALIDITY_BUFFER,
     DEFAULT_VALIDITY_PERIOD,
-    NETWORK_ALIASES,
     NETWORK_CONFIGS,
-    V1_NETWORK_CHAIN_IDS,
     AssetInfo,
     NetworkConfig,
 )
 
 
 def get_evm_chain_id(network: str) -> int:
-    """Extract chain ID from network string.
-
-    Handles both CAIP-2 format (eip155:8453) and legacy names (base-sepolia).
+    """Extract chain ID from a CAIP-2 network identifier (eip155:CHAIN_ID).
 
     Args:
-        network: Network identifier.
+        network: Network identifier in CAIP-2 format (e.g., "eip155:8453").
 
     Returns:
         Numeric chain ID.
 
     Raises:
-        ValueError: If network format is unrecognized.
+        ValueError: If network format is invalid.
     """
-    # Handle CAIP-2 format
     if network.startswith("eip155:"):
         try:
             return int(network.split(":")[1])
         except (IndexError, ValueError) as e:
             raise ValueError(f"Invalid CAIP-2 network format: {network}") from e
 
-    # Check aliases
-    if network in NETWORK_ALIASES:
-        caip2 = NETWORK_ALIASES[network]
-        return int(caip2.split(":")[1])
-
-    # Check V1 legacy names
-    if network in V1_NETWORK_CHAIN_IDS:
-        return V1_NETWORK_CHAIN_IDS[network]
-
-    raise ValueError(f"Unknown network: {network}")
+    raise ValueError(f"Unsupported network format: {network} (expected eip155:CHAIN_ID)")
 
 
 def get_network_config(network: str) -> NetworkConfig:
-    """Get configuration for a network.
+    """Get configuration for a CAIP-2 network identifier (eip155:CHAIN_ID).
 
     Args:
-        network: Network identifier (CAIP-2 or legacy name).
+        network: Network identifier in CAIP-2 format.
 
     Returns:
         Network configuration.
@@ -68,18 +54,10 @@ def get_network_config(network: str) -> NetworkConfig:
     Raises:
         ValueError: If network is not configured.
     """
-    # Normalize to CAIP-2
-    if network in NETWORK_ALIASES:
-        network = NETWORK_ALIASES[network]
-    elif not network.startswith("eip155:"):
-        # Try to convert legacy name
-        if network in V1_NETWORK_CHAIN_IDS:
-            network = f"eip155:{V1_NETWORK_CHAIN_IDS[network]}"
-
     if network in NETWORK_CONFIGS:
         return NETWORK_CONFIGS[network]
 
-    raise ValueError(f"No configuration for network: {network}")
+    raise ValueError(f"No configuration for network: {network} (expected eip155:CHAIN_ID)")
 
 
 def get_asset_info(network: str, asset_symbol_or_address: str) -> AssetInfo:

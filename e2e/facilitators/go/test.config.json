@@ -12,7 +12,8 @@
   ],
   "extensions": [
     "bazaar",
-    "eip2612GasSponsoring"
+    "eip2612GasSponsoring",
+    "erc20ApprovalGasSponsoring"
   ],
   "evm": {
     "transferMethods": ["eip3009", "permit2"]

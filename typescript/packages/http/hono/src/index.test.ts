@@ -71,7 +71,10 @@ function setupMockHttpServer(
   processResult: HTTPProcessResult,
   settlementResult:
     | { success: true; headers: Record<string, string> }
-    | { success: false; errorReason: string } = { success: true, headers: {} },
+    | { success: false; errorReason: string; headers: Record<string, string> } = {
+    success: true,
+    headers: {},
+  },
 ): void {
   mockProcessHTTPRequest.mockResolvedValue(processResult);
   mockProcessSettlement.mockResolvedValue(settlementResult);
@@ -294,11 +297,14 @@ describe("paymentMiddleware", () => {
     );
     const context = createMockContext();
 
-    // Create a proper Response mock with headers
+    // Create a proper Response mock with headers and clone method
     const responseHeaders = new Headers();
     const mockResponse = {
       status: 200,
       headers: responseHeaders,
+      clone: () => ({
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }),
     } as unknown as Response;
 
     const next = vi.fn().mockImplementation(async () => {
@@ -312,6 +318,13 @@ describe("paymentMiddleware", () => {
       mockPaymentPayload,
       mockPaymentRequirements,
       undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/api/test",
+          method: "GET",
+        }),
+        responseBody: expect.any(Buffer),
+      }),
     );
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");
   });
@@ -367,6 +380,9 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
@@ -388,7 +404,11 @@ describe("paymentMiddleware", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+      },
     );
 
     const middleware = paymentMiddleware(
@@ -405,6 +425,9 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
@@ -417,6 +440,7 @@ describe("paymentMiddleware", () => {
       },
       402,
     );
+    expect(context.res?.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 
   it("passes paywallConfig to processHTTPRequest", async () => {
