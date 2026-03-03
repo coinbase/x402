@@ -13,7 +13,7 @@ import (
 func makeERC4337Payload(bundlerUrl string) types.PaymentPayload {
 	return types.PaymentPayload{
 		X402Version: 2,
-		Accepted: types.AcceptedField{
+		Accepted: types.PaymentRequirements{
 			Scheme:  "exact",
 			Network: "eip155:84532",
 		},
@@ -472,7 +472,7 @@ func TestExactEvmSchemeERC4337_Verify_PassesIsErc4337ButFailsFromMap(t *testing.
 	scheme := NewExactEvmSchemeERC4337(nil)
 	payload := types.PaymentPayload{
 		X402Version: 2,
-		Accepted: types.AcceptedField{
+		Accepted: types.PaymentRequirements{
 			Scheme:  "exact",
 			Network: "eip155:84532",
 		},

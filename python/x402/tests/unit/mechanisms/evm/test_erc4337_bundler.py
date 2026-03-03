@@ -604,6 +604,22 @@ class TestBundlerClientCall:
         assert mock_urlopen.call_count == 1
 
 
+class TestBundlerCallNegativeRetries:
+    """Tests for _call with negative retries (defensive guard)."""
+
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.urllib.request.urlopen")
+    def test_call_raises_after_retries_with_negative_config(self, mock_urlopen):
+        """_call raises 'failed after retries' when max_attempts is 0 (retries=-1)."""
+        client = BundlerClient(
+            "https://bundler.example.com",
+            config=BundlerClientConfig(retries=-1),
+        )
+        with pytest.raises(BundlerError, match="Bundler request failed after retries"):
+            client._call("test_method", [])
+        # urlopen should never be called since the loop body doesn't execute
+        assert mock_urlopen.call_count == 0
+
+
 class TestGasEstimateAllDefaults:
     """Tests for GasEstimate defaults."""
 

@@ -73,8 +73,8 @@ func TestAAErrorMessages_AllNonEmpty(t *testing.T) {
 }
 
 func TestAAErrorMessages_Count(t *testing.T) {
-	// Should have exactly 18 entries based on the source
-	expectedCount := 18
+	// Should have exactly 20 entries based on the source
+	expectedCount := 20
 	if len(AAErrorMessages) != expectedCount {
 		t.Errorf("AAErrorMessages count = %d, want %d", len(AAErrorMessages), expectedCount)
 	}

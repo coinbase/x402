@@ -162,9 +162,9 @@ class Erc4337PayloadTest {
     /* -------- fromMap(null) behavior ---------------------------------------- */
 
     @Test
-    void fromMapWithNullThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                Erc4337Payload.fromMap(null));
+    void fromMapWithNullReturnsNull() {
+        // Jackson's convertValue(null, ...) returns null without throwing
+        assertNull(Erc4337Payload.fromMap(null));
     }
 
     /* -------- fromMap with unconvertible data ------------------------------- */

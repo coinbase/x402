@@ -237,11 +237,15 @@ func TestBundlerClient_GetUserOperationReceipt(t *testing.T) {
 }
 
 func TestBundlerClient_Timeout(t *testing.T) {
+	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Never respond — let it timeout
-		select {}
+		// Block until test signals done, simulating a slow server
+		<-done
 	}))
-	defer server.Close()
+	defer func() {
+		close(done)
+		server.Close()
+	}()
 
 	client := NewBundlerClient(server.URL, &BundlerClientConfig{TimeoutMs: 100})
 	_, err := client.EstimateUserOperationGas(context.Background(), map[string]interface{}{}, "0xEntryPoint")

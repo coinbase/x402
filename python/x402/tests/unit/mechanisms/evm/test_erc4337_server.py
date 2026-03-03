@@ -237,6 +237,37 @@ class TestParsePriceResolveChainIdFailure:
             scheme.parse_price("1.00", "not-a-valid-network-at-all")
 
 
+class TestPreserveUserOpWhenExtraIsNone:
+    """Tests for preserving userOperation when enhanced.extra is None."""
+
+    def test_user_op_preserved_when_enhanced_extra_is_none(self):
+        """userOperation is preserved even when parent returns enhanced with extra=None."""
+        scheme = ExactEvmSchemeERC4337()
+        req = _make_requirements(
+            extra={
+                "userOperation": {
+                    "supported": True,
+                    "bundlerUrl": "https://bundler.example.com",
+                    "entrypoint": "0xEntryPoint",
+                },
+            }
+        )
+        sk = _make_supported_kind()
+
+        # Parent returns enhanced with extra=None, triggering line 53: enhanced.extra = {}
+        enhanced_mock = _make_requirements(extra=None)
+        with patch.object(
+            ExactEvmSchemeERC4337.__bases__[0],
+            "enhance_payment_requirements",
+            return_value=enhanced_mock,
+        ):
+            enhanced = scheme.enhance_payment_requirements(req, sk, [])
+            assert enhanced.extra is not None
+            assert "userOperation" in enhanced.extra
+            assert enhanced.extra["userOperation"]["supported"] is True
+            assert enhanced.extra["userOperation"]["bundlerUrl"] == "https://bundler.example.com"
+
+
 class TestEnhanceFromErc4337RegistryNonOverwrite:
     """Tests for _enhance_from_erc4337_registry non-overwrite behavior."""
 
