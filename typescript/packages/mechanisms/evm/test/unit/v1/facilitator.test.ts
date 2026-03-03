@@ -169,7 +169,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_evm_payload_authorization_value");
+      expect(result.invalidReason).toBe("invalid_exact_evm_payload_authorization_value_mismatch");
     });
 
     it("should reject if balance is insufficient", async () => {
