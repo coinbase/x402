@@ -50,22 +50,22 @@ const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"; // Solana Devnet
 
 // Initialize the x402 Facilitator
 const facilitator = new x402Facilitator()
-  .onBeforeVerify(async context => {
+  .onBeforeVerify(async (context) => {
     console.log("Before verify", context);
   })
-  .onAfterVerify(async context => {
+  .onAfterVerify(async (context) => {
     console.log("After verify", context);
   })
-  .onVerifyFailure(async context => {
+  .onVerifyFailure(async (context) => {
     console.log("Verify failure", context);
   })
-  .onBeforeSettle(async context => {
+  .onBeforeSettle(async (context) => {
     console.log("Before settle", context);
   })
-  .onAfterSettle(async context => {
+  .onAfterSettle(async (context) => {
     console.log("After settle", context);
   })
-  .onSettleFailure(async context => {
+  .onSettleFailure(async (context) => {
     console.log("Settle failure", context);
   });
 
@@ -239,7 +239,14 @@ app.get("/health", (req, res) => {
 
 // Start the server
 app.listen(parseInt(PORT), () => {
-  console.log(`🚀 All Networks Facilitator listening on http://localhost:${PORT}`);
-  console.log(`   Supported networks: ${facilitator.getSupported().kinds.map(k => k.network).join(", ")}`);
+  console.log(
+    `🚀 All Networks Facilitator listening on http://localhost:${PORT}`,
+  );
+  console.log(
+    `   Supported networks: ${facilitator
+      .getSupported()
+      .kinds.map((k) => k.network)
+      .join(", ")}`,
+  );
   console.log();
 });
