@@ -93,3 +93,4 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | dynamicPayTo | ✅ | ✅ | ✅ |
 | dynamicPrice | ✅ | ✅ | ✅ |
 | paywall (browser UI) | ✅ | ✅ | ✅ |
+| custom paywall provider | ❌ | ✅ | ❌ |
