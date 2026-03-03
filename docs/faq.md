@@ -131,7 +131,7 @@ We acknowledge that the repo is primarily under Coinbase ownership today. This i
 #### I keep getting `402 Payment Required`, even after attaching `PAYMENT-SIGNATURE`. Why?
 
 1. Signature is invalid (wrong chain ID or payload fields).
-2. Payment amount is less than the required `amount` in the payment requirements.
+2. Payment amount does not exactly match the required `amount` in the payment requirements (the exact scheme requires strict equality - no overpayment or underpayment).
 3. Address has insufficient USDC or was flagged by KYT.\
    Check the `error` field in the server's JSON response for details.
 
