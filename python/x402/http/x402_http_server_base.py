@@ -351,7 +351,11 @@ class x402HTTPServerBase:
 
         # Verify payment (yield for async/sync handling)
         try:
-            verify_result = yield ("verify_payment", (payment_payload, matching_reqs), None)
+            verify_result = yield (
+                "verify_payment",
+                (payment_payload, matching_reqs),
+                None,
+            )
 
             if not verify_result.is_valid:
                 return HTTPProcessResult(

@@ -19,8 +19,8 @@ TX_STATUS_FAILED = 0
 # Default validity period (1 hour in seconds)
 DEFAULT_VALIDITY_PERIOD = 3600
 
-# Default validity buffer (30 seconds before now for clock skew)
-DEFAULT_VALIDITY_BUFFER = 30
+# Default validity buffer (10 minutes before now for clock skew)
+DEFAULT_VALIDITY_BUFFER = 600
 
 # ERC-6492 magic value (32 bytes)
 # bytes32(uint256(keccak256("erc6492.invalid.signature")) - 1)
@@ -177,60 +177,28 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # Monad Mainnet
+    "eip155:143": {
+        "chain_id": 143,
+        "default_asset": {
+            "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+            "name": "USD Coin",
+            "version": "2",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDC": {
+                "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+                "name": "USD Coin",
+                "version": "2",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
-# Network aliases (legacy names to CAIP-2)
-NETWORK_ALIASES: dict[str, str] = {
-    "base": "eip155:8453",
-    "base-mainnet": "eip155:8453",
-    "base-sepolia": "eip155:84532",
-    "ethereum": "eip155:1",
-    "mainnet": "eip155:1",
-    "polygon": "eip155:137",
-    "avalanche": "eip155:43114",
-    "megaeth": "eip155:4326",
-}
-
-# V1 supported networks (legacy name-based)
-V1_NETWORKS = [
-    "abstract",
-    "abstract-testnet",
-    "base-sepolia",
-    "base",
-    "avalanche-fuji",
-    "avalanche",
-    "iotex",
-    "sei",
-    "sei-testnet",
-    "polygon",
-    "polygon-amoy",
-    "peaq",
-    "story",
-    "educhain",
-    "skale-base-sepolia",
-    "megaeth",
-]
-
-# V1 network name to chain ID mapping
-V1_NETWORK_CHAIN_IDS: dict[str, int] = {
-    "base": 8453,
-    "base-sepolia": 84532,
-    "ethereum": 1,
-    "polygon": 137,
-    "polygon-amoy": 80002,
-    "avalanche": 43114,
-    "avalanche-fuji": 43113,
-    "abstract": 2741,
-    "abstract-testnet": 11124,
-    "iotex": 4689,
-    "sei": 1329,
-    "sei-testnet": 713715,
-    "peaq": 3338,
-    "story": 1513,
-    "educhain": 656476,
-    "skale-base-sepolia": 1444673419,
-    "megaeth": 4326,
-}
+# V1 legacy constants are in x402.mechanisms.evm.v1.constants
+# (NETWORK_ALIASES, V1_NETWORKS, V1_NETWORK_CHAIN_IDS)
 
 # EIP-3009 ABIs
 TRANSFER_WITH_AUTHORIZATION_VRS_ABI = [

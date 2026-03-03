@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+
+	goethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // ExactEIP3009Authorization represents the EIP-3009 TransferWithAuthorization data
@@ -55,7 +57,6 @@ type Permit2TokenPermissions struct {
 type Permit2Witness struct {
 	To         string `json:"to"`         // Destination address for funds (hex)
 	ValidAfter string `json:"validAfter"` // Unix timestamp (decimal string) - payment invalid before this time
-	Extra      string `json:"extra"`      // Extra data (hex, typically "0x" for empty)
 }
 
 // Permit2Authorization represents the Permit2 authorization parameters.
@@ -92,7 +93,6 @@ func (p *ExactPermit2Payload) ToMap() map[string]interface{} {
 			"witness": map[string]interface{}{
 				"to":         p.Permit2Authorization.Witness.To,
 				"validAfter": p.Permit2Authorization.Witness.ValidAfter,
-				"extra":      p.Permit2Authorization.Witness.Extra,
 			},
 		},
 	}
@@ -170,13 +170,6 @@ func Permit2PayloadFromMap(data map[string]interface{}) (*ExactPermit2Payload, e
 		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness.validAfter field")
 	}
 
-	if extra, ok := witness["extra"].(string); ok {
-		payload.Permit2Authorization.Witness.Extra = extra
-	} else {
-		// Extra is optional, default to "0x"
-		payload.Permit2Authorization.Witness.Extra = "0x"
-	}
-
 	return payload, nil
 }
 
@@ -192,13 +185,36 @@ func IsEIP3009Payload(data map[string]interface{}) bool {
 	return ok
 }
 
-// ClientEvmSigner defines the interface for client-side EVM signing operations
+// ClientEvmSignerWithTxSigning extends ClientEvmSigner with raw transaction signing capabilities.
+// Required for the ERC-20 approval gas sponsoring extension, where the client signs
+// (but does not broadcast) an approve(Permit2, MaxUint256) transaction.
+type ClientEvmSignerWithTxSigning interface {
+	ClientEvmSigner
+
+	// SignTransaction signs an EIP-1559 transaction and returns the RLP-encoded bytes.
+	SignTransaction(ctx context.Context, tx *goethtypes.Transaction) ([]byte, error)
+
+	// GetTransactionCount returns the pending nonce for an address.
+	GetTransactionCount(ctx context.Context, address string) (uint64, error)
+
+	// EstimateFeesPerGas returns the EIP-1559 maxFeePerGas and maxPriorityFeePerGas.
+	EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error)
+}
+
+// ClientEvmSigner defines the interface for client-side EVM signing operations.
+//
+// Typically created via NewClientSignerFromPrivateKeyWithClient which provides
+// both signing and on-chain read capability. The ReadContract method is required
+// for EIP-2612 gas sponsoring (querying nonces and checking allowances).
 type ClientEvmSigner interface {
 	// Address returns the signer's Ethereum address
 	Address() string
 
 	// SignTypedData signs EIP-712 typed data
 	SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error)
+
+	// ReadContract reads data from a smart contract
+	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 }
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations

@@ -62,6 +62,9 @@ func TestMCPEVMIntegration(t *testing.T) {
 	defer cancel()
 
 	t.Run("MCP Payment Flow - Real EVM Transactions with Real MCP SDK", func(t *testing.T) {
+		// Wait for any pending transactions from previous tests (shared facilitator wallet)
+		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
+
 		// ========================================================================
 		// Setup Client (Payer)
 		// ========================================================================
@@ -148,7 +151,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}, nil)
 
 		// Create payment wrapper
-		paidHandler, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+		paymentWrapper := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 			Accepts: accepts,
 			Resource: &mcp.ResourceInfo{
 				URL:         "mcp://tool/get_weather",
@@ -156,22 +159,6 @@ func TestMCPEVMIntegration(t *testing.T) {
 				MimeType:    "application/json",
 			},
 		})
-		if err != nil {
-			t.Fatalf("Failed to create payment wrapper: %v", err)
-		}
-
-		// Free tool handler
-		freeHandler := func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-			return mcp.MCPToolResult{
-				Content: []mcp.MCPContentItem{
-					{Type: "text", Text: "pong"},
-				},
-				IsError: false,
-			}, nil
-		}
-
-		// Paid tool handler - wrap free handler with payment
-		paidToolHandler := paidHandler(freeHandler)
 
 		// Register free tool
 		mcpServer.AddTool(&mcpsdk.Tool{
@@ -179,46 +166,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 			Description: "A free health check tool",
 			InputSchema: json.RawMessage(`{"type": "object"}`),
 		}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			args := make(map[string]interface{})
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return &mcpsdk.CallToolResult{
-						IsError: true,
-						Content: []mcpsdk.Content{
-							&mcpsdk.TextContent{Text: fmt.Sprintf("failed to unmarshal arguments: %v", err)},
-						},
-					}, nil
-				}
-			}
-			meta := make(map[string]interface{})
-			if req.Params.Meta != nil {
-				meta = req.Params.Meta.GetMeta()
-			}
-
-			toolContext := mcp.MCPToolContext{
-				ToolName:  req.Params.Name,
-				Arguments: args,
-				Meta:      meta,
-			}
-
-			result, err := freeHandler(ctx, args, toolContext)
-			if err != nil {
-				return &mcpsdk.CallToolResult{
-					IsError: true,
-					Content: []mcpsdk.Content{
-						&mcpsdk.TextContent{Text: err.Error()},
-					},
-				}, nil
-			}
-
-			content := make([]mcpsdk.Content, len(result.Content))
-			for i, item := range result.Content {
-				content[i] = &mcpsdk.TextContent{Text: item.Text}
-			}
-
 			return &mcpsdk.CallToolResult{
-				Content: content,
-				IsError: result.IsError,
+				Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "pong"}},
 			}, nil
 		})
 
@@ -227,66 +176,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 			Name:        "get_weather",
 			Description: "Get current weather for a city. Requires payment of $0.001.",
 			InputSchema: json.RawMessage(`{"type": "object", "properties": {"city": {"type": "string"}}}`),
-		}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			args := make(map[string]interface{})
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return &mcpsdk.CallToolResult{
-						IsError: true,
-						Content: []mcpsdk.Content{
-							&mcpsdk.TextContent{Text: fmt.Sprintf("failed to unmarshal arguments: %v", err)},
-						},
-					}, nil
-				}
-			}
-			meta := make(map[string]interface{})
-			if req.Params.Meta != nil {
-				meta = req.Params.Meta.GetMeta()
-			}
-
-			toolContext := mcp.MCPToolContext{
-				ToolName:  req.Params.Name,
-				Arguments: args,
-				Meta:      meta,
-			}
-
-			result, err := paidToolHandler(ctx, args, toolContext)
-			if err != nil {
-				return &mcpsdk.CallToolResult{
-					IsError: true,
-					Content: []mcpsdk.Content{
-						&mcpsdk.TextContent{Text: err.Error()},
-					},
-				}, nil
-			}
-
-			content := make([]mcpsdk.Content, len(result.Content))
-			for i, item := range result.Content {
-				content[i] = &mcpsdk.TextContent{Text: item.Text}
-			}
-
-			callResult := &mcpsdk.CallToolResult{
-				Content: content,
-				IsError: result.IsError,
-			}
-
-			// Preserve StructuredContent if present (needed for payment required responses)
-			if result.StructuredContent != nil {
-				callResult.StructuredContent = result.StructuredContent
-			}
-
-			// Add _meta if present - this is critical for payment response
-			// Convert map[string]interface{} to mcpsdk.Meta (which is map[string]any)
-			if result.Meta != nil {
-				metaMap := make(mcpsdk.Meta)
-				for k, v := range result.Meta {
-					metaMap[k] = v
-				}
-				callResult.Meta = metaMap
-			}
-
-			return callResult, nil
-		})
+		}, paymentWrapper.Wrap(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+			return &mcpsdk.CallToolResult{
+				Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "pong"}},
+			}, nil
+		}))
 
 		// ========================================================================
 		// Start HTTP Server for SSE Transport
@@ -342,9 +236,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 		}
 		defer clientSession.Close()
 
-		// Wrap with x402 - use SDK adapter to bridge MCP SDK with x402
-		adapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
-		x402McpClient := mcp.NewX402MCPClient(adapter, paymentClient, mcp.Options{
+		// Wrap session with x402 payment handling
+		x402McpClient := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
 			AutoPayment: mcp.BoolPtr(true),
 			OnPaymentRequested: func(context mcp.PaymentRequiredContext) (bool, error) {
 				t.Logf("💰 Payment requested: %s atomic units", context.PaymentRequired.Accepts[0].Amount)
@@ -381,8 +274,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 2: Paid tool returns 402 without payment (manual test)
 		// ========================================================================
 		t.Run("Paid tool returns 402 without payment", func(t *testing.T) {
-			manualAdapter := mcp.NewMCPClientAdapter(mcpClient, clientSession)
-			manualClient := mcp.NewX402MCPClient(manualAdapter, paymentClient, mcp.Options{
+			manualClient := mcp.NewX402MCPClient(clientSession, paymentClient, mcp.Options{
 				AutoPayment: mcp.BoolPtr(false),
 			})
 
@@ -422,7 +314,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 				t.Error("Expected PaymentMade to be true")
 			}
 			if result.IsError {
-				t.Error("Expected IsError to be false")
+				t.Errorf("Expected IsError to be false, content: %+v", result.Content)
 			}
 
 			// Verify we got the tool result
@@ -432,7 +324,7 @@ func TestMCPEVMIntegration(t *testing.T) {
 
 			// Verify payment response (settlement result)
 			if result.PaymentResponse == nil {
-				t.Fatal("Expected PaymentResponse to be set")
+				t.Fatalf("Expected PaymentResponse to be set, content: %+v", result.Content)
 			}
 			if !result.PaymentResponse.Success {
 				t.Error("Expected settlement to succeed")
@@ -454,6 +346,8 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 4: Multiple paid tool calls work
 		// ========================================================================
 		t.Run("Multiple paid tool calls work", func(t *testing.T) {
+			// Wait for the previous test's settlement tx to be mined
+			waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
 			t.Log("\n🔄 Starting second paid tool call...\n")
 
 			result, err := x402McpClient.CallTool(ctx, "get_weather", map[string]interface{}{"city": "Los Angeles"})
@@ -464,8 +358,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 			if !result.PaymentMade {
 				t.Error("Expected PaymentMade to be true")
 			}
+			if result.IsError {
+				t.Errorf("Expected IsError to be false, content: %+v", result.Content)
+			}
 			if result.PaymentResponse == nil {
-				t.Fatal("Expected PaymentResponse to be set")
+				t.Fatalf("Expected PaymentResponse to be set, content: %+v", result.Content)
 			}
 			if !result.PaymentResponse.Success {
 				t.Error("Expected successful settlement")
@@ -482,7 +379,11 @@ func TestMCPEVMIntegration(t *testing.T) {
 		// Test 5: List tools works
 		// ========================================================================
 		t.Run("List tools works", func(t *testing.T) {
-			tools, err := x402McpClient.ListTools(ctx)
+			session, ok := x402McpClient.Client().(*mcpsdk.ClientSession)
+			if !ok {
+				t.Fatal("Expected underlying client to be *mcp.ClientSession")
+			}
+			tools, err := session.ListTools(ctx, nil)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}

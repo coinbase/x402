@@ -71,7 +71,10 @@ function setupMockHttpServer(
   processResult: HTTPProcessResult,
   settlementResult:
     | { success: true; headers: Record<string, string> }
-    | { success: false; errorReason: string } = { success: true, headers: {} },
+    | { success: false; errorReason: string; headers: Record<string, string> } = {
+    success: true,
+    headers: {},
+  },
 ): void {
   mockProcessHTTPRequest.mockResolvedValue(processResult);
   mockProcessSettlement.mockResolvedValue(settlementResult);
@@ -316,6 +319,13 @@ describe("paymentMiddleware", () => {
       mockPaymentPayload,
       mockPaymentRequirements,
       undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/api/test",
+          method: "GET",
+        }),
+        responseBody: expect.any(Buffer),
+      }),
     );
     expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settled");
   });
@@ -389,7 +399,11 @@ describe("paymentMiddleware", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+      },
     );
 
     const middleware = paymentMiddleware(
@@ -408,6 +422,7 @@ describe("paymentMiddleware", () => {
 
     await middleware(req, res, next);
 
+    expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settlement-failed-encoded");
     expect(res.status).toHaveBeenCalledWith(402);
     expect(res.json).toHaveBeenCalledWith({
       error: "Settlement failed",

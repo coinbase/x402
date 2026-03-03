@@ -2,6 +2,7 @@ import { PaymentPayload, PaymentRequirements } from "./payments";
 import { Network } from "./";
 
 export type VerifyRequest = {
+  x402Version: number;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };
@@ -15,6 +16,7 @@ export type VerifyResponse = {
 };
 
 export type SettleRequest = {
+  x402Version: number;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };

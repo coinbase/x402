@@ -4,11 +4,22 @@
   "language": "typescript",
   "protocolFamilies": [
     "evm",
-    "svm"
+    "svm",
+    "aptos"
   ],
   "x402Versions": [
     1,
     2
+  ],
+  "evm": {
+    "transferMethods": [
+      "eip3009",
+      "permit2"
+    ]
+  },
+  "extensions": [
+    "eip2612GasSponsoring",
+    "erc20ApprovalGasSponsoring"
   ],
   "environment": {
     "required": [
@@ -17,6 +28,8 @@
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],
-    "optional": []
+    "optional": [
+      "APTOS_PRIVATE_KEY"
+    ]
   }
 }
