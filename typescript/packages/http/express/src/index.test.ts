@@ -71,7 +71,12 @@ function setupMockHttpServer(
   processResult: HTTPProcessResult,
   settlementResult:
     | { success: true; headers: Record<string, string> }
-    | { success: false; errorReason: string; headers: Record<string, string> } = {
+    | {
+        success: false;
+        errorReason: string;
+        headers: Record<string, string>;
+        response: { status: number; headers: Record<string, string>; body?: unknown };
+      } = {
     success: true,
     headers: {},
   },
@@ -386,10 +391,7 @@ describe("paymentMiddleware", () => {
     await middleware(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(402);
-    expect(res.json).toHaveBeenCalledWith({
-      error: "Settlement failed",
-      details: "Settlement rejected",
-    });
+    expect(res.json).toHaveBeenCalledWith({});
   });
 
   it("returns 402 when settlement returns success: false", async () => {
@@ -403,6 +405,14 @@ describe("paymentMiddleware", () => {
         success: false,
         errorReason: "Insufficient funds",
         headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+        response: {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            "PAYMENT-RESPONSE": "settlement-failed-encoded",
+          },
+          body: {},
+        },
       },
     );
 
@@ -424,10 +434,7 @@ describe("paymentMiddleware", () => {
 
     expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settlement-failed-encoded");
     expect(res.status).toHaveBeenCalledWith(402);
-    expect(res.json).toHaveBeenCalledWith({
-      error: "Settlement failed",
-      details: "Insufficient funds",
-    });
+    expect(res.json).toHaveBeenCalledWith({});
   });
 
   it("passes paywallConfig to processHTTPRequest", async () => {
