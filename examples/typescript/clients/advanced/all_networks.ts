@@ -63,15 +63,10 @@ async function main(): Promise<void> {
   const body = await response.json();
   console.log("Response body:", body);
 
-  // Extract payment response if present
-  if (response.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
-      response.headers.get(name),
-    );
-    console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
-  } else {
-    console.log(`\nNo payment settled (response status: ${response.status})`);
-  }
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    response.headers.get(name),
+  );
+  console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
 }
 
 main().catch(error => {
