@@ -64,9 +64,7 @@ export class MockFacilitatorClient implements FacilitatorClient {
     requirements?: PaymentRequirements,
   ): Promise<VerifyResponse> {
     const payload =
-      "paymentPayload" in payloadOrRequest
-        ? payloadOrRequest.paymentPayload
-        : payloadOrRequest;
+      "paymentPayload" in payloadOrRequest ? payloadOrRequest.paymentPayload : payloadOrRequest;
     const reqs =
       requirements ??
       ("paymentRequirements" in payloadOrRequest
@@ -99,9 +97,7 @@ export class MockFacilitatorClient implements FacilitatorClient {
     requirements?: PaymentRequirements,
   ): Promise<SettleResponse> {
     const payload =
-      "paymentPayload" in payloadOrRequest
-        ? payloadOrRequest.paymentPayload
-        : payloadOrRequest;
+      "paymentPayload" in payloadOrRequest ? payloadOrRequest.paymentPayload : payloadOrRequest;
     const reqs =
       requirements ??
       ("paymentRequirements" in payloadOrRequest

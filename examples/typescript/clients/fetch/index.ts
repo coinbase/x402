@@ -42,7 +42,6 @@ async function main(): Promise<void> {
     response.headers.get(name),
   );
   console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
-
 }
 
 main().catch(error => {

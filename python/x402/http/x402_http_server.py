@@ -186,9 +186,7 @@ class x402HTTPResourceServer(x402HTTPServerBase):
                 network=settle_response.network,
                 payer=settle_response.payer,
             )
-            failure.response = await self._build_settlement_failure_response_async(
-                failure, context
-            )
+            failure.response = await self._build_settlement_failure_response_async(failure, context)
             return failure
 
         except Exception as e:
@@ -206,9 +204,7 @@ class x402HTTPResourceServer(x402HTTPServerBase):
                 transaction="",
                 network=requirements.network,
             )
-            failure.response = await self._build_settlement_failure_response_async(
-                failure, context
-            )
+            failure.response = await self._build_settlement_failure_response_async(failure, context)
             return failure
 
     async def _build_settlement_failure_response_async(
@@ -221,17 +217,11 @@ class x402HTTPResourceServer(x402HTTPServerBase):
         Awaits settlement_failed_response_body hook if it returns a coroutine.
         """
         settlement_headers = failure.headers
-        route_config = (
-            self._get_route_config(context.path, context.method)
-            if context
-            else None
-        )
+        route_config = self._get_route_config(context.path, context.method) if context else None
 
         custom_body = None
         if route_config and route_config.settlement_failed_response_body:
-            hook_result = route_config.settlement_failed_response_body(
-                context, failure
-            )
+            hook_result = route_config.settlement_failed_response_body(context, failure)
             if asyncio.iscoroutine(hook_result):
                 custom_body = await hook_result
             else:

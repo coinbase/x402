@@ -638,8 +638,23 @@ export class x402HTTPResourceServer {
   }
 
   /**
+   * Check if a request requires payment based on route configuration
+   *
+   * @param context - HTTP request context
+   * @returns True if the route requires payment, false otherwise
+   */
+  requiresPayment(context: HTTPRequestContext): boolean {
+    const routeConfig = this.getRouteConfig(context.path, context.method);
+    return routeConfig !== undefined;
+  }
+
+  /**
    * Build HTTPResponseInstructions for settlement failure.
    * Uses settlementFailedResponseBody hook if configured, otherwise defaults to empty body.
+   *
+   * @param failure - Settlement failure result with headers
+   * @param transportContext - Optional HTTP transport context for the request
+   * @returns HTTP response instructions for the 402 settlement failure response
    */
   private async buildSettlementFailureResponse(
     failure: Omit<ProcessSettleFailureResponse, "response">,
@@ -666,17 +681,6 @@ export class x402HTTPResourceServer {
       body,
       isHtml: contentType.includes("text/html"),
     };
-  }
-
-  /**
-   * Check if a request requires payment based on route configuration
-   *
-   * @param context - HTTP request context
-   * @returns True if the route requires payment, false otherwise
-   */
-  requiresPayment(context: HTTPRequestContext): boolean {
-    const routeConfig = this.getRouteConfig(context.path, context.method);
-    return routeConfig !== undefined;
   }
 
   /**

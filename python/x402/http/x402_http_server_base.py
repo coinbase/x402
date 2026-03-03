@@ -574,11 +574,7 @@ class x402HTTPServerBase:
         Merges settlement headers (including PAYMENT-RESPONSE) into the response.
         """
         settlement_headers = failure.headers
-        route_config = (
-            self._get_route_config(context.path, context.method)
-            if context
-            else None
-        )
+        route_config = self._get_route_config(context.path, context.method) if context else None
 
         custom_body = None
         if route_config and route_config.settlement_failed_response_body:

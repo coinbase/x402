@@ -151,9 +151,7 @@ export async function handleSettlement(
     if (!result.success) {
       // Settlement failed - do not return the protected resource
       const { response } = result;
-      const body = response.isHtml
-        ? response.body
-        : JSON.stringify(response.body ?? {});
+      const body = response.isHtml ? response.body : JSON.stringify(response.body ?? {});
       return new NextResponse(body, {
         status: response.status,
         headers: response.headers,

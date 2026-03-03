@@ -447,7 +447,7 @@ class PaymentMiddleware:
                             start_response(status, headers)
                             return [body]
 
-                    except Exception as e:
+                    except Exception:
                         # Settlement error - return empty body with 402
                         start_response(
                             "402 Payment Required",

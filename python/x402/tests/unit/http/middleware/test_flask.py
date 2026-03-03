@@ -548,7 +548,10 @@ class TestFlaskMiddlewareIntegration:
                 error_reason="Insufficient funds",
                 response=HTTPResponseInstructions(
                     status=402,
-                    headers={"Content-Type": "application/json", "PAYMENT-RESPONSE": "base64encoded"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "PAYMENT-RESPONSE": "base64encoded",
+                    },
                     body={},
                 ),
             )

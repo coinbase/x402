@@ -386,15 +386,16 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		for key, value := range settleResult.Headers {
 			c.Header(key, value)
 		}
-		if config.ErrorHandler != nil {
+		switch {
+		case config.ErrorHandler != nil:
 			errorReason := settleResult.ErrorReason
 			if errorReason == "" {
 				errorReason = "Settlement failed"
 			}
 			config.ErrorHandler(c, fmt.Errorf("settlement failed: %s", errorReason))
-		} else if settleResult.Response != nil {
+		case settleResult.Response != nil:
 			handlePaymentError(c, settleResult.Response, config)
-		} else {
+		default:
 			// Fallback if Response is nil
 			c.JSON(http.StatusPaymentRequired, map[string]interface{}{})
 		}
