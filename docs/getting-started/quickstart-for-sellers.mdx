@@ -586,6 +586,74 @@ Learn more about the discovery layer in the [Bazaar documentation](/extensions/b
 * If you run into trouble, check out the examples in the [repo](https://github.com/coinbase/x402/tree/main/examples) for more context and full code.
 * Run `npm install` or `go mod tidy` to install dependencies
 
+### 6. Customize Paywall UI (Optional)
+
+<Tabs>
+  <Tab title="Go">
+    The Go SDK allows you to customize the HTML paywall shown to browser users when payment is required. You can register a custom `PaywallProvider` to generate your own HTML:
+
+    ```go
+    import (
+        x402http "github.com/coinbase/x402/go/http"
+        "github.com/coinbase/x402/go/types"
+    )
+
+    // Implement PaywallProvider interface
+    type CustomPaywallProvider struct{}
+
+    func (p *CustomPaywallProvider) GenerateHTML(
+        paymentRequired types.PaymentRequired,
+        config *x402http.PaywallConfig,
+    ) string {
+        // Return your custom HTML
+        return `<html><body><h1>Custom Payment Page</h1></body></html>`
+    }
+
+    // Register the provider
+    server := x402http.Newx402HTTPResourceServer(routes, opts...)
+    server.RegisterPaywallProvider(&CustomPaywallProvider{})
+    ```
+
+    **Using PaywallBuilder for Network-Specific Paywalls:**
+
+    For more granular control, use `PaywallBuilder` to compose network-specific handlers:
+
+    ```go
+    import x402http "github.com/coinbase/x402/go/http"
+
+    // Create custom handlers for specific networks
+    type CustomEVMHandler struct{}
+
+    func (h *CustomEVMHandler) Supports(req types.PaymentRequirements) bool {
+        return strings.HasPrefix(req.Network, "eip155:")
+    }
+
+    func (h *CustomEVMHandler) GenerateHTML(
+        req types.PaymentRequirements,
+        paymentRequired types.PaymentRequired,
+        config *x402http.PaywallConfig,
+    ) string {
+        return `<html><body><h1>EVM Payment</h1></body></html>`
+    }
+
+    // Build and register
+    provider := x402http.NewPaywallBuilder().
+        WithNetwork(&CustomEVMHandler{}).
+        WithNetwork(&x402http.SVMPaywallHandler{}). // Use built-in for Solana
+        Build()
+
+    server.RegisterPaywallProvider(provider)
+    ```
+
+    **Paywall Priority:**
+    1. Per-route `CustomPaywallHTML` (highest priority)
+    2. Registered `PaywallProvider`
+    3. Built-in EVM/SVM templates (default fallback)
+
+    The built-in templates support EVM (`eip155:*`) and Solana (`solana:*`) networks out of the box.
+  </Tab>
+</Tabs>
+
 ---
 
 ## Running on Mainnet
