@@ -1,10 +1,7 @@
- {
-    "name": "AiPayGent",
-    "description": "Pay-per-use AI API powered by Claude. Research, write,
-  analyze, translate, summarize, generate code and social media posts.
-  $0.01–$0.05 per call. Fully x402-compatible — hit /discover to see all
-  endpoints and pricing.",
-    "logoUrl": "/logos/aipaygent-logo.png",
-    "websiteUrl": "https://api.aipaygent.xyz",
-    "category": "Services/Endpoints"
-  }
+{
+  "name": "AIPAYgent",
+  "description": "140+ Claude-powered AI API endpoints with x402 micropayments. Agent memory, messaging, knowledge base, task board, file storage, and 65-tool MCP server. 10 free calls/day on Base Mainnet.",
+  "logoUrl": "/logos/aipaygent.png",
+  "websiteUrl": "https://api.aipaygent.xyz",
+  "category": "Services/Endpoints"
+}
