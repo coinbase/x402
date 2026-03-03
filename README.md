@@ -85,6 +85,18 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 - Ability to trade off speed of response for guarantee of payment
 - Extensible to different payment flows and networks
 
+## Why ERC-4337 Support Is Important
+
+x402's EVM payment schemes currently rely on EOA signatures (EIP-3009, Permit2), which require agents to hold raw private keys. This has two critical consequences:
+
+### Exposes spending vulnerabilities
+
+Without smart account support, agents must have direct access to wallet keys. A compromised agent — via prompt injection, supply chain attack, or server breach — gains unrestricted signing authority over the wallet's entire balance with no on-chain mechanism to limit the damage. ERC-4337 smart accounts solve this by letting agents operate with scoped session keys that enforce spending limits, whitelisted destinations, multi-sig thresholds, and time bounds in immutable contract logic that no application-level exploit can bypass.
+
+### Excludes the fastest-growing wallet ecosystem
+
+The EVM ecosystem is converging on smart accounts. Coinbase Smart Wallet, Safe, and other major wallet providers use ERC-4337. By only supporting EOA signatures, x402 cannot serve users of these wallets — which is increasingly the majority, especially in the institutional and agentic segments x402 targets.
+
 ## Specification
 
 See `specs/` for full documentation of the x402 standard/
