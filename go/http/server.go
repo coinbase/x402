@@ -213,7 +213,8 @@ func (e *RouteConfigurationError) Error() string {
 // x402HTTPResourceServer provides HTTP-specific payment handling
 type x402HTTPResourceServer struct {
 	*x402.X402ResourceServer
-	compiledRoutes []CompiledRoute
+	compiledRoutes  []CompiledRoute
+	paywallProvider PaywallProvider
 }
 
 // Newx402HTTPResourceServer creates a new HTTP resource server
@@ -245,6 +246,14 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	}
 
 	return server
+}
+
+// RegisterPaywallProvider registers a custom PaywallProvider for generating paywall HTML.
+// The provider takes precedence over the built-in EVM/SVM templates but is overridden
+// by per-route CustomPaywallHTML. Returns the server for method chaining.
+func (s *x402HTTPResourceServer) RegisterPaywallProvider(provider PaywallProvider) *x402HTTPResourceServer {
+	s.paywallProvider = provider
+	return s
 }
 
 // Initialize initializes the server by populating facilitator data and validating route configuration.
@@ -741,12 +750,20 @@ func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleRe
 	}, nil
 }
 
-// generatePaywallHTMLV2 generates HTML paywall for V2 PaymentRequired
+// generatePaywallHTMLV2 generates HTML paywall for V2 PaymentRequired.
+// Fallback chain: 1) customHTML, 2) registered PaywallProvider, 3) built-in templates.
 func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.PaymentRequired, config *PaywallConfig, customHTML string) string {
+	// Tier 1: Per-route custom HTML (highest priority)
 	if customHTML != "" {
 		return customHTML
 	}
 
+	// Tier 2: Registered PaywallProvider
+	if s.paywallProvider != nil {
+		return s.paywallProvider.GenerateHTML(paymentRequired, config)
+	}
+
+	// Tier 3: Built-in EVM/SVM templates (default fallback)
 	// Convert V2 to generic format to reuse existing HTML generation
 	genericRequired := x402.PaymentRequired{
 		X402Version: paymentRequired.X402Version,
@@ -857,6 +874,59 @@ func (s *x402HTTPResourceServer) getDisplayAmount(paymentRequired x402.PaymentRe
 		}
 	}
 	return 0.0
+}
+
+// injectPaywallConfig injects a window.x402 configuration script into a paywall HTML template.
+// Used by built-in PaywallNetworkHandler implementations to hydrate templates with payment data.
+func injectPaywallConfig(template string, paymentRequired types.PaymentRequired, config *PaywallConfig) string {
+	// Calculate display amount (assuming USDC with 6 decimals)
+	var displayAmount float64
+	if len(paymentRequired.Accepts) > 0 {
+		amount, err := strconv.ParseFloat(paymentRequired.Accepts[0].Amount, 64)
+		if err == nil {
+			displayAmount = amount / 1000000
+		}
+	}
+
+	appName := ""
+	appLogo := ""
+	testnet := false
+	currentURL := ""
+
+	if config != nil {
+		appName = config.AppName
+		appLogo = config.AppLogo
+		testnet = config.Testnet
+		currentURL = config.CurrentURL
+	}
+
+	if currentURL == "" && paymentRequired.Resource != nil {
+		currentURL = paymentRequired.Resource.URL
+	}
+
+	requirementsJSON, _ := json.Marshal(paymentRequired)
+
+	configScript := fmt.Sprintf(`<script>
+		window.x402 = {
+			paymentRequired: %s,
+			appName: "%s",
+			appLogo: "%s",
+			amount: %.6f,
+			testnet: %t,
+			displayAmount: %.2f,
+			currentUrl: "%s"
+		};
+	</script>`,
+		string(requirementsJSON),
+		html.EscapeString(appName),
+		html.EscapeString(appLogo),
+		displayAmount,
+		testnet,
+		displayAmount,
+		html.EscapeString(currentURL),
+	)
+
+	return strings.Replace(template, "</body>", configScript+"</body>", 1)
 }
 
 // ============================================================================
