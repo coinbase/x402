@@ -1,0 +1,7 @@
+{
+  "name": "AIPAYgent",
+  "description": "140+ Claude-powered AI API endpoints with x402 micropayments. Agent memory, messaging, knowledge base, task board, file storage, and 65-tool MCP server. 10 free calls/day on Base Mainnet.",
+  "logoUrl": "/logos/aipaygent.png",
+  "websiteUrl": "https://api.aipaygent.xyz",
+  "category": "Services/Endpoints"
+}
