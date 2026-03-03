@@ -124,8 +124,8 @@ func DecodeSwigCompactInstructions(data []byte) ([]SwigCompactInstruction, error
 }
 
 // IsSwigTransaction returns true when the transaction has a Swig layout:
-//   - All instructions except the last are compute budget or secp256r1 precompile
-//   - The last instruction is Swig program with SignV2 discriminator
+//   - Every instruction is one of: compute budget, secp256r1 precompile, or Swig SignV2
+//   - At least one Swig SignV2 instruction is present
 func IsSwigTransaction(tx *solana.Transaction) bool {
 	instructions := tx.Message.Instructions
 	if len(instructions) == 0 {
@@ -135,31 +135,29 @@ func IsSwigTransaction(tx *solana.Transaction) bool {
 	secp256r1Pubkey := solana.MustPublicKeyFromBase58(Secp256r1PrecompileAddress)
 	swigPubkey := solana.MustPublicKeyFromBase58(SwigProgramAddress)
 
-	// All instructions except the last must be compute budget or secp256r1 precompile
-	for i := 0; i < len(instructions)-1; i++ {
-		if int(instructions[i].ProgramIDIndex) >= len(tx.Message.AccountKeys) {
+	hasSignV2 := false
+	for _, inst := range instructions {
+		if int(inst.ProgramIDIndex) >= len(tx.Message.AccountKeys) {
 			return false
 		}
-		progID := tx.Message.AccountKeys[instructions[i].ProgramIDIndex]
-		if !progID.Equals(solana.ComputeBudget) && !progID.Equals(secp256r1Pubkey) {
-			return false
+		progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
+		if progID.Equals(solana.ComputeBudget) || progID.Equals(secp256r1Pubkey) {
+			continue
 		}
+		if progID.Equals(swigPubkey) {
+			if len(inst.Data) < 2 {
+				return false
+			}
+			discriminator := binary.LittleEndian.Uint16(inst.Data[0:2])
+			if discriminator != SwigSignV2Discriminator {
+				return false
+			}
+			hasSignV2 = true
+			continue
+		}
+		return false // unrecognized instruction
 	}
-
-	// Last instruction must be Swig program with SignV2 discriminator
-	lastInst := instructions[len(instructions)-1]
-	if int(lastInst.ProgramIDIndex) >= len(tx.Message.AccountKeys) {
-		return false
-	}
-	progID := tx.Message.AccountKeys[lastInst.ProgramIDIndex]
-	if !progID.Equals(swigPubkey) {
-		return false
-	}
-	if len(lastInst.Data) < 2 {
-		return false
-	}
-	discriminator := binary.LittleEndian.Uint16(lastInst.Data[0:2])
-	return discriminator == SwigSignV2Discriminator
+	return hasSignV2
 }
 
 // ParseSwigResult holds the flattened instructions and the Swig PDA address.
@@ -169,9 +167,12 @@ type ParseSwigResult struct {
 }
 
 // ParseSwigTransaction flattens a Swig transaction into the same instruction
-// layout as a regular one. It collects non-precompile outer instructions
-// (compute budgets) and resolves the compact instructions embedded in the
-// SignV2 instruction.
+// layout as a regular one. It collects non-precompile, non-SignV2 outer
+// instructions (compute budgets) and resolves the compact instructions embedded
+// in each SignV2 instruction.
+//
+// A transaction may contain multiple SignV2 instructions. All must reference
+// the same Swig PDA (accounts[0]).
 func ParseSwigTransaction(tx *solana.Transaction) (*ParseSwigResult, error) {
 	instructions := tx.Message.Instructions
 	if len(instructions) == 0 {
@@ -179,71 +180,89 @@ func ParseSwigTransaction(tx *solana.Transaction) (*ParseSwigResult, error) {
 	}
 
 	secp256r1Pubkey := solana.MustPublicKeyFromBase58(Secp256r1PrecompileAddress)
-
-	// 1. Collect non-precompile outer instructions (compute budgets)
-	var result []solana.CompiledInstruction
-	for i := 0; i < len(instructions)-1; i++ {
-		progID := tx.Message.AccountKeys[instructions[i].ProgramIDIndex]
-		if !progID.Equals(secp256r1Pubkey) {
-			result = append(result, instructions[i])
-		}
-	}
-
-	// 2. Last instruction is SignV2
-	signV2 := instructions[len(instructions)-1]
-
-	// 3. Extract Swig PDA from SignV2's first account
-	if len(signV2.Accounts) < 2 {
-		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
-	}
-	if int(signV2.Accounts[0]) >= len(tx.Message.AccountKeys) {
-		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
-	}
-	swigConfigKey := tx.Message.AccountKeys[signV2.Accounts[0]]
-	swigPDA := swigConfigKey.String()
-
-	// 4. Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
-	if int(signV2.Accounts[1]) >= len(tx.Message.AccountKeys) {
-		return nil, errors.New("invalid_swig_wallet_address_derivation")
-	}
-	actualWalletAddress := tx.Message.AccountKeys[signV2.Accounts[1]]
 	swigPubkey := solana.MustPublicKeyFromBase58(SwigProgramAddress)
-	expectedWalletAddress, _, err := solana.FindProgramAddress(
-		[][]byte{[]byte("swig-wallet-address"), swigConfigKey.Bytes()},
-		swigPubkey,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive swig wallet address: %w", err)
-	}
-	if !actualWalletAddress.Equals(expectedWalletAddress) {
-		return nil, errors.New("invalid_swig_wallet_address_derivation")
-	}
 
-	// 5. Decode compact instructions from SignV2 data
-	compactInstructions, err := DecodeSwigCompactInstructions(signV2.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	// 6. Resolve compact instructions: remap local indices through signV2.Accounts
-	for _, ci := range compactInstructions {
-		if int(ci.ProgramIDIndex) >= len(signV2.Accounts) {
-			return nil, fmt.Errorf("compact instruction programIDIndex %d out of range (signV2 has %d accounts)",
-				ci.ProgramIDIndex, len(signV2.Accounts))
+	// 1. Single pass: separate SignV2 instructions from the rest
+	var result []solana.CompiledInstruction
+	var signV2Instructions []solana.CompiledInstruction
+	for _, inst := range instructions {
+		progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
+		if progID.Equals(secp256r1Pubkey) {
+			continue // skip precompile
 		}
-		accounts := make([]uint16, len(ci.Accounts))
-		for j, a := range ci.Accounts {
-			if int(a) >= len(signV2.Accounts) {
-				return nil, fmt.Errorf("compact instruction account index %d out of range (signV2 has %d accounts)",
-					a, len(signV2.Accounts))
+		if progID.Equals(swigPubkey) {
+			signV2Instructions = append(signV2Instructions, inst)
+		} else {
+			result = append(result, inst) // compute budget and other non-precompile instructions
+		}
+	}
+
+	if len(signV2Instructions) == 0 {
+		return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
+	}
+
+	// 2. Process each SignV2 instruction
+	swigPDA := ""
+	for _, signV2 := range signV2Instructions {
+		// Extract Swig PDA from SignV2's first account
+		if len(signV2.Accounts) < 2 {
+			return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
+		}
+		if int(signV2.Accounts[0]) >= len(tx.Message.AccountKeys) {
+			return nil, errors.New("invalid_exact_svm_payload_no_transfer_instruction")
+		}
+		swigConfigKey := tx.Message.AccountKeys[signV2.Accounts[0]]
+		pda := swigConfigKey.String()
+
+		// Enforce all SignV2 instructions share the same PDA
+		if swigPDA == "" {
+			swigPDA = pda
+		} else if pda != swigPDA {
+			return nil, errors.New("swig_pda_mismatch: all SignV2 instructions must reference the same Swig PDA")
+		}
+
+		// Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
+		if int(signV2.Accounts[1]) >= len(tx.Message.AccountKeys) {
+			return nil, errors.New("invalid_swig_wallet_address_derivation")
+		}
+		actualWalletAddress := tx.Message.AccountKeys[signV2.Accounts[1]]
+		expectedWalletAddress, _, err := solana.FindProgramAddress(
+			[][]byte{[]byte("swig-wallet-address"), swigConfigKey.Bytes()},
+			swigPubkey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive swig wallet address: %w", err)
+		}
+		if !actualWalletAddress.Equals(expectedWalletAddress) {
+			return nil, errors.New("invalid_swig_wallet_address_derivation")
+		}
+
+		// Decode compact instructions from SignV2 data
+		compactInstructions, err := DecodeSwigCompactInstructions(signV2.Data)
+		if err != nil {
+			return nil, err
+		}
+
+		// Resolve compact instructions: remap local indices through signV2.Accounts
+		for _, ci := range compactInstructions {
+			if int(ci.ProgramIDIndex) >= len(signV2.Accounts) {
+				return nil, fmt.Errorf("compact instruction programIDIndex %d out of range (signV2 has %d accounts)",
+					ci.ProgramIDIndex, len(signV2.Accounts))
 			}
-			accounts[j] = signV2.Accounts[a]
+			accounts := make([]uint16, len(ci.Accounts))
+			for j, a := range ci.Accounts {
+				if int(a) >= len(signV2.Accounts) {
+					return nil, fmt.Errorf("compact instruction account index %d out of range (signV2 has %d accounts)",
+						a, len(signV2.Accounts))
+				}
+				accounts[j] = signV2.Accounts[a]
+			}
+			result = append(result, solana.CompiledInstruction{
+				ProgramIDIndex: signV2.Accounts[ci.ProgramIDIndex],
+				Accounts:       accounts,
+				Data:           ci.Data,
+			})
 		}
-		result = append(result, solana.CompiledInstruction{
-			ProgramIDIndex: signV2.Accounts[ci.ProgramIDIndex],
-			Accounts:       accounts,
-			Data:           ci.Data,
-		})
 	}
 
 	return &ParseSwigResult{

@@ -215,8 +215,8 @@ export interface SwigCompactInstruction {
 
 /**
  * Returns true when the transaction has a Swig layout:
- *   - All instructions except the last are compute budget or secp256r1 precompile
- *   - The last instruction is Swig program with SignV2 discriminator
+ *   - Every instruction is one of: compute budget, secp256r1 precompile, or Swig SignV2
+ *   - At least one Swig SignV2 instruction is present
  *
  * @param instructions - Decompiled instruction array
  */
@@ -225,29 +225,30 @@ export function isSwigTransaction(
 ): boolean {
   if (instructions.length === 0) return false;
 
-  // All instructions except the last must be compute budget or secp256r1 precompile
-  for (let i = 0; i < instructions.length - 1; i++) {
-    const addr = instructions[i].programAddress.toString();
-    if (addr !== COMPUTE_BUDGET_PROGRAM_ADDRESS && addr !== SECP256R1_PRECOMPILE_ADDRESS) {
-      return false;
+  let hasSignV2 = false;
+  for (const ix of instructions) {
+    const addr = ix.programAddress.toString();
+    if (addr === COMPUTE_BUDGET_PROGRAM_ADDRESS || addr === SECP256R1_PRECOMPILE_ADDRESS) continue;
+    if (addr === SWIG_PROGRAM_ADDRESS) {
+      const data = ix.data;
+      if (!data || data.length < 2) return false;
+      const discriminator = data[0] | (data[1] << 8); // U16 LE
+      if (discriminator !== SWIG_SIGN_V2_DISCRIMINATOR) return false;
+      hasSignV2 = true;
+      continue;
     }
+    return false; // unrecognized instruction
   }
-
-  // Last instruction must be Swig program with SignV2 discriminator
-  const lastIx = instructions[instructions.length - 1];
-  if (lastIx.programAddress.toString() !== SWIG_PROGRAM_ADDRESS) return false;
-
-  const data = lastIx.data;
-  if (!data || data.length < 2) return false;
-
-  const discriminator = data[0] | (data[1] << 8); // U16 LE
-  return discriminator === SWIG_SIGN_V2_DISCRIMINATOR;
+  return hasSignV2;
 }
 
 /**
  * Flatten a Swig transaction into the same instruction layout as a regular one.
- * Collects non-precompile outer instructions (compute budgets) and resolves
- * the compact instructions embedded in the SignV2 instruction.
+ * Collects non-precompile, non-SignV2 outer instructions (compute budgets) and
+ * resolves the compact instructions embedded in each SignV2 instruction.
+ *
+ * A transaction may contain multiple SignV2 instructions. All must reference
+ * the same Swig PDA (accounts[0]).
  *
  * @param instructions  - Decompiled instruction array (from a Swig transaction)
  * @param staticAccounts - Ordered account list from the compiled transaction message
@@ -259,60 +260,80 @@ export async function parseSwigTransaction(
 ): Promise<{ instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any[] = [];
+  const signV2Instructions: Instruction[] = [];
 
-  // 1. Collect non-precompile outer instructions (compute budgets)
-  for (let i = 0; i < instructions.length - 1; i++) {
-    if (instructions[i].programAddress.toString() !== SECP256R1_PRECOMPILE_ADDRESS) {
-      result.push(instructions[i]);
+  // 1. Single pass: separate SignV2 instructions from the rest
+  for (const ix of instructions) {
+    const addr = ix.programAddress.toString();
+    if (addr === SECP256R1_PRECOMPILE_ADDRESS) continue; // skip precompile
+    if (addr === SWIG_PROGRAM_ADDRESS) {
+      signV2Instructions.push(ix);
+    } else {
+      result.push(ix); // compute budget and other non-precompile instructions
     }
   }
 
-  // 2. Extract Swig PDA from SignV2's first account
-  const signV2Ix = instructions[instructions.length - 1];
-  const swigPda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
-  if (!swigPda) throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
+  if (signV2Instructions.length === 0) {
+    throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
+  }
 
-  // 3. Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
-  const swigWalletAddress = signV2Ix.accounts?.[1]?.address?.toString() ?? "";
-  if (!swigWalletAddress) throw new Error("invalid_swig_wallet_address_derivation");
-
+  // 2. Process each SignV2 instruction
+  let swigPda = "";
   const addressEncoder = getAddressEncoder();
-  const [expectedWalletAddress] = await getProgramDerivedAddress({
-    programAddress: SWIG_PROGRAM_ADDRESS as Address,
-    seeds: [
-      new TextEncoder().encode("swig-wallet-address"),
-      addressEncoder.encode(swigPda as Address),
-    ],
-  });
 
-  if (swigWalletAddress !== expectedWalletAddress.toString()) {
-    throw new Error("invalid_swig_wallet_address_derivation");
-  }
+  for (const signV2Ix of signV2Instructions) {
+    // Extract Swig PDA from SignV2's first account
+    const pda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
+    if (!pda) throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
 
-  // 4. Decode compact instructions from SignV2 data
-  const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
-  const compactInstructions = decodeSwigCompactInstructions(rawData);
-
-  // 5. Resolve compact instruction indices through signV2's account list
-  const signV2Accounts = signV2Ix.accounts ?? [];
-  for (const ci of compactInstructions) {
-    if (ci.programIdIndex >= signV2Accounts.length) {
-      throw new Error(
-        `compact instruction programIdIndex ${ci.programIdIndex} out of range (signV2 has ${signV2Accounts.length} accounts)`,
-      );
+    // Enforce all SignV2 instructions share the same PDA
+    if (swigPda === "") {
+      swigPda = pda;
+    } else if (pda !== swigPda) {
+      throw new Error("swig_pda_mismatch: all SignV2 instructions must reference the same Swig PDA");
     }
-    result.push({
-      programAddress: signV2Accounts[ci.programIdIndex].address as Address,
-      accounts: ci.accounts.map(idx => {
-        if (idx >= signV2Accounts.length) {
-          throw new Error(
-            `compact instruction account index ${idx} out of range (signV2 has ${signV2Accounts.length} accounts)`,
-          );
-        }
-        return { address: signV2Accounts[idx].address as Address, role: 1 };
-      }),
-      data: ci.data,
+
+    // Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
+    const swigWalletAddress = signV2Ix.accounts?.[1]?.address?.toString() ?? "";
+    if (!swigWalletAddress) throw new Error("invalid_swig_wallet_address_derivation");
+
+    const [expectedWalletAddress] = await getProgramDerivedAddress({
+      programAddress: SWIG_PROGRAM_ADDRESS as Address,
+      seeds: [
+        new TextEncoder().encode("swig-wallet-address"),
+        addressEncoder.encode(pda as Address),
+      ],
     });
+
+    if (swigWalletAddress !== expectedWalletAddress.toString()) {
+      throw new Error("invalid_swig_wallet_address_derivation");
+    }
+
+    // Decode compact instructions from SignV2 data
+    const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
+    const compactInstructions = decodeSwigCompactInstructions(rawData);
+
+    // Resolve compact instruction indices through signV2's account list
+    const signV2Accounts = signV2Ix.accounts ?? [];
+    for (const ci of compactInstructions) {
+      if (ci.programIdIndex >= signV2Accounts.length) {
+        throw new Error(
+          `compact instruction programIdIndex ${ci.programIdIndex} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+        );
+      }
+      result.push({
+        programAddress: signV2Accounts[ci.programIdIndex].address as Address,
+        accounts: ci.accounts.map(idx => {
+          if (idx >= signV2Accounts.length) {
+            throw new Error(
+              `compact instruction account index ${idx} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+            );
+          }
+          return { address: signV2Accounts[idx].address as Address, role: 1 };
+        }),
+        data: ci.data,
+      });
+    }
   }
 
   return { instructions: result, swigPda };

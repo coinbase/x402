@@ -303,6 +303,15 @@ describe("ExactSvmScheme", () => {
       ];
       expect(isSwigTransaction(instructions)).toBe(false);
     });
+
+    it("should return true for a transaction with 2 SignV2 instructions", () => {
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        { programAddress: SWIG_PROGRAM_ADDRESS, data: new Uint8Array([SWIG_SIGN_V2_DISCRIMINATOR, 0, 0, 0]) },
+        { programAddress: SWIG_PROGRAM_ADDRESS, data: new Uint8Array([SWIG_SIGN_V2_DISCRIMINATOR, 0, 0, 0]) },
+      ];
+      expect(isSwigTransaction(instructions)).toBe(true);
+    });
   });
 
   describe("decodeSwigCompactInstructions", () => {
@@ -570,6 +579,85 @@ describe("ExactSvmScheme", () => {
       ];
 
       await expect(parseSwigTransaction(instructions, staticAccounts)).rejects.toThrow(/out of range/);
+    });
+
+    it("should flatten a Swig transaction with 2 SignV2 instructions", async () => {
+      const signV2Accounts = getSignV2Accounts();
+      const compact1 = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
+      const compact2 = buildTransferCheckedCompact(3, [5, 4, 2, 0], 200000n);
+      const signV2Data1 = buildSwigV2Data(compact1);
+      const signV2Data2 = buildSwigV2Data(compact2);
+
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts,
+          data: signV2Data1,
+        },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts,
+          data: signV2Data2,
+        },
+      ];
+
+      const result = await parseSwigTransaction(instructions, staticAccounts);
+
+      // Should have 3 instructions: 1 compute budget + 2 TransferChecked (one from each SignV2)
+      expect(result.instructions).toHaveLength(3);
+      expect(result.swigPda).toBe(SWIG_PDA);
+
+      // First is compute budget (unchanged)
+      expect(result.instructions[0].programAddress.toString()).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+
+      // Second and third are the resolved TransferChecked from each SignV2
+      expect(result.instructions[1].programAddress.toString()).toBe(TOKEN_PROGRAM);
+      expect(result.instructions[1].data[0]).toBe(12);
+      expect(result.instructions[2].programAddress.toString()).toBe(TOKEN_PROGRAM);
+      expect(result.instructions[2].data[0]).toBe(12);
+
+      // Verify different amounts
+      const amount1 = new DataView(result.instructions[1].data.buffer, result.instructions[1].data.byteOffset).getBigUint64(1, true);
+      const amount2 = new DataView(result.instructions[2].data.buffer, result.instructions[2].data.byteOffset).getBigUint64(1, true);
+      expect(amount1).toBe(100000n);
+      expect(amount2).toBe(200000n);
+    });
+
+    it("should throw when 2 SignV2 instructions have different swigPdas", async () => {
+      const signV2Accounts1 = getSignV2Accounts();
+      // Use a different PDA for the second SignV2
+      const DIFFERENT_PDA = "11111111111111111111111111111111";
+      const signV2Accounts2 = [
+        { address: DIFFERENT_PDA as Address },
+        { address: SWIG_WALLET_ADDRESS as Address }, // wallet address won't match but PDA check comes first
+        { address: "destinationATA11111111111111111111111111" as Address },
+        { address: TOKEN_PROGRAM as Address },
+        { address: USDC_DEVNET_ADDRESS as Address },
+        { address: "sourceAccount111111111111111111111111111" as Address },
+      ];
+
+      const compact = buildTransferCheckedCompact(3, [5, 4, 2, 0], 100000n);
+      const signV2Data1 = buildSwigV2Data(compact);
+      const signV2Data2 = buildSwigV2Data(compact);
+
+      const instructions = [
+        { programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address, data: new Uint8Array([2, 0, 0, 0, 0]) },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts1,
+          data: signV2Data1,
+        },
+        {
+          programAddress: SWIG_PROGRAM_ADDRESS as Address,
+          accounts: signV2Accounts2,
+          data: signV2Data2,
+        },
+      ];
+
+      await expect(parseSwigTransaction(instructions, staticAccounts)).rejects.toThrow(
+        "swig_pda_mismatch",
+      );
     });
 
     it("should throw when SwigWalletAddress does not match expected derivation", async () => {
