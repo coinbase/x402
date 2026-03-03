@@ -533,3 +533,96 @@ class TestBundlerClientCall:
         assert body["id"] == 1
         assert body["method"] == "eth_estimateUserOperationGas"
         assert body["params"] == [{"sender": "0x1"}, "0xEP"]
+
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.urllib.request.urlopen")
+    def test_call_http_500_raises_bundler_error(self, mock_urlopen):
+        """_call raises BundlerError with 'Bundler HTTP error: 500' on status 500."""
+        mock_resp = MagicMock()
+        mock_resp.status = 500
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        client = BundlerClient("https://bundler.example.com")
+        with pytest.raises(BundlerError) as exc:
+            client._call("test_method", [])
+        assert "Bundler HTTP error: 500" in str(exc.value)
+        assert exc.value.method == "test_method"
+
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.urllib.request.urlopen")
+    def test_call_http_429_raises_bundler_error(self, mock_urlopen):
+        """_call raises BundlerError with 'Bundler HTTP error: 429' on status 429."""
+        mock_resp = MagicMock()
+        mock_resp.status = 429
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        client = BundlerClient("https://bundler.example.com")
+        with pytest.raises(BundlerError) as exc:
+            client._call("test_method", [])
+        assert "Bundler HTTP error: 429" in str(exc.value)
+
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.urllib.request.urlopen")
+    def test_call_connection_reset_retries(self, mock_urlopen, mock_time):
+        """_call retries on ConnectionResetError when retries > 0."""
+        mock_time.sleep = MagicMock()
+
+        success_body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xRetrySuccess",
+        }).encode("utf-8")
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = success_body
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_urlopen.side_effect = [
+            ConnectionResetError("Connection reset by peer"),
+            mock_resp,
+        ]
+
+        config = BundlerClientConfig(retries=1)
+        client = BundlerClient("https://bundler.example.com", config=config)
+        result = client._call("test_method", [])
+        assert result == "0xRetrySuccess"
+        assert mock_urlopen.call_count == 2
+
+    @patch("x402.mechanisms.evm.exact.erc4337_bundler.urllib.request.urlopen")
+    def test_call_generic_exception_no_retries_raises_immediately(self, mock_urlopen):
+        """_call raises BundlerError immediately on generic exception when retries=0."""
+        mock_urlopen.side_effect = ConnectionResetError("Connection reset by peer")
+
+        client = BundlerClient("https://bundler.example.com")
+        with pytest.raises(BundlerError) as exc:
+            client._call("test_method", [])
+        assert "Bundler request failed" in str(exc.value)
+        assert "Connection reset by peer" in str(exc.value)
+        assert mock_urlopen.call_count == 1
+
+
+class TestGasEstimateAllDefaults:
+    """Tests for GasEstimate defaults."""
+
+    def test_all_7_fields_default_to_none(self):
+        """GasEstimate.from_dict({}) returns all 7 fields as None."""
+        estimate = GasEstimate.from_dict({})
+        assert estimate.call_gas_limit is None
+        assert estimate.verification_gas_limit is None
+        assert estimate.pre_verification_gas is None
+        assert estimate.max_fee_per_gas is None
+        assert estimate.max_priority_fee_per_gas is None
+        assert estimate.paymaster_verification_gas_limit is None
+        assert estimate.paymaster_post_op_gas_limit is None
+
+
+class TestUserOperationReceiptEmptyReceipt:
+    """Tests for UserOperationReceipt with empty receipt dict."""
+
+    def test_empty_receipt_dict(self):
+        """from_dict({'receipt': {}}) -- receipt_transaction_hash should be None."""
+        receipt = UserOperationReceipt.from_dict({"receipt": {}})
+        assert receipt.receipt_transaction_hash is None

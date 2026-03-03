@@ -368,5 +368,117 @@ describe("ExactEvmSchemeNetworkERC4337", () => {
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe("missing_entry_point");
     });
+
+    it("should return missing_bundler_url in settle when verify passes but bundler URL missing in settle", async () => {
+      // Spy on verify to return valid despite bundler URL being missing
+      const spiedFacilitator = new ExactEvmSchemeNetworkERC4337();
+      vi.spyOn(spiedFacilitator, "verify").mockResolvedValueOnce({
+        isValid: true,
+        invalidReason: undefined,
+        payer: "0x1234567890123456789012345678901234567890",
+      });
+
+      const payloadWithoutBundler: PaymentPayload = {
+        ...basePaymentPayload,
+        payload: {
+          ...basePaymentPayload.payload,
+          bundlerRpcUrl: undefined,
+        },
+      };
+
+      const result = await spiedFacilitator.settle(
+        payloadWithoutBundler,
+        basePaymentRequirements,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("missing_bundler_url");
+    });
+
+    it("should return missing_entry_point in settle when verify passes but entry point missing in settle", async () => {
+      // Spy on verify to return valid despite entry point being missing
+      const spiedFacilitator = new ExactEvmSchemeNetworkERC4337();
+      vi.spyOn(spiedFacilitator, "verify").mockResolvedValueOnce({
+        isValid: true,
+        invalidReason: undefined,
+        payer: "0x1234567890123456789012345678901234567890",
+      });
+
+      const payloadWithoutEntryPoint: PaymentPayload = {
+        ...basePaymentPayload,
+        payload: {
+          ...basePaymentPayload.payload,
+          entryPoint: undefined as unknown as string,
+        },
+      };
+
+      const result = await spiedFacilitator.settle(
+        payloadWithoutEntryPoint,
+        basePaymentRequirements,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("missing_entry_point");
+    });
+
+    it("should use bundler URL from requirements.extra in settle", async () => {
+      const requirementsWithBundler: PaymentRequirements = {
+        ...basePaymentRequirements,
+        extra: {
+          userOperation: {
+            bundlerUrl: "https://bundler-from-requirements.example.com",
+          },
+        },
+      };
+
+      const payloadWithoutBundler: PaymentPayload = {
+        ...basePaymentPayload,
+        payload: {
+          ...basePaymentPayload.payload,
+          bundlerRpcUrl: undefined,
+        },
+      };
+
+      // verify will fail because there's no bundlerUrl in payload, but the requirements have it
+      mockBundlerClient.estimateUserOperationGas.mockResolvedValueOnce({});
+      mockBundlerClient.sendUserOperation.mockResolvedValueOnce("0xhash");
+      mockBundlerClient.getUserOperationReceipt.mockResolvedValueOnce({
+        receipt: { transactionHash: "0xtx" },
+      });
+
+      const result = await facilitator.settle(
+        payloadWithoutBundler,
+        requirementsWithBundler,
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should use default bundler URL from config in settle", async () => {
+      const facilitatorWithDefault = new ExactEvmSchemeNetworkERC4337({
+        defaultBundlerUrl: "https://default-bundler.example.com",
+      });
+
+      const payloadWithoutBundler: PaymentPayload = {
+        ...basePaymentPayload,
+        payload: {
+          ...basePaymentPayload.payload,
+          bundlerRpcUrl: undefined,
+        },
+      };
+
+      mockBundlerClient.estimateUserOperationGas.mockResolvedValueOnce({});
+      mockBundlerClient.sendUserOperation.mockResolvedValueOnce("0xhash");
+      mockBundlerClient.getUserOperationReceipt.mockResolvedValueOnce({
+        receipt: { transactionHash: "0xtx" },
+      });
+
+      const result = await facilitatorWithDefault.settle(
+        payloadWithoutBundler,
+        basePaymentRequirements,
+      );
+
+      expect(result.success).toBe(true);
+    });
   });
 });

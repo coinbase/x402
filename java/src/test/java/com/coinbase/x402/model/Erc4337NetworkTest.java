@@ -108,6 +108,24 @@ class Erc4337NetworkTest {
     }
 
     @Test
+    void getByV1NameReturnsOptimismSepolia() {
+        Erc4337Network.ChainInfo chain = Erc4337Network.getByV1Name("optimism-sepolia");
+        assertNotNull(chain);
+        assertEquals(11155420, chain.chainId);
+        assertEquals("Optimism Sepolia", chain.name);
+        assertTrue(chain.testnet);
+    }
+
+    @Test
+    void getByV1NameReturnsArbitrumSepolia() {
+        Erc4337Network.ChainInfo chain = Erc4337Network.getByV1Name("arbitrum-sepolia");
+        assertNotNull(chain);
+        assertEquals(421614, chain.chainId);
+        assertEquals("Arbitrum Sepolia", chain.name);
+        assertTrue(chain.testnet);
+    }
+
+    @Test
     void getByV1NameReturnsNullForUnknown() {
         assertNull(Erc4337Network.getByV1Name("unknown-network"));
         assertNull(Erc4337Network.getByV1Name(""));
@@ -245,6 +263,50 @@ class Erc4337NetworkTest {
             assertFalse(chain.rpcUrl.isEmpty(),
                     "Chain " + chain.name + " should have a non-empty rpcUrl");
         }
+    }
+
+    /* -------- caip2 field verification for all chains ----------------------- */
+
+    @Test
+    void baseCaip2IsCorrect() {
+        assertEquals("eip155:8453", Erc4337Network.getByChainId(8453).caip2);
+    }
+
+    @Test
+    void baseSepoliaCaip2IsCorrect() {
+        assertEquals("eip155:84532", Erc4337Network.getByChainId(84532).caip2);
+    }
+
+    @Test
+    void optimismCaip2IsCorrect() {
+        assertEquals("eip155:10", Erc4337Network.getByChainId(10).caip2);
+    }
+
+    @Test
+    void optimismSepoliaCaip2IsCorrect() {
+        assertEquals("eip155:11155420", Erc4337Network.getByChainId(11155420).caip2);
+    }
+
+    @Test
+    void arbitrumOneCaip2IsCorrect() {
+        assertEquals("eip155:42161", Erc4337Network.getByChainId(42161).caip2);
+    }
+
+    @Test
+    void arbitrumSepoliaCaip2IsCorrect() {
+        assertEquals("eip155:421614", Erc4337Network.getByChainId(421614).caip2);
+    }
+
+    /* -------- safeTransactionServiceUrl for Base Sepolia ------------------- */
+
+    @Test
+    void safeTransactionServiceUrlNonNullForBaseSepolia() {
+        Erc4337Network.ChainInfo chain = Erc4337Network.getByChainId(84532);
+        assertNotNull(chain);
+        assertNotNull(chain.safeTransactionServiceUrl,
+                "Base Sepolia should have non-null safeTransactionServiceUrl");
+        assertTrue(chain.safeTransactionServiceUrl.contains("safe"),
+                "Base Sepolia safeTransactionServiceUrl should contain 'safe'");
     }
 
     @Test

@@ -465,3 +465,255 @@ func TestExactEvmSchemeERC4337_Scheme(t *testing.T) {
 		t.Errorf("Scheme() = %q, want %q", scheme.Scheme(), "exact")
 	}
 }
+
+func TestExactEvmSchemeERC4337_Verify_PassesIsErc4337ButFailsFromMap(t *testing.T) {
+	// Payload passes IsErc4337Payload (has both userOperation and entryPoint keys)
+	// but fails Erc4337PayloadFromMap because userOperation is a string, not a map.
+	scheme := NewExactEvmSchemeERC4337(nil)
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted: types.AcceptedField{
+			Scheme:  "exact",
+			Network: "eip155:84532",
+		},
+		Payload: map[string]interface{}{
+			"userOperation": "invalid-string-not-a-map",
+			"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		},
+	}
+
+	_, err := scheme.Verify(context.Background(), payload, makeRequirements(), nil)
+	if err == nil {
+		t.Fatal("expected error when userOperation is a string, got nil")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_ReceiptPollWithErrors(t *testing.T) {
+	// GetUserOperationReceipt returns errors during polling, then eventually returns a valid receipt.
+	receiptCallCount := 0
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jsonRpcRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var resp map[string]interface{}
+		switch req.Method {
+		case "eth_estimateUserOperationGas":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  map[string]interface{}{"callGasLimit": "0x5208"},
+			}
+		case "eth_sendUserOperation":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  "0xUserOpHash",
+			}
+		case "eth_getUserOperationReceipt":
+			receiptCallCount++
+			if receiptCallCount <= 2 {
+				// Return RPC error for first 2 receipt polls
+				resp = map[string]interface{}{
+					"jsonrpc": "2.0",
+					"id":      1,
+					"error": map[string]interface{}{
+						"message": "internal error",
+						"code":    -32603,
+					},
+				}
+			} else {
+				// Third poll returns a valid receipt
+				resp = map[string]interface{}{
+					"jsonrpc": "2.0",
+					"id":      1,
+					"result": map[string]interface{}{
+						"userOpHash":    "0xUserOpHash",
+						"entryPoint":    "0xEntryPoint",
+						"sender":        "0xSenderAddress",
+						"nonce":         "0x01",
+						"actualGasCost": "0x100",
+						"actualGasUsed": "0x50",
+						"success":       true,
+						"logs":          []interface{}{},
+						"receipt": map[string]interface{}{
+							"transactionHash": "0xTxHashAfterErrors",
+						},
+					},
+				}
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  5000,
+		ReceiptPollIntervalMs: 50,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	resp, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected Success to be true")
+	}
+	if resp.Transaction != "0xTxHashAfterErrors" {
+		t.Errorf("Transaction = %q, want %q", resp.Transaction, "0xTxHashAfterErrors")
+	}
+	if receiptCallCount < 3 {
+		t.Errorf("expected at least 3 receipt calls, got %d", receiptCallCount)
+	}
+}
+
+func TestExactEvmSchemeERC4337_Verify_BundlerUrlFromRequirementsExtra(t *testing.T) {
+	// payload.BundlerRpcUrl="" and config.DefaultBundlerUrl=""
+	// requirements.Extra has "userOperation" -> "bundlerUrl" -> actual URL
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result":  map[string]interface{}{"callGasLimit": "0x5208"},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(nil) // No DefaultBundlerUrl in config
+	payload := makeERC4337Payload("")       // No bundler URL in payload
+
+	requirements := makeRequirements()
+	requirements.Extra = map[string]interface{}{
+		"userOperation": map[string]interface{}{
+			"supported":  true,
+			"bundlerUrl": bundlerServer.URL,
+		},
+	}
+
+	resp, err := scheme.Verify(context.Background(), payload, requirements, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.IsValid {
+		t.Error("expected IsValid to be true")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_ReceiptNoTxHashFallbackToUserOpHash(t *testing.T) {
+	// Receipt exists but both TransactionHash and Receipt.TransactionHash are empty.
+	// Should fall back to user_op_hash.
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jsonRpcRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var resp map[string]interface{}
+		switch req.Method {
+		case "eth_estimateUserOperationGas":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": map[string]interface{}{"callGasLimit": "0x5208"},
+			}
+		case "eth_sendUserOperation":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": "0xUserOpHash",
+			}
+		case "eth_getUserOperationReceipt":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": map[string]interface{}{
+					"userOpHash":    "0xUserOpHash",
+					"entryPoint":    "0xEntryPoint",
+					"sender":        "0xSenderAddress",
+					"nonce":         "0x01",
+					"actualGasCost": "0x100",
+					"actualGasUsed": "0x50",
+					"success":       true,
+					"logs":          []interface{}{},
+					// No transactionHash at top level
+					"receipt": map[string]interface{}{
+						// Empty transactionHash in inner receipt
+						"transactionHash": "",
+					},
+				},
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  5000,
+		ReceiptPollIntervalMs: 100,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	resp, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected Success to be true")
+	}
+	// Both receipt.Receipt.TransactionHash and receipt.TransactionHash are empty,
+	// so it should fall back to the userOpHash
+	if resp.Transaction != "0xUserOpHash" {
+		t.Errorf("Transaction = %q, want %q (should fall back to userOpHash)", resp.Transaction, "0xUserOpHash")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_ReceiptNoInnerReceipt(t *testing.T) {
+	// Receipt exists with no inner receipt but has top-level transactionHash empty.
+	// Should fall back to userOpHash.
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jsonRpcRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var resp map[string]interface{}
+		switch req.Method {
+		case "eth_estimateUserOperationGas":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": map[string]interface{}{"callGasLimit": "0x5208"},
+			}
+		case "eth_sendUserOperation":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": "0xUserOpHash",
+			}
+		case "eth_getUserOperationReceipt":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0", "id": 1,
+				"result": map[string]interface{}{
+					"userOpHash":    "0xUserOpHash",
+					"entryPoint":    "0xEntryPoint",
+					"sender":        "0xSenderAddress",
+					"nonce":         "0x01",
+					"actualGasCost": "0x100",
+					"actualGasUsed": "0x50",
+					"success":       true,
+					"logs":          []interface{}{},
+					// No receipt field at all, no transactionHash
+				},
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  5000,
+		ReceiptPollIntervalMs: 100,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	resp, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// No inner receipt and no top-level transactionHash -> falls back to userOpHash
+	if resp.Transaction != "0xUserOpHash" {
+		t.Errorf("Transaction = %q, want %q (should fall back to userOpHash)", resp.Transaction, "0xUserOpHash")
+	}
+}

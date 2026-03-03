@@ -200,3 +200,99 @@ class TestEnhancePaymentRequirements:
         assert user_op is not None
         assert user_op["paymaster"] == "0xPaymaster"
         assert user_op["entrypoint"] == "0xEntryPoint"
+
+
+class TestEnhanceFromErc4337RegistryChainNotFound:
+    """Tests for _enhance_from_erc4337_registry when chain lookup returns None."""
+
+    def test_chain_lookup_returns_none_raises_value_error(self):
+        """_enhance_from_erc4337_registry raises ValueError when get_erc4337_chain returns None."""
+        scheme = ExactEvmSchemeERC4337()
+        # Use a CAIP-2 network that resolves to a valid chain ID but is NOT in the registry
+        req = _make_requirements(
+            network="eip155:999999",
+            asset="",
+            extra=None,
+        )
+        sk = _make_supported_kind(network="eip155:999999")
+
+        # Both parent and ERC-4337 registry should fail
+        with patch.object(
+            ExactEvmSchemeERC4337.__bases__[0],
+            "enhance_payment_requirements",
+            side_effect=ValueError("unsupported"),
+        ):
+            with pytest.raises(ValueError, match="Chain 999999 not in ERC-4337 registry"):
+                scheme.enhance_payment_requirements(req, sk, [])
+
+
+class TestParsePriceResolveChainIdFailure:
+    """Tests for parse_price when resolve_erc4337_chain_id raises ValueError."""
+
+    def test_parse_price_resolve_chain_id_raises_value_error(self):
+        """parse_price raises ValueError when both parent and resolve_erc4337_chain_id fail."""
+        scheme = ExactEvmSchemeERC4337()
+        # Use a completely bogus network string that cannot be resolved
+        with pytest.raises(ValueError, match="Unsupported network"):
+            scheme.parse_price("1.00", "not-a-valid-network-at-all")
+
+
+class TestEnhanceFromErc4337RegistryNonOverwrite:
+    """Tests for _enhance_from_erc4337_registry non-overwrite behavior."""
+
+    def test_non_empty_asset_not_overwritten(self):
+        """Non-empty asset is NOT overwritten by registry."""
+        scheme = ExactEvmSchemeERC4337()
+        custom_asset = "0xCustomAssetAddress12345678901234567890"
+        req = _make_requirements(
+            network="eip155:84532",
+            asset=custom_asset,
+            extra=None,
+        )
+        sk = _make_supported_kind()
+
+        with patch.object(
+            ExactEvmSchemeERC4337.__bases__[0],
+            "enhance_payment_requirements",
+            side_effect=ValueError("unsupported"),
+        ):
+            enhanced = scheme.enhance_payment_requirements(req, sk, [])
+            assert enhanced.asset == custom_asset
+
+    def test_pre_existing_name_not_overwritten(self):
+        """Pre-existing name in extra is NOT overwritten by registry."""
+        scheme = ExactEvmSchemeERC4337()
+        req = _make_requirements(
+            network="eip155:84532",
+            asset="",
+            extra={"name": "My Custom Token", "version": "3"},
+        )
+        sk = _make_supported_kind()
+
+        with patch.object(
+            ExactEvmSchemeERC4337.__bases__[0],
+            "enhance_payment_requirements",
+            side_effect=ValueError("unsupported"),
+        ):
+            enhanced = scheme.enhance_payment_requirements(req, sk, [])
+            assert enhanced.extra["name"] == "My Custom Token"
+            assert enhanced.extra["version"] == "3"
+
+    def test_missing_name_version_gets_filled(self):
+        """Missing name and version in extra are filled by registry."""
+        scheme = ExactEvmSchemeERC4337()
+        req = _make_requirements(
+            network="eip155:84532",
+            asset="",
+            extra={},
+        )
+        sk = _make_supported_kind()
+
+        with patch.object(
+            ExactEvmSchemeERC4337.__bases__[0],
+            "enhance_payment_requirements",
+            side_effect=ValueError("unsupported"),
+        ):
+            enhanced = scheme.enhance_payment_requirements(req, sk, [])
+            assert enhanced.extra["name"] == "USD Coin"
+            assert enhanced.extra["version"] == "2"

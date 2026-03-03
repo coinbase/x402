@@ -139,3 +139,8 @@ class TestParseAAError:
         result = parse_aa_error("AA21 then AA24 then AA33")
         assert result is not None
         assert result["code"] == "AA21"
+
+    def test_empty_string_input(self):
+        """parse_aa_error('') returns (None, None) -- i.e., None."""
+        result = parse_aa_error("")
+        assert result is None

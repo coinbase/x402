@@ -129,6 +129,16 @@ class UserOperationCapabilityTest {
         assertNull(UserOperationCapability.extract(extra));
     }
 
+    /* -------- explicit null userOperation value returns null --------------- */
+
+    @Test
+    void extractReturnsNullWhenUserOperationIsExplicitlyNull() {
+        Map<String, Object> extra = new HashMap<>();
+        extra.put("userOperation", null);
+
+        assertNull(UserOperationCapability.extract(extra));
+    }
+
     /* -------- empty extra map returns null ---------------------------------- */
 
     @Test

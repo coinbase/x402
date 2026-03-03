@@ -240,4 +240,115 @@ describe("toP256SafeSmartAccount", () => {
     // It should NOT be the base account's signUserOperation
     expect(account.signUserOperation).not.toBe(mockBaseAccount.signUserOperation);
   });
+
+  describe("signUserOperation", () => {
+    const sampleUserOp = {
+      sender: "0x1111111111111111111111111111111111111111" as Hex,
+      nonce: 0n,
+      callData: "0xdeadbeef" as Hex,
+      callGasLimit: 50000n,
+      verificationGasLimit: 100000n,
+      preVerificationGas: 21000n,
+      maxPriorityFeePerGas: 1000000000n,
+      maxFeePerGas: 2000000000n,
+    };
+
+    it("should call computeSafeOpHash with correct params and pass hash to p256Signer.sign", async () => {
+      const account = await toP256SafeSmartAccount({
+        client: mockClient,
+        p256Signer: mockP256Signer,
+      });
+
+      const sig = await account.signUserOperation(sampleUserOp);
+
+      // p256Signer.sign should have been called once with a hash
+      expect(mockP256Signer.sign).toHaveBeenCalledTimes(1);
+      const hashArg = (mockP256Signer.sign as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(typeof hashArg).toBe("string");
+      expect(hashArg.startsWith("0x")).toBe(true);
+      // EIP-712 hash is 32 bytes = 66 hex chars (with 0x prefix)
+      expect(hashArg.length).toBe(66);
+
+      expect(sig).toBeDefined();
+    });
+
+    it("should return result encoded as concat([validAfter, validUntil, contractSig])", async () => {
+      const account = await toP256SafeSmartAccount({
+        client: mockClient,
+        p256Signer: mockP256Signer,
+      });
+
+      const sig = await account.signUserOperation(sampleUserOp);
+
+      expect(typeof sig).toBe("string");
+      expect(sig.startsWith("0x")).toBe(true);
+
+      const hexBody = sig.slice(2);
+
+      // validAfter = 6 bytes = 12 hex chars (all zeros)
+      const validAfter = hexBody.slice(0, 12);
+      expect(validAfter).toBe("000000000000");
+
+      // validUntil = 6 bytes = 12 hex chars (all zeros)
+      const validUntil = hexBody.slice(12, 24);
+      expect(validUntil).toBe("000000000000");
+
+      // The rest is the contract signature which should be non-empty
+      const contractSig = hexBody.slice(24);
+      expect(contractSig.length).toBeGreaterThan(0);
+    });
+
+    it("should produce deterministic signatures for the same input", async () => {
+      const account = await toP256SafeSmartAccount({
+        client: mockClient,
+        p256Signer: mockP256Signer,
+      });
+
+      const sig1 = await account.signUserOperation(sampleUserOp);
+      const sig2 = await account.signUserOperation(sampleUserOp);
+
+      // Since the mock signer returns the same r, s, the signatures should match
+      expect(sig1).toBe(sig2);
+    });
+
+    it("should include the P256 owner address in the contract signature", async () => {
+      const account = await toP256SafeSmartAccount({
+        client: mockClient,
+        p256Signer: mockP256Signer,
+      });
+
+      const sig = await account.signUserOperation(sampleUserOp);
+
+      // The contract signature starts after validAfter + validUntil (24 hex chars)
+      // The first 32 bytes (64 hex chars) of the contract signature = padded owner address
+      const contractSigHex = sig.slice(2 + 24);
+      const paddedAddress = contractSigHex.slice(0, 64);
+      // The address is right-padded in the 32-byte slot
+      const addressFromSig = "0x" + paddedAddress.slice(24);
+
+      expect(addressFromSig.toLowerCase()).toBe(
+        mockP256Signer.p256OwnerAddress.toLowerCase(),
+      );
+    });
+
+    it("should handle userOp with optional paymaster fields", async () => {
+      const account = await toP256SafeSmartAccount({
+        client: mockClient,
+        p256Signer: mockP256Signer,
+      });
+
+      const userOpWithPaymaster = {
+        ...sampleUserOp,
+        paymaster: "0x5555555555555555555555555555555555555555" as Hex,
+        paymasterVerificationGasLimit: 50000n,
+        paymasterPostOpGasLimit: 30000n,
+        paymasterData: "0xaabb" as Hex,
+      };
+
+      const sig = await account.signUserOperation(userOpWithPaymaster);
+      expect(sig).toBeDefined();
+      expect(sig.startsWith("0x")).toBe(true);
+      expect(mockP256Signer.sign).toHaveBeenCalledTimes(1);
+    });
+  });
 });

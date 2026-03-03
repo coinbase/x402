@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -90,6 +91,103 @@ func TestResolveERC4337ChainId(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("ResolveERC4337ChainId(%q) = %d, want %d", tt.network, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestERC4337ChainInfo_OptimismFields(t *testing.T) {
+	chain := GetERC4337Chain(10)
+	if chain == nil {
+		t.Fatal("expected Optimism chain info")
+	}
+
+	if chain.CAIP2 != "eip155:10" {
+		t.Errorf("CAIP2 = %q, want %q", chain.CAIP2, "eip155:10")
+	}
+	if chain.RpcUrl != "https://mainnet.optimism.io" {
+		t.Errorf("RpcUrl = %q, want %q", chain.RpcUrl, "https://mainnet.optimism.io")
+	}
+	if chain.BlockExplorerUrl != "https://optimistic.etherscan.io" {
+		t.Errorf("BlockExplorerUrl = %q, want %q", chain.BlockExplorerUrl, "https://optimistic.etherscan.io")
+	}
+	if chain.SafeTransactionServiceUrl != "https://safe-transaction-optimism.safe.global" {
+		t.Errorf("SafeTransactionServiceUrl = %q, want %q", chain.SafeTransactionServiceUrl, "https://safe-transaction-optimism.safe.global")
+	}
+	if chain.UsdcAddress != "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" {
+		t.Errorf("UsdcAddress = %q, want Optimism USDC address", chain.UsdcAddress)
+	}
+	if chain.Testnet {
+		t.Error("Optimism should not be a testnet")
+	}
+	if chain.V1Name != "optimism" {
+		t.Errorf("V1Name = %q, want %q", chain.V1Name, "optimism")
+	}
+}
+
+func TestERC4337ChainInfo_ArbitrumFields(t *testing.T) {
+	chain := GetERC4337Chain(42161)
+	if chain == nil {
+		t.Fatal("expected Arbitrum One chain info")
+	}
+
+	if chain.CAIP2 != "eip155:42161" {
+		t.Errorf("CAIP2 = %q, want %q", chain.CAIP2, "eip155:42161")
+	}
+	if chain.RpcUrl != "https://arb1.arbitrum.io/rpc" {
+		t.Errorf("RpcUrl = %q, want %q", chain.RpcUrl, "https://arb1.arbitrum.io/rpc")
+	}
+	if chain.BlockExplorerUrl != "https://arbiscan.io" {
+		t.Errorf("BlockExplorerUrl = %q, want %q", chain.BlockExplorerUrl, "https://arbiscan.io")
+	}
+	if chain.SafeTransactionServiceUrl != "https://safe-transaction-arbitrum.safe.global" {
+		t.Errorf("SafeTransactionServiceUrl = %q, want %q", chain.SafeTransactionServiceUrl, "https://safe-transaction-arbitrum.safe.global")
+	}
+	if chain.UsdcAddress != "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" {
+		t.Errorf("UsdcAddress = %q, want Arbitrum USDC address", chain.UsdcAddress)
+	}
+	if chain.Testnet {
+		t.Error("Arbitrum One should not be a testnet")
+	}
+	if chain.V1Name != "arbitrum" {
+		t.Errorf("V1Name = %q, want %q", chain.V1Name, "arbitrum")
+	}
+}
+
+func TestERC4337ChainInfo_BaseSepoliaFields(t *testing.T) {
+	chain := GetERC4337Chain(84532)
+	if chain == nil {
+		t.Fatal("expected Base Sepolia chain info")
+	}
+
+	if chain.RpcUrl != "https://sepolia.base.org" {
+		t.Errorf("RpcUrl = %q, want %q", chain.RpcUrl, "https://sepolia.base.org")
+	}
+	if chain.BlockExplorerUrl != "https://sepolia.basescan.org" {
+		t.Errorf("BlockExplorerUrl = %q, want %q", chain.BlockExplorerUrl, "https://sepolia.basescan.org")
+	}
+	if chain.SafeTransactionServiceUrl != "https://safe-transaction-base-sepolia.safe.global" {
+		t.Errorf("SafeTransactionServiceUrl = %q, want %q", chain.SafeTransactionServiceUrl, "https://safe-transaction-base-sepolia.safe.global")
+	}
+}
+
+func TestERC4337SupportedChains_CAIP2Format(t *testing.T) {
+	for chainID, chain := range ERC4337SupportedChains {
+		t.Run(chain.Name, func(t *testing.T) {
+			// Verify CAIP2 starts with "eip155:"
+			if len(chain.CAIP2) < 8 || chain.CAIP2[:7] != "eip155:" {
+				t.Errorf("CAIP2 = %q, want format eip155:<chainId>", chain.CAIP2)
+			}
+
+			// Verify CAIP2 contains the correct chain ID
+			wantCAIP2 := fmt.Sprintf("eip155:%d", chainID)
+			if chain.CAIP2 != wantCAIP2 {
+				t.Errorf("CAIP2 = %q, want %q", chain.CAIP2, wantCAIP2)
+			}
+
+			// Verify ChainID matches the map key
+			if chain.ChainID != chainID {
+				t.Errorf("ChainID = %d, want %d (map key)", chain.ChainID, chainID)
 			}
 		})
 	}

@@ -2,7 +2,9 @@ package com.coinbase.x402.model;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -183,6 +185,28 @@ class Erc4337PayloadTest {
     void isErc4337PayloadReturnsFalseWhenUserOperationIsExplicitlyNull() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("userOperation", null);
+        payload.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
+
+        assertFalse(Erc4337Payload.isErc4337Payload(payload));
+    }
+
+    /* -------- isErc4337Payload with List userOperation ---------------------- */
+
+    @Test
+    void isErc4337PayloadReturnsFalseWhenUserOperationIsList() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userOperation", new ArrayList<>(List.of("item1", "item2")));
+        payload.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
+
+        assertFalse(Erc4337Payload.isErc4337Payload(payload));
+    }
+
+    /* -------- isErc4337Payload with Integer userOperation ----------------- */
+
+    @Test
+    void isErc4337PayloadReturnsFalseWhenUserOperationIsInteger() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userOperation", 42);
         payload.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
 
         assertFalse(Erc4337Payload.isErc4337Payload(payload));

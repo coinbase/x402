@@ -11,6 +11,7 @@ import {
   computeVerifiers,
   isWebAuthnSignerDeployed,
   deployWebAuthnSigner,
+  RIP_7212_PRECOMPILE,
 } from "../../../src/erc4337/factories/webauthn-signer-factory";
 import type { Hex, PublicClient, WalletClient } from "viem";
 
@@ -251,5 +252,49 @@ describe("deployWebAuthnSigner", () => {
     await expect(
       deployWebAuthnSigner(wallet, client, WA_FACTORY, WA_VERIFIER, WA_X, WA_Y),
     ).rejects.toThrow("WalletClient must have an account configured");
+  });
+});
+
+describe("computeVerifiers", () => {
+  it("should use default RIP_7212_PRECOMPILE and combine with fallback via bit-shift OR", () => {
+    const fallbackVerifier = "0x000000000000000000000000000000000000ABCD" as Hex;
+    const result = computeVerifiers(fallbackVerifier);
+
+    // Expected: (RIP_7212_PRECOMPILE << 160n) | BigInt(fallbackVerifier)
+    const expected = (RIP_7212_PRECOMPILE << 160n) | BigInt(fallbackVerifier);
+    expect(result).toBe(expected);
+    // The result should be larger than just the fallback (precompile is in upper bits)
+    expect(result).toBeGreaterThan(BigInt(fallbackVerifier));
+  });
+
+  it("should return fallback only when precompile is null", () => {
+    const fallbackVerifier = "0x000000000000000000000000000000000000ABCD" as Hex;
+    const result = computeVerifiers(fallbackVerifier, null);
+
+    expect(result).toBe(BigInt(fallbackVerifier));
+  });
+
+  it("should return fallback only when precompile is 0n", () => {
+    const fallbackVerifier = "0x000000000000000000000000000000000000ABCD" as Hex;
+    const result = computeVerifiers(fallbackVerifier, 0n);
+
+    expect(result).toBe(BigInt(fallbackVerifier));
+  });
+
+  it("should use explicit custom precompile value", () => {
+    const fallbackVerifier = "0xc2b78104907F722DABAc4C69f826a522B2754De4" as Hex;
+    const customPrecompile = 0x200n;
+    const result = computeVerifiers(fallbackVerifier, customPrecompile);
+
+    const expected = (customPrecompile << 160n) | BigInt(fallbackVerifier);
+    expect(result).toBe(expected);
+  });
+
+  it("should produce consistent results with known WA_VERIFIER", () => {
+    // computeVerifiers is used internally by computeWebAuthnSignerAddress and deployWebAuthnSigner
+    // Verify the result is consistent
+    const result1 = computeVerifiers(WA_VERIFIER);
+    const result2 = computeVerifiers(WA_VERIFIER, RIP_7212_PRECOMPILE);
+    expect(result1).toBe(result2);
   });
 });

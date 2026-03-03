@@ -225,5 +225,40 @@ describe("ExactEvmSchemeERC4337 (server)", () => {
       expect(result.extra).toBeDefined();
       expect(result.extra!.userOperation).toEqual({ supported: false });
     });
+
+    it("should pass extensionKeys through to parent enhancePaymentRequirements", async () => {
+      // The parent ExactEvmScheme.enhancePaymentRequirements currently passes through
+      // requirements as-is (voiding extensionKeys), but our override receives them.
+      // When extra has values matching extensionKeys, the result should still preserve
+      // the original extra fields unchanged.
+      const requirementsWithExtensions: PaymentRequirements = {
+        ...basePaymentRequirements,
+        extra: {
+          myExtension: "extensionValue",
+          anotherExtension: { nested: true },
+          userOperation: {
+            supported: true,
+            bundlerUrl: "https://bundler.example.com",
+          },
+        },
+      };
+
+      const result = await scheme.enhancePaymentRequirements(
+        requirementsWithExtensions,
+        supportedKind,
+        ["myExtension", "anotherExtension"],
+      );
+
+      // extensionKeys should not affect the result (parent passes through as-is)
+      // but userOperation should be preserved
+      expect(result.extra).toBeDefined();
+      expect(result.extra!.userOperation).toEqual({
+        supported: true,
+        bundlerUrl: "https://bundler.example.com",
+      });
+      // The original extension fields should still be present
+      expect(result.extra!.myExtension).toBe("extensionValue");
+      expect(result.extra!.anotherExtension).toEqual({ nested: true });
+    });
   });
 });

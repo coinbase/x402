@@ -356,6 +356,156 @@ func TestExactEvmSchemeERC4337_CreatePaymentPayload_NilBundlerClient(t *testing.
 	}
 }
 
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_BundlerUrlFromRequirements(t *testing.T) {
+	// Config has no BundlerUrl; requirements.Extra has capability with BundlerUrl.
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareOp: &evm.UserOperation07Json{
+				Sender:               "0xSender",
+				Nonce:                "0x01",
+				CallData:             "0xCallData",
+				CallGasLimit:         "0x5208",
+				VerificationGasLimit: "0x10000",
+				PreVerificationGas:   "0x5000",
+				MaxFeePerGas:         "0x3B9ACA00",
+				MaxPriorityFeePerGas: "0x59682F00",
+			},
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		// BundlerUrl intentionally empty
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	requirements := makeClientRequirements()
+	// requirements.Extra already has userOperation.bundlerUrl via makeClientRequirements()
+
+	payload, createErr := scheme.CreatePaymentPayload(context.Background(), requirements)
+	if createErr != nil {
+		t.Fatalf("unexpected error: %v", createErr)
+	}
+
+	erc4337Payload, parseErr := evm.Erc4337PayloadFromMap(payload.Payload)
+	if parseErr != nil {
+		t.Fatalf("failed to parse payload: %v", parseErr)
+	}
+	if erc4337Payload.BundlerRpcUrl != "https://bundler.example.com" {
+		t.Errorf("BundlerRpcUrl = %q, want %q (from requirements capability)", erc4337Payload.BundlerRpcUrl, "https://bundler.example.com")
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_SigningErrorWithAACode(t *testing.T) {
+	// Signer returns error with AA code string (e.g., "AA24 signature error").
+	// Verify the PaymentCreationError has PhaseSigning and the parsed AA code reason.
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{
+			address: "0xSender",
+			signErr: fmt.Errorf("AA24 signature error"),
+		},
+		BundlerClient: &mockBundlerClient{
+			prepareOp: &evm.UserOperation07Json{
+				Sender:               "0xSender",
+				Nonce:                "0x01",
+				CallData:             "0xCallData",
+				CallGasLimit:         "0x5208",
+				VerificationGasLimit: "0x10000",
+				PreVerificationGas:   "0x5000",
+				MaxFeePerGas:         "0x3B9ACA00",
+				MaxPriorityFeePerGas: "0x59682F00",
+			},
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), makeClientRequirements())
+	if createErr == nil {
+		t.Fatal("expected error for signing failure with AA code")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhaseSigning {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhaseSigning)
+	}
+	// The AA24 code should be parsed, and reason should be the human-readable AA message
+	if pce.Reason != "Signature validation failed" {
+		t.Errorf("Reason = %q, want %q", pce.Reason, "Signature validation failed")
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_PreparationErrorNoAACode(t *testing.T) {
+	// Preparation fails with a non-AA error.
+	// Verify PaymentCreationError has PhasePreparation and no AA code.
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareErr: fmt.Errorf("network timeout"),
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), makeClientRequirements())
+	if createErr == nil {
+		t.Fatal("expected error for preparation failure")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhasePreparation {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhasePreparation)
+	}
+	// No AA code in "network timeout", so reason should be the raw error message
+	if pce.Reason != "network timeout" {
+		t.Errorf("Reason = %q, want %q", pce.Reason, "network timeout")
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_PreparationErrorWithAACode(t *testing.T) {
+	// Preparation fails with an AA error.
+	// Verify PaymentCreationError has PhasePreparation and the parsed AA reason.
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareErr: fmt.Errorf("AA21 insufficient funds"),
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), makeClientRequirements())
+	if createErr == nil {
+		t.Fatal("expected error for preparation failure with AA code")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhasePreparation {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhasePreparation)
+	}
+	if pce.Reason != "Insufficient funds for gas prefund" {
+		t.Errorf("Reason = %q, want %q", pce.Reason, "Insufficient funds for gas prefund")
+	}
+}
+
 func TestParseAAError(t *testing.T) {
 	t.Run("found AA21", func(t *testing.T) {
 		result := ParseAAErrorString("UserOperation reverted during simulation with reason: AA21 didn't pay prefund")

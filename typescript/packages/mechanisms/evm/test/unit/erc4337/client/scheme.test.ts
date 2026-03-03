@@ -6,6 +6,15 @@ import type { UserOperationSigner } from "../../../../src/exact/client/erc4337/s
 import type { PreparedUserOperation } from "../../../../src/exact/client/erc4337/bundler/client";
 import type { SmartAccount } from "viem/account-abstraction";
 
+// Mock the ViemBundlerClient for dynamic bundler creation tests
+vi.mock("../../../../src/exact/client/erc4337/bundler/viem", () => {
+  return {
+    ViemBundlerClient: vi.fn(),
+  };
+});
+
+import { ViemBundlerClient } from "../../../../src/exact/client/erc4337/bundler/viem";
+
 describe("ExactEvmSchemeERC4337", () => {
   let scheme: ExactEvmSchemeERC4337;
   let mockBundlerClient: BundlerClient;
@@ -643,6 +652,320 @@ describe("ExactEvmSchemeERC4337", () => {
       expect(result.x402Version).toBe(2);
       expect((result as any).scheme).toBeUndefined();
       expect((result as any).network).toBeUndefined();
+    });
+
+    it("should handle unknown chain ID with custom defineChain fallback in dynamic path", async () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockAccount.address as `0x${string}`,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      const mockPrepareUserOp = vi.fn().mockResolvedValue(mockPreparedUserOp);
+
+      (ViemBundlerClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        prepareUserOperation: mockPrepareUserOp,
+        estimateGas: vi.fn(),
+        sendUserOperation: vi.fn(),
+      }));
+
+      const customSigner: UserOperationSigner = {
+        address: mockAccount.address as `0x${string}`,
+        signUserOperation: vi.fn().mockResolvedValue("0xsig" as `0x${string}`),
+      };
+
+      // Use a chain ID not known by viem (999999) to trigger the defineChain fallback
+      const mockPublicClient = { chain: { id: 999999 } } as any;
+      const schemeWithUnknownChain = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        signer: customSigner,
+        publicClient: mockPublicClient,
+        bundlerUrl: "https://bundler.example.com",
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      const requirementsUnknownChain: PaymentRequirements = {
+        ...basePaymentRequirements,
+        network: "eip155:999999",
+      };
+
+      const result = await schemeWithUnknownChain.createPaymentPayload(
+        2,
+        requirementsUnknownChain,
+      );
+
+      expect(result.x402Version).toBe(2);
+      expect(result.payload).toHaveProperty("type", "erc4337");
+      expect(ViemBundlerClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chain: expect.objectContaining({ id: 999999 }),
+        }),
+      );
+    });
+
+    it("should create dynamic bundler when account provided but no bundlerClient", async () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockAccount.address as `0x${string}`,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      const mockPrepareUserOp = vi.fn().mockResolvedValue(mockPreparedUserOp);
+      const mockSignature = "0xsig" as `0x${string}`;
+
+      // Mock the ViemBundlerClient constructor to return a mock instance
+      (ViemBundlerClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        prepareUserOperation: mockPrepareUserOp,
+        estimateGas: vi.fn(),
+        sendUserOperation: vi.fn(),
+      }));
+
+      const customSigner: UserOperationSigner = {
+        address: mockAccount.address as `0x${string}`,
+        signUserOperation: vi.fn().mockResolvedValue(mockSignature),
+      };
+
+      const schemeWithAccount = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        signer: customSigner,
+        bundlerUrl: "https://account-bundler.example.com",
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      const result = await schemeWithAccount.createPaymentPayload(2, basePaymentRequirements);
+
+      expect(result.x402Version).toBe(2);
+      expect(result.payload).toHaveProperty("type", "erc4337");
+      expect(ViemBundlerClient).toHaveBeenCalledTimes(1);
+      expect(mockPrepareUserOp).toHaveBeenCalledTimes(1);
+    });
+
+    it("should throw when account is missing in dynamic bundler creation path", async () => {
+      // This scenario should not be constructible due to the constructor check,
+      // but we test the createPaymentPayload's own account check as defensive code
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      const schemeWithAccount = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        bundlerUrl: "https://bundler.example.com",
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      // Forcefully clear the account to test the defensive check
+      (schemeWithAccount as any).account = undefined;
+      (schemeWithAccount as any).bundlerClient = undefined;
+
+      await expect(
+        schemeWithAccount.createPaymentPayload(2, basePaymentRequirements),
+      ).rejects.toThrow("Account (SmartAccount) is required");
+    });
+
+    it("should throw PaymentCreationError for missing bundler URL in dynamic path", async () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      // No bundlerUrl in config, no bundlerUrl in requirements
+      const schemeWithAccount = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      const requirementsNoBundler: PaymentRequirements = {
+        ...basePaymentRequirements,
+        extra: {},
+      };
+
+      try {
+        await schemeWithAccount.createPaymentPayload(2, requirementsNoBundler);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("validation");
+        expect(error.message).toContain("Bundler URL not provided");
+      }
+    });
+
+    it("should use publicClient from config in dynamic path", async () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      const mockPublicClient = { chain: { id: 84532 } } as any;
+
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockAccount.address as `0x${string}`,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (ViemBundlerClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        prepareUserOperation: vi.fn().mockResolvedValue(mockPreparedUserOp),
+        estimateGas: vi.fn(),
+        sendUserOperation: vi.fn(),
+      }));
+
+      const schemeWithPublicClient = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        publicClient: mockPublicClient,
+        bundlerUrl: "https://bundler.example.com",
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      const mockSignature = "0xsig" as `0x${string}`;
+      (mockAccount.signUserOperation as ReturnType<typeof vi.fn>).mockResolvedValue(mockSignature);
+
+      const result = await schemeWithPublicClient.createPaymentPayload(
+        2,
+        basePaymentRequirements,
+      );
+
+      expect(result.payload).toHaveProperty("type", "erc4337");
+      expect(ViemBundlerClient).toHaveBeenCalledWith(
+        expect.objectContaining({ publicClient: mockPublicClient }),
+      );
+    });
+
+    it("should wrap AA signing error with parsed AA code", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+
+      const signingError = new Error("AA24 signature validation failed");
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        signingError,
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("signing");
+        expect(error.message).toContain("Payment signing failed");
+        expect(error.code).toBe("AA24");
+        expect(error.cause).toBe(signingError);
+      }
+    });
+
+    it("should wrap non-Error preparation error correctly", async () => {
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        "string error",
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("preparation");
+        expect(error.message).toContain("string error");
+      }
+    });
+
+    it("should wrap non-Error signing error correctly", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        "non-error string",
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("signing");
+        expect(error.message).toContain("non-error string");
+      }
+    });
+
+    it("should use maxAmountRequired when amount is undefined (v1 compat)", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        "0xsig" as `0x${string}`,
+      );
+
+      // v1-style requirements: amount is undefined, maxAmountRequired is set
+      const v1Requirements = {
+        ...basePaymentRequirements,
+        amount: undefined as unknown as string,
+        maxAmountRequired: "2000000",
+      } as any;
+
+      const result = await scheme.createPaymentPayload(1, v1Requirements);
+
+      expect(result.x402Version).toBe(1);
+      expect(result.payload).toHaveProperty("type", "erc4337");
+
+      // prepareUserOperation should have been called (meaning amount was resolved)
+      expect(mockBundlerClient.prepareUserOperation).toHaveBeenCalledTimes(1);
     });
   });
 });

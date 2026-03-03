@@ -388,3 +388,14 @@ class TestExtractUserOperationCapability:
             }
         }
         assert extract_user_operation_capability(extra) is None
+
+    def test_supported_zero_integer(self):
+        """supported=0 (falsy integer) returns None."""
+        extra = {
+            "userOperation": {
+                "supported": 0,
+                "bundlerUrl": "https://bundler.example.com",
+                "entrypoint": "0xEntryPoint",
+            }
+        }
+        assert extract_user_operation_capability(extra) is None

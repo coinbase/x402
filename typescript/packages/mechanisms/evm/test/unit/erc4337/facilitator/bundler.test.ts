@@ -345,6 +345,65 @@ describe("BundlerClient", () => {
         BundlerError,
       );
     });
+
+    it("should fallback to 'Bundler RPC error' when RPC error has no message field", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          jsonrpc: "2.0",
+          id: 1,
+          error: {
+            code: -32000,
+            // message is missing
+          },
+        }),
+      });
+
+      const userOp = { sender: "0x123" };
+      const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+
+      try {
+        await client.estimateUserOperationGas(userOp, entryPoint);
+        expect.fail("Should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(BundlerError);
+        if (error instanceof BundlerError) {
+          expect(error.message).toBe("Bundler RPC error");
+          expect(error.code).toBe(-32000);
+        }
+      }
+    });
+  });
+
+  describe("BundlerError constructor", () => {
+    it("should create BundlerError without options", () => {
+      const error = new BundlerError("Simple error");
+      expect(error).toBeInstanceOf(BundlerError);
+      expect(error.message).toBe("Simple error");
+      expect(error.name).toBe("BundlerError");
+      expect(error.code).toBeUndefined();
+      expect(error.data).toBeUndefined();
+      expect(error.method).toBeUndefined();
+      expect(error.bundlerUrl).toBeUndefined();
+    });
+
+    it("should create BundlerError with all options", () => {
+      const cause = new Error("root cause");
+      const error = new BundlerError("Detailed error", {
+        code: -32602,
+        data: { extra: "info" },
+        method: "eth_sendUserOperation",
+        bundlerUrl: "https://bundler.example.com",
+        cause,
+      });
+
+      expect(error.message).toBe("Detailed error");
+      expect(error.code).toBe(-32602);
+      expect(error.data).toEqual({ extra: "info" });
+      expect(error.method).toBe("eth_sendUserOperation");
+      expect(error.bundlerUrl).toBe("https://bundler.example.com");
+      expect(error.cause).toBe(cause);
+    });
   });
 
   describe("retry logic", () => {
@@ -367,6 +426,79 @@ describe("BundlerClient", () => {
 
       // Should only try once (no retries on abort)
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should wrap non-BundlerError on last retry attempt", async () => {
+      const retryClient = new BundlerClient(bundlerUrl, { retries: 1 });
+
+      // Both attempts fail with generic Error (not BundlerError, not AbortError)
+      mockFetch
+        .mockRejectedValueOnce(new Error("Network error"))
+        .mockRejectedValueOnce(new Error("Network error again"));
+
+      const userOp = { sender: "0x123" };
+      const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+
+      try {
+        await retryClient.estimateUserOperationGas(userOp, entryPoint);
+        expect.fail("Should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(BundlerError);
+        if (error instanceof BundlerError) {
+          expect(error.message).toContain("Bundler request failed");
+          expect(error.method).toBe("eth_estimateUserOperationGas");
+          expect(error.bundlerUrl).toBe(bundlerUrl);
+          expect(error.cause).toBeInstanceOf(Error);
+        }
+      }
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should re-throw BundlerError directly on last retry attempt", async () => {
+      const retryClient = new BundlerClient(bundlerUrl, { retries: 1 });
+
+      // First attempt: generic error (retryable), second: HTTP error (BundlerError)
+      mockFetch.mockRejectedValueOnce(new Error("Network error")).mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+      });
+
+      const userOp = { sender: "0x123" };
+      const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+
+      try {
+        await retryClient.estimateUserOperationGas(userOp, entryPoint);
+        expect.fail("Should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(BundlerError);
+        if (error instanceof BundlerError) {
+          expect(error.message).toContain("Bundler HTTP error: 503");
+        }
+      }
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should wrap non-Error throw on last retry", async () => {
+      const retryClient = new BundlerClient(bundlerUrl, { retries: 0 });
+
+      // Throw a non-Error value
+      mockFetch.mockRejectedValueOnce("string error");
+
+      const userOp = { sender: "0x123" };
+      const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+
+      try {
+        await retryClient.estimateUserOperationGas(userOp, entryPoint);
+        expect.fail("Should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(BundlerError);
+        if (error instanceof BundlerError) {
+          expect(error.message).toContain("Bundler request failed");
+        }
+      }
     });
 
     it("should retry on network errors", async () => {

@@ -221,6 +221,92 @@ func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_ChainNotInRegistry(t *
 	}
 }
 
+func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_ChainLookupReturnsNil(t *testing.T) {
+	// ResolveERC4337ChainId succeeds (valid CAIP-2 format) but GetERC4337Chain returns nil
+	// because the chain ID is not in the ERC4337SupportedChains map.
+	scheme := NewExactEvmSchemeERC4337()
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:12345", // Valid CAIP-2 but not in ERC-4337 registry
+		Amount:  "500000",
+		PayTo:   "0xRecipient",
+		Extra:   map[string]interface{}{"name": "USDC", "version": "2"},
+	}
+
+	supportedKind := types.SupportedKind{
+		X402Version: 2,
+		Scheme:      "exact",
+		Network:     "eip155:12345",
+	}
+
+	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, []string{})
+	if err == nil {
+		t.Fatal("expected error when GetERC4337Chain returns nil")
+	}
+	// Verify the error message mentions the chain is not in the registry
+	expected := "chain 12345 not in ERC-4337 registry"
+	if err.Error() != expected {
+		t.Errorf("error = %q, want %q", err.Error(), expected)
+	}
+}
+
+func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_InvalidCAIP2(t *testing.T) {
+	// Network is an invalid CAIP-2 with a non-numeric chain ID
+	scheme := NewExactEvmSchemeERC4337()
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:notanumber",
+		Amount:  "500000",
+		PayTo:   "0xRecipient",
+	}
+
+	supportedKind := types.SupportedKind{
+		X402Version: 2,
+		Scheme:      "exact",
+		Network:     "eip155:notanumber",
+	}
+
+	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, []string{})
+	if err == nil {
+		t.Fatal("expected error for invalid CAIP-2 chain ID")
+	}
+}
+
+func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_ExtensionKeysCopied(t *testing.T) {
+	// Verify that extension keys from supportedKind.Extra are copied into the enhanced requirements
+	scheme := NewExactEvmSchemeERC4337()
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:42161", // Arbitrum - in ERC-4337 registry
+		Amount:  "1000000",
+		PayTo:   "0xRecipient",
+	}
+
+	supportedKind := types.SupportedKind{
+		X402Version: 2,
+		Scheme:      "exact",
+		Network:     "eip155:42161",
+		Extra: map[string]interface{}{
+			"customKey": "customValue",
+		},
+	}
+
+	enhanced, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, []string{"customKey"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if enhanced.Extra == nil {
+		t.Fatal("expected Extra to be non-nil")
+	}
+	if enhanced.Extra["customKey"] != "customValue" {
+		t.Errorf("Extra[customKey] = %v, want %q", enhanced.Extra["customKey"], "customValue")
+	}
+}
+
 func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_AssetPreserved(t *testing.T) {
 	scheme := NewExactEvmSchemeERC4337()
 

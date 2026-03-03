@@ -288,6 +288,181 @@ func TestExtractUserOperationCapability(t *testing.T) {
 	})
 }
 
+func TestErc4337PayloadFromMap_UserOperationAsString(t *testing.T) {
+	// userOperation is a string instead of a map -- should fail
+	data := map[string]interface{}{
+		"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		"userOperation": "invalid-string-not-a-map",
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when userOperation is a string, got nil")
+	}
+}
+
+func TestErc4337PayloadFromMap_UserOperationAsInteger(t *testing.T) {
+	// userOperation is an integer instead of a map -- should fail
+	data := map[string]interface{}{
+		"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		"userOperation": 42,
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when userOperation is an integer, got nil")
+	}
+}
+
+func TestErc4337PayloadFromMap_UserOperationAsBool(t *testing.T) {
+	// userOperation is a bool instead of a map -- should fail
+	data := map[string]interface{}{
+		"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		"userOperation": true,
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when userOperation is a bool, got nil")
+	}
+}
+
+func TestErc4337PayloadFromMap_UserOperationAsSlice(t *testing.T) {
+	// userOperation is a slice instead of a map -- should fail
+	data := map[string]interface{}{
+		"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		"userOperation": []string{"sender", "nonce"},
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when userOperation is a slice, got nil")
+	}
+}
+
+func TestErc4337PayloadFromMap_EmptyEntryPoint(t *testing.T) {
+	// entryPoint is an empty string -- should fail
+	data := map[string]interface{}{
+		"entryPoint": "",
+		"userOperation": map[string]interface{}{
+			"sender": "0xSender",
+		},
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when entryPoint is empty, got nil")
+	}
+}
+
+func TestErc4337PayloadFromMap_EntryPointAsNonString(t *testing.T) {
+	// entryPoint is a number instead of string
+	data := map[string]interface{}{
+		"entryPoint": 12345,
+		"userOperation": map[string]interface{}{
+			"sender": "0xSender",
+		},
+	}
+
+	_, err := Erc4337PayloadFromMap(data)
+	if err == nil {
+		t.Fatal("expected error when entryPoint is not a string, got nil")
+	}
+}
+
+func TestErc4337Payload_PaymasterFieldsRoundTrip(t *testing.T) {
+	// Test paymaster fields survive FromMap -> ToMap round-trip
+	data := map[string]interface{}{
+		"type":          "erc4337",
+		"entryPoint":    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		"bundlerRpcUrl": "https://bundler.example.com",
+		"userOperation": map[string]interface{}{
+			"sender":                        "0xSender",
+			"nonce":                         "0x01",
+			"callData":                      "0xCallData",
+			"callGasLimit":                  "0x5208",
+			"verificationGasLimit":          "0x10000",
+			"preVerificationGas":            "0x5000",
+			"maxFeePerGas":                  "0x3B9ACA00",
+			"maxPriorityFeePerGas":          "0x59682F00",
+			"signature":                     "0xSignature",
+			"paymaster":                     "0xPaymasterAddress",
+			"paymasterData":                 "0xPaymasterData",
+			"paymasterVerificationGasLimit": "0x8000",
+			"paymasterPostOpGasLimit":       "0x4000",
+		},
+	}
+
+	payload, err := Erc4337PayloadFromMap(data)
+	if err != nil {
+		t.Fatalf("unexpected error in FromMap: %v", err)
+	}
+
+	// Verify paymaster fields were parsed
+	if payload.UserOperation.Paymaster != "0xPaymasterAddress" {
+		t.Errorf("Paymaster = %q, want %q", payload.UserOperation.Paymaster, "0xPaymasterAddress")
+	}
+	if payload.UserOperation.PaymasterData != "0xPaymasterData" {
+		t.Errorf("PaymasterData = %q, want %q", payload.UserOperation.PaymasterData, "0xPaymasterData")
+	}
+	if payload.UserOperation.PaymasterVerificationGasLimit != "0x8000" {
+		t.Errorf("PaymasterVerificationGasLimit = %q, want %q", payload.UserOperation.PaymasterVerificationGasLimit, "0x8000")
+	}
+	if payload.UserOperation.PaymasterPostOpGasLimit != "0x4000" {
+		t.Errorf("PaymasterPostOpGasLimit = %q, want %q", payload.UserOperation.PaymasterPostOpGasLimit, "0x4000")
+	}
+
+	// Now convert back to map and verify
+	roundTripped := payload.ToMap()
+
+	userOpMap, ok := roundTripped["userOperation"].(map[string]interface{})
+	if !ok {
+		t.Fatal("userOperation is not a map after round-trip")
+	}
+	if userOpMap["paymaster"] != "0xPaymasterAddress" {
+		t.Errorf("round-trip paymaster = %v, want %v", userOpMap["paymaster"], "0xPaymasterAddress")
+	}
+	if userOpMap["paymasterData"] != "0xPaymasterData" {
+		t.Errorf("round-trip paymasterData = %v, want %v", userOpMap["paymasterData"], "0xPaymasterData")
+	}
+	if userOpMap["paymasterVerificationGasLimit"] != "0x8000" {
+		t.Errorf("round-trip paymasterVerificationGasLimit = %v, want %v", userOpMap["paymasterVerificationGasLimit"], "0x8000")
+	}
+	if userOpMap["paymasterPostOpGasLimit"] != "0x4000" {
+		t.Errorf("round-trip paymasterPostOpGasLimit = %v, want %v", userOpMap["paymasterPostOpGasLimit"], "0x4000")
+	}
+}
+
+func TestExtractUserOperationCapability_NonBoolSupported(t *testing.T) {
+	// "supported" field is a non-bool (string "true") -- should return nil
+	extra := map[string]interface{}{
+		"userOperation": map[string]interface{}{
+			"supported":  "true", // string, not bool
+			"bundlerUrl": "https://bundler.example.com",
+		},
+	}
+
+	cap := ExtractUserOperationCapability(extra)
+	if cap != nil {
+		t.Errorf("expected nil when supported is a string, got %v", cap)
+	}
+}
+
+func TestExtractUserOperationCapability_NumericSupported(t *testing.T) {
+	// "supported" field is a number -- should return nil
+	extra := map[string]interface{}{
+		"userOperation": map[string]interface{}{
+			"supported":  1,
+			"bundlerUrl": "https://bundler.example.com",
+		},
+	}
+
+	cap := ExtractUserOperationCapability(extra)
+	if cap != nil {
+		t.Errorf("expected nil when supported is numeric, got %v", cap)
+	}
+}
+
 func TestErc4337PayloadToMap_EmptyOptionalFields(t *testing.T) {
 	payload := &Erc4337Payload{
 		Type:          "", // empty

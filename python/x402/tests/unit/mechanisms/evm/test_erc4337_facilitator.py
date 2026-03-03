@@ -340,3 +340,122 @@ class TestResolveBundlerUrl:
             result = scheme.verify(payload, req)
             assert result.is_valid is True
             mock_cls.assert_called_with("https://payload-bundler.example.com")
+
+
+class TestVerifyInvalidMessage:
+    """Tests for verify() invalid_message field."""
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_gas_estimation_failure_sets_invalid_message(self, mock_bundler_cls):
+        """Gas estimation failure returns result with invalid_message containing the error string."""
+        error_msg = "AA21 insufficient funds for gas prefund"
+        mock_bundler = MagicMock()
+        mock_bundler.estimate_user_operation_gas.side_effect = Exception(error_msg)
+        mock_bundler_cls.return_value = mock_bundler
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.verify(payload, _make_requirements())
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_GAS_ESTIMATION_FAILED
+        assert result.invalid_message == error_msg
+        assert result.payer == "0xSender"
+
+
+class TestConfigPollingDefaults:
+    """Tests for ExactEvmSchemeERC4337Config polling defaults."""
+
+    def test_default_receipt_poll_timeout_ms(self):
+        """Default receipt_poll_timeout_ms is 30000."""
+        config = ExactEvmSchemeERC4337Config()
+        assert config.receipt_poll_timeout_ms == 30000
+
+    def test_default_receipt_poll_interval_ms(self):
+        """Default receipt_poll_interval_ms is 1000."""
+        config = ExactEvmSchemeERC4337Config()
+        assert config.receipt_poll_interval_ms == 1000
+
+    def test_default_bundler_url_is_empty_string(self):
+        """Default default_bundler_url is empty string."""
+        config = ExactEvmSchemeERC4337Config()
+        assert config.default_bundler_url == ""
+
+
+class TestSettleBundlerUrlMissingAfterVerify:
+    """Tests for settle() when verify passes but bundler URL is missing in settle's own check."""
+
+    @patch.object(ExactEvmSchemeERC4337, "verify")
+    def test_settle_bundler_url_missing_after_verify_passes(self, mock_verify):
+        """settle() returns ERR_MISSING_BUNDLER_URL when verify passes but bundler URL resolves empty."""
+        from x402.schemas import VerifyResponse
+
+        mock_verify.return_value = VerifyResponse(is_valid=True, payer="0xSender")
+
+        scheme = ExactEvmSchemeERC4337()  # no default_bundler_url in config
+        # Payload with no bundlerRpcUrl
+        payload = _make_payload(bundler_url=None)
+        # Requirements with no userOperation extra
+        req = _make_requirements(extra=None)
+
+        result = scheme.settle(payload, req)
+
+        assert result.success is False
+        assert result.error_reason == ERR_MISSING_BUNDLER_URL
+        assert result.payer == "0xSender"
+
+    @patch.object(ExactEvmSchemeERC4337, "verify")
+    def test_settle_entry_point_missing_after_verify_passes(self, mock_verify):
+        """settle() returns ERR_MISSING_ENTRY_POINT when verify passes but entry_point is empty."""
+        from x402.schemas import VerifyResponse
+
+        mock_verify.return_value = VerifyResponse(is_valid=True, payer="0xSender")
+
+        scheme = ExactEvmSchemeERC4337()
+        # Payload with bundler URL but empty entry point
+        payload = _make_payload(bundler_url="https://bundler.example.com")
+        payload.payload["entryPoint"] = ""
+
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_MISSING_ENTRY_POINT
+        assert result.payer == "0xSender"
+
+
+class TestSettleReceiptNoTransactionHashes:
+    """Tests for settle() when receipt has no transaction hashes."""
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_receipt_with_no_tx_hashes_falls_back_to_user_op_hash(
+        self, mock_bundler_cls, mock_time
+    ):
+        """settle where receipt exists but both tx hashes are None falls back to user_op_hash."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.return_value = "0xUserOpHash"
+
+        # Receipt with no transaction hashes
+        receipt = UserOperationReceipt(
+            user_op_hash="0xUserOpHash",
+            entry_point="0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            sender="0xSender",
+            nonce="0x01",
+            actual_gas_cost="0x100",
+            actual_gas_used="0x50",
+            success=True,
+            receipt_transaction_hash=None,
+            transaction_hash=None,
+        )
+        mock_bundler.get_user_operation_receipt.return_value = receipt
+        mock_bundler_cls.return_value = mock_bundler
+
+        mock_time.time.side_effect = [0, 0, 1]
+        mock_time.sleep = MagicMock()
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is True
+        assert result.transaction == "0xUserOpHash"
