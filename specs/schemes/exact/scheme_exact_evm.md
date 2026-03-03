@@ -10,7 +10,7 @@ This is implemented via one of two asset transfer methods, depending on the toke
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
-| **3. ERC-7710**      | Smart accounts with delegation support.                              | **Smart Account Option** (Paid from ERC-7710 compatible account). |
+| **3. ERC-7710**      | Smart accounts with delegation support.                              | **Smart Account Option** (Paid from ERC-7710 compatible account). | 
 
 If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
