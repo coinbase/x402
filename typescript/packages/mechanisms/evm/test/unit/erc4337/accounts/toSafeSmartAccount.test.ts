@@ -479,6 +479,42 @@ describe("toSafeSmartAccount", () => {
       });
     });
 
+    describe("mock owner notImplemented methods", () => {
+      const mockBaseAccount = {
+        address: "0xSafeAddress1234567890123456789012345678" as Hex,
+        signUserOperation: vi.fn(),
+        encodeCalls: vi.fn(),
+        getNonce: vi.fn(),
+      } as unknown as SmartAccount;
+
+      beforeEach(() => {
+        (permissionlessToSafe as ReturnType<typeof vi.fn>).mockResolvedValue(mockBaseAccount);
+      });
+
+      it("should throw when calling signMessage on mock owner", async () => {
+        await toSafeSmartAccount({
+          client: mockClient,
+          signerConfig: {
+            type: "multi",
+            signers: {
+              p256: mockP256Signer,
+              webAuthn: mockWebAuthnAccount,
+            },
+            threshold: 1,
+          },
+        });
+
+        // Capture the mock owners passed to permissionless toSafeSmartAccount
+        const callArgs = (permissionlessToSafe as ReturnType<typeof vi.fn>).mock.calls[0][0];
+        const mockOwner = callArgs.owners[0];
+
+        // The mock owner's signMessage should throw "Mock owner: use signUserOperation instead"
+        expect(() => mockOwner.signMessage()).toThrow(
+          "Mock owner: use signUserOperation instead",
+        );
+      });
+    });
+
     describe("multi signer with safeWebAuthnSharedSignerAddress", () => {
       it("should pass safeWebAuthnSharedSignerAddress through when only webAuthn signer and multi type", async () => {
         const sharedSignerAddress = "0xfD90FAd33ee8b58f32c00aceEad1358e4AFC23f9" as Hex;

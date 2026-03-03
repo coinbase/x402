@@ -80,4 +80,34 @@ describe("computeSafeOpHash", () => {
     const hash2 = computeSafeOpHash(baseUserOp, chainId, custom);
     expect(hash1).not.toBe(hash2);
   });
+
+  it("should handle factory with null factoryData", () => {
+    const withFactoryNullData = {
+      ...baseUserOp,
+      factory: "0x0000000000000000000000000000000000000abc" as Hex,
+      factoryData: null,
+    };
+    const hash = computeSafeOpHash(withFactoryNullData, chainId);
+    expect(hash).toBeDefined();
+    expect(hash.startsWith("0x")).toBe(true);
+    expect(hash.length).toBe(66);
+  });
+
+  it("should handle paymaster with null sub-fields", () => {
+    const withPaymasterNullFields = {
+      ...baseUserOp,
+      paymaster: "0x0000000000000000000000000000000000000def" as Hex,
+      paymasterVerificationGasLimit: null,
+      paymasterPostOpGasLimit: null,
+      paymasterData: null,
+    };
+    const hash = computeSafeOpHash(withPaymasterNullFields, chainId);
+    expect(hash).toBeDefined();
+    expect(hash.startsWith("0x")).toBe(true);
+    expect(hash.length).toBe(66);
+
+    // Should differ from base (no paymaster) since paymaster address is still set
+    const baseHash = computeSafeOpHash(baseUserOp, chainId);
+    expect(hash).not.toBe(baseHash);
+  });
 });

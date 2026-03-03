@@ -933,6 +933,83 @@ describe("ExactEvmSchemeERC4337", () => {
       }
     });
 
+    it("should use capability bundlerUrl when config bundlerUrl is not set in dynamic path", async () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signUserOperation: vi.fn(),
+      } as unknown as SmartAccount;
+
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockAccount.address as `0x${string}`,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (ViemBundlerClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        prepareUserOperation: vi.fn().mockResolvedValue(mockPreparedUserOp),
+        estimateGas: vi.fn(),
+        sendUserOperation: vi.fn(),
+      }));
+
+      const customSigner: UserOperationSigner = {
+        address: mockAccount.address as `0x${string}`,
+        signUserOperation: vi.fn().mockResolvedValue("0xsig" as `0x${string}`),
+      };
+
+      // No bundlerUrl in config — should fall back to capability.bundlerUrl
+      const schemeNoBundlerUrl = new ExactEvmSchemeERC4337({
+        account: mockAccount,
+        signer: customSigner,
+        entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      });
+
+      const requirementsWithCapabilityBundler: PaymentRequirements = {
+        ...basePaymentRequirements,
+        extra: {
+          userOperation: {
+            supported: true,
+            bundlerUrl: "https://capability-bundler.example.com",
+            entrypoint: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+          },
+        },
+      };
+
+      const result = await schemeNoBundlerUrl.createPaymentPayload(
+        2,
+        requirementsWithCapabilityBundler,
+      );
+
+      expect(result.payload).toHaveProperty("type", "erc4337");
+      expect(ViemBundlerClient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bundlerUrl: "https://capability-bundler.example.com",
+        }),
+      );
+    });
+
+    it("should wrap non-AA Error preparation error with error.message", async () => {
+      const genericError = new Error("network timeout");
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        genericError,
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("preparation");
+        expect(error.message).toContain("network timeout");
+        expect(error.code).toBeUndefined();
+        expect(error.cause).toBe(genericError);
+      }
+    });
+
     it("should use maxAmountRequired when amount is undefined (v1 compat)", async () => {
       const mockPreparedUserOp: PreparedUserOperation = {
         sender: mockSigner.address,

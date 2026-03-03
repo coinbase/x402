@@ -454,6 +454,21 @@ describe("ExactEvmSchemeNetworkERC4337", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should return 'invalid' as default errorReason when verify returns isValid false with no invalidReason", async () => {
+      const spiedFacilitator = new ExactEvmSchemeNetworkERC4337();
+      vi.spyOn(spiedFacilitator, "verify").mockResolvedValueOnce({
+        isValid: false,
+        invalidReason: undefined,
+        payer: "0x1234567890123456789012345678901234567890",
+      });
+
+      const result = await spiedFacilitator.settle(basePaymentPayload, basePaymentRequirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("invalid");
+      expect(result.transaction).toBe("");
+    });
+
     it("should use default bundler URL from config in settle", async () => {
       const facilitatorWithDefault = new ExactEvmSchemeNetworkERC4337({
         defaultBundlerUrl: "https://default-bundler.example.com",
