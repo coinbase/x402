@@ -7,7 +7,9 @@ from x402.mechanisms.evm.erc4337_constants import (
     ERR_MISSING_BUNDLER_URL,
     ERR_MISSING_ENTRY_POINT,
     ERR_MISSING_USER_OPERATION,
+    ERR_SEND_FAILED,
 )
+from x402.mechanisms.evm.exact.erc4337_bundler import UserOperationReceipt
 from x402.mechanisms.evm.exact.erc4337_facilitator import (
     ExactEvmSchemeERC4337,
     ExactEvmSchemeERC4337Config,
@@ -49,7 +51,7 @@ def _make_payload(bundler_url="https://bundler.example.com"):
     return mock_payload
 
 
-def _make_requirements():
+def _make_requirements(extra=None):
     """Create mock payment requirements."""
     req = MagicMock(spec=PaymentRequirements)
     req.scheme = "exact"
@@ -57,7 +59,7 @@ def _make_requirements():
     req.amount = "1000000"
     req.asset = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
     req.pay_to = "0xRecipient"
-    req.extra = None
+    req.extra = extra
     return req
 
 
@@ -137,3 +139,204 @@ class TestVerify:
             result = scheme.verify(payload, _make_requirements())
             assert result.is_valid is True
             mock_cls.assert_called_with("https://config-bundler.com")
+
+
+class TestSettle:
+    """Tests for settle() method."""
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_success_with_receipt(self, mock_bundler_cls, mock_time):
+        """settle() success path: send succeeds, receipt has transaction hash."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.return_value = "0xUserOpHash"
+        receipt = UserOperationReceipt(
+            user_op_hash="0xUserOpHash",
+            entry_point="0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            sender="0xSender",
+            nonce="0x01",
+            actual_gas_cost="0x100",
+            actual_gas_used="0x50",
+            success=True,
+            receipt_transaction_hash="0xTxHash",
+        )
+        mock_bundler.get_user_operation_receipt.return_value = receipt
+        mock_bundler_cls.return_value = mock_bundler
+
+        # Make time.time() return values that allow one poll iteration then exceed deadline
+        mock_time.time.side_effect = [0, 0, 1]
+        mock_time.sleep = MagicMock()
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is True
+        assert result.transaction == "0xTxHash"
+        assert result.payer == "0xSender"
+        assert result.network == "eip155:84532"
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_success_with_top_level_tx_hash(self, mock_bundler_cls, mock_time):
+        """settle() uses top-level transactionHash when receipt.receipt_transaction_hash is empty."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.return_value = "0xUserOpHash"
+        receipt = UserOperationReceipt(
+            user_op_hash="0xUserOpHash",
+            entry_point="0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            sender="0xSender",
+            nonce="0x01",
+            actual_gas_cost="0x100",
+            actual_gas_used="0x50",
+            success=True,
+            transaction_hash="0xTopLevelTxHash",
+            receipt_transaction_hash=None,
+        )
+        mock_bundler.get_user_operation_receipt.return_value = receipt
+        mock_bundler_cls.return_value = mock_bundler
+
+        mock_time.time.side_effect = [0, 0, 1]
+        mock_time.sleep = MagicMock()
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is True
+        assert result.transaction == "0xTopLevelTxHash"
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_re_verification_failure(self, mock_bundler_cls):
+        """settle() re-verification failure returns error."""
+        mock_bundler = MagicMock()
+        mock_bundler.estimate_user_operation_gas.side_effect = Exception("gas estimation error")
+        mock_bundler_cls.return_value = mock_bundler
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_GAS_ESTIMATION_FAILED
+        assert result.network == "eip155:84532"
+
+    def test_settle_missing_bundler_url(self):
+        """settle() with no bundler URL anywhere returns error."""
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload(bundler_url=None)
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_MISSING_BUNDLER_URL
+
+    def test_settle_missing_entry_point(self):
+        """settle() with empty entry point returns error."""
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        payload.payload["entryPoint"] = ""
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_MISSING_ENTRY_POINT
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_send_fails_with_exception(self, mock_bundler_cls):
+        """settle() when send_user_operation raises returns ERR_SEND_FAILED."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.side_effect = Exception("bundler down")
+        mock_bundler_cls.return_value = mock_bundler
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SEND_FAILED
+        assert result.error_message == "bundler down"
+        assert result.transaction == ""
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_receipt_poll_timeout_falls_back_to_user_op_hash(
+        self, mock_bundler_cls, mock_time
+    ):
+        """settle() when receipt poll times out falls back to user_op_hash."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.return_value = "0xUserOpHash"
+        # Receipt always returns None (not available yet)
+        mock_bundler.get_user_operation_receipt.return_value = None
+        mock_bundler_cls.return_value = mock_bundler
+
+        # Simulate: first call sets deadline, then immediately past deadline
+        mock_time.time.side_effect = [0, 31]
+        mock_time.sleep = MagicMock()
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is True
+        assert result.transaction == "0xUserOpHash"
+
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.time")
+    @patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient")
+    def test_settle_receipt_poll_exception_ignored(self, mock_bundler_cls, mock_time):
+        """settle() ignores exceptions during receipt polling and falls back to user_op_hash."""
+        mock_bundler = MagicMock()
+        mock_bundler.send_user_operation.return_value = "0xUserOpHash"
+        mock_bundler.get_user_operation_receipt.side_effect = Exception("poll error")
+        mock_bundler_cls.return_value = mock_bundler
+
+        # Allow one poll iteration then timeout
+        mock_time.time.side_effect = [0, 0, 31]
+        mock_time.sleep = MagicMock()
+
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload()
+        result = scheme.settle(payload, _make_requirements())
+
+        assert result.success is True
+        assert result.transaction == "0xUserOpHash"
+
+
+class TestResolveBundlerUrl:
+    """Tests for _resolve_bundler_url()."""
+
+    def test_from_requirements_extra(self):
+        """_resolve_bundler_url() reads bundler URL from requirements.extra."""
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload(bundler_url=None)
+        req = _make_requirements(
+            extra={
+                "userOperation": {
+                    "supported": True,
+                    "bundlerUrl": "https://extra-bundler.example.com",
+                }
+            }
+        )
+
+        with patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            result = scheme.verify(payload, req)
+            assert result.is_valid is True
+            mock_cls.assert_called_with("https://extra-bundler.example.com")
+
+    def test_payload_url_takes_priority(self):
+        """_resolve_bundler_url() prefers payload URL over requirements.extra."""
+        scheme = ExactEvmSchemeERC4337()
+        payload = _make_payload(bundler_url="https://payload-bundler.example.com")
+        req = _make_requirements(
+            extra={
+                "userOperation": {
+                    "supported": True,
+                    "bundlerUrl": "https://extra-bundler.example.com",
+                }
+            }
+        )
+
+        with patch("x402.mechanisms.evm.exact.erc4337_facilitator.BundlerClient") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            result = scheme.verify(payload, req)
+            assert result.is_valid is True
+            mock_cls.assert_called_with("https://payload-bundler.example.com")

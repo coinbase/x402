@@ -102,4 +102,39 @@ class UserOperationCapabilityTest {
         assertNull(cap.paymaster);
         assertNull(cap.entrypoint);
     }
+
+    /* -------- supported as String "true" instead of Boolean ---------------- */
+
+    @Test
+    void extractReturnsNullWhenSupportedIsStringTrue() {
+        Map<String, Object> userOp = new HashMap<>();
+        userOp.put("supported", "true"); // String, not Boolean
+        userOp.put("bundlerUrl", "https://bundler.example.com");
+
+        Map<String, Object> extra = Map.of("userOperation", userOp);
+
+        assertNull(UserOperationCapability.extract(extra));
+    }
+
+    /* -------- supported as Integer 1 --------------------------------------- */
+
+    @Test
+    void extractReturnsNullWhenSupportedIsInteger() {
+        Map<String, Object> userOp = new HashMap<>();
+        userOp.put("supported", 1); // Integer, not Boolean
+        userOp.put("bundlerUrl", "https://bundler.example.com");
+
+        Map<String, Object> extra = Map.of("userOperation", userOp);
+
+        assertNull(UserOperationCapability.extract(extra));
+    }
+
+    /* -------- empty extra map returns null ---------------------------------- */
+
+    @Test
+    void extractReturnsNullForEmptyExtraMap() {
+        Map<String, Object> extra = new HashMap<>();
+
+        assertNull(UserOperationCapability.extract(extra));
+    }
 }

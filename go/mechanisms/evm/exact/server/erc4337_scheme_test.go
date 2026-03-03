@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -144,5 +145,107 @@ func TestExactEvmSchemeERC4337_Scheme(t *testing.T) {
 	scheme := NewExactEvmSchemeERC4337()
 	if scheme.Scheme() != "exact" {
 		t.Errorf("Scheme() = %q, want %q", scheme.Scheme(), "exact")
+	}
+}
+
+func TestExactEvmSchemeERC4337_ParsePrice_ParentSuccess(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337()
+
+	// Use a network that the parent (standard configs) supports, e.g., Base Sepolia
+	var price x402.Price = map[string]interface{}{
+		"amount": "1000000",
+		"asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+	}
+
+	result, err := scheme.ParsePrice(price, x402.Network("eip155:84532"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Amount != "1000000" {
+		t.Errorf("Amount = %q, want %q", result.Amount, "1000000")
+	}
+	if result.Asset != "0x036CbD53842c5426634e7929541eC2318f3dCF7e" {
+		t.Errorf("Asset = %q, want USDC address", result.Asset)
+	}
+}
+
+func TestExactEvmSchemeERC4337_ParsePrice_FallbackToERC4337Registry(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337()
+
+	// Use a price value that the parent can parse as Money (decimal)
+	// but on a network only in the ERC-4337 registry (e.g., Arbitrum 42161)
+	// The parent should fail for this network if it doesn't have a network config
+	var price x402.Price = 1.50
+
+	result, err := scheme.ParsePrice(price, x402.Network("eip155:42161"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should have populated asset from ERC-4337 registry
+	if result.Asset == "" {
+		t.Error("expected asset to be filled from ERC-4337 registry")
+	}
+}
+
+func TestExactEvmSchemeERC4337_ParsePrice_BothFail(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337()
+
+	// Use a completely unknown network that is not in either parent or ERC-4337 registry
+	var price x402.Price = 1.50
+
+	_, err := scheme.ParsePrice(price, x402.Network("eip155:999999999"))
+	if err == nil {
+		t.Fatal("expected error for unsupported network in both parent and ERC-4337 registry")
+	}
+}
+
+func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_ChainNotInRegistry(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337()
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:999999999", // Not in ERC-4337 registry
+		Amount:  "1000000",
+		PayTo:   "0xRecipient",
+	}
+
+	supportedKind := types.SupportedKind{
+		X402Version: 2,
+		Scheme:      "exact",
+		Network:     "eip155:999999999",
+	}
+
+	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, []string{})
+	if err == nil {
+		t.Fatal("expected error for chain not in registry")
+	}
+}
+
+func TestExactEvmSchemeERC4337_enhanceFromERC4337Registry_AssetPreserved(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337()
+
+	customAsset := "0xCustomAssetAddress000000000000000000000000"
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:42161", // Arbitrum - in ERC-4337 registry
+		Amount:  "1000000",
+		Asset:   customAsset,
+		PayTo:   "0xRecipient",
+	}
+
+	supportedKind := types.SupportedKind{
+		X402Version: 2,
+		Scheme:      "exact",
+		Network:     "eip155:42161",
+	}
+
+	enhanced, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Asset should be preserved (not overwritten by registry default)
+	if enhanced.Asset != customAsset {
+		t.Errorf("Asset = %q, want %q (should preserve original)", enhanced.Asset, customAsset)
 	}
 }

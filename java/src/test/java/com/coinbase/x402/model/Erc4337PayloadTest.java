@@ -156,4 +156,44 @@ class Erc4337PayloadTest {
         assertNull(result.entryPoint);
         assertNull(result.userOperation);
     }
+
+    /* -------- fromMap(null) behavior ---------------------------------------- */
+
+    @Test
+    void fromMapWithNullThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () ->
+                Erc4337Payload.fromMap(null));
+    }
+
+    /* -------- fromMap with unconvertible data ------------------------------- */
+
+    @Test
+    void fromMapWithUnconvertibleDataThrowsIllegalArgumentException() {
+        Map<String, Object> payload = new HashMap<>();
+        // userOperation should be a Map, not a String
+        payload.put("userOperation", "not-a-map-of-fields");
+
+        assertThrows(IllegalArgumentException.class, () ->
+                Erc4337Payload.fromMap(payload));
+    }
+
+    /* -------- isErc4337Payload with explicit null value for userOperation --- */
+
+    @Test
+    void isErc4337PayloadReturnsFalseWhenUserOperationIsExplicitlyNull() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userOperation", null);
+        payload.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
+
+        assertFalse(Erc4337Payload.isErc4337Payload(payload));
+    }
+
+    /* -------- isErc4337Payload with empty map ------------------------------- */
+
+    @Test
+    void isErc4337PayloadReturnsFalseForEmptyMap() {
+        Map<String, Object> payload = new HashMap<>();
+
+        assertFalse(Erc4337Payload.isErc4337Payload(payload));
+    }
 }

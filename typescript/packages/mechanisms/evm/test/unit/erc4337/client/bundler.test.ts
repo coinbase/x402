@@ -222,6 +222,124 @@ describe("ViemBundlerClient", () => {
     });
   });
 
+  describe("sendUserOperation", () => {
+    const entryPoint = "0x0000000071727De22E5E9d8BAf0edAc6f37da032" as `0x${string}`;
+
+    it("should assemble paymasterAndData from both paymaster and paymasterData", async () => {
+      const mockHash = "0xUserOpHash1234" as `0x${string}`;
+      mockSendUserOperation.mockResolvedValueOnce(mockHash);
+
+      const userOp = {
+        sender: "0xSender" as string,
+        nonce: "0x1" as string,
+        callData: "0xCallData" as string,
+        callGasLimit: "0xc350" as string,
+        verificationGasLimit: "0x186a0" as string,
+        preVerificationGas: "0x5208" as string,
+        maxFeePerGas: "0x3b9aca00" as string,
+        maxPriorityFeePerGas: "0x1dcd6500" as string,
+        paymaster: "0xPaymasterAddr" as string,
+        paymasterData: "0xDeadBeef" as string,
+        signature: "0xSig" as string,
+      };
+
+      const result = await client.sendUserOperation(userOp as any, entryPoint);
+
+      expect(result).toBe(mockHash);
+      expect(mockSendUserOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          account: mockAccount,
+          // paymaster + paymasterData (without 0x prefix on data) = paymasterAndData
+          paymasterAndData: "0xPaymasterAddrDeadBeef",
+        }),
+      );
+    });
+
+    it("should use only paymaster when paymasterData is absent", async () => {
+      const mockHash = "0xUserOpHash5678" as `0x${string}`;
+      mockSendUserOperation.mockResolvedValueOnce(mockHash);
+
+      const userOp = {
+        sender: "0xSender" as string,
+        nonce: "0x0" as string,
+        callData: "0x" as string,
+        callGasLimit: "0xc350" as string,
+        verificationGasLimit: "0x186a0" as string,
+        preVerificationGas: "0x5208" as string,
+        maxFeePerGas: "0x3b9aca00" as string,
+        maxPriorityFeePerGas: "0x1dcd6500" as string,
+        paymaster: "0xPaymasterOnly" as string,
+        signature: "0xSig" as string,
+      };
+
+      await client.sendUserOperation(userOp as any, entryPoint);
+
+      expect(mockSendUserOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymasterAndData: "0xPaymasterOnly",
+        }),
+      );
+    });
+
+    it("should use 0x when neither paymaster nor paymasterData is present", async () => {
+      const mockHash = "0xUserOpHashNoPaymaster" as `0x${string}`;
+      mockSendUserOperation.mockResolvedValueOnce(mockHash);
+
+      const userOp = {
+        sender: "0xSender" as string,
+        nonce: "0x0" as string,
+        callData: "0x" as string,
+        callGasLimit: "0xc350" as string,
+        verificationGasLimit: "0x186a0" as string,
+        preVerificationGas: "0x5208" as string,
+        maxFeePerGas: "0x3b9aca00" as string,
+        maxPriorityFeePerGas: "0x1dcd6500" as string,
+        signature: "0xSig" as string,
+      };
+
+      await client.sendUserOperation(userOp as any, entryPoint);
+
+      expect(mockSendUserOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymasterAndData: "0x",
+        }),
+      );
+    });
+
+    it("should convert JSON string fields to bigints", async () => {
+      const mockHash = "0xUserOpHashConverted" as `0x${string}`;
+      mockSendUserOperation.mockResolvedValueOnce(mockHash);
+
+      const userOp = {
+        sender: "0xSender" as string,
+        nonce: "0x5" as string,
+        callData: "0xCallData" as string,
+        callGasLimit: "0xc350" as string,
+        verificationGasLimit: "0x186a0" as string,
+        preVerificationGas: "0x5208" as string,
+        maxFeePerGas: "0x3b9aca00" as string,
+        maxPriorityFeePerGas: "0x1dcd6500" as string,
+        signature: "0xSig" as string,
+      };
+
+      await client.sendUserOperation(userOp as any, entryPoint);
+
+      expect(mockSendUserOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sender: "0xSender",
+          nonce: BigInt("0x5"),
+          callData: "0xCallData",
+          callGasLimit: BigInt("0xc350"),
+          verificationGasLimit: BigInt("0x186a0"),
+          preVerificationGas: BigInt("0x5208"),
+          maxFeePerGas: BigInt("0x3b9aca00"),
+          maxPriorityFeePerGas: BigInt("0x1dcd6500"),
+          signature: "0xSig",
+        }),
+      );
+    });
+  });
+
   describe("estimateGas", () => {
     it("should throw (not implemented)", async () => {
       await expect(client.estimateGas({} as any, "0x" as `0x${string}`)).rejects.toThrow(

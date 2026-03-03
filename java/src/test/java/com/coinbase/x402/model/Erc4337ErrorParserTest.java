@@ -1,6 +1,8 @@
 package com.coinbase.x402.model;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -78,5 +80,43 @@ class Erc4337ErrorParserTest {
         assertNotNull(err);
         assertEquals("AA25", err.code);
         assertEquals("Nonce validation failed", err.reason);
+    }
+
+    /* -------- AA code at the very start of string --------------------------- */
+
+    @Test
+    void parsesAACodeAtStartOfString() {
+        Erc4337ErrorParser.AAError err = Erc4337ErrorParser.parseAAError("AA10 sender already constructed");
+        assertNotNull(err);
+        assertEquals("AA10", err.code);
+        assertEquals("Sender already constructed", err.reason);
+    }
+
+    /* -------- parameterized test covering additional AA codes --------------- */
+
+    @ParameterizedTest
+    @CsvSource({
+            "AA13, InitCode failed or OOG",
+            "AA14, InitCode must return sender",
+            "AA15, InitCode must create sender",
+            "AA20, Account not deployed",
+            "AA22, Expired or not due",
+            "AA23, Reverted (or OOG)",
+            "AA26, Account accessed global state",
+            "AA30, Paymaster not deployed",
+            "AA32, Paymaster expired or not due",
+            "AA33, Paymaster reverted (or OOG)",
+            "AA34, Paymaster context reverted",
+            "AA40, Over verification gas limit",
+            "AA41, Over max fee per gas",
+            "AA50, Over max priority fee per gas",
+            "AA51, Prefund below actualGasCost"
+    })
+    void parsesAdditionalAACodes(String code, String expectedReason) {
+        Erc4337ErrorParser.AAError err = Erc4337ErrorParser.parseAAError(
+                "error " + code + " occurred");
+        assertNotNull(err, "Should parse AA code: " + code);
+        assertEquals(code, err.code);
+        assertEquals(expectedReason, err.reason);
     }
 }

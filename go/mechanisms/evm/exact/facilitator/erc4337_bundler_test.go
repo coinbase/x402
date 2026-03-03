@@ -113,6 +113,36 @@ func TestBundlerClient_SendUserOperation(t *testing.T) {
 			t.Errorf("hash = %q, want %q", hash, "0xUserOpHash123")
 		}
 	})
+
+	t.Run("rpc error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"error": map[string]interface{}{
+					"message": "AA21 insufficient funds for gas prefund",
+					"code":    -32500,
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		client := NewBundlerClient(server.URL, nil)
+		_, err := client.SendUserOperation(context.Background(), map[string]interface{}{}, "0xEntryPoint")
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		bundlerErr, ok := err.(*BundlerError)
+		if !ok {
+			t.Fatalf("expected BundlerError, got %T", err)
+		}
+		if bundlerErr.Code != -32500 {
+			t.Errorf("Code = %d, want %d", bundlerErr.Code, -32500)
+		}
+	})
 }
 
 func TestBundlerClient_GetUserOperationReceipt(t *testing.T) {
@@ -150,6 +180,36 @@ func TestBundlerClient_GetUserOperationReceipt(t *testing.T) {
 		}
 		if receipt.Receipt.TransactionHash != "0xTxHash123" {
 			t.Errorf("TransactionHash = %q, want %q", receipt.Receipt.TransactionHash, "0xTxHash123")
+		}
+	})
+
+	t.Run("rpc error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"error": map[string]interface{}{
+					"message": "internal error",
+					"code":    -32603,
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		client := NewBundlerClient(server.URL, nil)
+		_, err := client.GetUserOperationReceipt(context.Background(), "0xHash")
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		bundlerErr, ok := err.(*BundlerError)
+		if !ok {
+			t.Fatalf("expected BundlerError, got %T", err)
+		}
+		if bundlerErr.Code != -32603 {
+			t.Errorf("Code = %d, want %d", bundlerErr.Code, -32603)
 		}
 	})
 

@@ -225,6 +225,137 @@ func TestExactEvmSchemeERC4337_CreatePaymentPayload(t *testing.T) {
 	})
 }
 
+func TestExactEvmSchemeERC4337_Scheme(t *testing.T) {
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer:        &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{},
+		Entrypoint:    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl:    "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if scheme.Scheme() != "exact" {
+		t.Errorf("Scheme() = %q, want %q", scheme.Scheme(), "exact")
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_MissingAmount(t *testing.T) {
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareOp: &evm.UserOperation07Json{
+				Sender: "0xSender",
+				Nonce:  "0x01",
+			},
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	requirements := makeClientRequirements()
+	requirements.Amount = ""
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), requirements)
+	if createErr == nil {
+		t.Fatal("expected error for missing amount")
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_EmptyAmount(t *testing.T) {
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareOp: &evm.UserOperation07Json{
+				Sender: "0xSender",
+				Nonce:  "0x01",
+			},
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	requirements := makeClientRequirements()
+	requirements.Amount = ""
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), requirements)
+	if createErr == nil {
+		t.Fatal("expected error for empty amount")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhaseValidation {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhaseValidation)
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_InvalidAmount(t *testing.T) {
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer: &mockSigner{address: "0xSender", signature: "0xSig"},
+		BundlerClient: &mockBundlerClient{
+			prepareOp: &evm.UserOperation07Json{
+				Sender: "0xSender",
+				Nonce:  "0x01",
+			},
+		},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	requirements := makeClientRequirements()
+	requirements.Amount = "not-a-number"
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), requirements)
+	if createErr == nil {
+		t.Fatal("expected error for invalid amount")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhaseValidation {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhaseValidation)
+	}
+}
+
+func TestExactEvmSchemeERC4337_CreatePaymentPayload_NilBundlerClient(t *testing.T) {
+	scheme, err := NewExactEvmSchemeERC4337(ExactEvmSchemeERC4337Config{
+		Signer:     &mockSigner{address: "0xSender", signature: "0xSig"},
+		Entrypoint: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerUrl: "https://bundler.example.com",
+		// BundlerClient intentionally nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating scheme: %v", err)
+	}
+
+	_, createErr := scheme.CreatePaymentPayload(context.Background(), makeClientRequirements())
+	if createErr == nil {
+		t.Fatal("expected error for nil bundler client")
+	}
+
+	pce, ok := createErr.(*PaymentCreationError)
+	if !ok {
+		t.Fatalf("expected *PaymentCreationError, got %T", createErr)
+	}
+	if pce.Phase != PhaseValidation {
+		t.Errorf("Phase = %q, want %q", pce.Phase, PhaseValidation)
+	}
+}
+
 func TestParseAAError(t *testing.T) {
 	t.Run("found AA21", func(t *testing.T) {
 		result := ParseAAErrorString("UserOperation reverted during simulation with reason: AA21 didn't pay prefund")

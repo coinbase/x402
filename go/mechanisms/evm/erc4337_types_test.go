@@ -258,4 +258,154 @@ func TestExtractUserOperationCapability(t *testing.T) {
 			t.Errorf("expected nil, got %v", cap)
 		}
 	})
+
+	t.Run("with paymaster field", func(t *testing.T) {
+		extra := map[string]interface{}{
+			"userOperation": map[string]interface{}{
+				"supported":  true,
+				"bundlerUrl": "https://bundler.example.com",
+				"entrypoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+				"paymaster":  "0xPaymasterAddress",
+			},
+		}
+
+		cap := ExtractUserOperationCapability(extra)
+		if cap == nil {
+			t.Fatal("expected capability, got nil")
+		}
+		if !cap.Supported {
+			t.Error("expected Supported to be true")
+		}
+		if cap.Paymaster != "0xPaymasterAddress" {
+			t.Errorf("Paymaster = %q, want %q", cap.Paymaster, "0xPaymasterAddress")
+		}
+		if cap.BundlerUrl != "https://bundler.example.com" {
+			t.Errorf("BundlerUrl = %q, want %q", cap.BundlerUrl, "https://bundler.example.com")
+		}
+		if cap.Entrypoint != "0x0000000071727De22E5E9d8BAf0edAc6f37da032" {
+			t.Errorf("Entrypoint = %q, want %q", cap.Entrypoint, "0x0000000071727De22E5E9d8BAf0edAc6f37da032")
+		}
+	})
+}
+
+func TestErc4337PayloadToMap_EmptyOptionalFields(t *testing.T) {
+	payload := &Erc4337Payload{
+		Type:          "", // empty
+		EntryPoint:    "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerRpcUrl: "", // empty
+		UserOperation: UserOperation07Json{
+			Sender:               "0xSender",
+			Nonce:                "0x01",
+			CallData:             "0xCallData",
+			CallGasLimit:         "0x5208",
+			VerificationGasLimit: "0x10000",
+			PreVerificationGas:   "0x5000",
+			MaxFeePerGas:         "0x3B9ACA00",
+			MaxPriorityFeePerGas: "0x59682F00",
+			Signature:            "0xSignature",
+		},
+	}
+
+	m := payload.ToMap()
+
+	// When Type is empty, "type" key should not be present
+	if _, ok := m["type"]; ok {
+		t.Error("expected 'type' key to be omitted when empty")
+	}
+
+	// When BundlerRpcUrl is empty, "bundlerRpcUrl" key should not be present
+	if _, ok := m["bundlerRpcUrl"]; ok {
+		t.Error("expected 'bundlerRpcUrl' key to be omitted when empty")
+	}
+
+	// entryPoint should always be present
+	if _, ok := m["entryPoint"]; !ok {
+		t.Error("expected 'entryPoint' key to be present")
+	}
+
+	// userOperation should always be present
+	if _, ok := m["userOperation"]; !ok {
+		t.Error("expected 'userOperation' key to be present")
+	}
+}
+
+func TestUserOperation07JsonToMap_OptionalFields(t *testing.T) {
+	t.Run("with factory fields", func(t *testing.T) {
+		userOp := UserOperation07Json{
+			Sender:               "0xSender",
+			Nonce:                "0x01",
+			CallData:             "0xCallData",
+			CallGasLimit:         "0x5208",
+			VerificationGasLimit: "0x10000",
+			PreVerificationGas:   "0x5000",
+			MaxFeePerGas:         "0x3B9ACA00",
+			MaxPriorityFeePerGas: "0x59682F00",
+			Signature:            "0xSignature",
+			Factory:              "0xFactoryAddress",
+			FactoryData:          "0xFactoryData",
+		}
+
+		m := userOp.ToMap()
+		if m["factory"] != "0xFactoryAddress" {
+			t.Errorf("factory = %v, want %v", m["factory"], "0xFactoryAddress")
+		}
+		if m["factoryData"] != "0xFactoryData" {
+			t.Errorf("factoryData = %v, want %v", m["factoryData"], "0xFactoryData")
+		}
+	})
+
+	t.Run("with paymaster fields", func(t *testing.T) {
+		userOp := UserOperation07Json{
+			Sender:                        "0xSender",
+			Nonce:                         "0x01",
+			CallData:                      "0xCallData",
+			CallGasLimit:                  "0x5208",
+			VerificationGasLimit:          "0x10000",
+			PreVerificationGas:            "0x5000",
+			MaxFeePerGas:                  "0x3B9ACA00",
+			MaxPriorityFeePerGas:          "0x59682F00",
+			Signature:                     "0xSignature",
+			Paymaster:                     "0xPaymasterAddress",
+			PaymasterData:                 "0xPaymasterData",
+			PaymasterVerificationGasLimit: "0x8000",
+			PaymasterPostOpGasLimit:       "0x4000",
+		}
+
+		m := userOp.ToMap()
+		if m["paymaster"] != "0xPaymasterAddress" {
+			t.Errorf("paymaster = %v, want %v", m["paymaster"], "0xPaymasterAddress")
+		}
+		if m["paymasterData"] != "0xPaymasterData" {
+			t.Errorf("paymasterData = %v, want %v", m["paymasterData"], "0xPaymasterData")
+		}
+		if m["paymasterVerificationGasLimit"] != "0x8000" {
+			t.Errorf("paymasterVerificationGasLimit = %v, want %v", m["paymasterVerificationGasLimit"], "0x8000")
+		}
+		if m["paymasterPostOpGasLimit"] != "0x4000" {
+			t.Errorf("paymasterPostOpGasLimit = %v, want %v", m["paymasterPostOpGasLimit"], "0x4000")
+		}
+	})
+
+	t.Run("empty optional fields omitted", func(t *testing.T) {
+		userOp := UserOperation07Json{
+			Sender:               "0xSender",
+			Nonce:                "0x01",
+			CallData:             "0xCallData",
+			CallGasLimit:         "0x5208",
+			VerificationGasLimit: "0x10000",
+			PreVerificationGas:   "0x5000",
+			MaxFeePerGas:         "0x3B9ACA00",
+			MaxPriorityFeePerGas: "0x59682F00",
+			Signature:            "0xSignature",
+			// All optional fields empty
+		}
+
+		m := userOp.ToMap()
+		optionalKeys := []string{"factory", "factoryData", "paymaster", "paymasterData", "paymasterVerificationGasLimit", "paymasterPostOpGasLimit"}
+		for _, key := range optionalKeys {
+			if _, ok := m[key]; ok {
+				t.Errorf("expected %q to be omitted when empty", key)
+			}
+		}
+	})
 }

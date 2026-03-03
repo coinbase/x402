@@ -529,5 +529,120 @@ describe("ExactEvmSchemeERC4337", () => {
 
       expect(result.payload).toHaveProperty("bundlerRpcUrl", "https://default-bundler.example.com");
     });
+
+    it("should wrap prepareUserOperation errors as PaymentCreationError with phase 'preparation'", async () => {
+      const prepError = new Error("AA21 prefund too low");
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        prepError,
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("preparation");
+        expect(error.message).toContain("Payment preparation failed");
+        expect(error.code).toBe("AA21");
+        expect(error.cause).toBe(prepError);
+      }
+    });
+
+    it("should wrap signer.signUserOperation errors as PaymentCreationError with phase 'signing'", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+
+      const signingError = new Error("Secure Enclave signing failed");
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        signingError,
+      );
+
+      try {
+        await scheme.createPaymentPayload(2, basePaymentRequirements);
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("PaymentCreationError");
+        expect(error.phase).toBe("signing");
+        expect(error.message).toContain("Payment signing failed");
+        expect(error.cause).toBe(signingError);
+      }
+    });
+
+    it("should throw error when amount is missing", async () => {
+      const requirementsWithoutAmount: PaymentRequirements = {
+        ...basePaymentRequirements,
+        amount: undefined as unknown as string,
+      };
+
+      await expect(
+        scheme.createPaymentPayload(2, requirementsWithoutAmount),
+      ).rejects.toThrow("Payment requirements missing amount");
+    });
+
+    it("should include scheme and network at top level for v1 format (x402Version === 1)", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        "0xsig" as `0x${string}`,
+      );
+
+      const result = await scheme.createPaymentPayload(1, basePaymentRequirements);
+
+      expect(result.x402Version).toBe(1);
+      // v1 format includes scheme and network at top level
+      expect((result as any).scheme).toBe("exact");
+      expect((result as any).network).toBe("eip155:84532");
+      expect(result.payload).toHaveProperty("type", "erc4337");
+    });
+
+    it("should not include scheme and network at top level for v2 format", async () => {
+      const mockPreparedUserOp: PreparedUserOperation = {
+        sender: mockSigner.address,
+        nonce: BigInt(0),
+        callData: "0x" as `0x${string}`,
+        callGasLimit: BigInt(50000),
+        verificationGasLimit: BigInt(100000),
+        preVerificationGas: BigInt(21000),
+        maxFeePerGas: BigInt(1000000000),
+        maxPriorityFeePerGas: BigInt(1000000000),
+      };
+
+      (mockBundlerClient.prepareUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockPreparedUserOp,
+      );
+      (mockSigner.signUserOperation as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        "0xsig" as `0x${string}`,
+      );
+
+      const result = await scheme.createPaymentPayload(2, basePaymentRequirements);
+
+      expect(result.x402Version).toBe(2);
+      expect((result as any).scheme).toBeUndefined();
+      expect((result as any).network).toBeUndefined();
+    });
   });
 });

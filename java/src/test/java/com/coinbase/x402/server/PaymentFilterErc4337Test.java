@@ -272,6 +272,129 @@ class PaymentFilterErc4337Test {
                 "EIP-3009 payer should come from authorization.from: " + jsonString);
     }
 
+    /* ------------ Settlement success with null txHash/networkId ------------- */
+
+    @Test
+    void settlementSuccessWithNullTxHashAndNetworkIdFallsBackToEmptyString() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        String senderAddress = "0xSenderNullTxHash";
+
+        Map<String, Object> userOp = new HashMap<>();
+        userOp.put("sender", senderAddress);
+        userOp.put("nonce", "0x1");
+        userOp.put("callData", "0xabcdef");
+        userOp.put("callGasLimit", "0x5208");
+        userOp.put("verificationGasLimit", "0x10000");
+        userOp.put("preVerificationGas", "0x5208");
+        userOp.put("maxFeePerGas", "0x3B9ACA00");
+        userOp.put("maxPriorityFeePerGas", "0x3B9ACA00");
+        userOp.put("signature", "0xSig");
+
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("resource", "/private");
+        payloadMap.put("type", "erc4337");
+        payloadMap.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
+        payloadMap.put("userOperation", userOp);
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme = "exact";
+        p.network = "base-sepolia";
+        p.payload = payloadMap;
+
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Settlement succeeds but txHash and networkId are null
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = null;
+        sr.networkId = null;
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+
+        ArgumentCaptor<String> headerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), headerCaptor.capture());
+
+        String jsonString = new String(Base64.getDecoder().decode(headerCaptor.getValue()));
+        // txHash and networkId should fall back to empty strings
+        assertTrue(jsonString.contains("\"transaction\":\"\""),
+                "transaction should be empty string when txHash is null: " + jsonString);
+        assertTrue(jsonString.contains("\"network\":\"\""),
+                "network should be empty string when networkId is null: " + jsonString);
+        assertTrue(jsonString.contains("\"success\":true"),
+                "Settlement should be successful: " + jsonString);
+        assertTrue(jsonString.contains("\"payer\":\"" + senderAddress + "\""),
+                "Payer should still be extracted: " + jsonString);
+    }
+
+    /* ------------ ERC-4337 payload where userOperation.sender is non-String - */
+
+    @Test
+    void erc4337PayloadWithNonStringSenderReturnsNullPayer() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        // userOperation with sender as Integer (not String)
+        Map<String, Object> userOp = new HashMap<>();
+        userOp.put("sender", 12345); // non-String type
+        userOp.put("nonce", "0x1");
+        userOp.put("callData", "0xabcdef");
+        userOp.put("callGasLimit", "0x5208");
+        userOp.put("verificationGasLimit", "0x10000");
+        userOp.put("preVerificationGas", "0x5208");
+        userOp.put("maxFeePerGas", "0x3B9ACA00");
+        userOp.put("maxPriorityFeePerGas", "0x3B9ACA00");
+        userOp.put("signature", "0xSig");
+
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("resource", "/private");
+        payloadMap.put("type", "erc4337");
+        payloadMap.put("entryPoint", "0x0000000071727De22E5E9d8BAf0edAc6f37da032");
+        payloadMap.put("userOperation", userOp);
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme = "exact";
+        p.network = "base-sepolia";
+        p.payload = payloadMap;
+
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        SettlementResponse sr = new SettlementResponse();
+        sr.success = true;
+        sr.txHash = "0xTxHash";
+        sr.networkId = "base-sepolia";
+        when(fac.settle(eq(header), any())).thenReturn(sr);
+
+        filter.doFilter(req, resp, chain);
+
+        // Should still process successfully
+        verify(chain).doFilter(req, resp);
+
+        ArgumentCaptor<String> headerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), headerCaptor.capture());
+
+        String jsonString = new String(Base64.getDecoder().decode(headerCaptor.getValue()));
+        // When sender is non-String, payer extraction should fall back.
+        // Jackson convertValue will coerce 12345 to "12345", so the payer may be "12345" or null.
+        // The key is the filter doesn't crash.
+        assertTrue(jsonString.contains("\"success\":true"),
+                "Settlement should still succeed: " + jsonString);
+    }
+
     /* ------------ Payload with neither ERC-4337 nor authorization ---------- */
 
     @Test

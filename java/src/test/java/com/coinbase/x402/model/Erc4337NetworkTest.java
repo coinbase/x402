@@ -176,4 +176,84 @@ class Erc4337NetworkTest {
     void sixChainsAreSupported() {
         assertEquals(6, Erc4337Network.SUPPORTED_CHAINS.size());
     }
+
+    /* -------- getByV1Name(null) returns null -------------------------------- */
+
+    @Test
+    void getByV1NameReturnsNullForNull() {
+        assertNull(Erc4337Network.getByV1Name(null));
+    }
+
+    /* -------- SUPPORTED_CHAINS unmodifiability ------------------------------ */
+
+    @Test
+    void supportedChainsIsUnmodifiable() {
+        assertThrows(UnsupportedOperationException.class, () ->
+                Erc4337Network.SUPPORTED_CHAINS.put(1, new Erc4337Network.ChainInfo(
+                        1, "Ethereum", "ethereum", "eip155:1",
+                        "https://mainnet.infura.io", "https://etherscan.io",
+                        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        null, false)));
+    }
+
+    /* -------- safeTransactionServiceUrl: null for testnets, non-null for mainnets */
+
+    @Test
+    void safeTransactionServiceUrlNullForOptimismSepolia() {
+        Erc4337Network.ChainInfo chain = Erc4337Network.getByChainId(11155420);
+        assertNotNull(chain);
+        assertNull(chain.safeTransactionServiceUrl,
+                "Optimism Sepolia should have null safeTransactionServiceUrl");
+    }
+
+    @Test
+    void safeTransactionServiceUrlNullForArbitrumSepolia() {
+        Erc4337Network.ChainInfo chain = Erc4337Network.getByChainId(421614);
+        assertNotNull(chain);
+        assertNull(chain.safeTransactionServiceUrl,
+                "Arbitrum Sepolia should have null safeTransactionServiceUrl");
+    }
+
+    @Test
+    void safeTransactionServiceUrlNonNullForMainnets() {
+        // Base mainnet
+        Erc4337Network.ChainInfo base = Erc4337Network.getByChainId(8453);
+        assertNotNull(base);
+        assertNotNull(base.safeTransactionServiceUrl,
+                "Base mainnet should have non-null safeTransactionServiceUrl");
+
+        // Optimism mainnet
+        Erc4337Network.ChainInfo optimism = Erc4337Network.getByChainId(10);
+        assertNotNull(optimism);
+        assertNotNull(optimism.safeTransactionServiceUrl,
+                "Optimism mainnet should have non-null safeTransactionServiceUrl");
+
+        // Arbitrum mainnet
+        Erc4337Network.ChainInfo arbitrum = Erc4337Network.getByChainId(42161);
+        assertNotNull(arbitrum);
+        assertNotNull(arbitrum.safeTransactionServiceUrl,
+                "Arbitrum mainnet should have non-null safeTransactionServiceUrl");
+    }
+
+    /* -------- rpcUrl and blockExplorerUrl non-null/non-empty for all chains - */
+
+    @Test
+    void allChainsHaveNonEmptyRpcUrl() {
+        for (Erc4337Network.ChainInfo chain : Erc4337Network.SUPPORTED_CHAINS.values()) {
+            assertNotNull(chain.rpcUrl,
+                    "Chain " + chain.name + " should have a non-null rpcUrl");
+            assertFalse(chain.rpcUrl.isEmpty(),
+                    "Chain " + chain.name + " should have a non-empty rpcUrl");
+        }
+    }
+
+    @Test
+    void allChainsHaveNonEmptyBlockExplorerUrl() {
+        for (Erc4337Network.ChainInfo chain : Erc4337Network.SUPPORTED_CHAINS.values()) {
+            assertNotNull(chain.blockExplorerUrl,
+                    "Chain " + chain.name + " should have a non-null blockExplorerUrl");
+            assertFalse(chain.blockExplorerUrl.isEmpty(),
+                    "Chain " + chain.name + " should have a non-empty blockExplorerUrl");
+        }
+    }
 }

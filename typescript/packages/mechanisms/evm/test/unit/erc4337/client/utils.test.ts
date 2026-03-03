@@ -102,4 +102,57 @@ describe("userOpToJson", () => {
     expect(json.paymasterVerificationGasLimit).toBe("0xc350");
     expect(json.paymasterPostOpGasLimit).toBe("0x7530");
   });
+
+  it("should handle nested object containing bigints", () => {
+    const userOp = {
+      sender: "0x1234",
+      nonce: 0n,
+      callData: "0x",
+      callGasLimit: 100n,
+      verificationGasLimit: 100n,
+      preVerificationGas: 100n,
+      maxFeePerGas: 100n,
+      maxPriorityFeePerGas: 100n,
+      signature: "0x",
+      customNested: {
+        innerBigint: 42n,
+        innerString: "hello",
+        innerNumber: 123,
+      },
+    };
+
+    const json = userOpToJson(userOp);
+    expect(json.customNested).toEqual({
+      innerBigint: "0x2a",
+      innerString: "hello",
+      innerNumber: 123,
+    });
+  });
+
+  it("should handle empty input", () => {
+    const json = userOpToJson({});
+    expect(json).toEqual({});
+  });
+
+  it("should produce '0x0' for toRpcHex(0n) via nonce field", () => {
+    const userOp = {
+      sender: "0x1234",
+      nonce: 0n,
+      callData: "0x",
+      callGasLimit: 0n,
+      verificationGasLimit: 0n,
+      preVerificationGas: 0n,
+      maxFeePerGas: 0n,
+      maxPriorityFeePerGas: 0n,
+      signature: "0x",
+    };
+
+    const json = userOpToJson(userOp);
+    expect(json.nonce).toBe("0x0");
+    expect(json.callGasLimit).toBe("0x0");
+    expect(json.verificationGasLimit).toBe("0x0");
+    expect(json.preVerificationGas).toBe("0x0");
+    expect(json.maxFeePerGas).toBe("0x0");
+    expect(json.maxPriorityFeePerGas).toBe("0x0");
+  });
 });

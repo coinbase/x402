@@ -274,6 +274,175 @@ func TestExactEvmSchemeERC4337_Settle(t *testing.T) {
 	})
 }
 
+func TestExactEvmSchemeERC4337_CaipFamily(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337(nil)
+	if scheme.CaipFamily() != "eip155:*" {
+		t.Errorf("CaipFamily() = %q, want %q", scheme.CaipFamily(), "eip155:*")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Verify_MissingEntryPoint(t *testing.T) {
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result":  map[string]interface{}{"callGasLimit": "0x5208"},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(nil)
+	payload := makeERC4337Payload(bundlerServer.URL)
+	// Remove entryPoint from payload
+	payload.Payload["entryPoint"] = ""
+
+	_, err := scheme.Verify(context.Background(), payload, makeRequirements(), nil)
+	if err == nil {
+		t.Fatal("expected error for missing entry point")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_VerificationFailure(t *testing.T) {
+	// Bundler returns error on gas estimation (which Verify uses)
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"error": map[string]interface{}{
+				"message": "AA24 signature validation failed",
+				"code":    -32500,
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  1000,
+		ReceiptPollIntervalMs: 100,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	_, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err == nil {
+		t.Fatal("expected error for verification failure during settle")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_MissingBundlerUrl(t *testing.T) {
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  1000,
+		ReceiptPollIntervalMs: 100,
+	})
+	payload := makeERC4337Payload("") // No bundler URL
+
+	_, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err == nil {
+		t.Fatal("expected error for missing bundler URL during settle")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_SendFailure(t *testing.T) {
+	callCount := 0
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jsonRpcRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		callCount++
+
+		var resp map[string]interface{}
+		switch req.Method {
+		case "eth_estimateUserOperationGas":
+			// Verify succeeds
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  map[string]interface{}{"callGasLimit": "0x5208"},
+			}
+		case "eth_sendUserOperation":
+			// Send fails
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"error": map[string]interface{}{
+					"message": "AA21 insufficient funds for gas",
+					"code":    -32500,
+				},
+			}
+		default:
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  nil,
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  1000,
+		ReceiptPollIntervalMs: 100,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	_, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err == nil {
+		t.Fatal("expected error for send failure during settle")
+	}
+}
+
+func TestExactEvmSchemeERC4337_Settle_ReceiptPollTimeout(t *testing.T) {
+	bundlerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req jsonRpcRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var resp map[string]interface{}
+		switch req.Method {
+		case "eth_estimateUserOperationGas":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  map[string]interface{}{"callGasLimit": "0x5208"},
+			}
+		case "eth_sendUserOperation":
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  "0xUserOpHash",
+			}
+		case "eth_getUserOperationReceipt":
+			// Always return nil receipt to simulate timeout
+			resp = map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result":  nil,
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer bundlerServer.Close()
+
+	scheme := NewExactEvmSchemeERC4337(&ExactEvmSchemeERC4337Config{
+		ReceiptPollTimeoutMs:  300,
+		ReceiptPollIntervalMs: 50,
+	})
+	payload := makeERC4337Payload(bundlerServer.URL)
+
+	resp, err := scheme.Settle(context.Background(), payload, makeRequirements(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// When receipt times out, the settle still succeeds but uses the userOpHash as txHash
+	if !resp.Success {
+		t.Error("expected Success to be true even with receipt timeout")
+	}
+	if resp.Transaction != "0xUserOpHash" {
+		t.Errorf("Transaction = %q, want %q (should fall back to userOpHash)", resp.Transaction, "0xUserOpHash")
+	}
+}
+
 func TestExactEvmSchemeERC4337_GetSigners(t *testing.T) {
 	scheme := NewExactEvmSchemeERC4337(nil)
 	signers := scheme.GetSigners("eip155:84532")

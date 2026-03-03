@@ -27,6 +27,20 @@ describe("parseAAError", () => {
     expect(result!.code).toBe("AA99");
     expect(result!.reason).toBe("Unknown AA error");
   });
+
+  it("should parse AA error code from a plain string (not Error object)", () => {
+    const result = parseAAError("something went wrong AA21 in the bundler");
+    expect(result).not.toBeNull();
+    expect(result!.code).toBe("AA21");
+    expect(result!.reason).toBe("Insufficient funds for gas prefund");
+  });
+
+  it("should parse AA30 paymaster not deployed", () => {
+    const result = parseAAError(new Error("AA30 paymaster not deployed"));
+    expect(result).not.toBeNull();
+    expect(result!.code).toBe("AA30");
+    expect(result!.reason).toBe("Paymaster not deployed");
+  });
 });
 
 describe("PaymentCreationError", () => {
@@ -79,5 +93,36 @@ describe("PaymentCreationError", () => {
       });
       expect(error.phase).toBe(phase);
     }
+  });
+
+  it("should omit optional fields from toJSON when absent", () => {
+    const error = new PaymentCreationError("minimal error", {
+      phase: "validation",
+      reason: "minimal reason",
+      // No code, safeAddress, or network
+    });
+    const json = error.toJSON();
+    expect(json.name).toBe("PaymentCreationError");
+    expect(json.message).toBe("minimal error");
+    expect(json.phase).toBe("validation");
+    expect(json.reason).toBe("minimal reason");
+    // Optional fields should not be present in JSON
+    expect(json).not.toHaveProperty("code");
+    expect(json).not.toHaveProperty("safeAddress");
+    expect(json).not.toHaveProperty("network");
+  });
+
+  it("should include all optional fields in toJSON when present", () => {
+    const error = new PaymentCreationError("full error", {
+      phase: "preparation",
+      reason: "full reason",
+      code: "AA21",
+      safeAddress: "0x1234",
+      network: "eip155:84532",
+    });
+    const json = error.toJSON();
+    expect(json.code).toBe("AA21");
+    expect(json.safeAddress).toBe("0x1234");
+    expect(json.network).toBe("eip155:84532");
   });
 });
