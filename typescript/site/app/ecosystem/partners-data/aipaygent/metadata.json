@@ -1,0 +1,10 @@
+ {
+    "name": "AiPayGent",
+    "description": "Pay-per-use AI API powered by Claude. Research, write,
+  analyze, translate, summarize, generate code and social media posts.
+  $0.01–$0.05 per call. Fully x402-compatible — hit /discover to see all
+  endpoints and pricing.",
+    "logoUrl": "/logos/aipaygent-logo.png",
+    "websiteUrl": "https://api.aipaygent.xyz",
+    "category": "Services/Endpoints"
+  }
