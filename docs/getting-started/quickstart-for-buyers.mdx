@@ -404,6 +404,15 @@ You can register multiple payment schemes to handle different networks:
     const aptosPrivateKey = new Ed25519PrivateKey(process.env.APTOS_PRIVATE_KEY!);
     const aptosSigner = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
     client.register("aptos:*", new ExactAptosScheme(aptosSigner));
+
+    // For Stellar support, also add:
+    import { ExactStellarScheme, createEd25519Signer } from "@x402/stellar";
+
+    const stellarSigner = createEd25519Signer(
+      process.env.STELLAR_PRIVATE_KEY!,
+      "stellar:testnet"
+    );
+    client.register("stellar:*", new ExactStellarScheme(stellarSigner));
     ```
   </Tab>
   <Tab title="Go">
