@@ -1,0 +1,7 @@
+{
+  "name": "EruditePay",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/eruditepay.png",
+  "description": "Cross-chain payment facilitator and Tron analytics API by Erudite Intelligence LLC. Self-hosted x402 settlement on Base mainnet with on-chain fee splitting. Paid endpoints for Tron gas analysis, energy estimates, wallet profiling, USDT flow tracking, and DEX quotes — all gated by real USDC micropayments.",
+  "websiteUrl": "https://x402.eruditepay.com"
+}
