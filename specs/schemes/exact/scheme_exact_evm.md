@@ -312,7 +312,7 @@ The Delegation Manager validates the delegation authority and calls the delegato
 
 ERC-7710 does not define a canonical Delegation Manager. Implementations may vary in their delegation structure, caveat enforcement, and permission context format. Notable implementations include:
 
-- **MetaMask Delegation Framework**: A full-featured implementation supporting EIP-712 signed delegation chains, caveat enforcement, and batch processing. See [delegator.xyz](https://delegator.xyz/) for documentation.
+- **MetaMask Delegation Framework**: A full-featured implementation supporting EIP-712 signed delegation chains, caveat enforcement, and batch processing. See [gator.metamask.io](https://gator.metamask.io/) for documentation.
 
 Since verification is performed entirely through simulation, facilitators do not need to maintain a trusted list of Delegation Manager implementations.
 
