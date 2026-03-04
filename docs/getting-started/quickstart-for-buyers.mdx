@@ -138,6 +138,20 @@ const privateKey = new Ed25519PrivateKey(process.env.APTOS_PRIVATE_KEY!);
 const aptosSigner = Account.fromPrivateKey({ privateKey });
 ```
 
+#### Stellar
+
+Use the Stellar SDK to instantiate a signer:
+
+```typescript
+import { createEd25519Signer } from "@x402/stellar";
+
+// Create signer from private key (S... format)
+const stellarSigner = createEd25519Signer(
+  process.env.STELLAR_PRIVATE_KEY!,
+  "stellar:testnet"
+);
+```
+
 ### 3. Make Paid Requests Automatically
 
 <Tabs>
