@@ -37,6 +37,7 @@ type AuthHeaders struct {
 	Verify    map[string]string
 	Settle    map[string]string
 	Supported map[string]string
+	Discovery map[string]string
 }
 
 // FacilitatorConfig configures the HTTP facilitator client
@@ -99,6 +100,21 @@ func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient 
 		authProvider: config.AuthProvider,
 		identifier:   identifier,
 	}
+}
+
+// URL returns the base URL of the facilitator service.
+func (c *HTTPFacilitatorClient) URL() string {
+	return c.url
+}
+
+// HTTPClient returns the underlying HTTP client.
+func (c *HTTPFacilitatorClient) HTTPClient() *http.Client {
+	return c.httpClient
+}
+
+// GetAuthProvider returns the authentication provider, or nil if not configured.
+func (c *HTTPFacilitatorClient) GetAuthProvider() AuthProvider {
+	return c.authProvider
 }
 
 // ============================================================================
