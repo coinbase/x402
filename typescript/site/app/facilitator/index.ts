@@ -12,6 +12,8 @@ import {
   EIP2612_GAS_SPONSORING,
   createErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
+import { createEd25519Signer } from "@x402/stellar";
+import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
@@ -20,7 +22,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
 /**
- * Initialize and configure the x402 facilitator with EVM, SVM, and Aptos support
+ * Initialize and configure the x402 facilitator with EVM, SVM, Aptos, and Stellar support
  * This is called lazily on first use to support Next.js module loading
  *
  * @returns A configured x402Facilitator instance
@@ -112,6 +114,23 @@ async function createFacilitator(): Promise<x402Facilitator> {
     const aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
     const aptosSigner = toFacilitatorAptosSigner(aptosAccount);
     facilitator.register("aptos:2", new ExactAptosScheme(aptosSigner));
+  }
+
+  // Optionally register Stellar if configured
+  if (process.env.FACILITATOR_STELLAR_PRIVATE_KEY) {
+    const stellarSigners = process.env.FACILITATOR_STELLAR_PRIVATE_KEY.split(",")
+      .map(k => k.trim())
+      .filter(k => k.length > 0)
+      .map(k => createEd25519Signer(k));
+
+    const feeBumpSigner = process.env.FACILITATOR_STELLAR_FEEBUMP_PRIVATE_KEY
+      ? createEd25519Signer(process.env.FACILITATOR_STELLAR_FEEBUMP_PRIVATE_KEY)
+      : undefined;
+
+    facilitator.register(
+      "stellar:testnet",
+      new ExactStellarScheme(stellarSigners, { feeBumpSigner }),
+    );
   }
 
   // Register gas sponsorship extensions for Permit2 support
