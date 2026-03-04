@@ -26,3 +26,16 @@ export const ErrPermit2InvalidOwner = "permit2_invalid_owner";
 export const ErrPermit2PaymentTooEarly = "permit2_payment_too_early";
 export const ErrPermit2InvalidNonce = "permit2_invalid_nonce";
 export const ErrPermit2612AmountMismatch = "permit2_2612_amount_mismatch";
+
+// ERC-20 approval gas sponsoring verify errors
+export const ErrErc20ApprovalInvalidFormat = "invalid_erc20_approval_extension_format";
+export const ErrErc20ApprovalFromMismatch = "erc20_approval_from_mismatch";
+export const ErrErc20ApprovalAssetMismatch = "erc20_approval_asset_mismatch";
+export const ErrErc20ApprovalSpenderNotPermit2 = "erc20_approval_spender_not_permit2";
+export const ErrErc20ApprovalTxWrongTarget = "erc20_approval_tx_wrong_target";
+export const ErrErc20ApprovalTxWrongSelector = "erc20_approval_tx_wrong_selector";
+export const ErrErc20ApprovalTxWrongSpender = "erc20_approval_tx_wrong_spender";
+export const ErrErc20ApprovalTxInvalidCalldata = "erc20_approval_tx_invalid_calldata";
+export const ErrErc20ApprovalTxSignerMismatch = "erc20_approval_tx_signer_mismatch";
+export const ErrErc20ApprovalTxInvalidSignature = "erc20_approval_tx_invalid_signature";
+export const ErrErc20ApprovalTxParseFailed = "erc20_approval_tx_parse_failed";
