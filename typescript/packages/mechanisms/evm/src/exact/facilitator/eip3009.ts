@@ -4,11 +4,25 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
+import {
+  encodeFunctionData,
+  getAddress,
+  Hex,
+  isAddressEqual,
+  parseErc6492Signature,
+  parseSignature,
+} from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
+import { multicall, ContractCall, RawContractCall } from "../../multicall";
 import { FacilitatorEvmSigner } from "../../signer";
 import { getEvmChainId } from "../../utils";
 import { ExactEIP3009Payload } from "../../types";
+import * as Errors from "./errors";
+
+export interface VerifyEIP3009Options {
+  /** Run onchain simulation. Defaults to true. */
+  simulate?: boolean;
+}
 
 export interface EIP3009FacilitatorConfig {
   /**
@@ -18,6 +32,12 @@ export interface EIP3009FacilitatorConfig {
    * @default false
    */
   deployERC4337WithEIP6492: boolean;
+  /**
+   * If enabled, simulates transaction before settling. Defaults to false, ie only simulate during verify.
+   *
+   * @default false
+   */
+  simulateInSettle?: boolean;
 }
 
 /**
@@ -27,6 +47,7 @@ export interface EIP3009FacilitatorConfig {
  * @param payload - The payment payload to verify
  * @param requirements - The payment requirements
  * @param eip3009Payload - The EIP-3009 specific payload
+ * @param options - Optional verification options
  * @returns Promise resolving to verification response
  */
 export async function verifyEIP3009(
@@ -34,8 +55,10 @@ export async function verifyEIP3009(
   payload: PaymentPayload,
   requirements: PaymentRequirements,
   eip3009Payload: ExactEIP3009Payload,
+  options?: VerifyEIP3009Options,
 ): Promise<VerifyResponse> {
   const payer = eip3009Payload.authorization.from;
+  let eip6492Deployment: { factoryAddress: string; factoryCalldata: string } | undefined;
 
   // Verify scheme matches
   if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
@@ -88,64 +111,63 @@ export async function verifyEIP3009(
   };
 
   // Verify signature
-  try {
-    const recoveredAddress = await signer.verifyTypedData({
-      address: eip3009Payload.authorization.from,
-      ...permitTypedData,
-      signature: eip3009Payload.signature!,
-    });
+  const isValid = await signer.verifyTypedData({
+    address: eip3009Payload.authorization.from,
+    ...permitTypedData,
+    signature: eip3009Payload.signature!,
+  });
+  console.log("isValid", isValid);
 
-    if (!recoveredAddress) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
-        payer,
-      };
-    }
-  } catch {
+  if (!isValid) {
     // Signature verification failed - could be an undeployed smart wallet
-    // Check if smart wallet is deployed
     const signature = eip3009Payload.signature!;
-    const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-    const isSmartWallet = signatureLength > 130; // 65 bytes = 130 hex chars for EOA
+    const sigLen = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+    const isSmartWallet = sigLen > 130; // 65 bytes = 130 hex chars for EOA
 
-    if (isSmartWallet) {
-      const payerAddress = eip3009Payload.authorization.from;
-      const bytecode = await signer.getCode({ address: payerAddress });
-
-      if (!bytecode || bytecode === "0x") {
-        // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
-        const erc6492Data = parseErc6492Signature(signature);
-        const hasDeploymentInfo =
-          erc6492Data.address &&
-          erc6492Data.data &&
-          !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
-
-        if (!hasDeploymentInfo) {
-          // Non-EIP-6492 undeployed smart wallet - will always fail at settlement
-          return {
-            isValid: false,
-            invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-            payer: payerAddress,
-          };
-        }
-        // EIP-6492 signature with deployment info - allow through
-      } else {
-        // Wallet is deployed but signature still failed - invalid signature
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_evm_payload_signature",
-          payer,
-        };
-      }
-    } else {
-      // EOA signature failed
+    console.log("signature", signature);
+    console.log("isSmartWallet", isSmartWallet);
+    if (!isSmartWallet) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_signature",
         payer,
       };
     }
+
+    // Check if smart wallet is deployed
+    const bytecode = await signer.getCode({ address: payer });
+    console.log("bytecode", bytecode);
+
+    // Wallet is deployed but signature invalid
+    if (bytecode && bytecode !== "0x") {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_evm_payload_signature",
+        payer,
+      };
+    }
+
+    // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
+    const erc6492Data = parseErc6492Signature(signature);
+    const hasDeploymentInfo =
+      erc6492Data.address &&
+      erc6492Data.data &&
+      !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
+
+    // Non-EIP-6492 undeployed smart wallet 
+    if (!hasDeploymentInfo) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer,
+      };
+    }
+
+    eip6492Deployment = {
+      factoryAddress: erc6492Data.address!,
+      factoryCalldata: erc6492Data.data!,
+    };
+    console.log("eip6492Deployment", eip6492Deployment);
   }
 
   // Verify payment recipient matches
@@ -176,27 +198,6 @@ export async function verifyEIP3009(
     };
   }
 
-  // Check balance
-  try {
-    const balance = (await signer.readContract({
-      address: erc20Address,
-      abi: eip3009ABI,
-      functionName: "balanceOf",
-      args: [eip3009Payload.authorization.from],
-    })) as bigint;
-
-    if (BigInt(balance) < BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "insufficient_funds",
-        invalidMessage: `Insufficient funds to complete the payment. Required: ${requirements.amount} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
-        payer,
-      };
-    }
-  } catch {
-    // If we can't check balance, continue with other validations
-  }
-
   // Verify amount exactly matches requirements
   if (BigInt(eip3009Payload.authorization.value) !== BigInt(requirements.amount)) {
     return {
@@ -206,11 +207,181 @@ export async function verifyEIP3009(
     };
   }
 
+  // Onchain simulation
+  if (options?.simulate !== false) {
+    const auth = eip3009Payload.authorization;
+    const transferArgs = [
+      getAddress(auth.from),
+      getAddress(auth.to),
+      BigInt(auth.value),
+      BigInt(auth.validAfter),
+      BigInt(auth.validBefore),
+      auth.nonce,
+    ] as const;
+
+    let simulationFailed = false;
+
+    if (eip6492Deployment) {
+      // Undeployed EIP-6492: simulate via multicall (deploy + transfer in one eth_call)
+      const { signature: innerSignature } = parseErc6492Signature(eip3009Payload.signature!);
+      const transferCalldata = encodeFunctionData({
+        abi: eip3009ABI,
+        functionName: "transferWithAuthorization",
+        args: [...transferArgs, innerSignature],
+      });
+
+      const results = await multicall(signer.readContract.bind(signer), [
+        {
+          address: getAddress(eip6492Deployment.factoryAddress),
+          callData: eip6492Deployment.factoryCalldata as Hex,
+        } satisfies RawContractCall,
+        {
+          address: erc20Address,
+          callData: transferCalldata,
+        } satisfies RawContractCall,
+      ]);
+
+      console.log("results", results);
+
+      if (results[1]?.status !== "success") {
+        console.log("simulation failed");
+        simulationFailed = true;
+      }
+    } else {
+      // EOA or deployed smart wallet: direct simulation
+      const sig = eip3009Payload.signature!;
+      const sigLength = sig.startsWith("0x") ? sig.length - 2 : sig.length;
+      const isECDSA = sigLength === 130;
+
+      try {
+        if (isECDSA) {
+          const parsedSig = parseSignature(sig);
+          await signer.readContract({
+            address: erc20Address,
+            abi: eip3009ABI,
+            functionName: "transferWithAuthorization",
+            args: [
+              ...transferArgs,
+              (parsedSig.v as number | undefined) ?? parsedSig.yParity,
+              parsedSig.r,
+              parsedSig.s,
+            ],
+          });
+        } else {
+          await signer.readContract({
+            address: erc20Address,
+            abi: eip3009ABI,
+            functionName: "transferWithAuthorization",
+            args: [...transferArgs, sig],
+          });
+        }
+      } catch {
+        simulationFailed = true;
+      }
+    }
+
+    if (simulationFailed) {
+      return diagnoseSimulationFailure(
+        signer,
+        erc20Address,
+        eip3009Payload,
+        requirements,
+      );
+    }
+  }
+
   return {
     isValid: true,
     invalidReason: undefined,
     payer,
   };
+}
+
+/**
+ * After simulation fails, runs a single diagnostic multicall to determine the most specific error reason. 
+ * Checks balanceOf, name, version and authorizationState in one RPC round-trip.
+ */
+async function diagnoseSimulationFailure(
+  signer: FacilitatorEvmSigner,
+  erc20Address: `0x${string}`,
+  eip3009Payload: ExactEIP3009Payload,
+  requirements: PaymentRequirements,
+): Promise<VerifyResponse> {
+  const payer = eip3009Payload.authorization.from;
+
+  const diagnosticCalls: ContractCall[] = [
+    {
+      address: erc20Address,
+      abi: eip3009ABI,
+      functionName: "balanceOf",
+      args: [eip3009Payload.authorization.from],
+    },
+    {
+      address: erc20Address,
+      abi: eip3009ABI,
+      functionName: "name",
+    },
+    {
+      address: erc20Address,
+      abi: eip3009ABI,
+      functionName: "version",
+    },
+    {
+      address: erc20Address,
+      abi: eip3009ABI,
+      functionName: "authorizationState",
+      args: [eip3009Payload.authorization.from, eip3009Payload.authorization.nonce],
+    },
+  ];
+
+  try {
+    const results = await multicall(signer.readContract.bind(signer), diagnosticCalls);
+
+    const [balanceResult, nameResult, versionResult, authStateResult] = results;
+
+    // authorizationState reverted -> token doesn't support EIP-3009
+    if (authStateResult.status === "failure") {
+      return { isValid: false, invalidReason: Errors.ErrEip3009NotSupported, payer };
+    }
+
+    // authorizationState == true -> nonce already used
+    if (authStateResult.status === "success" && authStateResult.result === true) {
+      return { isValid: false, invalidReason: Errors.ErrEip3009NonceAlreadyUsed, payer };
+    }
+
+    // name mismatch
+    if (
+      nameResult.status === "success" &&
+      requirements.extra?.name &&
+      nameResult.result !== requirements.extra.name
+    ) {
+      return { isValid: false, invalidReason: Errors.ErrEip3009TokenNameMismatch, payer };
+    }
+
+    // version mismatch
+    if (
+      versionResult.status === "success" &&
+      requirements.extra?.version &&
+      versionResult.result !== requirements.extra.version
+    ) {
+      return { isValid: false, invalidReason: Errors.ErrEip3009TokenVersionMismatch, payer };
+    }
+
+    // insufficient balance
+    if (balanceResult.status === "success") {
+      const balance = balanceResult.result as bigint;
+      if (balance < BigInt(requirements.amount)) {
+        return { isValid: false, invalidReason: Errors.ErrEip3009InsufficientBalance, payer };
+      }
+    }
+
+    console.log("diagnostic calls succeeded");
+  } catch {
+    console.log("diagnostic calls failed");
+    // Diagnostic multicall itself failed — fall through to generic error
+  }
+
+  return { isValid: false, invalidReason: Errors.ErrEip3009SimulationFailed, payer };
 }
 
 /**
@@ -233,7 +404,9 @@ export async function settleEIP3009(
   const payer = eip3009Payload.authorization.from;
 
   // Re-verify before settling
-  const valid = await verifyEIP3009(signer, payload, requirements, eip3009Payload);
+  const valid = await verifyEIP3009(signer, payload, requirements, eip3009Payload, {
+    simulate: config.simulateInSettle ?? false,
+  });
   if (!valid.isValid) {
     return {
       success: false,
@@ -258,6 +431,7 @@ export async function settleEIP3009(
     ) {
       // Check if smart wallet is already deployed
       const bytecode = await signer.getCode({ address: payer });
+      console.log("bytecode", bytecode);
 
       if (!bytecode || bytecode === "0x") {
         // Wallet not deployed - attempt deployment
@@ -268,6 +442,7 @@ export async function settleEIP3009(
 
         // Wait for deployment transaction
         await signer.waitForTransactionReceipt({ hash: deployTx });
+        console.log("deployment transaction successful");
       }
     }
 
