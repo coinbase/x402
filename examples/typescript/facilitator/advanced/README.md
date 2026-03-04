@@ -8,6 +8,7 @@ Express.js facilitator service demonstrating advanced x402 patterns including al
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - EVM private key with Base Sepolia ETH for transaction fees
 - SVM private key with Solana Devnet SOL for transaction fees
+- Hedera account id + private key for Hedera testnet fees (optional)
 
 ## Setup
 
@@ -21,6 +22,8 @@ and fill required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key
 - `SVM_PRIVATE_KEY` - Solana private key
+- `HEDERA_ACCOUNT_ID` - Hedera account id for fee payer (optional)
+- `HEDERA_PRIVATE_KEY` - Hedera **ECDSA** private key (0x-prefixed or DER-encoded) for fee payer (optional)
 - `PORT` - Server port (optional, defaults to 4022)
 
 2. Install and build all packages from the typescript examples root:
@@ -229,3 +232,5 @@ Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/cai
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `hedera:testnet` — Hedera Testnet
+- `hedera:mainnet` — Hedera Mainnet

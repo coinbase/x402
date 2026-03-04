@@ -17,7 +17,9 @@
     "@solana/kit": "^6.1.0",
     "@x402/evm": "workspace:*",
     "@x402/fetch": "workspace:*",
+    "@x402/hedera": "workspace:*",
     "@x402/svm": "workspace:*",
+    "@hashgraph/sdk": "^2.75.0",
     "dotenv": "^16.4.7",
     "viem": "^2.39.0"
   },
