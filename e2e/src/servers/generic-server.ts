@@ -103,6 +103,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         APTOS_RPC_URL: config.networks.aptos.rpcUrl,
         APTOS_PAYEE_ADDRESS: config.aptosPayTo,
 
+        // Stellar network config
+        STELLAR_NETWORK: config.networks.stellar.caip2,
+        STELLAR_RPC_URL: config.networks.stellar.rpcUrl,
+        STELLAR_PAYEE_ADDRESS: config.stellarPayTo,
+
         // Facilitator
         FACILITATOR_URL: config.facilitatorUrl || '',
       }

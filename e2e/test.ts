@@ -237,13 +237,15 @@ async function runTest() {
   const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const serverAptosAddress = process.env.SERVER_APTOS_ADDRESS;
+  const serverStellarAddress = process.env.SERVER_STELLAR_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
   const clientAptosPrivateKey = process.env.CLIENT_APTOS_PRIVATE_KEY;
+  const clientStellarPrivateKey = process.env.CLIENT_STELLAR_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
   const facilitatorAptosPrivateKey = process.env.FACILITATOR_APTOS_PRIVATE_KEY;
-
+  const facilitatorStellarPrivateKey = process.env.FACILITATOR_STELLAR_PRIVATE_KEY;
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
     errorLog(' SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
@@ -320,6 +322,7 @@ async function runTest() {
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
   log(`   APTOS: ${networks.aptos.name} (${networks.aptos.caip2})`);
+  log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
 
   if (networkMode === 'mainnet') {
     log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
@@ -396,7 +399,21 @@ async function runTest() {
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
 
   // Environment variables managed by the test framework (don't require user to set)
-  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'APTOS_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'APTOS_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL', 'APTOS_RPC_URL']);
+  const systemManagedVars = new Set([
+    'PORT',
+    'EVM_PRIVATE_KEY',
+    'SVM_PRIVATE_KEY',
+    'APTOS_PRIVATE_KEY',
+    'STELLAR_PRIVATE_KEY',
+    'EVM_NETWORK',
+    'SVM_NETWORK',
+    'APTOS_NETWORK',
+    'STELLAR_NETWORK',
+    'EVM_RPC_URL',
+    'SVM_RPC_URL',
+    'APTOS_RPC_URL',
+    'STELLAR_RPC_URL',
+  ]);
 
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
@@ -551,6 +568,7 @@ async function runTest() {
       evmPrivateKey: clientEvmPrivateKey!,
       svmPrivateKey: clientSvmPrivateKey!,
       aptosPrivateKey: clientAptosPrivateKey || '',
+      stellarPrivateKey: clientStellarPrivateKey || '',
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
     };
@@ -636,6 +654,7 @@ async function runTest() {
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
       aptosPayTo: facilitatorSupportsAptos ? (serverAptosAddress || '') : '',
+      stellarPayTo: serverStellarAddress || '',
       networks,
       facilitatorUrl,
     };
