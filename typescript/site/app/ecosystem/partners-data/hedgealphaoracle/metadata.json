@@ -1,0 +1,7 @@
+{
+  "name": "HedgeAlphaOracle",
+  "description": "Real-time crypto and stock trading signals for AI agents. 6 dedicated endpoints covering sentiment, alpha, premium signals, fear & greed index, whale alerts, and portfolio risk scoring. Powered by CoinGecko and Finnhub. x402 micropayments on Base.",
+  "logoUrl": "/logos/hedgealphaoracle-logo.png",
+  "websiteUrl": "https://hedgealphaoracle-production.up.railway.app",
+  "category": "Services/Endpoints"
+}

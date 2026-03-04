@@ -1,0 +1,7 @@
+{
+  "name": "EventAlphaOracle",
+  "description": "Prediction market signals combining Polymarket, Kalshi, and 40+ sportsbooks. Covers NBA, NFL, MMA, Boxing, Politics, Trending markets, and ARB scanning. Surfaces arbitrage opportunities across prediction platforms. x402 micropayments on Base.",
+  "logoUrl": "/logos/eventalphaoraclecode-logo.png",
+  "websiteUrl": "https://eventalphaoraclecode-production.up.railway.app",
+  "category": "Services/Endpoints"
+}
