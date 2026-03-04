@@ -25,3 +25,6 @@ export * from "./constants";
 
 // Export utilities
 export * from "./utils";
+
+// Export normalizer
+export * from "./normalizer";

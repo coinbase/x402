@@ -121,34 +121,33 @@ func (f *ExactSvmScheme) Verify(
 		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", err.Error())
 	}
 
-	// Allow 3-6 instructions:
+	// Normalize the transaction (handles Swig, regular, and future wallet types)
+	normalized, err := svm.NormalizeTransaction(tx)
+	if err != nil {
+		return nil, x402.NewVerifyError(ErrNoTransferInstruction, "", err.Error())
+	}
+	instructions := normalized.Instructions
+	payer := normalized.Payer
+
+	// Instruction count check AFTER flattening (3-6)
 	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
 	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
 	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
 	// - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
 	// See: https://github.com/coinbase/x402/issues/828
-	numInstructions := len(tx.Message.Instructions)
+	numInstructions := len(instructions)
 	if numInstructions < 3 || numInstructions > 6 {
 		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 6", numInstructions, numInstructions))
 	}
 
 	// Step 3: Verify Compute Budget Instructions
-	if err := f.verifyComputeLimitInstruction(tx, tx.Message.Instructions[0]); err != nil {
+	if err := f.verifyComputeLimitInstruction(tx, instructions[0]); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	if err := f.verifyComputePriceInstruction(tx, tx.Message.Instructions[1]); err != nil {
+	if err := f.verifyComputePriceInstruction(tx, instructions[1]); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
-
-	// Extract payer from transaction
-	payer, err := svm.GetTokenPayerFromTransaction(tx)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrNoTransferInstruction, payer, err.Error())
-	}
-
-	// V2: payload.Accepted.Network is already validated by scheme lookup
-	// Network matching is implicit - facilitator was selected based on requirements.Network
 
 	// Convert requirements to old struct format for helper methods
 	reqStruct := x402.PaymentRequirements{
@@ -160,9 +159,9 @@ func (f *ExactSvmScheme) Verify(
 		Extra:   requirements.Extra,
 	}
 
-	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], reqStruct, signerAddressStrs); err != nil {
-		return nil, x402.NewVerifyError(err.Error(), payer, err.Error())
+	// Step 4: Verify Transfer Instruction (unified — works for both regular and Swig)
+	if verifyErr := f.verifyTransferInstruction(tx, instructions[2], reqStruct, signerAddressStrs); verifyErr != nil {
+		return nil, x402.NewVerifyError(verifyErr.Error(), payer, verifyErr.Error())
 	}
 
 	// Step 5: Verify optional instructions (if present)
@@ -170,7 +169,7 @@ func (f *ExactSvmScheme) Verify(
 	if numInstructions >= 4 {
 		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
 		memoPubkey := solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)
-		optionalInstructions := tx.Message.Instructions[3:]
+		optionalInstructions := instructions[3:]
 		invalidReasons := []string{
 			ErrUnknownFourthInstruction,
 			ErrUnknownFifthInstruction,

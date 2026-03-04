@@ -2,7 +2,11 @@ import {
   getBase64Encoder,
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
+  getProgramDerivedAddress,
+  getAddressEncoder,
   type Transaction,
+  type Address,
+  type Instruction,
   createSolanaRpc,
   devnet,
   testnet,
@@ -29,6 +33,10 @@ import {
   SOLANA_DEVNET_CAIP2,
   SOLANA_TESTNET_CAIP2,
   V1_TO_V2_NETWORK_MAP,
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  SWIG_PROGRAM_ADDRESS,
+  SWIG_SIGN_V2_DISCRIMINATOR,
+  SECP256R1_PRECOMPILE_ADDRESS,
 } from "./constants";
 import type { ExactSvmPayloadV1 } from "./types";
 
@@ -191,3 +199,230 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
   const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
   return tokenAmount;
 }
+
+// ─── Swig wallet support ──────────────────────────────────────────────────────
+
+/**
+ * A decoded compact instruction extracted from a Swig SignV2 payload.
+ * Indices reference the SignV2 instruction's own account list, not the outer
+ * transaction's static account keys.
+ */
+export interface SwigCompactInstruction {
+  programIdIndex: number;
+  accounts: number[];
+  data: Uint8Array;
+}
+
+/**
+ * Returns true when the transaction has a Swig layout:
+ *   - Every instruction is one of: compute budget, secp256r1 precompile, or Swig SignV2
+ *   - At least one Swig SignV2 instruction is present
+ *
+ * @param instructions - Decompiled instruction array
+ */
+export function isSwigTransaction(
+  instructions: ReadonlyArray<Instruction>,
+): boolean {
+  if (instructions.length === 0) return false;
+
+  let hasSignV2 = false;
+  for (const ix of instructions) {
+    const addr = ix.programAddress.toString();
+    if (addr === COMPUTE_BUDGET_PROGRAM_ADDRESS || addr === SECP256R1_PRECOMPILE_ADDRESS) continue;
+    if (addr === SWIG_PROGRAM_ADDRESS) {
+      const data = ix.data;
+      if (!data || data.length < 2) return false;
+      const discriminator = data[0] | (data[1] << 8); // U16 LE
+      if (discriminator !== SWIG_SIGN_V2_DISCRIMINATOR) return false;
+      hasSignV2 = true;
+      continue;
+    }
+    return false; // unrecognized instruction
+  }
+  return hasSignV2;
+}
+
+/**
+ * Flatten a Swig transaction into the same instruction layout as a regular one.
+ * Collects non-precompile, non-SignV2 outer instructions (compute budgets) and
+ * resolves the compact instructions embedded in each SignV2 instruction.
+ *
+ * A transaction may contain multiple SignV2 instructions. All must reference
+ * the same Swig PDA (accounts[0]).
+ *
+ * @param instructions  - Decompiled instruction array (from a Swig transaction)
+ * @param staticAccounts - Ordered account list from the compiled transaction message
+ * @returns Object with flattened `instructions` array and `swigPda` address
+ */
+export async function parseSwigTransaction(
+  instructions: ReadonlyArray<Instruction>,
+  staticAccounts: ReadonlyArray<Address>,
+): Promise<{ instructions: Array<{ programAddress: Address; accounts: Array<{ address: Address; role: number }>; data: Uint8Array }>; swigPda: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: any[] = [];
+  const signV2Instructions: Instruction[] = [];
+
+  // 1. Single pass: separate SignV2 instructions from the rest
+  for (const ix of instructions) {
+    const addr = ix.programAddress.toString();
+    if (addr === SECP256R1_PRECOMPILE_ADDRESS) continue; // skip precompile
+    if (addr === SWIG_PROGRAM_ADDRESS) {
+      signV2Instructions.push(ix);
+    } else {
+      result.push(ix); // compute budget and other non-precompile instructions
+    }
+  }
+
+  // Sort compute budget instructions so SetComputeUnitLimit (disc=2) precedes
+  // SetComputeUnitPrice (disc=3), matching the order the facilitator expects.
+  result.sort((a, b) => {
+    const aIsCB = a.programAddress.toString() === COMPUTE_BUDGET_PROGRAM_ADDRESS;
+    const bIsCB = b.programAddress.toString() === COMPUTE_BUDGET_PROGRAM_ADDRESS;
+    if (aIsCB && bIsCB && a.data?.length > 0 && b.data?.length > 0) {
+      return a.data[0] - b.data[0];
+    }
+    return 0;
+  });
+
+  if (signV2Instructions.length === 0) {
+    throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
+  }
+
+  // 2. Process each SignV2 instruction
+  let swigPda = "";
+  const addressEncoder = getAddressEncoder();
+
+  for (const signV2Ix of signV2Instructions) {
+    // Extract Swig PDA from SignV2's first account
+    const pda = signV2Ix.accounts?.[0]?.address?.toString() ?? "";
+    if (!pda) throw new Error("invalid_exact_svm_payload_no_transfer_instruction");
+
+    // Enforce all SignV2 instructions share the same PDA
+    if (swigPda === "") {
+      swigPda = pda;
+    } else if (pda !== swigPda) {
+      throw new Error("swig_pda_mismatch: all SignV2 instructions must reference the same Swig PDA");
+    }
+
+    // Validate Swig wallet address derivation (cross-check accounts[0] and accounts[1])
+    const swigWalletAddress = signV2Ix.accounts?.[1]?.address?.toString() ?? "";
+    if (!swigWalletAddress) throw new Error("invalid_swig_wallet_address_derivation");
+
+    const [expectedWalletAddress] = await getProgramDerivedAddress({
+      programAddress: SWIG_PROGRAM_ADDRESS as Address,
+      seeds: [
+        new TextEncoder().encode("swig-wallet-address"),
+        addressEncoder.encode(pda as Address),
+      ],
+    });
+
+    if (swigWalletAddress !== expectedWalletAddress.toString()) {
+      throw new Error("invalid_swig_wallet_address_derivation");
+    }
+
+    // Decode compact instructions from SignV2 data
+    const rawData = signV2Ix.data ? new Uint8Array(signV2Ix.data) : new Uint8Array(0);
+    const compactInstructions = decodeSwigCompactInstructions(rawData);
+
+    // Resolve compact instruction indices through signV2's account list
+    const signV2Accounts = signV2Ix.accounts ?? [];
+    for (const ci of compactInstructions) {
+      if (ci.programIdIndex >= signV2Accounts.length) {
+        throw new Error(
+          `compact instruction programIdIndex ${ci.programIdIndex} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+        );
+      }
+      result.push({
+        programAddress: signV2Accounts[ci.programIdIndex].address as Address,
+        accounts: ci.accounts.map(idx => {
+          if (idx >= signV2Accounts.length) {
+            throw new Error(
+              `compact instruction account index ${idx} out of range (signV2 has ${signV2Accounts.length} accounts)`,
+            );
+          }
+          return { address: signV2Accounts[idx].address as Address, role: 1 };
+        }),
+        data: ci.data,
+      });
+    }
+  }
+
+  return { instructions: result, swigPda };
+}
+
+/**
+ * Decode the compact instructions embedded inside a Swig SignV2 instruction.
+ *
+ * Layout of the outer instruction data:
+ *   [0..1]  discriminator         U16 LE
+ *   [2..3]  instructionPayloadLen U16 LE (byte count of compact instructions)
+ *   [4..7]  roleId                U32 LE
+ *   [8..]   compact instructions  (instructionPayloadLen bytes)
+ *
+ * Compact instructions payload:
+ *   [0]       numInstructions U8
+ *   [1..]     compact instruction entries...
+ *
+ * Each CompactInstruction:
+ *   [0]       programIdIndex U8
+ *   [1]       numAccounts    U8
+ *   [2..N+1]  accounts       U8[numAccounts]
+ *   [N+2..N+3] dataLen       U16 LE
+ *   [N+4..]   data           raw bytes
+ *
+ * @param data - The full instruction data bytes of the outer Swig instruction
+ * @returns Array of decoded compact instructions (may be empty if data is malformed)
+ */
+export function decodeSwigCompactInstructions(data: Uint8Array): SwigCompactInstruction[] {
+  if (data.length < 4) {
+    throw new Error(`swig instruction data too short: need ≥4 bytes, got ${data.length}`);
+  }
+
+  // instructionPayloadLen at bytes 2-3 (U16 LE)
+  const instructionPayloadLen = data[2] | (data[3] << 8);
+
+  // Compact instructions start at byte 8 (after discriminator + payloadLen + roleId)
+  const startOffset = 8;
+  if (data.length < startOffset + instructionPayloadLen) {
+    throw new Error(
+      `swig instruction data truncated: payload needs ${instructionPayloadLen} bytes but only ${data.length - startOffset} available after offset ${startOffset}`,
+    );
+  }
+
+  const results: SwigCompactInstruction[] = [];
+  let offset = startOffset + 1; // skip numInstructions count byte
+  const endOffset = startOffset + instructionPayloadLen;
+
+  while (offset < endOffset) {
+    if (offset >= data.length) break;
+
+    // programIdIndex: U8
+    const programIdIndex = data[offset];
+    offset += 1;
+
+    // numAccounts: U8
+    if (offset >= endOffset) break;
+    const numAccounts = data[offset];
+    offset += 1;
+
+    // accounts: U8[numAccounts]
+    if (offset + numAccounts > endOffset) break;
+    const accounts = Array.from(data.slice(offset, offset + numAccounts));
+    offset += numAccounts;
+
+    // dataLen: U16 LE
+    if (offset + 2 > endOffset) break;
+    const dataLen = data[offset] | (data[offset + 1] << 8);
+    offset += 2;
+
+    // instruction data
+    if (offset + dataLen > endOffset) break;
+    const instrData = new Uint8Array(data.slice(offset, offset + dataLen));
+    offset += dataLen;
+
+    results.push({ programIdIndex, accounts, data: instrData });
+  }
+
+  return results;
+}
+

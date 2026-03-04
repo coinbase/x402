@@ -31,7 +31,8 @@ import {
 } from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
-import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
+import { decodeTransactionFromPayload } from "../../utils";
+import { normalizeTransaction, type NormalizedTransaction } from "../../normalizer";
 
 /**
  * SVM facilitator implementation for the Exact payment scheme.
@@ -139,9 +140,27 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
     const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
     const decompiled = decompileTransactionMessage(compiled);
-    const instructions = decompiled.instructions ?? [];
+    let instructions = decompiled.instructions ?? [];
 
-    // Allow 3-6 instructions:
+    // Normalize the transaction (handles Swig, regular, and future wallet types)
+    let normalized: NormalizedTransaction;
+    try {
+      normalized = await normalizeTransaction(
+        instructions,
+        compiled.staticAccounts ?? [],
+        transaction,
+      );
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer: "",
+      };
+    }
+    instructions = normalized.instructions;
+    const payer = normalized.payer;
+
+    // Instruction count check AFTER flattening (3-6)
     // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
     // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
     // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
@@ -168,22 +187,13 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const payer = getTokenPayerFromTransaction(transaction);
-    if (!payer) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer: "",
-      };
-    }
-
-    // Step 4: Verify Transfer Instruction
+    // Step 4: Verify Transfer Instruction (unified — works for both regular and Swig)
     const transferIx = instructions[2];
-    const programAddress = transferIx.programAddress.toString();
+    const transferProgramAddress = transferIx.programAddress.toString();
 
     if (
-      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
-      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
+      transferProgramAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
+      transferProgramAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
     ) {
       return {
         isValid: false,
@@ -195,7 +205,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // Parse the transfer instruction using the appropriate library helper
     let parsedTransfer;
     try {
-      if (programAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
+      if (transferProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
         parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
       } else {
         parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
@@ -210,6 +220,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
     // Verify that the facilitator's signers are not transferring their own funds
     // SECURITY: Prevent facilitator from signing away their own tokens
+    // For Swig txs, the authority is the Swig PDA (signs via CPI)
     const authorityAddress = parsedTransfer.accounts.authority.address.toString();
     if (signerAddresses.includes(authorityAddress)) {
       return {
@@ -236,7 +247,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
         mint: requirements.asset as Address,
         owner: requirements.payTo as Address,
         tokenProgram:
-          programAddress === TOKEN_PROGRAM_ADDRESS.toString()
+          transferProgramAddress === TOKEN_PROGRAM_ADDRESS.toString()
             ? (TOKEN_PROGRAM_ADDRESS as Address)
             : (TOKEN_2022_PROGRAM_ADDRESS as Address),
       });

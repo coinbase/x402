@@ -35,10 +35,13 @@ from .constants import (
     MEMO_PROGRAM_ADDRESS,
     NETWORK_CONFIGS,
     SCHEME_EXACT,
+    SECP256R1_PRECOMPILE_ADDRESS,
     SOLANA_DEVNET_CAIP2,
     SOLANA_MAINNET_CAIP2,
     SOLANA_TESTNET_CAIP2,
     SVM_ADDRESS_REGEX,
+    SWIG_PROGRAM_ADDRESS,
+    SWIG_SIGN_V2_DISCRIMINATOR,
     TESTNET_RPC_URL,
     TESTNET_WS_URL,
     TOKEN_2022_PROGRAM_ADDRESS,
@@ -52,6 +55,9 @@ from .constants import (
     NetworkConfig,
 )
 
+# Normalizer
+from .normalizer import NormalizedTransaction, normalize_transaction
+
 # Signer protocols
 from .signer import ClientSvmSigner, FacilitatorSvmSigner
 
@@ -64,6 +70,13 @@ from .types import (
     ExactSvmPayloadV1,
     ExactSvmPayloadV2,
     TransactionInfo,
+)
+
+# Swig
+from .swig import (
+    decode_swig_compact_instructions,
+    is_swig_transaction,
+    parse_swig_transaction,
 )
 
 # Utilities
@@ -92,6 +105,9 @@ __all__ = [
     "COMPUTE_BUDGET_PROGRAM_ADDRESS",
     "MEMO_PROGRAM_ADDRESS",
     "LIGHTHOUSE_PROGRAM_ADDRESS",
+    "SWIG_PROGRAM_ADDRESS",
+    "SWIG_SIGN_V2_DISCRIMINATOR",
+    "SECP256R1_PRECOMPILE_ADDRESS",
     "DEFAULT_COMPUTE_UNIT_LIMIT",
     "DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS",
     "MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS",
@@ -145,6 +161,13 @@ __all__ = [
     # Signer implementations
     "KeypairSigner",
     "FacilitatorKeypairSigner",
+    # Swig
+    "is_swig_transaction",
+    "parse_swig_transaction",
+    "decode_swig_compact_instructions",
+    # Normalizer
+    "normalize_transaction",
+    "NormalizedTransaction",
     # Utilities
     "normalize_network",
     "get_network_config",

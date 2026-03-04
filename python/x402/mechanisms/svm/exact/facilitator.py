@@ -44,12 +44,12 @@ from ..constants import (
     TOKEN_2022_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
 )
+from ..normalizer import normalize_transaction
 from ..signer import FacilitatorSvmSigner
 from ..types import ExactSvmPayload
 from ..utils import (
     decode_transaction_from_payload,
     derive_ata,
-    get_token_payer_from_transaction,
 )
 
 
@@ -163,10 +163,20 @@ class ExactSvmScheme:
             )
 
         message = tx.message
-        instructions = message.instructions
         static_accounts = list(message.account_keys)
 
-        # 3-6 instructions: ComputeLimit + ComputePrice + TransferChecked + optional Lighthouse/Memo
+        # Normalize the transaction (handles Swig, regular, and future wallet types)
+        try:
+            normalized = normalize_transaction(tx)
+        except Exception:
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=""
+            )
+
+        instructions = normalized.instructions
+        payer = normalized.payer
+
+        # Instruction count check AFTER flattening (3-6)
         if len(instructions) < 3 or len(instructions) > 6:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_INSTRUCTION_COUNT, payer=""
@@ -210,13 +220,6 @@ class ExactSvmScheme:
                 is_valid=False,
                 invalid_reason="invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high",
                 payer="",
-            )
-
-        # Get token payer
-        payer = get_token_payer_from_transaction(tx)
-        if not payer:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=""
             )
 
         # Step 4: Verify Transfer Instruction
