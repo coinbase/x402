@@ -5,9 +5,16 @@
  * go/mechanisms/evm/exact/facilitator/errors.go to maintain cross-SDK parity.
  */
 
-// EIP-3009 verify errors
 export const ErrInvalidScheme = "invalid_exact_evm_scheme";
 export const ErrNetworkMismatch = "invalid_exact_evm_network_mismatch";
+
+// EIP-3009 verify errors
+export const ErrEip3009TokenNameMismatch = "invalid_exact_evm_token_name_mismatch";
+export const ErrEip3009TokenVersionMismatch = "invalid_exact_evm_token_version_mismatch";
+export const ErrEip3009NotSupported = "invalid_exact_evm_eip3009_not_supported";
+export const ErrEip3009NonceAlreadyUsed = "invalid_exact_evm_nonce_already_used";
+export const ErrEip3009InsufficientBalance = "invalid_exact_evm_insufficient_balance";
+export const ErrEip3009SimulationFailed = "invalid_exact_evm_transaction_simulation_failed";
 
 // Permit2 verify errors
 export const ErrPermit2InvalidSpender = "invalid_permit2_spender";

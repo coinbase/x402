@@ -1,3 +1,19 @@
+// ERC-1271 isValidSignature ABI for smart wallet signature verification
+export const erc1271ABI = [
+  {
+    inputs: [
+      { name: "hash", type: "bytes32" },
+      { name: "signature", type: "bytes" },
+    ],
+    name: "isValidSignature",
+    outputs: [{ name: "", type: "bytes4" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const ERC1271_MAGIC_VALUE = "0x1626ba7e" as const;
+
 // EIP-3009 TransferWithAuthorization types for EIP-712 signing
 export const authorizationTypes = {
   TransferWithAuthorization: [
@@ -78,6 +94,23 @@ export const eip3009ABI = [
     inputs: [],
     name: "version",
     outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "name",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "authorizer", type: "address" },
+      { name: "nonce", type: "bytes32" },
+    ],
+    name: "authorizationState",
+    outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
