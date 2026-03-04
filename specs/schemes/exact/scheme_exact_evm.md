@@ -231,8 +231,7 @@ The `payload` field must contain:
 
 - `delegationManager`: The address of the ERC-7710 Delegation Manager contract.
 - `permissionContext`: The delegation proof/context required by the specific Delegation Manager implementation.
-- `mode`: The ERC-7579 execution mode (typically single call mode: `0x0000...`).
-- `executionCallData`: The encoded execution data for the token transfer.
+- `delegator`: The address of the account that created the delegation.
 
 **Example PaymentPayload:**
 
@@ -260,8 +259,6 @@ The `payload` field must contain:
   "payload": {
     "delegationManager": "0xDelegationManagerAddress",
     "permissionContext": "0x...",
-    "mode": "0x0000000000000000000000000000000000000000000000000000000000000000",
-    "executionCallData": "0x...",
     "delegator": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
   }
 }
@@ -286,9 +283,16 @@ The facilitator:
 
 If the simulation succeeds, the payment is considered valid. The simulation serves as the sole verification mechanism—no trusted list of Delegation Manager implementations is required.
 
-**Security Consideration**: A facilitator may be vulnerable to a race condition where the client invalidates their delegation between simulation and transaction execution, causing the facilitator to pay gas for a failed transaction. This risk can be mitigated by:
-- Submitting transactions via a private mempool to reduce the window for front-running.
-- Building trust signals for client accounts (e.g., reputation systems) that can be used to flag or ban abusive behavior.
+**Security Considerations**:
+
+1. **Race Condition Risk**: A facilitator may be vulnerable to a race condition where the client invalidates their delegation between simulation and transaction execution, causing the facilitator to pay gas for a failed transaction. This risk can be mitigated by:
+   - Submitting transactions via a private mempool to reduce the window for front-running.
+   - Building trust signals for client accounts (e.g., reputation systems) that can be used to flag or ban abusive behavior.
+
+2. **Malicious Delegation Manager Gas Consumption**: A malicious or poorly implemented Delegation Manager could attempt to consume excessive gas during execution. To mitigate this risk:
+   - Facilitators should always set an explicit gas limit on their `redeemDelegations` call, as is standard practice for all Ethereum transactions.
+   - Pre-execution simulation helps identify whether a transaction is likely to use a reasonable amount of gas.
+   - If simulation reveals unexpectedly high gas consumption, this may indicate a "trap door" implementation designed to drain facilitator funds, and the transaction should be rejected.
 
 ### Phase 4: Settlement Logic
 
