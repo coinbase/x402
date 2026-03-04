@@ -5,7 +5,8 @@
   "protocolFamilies": [
     "evm",
     "svm",
-    "aptos"
+    "aptos",
+    "stellar"
   ],
   "x402Versions": [
     1,
@@ -29,7 +30,8 @@
       "ENDPOINT_PATH"
     ],
     "optional": [
-      "APTOS_PRIVATE_KEY"
+      "APTOS_PRIVATE_KEY",
+      "STELLAR_PRIVATE_KEY"
     ]
   }
 }

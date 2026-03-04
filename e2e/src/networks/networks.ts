@@ -6,7 +6,7 @@
  */
 
 export type NetworkMode = 'testnet' | 'mainnet';
-export type ProtocolFamily = 'evm' | 'svm' | 'aptos';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
 
 export type NetworkConfig = {
   name: string;
@@ -18,6 +18,7 @@ export type NetworkSet = {
   evm: NetworkConfig;
   svm: NetworkConfig;
   aptos: NetworkConfig;
+  stellar: NetworkConfig;
 };
 
 /**
@@ -40,6 +41,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       caip2: 'aptos:2',
       rpcUrl: process.env.APTOS_TESTNET_RPC_URL || 'https://fullnode.testnet.aptoslabs.com/v1',
     },
+    stellar: {
+      name: 'Stellar Testnet',
+      caip2: 'stellar:testnet',
+      rpcUrl: process.env.STELLAR_TESTNET_RPC_URL || 'https://soroban-testnet.stellar.org',
+    },
   },
   mainnet: {
     evm: {
@@ -56,6 +62,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       name: 'Aptos',
       caip2: 'aptos:1',
       rpcUrl: process.env.APTOS_RPC_URL || 'https://fullnode.mainnet.aptoslabs.com/v1',
+    },
+    stellar: {
+      name: 'Stellar Pubnet',
+      caip2: 'stellar:pubnet',
+      rpcUrl: process.env.STELLAR_RPC_URL || 'https://mainnet.sorobanrpc.com',
     },
   },
 };
@@ -74,7 +85,7 @@ export function getNetworkSet(mode: NetworkMode): NetworkSet {
  * Get network config for a protocol family in a given mode
  * 
  * @param mode - 'testnet' or 'mainnet'
- * @param protocolFamily - 'evm', 'svm', or 'aptos'
+ * @param protocolFamily - 'evm', 'svm', 'aptos', or 'stellar'
  * @returns NetworkConfig for the specified protocol
  */
 export function getNetworkForProtocol(
@@ -92,5 +103,6 @@ export function getNetworkForProtocol(
  */
 export function getNetworkModeDescription(mode: NetworkMode): string {
   const set = NETWORK_SETS[mode];
-  return `${set.evm.name} + ${set.svm.name} + ${set.aptos.name}`;
+  const networks = [set.evm.name, set.svm.name, set.aptos.name, set.stellar.name];
+  return networks.join(' + ');
 }
