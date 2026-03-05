@@ -147,13 +147,17 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get signer addresses used by this facilitator.
-   * For Stellar, returns all facilitator addresses.
+   * For Stellar, returns all facilitator addresses including the fee bump signer when configured.
    *
    * @param _ - The network identifier (unused for Stellar)
    * @returns Array containing all facilitator addresses
    */
   getSigners(_: string): string[] {
-    return [...this.signingAddresses];
+    const signers = [...this.signingAddresses];
+    if (this.feeBumpSigner && !this.signingAddresses.has(this.feeBumpSigner.address)) {
+      signers.push(this.feeBumpSigner.address);
+    }
+    return signers;
   }
 
   /**
