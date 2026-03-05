@@ -270,6 +270,14 @@ describe("handleSettlement", () => {
       transaction: "",
       network: "eip155:84532",
       headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+      response: {
+        status: 402,
+        headers: {
+          "Content-Type": "application/json",
+          "PAYMENT-RESPONSE": "settlement-failed-encoded",
+        },
+        body: {},
+      },
     });
     const response = new NextResponse("OK", { status: 200 });
 
@@ -281,9 +289,8 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(402);
-    const body = (await result.json()) as { error: string; details: string };
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Insufficient funds");
+    const body = await result.json();
+    expect(body).toEqual({});
     expect(result.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
   });
 
@@ -299,8 +306,7 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(402);
-    const body = (await result.json()) as { error: string; details: string };
-    expect(body.error).toBe("Settlement failed");
-    expect(body.details).toBe("Settlement rejected");
+    const body = await result.json();
+    expect(body).toEqual({});
   });
 });

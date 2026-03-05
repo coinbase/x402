@@ -111,6 +111,10 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, url stri
 	fmt.Println("   This allows fine-grained control per network while having")
 	fmt.Println("   sensible defaults for unknown networks.\n")
 
-	return printResponse(resp, "Response with multi-network priority")
+	if err := printResponse(resp, "Response with multi-network priority"); err != nil {
+		return err
+	}
+	printPaymentDetails(resp.Header)
+	return nil
 }
 

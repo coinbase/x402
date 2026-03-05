@@ -646,16 +646,18 @@ func TestPaymentMiddleware_Returns402WhenSettlementFails(t *testing.T) {
 		t.Errorf("Expected status 402, got %d", w.Code)
 	}
 
+	// Empty body by default on settlement failure
 	var response map[string]interface{}
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
-
-	if response["error"] != "Settlement failed" {
-		t.Errorf("Expected error 'Settlement failed', got '%v'", response["error"])
+	if len(response) != 0 {
+		t.Errorf("Expected empty body {}, got %v", response)
 	}
-	if response["details"] != "Insufficient funds" {
-		t.Errorf("Expected details 'Insufficient funds', got '%v'", response["details"])
+
+	// AYMENT-RESPONSE header must be included on settlement failure
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
 	}
 }
 
@@ -736,6 +738,11 @@ func TestPaymentMiddleware_CustomErrorHandler(t *testing.T) {
 
 	if response["custom_error"] == nil {
 		t.Error("Expected custom_error in response")
+	}
+
+	// PAYMENT-RESPONSE header must be set even when using custom error handler
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header when using custom error handler")
 	}
 }
 

@@ -115,6 +115,7 @@ class ProcessSettleResult:
     transaction: str | None = None
     network: str | None = None
     payer: str | None = None
+    response: HTTPResponseInstructions | None = None  # Only set when success=False
 
 
 # ============================================================================
@@ -140,14 +141,20 @@ DynamicPrice = Callable[[HTTPRequestContext], "Price | Awaitable[Price]"]
 
 
 @dataclass
-class UnpaidResponseResult:
-    """Custom unpaid response body."""
+class HTTPResponseBody:
+    """Custom response body (used by unpaid and settlement-failed hooks)."""
 
     content_type: str
     body: Any
 
 
-UnpaidResponseBody = Callable[[HTTPRequestContext], UnpaidResponseResult]
+UnpaidResponseBody = Callable[[HTTPRequestContext], HTTPResponseBody]
+
+
+SettlementFailedResponseBody = Callable[
+    [HTTPRequestContext, ProcessSettleResult],
+    HTTPResponseBody | Awaitable[HTTPResponseBody],
+]
 
 
 @dataclass
@@ -172,6 +179,7 @@ class RouteConfig:
     mime_type: str | None = None
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None
+    settlement_failed_response_body: SettlementFailedResponseBody | None = None
     extensions: dict[str, Any] | None = None
     hook_timeout_seconds: float | None = None
 
