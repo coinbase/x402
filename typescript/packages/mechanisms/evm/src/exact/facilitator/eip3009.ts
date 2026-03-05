@@ -117,15 +117,35 @@ export async function verifyEIP3009(
     signature: eip3009Payload.signature!,
   });
   console.log("isValid", isValid);
+  const signature = eip3009Payload.signature!;
+  const sigLen = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  console.log("signature", signature);
+  console.log("sigLen", sigLen);
 
+  // Always check for EIP-6492 deployment info, regardless of verifyTypedData result.
+  // viem's verifyTypedData handles EIP-6492 natively and may return true for
+  // undeployed wallets, but we still need the factory info for simulation and settlement.
+  const erc6492Data = parseErc6492Signature(signature);
+  const hasDeploymentInfo =
+    erc6492Data.address &&
+    erc6492Data.data &&
+    !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
+
+  if (hasDeploymentInfo) {
+    eip6492Deployment = {
+      factoryAddress: erc6492Data.address!,
+      factoryCalldata: erc6492Data.data!,
+    };
+    console.log("eip6492Deployment", eip6492Deployment);
+  }
+
+  // 
   if (!isValid) {
-    // Signature verification failed - could be an undeployed smart wallet
-    const signature = eip3009Payload.signature!;
-    const sigLen = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+    // Check if signature is from a smart wallet
     const isSmartWallet = sigLen > 130; // 65 bytes = 130 hex chars for EOA
-
     console.log("signature", signature);
     console.log("isSmartWallet", isSmartWallet);
+
     if (!isSmartWallet) {
       return {
         isValid: false,
@@ -138,7 +158,7 @@ export async function verifyEIP3009(
     const bytecode = await signer.getCode({ address: payer });
     console.log("bytecode", bytecode);
 
-    // Wallet is deployed but signature invalid
+    // Deployed smart wallet with invalid signature
     if (bytecode && bytecode !== "0x") {
       return {
         isValid: false,
@@ -147,27 +167,21 @@ export async function verifyEIP3009(
       };
     }
 
-    // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
-    const erc6492Data = parseErc6492Signature(signature);
-    const hasDeploymentInfo =
-      erc6492Data.address &&
-      erc6492Data.data &&
-      !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
-
-    // Non-EIP-6492 undeployed smart wallet 
-    if (!hasDeploymentInfo) {
+    // EIP-6492 with factory info but verifyTypedData still failed — bad inner signature
+    if (hasDeploymentInfo) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        invalidReason: "invalid_exact_evm_payload_signature",
         payer,
       };
     }
 
-    eip6492Deployment = {
-      factoryAddress: erc6492Data.address!,
-      factoryCalldata: erc6492Data.data!,
+    // Undeployed smart wallet with no factory deployment info — can't verify or deploy
+    return {
+      isValid: false,
+      invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+      payer,
     };
-    console.log("eip6492Deployment", eip6492Deployment);
   }
 
   // Verify payment recipient matches

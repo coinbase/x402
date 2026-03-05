@@ -159,7 +159,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       const fullPayload: PaymentPayload = {
         ...paymentPayload,
-        accepted: { ...requirements, network: "eip155:1" }, // Wrong network in accepted
+        accepted: requirements,
         resource: { url: "", description: "", mimeType: "" },
       };
 
@@ -168,7 +168,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, wrongNetworkRequirements);
 
       expect(result.isValid).toBe(false);
-      // Verification should fail (network mismatch or other validation error)
+      expect(result.invalidReason).toBe("network_mismatch");
     });
 
     it("should reject if recipient doesn't match payTo", async () => {
