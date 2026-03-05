@@ -1,0 +1,7 @@
+{
+  "name": "SnapAPI",
+  "description": "x402-enabled screenshot and document API. Pay $0.01 USDC per call — no signup, no API key. Capture screenshots, convert Markdown to PDF/PNG, generate QR codes, extract text. Built for AI agents.",
+  "logoUrl": "/logos/snapapi.png",
+  "websiteUrl": "https://api.opspawn.com/x402",
+  "category": "Services/Endpoints"
+}
