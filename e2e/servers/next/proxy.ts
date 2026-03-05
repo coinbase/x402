@@ -13,7 +13,8 @@ export const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 export const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 export const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
 export const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
-export const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
+export const SVM_NETWORK = (process.env.SVM_NETWORK ||
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 export const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
@@ -94,47 +95,40 @@ export const proxy = paymentProxy(
     },
     ...(APTOS_PAYEE_ADDRESS
       ? {
-        "/api/protected-aptos-proxy": {
-          accepts: {
-            payTo: APTOS_PAYEE_ADDRESS,
-            scheme: "exact",
-            price: "$0.001",
-            network: APTOS_NETWORK,
-          },
-          extensions: {
-            ...declareDiscoveryExtension({
-              output: {
-                example: {
-                  message: "Protected endpoint accessed successfully",
-                  timestamp: "2024-01-01T00:00:00Z",
-                },
-                schema: {
-                  properties: {
-                    message: { type: "string" },
-                    timestamp: { type: "string" },
+          "/api/protected-aptos-proxy": {
+            accepts: {
+              payTo: APTOS_PAYEE_ADDRESS,
+              scheme: "exact",
+              price: "$0.001",
+              network: APTOS_NETWORK,
+            },
+            extensions: {
+              ...declareDiscoveryExtension({
+                output: {
+                  example: {
+                    message: "Protected endpoint accessed successfully",
+                    timestamp: "2024-01-01T00:00:00Z",
                   },
-                  required: ["message", "timestamp"],
+                  schema: {
+                    properties: {
+                      message: { type: "string" },
+                      timestamp: { type: "string" },
+                    },
+                    required: ["message", "timestamp"],
+                  },
                 },
-              },
-            }),
+              }),
+            },
           },
-        },
-      }
+        }
       : {}),
     "/api/protected-permit2-proxy": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
         network: EVM_NETWORK,
-        price: {
-          amount: "1000",
-          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-          extra: {
-            assetTransferMethod: "permit2",
-            name: "USDC",
-            version: "2",
-          },
-        },
+        price: "$0.001",
+        extra: { assetTransferMethod: "permit2" },
       },
       extensions: {
         ...declareDiscoveryExtension({
@@ -179,5 +173,11 @@ export const proxy = paymentProxy(
 );
 
 export const config = {
-  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy", "/api/protected-aptos-proxy", "/api/protected-permit2-proxy", "/api/protected-permit2-erc20-proxy"],
+  matcher: [
+    "/api/protected-proxy",
+    "/api/protected-svm-proxy",
+    "/api/protected-aptos-proxy",
+    "/api/protected-permit2-proxy",
+    "/api/protected-permit2-erc20-proxy",
+  ],
 };
