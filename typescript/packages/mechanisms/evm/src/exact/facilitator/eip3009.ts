@@ -111,20 +111,23 @@ export async function verifyEIP3009(
   };
 
   // Verify signature
-  const isValid = await signer.verifyTypedData({
-    address: eip3009Payload.authorization.from,
-    ...permitTypedData,
-    signature: eip3009Payload.signature!,
-  });
-  console.log("isValid", isValid);
+  // verifyTypedData is implementation-dependent and pluggable on FacilitatorEvmSigner
+  // some implementations only do EOA-style ECDSA recovery (e.g. viem/utils verifyTypedData, ethers.verifyTypedData)
+  // viem's publicClient.verifyTypedData supports EOA and Smart Contract Account (ERC-1271 / ERC-6492) signature verification
+  let isValid = false;
+  try {
+    isValid = await signer.verifyTypedData({
+      address: eip3009Payload.authorization.from,
+      ...permitTypedData,
+      signature: eip3009Payload.signature!,
+    });
+  } catch {
+    isValid = false;
+  }
   const signature = eip3009Payload.signature!;
   const sigLen = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-  console.log("signature", signature);
-  console.log("sigLen", sigLen);
 
-  // Always check for EIP-6492 deployment info, regardless of verifyTypedData result.
-  // viem's verifyTypedData handles EIP-6492 natively and may return true for
-  // undeployed wallets, but we still need the factory info for simulation and settlement.
+  // Extract EIP-6492 deployment info (factory address + calldata) if present
   const erc6492Data = parseErc6492Signature(signature);
   const hasDeploymentInfo =
     erc6492Data.address &&
@@ -136,16 +139,13 @@ export async function verifyEIP3009(
       factoryAddress: erc6492Data.address!,
       factoryCalldata: erc6492Data.data!,
     };
-    console.log("eip6492Deployment", eip6492Deployment);
   }
 
-  // 
   if (!isValid) {
     // Check if signature is from a smart wallet
     const isSmartWallet = sigLen > 130; // 65 bytes = 130 hex chars for EOA
-    console.log("signature", signature);
-    console.log("isSmartWallet", isSmartWallet);
 
+    // EOA signature that failed verification — definitely invalid
     if (!isSmartWallet) {
       return {
         isValid: false,
@@ -154,34 +154,20 @@ export async function verifyEIP3009(
       };
     }
 
-    // Check if smart wallet is deployed
+    // Smart wallet signature: check if deployed or has ERC-6492 deployment info
     const bytecode = await signer.getCode({ address: payer });
-    console.log("bytecode", bytecode);
+    const isDeployed = bytecode && bytecode !== "0x";
 
-    // Deployed smart wallet with invalid signature
-    if (bytecode && bytecode !== "0x") {
+    if (!isDeployed && !hasDeploymentInfo) {
+      // Undeployed smart wallet with no factory info
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
+        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
         payer,
       };
     }
-
-    // EIP-6492 with factory info but verifyTypedData still failed — bad inner signature
-    if (hasDeploymentInfo) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
-        payer,
-      };
-    }
-
-    // Undeployed smart wallet with no factory deployment info — can't verify or deploy
-    return {
-      isValid: false,
-      invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-      payer,
-    };
+    // Deployed smart wallet or undeployed with ERC-6492 factory info
+    // fall through to remaining field checks and onchain simulation
   }
 
   // Verify payment recipient matches
@@ -221,7 +207,7 @@ export async function verifyEIP3009(
     };
   }
 
-  // Onchain simulation
+  // Transaction simulation
   if (options?.simulate !== false) {
     const auth = eip3009Payload.authorization;
     const transferArgs = [
@@ -255,14 +241,13 @@ export async function verifyEIP3009(
         } satisfies RawContractCall,
       ]);
 
-      console.log("results", results);
-
+      // If the transfer call fails, the simulation failed
+      // Smart wallet deployment might succeed even if the inner signature is invalid, but the transfer will fail
       if (results[1]?.status !== "success") {
-        console.log("simulation failed");
         simulationFailed = true;
       }
     } else {
-      // EOA or deployed smart wallet: direct simulation
+      // EOA or deployed smart wallet
       const sig = eip3009Payload.signature!;
       const sigLength = sig.startsWith("0x") ? sig.length - 2 : sig.length;
       const isECDSA = sigLength === 130;
@@ -295,12 +280,7 @@ export async function verifyEIP3009(
     }
 
     if (simulationFailed) {
-      return diagnoseSimulationFailure(
-        signer,
-        erc20Address,
-        eip3009Payload,
-        requirements,
-      );
+      return diagnoseSimulationFailure(signer, erc20Address, eip3009Payload, requirements);
     }
   }
 
@@ -312,8 +292,14 @@ export async function verifyEIP3009(
 }
 
 /**
- * After simulation fails, runs a single diagnostic multicall to determine the most specific error reason. 
+ * After simulation fails, runs a single diagnostic multicall to determine the most specific error reason.
  * Checks balanceOf, name, version and authorizationState in one RPC round-trip.
+ *
+ * @param signer - EVM signer used for the payment
+ * @param erc20Address - Address of the ERC-20 token contract
+ * @param eip3009Payload - The EIP-3009 transfer authorization payload
+ * @param requirements - Payment requirements to validate against
+ * @returns A promise that resolves to the verification result with validity and optional invalid reason
  */
 async function diagnoseSimulationFailure(
   signer: FacilitatorEvmSigner,
@@ -388,11 +374,8 @@ async function diagnoseSimulationFailure(
         return { isValid: false, invalidReason: Errors.ErrEip3009InsufficientBalance, payer };
       }
     }
-
-    console.log("diagnostic calls succeeded");
   } catch {
-    console.log("diagnostic calls failed");
-    // Diagnostic multicall itself failed — fall through to generic error
+    // Diagnostic multicall failed — fall through to generic error
   }
 
   return { isValid: false, invalidReason: Errors.ErrEip3009SimulationFailed, payer };
@@ -445,7 +428,6 @@ export async function settleEIP3009(
     ) {
       // Check if smart wallet is already deployed
       const bytecode = await signer.getCode({ address: payer });
-      console.log("bytecode", bytecode);
 
       if (!bytecode || bytecode === "0x") {
         // Wallet not deployed - attempt deployment
@@ -456,7 +438,6 @@ export async function settleEIP3009(
 
         // Wait for deployment transaction
         await signer.waitForTransactionReceipt({ hash: deployTx });
-        console.log("deployment transaction successful");
       }
     }
 
