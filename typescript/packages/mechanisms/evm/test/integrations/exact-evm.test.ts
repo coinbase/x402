@@ -152,6 +152,11 @@ describe("EVM Integration Tests", () => {
             ...args,
             args: args.args || [],
           } as never),
+        simulateContract: async args =>
+          publicClient.simulateContract({
+            ...args,
+            args: args.args || [],
+          } as never),
         verifyTypedData: args => publicClient.verifyTypedData(args as never),
         writeContract: args =>
           walletClient.writeContract({
@@ -283,6 +288,11 @@ describe("EVM Integration Tests", () => {
             ...args,
             args: args.args || [],
           }),
+        simulateContract: async args =>
+          publicClient.simulateContract({
+            ...args,
+            args: args.args || [],
+          } as never),
         verifyTypedData: args => publicClient.verifyTypedData(args as never),
         writeContract: args =>
           walletClient.writeContract({
@@ -408,6 +418,11 @@ describe("EVM Integration Tests", () => {
         address: facilitatorAccount.address,
         readContract: args =>
           publicClient.readContract({
+            ...args,
+            args: args.args || [],
+          } as never),
+        simulateContract: async args =>
+          publicClient.simulateContract({
             ...args,
             args: args.args || [],
           } as never),

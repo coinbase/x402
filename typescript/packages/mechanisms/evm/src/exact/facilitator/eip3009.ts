@@ -10,6 +10,16 @@ import { FacilitatorEvmSigner } from "../../signer";
 import { getEvmChainId } from "../../utils";
 import { ExactEIP3009Payload } from "../../types";
 
+const KNOWN_REVERT_REASONS: Record<string, string> = {
+  AuthorizationAlreadyUsed:
+    "EIP-3009 nonce already consumed on-chain (replayed authorization)",
+  InvalidSignature: "Signature does not match the authorization parameters",
+  AuthorizationExpired: "Authorization validBefore has passed",
+  AuthorizationNotYetValid: "Authorization validAfter has not arrived",
+  CallerMustBePayee: "Caller is not the authorized payee",
+  InvalidAuthorization: "Generic authorization validation failure",
+};
+
 export interface EIP3009FacilitatorConfig {
   /**
    * If enabled, the facilitator will deploy ERC-4337 smart wallets
@@ -206,11 +216,128 @@ export async function verifyEIP3009(
     };
   }
 
+  // Step 6: Transaction simulation to detect on-chain reverts before settlement.
+  const simulation = await simulateEip3009Settlement(signer, requirements, eip3009Payload);
+  if (!simulation.success) {
+    return {
+      isValid: false,
+      invalidReason: `settlement_simulation_failed: ${simulation.revertReason}`,
+      payer,
+    };
+  }
+
   return {
     isValid: true,
     invalidReason: undefined,
     payer,
   };
+}
+
+interface Eip3009SimulationResult {
+  success: boolean;
+  revertReason?: string;
+  rawError?: string;
+}
+
+async function simulateEip3009Settlement(
+  signer: FacilitatorEvmSigner,
+  requirements: PaymentRequirements,
+  eip3009Payload: ExactEIP3009Payload,
+): Promise<Eip3009SimulationResult> {
+  const [account] = signer.getAddresses();
+  if (!account) {
+    return { success: false, revertReason: "missing_facilitator_address_for_simulation" };
+  }
+
+  try {
+    const erc20Address = getAddress(requirements.asset);
+
+    // Parse ERC-6492 signature if applicable to extract the inner signature used for settlement
+    const parseResult = parseErc6492Signature(eip3009Payload.signature!);
+    const { signature } = parseResult;
+
+    const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+    const isECDSA = signatureLength === 130;
+
+    const baseArgs: readonly unknown[] = [
+      getAddress(eip3009Payload.authorization.from),
+      getAddress(eip3009Payload.authorization.to),
+      BigInt(eip3009Payload.authorization.value),
+      BigInt(eip3009Payload.authorization.validAfter),
+      BigInt(eip3009Payload.authorization.validBefore),
+      eip3009Payload.authorization.nonce,
+    ];
+
+    let callArgs: readonly unknown[];
+    if (isECDSA) {
+      const parsedSig = parseSignature(signature);
+      callArgs = [
+        ...baseArgs,
+        (parsedSig.v as number | undefined) || parsedSig.yParity,
+        parsedSig.r,
+        parsedSig.s,
+      ];
+    } else {
+      callArgs = [...baseArgs, signature];
+    }
+
+    await signer.simulateContract({
+      address: erc20Address,
+      abi: eip3009ABI,
+      functionName: "transferWithAuthorization",
+      args: callArgs,
+      account,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    const revertReason = decodeEip3009RevertReason(error);
+    return {
+      success: false,
+      revertReason,
+      rawError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function decodeEip3009RevertReason(error: unknown): string {
+  if (error == null) return "unknown_revert";
+
+  const err = error as Record<string, unknown>;
+
+  // viem wraps revert reasons in error.cause or error.data
+  if (err.cause && typeof err.cause === "object") {
+    const cause = err.cause as Record<string, unknown>;
+    if (typeof cause.reason === "string") {
+      return normalizeRevertReason(cause.reason);
+    }
+    if (cause.data && typeof cause.data === "object") {
+      const data = cause.data as Record<string, unknown>;
+      if (typeof data.errorName === "string") {
+        return normalizeRevertReason(data.errorName);
+      }
+    }
+  }
+
+  if (typeof err.message === "string") {
+    const match = err.message.match(/reverted with reason string '([^']+)'/);
+    if (match) {
+      return normalizeRevertReason(match[1]);
+    }
+
+    const customErrorMatch = err.message.match(/reverted with custom error '([^'(]+)/);
+    if (customErrorMatch) {
+      return normalizeRevertReason(customErrorMatch[1]);
+    }
+  }
+
+  return "unknown_revert";
+}
+
+function normalizeRevertReason(reason: string): string {
+  const trimmed = reason.trim();
+  const mapped = KNOWN_REVERT_REASONS[trimmed];
+  return mapped ? `${trimmed}: ${mapped}` : trimmed;
 }
 
 /**

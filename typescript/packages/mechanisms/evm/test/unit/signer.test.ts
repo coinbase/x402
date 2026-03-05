@@ -48,6 +48,7 @@ describe("EVM Signer Converters", () => {
       const mockClient = {
         address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         readContract: async () => BigInt(0),
+        simulateContract: async () => ({ result: undefined }),
         verifyTypedData: async () => true,
         writeContract: async () => "0xtxhash" as `0x${string}`,
         waitForTransactionReceipt: async () => ({ status: "success" }),
@@ -62,6 +63,7 @@ describe("EVM Signer Converters", () => {
 
       // Should preserve all other methods
       expect(result.readContract).toBe(mockClient.readContract);
+      expect(result.simulateContract).toBe(mockClient.simulateContract);
       expect(result.verifyTypedData).toBe(mockClient.verifyTypedData);
       expect(result.writeContract).toBe(mockClient.writeContract);
       expect(result.waitForTransactionReceipt).toBe(mockClient.waitForTransactionReceipt);

@@ -71,6 +71,18 @@ export type FacilitatorEvmSigner = {
     functionName: string;
     args?: readonly unknown[];
   }): Promise<unknown>;
+  /**
+   * Simulate a contract call without broadcasting a transaction.
+   * Used by facilitators to perform eth_call-based transaction simulation
+   * during verification to detect potential settlement reverts.
+   */
+  simulateContract(args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args: readonly unknown[];
+    account: `0x${string}`;
+  }): Promise<{ result: unknown }>;
   verifyTypedData(args: {
     address: `0x${string}`;
     domain: Record<string, unknown>;

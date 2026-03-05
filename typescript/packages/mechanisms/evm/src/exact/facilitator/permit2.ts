@@ -36,6 +36,15 @@ import { ExactPermit2Payload } from "../../types";
 import { getEvmChainId } from "../../utils";
 import { validateErc20ApprovalForPayment } from "./erc20approval";
 
+const PERMIT2_KNOWN_REVERT_REASONS: Record<string, string> = {
+  InvalidNonce: "Permit2 nonce already consumed on-chain (replayed authorization)",
+  InvalidSignature: "Signature does not match the Permit2 authorization parameters",
+  InvalidAmount: "Permit2 transfer amount is invalid for the current state",
+  InvalidOwner: "Permit2 owner does not match the expected payer",
+  InvalidDestination: "Permit2 destination does not match the expected payTo",
+  PaymentTooEarly: "Permit2 payment attempted before validAfter / deadline constraints",
+};
+
 /**
  * Verifies a Permit2 payment payload.
  *
@@ -214,11 +223,159 @@ export async function verifyPermit2(
     // If we can't check balance, continue
   }
 
+  // Transaction simulation: ensure the final settlement call will not revert.
+  const simulation = await simulatePermit2Settlement(
+    signer,
+    payload,
+    requirements,
+    permit2Payload,
+  );
+
+  if (!simulation.success) {
+    return {
+      isValid: false,
+      invalidReason: `settlement_simulation_failed: ${simulation.revertReason}`,
+      payer,
+    };
+  }
+
   return {
     isValid: true,
     invalidReason: undefined,
     payer,
   };
+}
+
+interface Permit2SimulationResult {
+  success: boolean;
+  revertReason?: string;
+  rawError?: string;
+}
+
+async function simulatePermit2Settlement(
+  signer: FacilitatorEvmSigner,
+  payload: PaymentPayload,
+  requirements: PaymentRequirements,
+  permit2Payload: ExactPermit2Payload,
+): Promise<Permit2SimulationResult> {
+  const [account] = signer.getAddresses();
+  if (!account) {
+    return { success: false, revertReason: "missing_facilitator_address_for_simulation" };
+  }
+
+  const payer = permit2Payload.permit2Authorization.from;
+
+  try {
+    const eip2612Info = extractEip2612GasSponsoringInfo(payload);
+
+    if (eip2612Info) {
+      // Mirror _settlePermit2WithEIP2612 call shape
+      const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
+
+      await signer.simulateContract({
+        address: x402ExactPermit2ProxyAddress,
+        abi: x402ExactPermit2ProxyABI,
+        functionName: "settleWithPermit",
+        args: [
+          {
+            value: BigInt(eip2612Info.amount),
+            deadline: BigInt(eip2612Info.deadline),
+            r,
+            s,
+            v,
+          },
+          {
+            permitted: {
+              token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+              amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+            },
+            nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+            deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+          },
+          getAddress(payer),
+          {
+            to: getAddress(permit2Payload.permit2Authorization.witness.to),
+            validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+          },
+          permit2Payload.signature,
+        ],
+        account,
+      });
+    } else {
+      // Mirror _settlePermit2Direct call shape
+      await signer.simulateContract({
+        address: x402ExactPermit2ProxyAddress,
+        abi: x402ExactPermit2ProxyABI,
+        functionName: "settle",
+        args: [
+          {
+            permitted: {
+              token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+              amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+            },
+            nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+            deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+          },
+          getAddress(payer),
+          {
+            to: getAddress(permit2Payload.permit2Authorization.witness.to),
+            validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+          },
+          permit2Payload.signature,
+        ],
+        account,
+      });
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    const revertReason = decodePermit2RevertReason(error);
+    return {
+      success: false,
+      revertReason,
+      rawError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function decodePermit2RevertReason(error: unknown): string {
+  if (error == null) return "unknown_revert";
+
+  const err = error as Record<string, unknown>;
+
+  // viem wraps revert reasons in error.cause or error.data
+  if (err.cause && typeof err.cause === "object") {
+    const cause = err.cause as Record<string, unknown>;
+    if (typeof cause.reason === "string") {
+      return normalizePermit2RevertReason(cause.reason);
+    }
+    if (cause.data && typeof cause.data === "object") {
+      const data = cause.data as Record<string, unknown>;
+      if (typeof data.errorName === "string") {
+        return normalizePermit2RevertReason(data.errorName);
+      }
+    }
+  }
+
+  if (typeof err.message === "string") {
+    const match = err.message.match(/reverted with reason string '([^']+)'/);
+    if (match) {
+      return normalizePermit2RevertReason(match[1]);
+    }
+
+    const customErrorMatch = err.message.match(/reverted with custom error '([^'(]+)/);
+    if (customErrorMatch) {
+      return normalizePermit2RevertReason(customErrorMatch[1]);
+    }
+  }
+
+  return "unknown_revert";
+}
+
+function normalizePermit2RevertReason(reason: string): string {
+  const trimmed = reason.trim();
+  const mapped = PERMIT2_KNOWN_REVERT_REASONS[trimmed];
+  return mapped ? `${trimmed}: ${mapped}` : trimmed;
 }
 
 /**

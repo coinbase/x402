@@ -9,10 +9,14 @@ describe("ExactEvmSchemeV1", () => {
 
   beforeEach(() => {
     mockSigner = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      getAddresses: vi
+        .fn()
+        .mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as `0x${string}`]),
       readContract: vi.fn().mockResolvedValue(BigInt("10000000")), // 10 USDC
+      simulateContract: vi.fn().mockResolvedValue({ result: undefined }),
       verifyTypedData: vi.fn().mockResolvedValue(true),
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
+      sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       getCode: vi.fn().mockResolvedValue("0x"),
     };
