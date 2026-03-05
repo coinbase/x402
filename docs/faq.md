@@ -67,6 +67,7 @@ Yes. x402 handles the _payment execution_. You can still meter usage, aggregate 
 | Base Sepolia   | `eip155:84532` | Any EIP-3009 token  | fee-free | **Testnet** |
 | Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token or Token-2022 token | fee-free | **Mainnet** |
 | Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token or Token-2022 | fee-free | **Testnet** |
+| Stellar Testnet | `stellar:testnet` | Any Stellar asset | fee-free | **Testnet** |
 
 \* Gas paid on chain; many facilitators offer **zero** facilitator fees (see [ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for details).
 
