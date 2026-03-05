@@ -1374,6 +1374,9 @@ importers:
       '@x402/paywall':
         specifier: workspace:*
         version: link:../packages/http/paywall
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../packages/mechanisms/svm
