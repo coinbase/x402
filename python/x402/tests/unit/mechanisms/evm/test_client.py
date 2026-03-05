@@ -10,6 +10,7 @@ except ImportError:
 
 from x402.mechanisms.evm.exact import ExactEvmClientScheme
 from x402.mechanisms.evm.signers import EthAccountSigner
+from x402.mechanisms.evm.utils import get_asset_info
 from x402.schemas import PaymentRequirements
 
 
@@ -161,7 +162,7 @@ class TestLocalAccountAutoWrap:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_asset_info(network, "USDC")["address"],
+            asset=get_asset_info(network, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")["address"],
             amount="500000",
             pay_to="0x0987654321098765432109876543210987654321",
             max_timeout_seconds=3600,
