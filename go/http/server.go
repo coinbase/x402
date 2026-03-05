@@ -85,8 +85,9 @@ type UnpaidResponseBodyFunc func(ctx context.Context, reqCtx HTTPRequestContext)
 // Represents one way a client can pay for access to the resource
 type PaymentOption struct {
 	Scheme            string                 `json:"scheme"`
-	PayTo             interface{}            `json:"payTo"` // string or DynamicPayToFunc
-	Price             interface{}            `json:"price"` // x402.Price or DynamicPriceFunc
+	PayTo             interface{}            `json:"payTo"`             // string or DynamicPayToFunc
+	Recipient         interface{}            `json:"recipient,omitempty"` // string or DynamicPayToFunc — merchant payout address when using a settlement router
+	Price             interface{}            `json:"price"`             // x402.Price or DynamicPriceFunc
 	Network           x402.Network           `json:"network"`
 	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds,omitempty"`
 	Extra             map[string]interface{} `json:"extra,omitempty"`
@@ -255,6 +256,22 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 			resolvedPrice = option.Price
 		}
 
+		// Resolve Recipient (string or DynamicPayToFunc), if set.
+		var resolvedRecipient string
+		if option.Recipient != nil {
+			if recipientFunc, ok := option.Recipient.(DynamicPayToFunc); ok {
+				r, err := recipientFunc(ctx, reqCtx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve dynamic recipient: %w", err)
+				}
+				resolvedRecipient = r
+			} else if recipientStr, ok := option.Recipient.(string); ok {
+				resolvedRecipient = recipientStr
+			} else {
+				return nil, fmt.Errorf("recipient must be string or DynamicPayToFunc, got %T", option.Recipient)
+			}
+		}
+
 		// Build resource config from this option
 		resourceConfig := x402.ResourceConfig{
 			Scheme:            option.Scheme,
@@ -268,6 +285,13 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 		requirements, err := s.BuildPaymentRequirementsFromConfig(ctx, resourceConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build requirements for option %s on %s: %w", option.Scheme, option.Network, err)
+		}
+
+		// Stamp recipient onto each requirement if resolved.
+		if resolvedRecipient != "" {
+			for i := range requirements {
+				requirements[i].Recipient = resolvedRecipient
+			}
 		}
 
 		allRequirements = append(allRequirements, requirements...)

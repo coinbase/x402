@@ -27,6 +27,7 @@ type PaymentRequirements struct {
 	Asset             string                 `json:"asset"`
 	Amount            string                 `json:"amount"`
 	PayTo             string                 `json:"payTo"`
+	Recipient         string                 `json:"recipient,omitempty"`
 	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds"`
 	Extra             map[string]interface{} `json:"extra,omitempty"`
 }
