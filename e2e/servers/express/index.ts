@@ -271,6 +271,90 @@ app.use(
             },
           }
         : {}),
+      // Multi-mechanism endpoint - demonstrates multiple payment options in a single accepts array
+      "GET /protected-multi": {
+        accepts: [
+          // Option 1: EIP-3009 payment on EVM (Base Sepolia)
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            price: "$0.001",
+            network: EVM_NETWORK,
+          },
+          // Option 2: Permit2 payment on EVM (Base Sepolia) with EIP-2612 gas sponsoring
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            network: EVM_NETWORK,
+            price: "$0.001",
+            extra: { assetTransferMethod: "permit2" },
+          },
+          // Option 3: Permit2 with generic ERC-20 token (no EIP-2612, uses raw approve tx)
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            network: EVM_NETWORK,
+            price: {
+              amount: "1000",
+              asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a", // Generic MockERC20 token (no EIP-2612)
+              extra: {
+                assetTransferMethod: "permit2",
+                // No name/version - generic ERC-20 without EIP-2612
+              },
+            },
+          },
+          // Option 4: SVM payment (Solana Devnet)
+          {
+            payTo: SVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            price: "$0.001",
+            network: SVM_NETWORK,
+          },
+          // Option 5: Aptos payment (if configured)
+          ...(APTOS_PAYEE_ADDRESS
+            ? [
+                {
+                  payTo: APTOS_PAYEE_ADDRESS,
+                  scheme: "exact",
+                  price: "$0.001",
+                  network: APTOS_NETWORK,
+                } as const,
+              ]
+            : []),
+          // Option 6: Stellar payment (if configured)
+          ...(STELLAR_PAYEE_ADDRESS
+            ? [
+                {
+                  payTo: STELLAR_PAYEE_ADDRESS,
+                  scheme: "exact",
+                  price: "$0.001",
+                  network: STELLAR_NETWORK,
+                } as const,
+              ]
+            : []),
+        ],
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Multi-mechanism endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+                acceptedPaymentMethod: "eip3009|permit2|permit2-erc20|svm|aptos|stellar",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                  acceptedPaymentMethod: { type: "string" },
+                },
+                required: ["message", "timestamp", "acceptedPaymentMethod"],
+              },
+            },
+          }),
+          ...declareEip2612GasSponsoringExtension(),
+          ...declareErc20ApprovalGasSponsoringExtension(),
+        },
+      },
     },
     server, // Pass pre-configured server instance
   ),
@@ -362,6 +446,37 @@ if (STELLAR_PAYEE_ADDRESS) {
 }
 
 /**
+ * Protected Multi-mechanism endpoint - accepts multiple payment options
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware
+ * with multiple payment options in the accepts array. Clients can choose from:
+ * - EIP-3009 payment (USDC on Base Sepolia)
+ * - Permit2 payment with EIP-2612 gas sponsoring (USDC on Base Sepolia)
+ * - Permit2 payment with ERC-20 approval gas sponsoring (MockERC20 on Base Sepolia)
+ * - SVM payment (USDC on Solana Devnet)
+ * - Aptos payment (if configured)
+ * - Stellar payment (if configured)
+ */
+app.get("/protected-multi", (req, res) => {
+  // Determine which payment method was used based on x-payment-method header
+  const paymentMethod = req.headers["x-payment-method"] || "unknown";
+
+  res.json({
+    message: "Multi-mechanism endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    acceptedPaymentMethod: paymentMethod,
+    availableOptions: [
+      "EIP-3009 (USDC/EVM)",
+      "Permit2 with EIP-2612 gas sponsoring (USDC/EVM)",
+      "Permit2 with ERC-20 approval gas sponsoring (MockERC20/EVM)",
+      "SVM (USDC/Solana)",
+      ...(APTOS_PAYEE_ADDRESS ? ["Aptos (USDC/Aptos)"] : []),
+      ...(STELLAR_PAYEE_ADDRESS ? ["Stellar (USDC/Stellar)"] : []),
+    ],
+  });
+});
+
+/**
  * Health check endpoint - no payment required
  *
  * Used to verify the server is running and responsive.
@@ -413,6 +528,7 @@ app.listen(parseInt(PORT), () => {
 ║  • GET  /protected-permit2     (Permit2 payment - EVM)     ║
 ║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval) ║
 ║  • GET  /protected-stellar     (Stellar payment)           ║
+║  • GET  /protected-multi       (Multi-mechanism endpoint)  ║
 ║  • GET  /health                (no payment required)       ║
 ║  • POST /close                 (shutdown server)           ║
 ╚════════════════════════════════════════════════════════╝
