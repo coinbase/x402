@@ -8,6 +8,17 @@ import { encodeFunctionData, decodeFunctionResult } from "viem";
  */
 export const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
 
+/** Multicall3 getEthBalance ABI for querying native token balance. */
+export const multicall3GetEthBalanceAbi = [
+  {
+    name: "getEthBalance",
+    inputs: [{ name: "addr", type: "address" }],
+    outputs: [{ name: "balance", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
 /** Multicall3 tryAggregate ABI for batching calls. */
 const multicall3ABI = [
   {
