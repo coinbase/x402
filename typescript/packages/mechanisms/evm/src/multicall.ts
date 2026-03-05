@@ -70,9 +70,11 @@ type ReadContractFn = (args: {
 }) => Promise<unknown>;
 
 /**
+ * Executes multiple contract read calls in a single RPC round-trip using Multicall3.
  *
- * @param readContract
- * @param calls
+ * @param readContract - Function that performs a single contract read (e.g. viem readContract)
+ * @param calls - Array of contract calls to batch (ContractCall or RawContractCall)
+ * @returns A promise that resolves to an array of decoded results, one per call
  */
 export async function multicall(
   readContract: ReadContractFn,
