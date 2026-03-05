@@ -9,10 +9,12 @@ import {
   extractEip2612GasSponsoringInfo,
   validateEip2612GasSponsoringInfo,
   extractErc20ApprovalGasSponsoringInfo,
-  ERC20_APPROVAL_GAS_SPONSORING,
+  ERC20_APPROVAL_GAS_SPONSORING_KEY,
+  resolveErc20ApprovalExtensionSigner,
+  type Eip2612GasSponsoringInfo,
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
-} from "@x402/extensions";
-import type { Eip2612GasSponsoringInfo } from "@x402/extensions";
+  type Erc20ApprovalGasSponsoringSigner,
+} from "../extensions";
 import { getAddress } from "viem";
 import {
   eip3009ABI,
@@ -265,7 +267,7 @@ async function _verifyPermit2Allowance(
     // Try ERC-20 approval gas sponsoring as fallback
     const erc20GasSponsorshipExtension =
       context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
-        ERC20_APPROVAL_GAS_SPONSORING.key,
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
       );
     if (erc20GasSponsorshipExtension) {
       const erc20Info = extractErc20ApprovalGasSponsoringInfo(payload);
@@ -337,15 +339,14 @@ export async function settlePermit2(
   if (erc20Info) {
     const erc20GasSponsorshipExtension =
       context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
-        ERC20_APPROVAL_GAS_SPONSORING.key,
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
       );
-    if (erc20GasSponsorshipExtension?.signer) {
-      return _settlePermit2WithERC20Approval(
-        erc20GasSponsorshipExtension.signer,
-        payload,
-        permit2Payload,
-        erc20Info,
-      );
+    const extensionSigner = resolveErc20ApprovalExtensionSigner(
+      erc20GasSponsorshipExtension,
+      payload.accepted.network,
+    );
+    if (extensionSigner) {
+      return _settlePermit2WithERC20Approval(extensionSigner, payload, permit2Payload, erc20Info);
     }
   }
 
@@ -419,7 +420,7 @@ async function _settlePermit2WithEIP2612(
  * @returns Promise resolving to settlement response
  */
 async function _settlePermit2WithERC20Approval(
-  extensionSigner: Erc20ApprovalGasSponsoringFacilitatorExtension["signer"] & {},
+  extensionSigner: Erc20ApprovalGasSponsoringSigner,
   payload: PaymentPayload,
   permit2Payload: ExactPermit2Payload,
   erc20Info: { signedTransaction: string },

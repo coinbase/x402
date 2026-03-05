@@ -1,19 +1,20 @@
 import {
-  PaymentRequirements,
   SchemeNetworkClient,
+  PaymentRequirements,
   PaymentPayloadResult,
   PaymentPayloadContext,
 } from "@x402/core/types";
-import { EIP2612_GAS_SPONSORING, ERC20_APPROVAL_GAS_SPONSORING } from "@x402/extensions";
 import { ClientEvmSigner } from "../../signer";
 import { AssetTransferMethod } from "../../types";
 import { PERMIT2_ADDRESS, erc20AllowanceAbi } from "../../constants";
 import { getAddress } from "viem";
 import { getEvmChainId } from "../../utils";
+import { EIP2612_GAS_SPONSORING_KEY, ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../extensions";
 import { createEIP3009Payload } from "./eip3009";
 import { createPermit2Payload } from "./permit2";
 import { signEip2612Permit } from "./eip2612";
 import { signErc20ApprovalTransaction } from "./erc20approval";
+import { ExactEvmSchemeOptions, resolveExtensionRpcCapabilities } from "./rpc";
 
 /**
  * EVM client implementation for the Exact payment scheme.
@@ -34,10 +35,15 @@ export class ExactEvmScheme implements SchemeNetworkClient {
    * Creates a new ExactEvmClient instance.
    *
    * @param signer - The EVM signer for client operations.
-   *   Must support `readContract` for EIP-2612 gas sponsoring.
-   *   Use `createWalletClient(...).extend(publicActions)` or `toClientEvmSigner(account, publicClient)`.
+   *   Base flow only requires `address` + `signTypedData`.
+   *   Extension enrichment (EIP-2612 / ERC-20 approval sponsoring) additionally
+   *   requires optional capabilities like `readContract` and tx signing helpers.
+   * @param options - Optional RPC configuration used to backfill extension capabilities.
    */
-  constructor(private readonly signer: ClientEvmSigner) {}
+  constructor(
+    private readonly signer: ClientEvmSigner,
+    private readonly options?: ExactEvmSchemeOptions,
+  ) {}
 
   /**
    * Creates a payment payload for the Exact scheme.
@@ -112,8 +118,19 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     result: PaymentPayloadResult,
     context?: PaymentPayloadContext,
   ): Promise<Record<string, unknown> | undefined> {
+    const capabilities = resolveExtensionRpcCapabilities(
+      requirements.network,
+      this.signer,
+      this.options,
+    );
+
+    // Requires on-chain reads to check allowance and fetch nonce
+    if (!capabilities.readContract) {
+      return undefined;
+    }
+
     // Check if server advertises eip2612GasSponsoring
-    if (!context?.extensions?.[EIP2612_GAS_SPONSORING.key]) {
+    if (!context?.extensions?.[EIP2612_GAS_SPONSORING_KEY]) {
       return undefined;
     }
 
@@ -129,7 +146,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
 
     // Check if user already has sufficient Permit2 allowance
     try {
-      const allowance = (await this.signer.readContract({
+      const allowance = (await capabilities.readContract({
         address: tokenAddress,
         abi: erc20AllowanceAbi,
         functionName: "allowance",
@@ -152,7 +169,11 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     // Sign the EIP-2612 permit with the exact Permit2 permitted amount
     // (the contract enforces permit2612.value == permit.permitted.amount)
     const info = await signEip2612Permit(
-      this.signer,
+      {
+        address: this.signer.address,
+        signTypedData: msg => this.signer.signTypedData(msg),
+        readContract: capabilities.readContract,
+      },
       tokenAddress,
       tokenName,
       tokenVersion,
@@ -162,7 +183,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     );
 
     return {
-      [EIP2612_GAS_SPONSORING.key]: { info },
+      [EIP2612_GAS_SPONSORING_KEY]: { info },
     };
   }
 
@@ -190,13 +211,24 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     _result: PaymentPayloadResult,
     context?: PaymentPayloadContext,
   ): Promise<Record<string, unknown> | undefined> {
+    const capabilities = resolveExtensionRpcCapabilities(
+      requirements.network,
+      this.signer,
+      this.options,
+    );
+
+    // Requires on-chain reads for allowance checks
+    if (!capabilities.readContract) {
+      return undefined;
+    }
+
     // Check if server advertises erc20ApprovalGasSponsoring
-    if (!context?.extensions?.[ERC20_APPROVAL_GAS_SPONSORING.key]) {
+    if (!context?.extensions?.[ERC20_APPROVAL_GAS_SPONSORING_KEY]) {
       return undefined;
     }
 
     // Check that signer has the required capabilities for signing raw transactions
-    if (!this.signer.signTransaction || !this.signer.getTransactionCount) {
+    if (!capabilities.signTransaction || !capabilities.getTransactionCount) {
       return undefined;
     }
 
@@ -205,7 +237,7 @@ export class ExactEvmScheme implements SchemeNetworkClient {
 
     // Check if user already has sufficient Permit2 allowance
     try {
-      const allowance = (await this.signer.readContract({
+      const allowance = (await capabilities.readContract({
         address: tokenAddress,
         abi: erc20AllowanceAbi,
         functionName: "allowance",
@@ -220,10 +252,19 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     }
 
     // Sign the approve(Permit2, MaxUint256) transaction
-    const info = await signErc20ApprovalTransaction(this.signer, tokenAddress, chainId);
+    const info = await signErc20ApprovalTransaction(
+      {
+        address: this.signer.address,
+        signTransaction: capabilities.signTransaction,
+        getTransactionCount: capabilities.getTransactionCount,
+        estimateFeesPerGas: capabilities.estimateFeesPerGas,
+      },
+      tokenAddress,
+      chainId,
+    );
 
     return {
-      [ERC20_APPROVAL_GAS_SPONSORING.key]: { info },
+      [ERC20_APPROVAL_GAS_SPONSORING_KEY]: { info },
     };
   }
 }

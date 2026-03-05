@@ -4,7 +4,7 @@ import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/clien
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
 import { x402ExactPermit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
-import { ERC20_APPROVAL_GAS_SPONSORING } from "@x402/extensions";
+import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/exact/extensions";
 
 // Mock viem's transaction parsing utilities for ERC-20 approval tests
 // Uses importOriginal to preserve all other viem exports (getAddress, etc.)
@@ -1006,8 +1006,8 @@ describe("ExactEvmScheme (Facilitator)", () => {
     function makeErc20Context() {
       return {
         getExtension: vi.fn().mockImplementation((key: string) => {
-          if (key === ERC20_APPROVAL_GAS_SPONSORING.key) {
-            return { key: ERC20_APPROVAL_GAS_SPONSORING.key };
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return { key: ERC20_APPROVAL_GAS_SPONSORING_KEY };
           }
           return undefined;
         }),
@@ -1249,9 +1249,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
       // Extension signer has all FacilitatorEvmSigner methods + sendRawTransaction
       const mockContext = {
         getExtension: vi.fn().mockImplementation((key: string) => {
-          if (key === ERC20_APPROVAL_GAS_SPONSORING.key) {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
             return {
-              key: ERC20_APPROVAL_GAS_SPONSORING.key,
+              key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
               signer: {
                 getAddresses: vi.fn().mockReturnValue([PAYER]),
                 readContract: mockFacilitatorSigner.readContract,
@@ -1283,6 +1283,67 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.writeContract).not.toHaveBeenCalled();
 
       expect(result.success).toBe(true);
+    });
+
+    it("should resolve extension signer by network when signerForNetwork is present", async () => {
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "allowance") return Promise.resolve(0n);
+          if (functionName === "balanceOf") return Promise.resolve(BigInt("10000000"));
+          return Promise.resolve(0n);
+        });
+
+      const selectedSignerWrite = vi.fn().mockResolvedValue("0xsettle_hash" as `0x${string}`);
+      const selectedSignerSendRaw = vi.fn().mockResolvedValue(APPROVAL_TX_HASH);
+      const selectedSignerWait = vi.fn().mockResolvedValue({ status: "success" });
+      const fallbackSignerWrite = vi.fn();
+
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key !== ERC20_APPROVAL_GAS_SPONSORING_KEY) return undefined;
+          return {
+            key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+            signer: {
+              getAddresses: vi.fn().mockReturnValue([PAYER]),
+              readContract: mockFacilitatorSigner.readContract,
+              verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+              writeContract: fallbackSignerWrite,
+              sendTransaction: vi.fn(),
+              waitForTransactionReceipt: selectedSignerWait,
+              getCode: vi.fn().mockResolvedValue("0x"),
+              sendRawTransaction: vi.fn(),
+            },
+            signerForNetwork: (network: string) => {
+              if (network !== "eip155:84532") return undefined;
+              return {
+                getAddresses: vi.fn().mockReturnValue([PAYER]),
+                readContract: mockFacilitatorSigner.readContract,
+                verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+                writeContract: selectedSignerWrite,
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: selectedSignerWait,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendRawTransaction: selectedSignerSendRaw,
+              };
+            },
+          };
+        }),
+      };
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      await facilitator.settle(payload, erc20Requirements, mockContext);
+
+      expect(selectedSignerSendRaw).toHaveBeenCalled();
+      expect(selectedSignerWrite).toHaveBeenCalled();
+      expect(fallbackSignerWrite).not.toHaveBeenCalled();
     });
   });
 });

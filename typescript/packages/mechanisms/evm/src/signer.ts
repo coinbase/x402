@@ -20,7 +20,11 @@ export type ClientEvmSigner = {
     primaryType: string;
     message: Record<string, unknown>;
   }): Promise<`0x${string}`>;
-  readContract(args: {
+  /**
+   * Optional on-chain reads.
+   * Required only for extension enrichment (EIP-2612 / ERC-20 approval).
+   */
+  readContract?(args: {
     address: `0x${string}`;
     abi: readonly unknown[];
     functionName: string;
@@ -106,11 +110,11 @@ export type FacilitatorEvmSigner = {
  * ```
  *
  * @param signer - A signer with `address` and `signTypedData` (and optionally `readContract`)
- * @param publicClient - A client with `readContract` (required if signer lacks it)
+ * @param publicClient - A client with optional read/nonce/fee helpers
  * @param publicClient.readContract - The readContract method from the public client
  * @param publicClient.getTransactionCount - Optional getTransactionCount for ERC-20 approval
  * @param publicClient.estimateFeesPerGas - Optional estimateFeesPerGas for ERC-20 approval
- * @returns A complete ClientEvmSigner
+ * @returns A ClientEvmSigner with any available optional capabilities
  *
  * @example
  * ```typescript
@@ -136,18 +140,14 @@ export function toClientEvmSigner(
 ): ClientEvmSigner {
   const readContract = signer.readContract ?? publicClient?.readContract.bind(publicClient);
 
-  if (!readContract) {
-    throw new Error(
-      "toClientEvmSigner requires either a signer with readContract or a publicClient. " +
-        "Use createWalletClient(...).extend(publicActions) or pass a publicClient.",
-    );
-  }
-
   const result: ClientEvmSigner = {
     address: signer.address,
     signTypedData: msg => signer.signTypedData(msg),
-    readContract,
   };
+
+  if (readContract) {
+    result.readContract = readContract;
+  }
 
   // Forward optional capabilities from signer or publicClient
   const signTransaction = signer.signTransaction;
