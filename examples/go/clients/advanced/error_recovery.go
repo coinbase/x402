@@ -122,7 +122,11 @@ func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, url string) err
 	fmt.Printf("   Successful recoveries: %d\n", successfulRecoveries)
 	fmt.Printf("   Final status: %d\n\n", resp.StatusCode)
 
-	return printResponse(resp, "Response after error recovery")
+	if err := printResponse(resp, "Response after error recovery"); err != nil {
+		return err
+	}
+	printPaymentDetails(resp.Header)
+	return nil
 }
 
 // classifyError categorizes errors for targeted recovery strategies

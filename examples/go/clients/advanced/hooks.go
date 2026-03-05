@@ -107,6 +107,10 @@ func runHooksExample(ctx context.Context, evmPrivateKey, url string) error {
 
 	fmt.Println("✅ Request completed successfully with hooks\n")
 
-	return printResponse(resp, "Response with hooks")
+	if err := printResponse(resp, "Response with hooks"); err != nil {
+		return err
+	}
+	printPaymentDetails(resp.Header)
+	return nil
 }
 
