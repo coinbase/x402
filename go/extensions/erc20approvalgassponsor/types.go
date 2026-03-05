@@ -60,9 +60,26 @@ type Erc20ApprovalGasSponsoringSigner interface {
 // It implements x402.FacilitatorExtension so it can be registered and retrieved via FacilitatorContext.
 type Erc20ApprovalFacilitatorExtension struct {
 	Signer Erc20ApprovalGasSponsoringSigner
+	// Optional network-aware signer resolver. When provided, this takes precedence
+	// over Signer and allows different settlement signers per network.
+	SignerForNetwork func(network string) Erc20ApprovalGasSponsoringSigner
 }
 
 // Key returns the extension identifier.
 func (e *Erc20ApprovalFacilitatorExtension) Key() string {
 	return ERC20ApprovalGasSponsoring.Key()
+}
+
+// ResolveSigner returns the signer to use for a given network.
+// SignerForNetwork takes precedence when configured.
+func (e *Erc20ApprovalFacilitatorExtension) ResolveSigner(network string) Erc20ApprovalGasSponsoringSigner {
+	if e == nil {
+		return nil
+	}
+	if e.SignerForNetwork != nil {
+		if signer := e.SignerForNetwork(network); signer != nil {
+			return signer
+		}
+	}
+	return e.Signer
 }

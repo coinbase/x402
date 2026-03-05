@@ -122,7 +122,11 @@ func VerifyPermit2(
 				erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
 				if erc20Info != nil && facilCtx != nil {
 					ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
-					if ok && ext != nil && ext.Signer != nil {
+					var extensionSigner erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner
+					if ok && ext != nil {
+						extensionSigner = ext.ResolveSigner(payload.Accepted.Network)
+					}
+					if extensionSigner != nil {
 						if reason, msg := ValidateErc20ApprovalForPayment(erc20Info, payer, tokenAddress); reason != "" {
 							return nil, x402.NewVerifyError(reason, payer, msg)
 						}
@@ -273,15 +277,19 @@ func SettlePermit2(
 	case erc20Info != nil && facilCtx != nil:
 		// ERC-20 approval path: broadcast pre-signed approve tx, then settle
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
-		if ok && ext != nil && ext.Signer != nil {
+		var extensionSigner erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner
+		if ok && ext != nil {
+			extensionSigner = ext.ResolveSigner(payload.Accepted.Network)
+		}
+		if extensionSigner != nil {
 			// 1. Broadcast the pre-signed approve transaction
-			approveTxHash, broadcastErr := ext.Signer.SendRawTransaction(ctx, erc20Info.SignedTransaction)
+			approveTxHash, broadcastErr := extensionSigner.SendRawTransaction(ctx, erc20Info.SignedTransaction)
 			if broadcastErr != nil {
 				return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, payer, network, "", broadcastErr.Error())
 			}
 
 			// 2. Wait for approve tx confirmation
-			approveReceipt, receiptErr := ext.Signer.WaitForTransactionReceipt(ctx, approveTxHash)
+			approveReceipt, receiptErr := extensionSigner.WaitForTransactionReceipt(ctx, approveTxHash)
 			if receiptErr != nil || approveReceipt.Status != evm.TxStatusSuccess {
 				msg := "approve tx failed"
 				if receiptErr != nil {
@@ -291,7 +299,7 @@ func SettlePermit2(
 			}
 
 			// 3. Call settle via extension signer
-			txHash, err = ext.Signer.WriteContract(
+			txHash, err = extensionSigner.WriteContract(
 				ctx,
 				evm.X402ExactPermit2ProxyAddress,
 				evm.X402ExactPermit2ProxySettleABI,
@@ -334,7 +342,15 @@ func SettlePermit2(
 	}
 
 	// Wait for transaction confirmation
-	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
+	receiptWaitSigner := signer
+	if erc20Info != nil && facilCtx != nil {
+		if ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension); ok && ext != nil {
+			if extensionSigner := ext.ResolveSigner(payload.Accepted.Network); extensionSigner != nil {
+				receiptWaitSigner = extensionSigner
+			}
+		}
+	}
+	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrFailedToGetReceipt, payer, network, txHash, err.Error())
 	}
