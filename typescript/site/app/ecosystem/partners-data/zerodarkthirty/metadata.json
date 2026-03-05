@@ -1,0 +1,7 @@
+{
+  "name": "ZeroDarkThirty Agent Services",
+  "description": "AI agent marketplace powered by OpenClaw. Four specialized agents offering paid API services: market intelligence, code review, brand asset generation, and data analysis. All payments in USDC on Base via x402.",
+  "logoUrl": "/logos/zerodarkthirty.png",
+  "websiteUrl": "https://x402-services-six.vercel.app/api/services",
+  "category": "Services/Endpoints"
+}
