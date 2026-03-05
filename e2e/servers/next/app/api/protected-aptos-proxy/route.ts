@@ -11,10 +11,13 @@ export const runtime = "nodejs";
  */
 export async function GET() {
   if (!APTOS_PAYEE_ADDRESS) {
-    return NextResponse.json({
-      error: "Aptos payments not configured",
-      message: "APTOS_PAYEE_ADDRESS environment variable is not set",
-    }, { status: 501 });
+    return NextResponse.json(
+      {
+        error: "Aptos payments not configured",
+        message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+      },
+      { status: 501 },
+    );
   }
   return NextResponse.json({
     message: "Protected endpoint accessed successfully",
