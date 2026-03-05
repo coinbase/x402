@@ -95,14 +95,16 @@ var (
 				Decimals: DefaultDecimals,
 			},
 		},
-		// MegaETH Mainnet
+		// MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
 		"eip155:4326": {
 			ChainID: ChainIDMegaETH,
 			DefaultAsset: AssetInfo{
-				Address:  "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", // USDM (MegaUSD)
-				Name:     "MegaUSD",
-				Version:  "1",
-				Decimals: 18,
+				Address:             "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", // USDM (MegaUSD)
+				Name:                "MegaUSD",
+				Version:             "1",
+				Decimals:            18,
+				AssetTransferMethod: AssetTransferMethodPermit2,
+				SupportsEip2612:     true,
 			},
 		},
 		// Monad Mainnet
