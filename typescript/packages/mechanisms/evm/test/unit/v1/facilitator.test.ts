@@ -173,7 +173,8 @@ describe("ExactEvmSchemeV1", () => {
     });
 
     it("should reject if balance is insufficient", async () => {
-      mockSigner.readContract = vi.fn().mockResolvedValue(BigInt("50000")); // Low balance
+      // Simulation fails (transfer would revert due to insufficient balance)
+      mockSigner.readContract = vi.fn().mockRejectedValue(new Error("simulation reverted"));
 
       const facilitator = new ExactEvmSchemeV1(mockSigner);
 
@@ -207,7 +208,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("insufficient_funds");
+      expect(result.invalidReason).toBe("invalid_exact_evm_transaction_simulation_failed");
     });
 
     it("should reject if recipient does not match", async () => {
