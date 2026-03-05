@@ -78,7 +78,7 @@ func main() {
 	// EIP-2612 gas sponsoring is handled internally by the EVM scheme
 	// when the server advertises support - no separate extension registration needed.
 	x402Client := x402.Newx402Client().
-		Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
+		Register("eip155:*", evm.NewExactEvmScheme(evmSigner, nil)).
 		Register("solana:*", svm.NewExactSvmScheme(svmSigner)).
 		RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
 		RegisterV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).

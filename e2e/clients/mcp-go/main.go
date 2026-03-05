@@ -71,7 +71,7 @@ func main() {
 
 	// Use X402MCPClient - payment is transparent in CallTool
 	paymentClient := x402.Newx402Client()
-	paymentClient.Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
+	paymentClient.Register("eip155:*", evm.NewExactEvmScheme(evmSigner, nil))
 	x402Mcp := mcp402.NewX402MCPClient(session, paymentClient, mcp402.Options{AutoPayment: mcp402.BoolPtr(true)})
 
 	result, err := x402Mcp.CallTool(ctx, endpointPath, map[string]any{
