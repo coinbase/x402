@@ -17,14 +17,16 @@ import (
 // ExactEvmScheme implements the SchemeNetworkClient interface for EVM exact payments (V2)
 type ExactEvmScheme struct {
 	signer evm.ClientEvmSigner
+	config *ExactEvmSchemeConfig
 }
 
 // NewExactEvmScheme creates a new ExactEvmScheme.
-// The signer must implement ReadContract for EIP-2612 gas sponsoring support.
-// Use NewClientSignerFromPrivateKeyWithClient to create a signer with RPC connectivity.
-func NewExactEvmScheme(signer evm.ClientEvmSigner) *ExactEvmScheme {
+// Base flows only require a signer that can sign typed data.
+// Extension enrichment paths use optional runtime capabilities.
+func NewExactEvmScheme(signer evm.ClientEvmSigner, config *ExactEvmSchemeConfig) *ExactEvmScheme {
 	return &ExactEvmScheme{
 		signer: signer,
+		config: config,
 	}
 }
 
@@ -128,8 +130,16 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
+	readSigner, err := c.resolveReadSigner(ctx, requirements.Network)
+	if err != nil {
+		return nil, err
+	}
+	if readSigner == nil {
+		return nil, nil
+	}
+
 	// Check if user already has sufficient Permit2 allowance
-	allowanceResult, err := c.signer.ReadContract(
+	allowanceResult, err := readSigner.ReadContract(
 		ctx,
 		tokenAddress,
 		evm.ERC20AllowanceABI,
@@ -161,7 +171,7 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 
 	// Sign the EIP-2612 permit with the exact Permit2 permitted amount
 	// (the contract enforces permit2612.value == permit.permitted.amount)
-	info, err := SignEip2612Permit(ctx, c.signer, tokenAddress, tokenName, tokenVersion, chainID, deadline, requirements.Amount)
+	info, err := SignEip2612Permit(ctx, readSigner, tokenAddress, tokenName, tokenVersion, chainID, deadline, requirements.Amount)
 	if err != nil {
 		return nil, err
 	}
@@ -189,9 +199,12 @@ func (c *ExactEvmScheme) trySignErc20Approval(
 		return nil, nil
 	}
 
-	// Signer must support transaction signing
-	txSigner, ok := c.signer.(evm.ClientEvmSignerWithTxSigning)
-	if !ok {
+	// Signer must support transaction signing; nonce/fee methods can come from signer or RPC.
+	txSigner, err := c.resolveTxSigner(ctx, requirements.Network)
+	if err != nil {
+		return nil, err
+	}
+	if txSigner == nil {
 		return nil, nil
 	}
 
@@ -202,20 +215,22 @@ func (c *ExactEvmScheme) trySignErc20Approval(
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
-	// Check if user already has sufficient Permit2 allowance
-	allowanceResult, err := c.signer.ReadContract(
-		ctx,
-		tokenAddress,
-		evm.ERC20AllowanceABI,
-		"allowance",
-		common.HexToAddress(c.signer.Address()),
-		common.HexToAddress(evm.PERMIT2Address),
-	)
-	if err == nil {
-		if allowanceBig, ok := allowanceResult.(*big.Int); ok {
-			requiredAmount, ok := new(big.Int).SetString(requirements.Amount, 10)
-			if ok && allowanceBig.Cmp(requiredAmount) >= 0 {
-				return nil, nil // Already approved
+	// If read capability exists, skip signing when Permit2 allowance is already sufficient.
+	if readSigner, hasRead := c.signer.(evm.ClientEvmSignerWithReadContract); hasRead {
+		allowanceResult, err := readSigner.ReadContract(
+			ctx,
+			tokenAddress,
+			evm.ERC20AllowanceABI,
+			"allowance",
+			common.HexToAddress(c.signer.Address()),
+			common.HexToAddress(evm.PERMIT2Address),
+		)
+		if err == nil {
+			if allowanceBig, ok := allowanceResult.(*big.Int); ok {
+				requiredAmount, ok := new(big.Int).SetString(requirements.Amount, 10)
+				if ok && allowanceBig.Cmp(requiredAmount) >= 0 {
+					return nil, nil // Already approved
+				}
 			}
 		}
 	}
