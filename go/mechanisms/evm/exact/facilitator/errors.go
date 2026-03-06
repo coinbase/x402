@@ -37,14 +37,14 @@ const (
 	ErrUnsupportedPayloadType      = "unsupported_payload_type"
 
 	// Permit2 verify errors
-	ErrPermit2InvalidSpender     = "invalid_permit2_spender"
-	ErrPermit2RecipientMismatch  = "invalid_permit2_recipient_mismatch"
-	ErrPermit2DeadlineExpired    = "permit2_deadline_expired"
-	ErrPermit2NotYetValid        = "permit2_not_yet_valid"
-	ErrPermit2AmountMismatch = "permit2_amount_mismatch"
-	ErrPermit2TokenMismatch      = "permit2_token_mismatch"
-	ErrPermit2InvalidSignature   = "invalid_permit2_signature"
-	ErrPermit2AllowanceRequired  = "permit2_allowance_required"
+	ErrPermit2InvalidSpender    = "invalid_permit2_spender"
+	ErrPermit2RecipientMismatch = "invalid_permit2_recipient_mismatch"
+	ErrPermit2DeadlineExpired   = "permit2_deadline_expired"
+	ErrPermit2NotYetValid       = "permit2_not_yet_valid"
+	ErrPermit2AmountMismatch    = "permit2_amount_mismatch"
+	ErrPermit2TokenMismatch     = "permit2_token_mismatch"
+	ErrPermit2InvalidSignature  = "invalid_permit2_signature"
+	ErrPermit2AllowanceRequired = "permit2_allowance_required"
 
 	// Permit2 settle errors (from contract reverts)
 	ErrPermit2InvalidAmount      = "permit2_invalid_amount"

@@ -1164,7 +1164,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
     const PAYER = "0x1234567890123456789012345678901234567890" as `0x${string}`;
     const TOKEN_ADDRESS = "0xeED520980fC7C7B4eB379B96d61CEdea2423005a" as `0x${string}`;
     const MOCK_SIGNED_TX = "0x02f8ab0102030405060708" as `0x${string}`;
-    const APPROVAL_TX_HASH = "0xapproval_tx_hash_mock" as `0x${string}`;
 
     const APPROVE_CALLDATA =
       `0x095ea7b3000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3` +
@@ -1298,7 +1297,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
           return Promise.resolve(0n);
         });
 
-      const selectedSignerApprovalAndSettle = vi.fn().mockResolvedValue("0xsettle_hash" as `0x${string}`);
+      const selectedSignerApprovalAndSettle = vi
+        .fn()
+        .mockResolvedValue("0xsettle_hash" as `0x${string}`);
       const selectedSignerWait = vi.fn().mockResolvedValue({ status: "success" });
       const fallbackSignerApprovalAndSettle = vi.fn();
 
