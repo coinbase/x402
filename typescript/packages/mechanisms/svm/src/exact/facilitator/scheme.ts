@@ -97,6 +97,18 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
+    return this._verify(payload, requirements, { registerForSettlement: true });
+  }
+
+  /**
+   * Internal verification with optional settlement registration.
+   * When registerForSettlement is true, registers the tx in the cache and rejects duplicates.
+   */
+  private async _verify(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    opts?: { registerForSettlement?: boolean },
+  ): Promise<VerifyResponse> {
     const exactSvmPayload = payload.payload as ExactSvmPayloadV2;
 
     // Step 1: Validate Payment Requirements
@@ -325,6 +337,17 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
+    if (opts?.registerForSettlement) {
+      const txKey = exactSvmPayload.transaction;
+      if (this.settlementCache.isDuplicate(txKey)) {
+        return {
+          isValid: false,
+          invalidReason: "duplicate_transaction",
+          payer,
+        };
+      }
+    }
+
     return {
       isValid: true,
       invalidReason: undefined,
@@ -346,26 +369,15 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
   ): Promise<SettleResponse> {
     const exactSvmPayload = payload.payload as ExactSvmPayloadV2;
 
-    const valid = await this.verify(payload, requirements);
+    const valid = await this._verify(payload, requirements, {
+      registerForSettlement: false,
+    });
     if (!valid.isValid) {
       return {
         success: false,
         network: payload.accepted.network,
         transaction: "",
         errorReason: valid.invalidReason ?? "verification_failed",
-        payer: valid.payer || "",
-      };
-    }
-
-    // Duplicate settlement check: reject if this transaction is already being settled.
-    // Must occur before any async work so concurrent calls for the same tx are caught.
-    const txKey = exactSvmPayload.transaction;
-    if (this.settlementCache.isDuplicate(txKey)) {
-      return {
-        success: false,
-        network: payload.accepted.network,
-        transaction: "",
-        errorReason: "duplicate_settlement",
         payer: valid.payer || "",
       };
     }

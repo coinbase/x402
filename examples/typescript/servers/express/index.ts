@@ -51,6 +51,7 @@ app.use(
 );
 
 app.get("/weather", (req, res) => {
+  console.log("weather request");
   res.send({
     report: {
       weather: "sunny",
