@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - 29fe09a: Make ResourceInfo.description, ResourceInfo.mimeType, and PaymentPayload.resource optional to match v2 spec
 - Updated dependencies [f41baed]

@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - f41baed: Added `x402Version` field to `VerifyRequest`, `SettleRequest`, `VerifyRequestV1`, and `SettleRequestV1` types to match what all SDK implementations already send in facilitator request bodies.
 - aeef1bf: Added dynamic function for servers to generate custom response for settlement failures defaulting to empty

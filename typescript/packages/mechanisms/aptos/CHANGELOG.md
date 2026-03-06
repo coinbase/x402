@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - Updated dependencies [f41baed]
 - Updated dependencies [aeef1bf]

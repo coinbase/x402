@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - Updated dependencies
   - @x402/core@2.6.0

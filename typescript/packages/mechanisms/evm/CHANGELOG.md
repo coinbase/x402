@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - f431337: Added assetTransferMethod and supportsEip2612 flag to defaultAssets
 - Updated dependencies [f41baed]

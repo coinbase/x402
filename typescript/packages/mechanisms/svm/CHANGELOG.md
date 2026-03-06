@@ -5,9 +5,6 @@
 ### Minor Changes
 
 - 7cd93d8: Add in-memory SettlementCache to prevent duplicate SVM transaction settlement during on-chain confirmation window
-
-### Patch Changes
-
 - Updated dependencies [f41baed]
 - Updated dependencies [aeef1bf]
 - Updated dependencies [2564781]

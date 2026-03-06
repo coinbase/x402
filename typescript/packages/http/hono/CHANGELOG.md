@@ -2,7 +2,7 @@
 
 ## 2.6.0
 
-### Patch Changes
+### Minor Changes
 
 - aeef1bf: Added dynamic function for servers to generate custom response for settlement failures defaulting to empty
 - 2564781: Include PAYMENT-RESPONSE header on settlement failure responses
