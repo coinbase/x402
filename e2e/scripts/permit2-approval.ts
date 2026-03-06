@@ -5,8 +5,10 @@
  * It can grant unlimited approval or revoke existing approval.
  *
  * Usage:
- *   pnpm tsx scripts/permit2-approval.ts approve  # Check and approve if needed
- *   pnpm tsx scripts/permit2-approval.ts revoke   # Revoke Permit2 approval (set allowance to 0)
+ *   pnpm tsx scripts/permit2-approval.ts approve [tokenAddress]
+ *   pnpm tsx scripts/permit2-approval.ts revoke  [tokenAddress]
+ *
+ * If tokenAddress is not provided, defaults to Base Sepolia USDC.
  *
  * Environment variables required:
  *   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet
@@ -19,6 +21,7 @@ import {
   http,
   parseAbi,
   formatUnits,
+  getAddress,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
@@ -60,8 +63,10 @@ async function main() {
 Permit2 Approval Script
 
 Usage:
-  pnpm tsx scripts/permit2-approval.ts approve  # Check and approve Permit2 if needed
-  pnpm tsx scripts/permit2-approval.ts revoke   # Revoke Permit2 approval (set allowance to 0)
+  pnpm tsx scripts/permit2-approval.ts approve [tokenAddress]
+  pnpm tsx scripts/permit2-approval.ts revoke  [tokenAddress]
+
+If tokenAddress is not provided, defaults to Base Sepolia USDC.
 
 Environment variables required:
   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet

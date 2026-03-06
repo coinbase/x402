@@ -220,15 +220,6 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 
 	// Make the call
 	to := common.HexToAddress(contractAddress)
-
-	// Check if contract exists at this address
-	code, err := s.client.CodeAt(ctx, to, nil)
-	if err != nil {
-		log.Printf("Failed to check contract code: contract=%s, error=%v", contractAddress, err)
-	} else if len(code) == 0 {
-		log.Printf("WARNING: No contract code at address %s", contractAddress)
-	}
-
 	msg := ethereum.CallMsg{
 		To:   &to,
 		Data: data,
@@ -236,11 +227,8 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 
 	result, err := s.client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Printf("Contract call failed: method=%s, contract=%s, error=%v", method, contractAddress, err)
 		return nil, fmt.Errorf("failed to call contract: %w", err)
 	}
-
-	log.Printf("Contract call: method=%s, contract=%s, dataLen=%d, resultLen=%d, result=%x", method, contractAddress, len(data), len(result), result)
 
 	// Handle empty result (some contract calls return nothing or revert)
 	if len(result) == 0 {
@@ -429,7 +417,7 @@ func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) 
 	return code, nil
 }
 
-func (s *realFacilitatorEvmSigner) SendRawTransaction(ctx context.Context, signedTx string) (string, error) {
+func (s *realFacilitatorEvmSigner) sendRawTransaction(ctx context.Context, signedTx string) (string, error) {
 	txBytes, err := hexutil.Decode(signedTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to decode signed transaction: %w", err)
@@ -445,6 +433,24 @@ func (s *realFacilitatorEvmSigner) SendRawTransaction(ctx context.Context, signe
 	}
 
 	return tx.Hash().Hex(), nil
+}
+
+func (s *realFacilitatorEvmSigner) SendRawApprovalAndSettle(ctx context.Context, serializedApprovalTx string, settle erc20approvalgassponsor.WriteContractCall) (string, error) {
+	approveTxHash, err := s.sendRawTransaction(ctx, serializedApprovalTx)
+	if err != nil {
+		return "", fmt.Errorf("erc20_approval_tx_failed: %w", err)
+	}
+
+	approveReceipt, err := s.WaitForTransactionReceipt(ctx, approveTxHash)
+	if err != nil || approveReceipt.Status != evmmech.TxStatusSuccess {
+		msg := approveTxHash
+		if err != nil {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("erc20_approval_tx_failed: %s", msg)
+	}
+
+	return s.WriteContract(ctx, settle.Address, settle.ABI, settle.Function, settle.Args...)
 }
 
 // Helper functions for type conversion
@@ -487,6 +493,11 @@ var (
 
 func createPaymentHash(paymentPayload x402.PaymentPayload) string {
 	data, _ := json.Marshal(paymentPayload)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func hashBytes(data []byte) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }
@@ -807,11 +818,7 @@ func main() {
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
 			// Hook 1: Track verified payment for verify→settle flow validation
 			if ctx.Result.IsValid {
-				// Hooks now use view interfaces - create hash from payload view
-				paymentHash := fmt.Sprintf("v%d-%s-%s",
-					ctx.Payload.GetVersion(),
-					ctx.Payload.GetScheme(),
-					ctx.Payload.GetNetwork())
+				paymentHash := hashBytes(ctx.PayloadBytes)
 				verificationMutex.Lock()
 				verifiedPayments[paymentHash] = time.Now().Unix()
 				verificationMutex.Unlock()
@@ -870,10 +877,7 @@ func main() {
 		}).
 		OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
 			// Hook 3: Validate payment was previously verified
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.RLock()
 			verificationTimestamp, verified := verifiedPayments[paymentHash]
 			verificationMutex.RUnlock()
@@ -902,10 +906,7 @@ func main() {
 		}).
 		OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
 			// Hook 4: Clean up verified payment tracking after successful settlement
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -917,10 +918,7 @@ func main() {
 		}).
 		OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
 			// Hook 5: Clean up verified payment tracking on failure too
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -937,24 +935,10 @@ func main() {
 	// POST /verify - Verify a payment against requirements
 	// Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
 	router.POST("/verify", func(c *gin.Context) {
-		// First, peek at the version to determine which struct to use
-		var versionCheck struct {
-			X402Version int `json:"x402Version"`
-		}
-
-		// Read body into buffer so we can parse it twice
 		bodyBytes, err := c.GetRawData()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to read request body: %v", err),
-			})
-			return
-		}
-
-		// Parse version
-		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Failed to parse version: %v", err),
 			})
 			return
 		}
@@ -992,27 +976,10 @@ func main() {
 	// POST /settle - Settle a payment on-chain
 	// Note: Verification validation and cleanup are handled by lifecycle hooks
 	router.POST("/settle", func(c *gin.Context) {
-		// First, peek at the version to determine which struct to use
-		var versionCheck struct {
-			X402Version int `json:"x402Version"`
-		}
-
-		// Read body into buffer so we can parse it twice
 		bodyBytes, err := c.GetRawData()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to read request body: %v", err),
-			})
-			return
-		}
-
-		// Debug: Log raw request body
-		log.Printf("🔍 [FACILITATOR SETTLE] Received raw body: %s", string(bodyBytes))
-
-		// Parse version
-		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Failed to parse version: %v", err),
 			})
 			return
 		}
@@ -1033,9 +1000,6 @@ func main() {
 			[]byte(req.PaymentRequirements),
 		)
 
-		// Debug: Log response
-		log.Printf("🔍 [FACILITATOR SETTLE] Response: %+v", response)
-		log.Printf("🔍 [FACILITATOR SETTLE] Error: %v", err)
 		if err != nil {
 			log.Printf("Settle error: %v", err)
 
