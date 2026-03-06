@@ -50,10 +50,21 @@ type Extension struct {
 	Schema map[string]interface{} `json:"schema"`
 }
 
-// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with raw transaction broadcasting.
+// WriteContractCall encapsulates arguments for a WriteContract call,
+// used by SendRawApprovalAndSettle to describe the settle operation.
+type WriteContractCall struct {
+	Address  string
+	ABI      []byte
+	Function string
+	Args     []interface{}
+}
+
+// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with atomic approve+settle.
+// The signer decides whether to execute the approval and settle sequentially or bundle
+// them atomically (e.g., via Flashbots, multicall, or smart account batching).
 type Erc20ApprovalGasSponsoringSigner interface {
 	evm.FacilitatorEvmSigner
-	SendRawTransaction(ctx context.Context, signedTx string) (string, error)
+	SendRawApprovalAndSettle(ctx context.Context, serializedApprovalTx string, settle WriteContractCall) (string, error)
 }
 
 // Erc20ApprovalFacilitatorExtension carries the signer; registered with the facilitator.

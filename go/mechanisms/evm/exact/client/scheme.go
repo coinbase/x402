@@ -42,20 +42,15 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
 ) (types.PaymentPayload, error) {
-	// Check asset transfer method
 	assetTransferMethod := evm.AssetTransferMethodEIP3009 // default
 	if requirements.Extra != nil {
 		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
 			assetTransferMethod = evm.AssetTransferMethod(method)
 		}
 	}
-
-	// Route based on method
 	if assetTransferMethod == evm.AssetTransferMethodPermit2 {
 		return CreatePermit2Payload(ctx, c.signer, requirements)
 	}
-
-	// Default to EIP-3009
 	return c.createEIP3009Payload(ctx, requirements)
 }
 
@@ -68,26 +63,23 @@ func (c *ExactEvmScheme) CreatePaymentPayloadWithExtensions(
 	requirements types.PaymentRequirements,
 	extensions map[string]interface{},
 ) (types.PaymentPayload, error) {
-	// Check asset transfer method
 	assetTransferMethod := evm.AssetTransferMethodEIP3009
 	if requirements.Extra != nil {
 		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
 			assetTransferMethod = evm.AssetTransferMethod(method)
 		}
 	}
-
 	if assetTransferMethod == evm.AssetTransferMethodPermit2 {
 		result, err := CreatePermit2Payload(ctx, c.signer, requirements)
 		if err != nil {
 			return types.PaymentPayload{}, err
 		}
 
-		// Try EIP-2612 permit first (preferred for compatible tokens)
 		extData, err := c.trySignEip2612Permit(ctx, requirements, result, extensions)
-		if err == nil && extData != nil {
+		if extData != nil {
 			result.Extensions = extData
-		} else {
-			// Fallback: ERC-20 approval (for tokens without EIP-2612)
+		} else if err == nil {
+			// EIP-2612 not applicable — try ERC-20 approval fallback
 			erc20ExtData, erc20Err := c.trySignErc20Approval(ctx, requirements, extensions)
 			if erc20Err == nil && erc20ExtData != nil {
 				result.Extensions = erc20ExtData
@@ -97,7 +89,6 @@ func (c *ExactEvmScheme) CreatePaymentPayloadWithExtensions(
 		return result, nil
 	}
 
-	// Default to EIP-3009
 	return c.createEIP3009Payload(ctx, requirements)
 }
 
@@ -108,7 +99,6 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 	result types.PaymentPayload,
 	extensions map[string]interface{},
 ) (map[string]interface{}, error) {
-	// Check if server advertises eip2612GasSponsoring
 	if extensions == nil {
 		return nil, nil
 	}
@@ -116,7 +106,6 @@ func (c *ExactEvmScheme) trySignEip2612Permit(
 		return nil, nil
 	}
 
-	// Check that required token metadata is available
 	tokenName, _ := requirements.Extra["name"].(string)
 	tokenVersion, _ := requirements.Extra["version"].(string)
 	if tokenName == "" || tokenVersion == "" {
@@ -191,7 +180,6 @@ func (c *ExactEvmScheme) trySignErc20Approval(
 	requirements types.PaymentRequirements,
 	extensions map[string]interface{},
 ) (map[string]interface{}, error) {
-	// Check if server advertises erc20ApprovalGasSponsoring
 	if extensions == nil {
 		return nil, nil
 	}
@@ -199,7 +187,6 @@ func (c *ExactEvmScheme) trySignErc20Approval(
 		return nil, nil
 	}
 
-	// Signer must support transaction signing; nonce/fee methods can come from signer or RPC.
 	txSigner, err := c.resolveTxSigner(ctx, requirements.Network)
 	if err != nil {
 		return nil, err
