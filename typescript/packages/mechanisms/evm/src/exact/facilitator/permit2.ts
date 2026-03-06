@@ -428,6 +428,7 @@ async function _settlePermit2WithEIP2612(
  * @param payload - The payment payload
  * @param permit2Payload - The Permit2 specific payload
  * @param erc20Info - Object containing the signed approval transaction
+ * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction hex string
  * @returns Promise resolving to settlement response
  */
 async function _settlePermit2WithERC20Approval(
