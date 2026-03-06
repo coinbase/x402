@@ -58,8 +58,30 @@ Implementations MAY support additional `near:*` identifiers, but this spec defin
 - `amount`: exact token quantity in atomic units as a decimal string.
 - `asset`: NEP-141 token contract account ID.
 - `payTo`: recipient NEAR account ID that must receive the transfer.
+- `maxTimeoutSeconds`: positive integer timeout budget in seconds.
 - `extra.relayerId`: facilitator-managed relayer account that will sponsor submission.
 - `extra` MAY contain additional metadata, but unknown keys MUST NOT change verification of amount, recipient, asset, nonce, or expiry.
+
+### Timeout Mapping: `maxTimeoutSeconds` -> `max_block_height`
+
+To remove implementation-defined divergence, NEAR exact implementations MUST use the following mapping:
+
+- `estimatedBlockSeconds = 1` for both `near:mainnet` and `near:testnet`.
+- `timeoutBlocks = max(1, ceil(maxTimeoutSeconds / estimatedBlockSeconds))`.
+
+Client signing rule:
+
+- `max_block_height = current_block_height + timeoutBlocks`.
+
+Facilitator verification rule:
+
+- `remainingBlocks = delegate_action.max_block_height - current_block_height`.
+- MUST reject if `remainingBlocks <= 0` (expired).
+- MUST reject if `remainingBlocks > timeoutBlocks` (window exceeds x402 timeout budget).
+
+Example:
+
+- If `maxTimeoutSeconds = 60`, then `timeoutBlocks = 60` on both `near:mainnet` and `near:testnet`.
 
 ## `PAYMENT-SIGNATURE` Payload
 
@@ -121,6 +143,7 @@ A facilitator verifying a NEAR `exact` payment MUST reject any payload that fail
 ### 2. Requirement Consistency
 
 - `asset`, `payTo`, and `amount` in `payload.accepted` MUST exactly match `PaymentRequirements`.
+- `maxTimeoutSeconds` MUST be an integer greater than `0`.
 - `extra.relayerId` MUST exist and be a string.
 
 ### 3. Relayer Sponsorship Abuse Prevention
@@ -138,7 +161,10 @@ A facilitator verifying a NEAR `exact` payment MUST reject any payload that fail
 
 ### 5. Replay and Expiry Protection
 
-- `delegate_action.max_block_height` MUST be strictly greater than current chain height at verification time.
+- Facilitator MUST compute timeout bounds using the deterministic timeout mapping in this specification.
+- `remainingBlocks = delegate_action.max_block_height - current_block_height`.
+- Facilitator MUST reject if `remainingBlocks <= 0` (for example `delegate_action_expired`).
+- Facilitator MUST reject if `remainingBlocks > timeoutBlocks` (for example `delegate_action_timeout_window_exceeds_maxTimeout`).
 - Facilitator MUST perform nonce replay protection for `(sender_id, public_key, nonce)`.
 - If nonce state cannot be safely determined, verification MUST fail closed.
 
@@ -175,6 +201,8 @@ After successful verification, settlement proceeds as follows:
 
 If submission fails, facilitator returns `success: false` with an implementation-specific `errorReason` and empty `transaction`.
 
+On `success: false`, `payer` MUST be omitted unless it has been independently verified by the facilitator. `payer` MUST NOT be included based only on untrusted client-claimed payload fields.
+
 ## `PAYMENT-RESPONSE` (`SettlementResponse`) Example
 
 Success:
@@ -195,8 +223,7 @@ Failure:
   "success": false,
   "errorReason": "delegate_action_nonce_reused",
   "transaction": "",
-  "network": "near:testnet",
-  "payer": "alice.testnet"
+  "network": "near:testnet"
 }
 ```
 
