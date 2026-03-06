@@ -28,7 +28,15 @@ export interface Erc20ApprovalGasSponsoringInfo {
 }
 
 export type Erc20ApprovalGasSponsoringSigner = FacilitatorEvmSigner & {
-  sendRawTransaction(args: { serializedTransaction: `0x${string}` }): Promise<`0x${string}`>;
+  sendRawApprovalAndSettle(args: {
+    serializedApprovalTransaction: `0x${string}`;
+    settle: {
+      address: `0x${string}`;
+      abi: readonly unknown[];
+      functionName: string;
+      args: readonly unknown[];
+    };
+  }): Promise<`0x${string}`>;
 };
 
 export interface Erc20ApprovalGasSponsoringFacilitatorExtension {

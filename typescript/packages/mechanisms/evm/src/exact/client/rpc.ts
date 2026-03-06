@@ -105,7 +105,6 @@ export function resolveExtensionRpcCapabilities(
   if (!rpcUrl) {
     return capabilities;
   }
-
   const rpcClient = getRpcClient(rpcUrl);
   if (!capabilities.readContract) {
     capabilities.readContract = args => rpcClient.readContract(args as never) as Promise<unknown>;

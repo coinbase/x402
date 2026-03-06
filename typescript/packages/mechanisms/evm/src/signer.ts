@@ -88,6 +88,8 @@ export type FacilitatorEvmSigner = {
     abi: readonly unknown[];
     functionName: string;
     args: readonly unknown[];
+    /** Optional gas limit. When provided, skips eth_estimateGas simulation. */
+    gas?: bigint;
   }): Promise<`0x${string}`>;
   sendTransaction(args: { to: `0x${string}`; data: `0x${string}` }): Promise<`0x${string}`>;
   waitForTransactionReceipt(args: { hash: `0x${string}` }): Promise<{ status: string }>;
