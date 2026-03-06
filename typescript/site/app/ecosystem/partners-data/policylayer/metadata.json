@@ -1,0 +1,7 @@
+{
+  "name": "PolicyLayer",
+  "description": "Non-custodial spending controls for x402 agent payments. Enforce per-endpoint limits, recipient allowlists, rate limiting, and circuit breakers — without custodying keys. Two-gate policy enforcement with cryptographic decision proofs and full audit trails.",
+  "logoUrl": "/logos/policylayer.png",
+  "websiteUrl": "https://policylayer.com/blog/x402-policy-enforcement-live",
+  "category": "Infrastructure & Tooling"
+}
