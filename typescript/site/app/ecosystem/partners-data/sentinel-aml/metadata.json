@@ -2,6 +2,6 @@
   "name": "SENTINEL AML/CFT",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/sentinel-aml.png",
-  "description": "Regulatory-grade AML/CFT compliance intelligence: screen entities against 1.1M+ global watchlist records (OFAC, UN, EU sanctions, PEP, Interpol, World Bank debarment), 159-country jurisdiction risk scoring, compound KYC intelligence, plus 12 live Mauritius economic data feeds. First ERC-8004 trust provider in the x402 ecosystem.",
+  "description": "Regulatory-grade AML/CFT compliance intelligence via x402: screen entities against 1.1M+ global watchlist records (OFAC, UN, EU sanctions, PEP, Interpol, World Bank debarment), 159-country jurisdiction risk scoring, compound KYC intelligence, plus 12 live Mauritius economic data feeds. Pay-per-query via USDC on Base.",
   "websiteUrl": "https://mru-oracle.com"
 }
