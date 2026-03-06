@@ -165,10 +165,12 @@ const evmSigner = toFacilitatorEvmSigner({
     abi: readonly unknown[];
     functionName: string;
     args: readonly unknown[];
+    gas?: bigint;
   }) =>
     viemClient.writeContract({
       ...args,
       args: args.args || [],
+      gas: args.gas,
     }),
   sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
     viemClient.sendTransaction(args),
@@ -221,10 +223,79 @@ if (stellarSigner) {
   facilitator.register(STELLAR_NETWORK as Network, new ExactStellarScheme([stellarSigner]));
 }
 
+const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+const erc20AllowanceAbi = [
+  {
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    name: "allowance",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+const erc20ApprovalSigner = {
+  ...evmSigner,
+  sendRawApprovalAndSettle: async (args: {
+    serializedApprovalTransaction: `0x${string}`;
+    settle: {
+      address: `0x${string}`;
+      abi: readonly unknown[];
+      functionName: string;
+      args: readonly unknown[];
+    };
+  }): Promise<`0x${string}`> => {
+    const approvalTxHash = await viemClient.sendRawTransaction({
+      serializedTransaction: args.serializedApprovalTransaction,
+    });
+    const receipt = await viemClient.waitForTransactionReceipt({
+      hash: approvalTxHash,
+    });
+    if (receipt.status !== "success") {
+      throw new Error(`erc20_approval_tx_failed: ${approvalTxHash}`);
+    }
+
+    // Poll allowance to guard against load-balanced RPC state lag
+    const MAX_WAIT_MS = 10_000;
+    const POLL_MS = 1_000;
+    const start = Date.now();
+    while (Date.now() - start < MAX_WAIT_MS) {
+      try {
+        const allowance = await viemClient.readContract({
+          address: args.settle.args[0] &&
+            typeof args.settle.args[0] === "object" &&
+            "permitted" in (args.settle.args[0] as Record<string, unknown>)
+            ? ((args.settle.args[0] as { permitted: { token: `0x${string}` } }).permitted.token)
+            : PERMIT2_ADDRESS as `0x${string}`,
+          abi: erc20AllowanceAbi,
+          functionName: "allowance",
+          args: [
+            args.settle.args[1] as `0x${string}`,
+            PERMIT2_ADDRESS,
+          ],
+        });
+        if ((allowance as bigint) > BigInt(0)) break;
+      } catch {
+        // continue polling
+      }
+      await new Promise(resolve => setTimeout(resolve, POLL_MS));
+    }
+
+    return viemClient.writeContract({
+      ...args.settle,
+      args: args.settle.args || [],
+      gas: BigInt(300_000),
+    } as any);
+  },
+};
+
 facilitator
   .registerExtension(BAZAAR)
   .registerExtension(EIP2612_GAS_SPONSORING)
-  .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient))
+  .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner))
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation

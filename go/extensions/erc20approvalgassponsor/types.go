@@ -50,19 +50,47 @@ type Extension struct {
 	Schema map[string]interface{} `json:"schema"`
 }
 
-// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with raw transaction broadcasting.
+// WriteContractCall encapsulates arguments for a WriteContract call,
+// used by SendRawApprovalAndSettle to describe the settle operation.
+type WriteContractCall struct {
+	Address  string
+	ABI      []byte
+	Function string
+	Args     []interface{}
+}
+
+// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with atomic approve+settle.
+// The signer decides whether to execute the approval and settle sequentially or bundle
+// them atomically (e.g., via Flashbots, multicall, or smart account batching).
 type Erc20ApprovalGasSponsoringSigner interface {
 	evm.FacilitatorEvmSigner
-	SendRawTransaction(ctx context.Context, signedTx string) (string, error)
+	SendRawApprovalAndSettle(ctx context.Context, serializedApprovalTx string, settle WriteContractCall) (string, error)
 }
 
 // Erc20ApprovalFacilitatorExtension carries the signer; registered with the facilitator.
 // It implements x402.FacilitatorExtension so it can be registered and retrieved via FacilitatorContext.
 type Erc20ApprovalFacilitatorExtension struct {
 	Signer Erc20ApprovalGasSponsoringSigner
+	// Optional network-aware signer resolver. When provided, this takes precedence
+	// over Signer and allows different settlement signers per network.
+	SignerForNetwork func(network string) Erc20ApprovalGasSponsoringSigner
 }
 
 // Key returns the extension identifier.
 func (e *Erc20ApprovalFacilitatorExtension) Key() string {
 	return ERC20ApprovalGasSponsoring.Key()
+}
+
+// ResolveSigner returns the signer to use for a given network.
+// SignerForNetwork takes precedence when configured.
+func (e *Erc20ApprovalFacilitatorExtension) ResolveSigner(network string) Erc20ApprovalGasSponsoringSigner {
+	if e == nil {
+		return nil
+	}
+	if e.SignerForNetwork != nil {
+		if signer := e.SignerForNetwork(network); signer != nil {
+			return signer
+		}
+	}
+	return e.Signer
 }
