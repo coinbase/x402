@@ -64,7 +64,7 @@ export async function verifyEIP3009(
   if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
     return {
       isValid: false,
-      invalidReason: "unsupported_scheme",
+      invalidReason: Errors.ErrInvalidScheme,
       payer,
     };
   }
@@ -73,7 +73,7 @@ export async function verifyEIP3009(
   if (!requirements.extra?.name || !requirements.extra?.version) {
     return {
       isValid: false,
-      invalidReason: "missing_eip712_domain",
+      invalidReason: Errors.ErrMissingEip712Domain,
       payer,
     };
   }
@@ -85,7 +85,7 @@ export async function verifyEIP3009(
   if (payload.accepted.network !== requirements.network) {
     return {
       isValid: false,
-      invalidReason: "network_mismatch",
+      invalidReason: Errors.ErrNetworkMismatch,
       payer,
     };
   }
@@ -111,9 +111,9 @@ export async function verifyEIP3009(
   };
 
   // Verify signature
-  // verifyTypedData is implementation-dependent and pluggable on FacilitatorEvmSigner
-  // some implementations only do EOA-style ECDSA recovery (e.g. viem/utils verifyTypedData, ethers.verifyTypedData)
-  // viem's publicClient.verifyTypedData supports EOA and Smart Contract Account (ERC-1271 / ERC-6492) signature verification
+  // Note: verifyTypedData is implementation-dependent and pluggable on FacilitatorEvmSigner
+  // Some implementations only do EOA-style ECDSA recovery (e.g. viem/utils verifyTypedData, ethers.verifyTypedData)
+  // Viem's publicClient.verifyTypedData supports EOA and Smart Contract Account (ERC-1271 / ERC-6492) signature verification
   let isValid = false;
   try {
     isValid = await signer.verifyTypedData({
@@ -149,7 +149,7 @@ export async function verifyEIP3009(
     if (!isSmartWallet) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
+        invalidReason: Errors.ErrInvalidSignature,
         payer,
       };
     }
@@ -162,7 +162,7 @@ export async function verifyEIP3009(
       // Undeployed smart wallet with no factory info
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        invalidReason: Errors.ErrUndeployedSmartWallet,
         payer,
       };
     }
@@ -174,7 +174,7 @@ export async function verifyEIP3009(
   if (getAddress(eip3009Payload.authorization.to) !== getAddress(requirements.payTo)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
+      invalidReason: Errors.ErrRecipientMismatch,
       payer,
     };
   }
@@ -184,7 +184,7 @@ export async function verifyEIP3009(
   if (BigInt(eip3009Payload.authorization.validBefore) < BigInt(now + 6)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_authorization_valid_before",
+      invalidReason: Errors.ErrValidBeforeExpired,
       payer,
     };
   }
@@ -193,7 +193,7 @@ export async function verifyEIP3009(
   if (BigInt(eip3009Payload.authorization.validAfter) > BigInt(now)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_authorization_valid_after",
+      invalidReason: Errors.ErrValidAfterInFuture,
       payer,
     };
   }
@@ -202,7 +202,7 @@ export async function verifyEIP3009(
   if (BigInt(eip3009Payload.authorization.value) !== BigInt(requirements.amount)) {
     return {
       isValid: false,
-      invalidReason: "invalid_exact_evm_payload_authorization_value_mismatch",
+      invalidReason: Errors.ErrInvalidAuthorizationValue,
       payer,
     };
   }
@@ -409,7 +409,7 @@ export async function settleEIP3009(
       success: false,
       network: payload.accepted.network,
       transaction: "",
-      errorReason: valid.invalidReason ?? "invalid_scheme",
+      errorReason: valid.invalidReason ?? Errors.ErrInvalidScheme,
       payer,
     };
   }
@@ -490,7 +490,7 @@ export async function settleEIP3009(
     if (receipt.status !== "success") {
       return {
         success: false,
-        errorReason: "invalid_transaction_state",
+        errorReason: Errors.ErrTransactionFailed,
         transaction: tx,
         network: payload.accepted.network,
         payer,
@@ -506,7 +506,7 @@ export async function settleEIP3009(
   } catch {
     return {
       success: false,
-      errorReason: "transaction_failed",
+      errorReason: Errors.ErrTransactionFailed,
       transaction: "",
       network: payload.accepted.network,
       payer,
