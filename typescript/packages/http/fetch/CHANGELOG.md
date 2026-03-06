@@ -1,5 +1,12 @@
 # @x402/fetch Changelog
 
+## 2.6.0
+
+### Minor Changes
+
+- Updated dependencies
+  - @x402/core@2.6.0
+
 ## 2.5.0
 
 ### Minor Changes
