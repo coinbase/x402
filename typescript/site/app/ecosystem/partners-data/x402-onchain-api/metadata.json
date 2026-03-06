@@ -1,0 +1,7 @@
+{
+  "name": "x402 On-Chain Data API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402-onchain-api.svg",
+  "description": "Pay-per-request blockchain data API powered by the x402 protocol. Serves live on-chain data — wallet risk scores, token metrics, DeFi protocol TVL, and top yield opportunities — all gated by USDC micropayments on Base. No subscriptions, no API keys. Each call costs $0.05–$0.25 USDC.",
+  "websiteUrl": "https://github.com/0xEtherial/x402-onchain-api"
+}

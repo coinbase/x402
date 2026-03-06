@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" rx="20" fill="#0052FF"/>
+  <text x="100" y="85" font-family="monospace" font-size="36" font-weight="bold" fill="white" text-anchor="middle">x402</text>
+  <text x="100" y="130" font-family="monospace" font-size="16" fill="#A8C4FF" text-anchor="middle">on-chain</text>
+  <text x="100" y="155" font-family="monospace" font-size="16" fill="#A8C4FF" text-anchor="middle">data api</text>
+</svg>
