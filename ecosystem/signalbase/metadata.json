@@ -1,0 +1,25 @@
+{
+  "name": "Signalbase",
+  "description": "Real-time business intelligence for AI agents. 8 signal categories (leads, companies, competitors, market trends, funding, hiring, developer, pricing) updated daily. Pay per request with USDC on Base via x402.",
+  "url": "https://signalbase-production.up.railway.app",
+  "openapi": "https://signalbase-production.up.railway.app/openapi.json",
+  "health": "https://signalbase-production.up.railway.app/health",
+  "network": "eip155:8453",
+  "payment": {
+    "asset": "USDC",
+    "chain": "Base",
+    "price_range": "$0.03 - $0.10 per request"
+  },
+  "endpoints": [
+    {"path": "/feed", "price": "$0.10", "description": "Full daily intelligence feed"},
+    {"path": "/leads", "price": "$0.05", "description": "Buyer intent signals sorted by score"},
+    {"path": "/companies", "price": "$0.05", "description": "Company intelligence with signal type filter"},
+    {"path": "/competitors", "price": "$0.03", "description": "Competitor news feed"},
+    {"path": "/market", "price": "$0.03", "description": "Market trend feed"},
+    {"path": "/funding", "price": "$0.03", "description": "Funding signal feed"},
+    {"path": "/hiring", "price": "$0.03", "description": "Hiring signal feed"},
+    {"path": "/developer", "price": "$0.03", "description": "Developer signal feed"}
+  ],
+  "free_endpoints": ["/health", "/preview/*", "/openapi.json"],
+  "category": "data-intelligence"
+}
