@@ -1,0 +1,7 @@
+{
+  "name": "Finance District Prism",
+  "description": "Payment gateway for agentic commerce. SDKs for TypeScript, Python, and Java turn any API endpoint into a paid service via x402. Prism handles 402 responses, payment verification, and on-chain stablecoin settlement (USDC, FDUSD) across Base, Ethereum, Arbitrum, and BSC through the Spectrum settlement layer.",
+  "logoUrl": "/logos/finance-district.png",
+  "websiteUrl": "https://developers.fd.xyz/prism/concepts/x402",
+  "category": "Infrastructure & Tooling"
+}
