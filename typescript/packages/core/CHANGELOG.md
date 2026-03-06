@@ -1,5 +1,15 @@
 # @x402/core Changelog
 
+## 2.6.0
+
+### Patch Changes
+
+- f41baed: Added `x402Version` field to `VerifyRequest`, `SettleRequest`, `VerifyRequestV1`, and `SettleRequestV1` types to match what all SDK implementations already send in facilitator request bodies.
+- aeef1bf: Added dynamic function for servers to generate custom response for settlement failures defaulting to empty
+- 2564781: Include PAYMENT-RESPONSE header on settlement failure responses
+- b341973: Remove duplicate server-local `ResourceInfo` interface; use the wire-format `ResourceInfo` from `types/payments.ts` directly throughout the server module.
+- 29fe09a: Make ResourceInfo.description, ResourceInfo.mimeType, and PaymentPayload.resource optional to match v2 spec
+
 ## 2.5.0
 
 ### Minor Changes
