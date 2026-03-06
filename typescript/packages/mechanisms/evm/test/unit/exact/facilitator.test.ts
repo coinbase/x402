@@ -1242,11 +1242,10 @@ describe("ExactEvmScheme (Facilitator)", () => {
         });
 
       const SETTLE_TX_HASH = "0xsettle_tx_hash_mock" as `0x${string}`;
-      const mockExtSendRawTx = vi.fn().mockResolvedValue(APPROVAL_TX_HASH);
-      const mockExtWriteContract = vi.fn().mockResolvedValue(SETTLE_TX_HASH);
+      const mockSendRawApprovalAndSettle = vi.fn().mockResolvedValue(SETTLE_TX_HASH);
       const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
 
-      // Extension signer has all FacilitatorEvmSigner methods + sendRawTransaction
+      // Extension signer has all FacilitatorEvmSigner methods + sendRawApprovalAndSettle
       const mockContext = {
         getExtension: vi.fn().mockImplementation((key: string) => {
           if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
@@ -1256,11 +1255,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
                 getAddresses: vi.fn().mockReturnValue([PAYER]),
                 readContract: mockFacilitatorSigner.readContract,
                 verifyTypedData: mockFacilitatorSigner.verifyTypedData,
-                writeContract: mockExtWriteContract,
+                writeContract: vi.fn(),
                 sendTransaction: vi.fn(),
                 waitForTransactionReceipt: mockExtWaitForReceipt,
                 getCode: vi.fn().mockResolvedValue("0x"),
-                sendRawTransaction: mockExtSendRawTx,
+                sendRawApprovalAndSettle: mockSendRawApprovalAndSettle,
               },
             };
           }
@@ -1271,13 +1270,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const payload = makeErc20Permit2Payload(makeValidErc20Extension());
       const result = await facilitator.settle(payload, erc20Requirements, mockContext);
 
-      // Extension signer broadcast the approval tx
-      expect(mockExtSendRawTx).toHaveBeenCalledWith({ serializedTransaction: MOCK_SIGNED_TX });
-
-      // Extension signer called settle (not the base signer)
-      expect(mockExtWriteContract).toHaveBeenCalled();
-      const writeCall = mockExtWriteContract.mock.calls[0][0];
-      expect(writeCall.functionName).toBe("settle");
+      // Extension signer called sendRawApprovalAndSettle with approval tx + settle args
+      expect(mockSendRawApprovalAndSettle).toHaveBeenCalled();
+      const call = mockSendRawApprovalAndSettle.mock.calls[0][0];
+      expect(call.serializedApprovalTransaction).toBe(MOCK_SIGNED_TX);
+      expect(call.settle.functionName).toBe("settle");
 
       // Base signer's writeContract should NOT have been called
       expect(mockFacilitatorSigner.writeContract).not.toHaveBeenCalled();
@@ -1301,10 +1298,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
           return Promise.resolve(0n);
         });
 
-      const selectedSignerWrite = vi.fn().mockResolvedValue("0xsettle_hash" as `0x${string}`);
-      const selectedSignerSendRaw = vi.fn().mockResolvedValue(APPROVAL_TX_HASH);
+      const selectedSignerApprovalAndSettle = vi.fn().mockResolvedValue("0xsettle_hash" as `0x${string}`);
       const selectedSignerWait = vi.fn().mockResolvedValue({ status: "success" });
-      const fallbackSignerWrite = vi.fn();
+      const fallbackSignerApprovalAndSettle = vi.fn();
 
       const mockContext = {
         getExtension: vi.fn().mockImplementation((key: string) => {
@@ -1315,11 +1311,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
               getAddresses: vi.fn().mockReturnValue([PAYER]),
               readContract: mockFacilitatorSigner.readContract,
               verifyTypedData: mockFacilitatorSigner.verifyTypedData,
-              writeContract: fallbackSignerWrite,
+              writeContract: vi.fn(),
               sendTransaction: vi.fn(),
               waitForTransactionReceipt: selectedSignerWait,
               getCode: vi.fn().mockResolvedValue("0x"),
-              sendRawTransaction: vi.fn(),
+              sendRawApprovalAndSettle: fallbackSignerApprovalAndSettle,
             },
             signerForNetwork: (network: string) => {
               if (network !== "eip155:84532") return undefined;
@@ -1327,11 +1323,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
                 getAddresses: vi.fn().mockReturnValue([PAYER]),
                 readContract: mockFacilitatorSigner.readContract,
                 verifyTypedData: mockFacilitatorSigner.verifyTypedData,
-                writeContract: selectedSignerWrite,
+                writeContract: vi.fn(),
                 sendTransaction: vi.fn(),
                 waitForTransactionReceipt: selectedSignerWait,
                 getCode: vi.fn().mockResolvedValue("0x"),
-                sendRawTransaction: selectedSignerSendRaw,
+                sendRawApprovalAndSettle: selectedSignerApprovalAndSettle,
               };
             },
           };
@@ -1341,9 +1337,8 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const payload = makeErc20Permit2Payload(makeValidErc20Extension());
       await facilitator.settle(payload, erc20Requirements, mockContext);
 
-      expect(selectedSignerSendRaw).toHaveBeenCalled();
-      expect(selectedSignerWrite).toHaveBeenCalled();
-      expect(fallbackSignerWrite).not.toHaveBeenCalled();
+      expect(selectedSignerApprovalAndSettle).toHaveBeenCalled();
+      expect(fallbackSignerApprovalAndSettle).not.toHaveBeenCalled();
     });
   });
 });

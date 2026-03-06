@@ -69,7 +69,6 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     if (assetTransferMethod === "permit2") {
       const result = await createPermit2Payload(this.signer, x402Version, paymentRequirements);
 
-      // Check if EIP-2612 gas sponsoring is advertised and we can handle it
       const eip2612Extensions = await this.trySignEip2612Permit(
         paymentRequirements,
         result,
@@ -83,7 +82,6 @@ export class ExactEvmScheme implements SchemeNetworkClient {
         };
       }
 
-      // EIP-2612 not applicable — try ERC-20 approval gas sponsoring as fallback
       const erc20Extensions = await this.trySignErc20Approval(paymentRequirements, result, context);
       if (erc20Extensions) {
         return {
@@ -124,17 +122,14 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       this.options,
     );
 
-    // Requires on-chain reads to check allowance and fetch nonce
     if (!capabilities.readContract) {
       return undefined;
     }
 
-    // Check if server advertises eip2612GasSponsoring
     if (!context?.extensions?.[EIP2612_GAS_SPONSORING_KEY]) {
       return undefined;
     }
 
-    // Check that required token metadata is available
     const tokenName = requirements.extra?.name as string | undefined;
     const tokenVersion = requirements.extra?.version as string | undefined;
     if (!tokenName || !tokenVersion) {
@@ -144,7 +139,6 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     const chainId = getEvmChainId(requirements.network);
     const tokenAddress = getAddress(requirements.asset) as `0x${string}`;
 
-    // Check if user already has sufficient Permit2 allowance
     try {
       const allowance = (await capabilities.readContract({
         address: tokenAddress,
@@ -154,20 +148,17 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       })) as bigint;
 
       if (allowance >= BigInt(requirements.amount)) {
-        return undefined; // Already approved, no need for EIP-2612
+        return undefined;
       }
     } catch {
-      // If we can't check allowance, proceed with EIP-2612 signing
+      // Allowance check failed, proceed with signing
     }
 
-    // Use the same deadline as the Permit2 authorization
     const permit2Auth = result.payload?.permit2Authorization as Record<string, unknown> | undefined;
     const deadline =
       (permit2Auth?.deadline as string) ??
       Math.floor(Date.now() / 1000 + requirements.maxTimeoutSeconds).toString();
 
-    // Sign the EIP-2612 permit with the exact Permit2 permitted amount
-    // (the contract enforces permit2612.value == permit.permitted.amount)
     const info = await signEip2612Permit(
       {
         address: this.signer.address,
@@ -217,17 +208,14 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       this.options,
     );
 
-    // Requires on-chain reads for allowance checks
     if (!capabilities.readContract) {
       return undefined;
     }
 
-    // Check if server advertises erc20ApprovalGasSponsoring
     if (!context?.extensions?.[ERC20_APPROVAL_GAS_SPONSORING_KEY]) {
       return undefined;
     }
 
-    // Check that signer has the required capabilities for signing raw transactions
     if (!capabilities.signTransaction || !capabilities.getTransactionCount) {
       return undefined;
     }
@@ -235,7 +223,6 @@ export class ExactEvmScheme implements SchemeNetworkClient {
     const chainId = getEvmChainId(requirements.network);
     const tokenAddress = getAddress(requirements.asset) as `0x${string}`;
 
-    // Check if user already has sufficient Permit2 allowance
     try {
       const allowance = (await capabilities.readContract({
         address: tokenAddress,
@@ -245,13 +232,12 @@ export class ExactEvmScheme implements SchemeNetworkClient {
       })) as bigint;
 
       if (allowance >= BigInt(requirements.amount)) {
-        return undefined; // Already approved, no need for ERC-20 approval tx
+        return undefined;
       }
     } catch {
-      // If we can't check allowance, proceed with signing
+      // Allowance check failed, proceed with signing
     }
 
-    // Sign the approve(Permit2, MaxUint256) transaction
     const info = await signErc20ApprovalTransaction(
       {
         address: this.signer.address,
