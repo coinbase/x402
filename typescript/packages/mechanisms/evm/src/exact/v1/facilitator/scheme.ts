@@ -7,20 +7,17 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { PaymentRequirementsV1 } from "@x402/core/types/v1";
-import {
-  encodeFunctionData,
-  getAddress,
-  Hex,
-  isAddressEqual,
-  parseErc6492Signature,
-  parseSignature,
-} from "viem";
-import { authorizationTypes, eip3009ABI } from "../../../constants";
-import { multicall, ContractCall, RawContractCall } from "../../../multicall";
+import { getAddress, Hex, isAddressEqual, parseErc6492Signature } from "viem";
+import { authorizationTypes } from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
 import { EvmNetworkV1, getEvmChainIdV1 } from "../../../v1";
 import * as Errors from "../../facilitator/errors";
+import {
+  diagnoseEip3009SimulationFailure,
+  executeTransferWithAuthorization,
+  simulateEip3009Transfer,
+} from "../../facilitator/eip3009-utils";
 
 export interface VerifyV1Options {
   /** Run onchain simulation. Defaults to true. */
@@ -132,9 +129,10 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     }
 
     try {
-      // Parse ERC-6492 signature if applicable
-      const parseResult = parseErc6492Signature(exactEvmPayload.signature!);
-      const { signature, address: factoryAddress, data: factoryCalldata } = parseResult;
+      // Parse ERC-6492 signature if applicable (for optional deployment)
+      const { address: factoryAddress, data: factoryCalldata } = parseErc6492Signature(
+        exactEvmPayload.signature!,
+      );
 
       // Deploy ERC-4337 smart wallet via EIP-6492 if configured and needed
       if (
@@ -150,8 +148,6 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         if (!bytecode || bytecode === "0x") {
           // Wallet not deployed - attempt deployment
           try {
-            console.log(`Deploying ERC-4337 smart wallet for ${payerAddress} via EIP-6492`);
-
             // Send the factory calldata directly as a transaction
             // The factoryCalldata already contains the complete encoded function call
             const deployTx = await this.signer.sendTransaction({
@@ -161,91 +157,72 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
 
             // Wait for deployment transaction
             await this.signer.waitForTransactionReceipt({ hash: deployTx });
-            console.log(`Successfully deployed smart wallet for ${payerAddress}`);
           } catch (deployError) {
-            console.error("Smart wallet deployment failed:", deployError);
             // Deployment failed - cannot proceed
             throw deployError;
           }
-        } else {
-          console.log(`Smart wallet for ${payerAddress} already deployed, skipping deployment`);
         }
-      }
 
-      // Determine if this is an ECDSA signature (EOA) or smart wallet signature
-      // ECDSA signatures are exactly 65 bytes (130 hex chars without 0x)
-      const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-      const isECDSA = signatureLength === 130;
+        const tx = await executeTransferWithAuthorization(
+          this.signer,
+          getAddress(requirements.asset),
+          exactEvmPayload,
+        );
 
-      let tx: Hex;
-      if (isECDSA) {
-        // For EOA wallets, parse signature into v, r, s and use that overload
-        const parsedSig = parseSignature(signature);
+        // Wait for transaction confirmation
+        const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
 
-        tx = await this.signer.writeContract({
-          address: getAddress(requirements.asset),
-          abi: eip3009ABI,
-          functionName: "transferWithAuthorization",
-          args: [
-            getAddress(exactEvmPayload.authorization.from),
-            getAddress(exactEvmPayload.authorization.to),
-            BigInt(exactEvmPayload.authorization.value),
-            BigInt(exactEvmPayload.authorization.validAfter),
-            BigInt(exactEvmPayload.authorization.validBefore),
-            exactEvmPayload.authorization.nonce,
-            (parsedSig.v as number | undefined) || parsedSig.yParity,
-            parsedSig.r,
-            parsedSig.s,
-          ],
-        });
-      } else {
-        // For smart wallets, use the bytes signature overload
-        // The signature contains WebAuthn/P256 or other ERC-1271 compatible signature data
-        tx = await this.signer.writeContract({
-          address: getAddress(requirements.asset),
-          abi: eip3009ABI,
-          functionName: "transferWithAuthorization",
-          args: [
-            getAddress(exactEvmPayload.authorization.from),
-            getAddress(exactEvmPayload.authorization.to),
-            BigInt(exactEvmPayload.authorization.value),
-            BigInt(exactEvmPayload.authorization.validAfter),
-            BigInt(exactEvmPayload.authorization.validBefore),
-            exactEvmPayload.authorization.nonce,
-            signature,
-          ],
-        });
-      }
+        if (receipt.status !== "success") {
+          return {
+            success: false,
+            errorReason: Errors.ErrTransactionFailed,
+            transaction: tx,
+            network: payloadV1.network,
+            payer: exactEvmPayload.authorization.from,
+          };
+        }
 
-      // Wait for transaction confirmation
-      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
-
-      if (receipt.status !== "success") {
         return {
-          success: false,
-          errorReason: Errors.ErrTransactionFailed,
+          success: true,
           transaction: tx,
           network: payloadV1.network,
           payer: exactEvmPayload.authorization.from,
         };
       }
-
-      return {
-        success: true,
-        transaction: tx,
-        network: payloadV1.network,
-        payer: exactEvmPayload.authorization.from,
-      };
     } catch (error) {
-      console.error("Failed to settle transaction:", error);
       return {
         success: false,
-        errorReason: Errors.ErrTransactionFailed,
+        errorReason: error instanceof Error ? error.message : Errors.ErrTransactionFailed,
         transaction: "",
         network: payloadV1.network,
         payer: exactEvmPayload.authorization.from,
       };
     }
+
+    // No EIP-6492 deployment path: execute transfer directly
+    const tx = await executeTransferWithAuthorization(
+      this.signer,
+      getAddress(requirements.asset),
+      exactEvmPayload,
+    );
+    const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
+
+    if (receipt.status !== "success") {
+      return {
+        success: false,
+        errorReason: Errors.ErrTransactionFailed,
+        transaction: tx,
+        network: payloadV1.network,
+        payer: exactEvmPayload.authorization.from,
+      };
+    }
+
+    return {
+      success: true,
+      transaction: tx,
+      network: payloadV1.network,
+      payer: exactEvmPayload.authorization.from,
+    };
   }
 
   /**
@@ -419,74 +396,14 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
 
     // Transaction simulation
     if (options?.simulate !== false) {
-      const auth = exactEvmPayload.authorization;
-      const transferArgs = [
-        getAddress(auth.from),
-        getAddress(auth.to),
-        BigInt(auth.value),
-        BigInt(auth.validAfter),
-        BigInt(auth.validBefore),
-        auth.nonce,
-      ] as const;
-
-      let simulationFailed = false;
-
-      if (eip6492Deployment) {
-        const { signature: innerSignature } = parseErc6492Signature(exactEvmPayload.signature!);
-        const transferCalldata = encodeFunctionData({
-          abi: eip3009ABI,
-          functionName: "transferWithAuthorization",
-          args: [...transferArgs, innerSignature],
-        });
-
-        const results = await multicall(this.signer.readContract.bind(this.signer), [
-          {
-            address: getAddress(eip6492Deployment.factoryAddress),
-            callData: eip6492Deployment.factoryCalldata as Hex,
-          } satisfies RawContractCall,
-          {
-            address: erc20Address,
-            callData: transferCalldata,
-          } satisfies RawContractCall,
-        ]);
-
-        if (results[1]?.status !== "success") {
-          simulationFailed = true;
-        }
-      } else {
-        const sig = exactEvmPayload.signature!;
-        const sigLength = sig.startsWith("0x") ? sig.length - 2 : sig.length;
-        const isECDSA = sigLength === 130;
-
-        try {
-          if (isECDSA) {
-            const parsedSig = parseSignature(sig);
-            await this.signer.readContract({
-              address: erc20Address,
-              abi: eip3009ABI,
-              functionName: "transferWithAuthorization",
-              args: [
-                ...transferArgs,
-                (parsedSig.v as number | undefined) ?? parsedSig.yParity,
-                parsedSig.r,
-                parsedSig.s,
-              ],
-            });
-          } else {
-            await this.signer.readContract({
-              address: erc20Address,
-              abi: eip3009ABI,
-              functionName: "transferWithAuthorization",
-              args: [...transferArgs, sig],
-            });
-          }
-        } catch {
-          simulationFailed = true;
-        }
-      }
-
+      const simulationFailed = await simulateEip3009Transfer(
+        this.signer,
+        erc20Address,
+        exactEvmPayload,
+        eip6492Deployment,
+      );
       if (simulationFailed) {
-        return diagnoseSimulationFailure(
+        return diagnoseEip3009SimulationFailure(
           this.signer,
           erc20Address,
           exactEvmPayload,
@@ -502,96 +419,4 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       payer,
     };
   }
-}
-
-/**
- * After simulation fails, runs a single diagnostic multicall to determine the most specific error reason.
- * Checks balanceOf, name, version and authorizationState in one RPC round-trip.
- *
- * @param signer - EVM signer used for the payment
- * @param erc20Address - Address of the ERC-20 token contract
- * @param exactEvmPayload - The EIP-3009 transfer authorization payload
- * @param requirements - Payment requirements to validate against
- * @param maxAmountRequired - Maximum amount required for the payment
- * @returns Promise resolving to the verification result with validity and optional invalid reason
- */
-async function diagnoseSimulationFailure(
-  signer: FacilitatorEvmSigner,
-  erc20Address: `0x${string}`,
-  exactEvmPayload: ExactEvmPayloadV1,
-  requirements: PaymentRequirements,
-  maxAmountRequired: string,
-): Promise<VerifyResponse> {
-  const payer = exactEvmPayload.authorization.from;
-
-  const diagnosticCalls: ContractCall[] = [
-    {
-      address: erc20Address,
-      abi: eip3009ABI,
-      functionName: "balanceOf",
-      args: [exactEvmPayload.authorization.from],
-    },
-    {
-      address: erc20Address,
-      abi: eip3009ABI,
-      functionName: "name",
-    },
-    {
-      address: erc20Address,
-      abi: eip3009ABI,
-      functionName: "version",
-    },
-    {
-      address: erc20Address,
-      abi: eip3009ABI,
-      functionName: "authorizationState",
-      args: [exactEvmPayload.authorization.from, exactEvmPayload.authorization.nonce],
-    },
-  ];
-
-  try {
-    const results = await multicall(signer.readContract.bind(signer), diagnosticCalls);
-
-    const [balanceResult, nameResult, versionResult, authStateResult] = results;
-
-    if (authStateResult.status === "failure") {
-      return { isValid: false, invalidReason: Errors.ErrEip3009NotSupported, payer };
-    }
-
-    if (authStateResult.status === "success" && authStateResult.result === true) {
-      return { isValid: false, invalidReason: Errors.ErrEip3009NonceAlreadyUsed, payer };
-    }
-
-    if (
-      nameResult.status === "success" &&
-      requirements.extra?.name &&
-      nameResult.result !== requirements.extra.name
-    ) {
-      return { isValid: false, invalidReason: Errors.ErrEip3009TokenNameMismatch, payer };
-    }
-
-    if (
-      versionResult.status === "success" &&
-      requirements.extra?.version &&
-      versionResult.result !== requirements.extra.version
-    ) {
-      return { isValid: false, invalidReason: Errors.ErrEip3009TokenVersionMismatch, payer };
-    }
-
-    if (balanceResult.status === "success") {
-      const balance = balanceResult.result as bigint;
-      if (balance < BigInt(maxAmountRequired)) {
-        return {
-          isValid: false,
-          invalidReason: Errors.ErrEip3009InsufficientBalance,
-          invalidMessage: `Insufficient funds to complete the payment. Required: ${maxAmountRequired} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
-          payer,
-        };
-      }
-    }
-  } catch {
-    // Diagnostic multicall failed — fall through to generic error
-  }
-
-  return { isValid: false, invalidReason: Errors.ErrEip3009SimulationFailed, payer };
 }
