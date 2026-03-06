@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ExactSvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
-import { SettlementCache } from "../../../src/settlement-cache";
 import type { FacilitatorSvmSigner } from "../../../src/signer";
-import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
 import { USDC_DEVNET_ADDRESS } from "../../../src/constants";
@@ -228,15 +226,9 @@ describe("ExactSvmSchemeV1", () => {
     };
 
     function setupSettleMocks(facilitator: ExactSvmSchemeV1) {
-      const cache = (facilitator as unknown as { settlementCache: SettlementCache }).settlementCache;
-      vi.spyOn(facilitator as unknown as { _verify: (p: PaymentPayload, r: PaymentRequirements, o?: { registerForSettlement?: boolean }) => Promise<{ isValid: boolean; payer: string; invalidReason?: string }> }, "_verify").mockImplementation(async (payload, _requirements, opts) => {
-        if (opts?.registerForSettlement) {
-          const txKey = (payload.payload as { transaction: string }).transaction;
-          if (cache.isDuplicate(txKey)) {
-            return { isValid: false, invalidReason: "duplicate_settlement", payer: "" };
-          }
-        }
-        return { isValid: true, payer: "PayerAddress" };
+      vi.spyOn(facilitator, "verify").mockResolvedValue({
+        isValid: true,
+        payer: "PayerAddress",
       });
       (mockSigner as Record<string, unknown>).signTransaction = vi
         .fn()

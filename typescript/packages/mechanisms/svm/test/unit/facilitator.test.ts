@@ -291,19 +291,10 @@ describe("ExactSvmScheme", () => {
       extra: { feePayer: "FeePayer1111111111111111111111111111" },
     };
 
-    function setupSettleMocks(
-      facilitator: ExactSvmScheme,
-      sharedCache?: InstanceType<typeof SettlementCache>,
-    ) {
-      const cache = sharedCache ?? (facilitator as unknown as { settlementCache: SettlementCache }).settlementCache;
-      vi.spyOn(facilitator as unknown as { _verify: (p: PaymentPayload, r: PaymentRequirements, o?: { registerForSettlement?: boolean }) => Promise<{ isValid: boolean; payer: string; invalidReason?: string }> }, "_verify").mockImplementation(async (payload, _requirements, opts) => {
-        if (opts?.registerForSettlement) {
-          const txKey = (payload.payload as { transaction: string }).transaction;
-          if (cache.isDuplicate(txKey)) {
-            return { isValid: false, invalidReason: "duplicate_settlement", payer: "" };
-          }
-        }
-        return { isValid: true, payer: "PayerAddress" };
+    function setupSettleMocks(facilitator: ExactSvmScheme) {
+      vi.spyOn(facilitator, "verify").mockResolvedValue({
+        isValid: true,
+        payer: "PayerAddress",
       });
       (mockSigner as Record<string, unknown>).signTransaction = vi
         .fn()
@@ -367,8 +358,11 @@ describe("ExactSvmScheme", () => {
       const v2 = new ExactSvmScheme(mockSigner, sharedCache);
       const v1 = new ExactSvmSchemeV1(mockSigner, sharedCache);
 
-      // Mock V2 settle flow (mock must perform cache check so tx gets registered)
-      setupSettleMocks(v2, sharedCache);
+      // Mock V2 settle flow
+      vi.spyOn(v2, "verify").mockResolvedValue({
+        isValid: true,
+        payer: "PayerAddress",
+      });
       (mockSigner as Record<string, unknown>).signTransaction = vi
         .fn()
         .mockResolvedValue("signedTx");
@@ -383,8 +377,11 @@ describe("ExactSvmScheme", () => {
       const v2Result = await v2.settle(makePayload("crossVersionTx=="), requirements);
       expect(v2Result.success).toBe(true);
 
-      // Mock V1 _verify with same cache logic (must check cache, will find duplicate)
-      setupSettleMocks(v1, sharedCache);
+      // Mock V1 verify
+      vi.spyOn(v1, "verify").mockResolvedValue({
+        isValid: true,
+        payer: "PayerAddress",
+      });
 
       // Same tx via V1 should be rejected
       const v1Payload: PaymentPayloadV1 = {
