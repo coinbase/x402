@@ -7,6 +7,7 @@ import { x402ExactPermit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/cons
 import { MULTICALL3_ADDRESS } from "../../../src/multicall";
 import { ERC20_APPROVAL_GAS_SPONSORING } from "@x402/extensions";
 import { concat, encodeAbiParameters } from "viem";
+import * as Errors from "../../../src/exact/facilitator/errors";
 
 // Mock viem's transaction parsing utilities for ERC-20 approval tests
 // Uses importOriginal to preserve all other viem exports (getAddress, etc.)
@@ -115,7 +116,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(payload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("unsupported_scheme");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidScheme);
     });
 
     it("should reject if missing EIP-712 domain parameters", async () => {
@@ -143,7 +144,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("missing_eip712_domain");
+      expect(result.invalidReason).toBe(Errors.ErrMissingEip712Domain);
     });
 
     it("should reject if network doesn't match", async () => {
@@ -170,7 +171,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, wrongNetworkRequirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("network_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrNetworkMismatch);
     });
 
     it("should reject if recipient doesn't match payTo", async () => {
@@ -201,7 +202,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, modifiedRequirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_evm_payload_recipient_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrRecipientMismatch);
     });
 
     it("should reject if amount doesn't match", async () => {
@@ -598,7 +599,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(payload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toContain("invalid_exact_evm_payload_signature");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidSignature);
     });
 
     it("should normalize addresses (case-insensitive)", async () => {

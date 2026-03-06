@@ -126,7 +126,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         success: false,
         network: payloadV1.network,
         transaction: "",
-        errorReason: valid.invalidReason ?? "invalid_scheme",
+        errorReason: valid.invalidReason ?? Errors.ErrInvalidScheme,
         payer: exactEvmPayload.authorization.from,
       };
     }
@@ -223,7 +223,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       if (receipt.status !== "success") {
         return {
           success: false,
-          errorReason: "invalid_transaction_state",
+          errorReason: Errors.ErrTransactionFailed,
           transaction: tx,
           network: payloadV1.network,
           payer: exactEvmPayload.authorization.from,
@@ -240,7 +240,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       console.error("Failed to settle transaction:", error);
       return {
         success: false,
-        errorReason: "transaction_failed",
+        errorReason: Errors.ErrTransactionFailed,
         transaction: "",
         network: payloadV1.network,
         payer: exactEvmPayload.authorization.from,
@@ -271,7 +271,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (payloadV1.scheme !== "exact" || requirements.scheme !== "exact") {
       return {
         isValid: false,
-        invalidReason: "unsupported_scheme",
+        invalidReason: Errors.ErrInvalidScheme,
         payer,
       };
     }
@@ -283,7 +283,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     } catch {
       return {
         isValid: false,
-        invalidReason: `invalid_network`,
+        invalidReason: Errors.ErrNetworkMismatch,
         payer,
       };
     }
@@ -291,7 +291,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (!requirements.extra?.name || !requirements.extra?.version) {
       return {
         isValid: false,
-        invalidReason: "missing_eip712_domain",
+        invalidReason: Errors.ErrMissingEip712Domain,
         payer,
       };
     }
@@ -303,7 +303,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (payloadV1.network !== requirements.network) {
       return {
         isValid: false,
-        invalidReason: "network_mismatch",
+        invalidReason: Errors.ErrNetworkMismatch,
         payer,
       };
     }
@@ -363,7 +363,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       if (!isSmartWallet) {
         return {
           isValid: false,
-          invalidReason: "invalid_exact_evm_payload_signature",
+          invalidReason: Errors.ErrInvalidSignature,
           payer,
         };
       }
@@ -374,7 +374,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       if (!isDeployed && !hasDeploymentInfo) {
         return {
           isValid: false,
-          invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+          invalidReason: Errors.ErrUndeployedSmartWallet,
           payer,
         };
       }
@@ -384,7 +384,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (getAddress(exactEvmPayload.authorization.to) !== getAddress(requirements.payTo)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
+        invalidReason: Errors.ErrRecipientMismatch,
         payer,
       };
     }
@@ -394,7 +394,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (BigInt(exactEvmPayload.authorization.validBefore) < BigInt(now + 6)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_authorization_valid_before",
+        invalidReason: Errors.ErrValidBeforeExpired,
         payer,
       };
     }
@@ -403,7 +403,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (BigInt(exactEvmPayload.authorization.validAfter) > BigInt(now)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_authorization_valid_after",
+        invalidReason: Errors.ErrValidAfterInFuture,
         payer,
       };
     }
@@ -412,7 +412,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     if (BigInt(exactEvmPayload.authorization.value) !== BigInt(requirementsV1.maxAmountRequired)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_authorization_value_mismatch",
+        invalidReason: Errors.ErrInvalidAuthorizationValue,
         payer,
       };
     }

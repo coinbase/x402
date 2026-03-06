@@ -3,6 +3,7 @@ import { ExactEvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
+import * as Errors from "../../../src/exact/facilitator/errors";
 
 describe("ExactEvmSchemeV1", () => {
   let mockSigner: FacilitatorEvmSigner;
@@ -97,7 +98,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("unsupported_scheme");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidScheme);
     });
 
     it("should reject if network does not match", async () => {
@@ -133,7 +134,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("network_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrNetworkMismatch);
     });
 
     it("should reject if amount is insufficient (maxAmountRequired)", async () => {
@@ -169,7 +170,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_evm_payload_authorization_value_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidAuthorizationValue);
     });
 
     it("should reject if balance is insufficient", async () => {
@@ -244,7 +245,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_evm_payload_recipient_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrRecipientMismatch);
     });
 
     it("should reject if network not supported", async () => {
@@ -279,7 +280,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.verify(payload as never, requirements as never);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_network");
+      expect(result.invalidReason).toBe(Errors.ErrNetworkMismatch);
     });
   });
 
@@ -360,7 +361,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.settle(payload as never, requirements as never);
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe("invalid_exact_evm_payload_signature");
+      expect(result.errorReason).toBe(Errors.ErrInvalidSignature);
     });
   });
 });
