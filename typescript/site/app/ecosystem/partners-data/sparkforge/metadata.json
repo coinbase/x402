@@ -1,0 +1,7 @@
+{
+  "name": "SparkForge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/sparkforge.png",
+  "description": "25 utility APIs for AI agents — image generation, web search, scraping, screenshots, crypto data, code review, and more. One wallet, zero API keys. Also available as a free MCP server.",
+  "websiteUrl": "https://sparkforge.sh"
+}
