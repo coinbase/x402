@@ -1,0 +1,7 @@
+{
+  "name": "xbird",
+  "description": "BYOA Twitter/X API — bring your own Twitter account, pay per request. Read tweets, search, post, engage via micropayments.",
+  "logoUrl": "/logos/xbird.png",
+  "websiteUrl": "https://xbirdapi.up.railway.app",
+  "category": "Services/Endpoints"
+}
