@@ -1,0 +1,7 @@
+{
+  "name": "DarthClaw VRF",
+  "description": "Verifiable randomness (VRF) API for AI agents and onchain apps. Cryptographically provable randomness for gaming, NFT reveals, lotteries, and agent decision-making. x402 micropayments at $0.005/request. Supports single values, ranges (min/max), and batch (1–100). ERC-8004 registered on Base, Ethereum, and BNB Chain.",
+  "logoUrl": "/logos/darthclaw.jpg",
+  "websiteUrl": "https://vrf.nings.io",
+  "category": "Services/Endpoints"
+}
