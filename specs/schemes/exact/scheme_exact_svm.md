@@ -143,3 +143,22 @@ A facilitator verifying an `exact`-scheme SVM payment MUST enforce all of the fo
 - The `amount` in TransferChecked MUST equal `PaymentRequirements.amount` exactly.
 
 These checks are security-critical to ensure the fee payer cannot be tricked into transferring their own funds or sponsoring unintended actions. Implementations MAY introduce stricter limits (e.g., lower compute price caps) but MUST NOT relax the above constraints.
+
+## Duplicate Settlement Mitigation (RECOMMENDED)
+
+### Vulnerability
+
+A race condition exists in the settlement flow: if the same payment transaction is submitted to the facilitator's `/settle` endpoint multiple times before the first submission is confirmed on-chain, each call may return a successful response. 
+
+Although Solana's transaction deduplication ensures the transfer only executes once on-chain, the RPC returns "success", and hence the facilitator could return `success` to each caller. A malicious client can exploit this to obtain access to multiple resources while only paying once.
+
+### Recommended Mitigation
+
+Merchants and/or Facilitators SHOULD maintain a short-term, in-memory cache of transaction payloads that are currently being settled. Before proceeding with settlement, the merchant/facilitator checks whether the transaction has already been seen:
+
+1. After verification succeeds, derive a cache key from the transaction payload (e.g., the base64-encoded transaction string).
+2. If the key is already present in the cache, reject the settlement with a `"duplicate_settlement"` error.
+3. If the key is not present, insert it into the cache and proceed with signing and submission.
+4. Evict entries older than 120 seconds (approximately twice the Solana blockhash lifetime of ~60–90 seconds). After this window, the transaction's blockhash will have expired and it cannot land on-chain regardless.
+
+This approach requires no external storage or long-lived state — only an in-process map with time-based eviction. It preserves the facilitator's otherwise stateless design while closing the duplicate settlement attack vector.
