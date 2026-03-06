@@ -226,6 +226,66 @@ describe("x402HTTPResourceServer.initialize", () => {
       await expect(httpServer.initialize()).resolves.not.toThrow();
     });
 
+    it("should initialize with multi-mechanism accepts spanning chains and transfer methods", async () => {
+      const routes: RoutesConfig = {
+        "GET /protected-multi": {
+          accepts: [
+            {
+              scheme: testScheme,
+              payTo: "0x123",
+              price: "$0.001",
+              network: testNetwork,
+            },
+            {
+              scheme: testScheme,
+              payTo: "0x123",
+              price: { amount: "1000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" },
+              network: testNetwork,
+            },
+            {
+              scheme: "exact",
+              payTo: "solana_address",
+              price: "$0.001",
+              network: solanaNetwork,
+            },
+          ],
+          description: "Multi-mechanism endpoint with EIP-3009, Permit2, and SVM options",
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+
+      await expect(httpServer.initialize()).resolves.not.toThrow();
+    });
+
+    it("should reject multi-mechanism route when one option uses unsupported network", async () => {
+      const unsupportedNetwork = "aptos:2" as Network;
+
+      const routes: RoutesConfig = {
+        "GET /protected-multi": {
+          accepts: [
+            {
+              scheme: testScheme,
+              payTo: "0x123",
+              price: "$0.001",
+              network: testNetwork,
+            },
+            {
+              scheme: "exact",
+              payTo: "aptos_address",
+              price: "$0.001",
+              network: unsupportedNetwork,
+            },
+          ],
+          description: "Multi-mechanism with unsupported option",
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(server, routes);
+
+      await expect(httpServer.initialize()).rejects.toThrow(RouteConfigurationError);
+    });
+
     it("should collect errors from multiple routes", async () => {
       const unsupportedNetwork = "unsupported:network" as Network;
 

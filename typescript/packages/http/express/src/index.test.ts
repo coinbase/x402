@@ -467,6 +467,242 @@ describe("paymentMiddleware", () => {
   });
 });
 
+describe("paymentMiddleware with multi-mechanism accepts array", () => {
+  const multiMechanismRoutes = {
+    "GET /protected-multi": {
+      accepts: [
+        { scheme: "exact", payTo: "0x123", price: "$0.001", network: "eip155:84532" },
+        {
+          scheme: "exact",
+          payTo: "0x123",
+          network: "eip155:84532",
+          price: {
+            amount: "1000000000000",
+            asset: "0x4200000000000000000000000000000000000006",
+            extra: { assetTransferMethod: "permit2" },
+          },
+        },
+        {
+          scheme: "exact",
+          payTo: "SVM_ADDRESS",
+          price: "$0.001",
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        },
+        {
+          scheme: "exact",
+          payTo: "0x123",
+          network: "eip155:84532",
+          price: {
+            amount: "1000",
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            extra: { assetTransferMethod: "permit2", name: "USDC", version: "2" },
+          },
+        },
+      ],
+    },
+  } as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProcessHTTPRequest = vi.fn();
+    mockProcessSettlement = vi.fn();
+    mockRegisterPaywallProvider = vi.fn();
+    mockRequiresPayment = vi.fn().mockReturnValue(true);
+
+    vi.mocked(HTTPResourceServer).mockImplementation(
+      (server, routes) =>
+        ({
+          processHTTPRequest: mockProcessHTTPRequest,
+          processSettlement: mockProcessSettlement,
+          registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
+          routes: routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
+        }) as unknown as x402HTTPResourceServer,
+    );
+  });
+
+  it("creates middleware with multi-element accepts array", async () => {
+    setupMockHttpServer({ type: "no-payment-required" });
+
+    const middleware = paymentMiddleware(
+      multiMechanismRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest({ path: "/protected-multi", method: "GET" });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(mockProcessHTTPRequest).toHaveBeenCalled();
+  });
+
+  it("returns 402 for multi-mechanism route without payment", async () => {
+    setupMockHttpServer({
+      type: "payment-error",
+      response: {
+        status: 402,
+        body: {
+          x402Version: 2,
+          accepts: [
+            { scheme: "exact", payTo: "0x123", network: "eip155:84532" },
+            { scheme: "exact", payTo: "0x123", network: "eip155:84532" },
+            {
+              scheme: "exact",
+              payTo: "SVM_ADDRESS",
+              network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+            },
+            { scheme: "exact", payTo: "0x123", network: "eip155:84532" },
+          ],
+        },
+        headers: { "PAYMENT-REQUIRED": "encoded-requirements" },
+        isHtml: false,
+      },
+    });
+
+    const middleware = paymentMiddleware(
+      multiMechanismRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest({ path: "/protected-multi", method: "GET" });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(402);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x402Version: 2,
+        accepts: expect.arrayContaining([
+          expect.objectContaining({ network: "eip155:84532" }),
+          expect.objectContaining({ network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" }),
+        ]),
+      }),
+    );
+    // Verify all four options are present (not just a subset)
+    const body = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(body.accepts).toHaveLength(4);
+  });
+
+  it("includes both gas sponsoring extensions in 402 response", async () => {
+    setupMockHttpServer({
+      type: "payment-error",
+      response: {
+        status: 402,
+        body: {
+          x402Version: 2,
+          accepts: [{ scheme: "exact", payTo: "0x123", network: "eip155:84532" }],
+          extensions: {
+            erc20ApprovalGasSponsoring: { enabled: true },
+            eip2612GasSponsoring: { enabled: true },
+          },
+        },
+        headers: { "PAYMENT-REQUIRED": "encoded-requirements" },
+        isHtml: false,
+      },
+    });
+
+    const middleware = paymentMiddleware(
+      multiMechanismRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest({ path: "/protected-multi", method: "GET" });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    const body = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(body.extensions).toBeDefined();
+    expect(body.extensions).toHaveProperty("erc20ApprovalGasSponsoring");
+    expect(body.extensions).toHaveProperty("eip2612GasSponsoring");
+  });
+
+  it("sets PAYMENT-REQUIRED header for multi-mechanism route", async () => {
+    setupMockHttpServer({
+      type: "payment-error",
+      response: {
+        status: 402,
+        body: { x402Version: 2, accepts: [] },
+        headers: { "PAYMENT-REQUIRED": "base64-encoded-requirements" },
+        isHtml: false,
+      },
+    });
+
+    const middleware = paymentMiddleware(
+      multiMechanismRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest({ path: "/protected-multi", method: "GET" });
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(req, res, next);
+
+    expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-REQUIRED", "base64-encoded-requirements");
+  });
+
+  it("settles payment for multi-mechanism route with verified payment", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const middleware = paymentMiddleware(
+      multiMechanismRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest({ path: "/protected-multi", method: "GET" });
+    const res = createMockResponse();
+    const next = vi.fn(() => {
+      res.statusCode = 200;
+      res.end();
+    });
+
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(mockProcessSettlement).toHaveBeenCalledWith(
+      mockPaymentPayload,
+      mockPaymentRequirements,
+      undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/protected-multi",
+          method: "GET",
+        }),
+      }),
+    );
+    expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settled");
+  });
+});
+
 describe("paymentMiddlewareFromConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();
