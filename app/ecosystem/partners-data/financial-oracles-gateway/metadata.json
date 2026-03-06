@@ -1,0 +1,7 @@
+{
+  "name": "Financial Oracles Gateway",
+  "description": "69 x402-enabled financial data API endpoints covering stocks, crypto, forex, SEC filings, technical indicators, analyst ratings, sanctions screening, and news. USDC micropayments on Base network, with MCP server integration for AI agents.",
+  "logoUrl": "/logos/financial-oracles-gateway.svg",
+  "websiteUrl": "https://krumpybot.com",
+  "category": "Services/Endpoints"
+}
