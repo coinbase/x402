@@ -39,7 +39,7 @@ func (m *mockApprovalSigner) GetChainID(_ context.Context) (*big.Int, error) {
 func (m *mockApprovalSigner) GetCode(_ context.Context, _ string) ([]byte, error) {
 	return []byte{}, nil
 }
-func (m *mockApprovalSigner) SendRawTransaction(_ context.Context, _ string) (string, error) {
+func (m *mockApprovalSigner) SendRawApprovalAndSettle(_ context.Context, _ string, _ WriteContractCall) (string, error) {
 	return "0xtx", nil
 }
 
