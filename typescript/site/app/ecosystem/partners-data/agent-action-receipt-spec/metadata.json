@@ -1,0 +1,7 @@
+{
+  "name": "Agent Action Receipt (AAR) Spec",
+  "description": "AAR v1.0 defines cryptographically signed receipts for AI agent actions, adding a complementary trust and audit layer alongside x402 payment settlement.",
+  "logoUrl": "/logos/x402-logo.png",
+  "websiteUrl": "https://github.com/Cyberweasel777/agent-action-receipt-spec",
+  "category": "Learning & Community Resources"
+}
