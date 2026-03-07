@@ -400,6 +400,40 @@ describe("paymentMiddleware", () => {
     expect(result).toBe(payload);
   });
 
+  it("passes Buffer payload bytes to settlement without JSON stringifying them", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const { app, hooks } = createMockApp();
+    paymentMiddleware(
+      app,
+      mockRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+
+    const request = createMockRequest();
+    const reply = createMockReply();
+    const payload = Buffer.from([0, 1, 2, 255]);
+
+    await hooks.onRequest[0](request, reply);
+    const result = await hooks.onSend[0](request, reply, payload);
+
+    expect(result).toBe(payload);
+    expect(mockProcessSettlement).toHaveBeenCalledTimes(1);
+    expect(
+      (mockProcessSettlement.mock.calls[0]?.[3] as { responseBody?: Buffer }).responseBody,
+    ).toEqual(payload);
+  });
+
   it("skips settlement for non-payment requests in onSend", async () => {
     const { app, hooks } = createMockApp();
     paymentMiddleware(
@@ -467,7 +501,10 @@ describe("paymentMiddleware", () => {
         headers: {},
         response: {
           status: 402,
-          headers: { "PAYMENT-RESPONSE": "failed" },
+          headers: {
+            "PAYMENT-RESPONSE": "failed",
+            "Content-Type": "application/json",
+          },
           body: { error: "Settlement failed" },
         },
       },
@@ -488,11 +525,13 @@ describe("paymentMiddleware", () => {
 
     await hooks.onRequest[0](request, reply);
 
+    reply.type("application/octet-stream");
     const payload = JSON.stringify({ data: "premium content" });
     const result = await hooks.onSend[0](request, reply, payload);
 
     expect(reply.status).toHaveBeenCalledWith(402);
     expect(reply.header).toHaveBeenCalledWith("PAYMENT-RESPONSE", "failed");
+    expect(reply.type).toHaveBeenCalledWith("application/json");
     expect(result).toBe(JSON.stringify({ error: "Settlement failed" }));
   });
 
@@ -523,6 +562,7 @@ describe("paymentMiddleware", () => {
     const result = await hooks.onSend[0](request, reply, payload);
 
     expect(reply.status).toHaveBeenCalledWith(402);
+    expect(reply.type).toHaveBeenCalledWith("application/json");
     expect(result).toBe(JSON.stringify({}));
   });
 

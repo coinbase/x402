@@ -32,6 +32,48 @@ interface X402PaymentContext {
 }
 
 /**
+ * Gets a header value from a plain header record using a case-insensitive lookup.
+ *
+ * @param headers - Headers to search
+ * @param headerName - Header name to find
+ * @returns Matching header value or undefined
+ */
+function getHeaderValue(headers: Record<string, string>, headerName: string): string | undefined {
+  const target = headerName.toLowerCase();
+  return Object.entries(headers).find(([key]) => key.toLowerCase() === target)?.[1];
+}
+
+/**
+ * Converts a Fastify onSend payload into the byte representation used for settlement.
+ *
+ * @param payload - Fastify payload
+ * @returns Buffer when the payload can be represented eagerly, otherwise undefined
+ */
+function getResponseBodyBuffer(payload: unknown): Buffer | undefined {
+  if (typeof payload === "string") {
+    return Buffer.from(payload);
+  }
+
+  if (Buffer.isBuffer(payload)) {
+    return payload;
+  }
+
+  if (payload instanceof Uint8Array) {
+    return Buffer.from(payload);
+  }
+
+  if (payload instanceof ArrayBuffer) {
+    return Buffer.from(new Uint8Array(payload));
+  }
+
+  if (payload && typeof payload === "object" && "pipe" in payload) {
+    return undefined;
+  }
+
+  return Buffer.from(JSON.stringify(payload ?? {}));
+}
+
+/**
  * Check if any routes in the configuration declare bazaar extensions.
  *
  * @param routes - Route configuration
@@ -181,9 +223,7 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     try {
-      const responseBody = Buffer.from(
-        typeof payload === "string" ? payload : JSON.stringify(payload ?? {}),
-      );
+      const responseBody = getResponseBodyBuffer(payload);
 
       const settleResult = await httpServer.processSettlement(
         x402Context.paymentPayload,
@@ -198,6 +238,10 @@ export function paymentMiddlewareFromHTTPServer(
           reply.header(key, value);
         }
         reply.status(response.status);
+        reply.type(
+          getHeaderValue(response.headers, "content-type") ||
+            (response.isHtml ? "text/html" : "application/json"),
+        );
         return response.isHtml ? String(response.body ?? "") : JSON.stringify(response.body ?? {});
       }
 
@@ -208,6 +252,7 @@ export function paymentMiddlewareFromHTTPServer(
     } catch (error) {
       console.error(error);
       reply.status(402);
+      reply.type("application/json");
       return JSON.stringify({});
     }
   });

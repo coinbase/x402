@@ -13,6 +13,7 @@ import { FastifyAdapter } from "./adapter";
  * @param options.body - Request body.
  * @param options.protocol - The request protocol.
  * @param options.hostname - The request hostname.
+ * @param options.host - The request host header, including port if present.
  * @returns A mock Fastify request.
  */
 function createMockRequest(
@@ -24,6 +25,7 @@ function createMockRequest(
     body?: unknown;
     protocol?: string;
     hostname?: string;
+    host?: string;
   } = {},
 ): FastifyRequest {
   return {
@@ -34,6 +36,7 @@ function createMockRequest(
     body: options.body,
     protocol: options.protocol || "https",
     hostname: options.hostname || "example.com",
+    host: options.host || options.hostname || "example.com",
   } as unknown as FastifyRequest;
 }
 
@@ -86,9 +89,10 @@ describe("FastifyAdapter", () => {
         url: "/api/test?foo=bar",
         protocol: "https",
         hostname: "example.com",
+        host: "example.com:3000",
       });
       const adapter = new FastifyAdapter(req);
-      expect(adapter.getUrl()).toBe("https://example.com/api/test?foo=bar");
+      expect(adapter.getUrl()).toBe("https://example.com:3000/api/test?foo=bar");
     });
   });
 

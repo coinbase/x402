@@ -47,7 +47,7 @@ export class FastifyAdapter implements HTTPAdapter {
    * @returns The full request URL
    */
   getUrl(): string {
-    return `${this.request.protocol}://${this.request.hostname}${this.request.url}`;
+    return `${this.request.protocol}://${this.request.host || this.request.hostname}${this.request.url}`;
   }
 
   /**
