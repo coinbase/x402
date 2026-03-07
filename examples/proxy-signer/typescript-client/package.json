@@ -1,0 +1,18 @@
+{
+  "name": "@x402/proxy-signer-typescript-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@solana/kit": "^2.1.1",
+    "@x402/evm": "workspace:*",
+    "@x402/fetch": "workspace:*",
+    "@x402/svm": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
