@@ -127,9 +127,7 @@ def create_payment_wrapper(
             payment_data = _extract_payment_from_context(ctx)
 
             if not payment_data:
-                return _create_payment_required_result(
-                    accepts, tool_resource, "Payment Required"
-                )
+                return _create_payment_required_result(accepts, tool_resource, "Payment Required")
 
             # Parse payment payload
             try:
@@ -142,9 +140,7 @@ def create_payment_wrapper(
                 )
 
             if asyncio.iscoroutinefunction(resource_server.verify_payment):
-                verify_result = await resource_server.verify_payment(
-                    payload, accepts[0]
-                )
+                verify_result = await resource_server.verify_payment(payload, accepts[0])
             else:
                 verify_result = await asyncio.to_thread(
                     resource_server.verify_payment, payload, accepts[0]
@@ -182,9 +178,7 @@ def create_payment_wrapper(
                     result = handler(**kwargs)
             except Exception as e:
                 return CallToolResult(
-                    content=[
-                        TextContent(type="text", text=f"Tool execution error: {e}")
-                    ],
+                    content=[TextContent(type="text", text=f"Tool execution error: {e}")],
                     isError=True,
                 )
 
@@ -205,9 +199,7 @@ def create_payment_wrapper(
 
             mcp_result = MCPToolResultType(
                 content=(
-                    [{"type": "text", "text": result_text}]
-                    if isinstance(result_text, str)
-                    else []
+                    [{"type": "text", "text": result_text}] if isinstance(result_text, str) else []
                 ),
                 is_error=False,
                 meta={},
@@ -232,9 +224,7 @@ def create_payment_wrapper(
 
             try:
                 if asyncio.iscoroutinefunction(resource_server.settle_payment):
-                    settle_result = await resource_server.settle_payment(
-                        payload, accepts[0]
-                    )
+                    settle_result = await resource_server.settle_payment(payload, accepts[0])
                 else:
                     settle_result = await asyncio.to_thread(
                         resource_server.settle_payment, payload, accepts[0]

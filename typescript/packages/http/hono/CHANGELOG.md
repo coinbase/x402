@@ -1,5 +1,43 @@
 # @x402/hono Changelog
 
+## 2.6.0
+
+### Minor Changes
+
+- aeef1bf: Added dynamic function for servers to generate custom response for settlement failures defaulting to empty
+- 2564781: Include PAYMENT-RESPONSE header on settlement failure responses
+- Updated dependencies [f41baed]
+- Updated dependencies [aeef1bf]
+- Updated dependencies [2564781]
+- Updated dependencies [b341973]
+- Updated dependencies [29fe09a]
+  - @x402/core@2.6.0
+  - @x402/paywall@2.6.0
+
+## 2.5.0
+
+### Minor Changes
+
+- Updated dependencies [96a9db0]
+- Updated dependencies [7fe268f]
+- Updated dependencies [1ab1c86]
+- Updated dependencies [d0a2b11]
+- Updated dependencies
+  - @x402/core@2.5.0
+  - @x402/extensions@2.5.0
+  - @x402/paywall@2.4.1
+
+## 2.4.0
+
+### Minor Changes
+
+- Updated dependencies [57a5488]
+- Updated dependencies [018181b]
+- Updated dependencies [3fb55d7]
+  - @x402/core@2.4.0
+  - @x402/extensions@2.4.0
+  - @x402/paywall@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes

@@ -18,8 +18,13 @@ from ..schemas import (
     ResourceInfo,
     SettleResponse,
 )
+from ..schemas.errors import SettleError
 from ..schemas.v1 import PaymentPayloadV1
-from .constants import PAYMENT_REQUIRED_HEADER, PAYMENT_SIGNATURE_HEADER
+from .constants import (
+    PAYMENT_REQUIRED_HEADER,
+    PAYMENT_RESPONSE_HEADER,
+    PAYMENT_SIGNATURE_HEADER,
+)
 from .types import (
     RESULT_NO_PAYMENT_REQUIRED,
     RESULT_PAYMENT_ERROR,
@@ -137,9 +142,7 @@ class x402HTTPServerBase:
 
         for pattern, config in normalized.items():
             verb, regex = self._parse_route_pattern(pattern)
-            self._compiled_routes.append(
-                CompiledRoute(verb=verb, regex=regex, config=config)
-            )
+            self._compiled_routes.append(CompiledRoute(verb=verb, regex=regex, config=config))
 
     def _parse_route_config(self, config: dict[str, Any]) -> RouteConfig:
         """Parse a raw dict into a RouteConfig."""
@@ -173,11 +176,13 @@ class x402HTTPServerBase:
             resource=config.get("resource"),
             description=config.get("description"),
             mime_type=config.get("mimeType", config.get("mime_type")),
-            custom_paywall_html=config.get(
-                "customPaywallHtml", config.get("custom_paywall_html")
-            ),
+            custom_paywall_html=config.get("customPaywallHtml", config.get("custom_paywall_html")),
             unpaid_response_body=config.get(
                 "unpaidResponseBody", config.get("unpaid_response_body")
+            ),
+            settlement_failed_response_body=config.get(
+                "settlementFailedResponseBody",
+                config.get("settlement_failed_response_body"),
             ),
             extensions=config.get("extensions"),
             hook_timeout_seconds=config.get("hook_timeout_seconds"),
@@ -205,9 +210,7 @@ class x402HTTPServerBase:
         if errors:
             raise RouteConfigurationError(errors)
 
-    def register_paywall_provider(
-        self, provider: PaywallProvider
-    ) -> x402HTTPServerBase:
+    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPServerBase:
         """Register custom paywall provider for HTML generation.
 
         Args:
@@ -408,6 +411,7 @@ class x402HTTPServerBase:
         self,
         payment_payload: PaymentPayload | PaymentPayloadV1,
         requirements: PaymentRequirements,
+        context: HTTPRequestContext | None = None,
     ) -> ProcessSettleResult:
         """Process settlement after successful response.
 
@@ -416,9 +420,10 @@ class x402HTTPServerBase:
         Args:
             payment_payload: The verified payment payload.
             requirements: The matching payment requirements.
+            context: Optional HTTP request context for route config lookup and hooks.
 
         Returns:
-            ProcessSettleResult with headers if success.
+            ProcessSettleResult with headers if success, or response if failure.
         """
         try:
             settle_response = self._server.settle_payment(
@@ -427,10 +432,16 @@ class x402HTTPServerBase:
             )
 
             if not settle_response.success:
-                return ProcessSettleResult(
+                failure = ProcessSettleResult(
                     success=False,
                     error_reason=settle_response.error_reason or "Settlement failed",
+                    headers=self._create_settlement_headers(settle_response, requirements),
+                    transaction=settle_response.transaction,
+                    network=settle_response.network,
+                    payer=settle_response.payer,
                 )
+                failure.response = self._build_settlement_failure_response(failure, context)
+                return failure
 
             return ProcessSettleResult(
                 success=True,
@@ -440,16 +451,49 @@ class x402HTTPServerBase:
                 payer=settle_response.payer,
             )
 
+        except SettleError as e:
+            settle_response = SettleResponse(
+                success=False,
+                error_reason=e.error_reason,
+                error_message=e.error_message or e.error_reason,
+                transaction=e.transaction or "",
+                network=requirements.network,
+                payer=e.payer,
+            )
+            failure = ProcessSettleResult(
+                success=False,
+                error_reason=e.error_reason,
+                headers=self._create_settlement_headers(settle_response, requirements),
+                transaction=settle_response.transaction,
+                network=settle_response.network,
+                payer=settle_response.payer,
+            )
+            failure.response = self._build_settlement_failure_response(failure, context)
+            return failure
+
         except Exception as e:
-            return ProcessSettleResult(success=False, error_reason=str(e))
+            settle_response = SettleResponse(
+                success=False,
+                error_reason=str(e),
+                error_message=str(e),
+                transaction="",
+                network=requirements.network,
+            )
+            failure = ProcessSettleResult(
+                success=False,
+                error_reason=str(e),
+                headers=self._create_settlement_headers(settle_response, requirements),
+                transaction="",
+                network=requirements.network,
+            )
+            failure.response = self._build_settlement_failure_response(failure, context)
+            return failure
 
     # =========================================================================
     # Internal Methods
     # =========================================================================
 
-    def _extract_payment(
-        self, adapter: HTTPAdapter
-    ) -> PaymentPayload | PaymentPayloadV1 | None:
+    def _extract_payment(self, adapter: HTTPAdapter) -> PaymentPayload | PaymentPayloadV1 | None:
         """Extract payment from HTTP headers (V2 only)."""
         # Check V2 header (case-insensitive)
         header = adapter.get_header(PAYMENT_SIGNATURE_HEADER) or adapter.get_header(
@@ -504,9 +548,7 @@ class x402HTTPServerBase:
             status=402,
             headers={
                 "Content-Type": content_type,
-                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(
-                    payment_required
-                ),
+                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(payment_required),
             },
             body=body,
         )
@@ -517,11 +559,39 @@ class x402HTTPServerBase:
         requirements: PaymentRequirements,
     ) -> dict[str, str]:
         """Create settlement response headers."""
-        from .constants import PAYMENT_RESPONSE_HEADER
-
         return {
             PAYMENT_RESPONSE_HEADER: encode_payment_response_header(settle_response),
         }
+
+    def _build_settlement_failure_response(
+        self,
+        failure: ProcessSettleResult,
+        context: HTTPRequestContext | None,
+    ) -> HTTPResponseInstructions:
+        """Build HTTPResponseInstructions for settlement failure.
+
+        Uses settlement_failed_response_body hook if configured, otherwise defaults to empty body.
+        Merges settlement headers (including PAYMENT-RESPONSE) into the response.
+        """
+        settlement_headers = failure.headers
+        route_config = self._get_route_config(context.path, context.method) if context else None
+
+        custom_body = None
+        if route_config and route_config.settlement_failed_response_body:
+            custom_body = route_config.settlement_failed_response_body(context, failure)
+
+        content_type = custom_body.content_type if custom_body else "application/json"
+        body = custom_body.body if custom_body else {}
+
+        return HTTPResponseInstructions(
+            status=402,
+            headers={
+                "Content-Type": content_type,
+                **settlement_headers,
+            },
+            body=body,
+            is_html=content_type.startswith("text/html"),
+        )
 
     def _validate_route_configuration(self) -> list[RouteValidationError]:
         """Validate all payment options have registered schemes."""
@@ -537,9 +607,7 @@ class x402HTTPServerBase:
 
             for option in options:
                 # Check scheme registered
-                if not self._server.has_registered_scheme(
-                    option.network, option.scheme
-                ):
+                if not self._server.has_registered_scheme(option.network, option.scheme):
                     errors.append(
                         RouteValidationError(
                             route_pattern=pattern,
@@ -552,9 +620,7 @@ class x402HTTPServerBase:
                     continue
 
                 # Check facilitator support
-                supported_kind = self._server.get_supported_kind(
-                    2, option.network, option.scheme
-                )
+                supported_kind = self._server.get_supported_kind(2, option.network, option.scheme)
                 if not supported_kind:
                     errors.append(
                         RouteValidationError(
@@ -679,7 +745,9 @@ class x402HTTPServerBase:
             "displayAmount": round(display_amount, 2),
             "currentUrl": current_url,
         }
-        config_script = f"<script>\n    window.x402 = {htmlsafe_json_dumps(x402_config)};\n</script>"
+        config_script = (
+            f"<script>\n    window.x402 = {htmlsafe_json_dumps(x402_config)};\n</script>"
+        )
 
         return template.replace("</body>", config_script + "</body>")
 
@@ -692,9 +760,7 @@ class x402HTTPServerBase:
         display_amount = self._get_display_amount(payment_required)
         resource_desc = ""
         if payment_required.resource:
-            resource_desc = (
-                payment_required.resource.description or payment_required.resource.url
-            )
+            resource_desc = payment_required.resource.description or payment_required.resource.url
 
         app_logo = ""
         app_name = ""
@@ -703,15 +769,9 @@ class x402HTTPServerBase:
                 app_logo = f'<img src="{html.escape(config.app_logo)}" alt="{html.escape(config.app_name or "")}" style="max-width: 200px;">'
             app_name = config.app_name or ""
 
-        payment_data = payment_required.model_dump_json(
-            by_alias=True, exclude_none=True
-        )
+        payment_data = payment_required.model_dump_json(by_alias=True, exclude_none=True)
 
-        title = (
-            f"{html.escape(app_name)} - Payment Required"
-            if app_name
-            else "Payment Required"
-        )
+        title = f"{html.escape(app_name)} - Payment Required" if app_name else "Payment Required"
 
         return f"""<!DOCTYPE html>
 <html>

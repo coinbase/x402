@@ -159,6 +159,9 @@ export function paymentMiddlewareFromHTTPServer(
           return;
         }
 
+        // Get response body for extensions
+        const responseBody = Buffer.from(await res.clone().arrayBuffer());
+
         // Clear the response so we can modify headers
         c.res = undefined;
 
@@ -167,17 +170,19 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
+            { request: context, responseBody },
           );
 
           if (!settleResult.success) {
             // Settlement failed - do not return the protected resource
-            res = c.json(
-              {
-                error: "Settlement failed",
-                details: settleResult.errorReason,
-              },
-              402,
-            );
+            const { response } = settleResult;
+            const body = response.isHtml
+              ? String(response.body ?? "")
+              : JSON.stringify(response.body ?? {});
+            res = new Response(body, {
+              status: response.status,
+              headers: response.headers,
+            });
           } else {
             // Settlement succeeded - add headers to response
             Object.entries(settleResult.headers).forEach(([key, value]) => {
@@ -187,13 +192,7 @@ export function paymentMiddlewareFromHTTPServer(
         } catch (error) {
           console.error(error);
           // If settlement fails, return an error response
-          res = c.json(
-            {
-              error: "Settlement failed",
-              details: error instanceof Error ? error.message : "Unknown error",
-            },
-            402,
-          );
+          res = c.json({}, 402);
         }
 
         // Restore the response (potentially modified with settlement headers)

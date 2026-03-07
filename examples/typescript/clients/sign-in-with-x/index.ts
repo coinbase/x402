@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { x402Client, x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -26,10 +26,10 @@ const svmSigner = svmPrivateKey
 // Configure client with available signers
 const client = new x402Client();
 if (evmSigner) {
-  registerExactEvmScheme(client, { signer: evmSigner });
+  client.register("eip155:*", new ExactEvmScheme(evmSigner));
 }
 if (svmSigner) {
-  registerExactSvmScheme(client, { signer: svmSigner });
+  client.register("solana:*", new ExactSvmScheme(svmSigner));
 }
 
 // Configure HTTP client with SIWX hooks for each signer
@@ -79,8 +79,8 @@ async function demonstrateResource(path: string): Promise<void> {
   const response1 = await fetchWithPayment(url);
   const body1 = await response1.json();
 
+  logPaymentResponse(response1);
   if (response1.ok) {
-    logPaymentResponse(response1);
     console.log("   Response:", body1);
   } else if (body1.error) {
     console.log("   ✗ Payment failed:", body1.details || body1.error);
@@ -91,8 +91,8 @@ async function demonstrateResource(path: string): Promise<void> {
   const response2 = await fetchWithPayment(url);
   const body2 = await response2.json();
 
+  const hasPayment = logPaymentResponse(response2);
   if (response2.ok) {
-    const hasPayment = logPaymentResponse(response2);
     if (!hasPayment) {
       console.log("   ✓ Authenticated via SIWX (previously paid)");
     }

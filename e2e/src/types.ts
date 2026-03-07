@@ -1,7 +1,8 @@
 import type { NetworkSet } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
 export type Transport = 'http' | 'mcp';
+export type TransferMethod = 'eip3009' | 'permit2';
 
 export interface ClientResult {
   success: boolean;
@@ -14,6 +15,8 @@ export interface ClientResult {
 export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
+  aptosPrivateKey: string;
+  stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
 }
@@ -22,6 +25,8 @@ export interface ServerConfig {
   port: number;
   evmPayTo: string;
   svmPayTo: string;
+  aptosPayTo: string;
+  stellarPayTo: string;
   networks: NetworkSet;
   facilitatorUrl?: string;
 }
@@ -44,7 +49,7 @@ export interface TestEndpoint {
   description: string;
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
-  permit2?: boolean; // Endpoint requires Permit2 approval
+  transferMethod?: TransferMethod;
   health?: boolean;
   close?: boolean;
 }
@@ -58,6 +63,9 @@ export interface TestConfig {
   x402Version?: number;
   x402Versions?: number[];
   extensions?: string[];
+  evm?: {
+    transferMethods: TransferMethod[];
+  };
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

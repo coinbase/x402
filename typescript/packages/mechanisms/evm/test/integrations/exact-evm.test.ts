@@ -172,60 +172,64 @@ describe("EVM Integration Tests", () => {
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
-    it("server should successfully verify and settle an EVM payment from a client", async () => {
-      // Server - builds PaymentRequired response
-      const accepts = [
-        buildEvmPaymentRequirements(
-          "0x9876543210987654321098765432109876543210",
-          "1000", // 0.001 USDC
-        ),
-      ];
-      const resource = {
-        url: "https://company.co",
-        description: "Company Co. resource",
-        mimeType: "application/json",
-      };
-      const paymentRequired = server.createPaymentRequiredResponse(accepts, resource);
+    it(
+      "server should successfully verify and settle an EVM payment from a client",
+      { timeout: 30000 },
+      async () => {
+        // Server - builds PaymentRequired response
+        const accepts = [
+          buildEvmPaymentRequirements(
+            "0x9876543210987654321098765432109876543210",
+            "1000", // 0.001 USDC
+          ),
+        ];
+        const resource = {
+          url: "https://company.co",
+          description: "Company Co. resource",
+          mimeType: "application/json",
+        };
+        const paymentRequired = await server.createPaymentRequiredResponse(accepts, resource);
 
-      // Client - responds with PaymentPayload response
-      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+        // Client - responds with PaymentPayload response
+        const paymentPayload = await client.createPaymentPayload(paymentRequired);
 
-      expect(paymentPayload).toBeDefined();
-      expect(paymentPayload.x402Version).toBe(2);
-      expect(paymentPayload.accepted.scheme).toBe("exact");
+        expect(paymentPayload).toBeDefined();
+        expect(paymentPayload.x402Version).toBe(2);
+        expect(paymentPayload.accepted.scheme).toBe("exact");
 
-      // Verify the payload structure
-      const evmPayload = paymentPayload.payload as ExactEvmPayloadV2;
-      expect(evmPayload.authorization).toBeDefined();
-      expect(evmPayload.authorization.from).toBe(clientAddress);
-      expect(evmPayload.authorization.to).toBe("0x9876543210987654321098765432109876543210");
-      expect(evmPayload.signature).toBeDefined();
+        // Verify the payload structure
+        const evmPayload = paymentPayload.payload as ExactEvmPayloadV2;
+        expect(evmPayload.authorization).toBeDefined();
+        expect(evmPayload.authorization.from).toBe(clientAddress);
+        expect(evmPayload.authorization.to).toBe("0x9876543210987654321098765432109876543210");
+        expect(evmPayload.signature).toBeDefined();
 
-      // Server - maps payment payload to payment requirements
-      const accepted = server.findMatchingRequirements(accepts, paymentPayload);
-      expect(accepted).toBeDefined();
+        // Server - maps payment payload to payment requirements
+        const accepted = server.findMatchingRequirements(accepts, paymentPayload);
+        expect(accepted).toBeDefined();
 
-      const verifyResponse = await server.verifyPayment(paymentPayload, accepted!);
+        const verifyResponse = await server.verifyPayment(paymentPayload, accepted!);
 
-      if (!verifyResponse.isValid) {
-        console.log("❌ Verification failed!");
-        console.log("Invalid reason:", verifyResponse.invalidReason);
-        console.log("Payer:", verifyResponse.payer);
-        console.log("Client address:", clientAddress);
-        console.log("Payload:", JSON.stringify(paymentPayload, null, 2));
-      }
+        if (!verifyResponse.isValid) {
+          console.log("❌ Verification failed!");
+          console.log("Invalid reason:", verifyResponse.invalidReason);
+          console.log("Payer:", verifyResponse.payer);
+          console.log("Client address:", clientAddress);
+          console.log("Payload:", JSON.stringify(paymentPayload, null, 2));
+        }
 
-      expect(verifyResponse.isValid).toBe(true);
-      expect(verifyResponse.payer).toBe(clientAddress);
+        expect(verifyResponse.isValid).toBe(true);
+        expect(verifyResponse.payer).toBe(clientAddress);
 
-      // Server does work here
+        // Server does work here
 
-      const settleResponse = await server.settlePayment(paymentPayload, accepted!);
-      expect(settleResponse.success).toBe(true);
-      expect(settleResponse.network).toBe("eip155:84532");
-      expect(settleResponse.transaction).toBeDefined();
-      expect(settleResponse.payer).toBe(clientAddress);
-    });
+        const settleResponse = await server.settlePayment(paymentPayload, accepted!);
+        expect(settleResponse.success).toBe(true);
+        expect(settleResponse.network).toBe("eip155:84532");
+        expect(settleResponse.transaction).toBeDefined();
+        expect(settleResponse.payer).toBe(clientAddress);
+      },
+    );
   });
 
   describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - EVM Flow", () => {

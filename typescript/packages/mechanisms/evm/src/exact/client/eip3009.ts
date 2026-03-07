@@ -3,7 +3,7 @@ import { getAddress } from "viem";
 import { authorizationTypes } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
 import { ExactEIP3009Payload } from "../../types";
-import { createNonce } from "../../utils";
+import { createNonce, getEvmChainId } from "../../utils";
 
 /**
  * Creates an EIP-3009 (transferWithAuthorization) payload.
@@ -56,7 +56,7 @@ async function signEIP3009Authorization(
   authorization: ExactEIP3009Payload["authorization"],
   requirements: PaymentRequirements,
 ): Promise<`0x${string}`> {
-  const chainId = parseInt(requirements.network.split(":")[1]);
+  const chainId = getEvmChainId(requirements.network);
 
   if (!requirements.extra?.name || !requirements.extra?.version) {
     throw new Error(

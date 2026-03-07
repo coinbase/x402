@@ -80,9 +80,9 @@ export type DynamicPayTo = (context: HTTPRequestContext) => string | Promise<str
 export type DynamicPrice = (context: HTTPRequestContext) => Price | Promise<Price>;
 
 /**
- * Result of the unpaid response callback containing content type and body.
+ * Result of response body callbacks containing content type and body.
  */
-export interface UnpaidResponseResult {
+export interface HTTPResponseBody {
   /**
    * The content type for the response (e.g., 'application/json', 'text/plain').
    */
@@ -100,7 +100,16 @@ export interface UnpaidResponseResult {
  */
 export type UnpaidResponseBody = (
   context: HTTPRequestContext,
-) => UnpaidResponseResult | Promise<UnpaidResponseResult>;
+) => HTTPResponseBody | Promise<HTTPResponseBody>;
+
+/**
+ * Dynamic function to generate a custom response for settlement failures.
+ * Receives the HTTP request context and settle failure result, returns the content type and body.
+ */
+export type SettlementFailedResponseBody = (
+  context: HTTPRequestContext,
+  settleResult: Omit<ProcessSettleFailureResponse, "response">,
+) => HTTPResponseBody | Promise<HTTPResponseBody>;
 
 /**
  * A single payment option for a route
@@ -146,6 +155,16 @@ export interface RouteConfig {
    */
   unpaidResponseBody?: UnpaidResponseBody;
 
+  /**
+   * Optional callback to generate a custom response for settlement failures.
+   * If not provided, defaults to { contentType: 'application/json', body: {} }.
+   *
+   * @param context - The HTTP request context
+   * @param settleResult - The settlement failure result
+   * @returns An object containing both contentType and body for the 402 response
+   */
+  settlementFailedResponseBody?: SettlementFailedResponseBody;
+
   // Extensions
   extensions?: Record<string, unknown>;
 }
@@ -189,6 +208,16 @@ export interface HTTPRequestContext {
 }
 
 /**
+ * HTTP transport context contains both request context and optional response data.
+ */
+export interface HTTPTransportContext {
+  /** The HTTP request context */
+  request: HTTPRequestContext;
+  /** The response body buffer */
+  responseBody?: Buffer;
+}
+
+/**
  * HTTP response instructions for the framework middleware
  */
 export interface HTTPResponseInstructions {
@@ -224,6 +253,8 @@ export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
   errorMessage?: string;
+  headers: Record<string, string>;
+  response: HTTPResponseInstructions;
 };
 
 export type ProcessSettleResultResponse =
@@ -435,11 +466,13 @@ export class x402HTTPResourceServer {
     }
 
     // createPaymentRequiredResponse already handles extension enrichment in the core layer
+    const transportContext: HTTPTransportContext = { request: context };
     const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
       extensions,
+      transportContext,
     );
 
     // If no payment provided
@@ -474,6 +507,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           "No matching payment requirements",
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -492,6 +526,7 @@ export class x402HTTPResourceServer {
           resourceInfo,
           verifyResult.invalidReason,
           routeConfig.extensions,
+          transportContext,
         );
         return {
           type: "payment-error",
@@ -512,6 +547,7 @@ export class x402HTTPResourceServer {
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
         routeConfig.extensions,
+        transportContext,
       );
       return {
         type: "payment-error",
@@ -526,28 +562,34 @@ export class x402HTTPResourceServer {
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
+   * @param transportContext - Optional HTTP transport context
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
+    transportContext?: HTTPTransportContext,
   ): Promise<ProcessSettleResultResponse> {
     try {
       const settleResponse = await this.ResourceServer.settlePayment(
         paymentPayload,
         requirements,
         declaredExtensions,
+        transportContext,
       );
 
       if (!settleResponse.success) {
-        return {
+        const failure = {
           ...settleResponse,
-          success: false,
+          success: false as const,
           errorReason: settleResponse.errorReason || "Settlement failed",
           errorMessage:
             settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
+          headers: this.createSettlementHeaders(settleResponse),
         };
+        const response = await this.buildSettlementFailureResponse(failure, transportContext);
+        return { ...failure, response };
       }
 
       return {
@@ -558,22 +600,40 @@ export class x402HTTPResourceServer {
       };
     } catch (error) {
       if (error instanceof SettleError) {
-        return {
+        const errorReason = error.errorReason || error.message;
+        const settleResponse: SettleResponse = {
           success: false,
-          errorReason: error.errorReason || error.message,
-          errorMessage: error.errorMessage || error.errorReason || error.message,
+          errorReason,
+          errorMessage: error.errorMessage || errorReason,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
         };
+        const failure = {
+          ...settleResponse,
+          success: false as const,
+          errorReason,
+          headers: this.createSettlementHeaders(settleResponse),
+        };
+        const response = await this.buildSettlementFailureResponse(failure, transportContext);
+        return { ...failure, response };
       }
-      return {
+      const errorReason = error instanceof Error ? error.message : "Settlement failed";
+      const settleResponse: SettleResponse = {
         success: false,
-        errorReason: error instanceof Error ? error.message : "Settlement failed",
-        errorMessage: error instanceof Error ? error.message : "Settlement failed",
+        errorReason,
+        errorMessage: errorReason,
         network: requirements.network as Network,
         transaction: "",
       };
+      const failure = {
+        ...settleResponse,
+        success: false as const,
+        errorReason,
+        headers: this.createSettlementHeaders(settleResponse),
+      };
+      const response = await this.buildSettlementFailureResponse(failure, transportContext);
+      return { ...failure, response };
     }
   }
 
@@ -586,6 +646,41 @@ export class x402HTTPResourceServer {
   requiresPayment(context: HTTPRequestContext): boolean {
     const routeConfig = this.getRouteConfig(context.path, context.method);
     return routeConfig !== undefined;
+  }
+
+  /**
+   * Build HTTPResponseInstructions for settlement failure.
+   * Uses settlementFailedResponseBody hook if configured, otherwise defaults to empty body.
+   *
+   * @param failure - Settlement failure result with headers
+   * @param transportContext - Optional HTTP transport context for the request
+   * @returns HTTP response instructions for the 402 settlement failure response
+   */
+  private async buildSettlementFailureResponse(
+    failure: Omit<ProcessSettleFailureResponse, "response">,
+    transportContext?: HTTPTransportContext,
+  ): Promise<HTTPResponseInstructions> {
+    const settlementHeaders = failure.headers;
+    const routeConfig = transportContext
+      ? this.getRouteConfig(transportContext.request.path, transportContext.request.method)
+      : undefined;
+
+    const customBody = routeConfig?.settlementFailedResponseBody
+      ? await routeConfig.settlementFailedResponseBody(transportContext!.request, failure)
+      : undefined;
+
+    const contentType = customBody ? customBody.contentType : "application/json";
+    const body = customBody ? customBody.body : {};
+
+    return {
+      status: 402,
+      headers: {
+        "Content-Type": contentType,
+        ...settlementHeaders,
+      },
+      body,
+      isHtml: contentType.includes("text/html"),
+    };
   }
 
   /**
@@ -720,7 +815,7 @@ export class x402HTTPResourceServer {
     isWebBrowser: boolean,
     paywallConfig?: PaywallConfig,
     customHtml?: string,
-    unpaidResponse?: UnpaidResponseResult,
+    unpaidResponse?: HTTPResponseBody,
   ): HTTPResponseInstructions {
     // Use 412 Precondition Failed for permit2_allowance_required error
     // This signals client needs to approve Permit2 before retrying
