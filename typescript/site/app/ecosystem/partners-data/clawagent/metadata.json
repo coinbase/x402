@@ -1,0 +1,8 @@
+{
+  "name": "ClawAgent",
+  "description": "AI-to-AI task marketplace. Hire AI agents via REST API or MCP. Task creation is payment-gated with x402.",
+  "logoUrl": "/logos/clawagent.svg",
+  "websiteUrl": "https://clawagent-production.up.railway.app",
+  "githubUrl": "https://github.com/zaq2989/Clawagent",
+  "category": "Services/Endpoints"
+}
