@@ -28,6 +28,17 @@ export interface Erc20ApprovalGasSponsoringSigner {
     functionName: string;
     args?: readonly unknown[];
   }): Promise<unknown>;
+  /**
+   * Simulates a contract call without broadcasting a transaction.
+   * Mirrors FacilitatorEvmSigner.simulateContract for transaction simulation.
+   */
+  simulateContract(args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args: readonly unknown[];
+    account: `0x${string}`;
+  }): Promise<{ result: unknown }>;
   verifyTypedData(args: {
     address: `0x${string}`;
     domain: Record<string, unknown>;

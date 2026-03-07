@@ -1,8 +1,5 @@
-import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
-import { toFacilitatorAptosSigner } from "@x402/aptos";
-import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import { Network } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
@@ -61,6 +58,19 @@ async function createFacilitator(): Promise<x402Facilitator> {
         args: args.args || [],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
+    simulateContract: async (args: {
+      address: `0x${string}`;
+      abi: readonly unknown[];
+      functionName: string;
+      args: readonly unknown[];
+      account: `0x${string}`;
+    }) => {
+      const result = await viemClient.simulateContract({
+        ...args,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      return { result: (result as { result: unknown }).result };
+    },
     verifyTypedData: (args: {
       address: `0x${string}`;
       domain: Record<string, unknown>;
@@ -104,8 +114,13 @@ async function createFacilitator(): Promise<x402Facilitator> {
     .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
     .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
 
-  // Optionally register Aptos if configured
+  // Optionally register Aptos if configured (dynamic import avoids requiring optional deps at load time)
   if (process.env.FACILITATOR_APTOS_PRIVATE_KEY) {
+    const { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } = await import(
+      "@aptos-labs/ts-sdk"
+    );
+    const { toFacilitatorAptosSigner } = await import("@x402/aptos");
+    const { ExactAptosScheme } = await import("@x402/aptos/exact/facilitator");
     const formattedAptosKey = PrivateKey.formatPrivateKey(
       process.env.FACILITATOR_APTOS_PRIVATE_KEY,
       PrivateKeyVariants.Ed25519,
@@ -135,8 +150,8 @@ async function createFacilitator(): Promise<x402Facilitator> {
 
   // Register gas sponsorship extensions for Permit2 support
   facilitator
-    .registerExtension(EIP2612_GAS_SPONSORING)
-    .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient));
+    .registerExtension(Extensions.EIP2612_GAS_SPONSORING)
+    .registerExtension(Extensions.createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient));
 
   return facilitator;
 }

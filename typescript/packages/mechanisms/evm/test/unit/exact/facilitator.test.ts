@@ -36,6 +36,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
     mockFacilitatorSigner = {
       getAddresses: vi.fn().mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"]),
       readContract: vi.fn().mockResolvedValue(0n), // Mock nonce state
+      simulateContract: vi.fn().mockResolvedValue({ result: undefined }),
       verifyTypedData: vi.fn().mockResolvedValue(true), // Mock signature verification
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
       sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
@@ -256,6 +257,147 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(result.payer).toBe(mockClientSigner.address);
     });
+
+    describe("transaction simulation", () => {
+      it("rejects payload with consumed EIP-3009 nonce", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2" },
+        };
+
+        const paymentPayload = await client.createPaymentPayload(2, requirements);
+        const fullPayload: PaymentPayload = {
+          ...paymentPayload,
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        // Ensure balance check passes so simulation is reached
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockRejectedValue(
+            new Error("reverted with custom error 'AuthorizationAlreadyUsed()'"),
+          );
+
+        const result = await facilitator.verify(fullPayload, requirements);
+
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toContain("settlement_simulation_failed");
+        expect(result.invalidReason).toContain("AuthorizationAlreadyUsed");
+      });
+
+      it("rejects payload with domain separator mismatch", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2" },
+        };
+
+        const paymentPayload = await client.createPaymentPayload(2, requirements);
+        const fullPayload: PaymentPayload = {
+          ...paymentPayload,
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        // Ensure balance check passes so simulation is reached
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockRejectedValue(new Error("reverted with custom error 'InvalidSignature()'"));
+
+        const result = await facilitator.verify(fullPayload, requirements);
+
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toContain("settlement_simulation_failed");
+        expect(result.invalidReason).toContain("InvalidSignature");
+      });
+
+      it("passes when simulation succeeds", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2" },
+        };
+
+        const paymentPayload = await client.createPaymentPayload(2, requirements);
+        const fullPayload: PaymentPayload = {
+          ...paymentPayload,
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        // Ensure balance check passes so simulation is reached
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockResolvedValue({ result: undefined });
+
+        const result = await facilitator.verify(fullPayload, requirements);
+
+        expect(result.isValid).toBe(true);
+      });
+
+      it("propagates structured revert reason in invalidReason", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2" },
+        };
+
+        const paymentPayload = await client.createPaymentPayload(2, requirements);
+        const fullPayload: PaymentPayload = {
+          ...paymentPayload,
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        // Ensure balance check passes so simulation is reached
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockRejectedValue(
+            new Error("reverted with reason string 'ERC20: transfer amount exceeds balance'"),
+          );
+
+        const result = await facilitator.verify(fullPayload, requirements);
+
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toContain(
+          "ERC20: transfer amount exceeds balance",
+        );
+      });
+    });
   });
 
   describe("Permit2 payload verification", () => {
@@ -467,6 +609,155 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_permit2_recipient_mismatch");
       expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    describe("transaction simulation", () => {
+      it("rejects Permit2 payload when simulation detects consumed nonce", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+        };
+
+        // Ensure allowance and balance checks pass so simulation is reached
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        const permit2Payload: PaymentPayload = {
+          x402Version: 2,
+          payload: {
+            signature: "0xmocksignature",
+            permit2Authorization: {
+              from: mockClientSigner.address,
+              permitted: {
+                token: requirements.asset,
+                amount: requirements.amount,
+              },
+              spender: x402ExactPermit2ProxyAddress,
+              nonce: "12345",
+              deadline: "999999999999",
+              witness: {
+                to: requirements.payTo,
+                validAfter: "0",
+              },
+            },
+          },
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        // Force simulation failure with InvalidNonce custom error
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockRejectedValue(new Error("reverted with custom error 'InvalidNonce()'"));
+
+        const result = await facilitator.verify(permit2Payload, requirements);
+
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toContain("settlement_simulation_failed");
+        expect(result.invalidReason).toContain("InvalidNonce");
+      });
+
+      it("rejects Permit2 payload when simulation detects invalid signature", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+        };
+
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        const permit2Payload: PaymentPayload = {
+          x402Version: 2,
+          payload: {
+            signature: "0xmocksignature",
+            permit2Authorization: {
+              from: mockClientSigner.address,
+              permitted: {
+                token: requirements.asset,
+                amount: requirements.amount,
+              },
+              spender: x402ExactPermit2ProxyAddress,
+              nonce: "12345",
+              deadline: "999999999999",
+              witness: {
+                to: requirements.payTo,
+                validAfter: "0",
+              },
+            },
+          },
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockRejectedValue(new Error("reverted with custom error 'InvalidSignature()'"));
+
+        const result = await facilitator.verify(permit2Payload, requirements);
+
+        expect(result.isValid).toBe(false);
+        expect(result.invalidReason).toContain("settlement_simulation_failed");
+        expect(result.invalidReason).toContain("InvalidSignature");
+      });
+
+      it("passes when Permit2 simulation succeeds", async () => {
+        const requirements: PaymentRequirements = {
+          scheme: "exact",
+          network: "eip155:84532",
+          amount: "1000000",
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          maxTimeoutSeconds: 300,
+          extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+        };
+
+        (mockFacilitatorSigner.readContract as unknown as vi.Mock).mockResolvedValue(
+          BigInt(requirements.amount),
+        );
+
+        const permit2Payload: PaymentPayload = {
+          x402Version: 2,
+          payload: {
+            signature: "0xmocksignature",
+            permit2Authorization: {
+              from: mockClientSigner.address,
+              permitted: {
+                token: requirements.asset,
+                amount: requirements.amount,
+              },
+              spender: x402ExactPermit2ProxyAddress,
+              nonce: "12345",
+              deadline: "999999999999",
+              witness: {
+                to: requirements.payTo,
+                validAfter: "0",
+              },
+            },
+          },
+          accepted: requirements,
+          resource: { url: "", description: "", mimeType: "" },
+        };
+
+        mockFacilitatorSigner.simulateContract = vi
+          .fn()
+          .mockResolvedValue({ result: undefined });
+
+        const result = await facilitator.verify(permit2Payload, requirements);
+
+        expect(result.isValid).toBe(true);
+      });
     });
   });
 

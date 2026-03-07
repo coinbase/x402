@@ -157,23 +157,28 @@ describe.skipIf(SKIP_TESTS)("Real SSE MCP Integration Tests", () => {
       transport: http(),
     });
 
-    const facilitatorSigner = toFacilitatorEvmSigner({
-      address: facilitatorAccount.address,
-      readContract: args =>
-        publicClient.readContract({
-          ...args,
-          args: args.args || [],
-        } as never),
-      verifyTypedData: args => publicClient.verifyTypedData(args as never),
-      writeContract: args =>
-        walletClient.writeContract({
-          ...args,
-          args: args.args || [],
-        } as never),
-      sendTransaction: args => walletClient.sendTransaction(args),
-      waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
-      getCode: args => publicClient.getCode(args),
-    });
+  const facilitatorSigner = toFacilitatorEvmSigner({
+    address: facilitatorAccount.address,
+    readContract: args =>
+      publicClient.readContract({
+        ...args,
+        args: args.args || [],
+      } as never),
+    simulateContract: async args =>
+      publicClient.simulateContract({
+        ...args,
+        args: args.args || [],
+      } as never),
+    verifyTypedData: args => publicClient.verifyTypedData(args as never),
+    writeContract: args =>
+      walletClient.writeContract({
+        ...args,
+        args: args.args || [],
+      } as never),
+    sendTransaction: args => walletClient.sendTransaction(args),
+    waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
+    getCode: args => publicClient.getCode(args),
+  });
 
     const evmFacilitator = new ExactEvmFacilitatorScheme(facilitatorSigner);
     const facilitator = new x402Facilitator().register(TEST_NETWORK, evmFacilitator);
