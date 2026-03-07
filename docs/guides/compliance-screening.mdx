@@ -1,0 +1,248 @@
+---
+title: "AML/CFT Compliance Screening"
+description: "How to screen x402 payment addresses against sanctions lists and reject payments from sanctioned wallets using lifecycle hooks."
+---
+
+x402 payment flows involve real money moving between real wallets. In regulated environments, you may need to screen payment addresses against sanctions lists (OFAC, EU, UK OFSI) before accepting or settling payments.
+
+This guide shows how to use x402 lifecycle hooks to add AML/CFT compliance screening to your payment flow.
+
+## Why compliance screening matters for x402
+
+When your server accepts an x402 payment, the payer's wallet address is visible in the payment payload. Regulated entities — and increasingly, DeFi protocols — need to verify that payment addresses are not associated with sanctioned individuals, ransomware operators, or terrorist financing.
+
+Without screening, your x402 server could unknowingly process payments from OFAC-designated wallets like Tornado Cash or Lazarus Group addresses. This creates legal exposure regardless of the payment amount.
+
+## Architecture
+
+The screening happens at two points in the x402 lifecycle:
+
+1. **`onBeforeVerify`** — Screen the payer address before verifying the payment. Reject early to avoid unnecessary verification costs.
+2. **`onBeforeSettle`** — Screen again before settlement as a defense-in-depth measure. Sanctions lists can update between verification and settlement.
+
+```
+Client sends payment → onBeforeVerify (screen payer) → verify → onBeforeSettle (screen again) → settle
+                              ↓ abort                                    ↓ abort
+                        403 Forbidden                              403 Forbidden
+```
+
+## Implementation
+
+### Option 1: Local prefix matching (zero dependencies)
+
+For basic screening, maintain a local set of known sanctioned address prefixes. This is fast, free, and works offline — but only catches known addresses.
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402ResourceServer } from "@x402/core";
+
+    // Known OFAC-sanctioned address prefixes (keep updated)
+    const SANCTIONED_PREFIXES = new Set([
+      "0x1da5821544e25c636c8",  // Tornado Cash
+      "0x7f367cc41522ce07553",  // OFAC-listed
+      "0x098b716b8aaf21512996", // Lazarus Group
+      "0xd882cfc20f52f2599d84", // OFAC-listed
+    ]);
+
+    function isSanctioned(address: string): boolean {
+      const normalized = address.toLowerCase();
+      for (const prefix of SANCTIONED_PREFIXES) {
+        if (normalized.startsWith(prefix)) return true;
+      }
+      return false;
+    }
+
+    const server = new x402ResourceServer(facilitatorClient);
+
+    // Screen before verification
+    server.onBeforeVerify(async (context) => {
+      const payer = context.paymentPayload?.payload?.authorization?.from;
+      if (payer && isSanctioned(payer)) {
+        return {
+          abort: true,
+          reason: "Payment rejected: payer address appears on sanctions list",
+        };
+      }
+    });
+
+    // Screen before settlement (defense in depth)
+    server.onBeforeSettle(async (context) => {
+      const payer = context.paymentPayload?.payload?.authorization?.from;
+      if (payer && isSanctioned(payer)) {
+        return {
+          abort: true,
+          reason: "Settlement rejected: payer address appears on sanctions list",
+        };
+      }
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import x402 "github.com/coinbase/x402/go"
+
+    // Known OFAC-sanctioned address prefixes
+    var sanctionedPrefixes = []string{
+        "0x1da5821544e25c636c8",  // Tornado Cash
+        "0x7f367cc41522ce07553",  // OFAC-listed
+        "0x098b716b8aaf21512996", // Lazarus Group
+        "0xd882cfc20f52f2599d84", // OFAC-listed
+    }
+
+    func isSanctioned(address string) bool {
+        normalized := strings.ToLower(address)
+        for _, prefix := range sanctionedPrefixes {
+            if strings.HasPrefix(normalized, prefix) {
+                return true
+            }
+        }
+        return false
+    }
+
+    server := x402.Newx402ResourceServer(
+        x402.WithFacilitatorClient(facilitatorClient),
+    )
+
+    // Screen before verification
+    server.OnBeforeVerify(func(ctx x402.VerifyContext) (*x402.BeforeHookResult, error) {
+        payer := extractPayer(ctx.PaymentPayload)
+        if payer != "" && isSanctioned(payer) {
+            return &x402.BeforeHookResult{
+                Abort:  true,
+                Reason: "Payment rejected: payer address appears on sanctions list",
+            }, nil
+        }
+        return nil, nil
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from x402 import x402ResourceServer
+
+    SANCTIONED_PREFIXES = {
+        "0x1da5821544e25c636c8",  # Tornado Cash
+        "0x7f367cc41522ce07553",  # OFAC-listed
+        "0x098b716b8aaf21512996", # Lazarus Group
+        "0xd882cfc20f52f2599d84", # OFAC-listed
+    }
+
+    def is_sanctioned(address: str) -> bool:
+        normalized = address.lower()
+        return any(normalized.startswith(p) for p in SANCTIONED_PREFIXES)
+
+    server = x402ResourceServer(facilitator_client)
+
+    async def screen_before_verify(context):
+        payer = context.payment_payload.get("payload", {}).get("authorization", {}).get("from")
+        if payer and is_sanctioned(payer):
+            return {"abort": True, "reason": "Payment rejected: payer address on sanctions list"}
+
+    server.on_before_verify(screen_before_verify)
+    ```
+  </Tab>
+</Tabs>
+
+### Option 2: API-based screening (comprehensive coverage)
+
+For production use, query a compliance API that maintains current sanctions lists. This covers 12,000+ addresses across 29 networks and updates as lists change.
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402ResourceServer } from "@x402/core";
+
+    // Screen a wallet address against a compliance API
+    // This example uses x402 micropayments to pay for the screening itself —
+    // compliance-as-a-service, payable the same way your API is.
+    async function screenWallet(address: string): Promise<{
+      hit: boolean;
+      risk: string;
+      entity?: string;
+    }> {
+      const response = await fetch("https://your-compliance-api.com/compliance/wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, chain: "auto" }),
+      });
+
+      if (response.status === 402) {
+        // Handle x402 payment for compliance check if using an x402-gated API
+        // In production, use @x402/fetch to handle payment automatically
+        return { hit: false, risk: "unknown" };
+      }
+
+      const data = await response.json();
+      return {
+        hit: data.result?.hit ?? false,
+        risk: data.result?.risk ?? "clear",
+        entity: data.result?.matches?.[0]?.entity,
+      };
+    }
+
+    const server = new x402ResourceServer(facilitatorClient);
+
+    server.onBeforeVerify(async (context) => {
+      const payer = context.paymentPayload?.payload?.authorization?.from;
+      if (!payer) return;
+
+      const screening = await screenWallet(payer);
+
+      if (screening.hit) {
+        console.log(`Blocked sanctioned payer: ${payer} (${screening.entity})`);
+        return {
+          abort: true,
+          reason: `Payment rejected: payer wallet flagged as ${screening.risk}`,
+        };
+      }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Option 3: Combined — fast local check + async API verification
+
+Use local prefix matching for instant rejection of known addresses, with an async API call for comprehensive coverage. This gives you sub-millisecond rejection of known threats plus full database coverage.
+
+```typescript
+server.onBeforeVerify(async (context) => {
+  const payer = context.paymentPayload?.payload?.authorization?.from;
+  if (!payer) return;
+
+  // Fast local check (instant, free)
+  if (isSanctioned(payer)) {
+    return { abort: true, reason: "Payment rejected: sanctioned address" };
+  }
+
+  // Comprehensive API check (async, covers 12K+ addresses)
+  try {
+    const screening = await screenWallet(payer);
+    if (screening.hit) {
+      return { abort: true, reason: `Payment rejected: ${screening.risk}` };
+    }
+  } catch (err) {
+    // Fail open or fail closed depending on your risk tolerance
+    console.warn("Compliance API unavailable, proceeding with local check only");
+  }
+});
+```
+
+## Screening the payTo address
+
+You can also screen your own `payTo` address to prove to clients that your receiving wallet is clean. This is useful for building trust with AI agents that perform their own compliance checks before sending payments.
+
+The [SENTINEL trust attestation endpoint](https://mru-oracle.com/trust/attest/) provides free, cryptographically signed compliance attestations for any Ethereum address.
+
+## Considerations
+
+- **Fail open vs. fail closed**: Decide whether to reject payments when the compliance API is unavailable. Regulated entities typically fail closed (reject). DeFi protocols may fail open (allow) to avoid service disruption.
+- **Caching**: Sanctions lists don't change every second. Cache screening results for 1–24 hours to reduce latency and API costs.
+- **Multi-chain**: Different chains use different address formats. Ensure your screening handles BTC, ETH, TRX, and other address formats.
+- **Logging**: Log all screening decisions (pass and reject) for audit trails. Include the payer address, screening result, and timestamp.
+- **Rate limiting**: If using an API, implement circuit breakers to handle API downtime gracefully.
+
+## Related
+
+- [Lifecycle Hooks](/advanced-concepts/lifecycle-hooks) — Full hook API reference
+- [Trust & Reputation Middleware](/guides/trust-reputation-middleware) — Complementary trust scoring for wallet reputation
