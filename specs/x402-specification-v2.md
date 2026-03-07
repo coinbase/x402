@@ -8,7 +8,7 @@ This specification defines the core x402 protocol for internet-native payments. 
 
 - **Protocol fundamentals**: Payment requirements format, payment payload structure, and core message schemas
 - **Facilitator interface**: Standard APIs for payment verification and settlement
-- **Payment schemes**: Extensible payment methods (currently supporting the "exact" scheme)
+- **Payment schemes**: Extensible payment methods (currently supporting the "exact" scheme and SCP drafts in `specs/schemes/statechannel/`)
 - **Security considerations**: Replay attack prevention and trust minimization
 
 **Out of Scope**: This specification does not include:
