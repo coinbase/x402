@@ -2,6 +2,6 @@
   "name": "SENTINEL AML/CFT",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/sentinel-aml.png",
-  "description": "AML/CFT compliance screening via x402 micropayments: screen entities against 1.1M+ watchlist records (OFAC SDN, UN, EU sanctions, PEP, Interpol, World Bank debarment, crypto addresses), 163-country jurisdiction risk scoring (FATF, Basel AML Index, CPI), Mauritius FSC registry + ICIJ offshore leaks. Registered ERC-8004 agent #25847 on Base. Pay-per-query USDC on Base.",
+  "description": "Open, agent-native AML/CFT compliance layer for Web3. Pay-per-query via x402 micropayments (USDC on Base). Screen wallets against 12,745+ sanctioned/blacklisted crypto addresses (OFAC SDN, USDT Blacklist, Ransomwhere, OpenSanctions, UK OFSI). Screen entities against 1.1M+ watchlist records (sanctions, PEP, Interpol, debarment). Compound wallet+entity screening with convergence detection. 179-country jurisdiction risk. Registered ERC-8004 agent #25847 on Base.",
   "websiteUrl": "https://mru-oracle.com"
 }
