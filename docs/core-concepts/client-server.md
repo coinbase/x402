@@ -72,6 +72,19 @@ The typical flow between a client and a server in the x402 protocol is as follow
 5. **Server settles the payment** and confirms transaction completion.
 6. **Server responds with the requested resource** (on success) or an error response (on failure), including a `PAYMENT-RESPONSE` header (Base64-encoded) with settlement details in both cases.
 
+#### Optimizing Successive Requests
+
+**The initial round trip (steps 1-2) is optional for successive requests within extended timeouts.**
+
+If a client knows the payment amount and parameters in advance (e.g., from a previous request or out-of-band information), it can skip the discovery round trip by including the `PAYMENT-SIGNATURE` header directly with the initial request.
+
+This optimization is particularly useful when:
+* **Payment amounts are static** and don't change frequently
+* **Extended timeouts** are provided (e.g., 30 days for a $0.01 request)
+* **Client experience** benefits from avoiding the extra round trip
+
+For endpoints with highly variable costs, servers typically use shorter timeouts to ensure payment amounts remain accurate. However, for stable pricing endpoints, extended timeouts enable this optimization and provide improved user experience by eliminating the discovery phase on repeat requests.
+
 ### Summary
 
 In the x402 protocol:
