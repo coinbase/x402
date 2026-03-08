@@ -33,9 +33,53 @@ import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
+import { verifySmartWalletTransaction } from "./smartWalletVerification";
+
+/**
+ * Configuration options for ExactSvmScheme.
+ */
+export type ExactSvmSchemeOptions = {
+  /**
+   * Enable simulation-based smart wallet verification.
+   * When enabled, transactions rejected by the static validation path
+   * (unknown programs, wrong instruction count) are re-verified using
+   * simulation inner instruction analysis. Works for any smart wallet
+   * program (Squads, Swig, SPL Governance, etc.) without per-wallet parsers.
+   *
+   * Default: false (only standard wallet transactions are accepted)
+   */
+  enableSmartWalletVerification?: boolean;
+
+  /**
+   * Maximum compute units allowed for smart wallet transactions.
+   * Smart wallet programs need more CU for CPI overhead.
+   * Only applies when enableSmartWalletVerification is true.
+   *
+   * Default: 400,000
+   */
+  smartWalletMaxComputeUnits?: number;
+
+  /**
+   * Maximum priority fee in microlamports for smart wallet transactions.
+   * Only applies when enableSmartWalletVerification is true.
+   *
+   * Default: 50,000
+   */
+  smartWalletMaxPriorityFeeMicroLamports?: number;
+};
 
 /**
  * SVM facilitator implementation for the Exact payment scheme.
+ *
+ * Dual-path verification:
+ *
+ * Path 1 (Static): Strict positional instruction validation for standard wallets.
+ *   Fast, preserves existing behavior.
+ *
+ * Path 2 (Simulation): Outcome-based verification for smart wallets.
+ *   When Path 1 rejects a transaction and smart wallet verification is enabled,
+ *   falls back to simulation-based validation that inspects CPI inner instructions.
+ *   Works for any wallet program that executes TransferChecked via CPI.
  */
 export class ExactSvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
@@ -44,15 +88,16 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
   private readonly settlementCache: SettlementCache;
 
   /**
-   * Creates a new ExactSvmFacilitator instance.
+   * Creates a new ExactSvmScheme instance.
    *
-   * @param signer - The SVM RPC client for facilitator operations
+   * @param signer - The SVM signer for facilitator operations
    * @param settlementCache - Optional shared settlement cache (one is created if omitted)
-   * @returns ExactSvmFacilitator instance
+   * @param options - Optional configuration for smart wallet verification
    */
   constructor(
     private readonly signer: FacilitatorSvmSigner,
     settlementCache?: SettlementCache,
+    private readonly options?: ExactSvmSchemeOptions,
   ) {
     this.settlementCache = settlementCache ?? new SettlementCache();
   }
@@ -70,9 +115,11 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     const addresses = this.signer.getAddresses();
     const randomIndex = Math.floor(Math.random() * addresses.length);
 
-    return {
-      feePayer: addresses[randomIndex],
-    };
+    const extra: Record<string, unknown> = { feePayer: addresses[randomIndex] };
+    if (this.options?.enableSmartWalletVerification) {
+      extra.features = { smartWalletSupported: true };
+    }
+    return extra;
   }
 
   /**
@@ -134,7 +181,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 2: Parse and Validate Transaction Structure
+    // Step 2: Parse Transaction
     let transaction;
     try {
       transaction = decodeTransactionFromPayload(exactSvmPayload);
@@ -146,190 +193,40 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
-    const decompiled = decompileTransactionMessage(compiled);
-    const instructions = decompiled.instructions ?? [];
+    // ─── Path 1: Static validation (standard wallets) ───────────────────
+    const staticResult = await this.verifyStaticPath(
+      transaction,
+      exactSvmPayload,
+      requirements,
+      signerAddresses,
+    );
 
-    // Allow 3-6 instructions:
-    // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
-    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
-    // - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
-    // See: https://github.com/coinbase/x402/issues/828
-    if (instructions.length < 3 || instructions.length > 6) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
-        payer: "",
-      };
+    if (staticResult.isValid) {
+      return staticResult;
     }
 
-    // Step 3: Verify Compute Budget Instructions
-    try {
-      this.verifyComputeLimitInstruction(instructions[0] as never);
-      this.verifyComputePriceInstruction(instructions[1] as never);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        isValid: false,
-        invalidReason: errorMessage,
-        payer: "",
-      };
-    }
-
-    const payer = getTokenPayerFromTransaction(transaction);
-    if (!payer) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer: "",
-      };
-    }
-
-    // Step 4: Verify Transfer Instruction
-    const transferIx = instructions[2];
-    const programAddress = transferIx.programAddress.toString();
-
-    if (
-      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
-      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
-    ) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
-      };
-    }
-
-    // Parse the transfer instruction using the appropriate library helper
-    let parsedTransfer;
-    try {
-      if (programAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
-        parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
-      } else {
-        parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
-      }
-    } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
-      };
-    }
-
-    // Verify that the facilitator's signers are not transferring their own funds
-    // SECURITY: Prevent facilitator from signing away their own tokens
-    const authorityAddress = parsedTransfer.accounts.authority.address.toString();
-    if (signerAddresses.includes(authorityAddress)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
-        payer,
-      };
-    }
-
-    // Verify mint address matches requirements
-    const mintAddress = parsedTransfer.accounts.mint.address.toString();
-    if (mintAddress !== requirements.asset) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_mint_mismatch",
-        payer,
-      };
-    }
-
-    // Verify destination ATA matches expected ATA for payTo address
-    const destATA = parsedTransfer.accounts.destination.address.toString();
-    try {
-      const [expectedDestATA] = await findAssociatedTokenPda({
-        mint: requirements.asset as Address,
-        owner: requirements.payTo as Address,
-        tokenProgram:
-          programAddress === TOKEN_PROGRAM_ADDRESS.toString()
-            ? (TOKEN_PROGRAM_ADDRESS as Address)
-            : (TOKEN_2022_PROGRAM_ADDRESS as Address),
-      });
-
-      if (destATA !== expectedDestATA.toString()) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
-          payer,
-        };
-      }
-    } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
-        payer,
-      };
-    }
-
-    // Verify transfer amount meets requirements
-    const amount = parsedTransfer.data.amount;
-    if (amount !== BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_amount_mismatch",
-        payer,
-      };
-    }
-
-    // Step 5: Verify optional instructions (if present)
-    // Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
-    const optionalInstructions = instructions.slice(3);
-    const invalidReasonByIndex = [
-      "invalid_exact_svm_payload_unknown_fourth_instruction",
-      "invalid_exact_svm_payload_unknown_fifth_instruction",
-      "invalid_exact_svm_payload_unknown_sixth_instruction",
-    ];
-
-    for (let i = 0; i < optionalInstructions.length; i += 1) {
-      const programAddress = optionalInstructions[i].programAddress.toString();
-      if (
-        programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
-        programAddress === MEMO_PROGRAM_ADDRESS
-      ) {
-        continue;
-      }
-
-      return {
-        isValid: false,
-        invalidReason:
-          invalidReasonByIndex[i] ?? "invalid_exact_svm_payload_unknown_optional_instruction",
-        payer,
-      };
-    }
-
-    // Step 6: Sign and Simulate Transaction
-    // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
-    try {
-      const feePayer = requirements.extra.feePayer as Address;
-
-      // Sign transaction with the feePayer's signer
-      const fullySignedTransaction = await this.signer.signTransaction(
+    // ─── Path 2: Simulation-based verification (smart wallets) ──────────
+    // If static validation failed and smart wallet verification is enabled,
+    // try simulation-based outcome verification. This handles any wallet
+    // program (Squads, Swig, SPL Governance, etc.) that executes
+    // TransferChecked via CPI.
+    if (this.options?.enableSmartWalletVerification) {
+      const feePayer = requirements.extra.feePayer;
+      return verifySmartWalletTransaction(
         exactSvmPayload.transaction,
+        requirements,
+        this.signer,
         feePayer,
-        requirements.network,
+        signerAddresses,
+        {
+          enabled: true,
+          maxComputeUnits: this.options.smartWalletMaxComputeUnits,
+          maxPriorityFeeMicroLamports: this.options.smartWalletMaxPriorityFeeMicroLamports,
+        },
       );
-
-      // Simulate to verify transaction would succeed
-      await this.signer.simulateTransaction(fullySignedTransaction, requirements.network);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        isValid: false,
-        invalidReason: "transaction_simulation_failed",
-        invalidMessage: errorMessage,
-        payer,
-      };
     }
 
-    return {
-      isValid: true,
-      invalidReason: undefined,
-      payer,
-    };
+    return staticResult;
   }
 
   /**
@@ -406,6 +303,203 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
         payer: valid.payer || "",
       };
     }
+  }
+
+  /**
+   * Path 1: Static instruction-layout verification for standard wallets.
+   * Validates positional instruction structure, program allowlist, and
+   * transfer details. Unchanged from the original implementation.
+   *
+   * @param transaction - Decoded transaction to verify
+   * @param exactSvmPayload - The raw SVM payload containing the base64 transaction
+   * @param requirements - Payment requirements to verify against
+   * @param signerAddresses - Facilitator signer addresses (for self-spend protection)
+   * @returns Verification result
+   */
+  private async verifyStaticPath(
+    transaction: ReturnType<typeof decodeTransactionFromPayload>,
+    exactSvmPayload: ExactSvmPayloadV2,
+    requirements: PaymentRequirements,
+    signerAddresses: string[],
+  ): Promise<VerifyResponse> {
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
+    const decompiled = decompileTransactionMessage(compiled);
+    const instructions = decompiled.instructions ?? [];
+
+    // Allow 3-6 instructions:
+    // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
+    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
+    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
+    // - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
+    // See: https://github.com/coinbase/x402/issues/828
+    if (instructions.length < 3 || instructions.length > 6) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
+        payer: "",
+      };
+    }
+
+    // Verify Compute Budget Instructions
+    try {
+      this.verifyComputeLimitInstruction(instructions[0] as never);
+      this.verifyComputePriceInstruction(instructions[1] as never);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        isValid: false,
+        invalidReason: errorMessage,
+        payer: "",
+      };
+    }
+
+    const payer = getTokenPayerFromTransaction(transaction);
+    if (!payer) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer: "",
+      };
+    }
+
+    // Verify Transfer Instruction
+    const transferIx = instructions[2];
+    const programAddress = transferIx.programAddress.toString();
+
+    if (
+      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
+      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
+    ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer,
+      };
+    }
+
+    let parsedTransfer;
+    try {
+      if (programAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
+        parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
+      } else {
+        parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
+      }
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer,
+      };
+    }
+
+    // Verify that the facilitator's signers are not transferring their own funds
+    // SECURITY: Prevent facilitator from signing away their own tokens
+    const authorityAddress = parsedTransfer.accounts.authority.address.toString();
+    if (signerAddresses.includes(authorityAddress)) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
+        payer,
+      };
+    }
+
+    const mintAddress = parsedTransfer.accounts.mint.address.toString();
+    if (mintAddress !== requirements.asset) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_mint_mismatch",
+        payer,
+      };
+    }
+
+    const destATA = parsedTransfer.accounts.destination.address.toString();
+    try {
+      const [expectedDestATA] = await findAssociatedTokenPda({
+        mint: requirements.asset as Address,
+        owner: requirements.payTo as Address,
+        tokenProgram:
+          programAddress === TOKEN_PROGRAM_ADDRESS.toString()
+            ? (TOKEN_PROGRAM_ADDRESS as Address)
+            : (TOKEN_2022_PROGRAM_ADDRESS as Address),
+      });
+
+      if (destATA !== expectedDestATA.toString()) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
+          payer,
+        };
+      }
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_recipient_mismatch",
+        payer,
+      };
+    }
+
+    const amount = parsedTransfer.data.amount;
+    if (amount !== BigInt(requirements.amount)) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_amount_mismatch",
+        payer,
+      };
+    }
+
+    // Verify optional instructions (if present)
+    // Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
+    const optionalInstructions = instructions.slice(3);
+    const invalidReasonByIndex = [
+      "invalid_exact_svm_payload_unknown_fourth_instruction",
+      "invalid_exact_svm_payload_unknown_fifth_instruction",
+      "invalid_exact_svm_payload_unknown_sixth_instruction",
+    ];
+
+    for (let i = 0; i < optionalInstructions.length; i += 1) {
+      const programAddress = optionalInstructions[i].programAddress.toString();
+      if (
+        programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
+        programAddress === MEMO_PROGRAM_ADDRESS
+      ) {
+        continue;
+      }
+
+      return {
+        isValid: false,
+        invalidReason:
+          invalidReasonByIndex[i] ?? "invalid_exact_svm_payload_unknown_optional_instruction",
+        payer,
+      };
+    }
+
+    // Sign and Simulate Transaction
+    // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
+    try {
+      const feePayer = requirements.extra!.feePayer as Address;
+
+      const fullySignedTransaction = await this.signer.signTransaction(
+        exactSvmPayload.transaction,
+        feePayer,
+        requirements.network,
+      );
+
+      await this.signer.simulateTransaction(fullySignedTransaction, requirements.network);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        isValid: false,
+        invalidReason: "transaction_simulation_failed",
+        invalidMessage: errorMessage,
+        payer,
+      };
+    }
+
+    return {
+      isValid: true,
+      invalidReason: undefined,
+      payer,
+    };
   }
 
   /**

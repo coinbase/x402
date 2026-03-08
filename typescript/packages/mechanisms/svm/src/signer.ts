@@ -163,6 +163,40 @@ export type FacilitatorSvmSigner = {
    * @throws Error if confirmation fails or times out
    */
   confirmTransaction(signature: string, network: string): Promise<void>;
+
+  /**
+   * Simulate a transaction and return inner instructions (CPI calls).
+   * Used by smart wallet verification to find TransferChecked instructions
+   * executed via CPI by smart wallet programs (Squads, Swig, etc.).
+   *
+   * Optional — if not implemented, smart wallet verification is unavailable.
+   * The default toFacilitatorSvmSigner() factory provides an implementation.
+   *
+   * @param transaction - Base64 encoded transaction (may be partially signed)
+   * @param feePayer - Fee payer address to sign with before simulation
+   * @param network - CAIP-2 network identifier
+   * @returns Inner instructions from simulation, or null if unavailable
+   * @throws Error if simulation fails (transaction would revert on-chain)
+   */
+  simulateTransactionWithInnerInstructions?(
+    transaction: string,
+    feePayer: Address,
+    network: string,
+  ): Promise<SmartWalletSimulationResult>;
+};
+
+/**
+ * Result from simulation with inner instruction inspection.
+ */
+export type SmartWalletSimulationResult = {
+  innerInstructions: Array<{
+    index: number;
+    instructions: Array<{
+      programIdIndex: number;
+      accounts: number[];
+      data: string;
+    }>;
+  }> | null;
 };
 
 /**
@@ -396,6 +430,61 @@ export function toFacilitatorSvmSigner(
       const rpc = getRpcForNetwork(network);
       const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
       await rpcCapabilities.confirmTransaction(signature);
+    },
+
+    simulateTransactionWithInnerInstructions: async (
+      transaction: string,
+      feePayer: Address,
+      network: string,
+    ) => {
+      if (feePayer !== signer.address) {
+        throw new Error(`No signer for feePayer ${feePayer}. Available: ${signer.address}`);
+      }
+
+      const tx = decodeTransactionFromPayload({ transaction });
+      const signableMessage = {
+        content: tx.messageBytes,
+        signatures: tx.signatures,
+      };
+      const [facilitatorSignatureDictionary] = await signer.signMessages([
+        signableMessage as never,
+      ]);
+      const signedTx = {
+        ...tx,
+        signatures: { ...tx.signatures, ...facilitatorSignatureDictionary },
+      };
+      const signedBase64 = getBase64EncodedWireTransaction(signedTx);
+
+      const rpc = getRpcForNetwork(network);
+      const result = await rpc
+        .simulateTransaction(
+          signedBase64 as never,
+          {
+            sigVerify: false,
+            replaceRecentBlockhash: true,
+            commitment: "confirmed",
+            encoding: "base64",
+            innerInstructions: true,
+          } as never,
+        )
+        .send();
+
+      const value = result.value as unknown as {
+        err: unknown;
+        innerInstructions?: Array<{
+          index: number;
+          instructions: Array<{ programIdIndex: number; accounts: number[]; data: string }>;
+        }>;
+      };
+
+      if (value.err) {
+        const errorStr = JSON.stringify(value.err, (_, v) =>
+          typeof v === "bigint" ? v.toString() : v,
+        );
+        throw new Error(`Smart wallet simulation failed: ${errorStr}`);
+      }
+
+      return { innerInstructions: value.innerInstructions ?? null };
     },
   };
 }

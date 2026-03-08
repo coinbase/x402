@@ -1,0 +1,410 @@
+import { describe, it, expect } from "vitest";
+import {
+  assertFeePayerIsolated,
+  validateComputeBudgetLimits,
+  extractTransfersFromInnerInstructions,
+} from "../../src/exact/facilitator/smartWalletVerification";
+import {
+  appendTransactionMessageInstruction,
+  createTransactionMessage,
+  generateKeyPairSigner,
+  getCompiledTransactionMessageEncoder,
+  pipe,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  type Address,
+  type IInstruction,
+} from "@solana/kit";
+
+const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111" as Address;
+const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address;
+const TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" as Address;
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const DEST_ATA = "DestATA11111111111111111111111111";
+const AUTHORITY = "Authority111111111111111111111111";
+
+const FAKE_BLOCKHASH = {
+  blockhash: "5Tx8F3jgSHx21CbtjwmdaKPLM5tWmreWAnPrbqHomSJF" as string &
+    import("@solana/kit").Blockhash,
+  lastValidBlockHeight: 1000n,
+};
+
+async function buildTransaction(feePayer: Address, instructions: IInstruction[]) {
+  const { compileTransactionMessage } = await import("@solana/kit");
+  let msg = pipe(
+    createTransactionMessage({ version: 0 }),
+    m => setTransactionMessageFeePayer(feePayer, m),
+    m => setTransactionMessageLifetimeUsingBlockhash(FAKE_BLOCKHASH, m),
+  );
+  for (const ix of instructions) {
+    msg = appendTransactionMessageInstruction(ix, msg);
+  }
+  const compiled = compileTransactionMessage(msg);
+  const messageBytes = getCompiledTransactionMessageEncoder().encode(compiled);
+  return { messageBytes, signatures: {} };
+}
+
+// ─── assertFeePayerIsolated ─────────────────────────────────────────────────
+
+describe("assertFeePayerIsolated", () => {
+  it("passes when fee payer is not in any instruction", async () => {
+    const feePayer = await generateKeyPairSigner();
+    const otherAccount = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        accounts: [{ address: otherAccount.address, role: 1 }],
+        data: new Uint8Array([2, 0, 0, 0, 0]),
+      },
+    ]);
+
+    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).not.toThrow();
+  });
+
+  it("throws when fee payer appears in instruction accounts", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        accounts: [{ address: feePayer.address, role: 1 }],
+        data: new Uint8Array([2, 0, 0, 0, 0]),
+      },
+    ]);
+
+    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).toThrow(
+      "smart_wallet_fee_payer_not_isolated",
+    );
+  });
+
+  it("throws when fee payer appears in accounts of multiple instructions", async () => {
+    const feePayer = await generateKeyPairSigner();
+    const otherProgram = await generateKeyPairSigner();
+    const otherAccount = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: new Uint8Array([2, 0, 0, 0, 0]),
+      },
+      {
+        programAddress: otherProgram.address,
+        accounts: [
+          { address: otherAccount.address, role: 1 },
+          { address: feePayer.address, role: 0 },
+        ],
+        data: new Uint8Array([]),
+      },
+    ]);
+
+    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).toThrow(
+      "smart_wallet_fee_payer_not_isolated",
+    );
+  });
+});
+
+// ─── validateComputeBudgetLimits ────────────────────────────────────────────
+
+function buildSetComputeUnitLimit(units: number): Uint8Array {
+  const buf = new Uint8Array(5);
+  buf[0] = 2;
+  new DataView(buf.buffer).setUint32(1, units, true);
+  return buf;
+}
+
+function buildSetComputeUnitPrice(microLamports: bigint): Uint8Array {
+  const buf = new Uint8Array(9);
+  buf[0] = 3;
+  new DataView(buf.buffer).setBigUint64(1, microLamports, true);
+  return buf;
+}
+
+describe("validateComputeBudgetLimits", () => {
+  it("passes when CU and priority fee are within defaults", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitLimit(300_000),
+      },
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitPrice(10_000n),
+      },
+    ]);
+
+    expect(() => validateComputeBudgetLimits(tx as never)).not.toThrow();
+  });
+
+  it("throws when CU exceeds default max", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitLimit(500_000),
+      },
+    ]);
+
+    expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
+      "smart_wallet_compute_units_too_high",
+    );
+  });
+
+  it("throws when priority fee exceeds default max", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitPrice(100_000n),
+      },
+    ]);
+
+    expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
+      "smart_wallet_priority_fee_too_high",
+    );
+  });
+
+  it("respects custom operator-provided limits", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitLimit(800_000),
+      },
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: buildSetComputeUnitPrice(200_000n),
+      },
+    ]);
+
+    // Should pass with high custom limits
+    expect(() =>
+      validateComputeBudgetLimits(tx as never, {
+        maxComputeUnits: 1_000_000,
+        maxPriorityFeeMicroLamports: 500_000,
+      }),
+    ).not.toThrow();
+
+    // Same transaction should fail with low custom limits
+    expect(() =>
+      validateComputeBudgetLimits(tx as never, {
+        maxComputeUnits: 100_000,
+      }),
+    ).toThrow("smart_wallet_compute_units_too_high");
+  });
+
+  it("rejects unknown ComputeBudget instruction type", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    // Type 1 = RequestHeapFrame, type 4 = SetLoadedAccountsDataSizeLimit
+    const unknownCBInstruction = new Uint8Array([1, 0, 0, 0, 0]);
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: unknownCBInstruction,
+      },
+    ]);
+
+    expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
+      "smart_wallet_unsupported_compute_budget_instruction",
+    );
+  });
+
+  it("rejects ComputeBudget instruction with empty data", async () => {
+    const feePayer = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        data: new Uint8Array([]),
+      },
+    ]);
+
+    expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
+      "smart_wallet_malformed_compute_budget",
+    );
+  });
+});
+
+// ─── extractTransfersFromInnerInstructions ──────────────────────────────────
+
+describe("extractTransfersFromInnerInstructions", () => {
+  it("returns empty array for null inner instructions", () => {
+    const result = extractTransfersFromInnerInstructions(null, []);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array for empty inner instructions", () => {
+    const result = extractTransfersFromInnerInstructions([], []);
+    expect(result).toEqual([]);
+  });
+
+  it("extracts TransferChecked from parsed format", () => {
+    const innerInstructions = [
+      {
+        index: 0,
+        instructions: [
+          {
+            programIdIndex: 0,
+            accounts: [],
+            data: "",
+            programId: TOKEN_PROGRAM as string,
+            parsed: {
+              type: "transferChecked",
+              info: {
+                mint: USDC_MINT,
+                destination: DEST_ATA,
+                authority: AUTHORITY,
+                tokenAmount: { amount: "100000" },
+              },
+            },
+          } as Record<string, unknown>,
+        ],
+      },
+    ];
+
+    const result = extractTransfersFromInnerInstructions(innerInstructions, [
+      TOKEN_PROGRAM as string,
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].mint).toBe(USDC_MINT);
+    expect(result[0].destination).toBe(DEST_ATA);
+    expect(result[0].authority).toBe(AUTHORITY);
+    expect(result[0].amount).toBe(BigInt(100000));
+    expect(result[0].programId).toBe(TOKEN_PROGRAM);
+  });
+
+  it("extracts TransferChecked from compiled format", async () => {
+    // Build a TransferChecked instruction data: [12, amount(u64 LE), decimals(u8)]
+    const data = new Uint8Array(10);
+    data[0] = 12; // TransferChecked discriminator
+    new DataView(data.buffer).setBigUint64(1, 50000n, true);
+    data[9] = 6; // decimals
+
+    // RPC returns inner instruction data as base58 strings.
+    // getBase58Decoder().decode(bytes) -> base58 string
+    const { getBase58Decoder } = await import("@solana/kit");
+    const dataBase58 = getBase58Decoder().decode(data);
+
+    const accountKeys = [
+      "SourceATA1111111111111111111111111",
+      USDC_MINT,
+      DEST_ATA,
+      AUTHORITY,
+      TOKEN_PROGRAM as string,
+    ];
+
+    const innerInstructions = [
+      {
+        index: 0,
+        instructions: [
+          {
+            programIdIndex: 4,
+            accounts: [0, 1, 2, 3],
+            data: dataBase58,
+          },
+        ],
+      },
+    ];
+
+    const result = extractTransfersFromInnerInstructions(innerInstructions, accountKeys);
+    expect(result).toHaveLength(1);
+    expect(result[0].programId).toBe(TOKEN_PROGRAM);
+    expect(result[0].mint).toBe(USDC_MINT);
+    expect(result[0].destination).toBe(DEST_ATA);
+    expect(result[0].authority).toBe(AUTHORITY);
+    expect(result[0].amount).toBe(50000n);
+  });
+
+  it("ignores non-transferChecked parsed instructions", () => {
+    const innerInstructions = [
+      {
+        index: 0,
+        instructions: [
+          {
+            programId: TOKEN_PROGRAM as string,
+            parsed: { type: "approve", info: { amount: "100000" } },
+          } as Record<string, unknown>,
+        ],
+      },
+    ];
+
+    const result = extractTransfersFromInnerInstructions(innerInstructions, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores parsed transfers from non-token programs", () => {
+    const innerInstructions = [
+      {
+        index: 0,
+        instructions: [
+          {
+            programId: "SomeOtherProgram11111111111111111",
+            parsed: {
+              type: "transferChecked",
+              info: {
+                mint: USDC_MINT,
+                destination: DEST_ATA,
+                authority: AUTHORITY,
+                tokenAmount: { amount: "100000" },
+              },
+            },
+          } as Record<string, unknown>,
+        ],
+      },
+    ];
+
+    const result = extractTransfersFromInnerInstructions(innerInstructions, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("extracts from multiple inner instruction groups", () => {
+    const innerInstructions = [
+      {
+        index: 0,
+        instructions: [
+          {
+            programId: TOKEN_PROGRAM as string,
+            parsed: {
+              type: "transferChecked",
+              info: {
+                mint: USDC_MINT,
+                destination: DEST_ATA,
+                authority: AUTHORITY,
+                tokenAmount: { amount: "50000" },
+              },
+            },
+          } as Record<string, unknown>,
+        ],
+      },
+      {
+        index: 1,
+        instructions: [
+          {
+            programId: TOKEN_2022_PROGRAM as string,
+            parsed: {
+              type: "transferChecked",
+              info: {
+                mint: USDC_MINT,
+                destination: "OtherDest1111111111111111111111111",
+                authority: "OtherAuth1111111111111111111111111",
+                tokenAmount: { amount: "25000" },
+              },
+            },
+          } as Record<string, unknown>,
+        ],
+      },
+    ];
+
+    const result = extractTransfersFromInnerInstructions(innerInstructions, []);
+    expect(result).toHaveLength(2);
+    expect(result[0].amount).toBe(BigInt(50000));
+    expect(result[1].amount).toBe(BigInt(25000));
+  });
+});

@@ -6,6 +6,19 @@
 
 // Export V2 implementations (default)
 export { ExactSvmScheme } from "./exact";
+export type { ExactSvmSchemeOptions } from "./exact/facilitator/scheme";
+
+// Export smart wallet verification helpers
+export {
+  assertFeePayerIsolated,
+  validateComputeBudgetLimits,
+  extractTransfersFromInnerInstructions,
+  verifySmartWalletTransaction,
+} from "./exact/facilitator/smartWalletVerification";
+export type {
+  SmartWalletOptions,
+  TransferCheckedInfo,
+} from "./exact/facilitator/smartWalletVerification";
 
 // Export signer utilities and types
 export { toClientSvmSigner, toFacilitatorSvmSigner } from "./signer";
@@ -15,6 +28,7 @@ export type {
   FacilitatorRpcClient,
   FacilitatorRpcConfig,
   ClientSvmConfig,
+  SmartWalletSimulationResult,
 } from "./signer";
 
 // Export payload types
