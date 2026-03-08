@@ -72,35 +72,99 @@ curl -s "https://facilitator.payai.network/discovery/resources" | \
 
 **Symptoms:**
 - 402 responses include all required bazaar fields
-- Payments work successfully 
+- Payments work successfully (10+ successful transactions)
 - Discovery document accessible
 - Zero results in facilitator discovery API
+- Several days to weeks have passed since first payment
 
 **Diagnosis:**
-This indicates an indexing pipeline issue rather than configuration problem.
+This indicates an indexing pipeline issue rather than configuration problem. Based on reports from issue #1461 and similar cases, this appears to be a systemic issue with CDP facilitator indexing.
 
 **Solutions:**
 
-#### A. Wait for Indexing Delay
-Discovery indexing isn't real-time. Wait 24-48 hours after first successful payment.
+#### A. Extended Wait for CDP Indexing Delay
+Discovery indexing has significantly longer delays than documented:
 
-#### B. Try Alternative Facilitators
-Different facilitators maintain separate discovery indexes:
+- **Documented**: 24-48 hours after first payment
+- **Reality (as of March 2026)**: **7-14 days** for CDP facilitator indexing
+- Some services report waiting **3+ weeks** with no indexing despite perfect configuration
+
+**Check indexing status:**
+```bash
+# Check total discovery count over time to see if indexer is active
+curl -s "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources" | jq '.totalCount'
+
+# If this number isn't changing over days, indexer may be stalled
+```
+
+#### B. Detailed Configuration Verification for Extended Delays
+
+If waiting 7-14+ days, re-verify configuration matches working examples exactly:
+
+```bash
+# Compare your 402 response to a known working endpoint
+curl -s "https://your-domain.com/api/endpoint" > your-response.json
+curl -s "https://tiamat.live/api/summarize" > working-response.json
+
+# Check for any differences in required fields
+diff <(jq -S '.accepts[0] | {discoverable, description, mimeType, resource, outputSchema}' your-response.json) \
+     <(jq -S '.accepts[0] | {discoverable, description, mimeType, resource, outputSchema}' working-response.json)
+```
+
+**Critical Next.js App Router considerations:**
+- Ensure middleware properly handles OPTIONS requests
+- Verify 402 responses have correct CORS headers
+- Test that discovery endpoint returns proper Content-Type
+
+```typescript
+// Next.js App Router - ensure proper headers
+export async function GET(request: Request) {
+  return new Response(JSON.stringify(discoveryDoc), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
+}
+```
+
+#### C. Try Alternative Facilitators
+Different facilitators maintain separate discovery indexes with different performance characteristics:
 
 ```javascript
-// Test with PayAI facilitator instead of CDP
+// Test with PayAI facilitator (typically faster indexing)
 const facilitatorClient = new HTTPFacilitatorClient({
   url: "https://facilitator.payai.network"
 });
+
+// Or try self-hosted facilitator for immediate indexing
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://your-facilitator.com"
+});
 ```
 
-#### C. Force Re-indexing (Advanced)
-Some facilitators support manual re-indexing triggers:
+#### D. Escalation for Indexing Issues
 
+If 14+ days pass with perfect configuration and no indexing:
+
+**1. Report as critical infrastructure issue:**
 ```bash
-# Contact facilitator support to manually trigger re-index
-# Include your domain and endpoint URLs
+# Create GitHub issue with this exact title format:
+# "Critical: CDP Discovery Indexer not processing domain.com after X successful payments over Y days"
+
+# Include this debug data:
+echo "Domain: $(curl -s https://your-domain.com/.well-known/x402 | jq -r '.domain // "your-domain.com"')"
+echo "Discovery accessible: $(curl -s -o /dev/null -w "%{http_code}" https://your-domain.com/.well-known/x402)"
+echo "Total payments: X successful over Y days"
+echo "CDP discovery total: $(curl -s https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources | jq -r '.totalCount')"
 ```
+
+**2. CDP support channel escalation:**
+- Discord: @mention CDP team in #x402 channel
+- Include: domain, payment count, days waited, exact issue #1461 reference
+
+**3. Request manual indexing trigger:**
+Some cases require manual intervention from CDP team to trigger indexing pipeline.
 
 ### Issue 2: Missing Discovery Document
 
@@ -270,12 +334,54 @@ curl -s "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources" | \
 - **GitHub**: [coinbase/x402 issues](https://github.com/coinbase/x402/issues)
 - **Discord**: #x402 channel in [CDP Discord](https://discord.com/invite/cdp)
 
-Include:
-- Domain and endpoint URLs
-- Number of successful payments
-- How long since first payment
-- Discovery document accessibility
-- 402 response samples
+**Complete issue template (based on #1461 format):**
+
+```markdown
+## Problem
+
+Endpoints not appearing in Bazaar discovery despite correct metadata and successful payments
+
+## Setup
+
+- **SDK versions**: @x402/core@X.Y.Z, @x402/evm@X.Y.Z, @x402/extensions@X.Y.Z
+- **Facilitator**: CDP (`api.cdp.coinbase.com`) or PayAI (`facilitator.payai.network`)
+- **Network**: Base mainnet (`eip155:8453`) / Solana / etc.
+- **Server**: Framework (Next.js App Router / Express / etc.)
+- **Domain**: your-domain.com
+
+## What we did
+
+1. Built N x402-gated API endpoints
+2. Added `bazaarResourceServerExtension` to x402ResourceServer
+3. Created `declareDiscoveryExtension()` metadata for each endpoint  
+4. Added required fields to `accepts[0]`: discoverable, description, mimeType, resource, outputSchema
+5. Included `extensions.bazaar` in 402 responses
+6. Completed N successful payments through facilitator (verified + settled)
+
+## Verification
+
+```bash
+# Discovery document accessible
+curl -s "https://your-domain.com/.well-known/x402" | jq .
+
+# Sample 402 response with all required fields
+curl -s "https://your-domain.com/api/endpoint" | jq '{accepts: .accepts, extensions: .extensions}'
+
+# Zero results in facilitator discovery
+curl -s "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources" | jq '.items[] | select(.resource | contains("your-domain.com"))'
+```
+
+## Timeline
+
+- First payment: YYYY-MM-DD
+- Days waited: X days since first payment
+- Total successful payments: N payments over X days
+- Discovery status: Not indexed
+
+## Similar Reports
+
+Reference issue #1461 (Convrgent) and any other similar reports
+```
 
 ### 3. Expected Response Times
 
@@ -285,13 +391,50 @@ Include:
 
 ## Known Issues
 
-### CDP Facilitator Discovery Lag
+### Critical: CDP Facilitator Discovery Indexing Delays (March 2026)
 
-**Issue**: CDP facilitator discovery indexing can lag 24-72 hours behind actual payments.
+**Issue**: CDP facilitator discovery indexing has severe delays far exceeding documentation:
 
-**Workaround**: Use PayAI facilitator for faster indexing or wait longer for CDP indexing.
+- **Documented timeline**: 24-48 hours after first payment
+- **Actual timeline**: 7-14 days minimum, some reports of 3+ weeks
+- **Affected services**: Multiple confirmed cases (#1461 Convrgent, #1180 Fatihai, others)
+- **Perfect configuration**: All affected services have correct metadata and successful payments
 
-**Status**: Being investigated by CDP team.
+**Root cause**: Indexing pipeline appears to be stalled or severely backlogged
+
+**Evidence:**
+- Discovery total count not increasing over time
+- Zero indexing despite perfect configuration
+- Manual verification shows all requirements met
+
+**Workarounds:**
+1. Use PayAI facilitator for faster indexing (typically 1-2 days)
+2. Escalate to CDP team for manual indexing trigger
+3. Reference issue #1461 when reporting similar problems
+
+**Status**: 🚨 **Critical infrastructure issue** - CDP team investigating indexing pipeline
+
+### Next.js App Router Discovery Issues
+
+**Issue**: Some Next.js App Router implementations fail discovery due to middleware interactions.
+
+**Symptoms**: 
+- Discovery document returns 200 but content-type issues
+- OPTIONS requests not handled properly 
+- CORS headers missing from discovery responses
+
+**Solution**: Ensure proper headers in app/api routes:
+
+```typescript
+export async function GET() {
+  return new Response(JSON.stringify(discoveryDoc), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
+}
+```
 
 ### PayAI Facilitator Schema Validation
 
