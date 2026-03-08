@@ -1,0 +1,7 @@
+{
+  "name": "x402 Bazaar",
+  "description": "Autonomous API marketplace with 69 native x402-payable endpoints (web search, DALL-E 3, weather, crypto, translation, code execution, and more). Multi-chain USDC on Base and SKALE. MCP server via `npx x402-bazaar init`, LangChain Python tools, one-line CLI setup, 505 passing tests.",
+  "logoUrl": "/logos/x402-bazaar.png",
+  "websiteUrl": "https://x402bazaar.org",
+  "category": "Services/Endpoints"
+}
