@@ -139,7 +139,7 @@ The base64 response header decodes to:
 **Example (Failure):**
 
 ```http
-HTTP/1.1 402 Payment Required
+HTTP/1.1 402 Payment Failed
 Content-Type: application/json
 PAYMENT-RESPONSE: eyJzdWNjZXNzIjpmYWxzZSwiZXJyb3JSZWFzb24iOiJpbnN1ZmZpY2llbnRfZnVuZHMiLCJ0cmFuc2FjdGlvbiI6IiIsIm5ldHdvcmsiOiJlaXAxNTU6ODQ1MzIiLCJwYXllciI6IjB4ODU3YjA2NTE5RTkxZTNBNTQ1Mzg3OTFiRGJiMEUyMjM3M2UzNmI2NiJ9
 
