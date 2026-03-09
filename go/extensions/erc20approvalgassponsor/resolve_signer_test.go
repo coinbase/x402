@@ -39,8 +39,8 @@ func (m *mockApprovalSigner) GetChainID(_ context.Context) (*big.Int, error) {
 func (m *mockApprovalSigner) GetCode(_ context.Context, _ string) ([]byte, error) {
 	return []byte{}, nil
 }
-func (m *mockApprovalSigner) SendRawApprovalAndSettle(_ context.Context, _ string, _ WriteContractCall) (string, error) {
-	return "0xtx", nil
+func (m *mockApprovalSigner) SendTransactions(_ context.Context, _ []TransactionRequest) ([]string, error) {
+	return []string{"0xtx"}, nil
 }
 
 func TestResolveSigner_UsesNetworkResolverFirst(t *testing.T) {

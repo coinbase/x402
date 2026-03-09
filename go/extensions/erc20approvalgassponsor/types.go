@@ -51,7 +51,7 @@ type Extension struct {
 }
 
 // WriteContractCall encapsulates arguments for a WriteContract call,
-// used by SendRawApprovalAndSettle to describe the settle operation.
+// used by SendTransactions to describe an unsigned contract call operation.
 type WriteContractCall struct {
 	Address  string
 	ABI      []byte
@@ -59,12 +59,23 @@ type WriteContractCall struct {
 	Args     []interface{}
 }
 
-// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with atomic approve+settle.
-// The signer decides whether to execute the approval and settle sequentially or bundle
-// them atomically (e.g., via Flashbots, multicall, or smart account batching).
+// TransactionRequest represents a single transaction to be executed by the signer.
+// Either Serialized (pre-signed raw transaction) or Call (unsigned intent) must be set.
+type TransactionRequest struct {
+	// Serialized is a pre-signed raw transaction hex (0x-prefixed).
+	// When non-empty, the signer broadcasts it as-is via sendRawTransaction.
+	Serialized string
+	// Call is an unsigned contract write for the signer to sign and execute.
+	// Used when Serialized is empty.
+	Call *WriteContractCall
+}
+
+// Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with multi-transaction execution.
+// The signer owns the execution strategy (sequential, batched, or atomic bundling via
+// Flashbots, multicall, or smart account batching).
 type Erc20ApprovalGasSponsoringSigner interface {
 	evm.FacilitatorEvmSigner
-	SendRawApprovalAndSettle(ctx context.Context, serializedApprovalTx string, settle WriteContractCall) (string, error)
+	SendTransactions(ctx context.Context, transactions []TransactionRequest) ([]string, error)
 }
 
 // Erc20ApprovalFacilitatorExtension carries the signer; registered with the facilitator.

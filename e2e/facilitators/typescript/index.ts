@@ -239,56 +239,24 @@ const erc20AllowanceAbi = [
 
 const erc20ApprovalSigner = {
   ...evmSigner,
-  sendRawApprovalAndSettle: async (args: {
-    serializedApprovalTransaction: `0x${string}`;
-    settle: {
-      address: `0x${string}`;
-      abi: readonly unknown[];
-      functionName: string;
-      args: readonly unknown[];
-    };
-  }): Promise<`0x${string}`> => {
-    const approvalTxHash = await viemClient.sendRawTransaction({
-      serializedTransaction: args.serializedApprovalTransaction,
-    });
-    const receipt = await viemClient.waitForTransactionReceipt({
-      hash: approvalTxHash,
-    });
-    if (receipt.status !== "success") {
-      throw new Error(`erc20_approval_tx_failed: ${approvalTxHash}`);
-    }
-
-    // Poll allowance to guard against load-balanced RPC state lag
-    const MAX_WAIT_MS = 10_000;
-    const POLL_MS = 1_000;
-    const start = Date.now();
-    while (Date.now() - start < MAX_WAIT_MS) {
-      try {
-        const allowance = await viemClient.readContract({
-          address: args.settle.args[0] &&
-            typeof args.settle.args[0] === "object" &&
-            "permitted" in (args.settle.args[0] as Record<string, unknown>)
-            ? ((args.settle.args[0] as { permitted: { token: `0x${string}` } }).permitted.token)
-            : PERMIT2_ADDRESS as `0x${string}`,
-          abi: erc20AllowanceAbi,
-          functionName: "allowance",
-          args: [
-            args.settle.args[1] as `0x${string}`,
-            PERMIT2_ADDRESS,
-          ],
-        });
-        if ((allowance as bigint) > BigInt(0)) break;
-      } catch {
-        // continue polling
+  sendTransactions: async (
+    transactions: (`0x${string}` | { to: `0x${string}`; data: `0x${string}`; gas?: bigint })[],
+  ): Promise<`0x${string}`[]> => {
+    const hashes: `0x${string}`[] = [];
+    for (const tx of transactions) {
+      let hash: `0x${string}`;
+      if (typeof tx === "string") {
+        hash = await viemClient.sendRawTransaction({ serializedTransaction: tx });
+      } else {
+        hash = await viemClient.sendTransaction(tx);
       }
-      await new Promise(resolve => setTimeout(resolve, POLL_MS));
+      const receipt = await viemClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        throw new Error(`transaction_failed: ${hash}`);
+      }
+      hashes.push(hash);
     }
-
-    return viemClient.writeContract({
-      ...args.settle,
-      args: args.settle.args || [],
-      gas: BigInt(300_000),
-    } as any);
+    return hashes;
   },
 };
 

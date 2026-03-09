@@ -435,22 +435,28 @@ func (s *realFacilitatorEvmSigner) sendRawTransaction(ctx context.Context, signe
 	return tx.Hash().Hex(), nil
 }
 
-func (s *realFacilitatorEvmSigner) SendRawApprovalAndSettle(ctx context.Context, serializedApprovalTx string, settle erc20approvalgassponsor.WriteContractCall) (string, error) {
-	approveTxHash, err := s.sendRawTransaction(ctx, serializedApprovalTx)
-	if err != nil {
-		return "", fmt.Errorf("erc20_approval_tx_failed: %w", err)
-	}
-
-	approveReceipt, err := s.WaitForTransactionReceipt(ctx, approveTxHash)
-	if err != nil || approveReceipt.Status != evmmech.TxStatusSuccess {
-		msg := approveTxHash
-		if err != nil {
-			msg = err.Error()
+func (s *realFacilitatorEvmSigner) SendTransactions(ctx context.Context, transactions []erc20approvalgassponsor.TransactionRequest) ([]string, error) {
+	var hashes []string
+	for _, tx := range transactions {
+		var hash string
+		var err error
+		if tx.Serialized != "" {
+			hash, err = s.sendRawTransaction(ctx, tx.Serialized)
+		} else if tx.Call != nil {
+			hash, err = s.WriteContract(ctx, tx.Call.Address, tx.Call.ABI, tx.Call.Function, tx.Call.Args...)
+		} else {
+			return hashes, fmt.Errorf("transaction_failed: empty transaction request")
 		}
-		return "", fmt.Errorf("erc20_approval_tx_failed: %s", msg)
+		if err != nil {
+			return hashes, fmt.Errorf("transaction_failed: %w", err)
+		}
+		receipt, err := s.WaitForTransactionReceipt(ctx, hash)
+		if err != nil || receipt.Status != evmmech.TxStatusSuccess {
+			return hashes, fmt.Errorf("transaction_failed: %s", hash)
+		}
+		hashes = append(hashes, hash)
 	}
-
-	return s.WriteContract(ctx, settle.Address, settle.ABI, settle.Function, settle.Args...)
+	return hashes, nil
 }
 
 // Helper functions for type conversion

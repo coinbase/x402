@@ -1241,10 +1241,10 @@ describe("ExactEvmScheme (Facilitator)", () => {
         });
 
       const SETTLE_TX_HASH = "0xsettle_tx_hash_mock" as `0x${string}`;
-      const mockSendRawApprovalAndSettle = vi.fn().mockResolvedValue(SETTLE_TX_HASH);
+      const mockSendTransactions = vi.fn().mockResolvedValue([SETTLE_TX_HASH]);
       const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
 
-      // Extension signer has all FacilitatorEvmSigner methods + sendRawApprovalAndSettle
+      // Extension signer has all FacilitatorEvmSigner methods + sendTransactions
       const mockContext = {
         getExtension: vi.fn().mockImplementation((key: string) => {
           if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
@@ -1258,7 +1258,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
                 sendTransaction: vi.fn(),
                 waitForTransactionReceipt: mockExtWaitForReceipt,
                 getCode: vi.fn().mockResolvedValue("0x"),
-                sendRawApprovalAndSettle: mockSendRawApprovalAndSettle,
+                sendTransactions: mockSendTransactions,
               },
             };
           }
@@ -1269,11 +1269,12 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const payload = makeErc20Permit2Payload(makeValidErc20Extension());
       const result = await facilitator.settle(payload, erc20Requirements, mockContext);
 
-      // Extension signer called sendRawApprovalAndSettle with approval tx + settle args
-      expect(mockSendRawApprovalAndSettle).toHaveBeenCalled();
-      const call = mockSendRawApprovalAndSettle.mock.calls[0][0];
-      expect(call.serializedApprovalTransaction).toBe(MOCK_SIGNED_TX);
-      expect(call.settle.functionName).toBe("settle");
+      // Extension signer called sendTransactions with [approvalTx, settleCall]
+      expect(mockSendTransactions).toHaveBeenCalled();
+      const transactions = mockSendTransactions.mock.calls[0][0];
+      expect(transactions[0]).toBe(MOCK_SIGNED_TX);
+      expect(transactions[1]).toHaveProperty("to");
+      expect(transactions[1]).toHaveProperty("data");
 
       // Base signer's writeContract should NOT have been called
       expect(mockFacilitatorSigner.writeContract).not.toHaveBeenCalled();
@@ -1297,11 +1298,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
           return Promise.resolve(0n);
         });
 
-      const selectedSignerApprovalAndSettle = vi
+      const selectedSignerSendTransactions = vi
         .fn()
-        .mockResolvedValue("0xsettle_hash" as `0x${string}`);
+        .mockResolvedValue(["0xsettle_hash" as `0x${string}`]);
       const selectedSignerWait = vi.fn().mockResolvedValue({ status: "success" });
-      const fallbackSignerApprovalAndSettle = vi.fn();
+      const fallbackSignerSendTransactions = vi.fn();
 
       const mockContext = {
         getExtension: vi.fn().mockImplementation((key: string) => {
@@ -1316,7 +1317,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
               sendTransaction: vi.fn(),
               waitForTransactionReceipt: selectedSignerWait,
               getCode: vi.fn().mockResolvedValue("0x"),
-              sendRawApprovalAndSettle: fallbackSignerApprovalAndSettle,
+              sendTransactions: fallbackSignerSendTransactions,
             },
             signerForNetwork: (network: string) => {
               if (network !== "eip155:84532") return undefined;
@@ -1328,7 +1329,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
                 sendTransaction: vi.fn(),
                 waitForTransactionReceipt: selectedSignerWait,
                 getCode: vi.fn().mockResolvedValue("0x"),
-                sendRawApprovalAndSettle: selectedSignerApprovalAndSettle,
+                sendTransactions: selectedSignerSendTransactions,
               };
             },
           };
@@ -1338,8 +1339,8 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const payload = makeErc20Permit2Payload(makeValidErc20Extension());
       await facilitator.settle(payload, erc20Requirements, mockContext);
 
-      expect(selectedSignerApprovalAndSettle).toHaveBeenCalled();
-      expect(fallbackSignerApprovalAndSettle).not.toHaveBeenCalled();
+      expect(selectedSignerSendTransactions).toHaveBeenCalled();
+      expect(fallbackSignerSendTransactions).not.toHaveBeenCalled();
     });
   });
 });

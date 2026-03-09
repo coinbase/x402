@@ -287,6 +287,7 @@ func SettlePermit2(
 			signatureBytes,
 		)
 	case erc20Info != nil && facilCtx != nil:
+		// Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
 		var extensionSigner erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner
 		if ok && ext != nil {
@@ -299,7 +300,15 @@ func SettlePermit2(
 				Function: evm.FunctionSettle,
 				Args:     []interface{}{permitStruct, common.HexToAddress(payer), witnessStruct, signatureBytes},
 			}
-			txHash, err = extensionSigner.SendRawApprovalAndSettle(ctx, erc20Info.SignedTransaction, settle)
+			txHashes, sendErr := extensionSigner.SendTransactions(ctx, []erc20approvalgassponsor.TransactionRequest{
+				{Serialized: erc20Info.SignedTransaction},
+				{Call: &settle},
+			})
+			if sendErr != nil {
+				err = sendErr
+			} else if len(txHashes) > 0 {
+				txHash = txHashes[len(txHashes)-1]
+			}
 		} else {
 			txHash, err = signer.WriteContract(
 				ctx,

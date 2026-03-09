@@ -27,16 +27,17 @@ export interface Erc20ApprovalGasSponsoringInfo {
   version: string;
 }
 
+/**
+ * A single transaction to be executed by the signer.
+ * - `0x${string}`: a pre-signed serialized transaction (broadcast as-is via sendRawTransaction)
+ * - `{ to, data, gas? }`: an unsigned call intent (signer signs and broadcasts)
+ */
+export type TransactionRequest =
+  | `0x${string}`
+  | { to: `0x${string}`; data: `0x${string}`; gas?: bigint };
+
 export type Erc20ApprovalGasSponsoringSigner = FacilitatorEvmSigner & {
-  sendRawApprovalAndSettle(args: {
-    serializedApprovalTransaction: `0x${string}`;
-    settle: {
-      address: `0x${string}`;
-      abi: readonly unknown[];
-      functionName: string;
-      args: readonly unknown[];
-    };
-  }): Promise<`0x${string}`>;
+  sendTransactions(transactions: TransactionRequest[]): Promise<`0x${string}`[]>;
 };
 
 export interface Erc20ApprovalGasSponsoringFacilitatorExtension {

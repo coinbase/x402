@@ -15,7 +15,7 @@ import {
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../extensions";
-import { getAddress } from "viem";
+import { getAddress, encodeFunctionData } from "viem";
 import {
   eip3009ABI,
   PERMIT2_ADDRESS,
@@ -252,18 +252,20 @@ async function _verifyPermit2Allowance(
     })) as bigint;
 
     if (allowance >= BigInt(requirements.amount)) {
-      return null;
+      return null; // Sufficient allowance, continue verification
     }
 
+    // Allowance insufficient — try EIP-2612 gas sponsoring first
     const eip2612Info = extractEip2612GasSponsoringInfo(payload);
     if (eip2612Info) {
       const result = validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress);
       if (!result.isValid) {
         return { isValid: false, invalidReason: result.invalidReason!, payer };
       }
-      return null;
+      return null; // EIP-2612 is valid, allowance will be set atomically during settlement
     }
 
+    // Try ERC-20 approval gas sponsoring as fallback
     const erc20GasSponsorshipExtension =
       context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
         ERC20_APPROVAL_GAS_SPONSORING_KEY,
@@ -275,7 +277,7 @@ async function _verifyPermit2Allowance(
         if (!result.isValid) {
           return { isValid: false, invalidReason: result.invalidReason!, payer };
         }
-        return null;
+        return null; // ERC-20 approval is valid, will be broadcast before settlement
       }
     }
 
@@ -344,11 +346,13 @@ export async function settlePermit2(
     };
   }
 
+  // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
   if (eip2612Info) {
     return _settlePermit2WithEIP2612(signer, payload, permit2Payload, eip2612Info);
   }
 
+  // Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
   const erc20Info = extractErc20ApprovalGasSponsoringInfo(payload);
   if (erc20Info) {
     const erc20GasSponsorshipExtension =
@@ -363,6 +367,8 @@ export async function settlePermit2(
       return _settlePermit2WithERC20Approval(extensionSigner, payload, permit2Payload, erc20Info);
     }
   }
+
+  // Branch: standard settle (allowance already on-chain)
   return _settlePermit2Direct(signer, payload, permit2Payload);
 }
 
@@ -421,10 +427,10 @@ async function _settlePermit2WithEIP2612(
 }
 
 /**
- * Delegates the full approve+settle flow to the extension signer via sendRawApprovalAndSettle.
- * The signer decides whether to execute sequentially or bundle atomically.
+ * Delegates the full approve+settle flow to the extension signer via sendTransactions.
+ * The signer owns execution strategy (sequential, batched, or atomic bundling).
  *
- * @param extensionSigner - The extension signer with sendRawApprovalAndSettle
+ * @param extensionSigner - The extension signer with sendTransactions
  * @param payload - The payment payload
  * @param permit2Payload - The Permit2 specific payload
  * @param erc20Info - Object containing the signed approval transaction
@@ -440,32 +446,34 @@ async function _settlePermit2WithERC20Approval(
   const payer = permit2Payload.permit2Authorization.from;
 
   try {
-    const tx = await extensionSigner.sendRawApprovalAndSettle({
-      serializedApprovalTransaction: erc20Info.signedTransaction as `0x${string}`,
-      settle: {
-        address: x402ExactPermit2ProxyAddress,
-        abi: x402ExactPermit2ProxyABI as readonly unknown[],
-        functionName: "settle",
-        args: [
-          {
-            permitted: {
-              token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-              amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
-            },
-            nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-            deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+    const settleData = encodeFunctionData({
+      abi: x402ExactPermit2ProxyABI,
+      functionName: "settle",
+      args: [
+        {
+          permitted: {
+            token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+            amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
           },
-          getAddress(payer),
-          {
-            to: getAddress(permit2Payload.permit2Authorization.witness.to),
-            validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-          },
-          permit2Payload.signature,
-        ],
-      },
+          nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+          deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+        },
+        getAddress(payer),
+        {
+          to: getAddress(permit2Payload.permit2Authorization.witness.to),
+          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+        },
+        permit2Payload.signature,
+      ],
     });
 
-    return _waitAndReturn(extensionSigner, tx, payload, payer);
+    const txHashes = await extensionSigner.sendTransactions([
+      erc20Info.signedTransaction as `0x${string}`,
+      { to: x402ExactPermit2ProxyAddress, data: settleData, gas: BigInt(300_000) },
+    ]);
+
+    const settleTxHash = txHashes[txHashes.length - 1];
+    return _waitAndReturn(extensionSigner, settleTxHash, payload, payer);
   } catch (error) {
     return _mapSettleError(error, payload, payer);
   }
