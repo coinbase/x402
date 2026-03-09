@@ -1,0 +1,46 @@
+{
+  "id": "social-intel-api",
+  "name": "Social Intel API",
+  "logo": "https://api.socialintel.dev/logo.png",
+  "url": "https://api.socialintel.dev",
+  "description": "Instagram influencer search API — AI agents can search Instagram profiles by keyword and receive follower counts, engagement rates, and audience insights via x402 micropayments.",
+  "category": "services",
+  "tags": ["social", "instagram", "influencer", "search", "analytics", "mcp"],
+  "ecosystem": {
+    "type": "service",
+    "facilitator": "cdp",
+    "chains": ["base"],
+    "pricing": "$0.10 USDC per search request",
+    "endpoints": 1,
+    "discoveryUrl": "https://api.socialintel.dev/.well-known/x402",
+    "bazaarUrl": "https://api.socialintel.dev/.well-known/mcp/server-card.json"
+  },
+  "links": {
+    "website": "https://api.socialintel.dev",
+    "docs": "https://api.socialintel.dev/docs",
+    "mcp": "https://github.com/socialinteldev/social-intel-mcp"
+  },
+  "integration": {
+    "mcp": {
+      "available": true,
+      "repository": "https://github.com/socialinteldev/social-intel-mcp",
+      "serverCard": "https://api.socialintel.dev/.well-known/mcp/server-card.json"
+    },
+    "payment": {
+      "facilitator": "cdp",
+      "sellerWallet": "0xB1Acd9E0269023546074400A434e703B646AaBBa",
+      "pricePerCall": 0.10,
+      "currency": "USDC",
+      "chain": "Base"
+    }
+  },
+  "features": [
+    "Instagram profile search by keyword",
+    "Follower counts and engagement metrics",
+    "Audience insights and analytics",
+    "MCP server integration for Claude/agents",
+    "No API keys or subscriptions required",
+    "Pay-per-request x402 micropayments"
+  ],
+  "launched": "2026-03-09"
+}
