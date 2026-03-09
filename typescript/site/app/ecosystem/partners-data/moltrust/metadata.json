@@ -1,0 +1,7 @@
+{
+  "name": "MolTrust",
+  "description": "Trust infrastructure for the agent economy. W3C DID-based identity, reputation scoring, sybil detection, and Verifiable Credentials for AI agents. x402-gated APIs: agent scoring, skill security auditing, shopping/travel/prediction market verification. USDC on Base.",
+  "logoUrl": "/logos/moltrust.png",
+  "websiteUrl": "https://moltrust.ch",
+  "category": "Services/Endpoints"
+}
