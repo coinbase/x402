@@ -1,0 +1,34 @@
+{
+  "name": "axios",
+  "type": "client",
+  "language": "typescript",
+  "protocolFamilies": [
+    "evm",
+    "svm",
+    "aptos"
+  ],
+  "x402Versions": [
+    1,
+    2
+  ],
+  "evm": {
+    "transferMethods": [
+      "eip3009",
+      "permit2"
+    ]
+  },
+  "extensions": [
+    "eip2612GasSponsoring"
+  ],
+  "environment": {
+    "required": [
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY",
+      "RESOURCE_SERVER_URL",
+      "ENDPOINT_PATH"
+    ],
+    "optional": [
+      "APTOS_PRIVATE_KEY"
+    ]
+  }
+}

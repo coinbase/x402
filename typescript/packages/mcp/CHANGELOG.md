@@ -1,0 +1,13 @@
+# @x402/mcp Changelog
+
+## 2.3.0
+
+### Patch Changes
+
+- 9ec9f15: Fixed select payment requirements
+- Updated dependencies [9ec9f15]
+  - @x402/core@2.3.1
+
+## 2.3.0-alpha
+
+- Initial alpha prerelease of @x402/mcp package for Model Context Protocol integration with x402 payment protocol.

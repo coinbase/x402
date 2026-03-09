@@ -1,0 +1,7 @@
+{
+  "name": "anybrowse",
+  "description": "URL-to-Markdown scraping API with native x402 micropayment support. AI agents pay per scrape in USDC on Base — no API keys needed.",
+  "logoUrl": "/logos/anybrowse.png",
+  "websiteUrl": "https://anybrowse.dev",
+  "category": "Services/Endpoints"
+}

@@ -1,0 +1,34 @@
+{
+  "name": "typescript",
+  "type": "facilitator",
+  "language": "typescript",
+  "protocolFamilies": [
+    "evm",
+    "svm",
+    "aptos"
+  ],
+  "x402Versions": [
+    1,
+    2
+  ],
+  "extensions": [
+    "bazaar",
+    "eip2612GasSponsoring"
+  ],
+  "evm": {
+    "transferMethods": ["eip3009", "permit2"]
+  },
+  "environment": {
+    "required": [
+      "PORT",
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
+    ],
+    "optional": [
+      "APTOS_PRIVATE_KEY",
+      "EVM_NETWORK",
+      "SVM_NETWORK",
+      "APTOS_NETWORK"
+    ]
+  }
+}
