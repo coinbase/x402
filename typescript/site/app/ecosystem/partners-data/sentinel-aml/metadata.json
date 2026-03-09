@@ -1,0 +1,25 @@
+{
+  "name": "SENTINEL",
+  "description": "AML/CFT compliance facilitator for x402 payments. Screens payer wallets against sanctions, PEPs, on-chain blacklists, and financial crime databases before settlement. 11-layer screening pipeline with fund flow tracing, operator attestation, and Travel Rule support.",
+  "logoUrl": "/logos/sentinel-aml.svg",
+  "websiteUrl": "https://mru-oracle.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://mru-oracle.com/facilitator",
+    "networks": [
+      "base"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "USDC"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
