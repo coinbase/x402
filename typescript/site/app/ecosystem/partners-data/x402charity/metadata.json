@@ -1,0 +1,7 @@
+{
+  "name": "x402charity",
+  "category": "Platforms and Tools",
+  "logoUrl": "/logos/x402charity.png",
+  "description": "Open-source micro-donation server that enables automated USDC micro-donations triggered by user actions. Features Express/Next.js middleware, CLI tools, and sub-cent donation capability on Base L2 with transparent on-chain tracking.",
+  "websiteUrl": "https://x402charity.com"
+}
