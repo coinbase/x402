@@ -1,0 +1,7 @@
+{
+  "name": "Social Intel API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/social-intel.png",
+  "description": "AI-native Instagram data API with built-in x402 payments. Get followers, engagement metrics, and lead data for any public profile — pay-per-request in USDC on Base, no subscriptions needed.",
+  "websiteUrl": "https://socialintel.dev"
+}
