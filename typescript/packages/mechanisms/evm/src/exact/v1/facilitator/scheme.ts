@@ -146,49 +146,43 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         const bytecode = await this.signer.getCode({ address: payerAddress });
 
         if (!bytecode || bytecode === "0x") {
-          // Wallet not deployed - attempt deployment
-          try {
-            // Send the factory calldata directly as a transaction
-            // The factoryCalldata already contains the complete encoded function call
-            const deployTx = await this.signer.sendTransaction({
-              to: factoryAddress as Hex,
-              data: factoryCalldata as Hex,
-            });
+          // Send the factory calldata directly as a transaction
+          // The factoryCalldata already contains the complete encoded function call
+          const deployTx = await this.signer.sendTransaction({
+            to: factoryAddress as Hex,
+            data: factoryCalldata as Hex,
+          });
 
-            // Wait for deployment transaction
-            await this.signer.waitForTransactionReceipt({ hash: deployTx });
-          } catch (deployError) {
-            // Deployment failed - cannot proceed
-            throw deployError;
-          }
+          // Wait for deployment transaction
+          await this.signer.waitForTransactionReceipt({ hash: deployTx });
         }
+      }
 
-        const tx = await executeTransferWithAuthorization(
-          this.signer,
-          getAddress(requirements.asset),
-          exactEvmPayload,
-        );
+      const tx = await executeTransferWithAuthorization(
+        this.signer,
+        getAddress(requirements.asset),
+        exactEvmPayload,
+      );
 
-        // Wait for transaction confirmation
-        const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
+      // Wait for transaction confirmation
+      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
 
-        if (receipt.status !== "success") {
-          return {
-            success: false,
-            errorReason: Errors.ErrTransactionFailed,
-            transaction: tx,
-            network: payloadV1.network,
-            payer: exactEvmPayload.authorization.from,
-          };
-        }
-
+      if (receipt.status !== "success") {
         return {
-          success: true,
+          success: false,
+          errorReason: Errors.ErrTransactionFailed,
           transaction: tx,
           network: payloadV1.network,
           payer: exactEvmPayload.authorization.from,
         };
       }
+
+      return {
+        success: true,
+        transaction: tx,
+        network: payloadV1.network,
+        payer: exactEvmPayload.authorization.from,
+      };
     } catch (error) {
       return {
         success: false,
@@ -198,31 +192,6 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         payer: exactEvmPayload.authorization.from,
       };
     }
-
-    // No EIP-6492 deployment path: execute transfer directly
-    const tx = await executeTransferWithAuthorization(
-      this.signer,
-      getAddress(requirements.asset),
-      exactEvmPayload,
-    );
-    const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
-
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: Errors.ErrTransactionFailed,
-        transaction: tx,
-        network: payloadV1.network,
-        payer: exactEvmPayload.authorization.from,
-      };
-    }
-
-    return {
-      success: true,
-      transaction: tx,
-      network: payloadV1.network,
-      payer: exactEvmPayload.authorization.from,
-    };
   }
 
   /**
@@ -242,7 +211,9 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     const payloadV1 = payload as unknown as PaymentPayloadV1;
     const exactEvmPayload = payload.payload as ExactEvmPayloadV1;
     const payer = exactEvmPayload.authorization.from;
-    let eip6492Deployment: { factoryAddress: string; factoryCalldata: string } | undefined;
+    let eip6492Deployment:
+      | { factoryAddress: `0x${string}`; factoryCalldata: `0x${string}` }
+      | undefined;
 
     // Verify scheme matches
     if (payloadV1.scheme !== "exact" || requirements.scheme !== "exact") {
@@ -396,13 +367,13 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
 
     // Transaction simulation
     if (options?.simulate !== false) {
-      const simulationFailed = await simulateEip3009Transfer(
+      const simulationSucceeded = await simulateEip3009Transfer(
         this.signer,
         erc20Address,
         exactEvmPayload,
         eip6492Deployment,
       );
-      if (simulationFailed) {
+      if (!simulationSucceeded) {
         return diagnoseEip3009SimulationFailure(
           this.signer,
           erc20Address,

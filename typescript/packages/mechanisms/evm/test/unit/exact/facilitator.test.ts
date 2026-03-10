@@ -998,9 +998,10 @@ describe("ExactEvmScheme (Facilitator)", () => {
         .fn()
         .mockRejectedValue(new Error("execution reverted"));
 
-      await expect(
-        facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements),
-      ).rejects.toThrow("execution reverted");
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrEip3009SimulationFailed);
     });
   });
 

@@ -7,20 +7,20 @@ import { ExactEIP3009Payload } from "../../types";
 import * as Errors from "./errors";
 
 export interface Eip6492Deployment {
-  factoryAddress: string;
-  factoryCalldata: string;
+  factoryAddress: `0x${string}`;
+  factoryCalldata: `0x${string}`;
 }
 
 /**
  * Simulates transferWithAuthorization via eth_call.
- * Returns true if simulation failed, false if it succeeded.
+ * Returns true if simulation succeeded, false if it failed.
  *
  * @param signer - EVM signer for contract reads
  * @param erc20Address - ERC-20 token contract address
  * @param payload - EIP-3009 transfer authorization payload
  * @param eip6492Deployment - Optional EIP-6492 factory info for undeployed smart wallets
  *
- * @returns true if simulation failed, false if it succeeded
+ * @returns true if simulation succeeded, false if it failed
  */
 export async function simulateEip3009Transfer(
   signer: FacilitatorEvmSigner,
@@ -46,18 +46,22 @@ export async function simulateEip3009Transfer(
       args: [...transferArgs, innerSignature],
     });
 
-    const results = await multicall(signer.readContract.bind(signer), [
-      {
-        address: getAddress(eip6492Deployment.factoryAddress),
-        callData: eip6492Deployment.factoryCalldata as Hex,
-      } satisfies RawContractCall,
-      {
-        address: erc20Address,
-        callData: transferCalldata,
-      } satisfies RawContractCall,
-    ]);
+    try {
+      const results = await multicall(signer.readContract.bind(signer), [
+        {
+          address: getAddress(eip6492Deployment.factoryAddress),
+          callData: eip6492Deployment.factoryCalldata,
+        } satisfies RawContractCall,
+        {
+          address: erc20Address,
+          callData: transferCalldata,
+        } satisfies RawContractCall,
+      ]);
 
-    return results[1]?.status !== "success";
+      return results[1]?.status === "success";
+    } catch {
+      return false;
+    }
   }
 
   const sig = payload.signature!;
@@ -86,9 +90,9 @@ export async function simulateEip3009Transfer(
         args: [...transferArgs, sig],
       });
     }
-    return false;
-  } catch {
     return true;
+  } catch {
+    return false;
   }
 }
 

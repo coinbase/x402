@@ -55,7 +55,9 @@ export async function verifyEIP3009(
   options?: VerifyEIP3009Options,
 ): Promise<VerifyResponse> {
   const payer = eip3009Payload.authorization.from;
-  let eip6492Deployment: { factoryAddress: string; factoryCalldata: string } | undefined;
+  let eip6492Deployment:
+    | { factoryAddress: `0x${string}`; factoryCalldata: `0x${string}` }
+    | undefined;
 
   // Verify scheme matches
   if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
@@ -206,13 +208,13 @@ export async function verifyEIP3009(
 
   // Transaction simulation
   if (options?.simulate !== false) {
-    const simulationFailed = await simulateEip3009Transfer(
+    const simulationSucceeded = await simulateEip3009Transfer(
       signer,
       erc20Address,
       eip3009Payload,
       eip6492Deployment,
     );
-    if (simulationFailed) {
+    if (!simulationSucceeded) {
       return diagnoseEip3009SimulationFailure(
         signer,
         erc20Address,
