@@ -158,6 +158,56 @@ The base64 response header decodes to:
 }
 ```
 
+## Agent Verification Header
+
+The HTTP transport supports optional agent verification using the `X-AGENT-VERIFICATION` header for Know Your Agent (KYA) scenarios.
+
+**Mechanism**: `X-AGENT-VERIFICATION` header containing verification credentials
+**Data Format**: JWS (JSON Web Signature) or other verification tokens
+**Direction**: Client → Server
+
+This header enables clients to present cryptographically verifiable proof of:
+- Agent authorization and delegation chains (human → agent → sub-agent)
+- Identity claims and selective disclosure proofs
+- Reputation and trust attestations
+- Compliance and regulatory verification
+
+**Example with ProofPack JWT:**
+
+```http
+POST /premium-data HTTP/1.1
+Host: api.example.com
+X-AGENT-VERIFICATION: eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QiLCJjdHkiOiJhcHBsaWNhdGlvbi9hdHRlc3RlZC1tZXJrbGUtZXhjaGFuZ2UranNvbiJ9.eyJtZXJrbGVUcmVlIjp7ImhlYWRlciI6eyJ0eXAiOiJhcHBsaWNhdGlvbi9tZXJrbGUtZXhjaGFuZ2UtMy4wK2pzb24ifSwibGVhdmVzIjpbeyJkYXRhIjoiMHg3YjIyNjE2Yzc5MjMyMzNhMjI1MzQ4NDEzMjM1MzYyMjJjMjI2Yzc2N2E3OTQxNzM3OTMwMjAiLCJzYWx0IjoiMHgzZDI5ZTk0MmNjNzdhN2U3N2RhZDQzYmZiY2JkNWJlMyIsImhhc2giOiIweGU3NzAwN2Q3NjI3ZWIzZWIzMzRhNTU2MzQzYThlZjBiNWM5NTgyMDYxMTk1NDQxYjJkOWUxOGIzMjUwMTg5N2YiLCJjb250ZW50VHlwZSI6ImFwcGxpY2F0aW9uL2pzb247Y2hhcnNldD11dGYtODtlbmNvZGluZz1oZXgifV0sInJvb3QiOiIweDEzMTZmYzBmM2Q3Njk4OGNiNGY2NjBiZGY5N2ZmZjcwZGY3YmY5MGE1ZmYzNDJmZmMzYmFhMDllZDNjMjgwZTUifSwiYXR0ZXN0YXRpb24iOnsiZWFzIjp7Im5ldHdvcmsiOiJiYXNlLXNlcG9saWEiLCJhdHRlc3RhdGlvblVpZCI6IjB4MjdlMDgyZmNhZDUxN2RiNGIyODAzOWExZjg5ZDc2MzgxOTA1ZjZmODYwNWJlNzUzNzAwOGRlYjAwMmY1ODVlZiIsImZyb20iOiIweDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAiLCJ0byI6IjB4MDk4NzY1NDMyMTA5ODc2NTQzMjEwOTg3NjU0MzIxMDk4NzY1NDMyMSIsInNjaGVtYSI6eyJzY2hlbWFVaWQiOiIweDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJuYW1lIjoiQWdlbnRBdXRob3JpemF0aW9uIn19fSwidGltZXN0YW1wIjoiMjAyNS0wMS0xNVQxMjowMDowMFoiLCJub25jZSI6IjdmZGZjZDg1ZDQ3NmJjMjhiYjUzNTZkMTVhZmYyYmJjIiwiaXNzdWVkVG8iOnsid2FsbGV0IjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzODc5MWJEYmIwRTIyMzczZTM2YjY2In19.bd55fef2ed35fbac338f19a412c65f2fc59456d01f00da2e51f4488528634f6363dbac63cb52a80e4105847208130d81c0f00853c9019596de12e89bea1f77fd
+PAYMENT-SIGNATURE: eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20vcHJlbWl1bS1kYXRhIn0sImFjY2VwdGVkIjp7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzMiJ9LCJwYXlsb2FkIjp7InNpZ25hdHVyZSI6IjB4MmQ2YTc1ODhkNmFjY2E1MDVjYmYwZDlhNGEyMjdlMGM1MmM2YzM0MDA4YzhlODk4NmExMjgzMjU5NzY0MTczNjA4YTJjZTY0OTY2NDJlMzc3ZDZkYThkYmJmNTgzNmU5YmQxNTA5MmY5ZWNhYjA1ZGVkM2Q2MjkzYWYxNDhiNTcxYyJ9fQ==
+Content-Type: application/json
+
+{
+  "query": "latest market data"
+}
+```
+
+The JWT payload contains a ProofPack structure with:
+- **Merkle Tree**: Selective disclosure of agent identity claims
+- **Attestation**: Blockchain attestation proving agent authorization 
+- **Timestamp/Nonce**: Replay attack protection
+- **Issued To**: Wallet address of the authorized agent
+
+**Use Cases:**
+- **Agent Delegation**: Proving an AI agent is authorized to act on behalf of a human
+- **Compliance Verification**: Demonstrating agent meets regulatory requirements
+- **Identity Claims**: Selective disclosure of agent operator's nationality, jurisdiction, or other attributes
+- **Reputation Systems**: Presenting trust scores and historical attestations
+
+**Verification Process:**
+1. Server validates JWT signature using attester's public key
+2. Verifies attestation exists on specified blockchain network
+3. Checks Merkle root matches disclosed data
+4. Validates timestamp is within acceptable window
+5. Ensures nonce has not been used before (replay protection)
+6. Confirms agent wallet matches the attested address
+
+This header is independent of the `Authorization` header, which remains available for traditional application-level authentication tokens.
+
 ## Header Summary
 
 | Header | Direction | Description |
@@ -165,6 +215,7 @@ The base64 response header decodes to:
 | `PAYMENT-REQUIRED` | Server → Client | Base64-encoded `PaymentRequired` object |
 | `PAYMENT-SIGNATURE` | Client → Server | Base64-encoded `PaymentPayload` object |
 | `PAYMENT-RESPONSE` | Server → Client | Base64-encoded `SettlementResponse` object |
+| `X-AGENT-VERIFICATION` | Client → Server | JWS/JWT containing agent verification credentials (optional) |
 
 ## Response Body
 
