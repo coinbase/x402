@@ -21,20 +21,21 @@ if (!facilitatorUrl) {
 }
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const accepts: { scheme: string; price: string; network: `${string}:${string}`; payTo: string }[] = [
-  {
-    scheme: "exact",
-    price: "$0.001",
-    network: "eip155:84532",
-    payTo: evmAddress,
-  },
-  {
-    scheme: "exact",
-    price: "$0.001",
-    network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
-    payTo: avmAddress,
-  },
-];
+const accepts: { scheme: string; price: string; network: `${string}:${string}`; payTo: string }[] =
+  [
+    {
+      scheme: "exact",
+      price: "$0.001",
+      network: "eip155:84532",
+      payTo: evmAddress,
+    },
+    {
+      scheme: "exact",
+      price: "$0.001",
+      network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+      payTo: avmAddress,
+    },
+  ];
 
 const server = new x402ResourceServer(facilitatorClient)
   .register("eip155:84532", new ExactEvmScheme())

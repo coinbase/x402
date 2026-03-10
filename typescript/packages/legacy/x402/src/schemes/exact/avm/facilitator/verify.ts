@@ -2,7 +2,6 @@ import {
   decodeSignedTransaction as decodeSignedTxn,
   decodeTransaction as decodeUnsignedTxn,
   encodeSignedTransaction,
-  encodeTransactionRaw,
 } from "@algorandfoundation/algokit-utils/transact";
 import type { SignedTransaction, Transaction } from "@algorandfoundation/algokit-utils/transact";
 import { PaymentPayload, PaymentRequirements, VerifyResponse } from "../../../../types/verify";

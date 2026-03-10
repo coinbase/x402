@@ -22,7 +22,9 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const accepts: {
   scheme: string;
-  price: string | ((context: { adapter: { getQueryParam?: (param: string) => string | undefined } }) => string);
+  price:
+    | string
+    | ((context: { adapter: { getQueryParam?: (param: string) => string | undefined } }) => string);
   network: `${string}:${string}`;
   payTo: string;
 }[] = [

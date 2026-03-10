@@ -4,9 +4,7 @@
  * Provides V1 API compatibility for Algorand ASA transfer verification and settlement.
  */
 
-import {
-  decodeSignedTransaction as decodeSignedTxn,
-} from '@algorandfoundation/algokit-utils/transact'
+import { decodeSignedTransaction as decodeSignedTxn } from '@algorandfoundation/algokit-utils/transact'
 import type { SignedTransaction } from '@algorandfoundation/algokit-utils/transact'
 import type {
   PaymentPayload,

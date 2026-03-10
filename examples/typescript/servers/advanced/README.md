@@ -395,7 +395,12 @@ app.use(
       "GET /weather": {
         accepts: [
           { scheme: "exact", price: "$0.001", network: "eip155:84532", payTo: evmAddress },
-          { scheme: "exact", price: "$0.001", network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", payTo: avmAddress },
+          {
+            scheme: "exact",
+            price: "$0.001",
+            network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+            payTo: avmAddress,
+          },
         ],
       },
     },
@@ -418,7 +423,12 @@ const server = new x402ResourceServer(facilitatorClient)
 
 const accepts: AcceptConfig[] = [
   { scheme: "exact", price: "$0.001", network: "eip155:84532", payTo: evmAddress },
-  { scheme: "exact", price: "$0.001", network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", payTo: avmAddress },
+  {
+    scheme: "exact",
+    price: "$0.001",
+    network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+    payTo: avmAddress,
+  },
 ];
 ```
 
@@ -430,7 +440,12 @@ const dynamicPrice = context => {
   return tier === "premium" ? "$0.005" : "$0.001";
 };
 
-accepts.push({ scheme: "exact", price: dynamicPrice, network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", payTo: avmAddress });
+accepts.push({
+  scheme: "exact",
+  price: dynamicPrice,
+  network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+  payTo: avmAddress,
+});
 ```
 
 ### AVM Dynamic PayTo Example

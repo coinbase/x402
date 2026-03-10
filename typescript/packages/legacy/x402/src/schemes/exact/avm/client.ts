@@ -1,7 +1,6 @@
 import { PaymentPayload, PaymentRequirements } from "../../../types/verify";
 import { ExactAvmPayload, WalletAccount, AlgorandClient } from "./types";
 import { encodePayment } from "./utils/paymentUtils";
-import { AlgodClient } from "@algorandfoundation/algokit-utils/algod-client";
 import { Address } from "@algorandfoundation/algokit-utils/common";
 import {
   Transaction,

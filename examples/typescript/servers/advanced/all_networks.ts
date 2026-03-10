@@ -27,7 +27,9 @@ const stellarAddress = process.env.STELLAR_ADDRESS as string | undefined;
 
 // Validate at least one address is provided
 if (!avmAddress && !evmAddress && !svmAddress && !stellarAddress) {
-  console.error("❌ At least one of AVM_ADDRESS, EVM_ADDRESS, SVM_ADDRESS, or STELLAR_ADDRESS is required");
+  console.error(
+    "❌ At least one of AVM_ADDRESS, EVM_ADDRESS, SVM_ADDRESS, or STELLAR_ADDRESS is required",
+  );
   process.exit(1);
 }
 

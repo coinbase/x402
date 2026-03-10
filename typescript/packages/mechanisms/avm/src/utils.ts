@@ -246,6 +246,7 @@ export function caip2ToV1(caip2Network: string): string {
  * Gets the genesis hash from a transaction
  *
  * @param txn - The transaction object
+ * @param txn.genesisHash - The genesis hash bytes
  * @returns Base64 encoded genesis hash
  */
 export function getGenesisHashFromTransaction(txn: { genesisHash?: Uint8Array }): string {

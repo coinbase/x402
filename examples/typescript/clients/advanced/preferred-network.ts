@@ -21,6 +21,7 @@ import { x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
  *
  * @param evmPrivateKey - The EVM private key for signing
  * @param svmPrivateKey - The SVM private key for signing
+ * @param avmPrivateKey - The AVM private key for signing
  * @param url - The URL to make the request to
  */
 export async function runPreferredNetworkExample(

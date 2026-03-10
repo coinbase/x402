@@ -71,7 +71,10 @@ function assertAvmNetwork(network: Network): asserts network is SupportedAvmNetw
  * @param options - Optional configuration for the Algorand client
  * @returns An AlgodClient instance configured for the specified network
  */
-function resolveAlgodClient(network: SupportedAvmNetwork, options?: AlgodClientOptions): AlgodClient {
+function resolveAlgodClient(
+  network: SupportedAvmNetwork,
+  options?: AlgodClientOptions,
+): AlgodClient {
   const server = options?.algodServer ?? DEFAULT_ALGOD_ENDPOINTS[network];
   if (!server) {
     throw new Error(`No algod endpoint configured for network: ${network}`);
@@ -159,6 +162,8 @@ export function createSigner(
  * Creates an AVM signer from account derivation data
  *
  * @param account - The derived account containing address and signing function
+ * @param account.addr - The Algorand address
+ * @param account.rawEd25519Signer - Ed25519 signing function
  * @returns An AvmSigner that signs transactions using the account's signing function
  */
 function createSignerFromDerivedAccount(account: {

@@ -30,10 +30,7 @@ import {
 } from '@algorandfoundation/algokit-utils/transact'
 import { waitForConfirmation } from '@algorandfoundation/algokit-utils/transaction'
 import type { Network } from '@x402/core/types'
-import {
-  ALGORAND_TESTNET_CAIP2,
-  V1_ALGORAND_TESTNET,
-} from './constants'
+import { ALGORAND_TESTNET_CAIP2, V1_ALGORAND_TESTNET } from './constants'
 
 /**
  * Client-side signer interface for Algorand wallets
@@ -239,6 +236,9 @@ export function toClientAvmSigner(privateKeyBase64: string): ClientAvmSigner {
 
 /**
  * Determines if a network identifier refers to testnet.
+ *
+ * @param network - The network identifier (CAIP-2 or v1 format)
+ * @returns True if the network is testnet
  */
 function isTestnet(network: string): boolean {
   return network === ALGORAND_TESTNET_CAIP2 || network === V1_ALGORAND_TESTNET
@@ -312,7 +312,7 @@ export function toFacilitatorAvmSigner(
   return {
     getAddresses: () => [address] as readonly string[],
 
-    signTransaction: async (txn: Uint8Array, _senderAddress: string) => {
+    signTransaction: async (txn: Uint8Array, _: string) => {
       const decoded = decodeTransaction(txn)
       const msg = bytesForSigning.transaction(decoded)
       const sig = await rawEd25519Signer(msg)

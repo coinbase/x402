@@ -11,7 +11,8 @@ import { avmPaywall } from "@x402/paywall/avm";
 
 const evmPayeeAddress = process.env.RESOURCE_EVM_ADDRESS as `0x${string}`;
 const svmPayeeAddress = process.env.RESOURCE_SVM_ADDRESS as string;
-const avmPayeeAddress = process.env.RESOURCE_AVM_ADDRESS || (process.env.RESOURCE_WALLET_ADDRESS as string);
+const avmPayeeAddress =
+  process.env.RESOURCE_AVM_ADDRESS || (process.env.RESOURCE_WALLET_ADDRESS as string);
 const facilitatorUrl = process.env.FACILITATOR_URL as string;
 
 const EVM_NETWORK = "eip155:84532" as const; // Base Sepolia

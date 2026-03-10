@@ -20,6 +20,7 @@ import { base58 } from "@scure/base";
  *
  * @param evmPrivateKey - The EVM private key for signing
  * @param svmPrivateKey - The SVM private key for signing
+ * @param avmPrivateKey - The AVM private key for signing
  * @param url - The URL to make the request to
  */
 export async function runBuilderPatternExample(
@@ -46,7 +47,10 @@ export async function runBuilderPatternExample(
     .register("solana:*", new ExactSvmScheme(svmSigner)) // All Solana networks
     .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(solanaDevnetSigner)) // Devnet override
     .register("algorand:*", new ExactAvmScheme(avmSigner)) // All Algorand networks
-    .register("algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", new ExactAvmScheme(algorandTestnetSigner)); // Testnet override
+    .register(
+      "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+      new ExactAvmScheme(algorandTestnetSigner),
+    ); // Testnet override
 
   console.log("Registered networks:");
   console.log("  - eip155:* (all EVM) with default signer");

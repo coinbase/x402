@@ -20,6 +20,7 @@ import { ExactAvmScheme } from "@x402/avm/exact/client";
  * - Metrics and analytics collection
  *
  * @param evmPrivateKey - The EVM private key for signing
+ * @param avmPrivateKey - The AVM private key for signing
  * @param url - The URL to make the request to
  */
 export async function runHooksExample(

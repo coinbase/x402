@@ -45,7 +45,9 @@ const accepts: {
   scheme: string;
   price: string;
   network: `${string}:${string}`;
-  payTo: string | ((context: { adapter: { getQueryParam?: (param: string) => string | undefined } }) => string);
+  payTo:
+    | string
+    | ((context: { adapter: { getQueryParam?: (param: string) => string | undefined } }) => string);
 }[] = [
   {
     scheme: "exact",

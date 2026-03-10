@@ -198,7 +198,10 @@ async function customPaymentMiddleware(
       console.log("💰 Settling payment on-chain...");
 
       try {
-        const settleResult = await resourceServer.settlePayment(paymentPayload, matchingRequirement);
+        const settleResult = await resourceServer.settlePayment(
+          paymentPayload,
+          matchingRequirement,
+        );
 
         console.log(`✅ Payment settled: ${settleResult.transaction}`);
 

@@ -145,7 +145,10 @@ export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
 ):
-  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | ASAAmount["asset"] }
+  | {
+      maxAmountRequired: string;
+      asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | ASAAmount["asset"];
+    }
   | { error: string } {
   // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
