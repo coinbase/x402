@@ -1,26 +1,98 @@
-# Scheme: `exact` on `Concordium`
+# Exact Payment Scheme for Concordium (`exact`)
 
-## Summary
+This document specifies the `exact` payment scheme for the x402 protocol on Concordium.
 
-The `exact` scheme on Concordium chains uses a **client-broadcast model** where the client directly broadcasts a CCD transfer or CIS-2 token transfer to the Concordium blockchain. The facilitator verifies the transaction on-chain and waits for ConcordiumBFT finalization before granting access. This approach differs from EVM's `EIP-3009` model because Concordium does not have an equivalent authorization-based transfer mechanism.
+This scheme facilitates payments of a specific amount of CCD or CIS-2 tokens (e.g., PLT) on the Concordium blockchain using sponsored transactions (V1).
 
-## PaymentPayload `payload` Field
+## Scheme Name
 
-The `payload` field of the `PaymentPayload` must contain the following fields:
+`exact`
 
-- `txHash`: The transaction hash of the broadcasted transfer on Concordium.
-- `sender`: The account address that sent the payment.
+## Protocol Flow
 
-Example `payload`:
+The protocol flow for `exact` on Concordium is client-driven with facilitator sponsorship.
+
+1.  **Client** makes a request to a **Resource Server**.
+2.  **Resource Server** responds with a payment required signal containing `PaymentRequired`. The `extra` field in the requirements contains a **sponsorAddress** which is the account address of the identity that will sponsor (pay gas for) the transaction. This is the facilitator.
+3.  **Client** fetches its own account nonce from the Concordium network.
+4.  **Client** constructs a sponsored transaction containing a transfer to the resource server's wallet address for the specified amount, with the facilitator set as the sponsor.
+5.  **Client** signs the transaction with their wallet (sender signature only). The sponsor signature slot remains empty.
+6.  **Client** serializes the signed transaction to JSON.
+7.  **Client** sends a new request to the resource server with the `PaymentPayload` containing the serialized partially-signed transaction.
+8.  **Resource Server** receives the request and forwards the `PaymentPayload` and `PaymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
+9.  **Facilitator** deserializes the transaction and inspects it to ensure it is valid and contains the expected payment parameters.
+10. **Facilitator** returns a `VerifyResponse` to the **Resource Server**.
+11. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
+12. **Facilitator Server** adds its sponsor signature and submits the now fully-signed transaction to the Concordium network.
+13. **Facilitator Server** waits for ConcordiumBFT finalization (~10 seconds deterministic finality).
+14. Upon successful on-chain settlement, the **Facilitator Server** responds with a `SettlementResponse` to the **Resource Server**.
+15. **Resource Server** grants the **Client** access to the resource in its response.
+
+## `PaymentRequirements` for `exact`
+
+In addition to the standard x402 `PaymentRequirements` fields, the `exact` scheme on Concordium requires the following inside the `extra` field:
 
 ```json
 {
-  "txHash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+  "scheme": "exact",
+  "network": "ccd:9dd9ca4d19e9393877d2c44b70f89acb",
+  "amount": "1000000",
+  "asset": "",
+  "payTo": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
+  "maxTimeoutSeconds": 60,
+  "extra": {
+    "sponsorAddress": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW"
+  }
+}
+```
+
+- `asset`: Empty string `""` for native CCD, or the token name (e.g., `"EURR"`) for PLT/CIS-2 tokens.
+- `extra.sponsorAddress`: The account address of the facilitator that will sponsor the transaction fees.
+
+### Network Identifiers
+
+Concordium uses CAIP-2 format with the `ccd` namespace:
+
+| Network | CAIP-2 Identifier |
+|---------|-------------------|
+| Mainnet | `ccd:9dd9ca4d19e9393877d2c44b70f89acb` |
+| Testnet | `ccd:4221332d34e1694168c2a0c0b3fd0f27` |
+
+### Asset Format
+
+| Asset Type | Format       | Example  |
+|------------|--------------|----------|
+| Native CCD | Empty string | `""`     |
+| PLT Token  | Token name   | `"EURR"` |
+
+### Amount Format
+
+All amounts are expressed in the smallest unit (atomic):
+
+| Asset Type | Unit | Decimals | Example: 10 CCD / 5 EURR |
+|------------|------|----------|---------------------------|
+| Native CCD | microCCD | 6 | `"10000000"` |
+| PLT Token | Smallest subunit | 6 | `"5000000"` |
+
+## PaymentPayload `payload` Field
+
+The `payload` field of the `PaymentPayload` contains:
+
+```json
+{
+  "signedTransaction": { ... },
   "sender": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN"
 }
 ```
 
-Full `PaymentPayload` object for native CCD:
+- `signedTransaction`: The JSON-serialized `Transaction.SignableV1` object, containing the sender's signature but with an empty sponsor signature slot.
+- `sender`: The sender's Concordium account address (base58).
+
+The `signedTransaction` is a V1 transaction with:
+- `signatures.sender` populated (client's signature)
+- `signatures.sponsor` empty (facilitator adds during settlement)
+
+Full `PaymentPayload` object (native CCD):
 
 ```json
 {
@@ -32,21 +104,40 @@ Full `PaymentPayload` object for native CCD:
   },
   "accepted": {
     "scheme": "exact",
-    "network": "ccd:4221332d34e1694168c2a0c0b3fd0f27",
+    "network": "ccd:9dd9ca4d19e9393877d2c44b70f89acb",
     "amount": "1000000",
     "asset": "",
     "payTo": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
     "maxTimeoutSeconds": 60,
-    "extra": {}
+    "extra": {
+      "sponsorAddress": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW"
+    }
   },
   "payload": {
-    "txHash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+    "signedTransaction": {
+      "version": 1,
+      "header": {
+        "sender": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN",
+        "nonce": 42,
+        "expiry": 1700000300,
+        "numSignatures": 1,
+        "sponsor": {
+          "address": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
+          "numSignatures": 1
+        }
+      },
+      "payload": { "...": "CCD simple transfer payload" },
+      "signatures": {
+        "sender": { "0": { "0": "a1b2c3..." } },
+        "sponsor": {}
+      }
+    },
     "sender": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN"
   }
 }
 ```
 
-Full `PaymentPayload` object for PLT token (EURR):
+Full `PaymentPayload` object (PLT token — EURR):
 
 ```json
 {
@@ -63,186 +154,94 @@ Full `PaymentPayload` object for PLT token (EURR):
     "asset": "EURR",
     "payTo": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
     "maxTimeoutSeconds": 60,
+    "extra": {
+      "sponsorAddress": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW"
+    }
   },
   "payload": {
-    "txHash": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+    "signedTransaction": {
+      "version": 1,
+      "header": {
+        "sender": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN",
+        "nonce": 42,
+        "expiry": 1700000300,
+        "numSignatures": 1,
+        "sponsor": {
+          "address": "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
+          "numSignatures": 1
+        }
+      },
+      "payload": { "...": "PLT token update payload" },
+      "signatures": {
+        "sender": { "0": { "0": "d4e5f6..." } },
+        "sponsor": {}
+      }
+    },
     "sender": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN"
   }
 }
 ```
 
-## Asset Format
+## `SettlementResponse`
 
-| Asset Type | Format       | Example  |
-|------------|--------------|----------|
-| Native CCD | Empty string | `""`     |
-| PLT Token  | `tokenName`  | `"EURR"` |
+The `SettlementResponse` for the exact scheme on Concordium:
 
-## Network Identifiers
-
-Concordium uses CAIP-2 format with the `ccd` namespace:
-
-| Network | CAIP-2 Identifier | V1 Name (legacy) |
-|---------|-------------------|------------------|
-| Mainnet | `ccd:9dd9ca4d19e9393877d2c44b70f89acb` | `concordium` |
-| Testnet | `ccd:4221332d34e1694168c2a0c0b3fd0f27` | `concordium-testnet` |
-
-## Verification
-
-Steps to verify a payment for the `exact` scheme on Concordium:
-
-1. Extract the Concordium-specific payload from `PaymentPayload.payload`
-2. Verify `payload.txHash` is present and non-empty
-3. Verify `payload.sender` is present and non-empty
-4. Return `isValid: true` with the `payer` address
-
-Note: Full transaction validation is deferred to the settlement phase to allow for transaction propagation and block confirmation.
-```typescript
-// PaymentPayload.payload structure for Concordium
-interface ExactConcordiumPayloadV2 {
-  txHash: string;   // Transaction hash from client broadcast
-  sender: string;   // Sender's Concordium address (base58)
-  asset?: string;   // Asset symbol ("" for CCD, "EURR" for PLT)
+```json
+{
+  "success": true,
+  "transaction": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+  "network": "ccd:9dd9ca4d19e9393877d2c44b70f89acb",
+  "payer": "3kBx2h5Y2veb4hZvAE2c1Zr6DYJwWbPr9xQJJBPWyFnXHF9UuN"
 }
 ```
-## Settlement
 
-Settlement on Concordium differs from EVM because the client has already broadcast the transaction. The facilitator validates the on-chain transaction and waits for finalization.
+## Facilitator Verification Rules (MUST)
 
-Steps to settle a payment:
+A facilitator verifying an `exact`-scheme Concordium payment MUST enforce all of the following checks before sponsoring and broadcasting the transaction:
 
-1. Extract `txHash` and `sender` from `PaymentPayload.payload`
-2. Extract `network` from `PaymentPayload.accepted.network`
-3. Query the Concordium node and wait for transaction finalization
-4. Verify the transaction exists and status is `finalized`
-5. Verify the transaction `sender` matches `payload.sender`
-6. Verify the transaction `recipient` matches `PaymentRequirements.payTo`
-7. Verify the transaction `amount` ≥ `PaymentRequirements.amount` (in smallest units)
-8. Verify the transaction `asset` matches `PaymentRequirements.asset`
-9. Return success with the transaction hash
+1. Transaction version
 
-### Amount Handling
+- The transaction MUST be version `1` (V1 sponsored transaction format).
+- The transaction MUST deserialize successfully via `Transaction.signableFromJSON()`.
 
-| Asset Type | Requirements.amount | Transaction Amount | Unit |
-|------------|--------------------|--------------------|------|
-| Native CCD | `"10000000"` | `10000000n` | microCCD (10⁻⁶ CCD) |
-| PLT Token | `"1"` | `1000000n` | Smallest unit (10⁻⁶ tokens) |
+2. Sender identity
 
-For native CCD, amounts are stored in microCCD (6 decimals).
-For PLT tokens, `requirements.amount` is in full tokens; the client converts to smallest units before broadcast.
+- `transaction.header.sender` MUST match `payload.sender`.
+- `payload.sender` MUST be a valid Concordium account address (base58).
 
-## Payment Flow
-```
-┌─────────┐      ┌─────────┐      ┌─────────────┐      ┌────────────┐
-│  Client │      │  Server │      │ Facilitator │      │ Concordium │
-└────┬────┘      └────┬────┘      └──────┬──────┘      └─────┬──────┘
-     │                │                   │                   │
-     │  1. GET /resource                  │                   │
-     │────────────────>                   │                   │
-     │                │                   │                   │
-     │  2. 402 + PaymentRequirements      │                   │
-     │<────────────────                   │                   │
-     │                │                   │                   │
-     │  3. Broadcast CCD/PLT transfer     │                   │
-     │────────────────────────────────────────────────────────>
-     │                │                   │                   │
-     │  4. txHash returned                │                   │
-     │<────────────────────────────────────────────────────────
-     │                │                   │                   │
-     │  5. Build PaymentPayload:          │                   │
-     │     - payload: { txHash, sender }  │                   │
-     │     - accepted: { scheme, network, payTo, ... }        │
-     │                │                   │                   │
-     │  6. GET /resource + X-PAYMENT header                   │
-     │────────────────>                   │                   │
-     │                │                   │                   │
-     │                │  7. verify(payload, requirements)     │
-     │                │───────────────────>                   │
-     │                │                   │                   │
-     │                │  8. VerifyResponse { isValid: true }  │
-     │                │<───────────────────                   │
-     │                │                   │                   │
-     │                │  9. settle(payload, requirements)     │
-     │                │───────────────────>                   │
-     │                │                   │                   │
-     │                │                   │  10. waitForFinalization()
-     │                │                   │───────────────────>
-     │                │                   │                   │
-     │                │                   │  11. TransactionInfo
-     │                │                   │<───────────────────
-     │                │                   │                   │
-     │                │                   │  12. Validate:    │
-     │                │                   │      - status     │
-     │                │                   │      - sender     │
-     │                │                   │      - recipient  │
-     │                │                   │      - amount     │
-     │                │                   │      - asset      │
-     │                │                   │                   │
-     │                │  13. SettleResponse { success: true } │
-     │                │<───────────────────                   │
-     │                │                   │                   │
-     │  14. 200 OK + Resource             │                   │
-     │<────────────────                   │                   │
-```
+3. Sponsor identity
 
-## Comparison with EVM
+- `transaction.header.sponsor.address` MUST match the facilitator's own sponsor address.
+- The facilitator MUST NOT sponsor transactions that name a different sponsor.
 
-| Aspect | EVM (`EIP-3009`) | Concordium |
-|--------|------------------|------------|
-| Authorization | Signed `transferWithAuthorization` | Direct transaction |
-| Who Broadcasts | Facilitator | Client |
-| Payload Content | Signature + authorization params | txHash + sender |
-| Facilitator Role | Execute transfer | Verify transfer |
-| Finality | Block confirmations | ConcordiumBFT (~10s) |
-| Gas/Fee Payer | Facilitator | Client |
+4. Transfer destination
 
-## Transaction Status Mapping
+- For native CCD (`asset` is `""`): the `toAddress` in the simple transfer payload MUST equal `PaymentRequirements.payTo`.
+- For PLT tokens: the `recipient` in the token update operations MUST equal `PaymentRequirements.payTo`.
 
-| Concordium Status | Internal Status | Description |
-|-------------------|-----------------|-------------|
-| `received` | `pending` | Transaction received by node |
-| `committed` | `committed` | Transaction in a block |
-| `finalized` | `finalized` | Transaction finalized by ConcordiumBFT |
-| `reject` | `failed` | Transaction rejected |
+5. Amount
 
-## Security Considerations
+- For native CCD: the transfer `amount` MUST be ≥ `PaymentRequirements.amount` (in microCCD).
+- For PLT tokens: the transfer `amount` MUST be ≥ `PaymentRequirements.amount` (in smallest token units).
 
-### Finalization Requirement
+6. Asset
 
-Concordium uses ConcordiumBFT consensus which provides deterministic finality. Unlike probabilistic finality on PoW chains, once a transaction is `finalized` on Concordium, it cannot be reverted. The facilitator should:
+- For native CCD: the transaction MUST be a `SimpleTransfer` or `SimpleTransferWithMemo` type.
+- For PLT tokens: the transaction MUST be a `TokenUpdate` type, and the `tokenId` MUST correspond to `PaymentRequirements.asset`.
 
-- **Always require finalization** for production use (`requireFinalization: true`)
-- Configure appropriate timeout (`finalizationTimeoutMs`, default 60000ms)
-- Average finalization time is ~10 seconds
+7. Transaction expiry
 
-### Double-Spend Prevention
+- `transaction.header.expiry` MUST be in the future.
+- The expiry SHOULD NOT exceed 10 minutes from the current time.
 
-Because the client broadcasts the transaction before sending the payload, there's no risk of signature replay. Each transaction hash is unique and can only be used once on-chain.
+8. Sender signature
 
-### Amount Verification
+- `transaction.signatures.sender` MUST contain at least one credential signature.
+- The sender signature SHOULD be verified cryptographically against the sender's on-chain account credentials using `Transaction.Signable.verifySignature()`.
 
-The facilitator must verify `txAmount >= requiredAmount` (not strict equality) to handle:
-- Rounding differences
-- Overpayment scenarios
+9. Transaction payload safety
 
-## Appendix
+- The transaction MUST contain exactly one transfer operation (no bundled or unexpected operations).
+- The facilitator's sponsor address MUST NOT appear as the sender, recipient, or authority of the transfer.
 
-### Why Client-Broadcast?
-
-Concordium does not have an equivalent to EIP-3009 (`transferWithAuthorization`). The available options are:
-
-1. **Client-broadcast (chosen)**: Client sends transaction, facilitator verifies
-2. **Sponsored transactions**: Concordium supports sponsored transactions, but requires additional infrastructure
-
-Client-broadcast was chosen for simplicity and alignment with Concordium's standard transaction model.
-
-### gRPC Interface
-
-The facilitator queries Concordium nodes via gRPC:
-
-```typescript
-interface ConcordiumNodeClient {
-  getTransactionStatus(txHash: string): Promise<ConcordiumTransactionInfo | null>;
-  waitForFinalization(txHash: string, timeoutMs?: number): Promise<ConcordiumTransactionInfo | null>;
-}
-```
+These checks are security-critical to ensure the sponsor cannot be tricked into paying gas for unintended transactions. Implementations MAY introduce stricter limits (e.g., shorter expiry caps, mandatory cryptographic signature verification) but MUST NOT relax the above constraints.
