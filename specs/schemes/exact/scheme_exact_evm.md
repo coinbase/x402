@@ -4,14 +4,15 @@
 
 The `exact` scheme on EVM executes a transfer where the Facilitator (server) pays the gas, but the Client (user) controls the exact flow of funds via cryptographic signatures.
 
-This is implemented via one of two asset transfer methods, depending on the token's capabilities:
+This is implemented via one of three asset transfer methods, depending on the token's capabilities and the client's wallet type:
 
 | AssetTransferMethod | Use Case                                                     | Recommendation                                 |
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+| **3. UserOp**       | Smart wallets using ERC-4337 UserOperations.                 | **Smart Wallet Native** (Hardware-backed signing, on-chain spending limits). |
 
-If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
+If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`. The `userOp` method must be explicitly requested.
 
 In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
 
@@ -198,6 +199,128 @@ Settlement is performed by calling the `x402ExactPermit2Proxy`.
 
 3.  **With EIP-2612 Permit (Extension):**
     If `eip2612GasSponsoring` is used, call `x402ExactPermit2Proxy.settleWithPermit`.
+
+---
+
+## 3. AssetTransferMethod: `UserOp`
+
+The `userOp` asset transfer method uses [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) UserOperations to execute payments from smart contract wallets (e.g., Safe) via an on-chain EntryPoint contract and bundler infrastructure.
+
+### Relationship to Existing Methods
+
+EIP-3009 and Permit2 already work with ERC-4337 smart wallets — a smart wallet can sign `transferWithAuthorization` or Permit2 messages like any EOA. The `userOp` method is **not** a replacement for these methods but addresses a distinct set of requirements:
+
+| Capability | EIP-3009 / Permit2 | UserOp |
+| :--- | :--- | :--- |
+| EOA support | Yes | No (smart wallets only) |
+| Smart wallet support | Yes (if wallet can produce ECDSA signatures) | Yes (native) |
+| Hardware-backed signing (P256 / Secure Enclave) | No (requires secp256k1) | Yes |
+| WebAuthn / Passkey signing | No | Yes |
+| On-chain spending limits & session keys | No (enforced off-chain only) | Yes (enforced by smart contract) |
+| Multi-signature thresholds | No | Yes (enforced by smart contract) |
+| Token compatibility | EIP-3009 tokens only / Any ERC-20 | Any ERC-20 |
+
+The primary value add is enabling payments from wallets that use **non-secp256k1 signature schemes** (P256, WebAuthn) and wallets that enforce **on-chain authorization policies** (spending limits, multi-sig, time-locked session keys). These capabilities cannot be retrofitted onto EIP-3009 or Permit2, which require `ecrecover`-compatible signatures.
+
+### When to Use UserOp
+
+- The client wallet is a smart contract account (e.g., Safe, Coinbase Smart Wallet) that signs with P256 or WebAuthn credentials
+- The client requires on-chain spending limits or multi-signature authorization
+- The client cannot produce secp256k1 ECDSA signatures required by EIP-3009 / Permit2
+
+### Phase 1: `PAYMENT-SIGNATURE` Header Payload
+
+The `payload` field must contain:
+
+- `userOperation`: A signed [PackedUserOperation](https://eips.ethereum.org/EIPS/eip-4337#packed-user-operation) (v0.7) whose `callData` encodes an ERC-20 `transfer(to, amount)` call from the smart wallet to the `payTo` address.
+
+The `accepted.extra` field must contain:
+
+- `assetTransferMethod`: `"userOp"`
+- `entryPoint`: The canonical ERC-4337 v0.7 EntryPoint address (`0x0000000071727De22E5E9d8BAf0edAc6f37da032`)
+
+The `accepted.extra` field may optionally contain:
+
+- `bundlerRpcUrl`: A bundler endpoint the facilitator should use. If omitted, the facilitator uses its own configured bundler.
+
+**Example PaymentPayload:**
+
+```json
+{
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "amount": "10000",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "assetTransferMethod": "userOp",
+      "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+      "name": "USDC",
+      "version": "2"
+    }
+  },
+  "payload": {
+    "userOperation": {
+      "sender": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      "nonce": "0x0",
+      "callData": "0xa9059cbb000000000000000000000000209693bc6afc0c5328ba36faf03c514ef312287c0000000000000000000000000000000000000000000000000000000000002710",
+      "callGasLimit": "0x186A0",
+      "verificationGasLimit": "0x249F0",
+      "preVerificationGas": "0xC350",
+      "maxFeePerGas": "0x2FAF080",
+      "maxPriorityFeePerGas": "0x1E8480",
+      "signature": "0x..."
+    }
+  }
+}
+```
+
+### Phase 2: Verification Logic
+
+The verifier must execute these checks in order:
+
+1. **Decode `callData`**: Verify that `userOperation.callData` encodes exactly one `ERC20.transfer(to, amount)` call where:
+   - `to` matches the `PaymentRequirements.payTo` address
+   - `amount` matches the `PaymentRequirements.amount`
+   - The target of the call is the `PaymentRequirements.asset` token contract
+
+2. **Verify `sender`**: Confirm that `userOperation.sender` is a deployed smart contract (or has a valid `initCode` / `factory` for counterfactual deployment).
+
+3. **Verify balance**: Confirm the `sender` smart wallet holds sufficient balance of the `asset`.
+
+4. **Verify network**: Confirm the `entryPoint` address and chain match the `PaymentRequirements.network`.
+
+5. **Estimate gas**: Call the bundler's `eth_estimateUserOperationGas` with the UserOperation. If estimation fails, the UserOperation is invalid.
+
+6. **Verify gas limits**: Confirm the UserOperation's gas parameters (`callGasLimit`, `verificationGasLimit`, `preVerificationGas`) are sufficient for execution. The facilitator MAY reject UserOperations with unreasonably high gas limits to prevent griefing.
+
+### Phase 3: Settlement Logic
+
+Settlement is performed by submitting the signed UserOperation to an ERC-4337 bundler:
+
+1. **Submit**: Call the bundler's `eth_sendUserOperation(userOperation, entryPoint)` to submit the UserOperation to the bundler mempool.
+
+2. **Poll for receipt**: Call `eth_getUserOperationReceipt(userOpHash)` with retry and exponential backoff until the UserOperation is included in a block or the timeout expires.
+
+3. **Extract result**: On success, return the transaction hash from the receipt. On failure, return the revert reason.
+
+### Security Considerations
+
+- **callData integrity**: The facilitator MUST decode and verify `callData` to ensure it performs only the intended `transfer()`. A malicious client could craft `callData` that performs arbitrary operations from the smart wallet. The facilitator MUST reject UserOperations whose `callData` does not match the expected `transfer(payTo, amount)` call.
+
+- **Gas griefing**: A malicious client could submit UserOperations with inflated gas limits, causing the facilitator's bundler to spend excessive gas. Facilitators SHOULD enforce maximum gas limit policies.
+
+- **Bundler trust**: The facilitator relies on a bundler to submit UserOperations. The bundler is a trusted component; facilitators SHOULD use their own bundler infrastructure or trusted third-party bundlers.
+
+- **Signature scheme agnosticism**: The facilitator does not validate the UserOperation signature directly. Signature validation is performed on-chain by the smart wallet's `validateUserOp` function via the EntryPoint. This enables support for any signature scheme (secp256k1, P256, WebAuthn, multi-sig) without facilitator changes.
 
 ---
 
