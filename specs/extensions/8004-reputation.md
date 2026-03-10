@@ -137,7 +137,7 @@ A resource server advertises reputation support by including the `8004-reputatio
 | `registrations` | array | Yes | Agent identity registrations (at least one) |
 | `feedbackAggregator` | string | No | Third-party endpoint for gas-free feedback submission |
 
-**Note:** The aggregator's settlement chain (where it submits feedback on-chain) is an implementation detail of the aggregator service, not declared in the protocol. Agents configure an aggregator URL; the aggregator handles settlement on whatever chain it supports. This parallels x402's own design where clients don't choose which chain the facilitator settles payments on. The aggregator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-feedback-aggregator-api)) so clients can see where settlement happened.
+**Note:** The aggregator's settlement chain (where it submits feedback on-chain) does not need to match the payment chain (payment and identity are decoupled). Agents declare identity registrations and configure an aggregator URL; the aggregator settles on a chain it supports, provided the agent is registered on that chain. The aggregator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-feedback-aggregator-api)) so clients can see where settlement happened.
 
 #### AgentRegistration Object
 
