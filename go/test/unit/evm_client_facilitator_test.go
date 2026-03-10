@@ -190,7 +190,7 @@ func (m *mockFacilitatorSigner) VerifyTypedData(
 // TestExactEvmSchemeScheme tests the Scheme() method
 func TestExactEvmSchemeScheme(t *testing.T) {
 	signer := &mockClientSigner{}
-	client := evmclient.NewExactEvmScheme(signer)
+	client := evmclient.NewExactEvmScheme(signer, nil)
 
 	if client.Scheme() != evm.SchemeExact {
 		t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, client.Scheme())
@@ -201,7 +201,7 @@ func TestExactEvmSchemeScheme(t *testing.T) {
 func TestCreatePaymentPayloadEIP3009(t *testing.T) {
 	ctx := context.Background()
 	signer := &mockClientSigner{address: "0xClientAddress1234567890123456789012"}
-	client := evmclient.NewExactEvmScheme(signer)
+	client := evmclient.NewExactEvmScheme(signer, nil)
 
 	t.Run("Creates valid EIP-3009 payload", func(t *testing.T) {
 		requirements := types.PaymentRequirements{
@@ -299,7 +299,7 @@ func TestCreatePaymentPayloadEIP3009(t *testing.T) {
 func TestCreatePaymentPayloadPermit2(t *testing.T) {
 	ctx := context.Background()
 	signer := &mockClientSigner{address: "0xClientAddress1234567890123456789012"}
-	client := evmclient.NewExactEvmScheme(signer)
+	client := evmclient.NewExactEvmScheme(signer, nil)
 
 	t.Run("Creates valid Permit2 payload", func(t *testing.T) {
 		requirements := types.PaymentRequirements{
@@ -838,7 +838,7 @@ func TestCreatePaymentPayloadWithExtensions_EIP2612(t *testing.T) {
 
 	t.Run("Creates EIP-2612 extension when server advertises and allowance is 0", func(t *testing.T) {
 		signer := &mockClientSigner{address: "0xClientAddress1234567890123456789012"}
-		client := evmclient.NewExactEvmScheme(signer)
+		client := evmclient.NewExactEvmScheme(signer, nil)
 
 		requirements := types.PaymentRequirements{
 			Scheme:            evm.SchemeExact,
@@ -879,7 +879,7 @@ func TestCreatePaymentPayloadWithExtensions_EIP2612(t *testing.T) {
 
 	t.Run("No extension when server does not advertise eip2612GasSponsoring", func(t *testing.T) {
 		signer := &mockClientSigner{address: "0xClientAddress1234567890123456789012"}
-		client := evmclient.NewExactEvmScheme(signer)
+		client := evmclient.NewExactEvmScheme(signer, nil)
 
 		requirements := types.PaymentRequirements{
 			Scheme:            evm.SchemeExact,
@@ -909,7 +909,7 @@ func TestCreatePaymentPayloadWithExtensions_EIP2612(t *testing.T) {
 
 	t.Run("No extension when token metadata missing", func(t *testing.T) {
 		signer := &mockClientSigner{address: "0xClientAddress1234567890123456789012"}
-		client := evmclient.NewExactEvmScheme(signer)
+		client := evmclient.NewExactEvmScheme(signer, nil)
 
 		requirements := types.PaymentRequirements{
 			Scheme:            evm.SchemeExact,

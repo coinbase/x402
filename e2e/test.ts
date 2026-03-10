@@ -16,58 +16,20 @@ import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 
 /**
- * Run Permit2 setup script to ensure the client wallet has approved the Permit2 contract
+ * Revoke Permit2 approval so that gas sponsoring extensions are exercised.
+ * Sets the Permit2 allowance to 0 for the given token (or USDC by default),
+ * forcing the client into the EIP-2612 or ERC-20 approval extension path.
  */
-async function setupPermit2Approval(): Promise<boolean> {
+async function revokePermit2Approval(tokenAddress?: string): Promise<boolean> {
   return new Promise((resolve) => {
-    log('\n🔑 Setting up Permit2 approval for EVM client wallet...');
+    const label = tokenAddress ? `token ${tokenAddress}` : 'USDC (default)';
+    verboseLog(`  🔓 Revoking Permit2 approval for ${label}...`);
 
-    const child = spawn('pnpm', ['permit2:approve'], {
-      cwd: process.cwd(),
-      stdio: 'pipe',
-      shell: true,
-    });
-
-    let stderr = '';
-
-    child.stdout?.on('data', (data) => {
-      verboseLog(data.toString().trim());
-    });
-
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-      verboseLog(data.toString().trim());
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        log('  ✅ Permit2 approval setup complete');
-        resolve(true);
-      } else {
-        errorLog(`  ❌ Permit2 setup failed (exit code ${code})`);
-        if (stderr) {
-          errorLog(`  Error: ${stderr}`);
-        }
-        resolve(false);
-      }
-    });
-
-    child.on('error', (error) => {
-      errorLog(`  ❌ Failed to run Permit2 setup: ${error.message}`);
-      resolve(false);
-    });
-  });
-}
-
-/**
- * Revoke Permit2 approval so that EIP-2612 gas sponsoring extension is exercised.
- * Sets the Permit2 allowance to 0, forcing the client to use the EIP-2612 permit path.
- */
-async function revokePermit2Approval(): Promise<boolean> {
-  return new Promise((resolve) => {
-    verboseLog('  🔓 Revoking Permit2 approval for EIP-2612 test...');
-
-    const child = spawn('pnpm', ['permit2:revoke'], {
+    const args = ['scripts/permit2-approval.ts', 'revoke'];
+    if (tokenAddress) {
+      args.push(tokenAddress);
+    }
+    const child = spawn('tsx', args, {
       cwd: process.cwd(),
       stdio: 'pipe',
       shell: true,
@@ -356,31 +318,29 @@ async function runTest() {
   }
   log('');
 
+  // Branch coverage assertions for EVM scenarios
+  const evmScenarios = filteredScenarios.filter(s => s.protocolFamily === 'evm');
+  if (evmScenarios.length > 0) {
+    const hasEip3009 = evmScenarios.some(s => (s.endpoint.transferMethod || 'eip3009') === 'eip3009');
+    const hasPermit2 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2');
+    const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+    const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+
+    log('🔍 EVM Branch Coverage Check:');
+    log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
+    log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
+    log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
+    log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
+    log('');
+  }
+
   // Auto-detect Permit2 scenarios
   const hasPermit2Scenarios = filteredScenarios.some(
     (s) => s.endpoint.transferMethod === 'permit2'
   );
 
-  // Check if eip2612GasSponsoring extension should be tested
-  const hasEip2612Extension = selectedExtensions?.includes('eip2612GasSponsoring') ?? false;
-
   if (hasPermit2Scenarios) {
-    if (hasEip2612Extension) {
-      log('🔐 Permit2 scenarios detected with eip2612GasSponsoring extension');
-    } else {
-      // Standard permit2 flow: ensure approval exists
-      log('🔐 Permit2 scenarios detected - checking approval...');
-      const setupSuccess = await setupPermit2Approval();
-      if (!setupSuccess) {
-        errorLog(
-          '\n❌ Failed to setup Permit2 approval. Cannot continue with Permit2 tests.'
-        );
-        errorLog(
-          '💡 Make sure CLIENT_EVM_PRIVATE_KEY is set and the wallet has USDC.'
-        );
-        process.exit(1);
-      }
-    }
+    log('🔐 Permit2 scenarios detected — approval will be revoked before each test to exercise extension paths');
   }
 
   // Collect unique facilitators and servers
@@ -682,8 +642,9 @@ async function runTest() {
         const tn = nextTestNumber();
         const isEvm = scenario.protocolFamily === 'evm';
 
-        if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
+        if (scenario.endpoint.transferMethod === 'permit2') {
           await revokePermit2Approval();
+          await revokePermit2Approval('0xeED520980fC7C7B4eB379B96d61CEdea2423005a');
         }
 
         if (isEvm && facilitatorName && evmLock) {

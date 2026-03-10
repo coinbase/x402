@@ -19,7 +19,7 @@
       "description": "Protected Permit2 endpoint using proxy middleware",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "permit2": true
+      "transferMethod": "permit2"
     },
     {
       "path": "/api/protected-permit2-erc20-proxy",

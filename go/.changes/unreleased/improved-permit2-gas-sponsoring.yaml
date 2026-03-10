@@ -1,0 +1,3 @@
+kind: changed
+body: Replaced SendRawApprovalAndSettle with a generic SendTransactions signer method that accepts an array of transaction requests (pre-signed or unsigned intents). Closed fail-open verification paths, aligned Permit2 amount check to exact match, and improved client extension fallback error handling
+time: 2026-03-06T12:00:00.000000-08:00

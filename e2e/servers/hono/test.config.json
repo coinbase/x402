@@ -19,7 +19,7 @@
       "description": "Protected endpoint requiring Permit2 payment",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "permit2": true
+      "transferMethod": "permit2"
     },
     {
       "path": "/protected-permit2-erc20",

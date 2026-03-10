@@ -9,7 +9,7 @@ import type { VerifyResponse } from "@x402/core/types";
 import {
   validateErc20ApprovalGasSponsoringInfo,
   type Erc20ApprovalGasSponsoringInfo,
-} from "@x402/extensions";
+} from "../extensions";
 import { PERMIT2_ADDRESS, erc20ApproveAbi } from "../../constants";
 import {
   ErrErc20ApprovalInvalidFormat,

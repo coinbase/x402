@@ -50,6 +50,7 @@ export interface TestEndpoint {
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
   transferMethod?: TransferMethod;
+  extensions?: string[];
   health?: boolean;
   close?: boolean;
 }

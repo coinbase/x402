@@ -81,8 +81,9 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     context?: FacilitatorContext,
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
+    const isPermit2 = isPermit2Payload(rawPayload);
 
-    if (isPermit2Payload(rawPayload)) {
+    if (isPermit2) {
       return verifyPermit2(this.signer, payload, requirements, rawPayload, context);
     }
 
@@ -104,8 +105,9 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     context?: FacilitatorContext,
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
+    const isPermit2 = isPermit2Payload(rawPayload);
 
-    if (isPermit2Payload(rawPayload)) {
+    if (isPermit2) {
       return settlePermit2(this.signer, payload, requirements, rawPayload, context);
     }
 
