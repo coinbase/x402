@@ -100,11 +100,12 @@ type SettleResponse struct {
 
 // ResourceConfig defines payment configuration for a protected resource
 type ResourceConfig struct {
-	Scheme            string  `json:"scheme"`
-	PayTo             string  `json:"payTo"`
-	Price             Price   `json:"price"`
-	Network           Network `json:"network"`
-	MaxTimeoutSeconds int     `json:"maxTimeoutSeconds,omitempty"`
+	Scheme            string                 `json:"scheme"`
+	PayTo             string                 `json:"payTo"`
+	Price             Price                  `json:"price"`
+	Network           Network                `json:"network"`
+	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds,omitempty"`
+	Extra             map[string]interface{} `json:"extra,omitempty"`
 }
 
 // ============================================================================

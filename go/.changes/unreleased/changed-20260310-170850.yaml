@@ -1,0 +1,3 @@
+kind: changed
+body: Simulate transaction in verify and (optional) settle; Added multicall utility for efficient rpc calls; Fixed undeployed smart wallet handling
+time: 2026-03-10T17:08:50.404017+09:00

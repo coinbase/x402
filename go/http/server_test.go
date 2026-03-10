@@ -189,6 +189,67 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 	}
 }
 
+func TestBuildPaymentRequirementsFromOptionsPreservesOptionExtra(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+					Extra: map[string]interface{}{
+						"assetTransferMethod": "permit2",
+						"merchantNote":        "route-level-extra",
+					},
+				},
+			},
+		},
+	}
+
+	mockServer := &mockSchemeServer{scheme: "exact"}
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds:      []x402.SupportedKind{{X402Version: 2, Scheme: "exact", Network: "eip155:1"}},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:1", mockServer),
+	)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	requirements, err := server.BuildPaymentRequirementsFromOptions(ctx, routes["GET /api"].Accepts, reqCtx)
+	if err != nil {
+		t.Fatalf("Failed to build payment requirements: %v", err)
+	}
+	if len(requirements) != 1 {
+		t.Fatalf("Expected 1 requirement, got %d", len(requirements))
+	}
+	if requirements[0].Extra["assetTransferMethod"] != "permit2" {
+		t.Fatalf("Expected assetTransferMethod passthrough, got %v", requirements[0].Extra["assetTransferMethod"])
+	}
+	if requirements[0].Extra["merchantNote"] != "route-level-extra" {
+		t.Fatalf("Expected merchant extra passthrough, got %v", requirements[0].Extra["merchantNote"])
+	}
+}
+
 func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 	ctx := context.Background()
 
