@@ -58,8 +58,8 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		return nil, x402.NewVerifyError(ErrInvalidRequiredAmount, "", fmt.Sprintf("invalid required amount: %s", requirements.Amount))
 	}
 
-	if parsedAuthorization.Value.Cmp(requiredValue) < 0 {
-		return nil, x402.NewVerifyError(ErrInsufficientAmount, evmPayload.Authorization.From, fmt.Sprintf("insufficient amount: %s < %s", parsedAuthorization.Value.String(), requiredValue.String()))
+	if parsedAuthorization.Value.Cmp(requiredValue) != 0 {
+		return nil, x402.NewVerifyError(ErrAuthorizationValueMismatch, evmPayload.Authorization.From, fmt.Sprintf("authorization value mismatch: %s != %s", parsedAuthorization.Value.String(), requiredValue.String()))
 	}
 
 	now := time.Now().Unix()

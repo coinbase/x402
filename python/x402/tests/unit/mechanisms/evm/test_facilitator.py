@@ -13,7 +13,7 @@ except ImportError:
 
 from x402.mechanisms.evm import ERC6492_MAGIC_VALUE, get_network_config
 from x402.mechanisms.evm.constants import (
-    ERR_INSUFFICIENT_AMOUNT,
+    ERR_AUTHORIZATION_VALUE_MISMATCH,
     ERR_INSUFFICIENT_BALANCE,
     ERR_INVALID_SIGNATURE,
     ERR_NONCE_ALREADY_USED,
@@ -23,8 +23,10 @@ from x402.mechanisms.evm.constants import (
     ERR_UNDEPLOYED_SMART_WALLET,
 )
 from x402.mechanisms.evm.exact import ExactEvmFacilitatorScheme, ExactEvmSchemeConfig
+from x402.mechanisms.evm.exact.v1.facilitator import ExactEvmSchemeV1
 from x402.mechanisms.evm.types import TransactionReceipt
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
+from x402.schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
 
 NETWORK = "eip155:8453"
 TOKEN_ADDRESS = get_network_config(NETWORK)["default_asset"]["address"]
@@ -92,6 +94,56 @@ def make_requirements(
         amount=amount,
         pay_to=pay_to,
         max_timeout_seconds=3600,
+        extra=extra if extra is not None else {"name": "USD Coin", "version": "2"},
+    )
+
+
+def make_payment_payload_v1(
+    *,
+    signature: str = "0x" + "00" * 65,
+    scheme: str = "exact",
+    network: str = "base",
+    pay_to: str = RECIPIENT,
+    amount: str = "100000",
+    extra: dict | None = None,
+    authorization_overrides: dict | None = None,
+) -> PaymentPayloadV1:
+    now = int(time.time())
+    authorization = {
+        "from": PAYER,
+        "to": RECIPIENT,
+        "value": amount,
+        "validAfter": str(now - 60),
+        "validBefore": str(now + 600),
+        "nonce": NONCE,
+    }
+    if authorization_overrides:
+        authorization.update(authorization_overrides)
+
+    return PaymentPayloadV1(
+        x402_version=1,
+        scheme=scheme,
+        network=network,
+        payload={"authorization": authorization, "signature": signature},
+    )
+
+
+def make_requirements_v1(
+    *,
+    scheme: str = "exact",
+    network: str = "base",
+    amount: str = "100000",
+    pay_to: str = RECIPIENT,
+    extra: dict | None = None,
+) -> PaymentRequirementsV1:
+    return PaymentRequirementsV1(
+        scheme=scheme,
+        network=network,
+        asset=TOKEN_ADDRESS,
+        max_amount_required=amount,
+        pay_to=pay_to,
+        max_timeout_seconds=3600,
+        resource="http://example.com/protected",
         extra=extra if extra is not None else {"name": "USD Coin", "version": "2"},
     )
 
@@ -263,7 +315,7 @@ class TestVerify:
         assert result.is_valid is False
         assert "recipient_mismatch" in result.invalid_reason
 
-    def test_rejects_insufficient_amount(self):
+    def test_rejects_amount_mismatch(self):
         signer = MockFacilitatorSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
 
@@ -273,7 +325,19 @@ class TestVerify:
         )
 
         assert result.is_valid is False
-        assert result.invalid_reason == ERR_INSUFFICIENT_AMOUNT
+        assert result.invalid_reason == ERR_AUTHORIZATION_VALUE_MISMATCH
+
+    def test_rejects_overpayment_amount_mismatch(self):
+        signer = MockFacilitatorSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        result = facilitator.verify(
+            make_payment_payload(amount="150000"),
+            make_requirements(amount="100000"),
+        )
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_AUTHORIZATION_VALUE_MISMATCH
 
     def test_reports_name_mismatch_from_simulation_diagnostic(self):
         signer = MockFacilitatorSigner(
@@ -445,6 +509,20 @@ class TestSettle:
         assert result.success is True
         assert signer.transfer_simulation_calls == 1
         assert signer.write_calls == 1
+
+
+class TestVerifyV1:
+    def test_rejects_overpayment_amount_mismatch(self):
+        signer = MockFacilitatorSigner()
+        facilitator = ExactEvmSchemeV1(signer)
+
+        result = facilitator.verify(
+            make_payment_payload_v1(amount="150000"),
+            make_requirements_v1(amount="100000"),
+        )
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_AUTHORIZATION_VALUE_MISMATCH
 
 
 class TestFacilitatorSchemeAttributes:

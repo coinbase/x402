@@ -159,8 +159,8 @@ func (f *ExactEvmSchemeV1) verify(
 		return nil, x402.NewVerifyError(ErrInvalidRequiredAmount, evmPayload.Authorization.From, fmt.Sprintf("invalid required amount: %s", amountStr))
 	}
 
-	if parsedAuthorization.Value.Cmp(requiredValue) < 0 {
-		return nil, x402.NewVerifyError(ErrAuthorizationValueInsufficient, evmPayload.Authorization.From, fmt.Sprintf("authorization value insufficient: %s < %s", parsedAuthorization.Value.String(), requiredValue.String()))
+	if parsedAuthorization.Value.Cmp(requiredValue) != 0 {
+		return nil, x402.NewVerifyError(ErrAuthorizationValueMismatch, evmPayload.Authorization.From, fmt.Sprintf("authorization value mismatch: %s != %s", parsedAuthorization.Value.String(), requiredValue.String()))
 	}
 
 	// V1 specific: Check validBefore is in the future (with 6 second buffer for block time)

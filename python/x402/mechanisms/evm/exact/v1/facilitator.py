@@ -8,9 +8,9 @@ from typing import Any
 from .....schemas import Network, SettleResponse, VerifyResponse
 from .....schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
 from ...constants import (
+    ERR_AUTHORIZATION_VALUE_MISMATCH,
     ERR_FAILED_TO_GET_NETWORK_CONFIG,
     ERR_FAILED_TO_VERIFY_SIGNATURE,
-    ERR_INSUFFICIENT_AMOUNT,
     ERR_INVALID_SIGNATURE,
     ERR_MISSING_EIP712_DOMAIN,
     ERR_NETWORK_MISMATCH,
@@ -120,7 +120,7 @@ class ExactEvmSchemeV1:
 
         V1 validation differences:
         - scheme/network at top level of payload
-        - Uses maxAmountRequired for amount check
+        - Uses maxAmountRequired for exact amount validation
         - extra is JSON-encoded
 
         Args:
@@ -174,9 +174,11 @@ class ExactEvmSchemeV1:
             )
 
         # V1: Use maxAmountRequired
-        if int(evm_payload.authorization.value) < int(requirements.max_amount_required):
+        if int(evm_payload.authorization.value) != int(requirements.max_amount_required):
             return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INSUFFICIENT_AMOUNT, payer=payer
+                is_valid=False,
+                invalid_reason=ERR_AUTHORIZATION_VALUE_MISMATCH,
+                payer=payer,
             )
 
         # V1: Check validBefore is in future (6 second buffer)

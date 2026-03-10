@@ -933,6 +933,58 @@ func TestVerifyEIP3009TimingValidation(t *testing.T) {
 	})
 }
 
+func TestVerifyEIP3009RejectsOverpayment(t *testing.T) {
+	ctx := context.Background()
+	requirements := defaultEIP3009Requirements()
+	payload := defaultEIP3009Payload(mockSignature65Bytes())
+	payload.Payload["authorization"].(map[string]interface{})["value"] = "1000001"
+
+	signer := &mockFacilitatorSigner{
+		verifyTypedDataResult: true,
+		readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+			if functionName == evm.FunctionTransferWithAuthorization {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("unsupported function: %s", functionName)
+		},
+	}
+	scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+	_, err := scheme.Verify(ctx, payload, requirements, nil)
+	if err == nil {
+		t.Fatal("expected overpayment mismatch error")
+	}
+	if !strings.Contains(err.Error(), evmfacilitator.ErrAuthorizationValueMismatch) {
+		t.Fatalf("expected %q, got %v", evmfacilitator.ErrAuthorizationValueMismatch, err)
+	}
+}
+
+func TestVerifyEIP3009V1RejectsOverpayment(t *testing.T) {
+	ctx := context.Background()
+	requirements := defaultEIP3009RequirementsV1(t)
+	payload := defaultEIP3009PayloadV1(mockSignature65Bytes())
+	payload.Payload["authorization"].(map[string]interface{})["value"] = "1000001"
+
+	signer := &mockFacilitatorSigner{
+		verifyTypedDataResult: true,
+		readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+			if functionName == evm.FunctionTransferWithAuthorization {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("unsupported function: %s", functionName)
+		},
+	}
+	scheme := evmv1facilitator.NewExactEvmSchemeV1(signer, nil)
+
+	_, err := scheme.Verify(ctx, payload, requirements, nil)
+	if err == nil {
+		t.Fatal("expected overpayment mismatch error")
+	}
+	if !strings.Contains(err.Error(), evmv1facilitator.ErrAuthorizationValueMismatch) {
+		t.Fatalf("expected %q, got %v", evmv1facilitator.ErrAuthorizationValueMismatch, err)
+	}
+}
+
 func TestVerifyEIP3009SimulationParity(t *testing.T) {
 	ctx := context.Background()
 	requirements := defaultEIP3009Requirements()

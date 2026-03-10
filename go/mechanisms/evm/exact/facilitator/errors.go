@@ -12,7 +12,7 @@ const (
 	ErrRecipientMismatch           = "invalid_exact_evm_recipient_mismatch"
 	ErrInvalidAuthorizationValue   = "invalid_exact_evm_authorization_value"
 	ErrInvalidRequiredAmount       = "invalid_exact_evm_required_amount"
-	ErrInsufficientAmount          = "invalid_exact_evm_insufficient_amount"
+	ErrAuthorizationValueMismatch  = "invalid_exact_evm_payload_authorization_value_mismatch"
 	ErrFailedToCheckNonce          = "invalid_exact_evm_failed_to_check_nonce"
 	ErrNonceAlreadyUsed            = "invalid_exact_evm_nonce_already_used"
 	ErrFailedToGetBalance          = "invalid_exact_evm_failed_to_get_balance"

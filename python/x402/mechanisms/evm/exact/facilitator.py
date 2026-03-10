@@ -12,9 +12,9 @@ from ....schemas import (
     VerifyResponse,
 )
 from ..constants import (
+    ERR_AUTHORIZATION_VALUE_MISMATCH,
     ERR_FAILED_TO_GET_NETWORK_CONFIG,
     ERR_FAILED_TO_VERIFY_SIGNATURE,
-    ERR_INSUFFICIENT_AMOUNT,
     ERR_INVALID_SIGNATURE,
     ERR_MISSING_EIP712_DOMAIN,
     ERR_NETWORK_MISMATCH,
@@ -121,7 +121,7 @@ class ExactEvmScheme:
         - Scheme and network match
         - Signature is valid (EOA, EIP-1271, or ERC-6492)
         - Recipient matches requirements.pay_to
-        - Amount >= requirements.amount
+        - Amount exactly matches requirements.amount
         - Validity window is correct
         - Nonce hasn't been used
         - Payer has sufficient balance
@@ -174,9 +174,11 @@ class ExactEvmScheme:
             )
 
         # Validate amount
-        if int(evm_payload.authorization.value) < int(requirements.amount):
+        if int(evm_payload.authorization.value) != int(requirements.amount):
             return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INSUFFICIENT_AMOUNT, payer=payer
+                is_valid=False,
+                invalid_reason=ERR_AUTHORIZATION_VALUE_MISMATCH,
+                payer=payer,
             )
 
         # Validate timing
