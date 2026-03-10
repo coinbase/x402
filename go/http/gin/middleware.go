@@ -53,7 +53,7 @@ func (a *GinAdapter) GetURL() string {
 	if host == "" {
 		host = a.ctx.GetHeader("Host")
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.Path)
+	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.RequestURI())
 }
 
 // GetAcceptHeader gets the Accept header
@@ -193,6 +193,45 @@ func PaymentMiddleware(routes x402http.RoutesConfig, server *x402.X402ResourceSe
 	return createMiddlewareHandler(httpServer, config)
 }
 
+// PaymentMiddlewareFromHTTPServer creates Gin middleware using a pre-configured HTTPServer.
+// This allows registering hooks (e.g., OnProtectedRequest) on the server before attaching to the router.
+//
+// Example:
+//
+//	resourceServer := x402.Newx402ResourceServer(
+//	    x402.WithFacilitatorClient(facilitator),
+//	).Register("eip155:*", evm.NewExactEvmScheme())
+//
+//	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer).
+//	    OnProtectedRequest(requestHook)
+//
+//	r.Use(ginmw.PaymentMiddlewareFromHTTPServer(httpServer))
+func PaymentMiddlewareFromHTTPServer(httpServer *x402http.HTTPServer, opts ...MiddlewareOption) gin.HandlerFunc {
+	config := &MiddlewareConfig{
+		SyncFacilitatorOnStart: true,
+		Timeout:                30 * time.Second,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
+
+	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
+	if config.SyncFacilitatorOnStart {
+		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+		defer cancel()
+		if err := httpServer.Initialize(ctx); err != nil {
+			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
+		}
+	}
+
+	// Create middleware handler using shared logic
+	return createMiddlewareHandler(httpServer, config)
+}
+
 // PaymentMiddlewareFromConfig creates Gin middleware for x402 payment handling.
 // This creates the server internally from the provided options.
 func PaymentMiddlewareFromConfig(routes x402http.RoutesConfig, opts ...MiddlewareOption) gin.HandlerFunc {
@@ -259,11 +298,6 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 
 		result := server.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
 
-		// Debug logging for request processing
-		fmt.Printf("🔍 [GIN REQUEST DEBUG] Processed HTTP request\n")
-		fmt.Printf("   Result Type: %v\n", result.Type)
-		fmt.Printf("   Path: %s, Method: %s\n", reqCtx.Path, reqCtx.Method)
-
 		// Handle result
 		switch result.Type {
 		case x402http.ResultNoPaymentRequired:
@@ -312,6 +346,14 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 	}
 	c.Writer = writer
 
+	// Set payment data in context for downstream handlers
+	if result.PaymentPayload != nil {
+		c.Set("x402_payload", *result.PaymentPayload)
+	}
+	if result.PaymentRequirements != nil {
+		c.Set("x402_requirements", *result.PaymentRequirements)
+	}
+
 	// Continue to protected handler
 	c.Next()
 
@@ -331,13 +373,6 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		return
 	}
 
-	// Debug logging for settlement
-	fmt.Printf("🔍 [GIN SETTLEMENT DEBUG] Starting settlement process\n")
-	fmt.Printf("   StatusCode: %d\n", writer.statusCode)
-	fmt.Printf("   Context Error: %v\n", ctx.Err())
-	fmt.Printf("   PaymentPayload: %+v\n", result.PaymentPayload)
-	fmt.Printf("   PaymentRequirements: %+v\n", result.PaymentRequirements)
-
 	// Process settlement
 	settleResult := server.ProcessSettlement(
 		ctx,
@@ -345,23 +380,24 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		*result.PaymentRequirements,
 	)
 
-	fmt.Printf("🔍 [GIN SETTLEMENT DEBUG] Settlement completed\n")
-	fmt.Printf("   Success: %v\n", settleResult.Success)
-	fmt.Printf("   ErrorReason: %v\n", settleResult.ErrorReason)
-
 	// Check settlement success
 	if !settleResult.Success {
-		errorReason := settleResult.ErrorReason
-		if errorReason == "" {
-			errorReason = "Settlement failed"
+		// Always set PAYMENT-RESPONSE header on settlement failure
+		for key, value := range settleResult.Headers {
+			c.Header(key, value)
 		}
-		if config.ErrorHandler != nil {
+		switch {
+		case config.ErrorHandler != nil:
+			errorReason := settleResult.ErrorReason
+			if errorReason == "" {
+				errorReason = "Settlement failed"
+			}
 			config.ErrorHandler(c, fmt.Errorf("settlement failed: %s", errorReason))
-		} else {
-			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error":   "Settlement failed",
-				"details": errorReason,
-			})
+		case settleResult.Response != nil:
+			handlePaymentError(c, settleResult.Response, config)
+		default:
+			// Fallback if Response is nil
+			c.JSON(http.StatusPaymentRequired, map[string]interface{}{})
 		}
 		return
 	}

@@ -48,6 +48,19 @@ Servers can include:
 
 Servers do not need to manage client identities or maintain session state. Verification and settlement are handled per request.
 
+#### Duplicate Settlement on Solana
+
+If your server settles payments directly on Solana (without delegating to a facilitator), be aware of a race condition: the same signed payment transaction can be submitted multiple times before the first submission is confirmed on-chain. Solana's RPC will return "success" for each submission, since the network deduplicates at the consensus level. A malicious client can exploit this to obtain access to multiple resources while only paying once.
+
+To mitigate this, servers that settle Solana payments themselves **must** maintain a short-lived, in-memory cache of transaction payloads currently being settled:
+
+1. After verification succeeds, derive a cache key from the transaction payload (e.g., the base64-encoded transaction string).
+2. If the key is already present in the cache, reject the settlement with a `"duplicate_settlement"` error.
+3. If the key is not present, insert it into the cache and proceed with settlement.
+4. Evict entries older than 120 seconds (approximately twice the Solana blockhash lifetime).
+
+If you are using a facilitator, the x402 SVM libraries already include built-in duplicate settlement protection via a `SettlementCache`. See the [Exact SVM Scheme Specification](/specs/schemes/exact/scheme_exact_svm#duplicate-settlement-mitigation-recommended) for full details.
+
 ### Communication Flow
 
 The typical flow between a client and a server in the x402 protocol is as follows:
@@ -57,7 +70,7 @@ The typical flow between a client and a server in the x402 protocol is as follow
 3. **Client prepares and submits a payment payload** based on the provided requirements, including it in the `PAYMENT-SIGNATURE` header (Base64-encoded).
 4. **Server verifies the payment payload**, either locally or through a facilitator service.
 5. **Server settles the payment** and confirms transaction completion.
-6. **Server responds with the requested resource**, including a `PAYMENT-RESPONSE` header (Base64-encoded) with settlement confirmation, assuming payment was successful.
+6. **Server responds with the requested resource** (on success) or an error response (on failure), including a `PAYMENT-RESPONSE` header (Base64-encoded) with settlement details in both cases.
 
 ### Summary
 
@@ -70,5 +83,5 @@ This interaction is stateless, HTTP-native, and compatible with both human appli
 
 Next, explore:
 
-* [Facilitator](/core-concepts/facilitator) — how servers verify and settle payments
-* [HTTP 402](/core-concepts/http-402) — how servers communicate payment requirements to clients
+* [Facilitator](/docs/core-concepts/facilitator.md) — how servers verify and settle payments
+* [HTTP 402](/docs/core-concepts/http-402.md) — how servers communicate payment requirements to clients

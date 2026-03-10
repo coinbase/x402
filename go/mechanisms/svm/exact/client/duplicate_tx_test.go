@@ -370,13 +370,6 @@ func TestAttackScenarioSimulation(t *testing.T) {
 	})
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func TestMemoDataIsValidUTF8(t *testing.T) {
 	t.Run("memo data is valid UTF-8 (SPL Memo requirement)", func(t *testing.T) {
 		server := httptest.NewServer(mockSolanaRPCHandler(t, func() string {

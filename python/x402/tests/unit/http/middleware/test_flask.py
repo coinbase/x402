@@ -522,7 +522,7 @@ class TestFlaskMiddlewareIntegration:
                 assert "PAYMENT-RESPONSE" in response.headers
 
     def test_settlement_failure_returns_402(self):
-        """Test that settlement failure returns 402."""
+        """Test that settlement failure returns 402 with empty body and PAYMENT-RESPONSE header."""
         app = Flask(__name__)
 
         @app.route("/api/protected")
@@ -546,6 +546,14 @@ class TestFlaskMiddlewareIntegration:
             mock_http_server_instance.process_settlement.return_value = ProcessSettleResult(
                 success=False,
                 error_reason="Insufficient funds",
+                response=HTTPResponseInstructions(
+                    status=402,
+                    headers={
+                        "Content-Type": "application/json",
+                        "PAYMENT-RESPONSE": "base64encoded",
+                    },
+                    body={},
+                ),
             )
             mock_http_server.return_value = mock_http_server_instance
 
@@ -555,5 +563,5 @@ class TestFlaskMiddlewareIntegration:
                 response = client.get("/api/protected")
                 assert response.status_code == 402
                 data = json.loads(response.data)
-                assert data["error"] == "Settlement failed"
-                assert data["details"] == "Insufficient funds"
+                assert data == {}
+                assert "PAYMENT-RESPONSE" in response.headers

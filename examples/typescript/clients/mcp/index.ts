@@ -4,7 +4,7 @@
  * Routes to either simple or advanced example based on CLI arguments.
  *
  * Usage:
- *   pnpm dev           - Run simple example (createX402MCPClient factory)
+ *   pnpm dev           - Run simple example (createx402MCPClient factory)
  *   pnpm dev:advanced  - Run advanced example (x402MCPClient with manual setup)
  */
 

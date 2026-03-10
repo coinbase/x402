@@ -180,12 +180,14 @@ describe("MCP Payment Flow Integration", () => {
       verifyPayment: facilitator.verify,
       settlePayment: facilitator.settle,
       buildPaymentRequirements: vi.fn().mockResolvedValue([mockPaymentRequirements]),
-      createPaymentRequiredResponse: vi.fn().mockResolvedValue({
-        x402Version: 2,
-        accepts: [mockPaymentRequirements],
-        error: "Payment required",
-        resource: { url: "mcp://tool/test", description: "Test", mimeType: "application/json" },
-      }),
+      createPaymentRequiredResponse: vi
+        .fn()
+        .mockImplementation((_requirements, resourceInfo, errorMessage) => ({
+          x402Version: 2,
+          accepts: [mockPaymentRequirements],
+          error: errorMessage,
+          resource: resourceInfo,
+        })),
     };
 
     server = new x402MCPServer(

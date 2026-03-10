@@ -22,7 +22,7 @@ export type Any = z.infer<typeof Any>;
  * Optional any record schema - an optional object with unknown keys and values.
  * Used for optional extension fields like `extra` and `extensions`.
  */
-export const OptionalAny = z.record(z.unknown()).optional();
+export const OptionalAny = z.record(z.unknown()).optional().nullable();
 export type OptionalAny = z.infer<typeof OptionalAny>;
 
 // ============================================================================

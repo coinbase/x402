@@ -11,8 +11,7 @@ import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature 
 import { authorizationTypes, eip3009ABI } from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
-import { getEvmChainId } from "../../../utils";
-import { EvmNetworkV1 } from "../../../v1";
+import { EvmNetworkV1, getEvmChainIdV1 } from "../../../v1";
 
 export interface ExactEvmSchemeV1Config {
   /**
@@ -96,7 +95,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     // Get chain configuration
     let chainId: number;
     try {
-      chainId = getEvmChainId(payloadV1.network as EvmNetworkV1);
+      chainId = getEvmChainIdV1(payloadV1.network as EvmNetworkV1);
     } catch {
       return {
         isValid: false,
@@ -251,6 +250,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
         return {
           isValid: false,
           invalidReason: "insufficient_funds",
+          invalidMessage: `Insufficient funds to complete the payment. Required: ${requirementsV1.maxAmountRequired} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
           payer: exactEvmPayload.authorization.from,
         };
       }
@@ -258,11 +258,11 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       // If we can't check balance, continue with other validations
     }
 
-    // Verify amount is sufficient
-    if (BigInt(exactEvmPayload.authorization.value) < BigInt(requirementsV1.maxAmountRequired)) {
+    // Verify amount exactly matches requirements
+    if (BigInt(exactEvmPayload.authorization.value) !== BigInt(requirementsV1.maxAmountRequired)) {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_evm_payload_authorization_value",
+        invalidReason: "invalid_exact_evm_payload_authorization_value_mismatch",
         payer: exactEvmPayload.authorization.from,
       };
     }

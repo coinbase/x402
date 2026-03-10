@@ -1,12 +1,11 @@
 /**
- * MCP Server with x402 Paid Tools - Advanced Example
+ * MCP Server with x402 Paid Tools - Advanced Example with Hooks
  *
- * This example demonstrates the LOW-LEVEL API using `x402MCPServer` directly.
- * Use this approach when you need:
- * - Custom resource server configuration
- * - Multiple facilitators
- * - Custom hooks and middleware
- * - Full control over initialization
+ * This example demonstrates using createPaymentWrapper with hooks for:
+ * - Logging and observability
+ * - Rate limiting and access control
+ * - Custom settlement handling
+ * - Production monitoring
  *
  * Run with: pnpm dev:advanced
  */
@@ -15,8 +14,8 @@ import { config } from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { x402MCPServer } from "@x402/mcp";
-import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { createPaymentWrapper, x402ResourceServer } from "@x402/mcp";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import express from "express";
 import { z } from "zod";
 
@@ -50,91 +49,144 @@ function getWeatherData(city: string): { city: string; weather: string; temperat
 }
 
 /**
- * Main entry point - Advanced API with manual setup and hooks.
+ * Main entry point - demonstrates hooks with payment wrapper.
  *
  * @returns Promise that resolves when server is running
  */
 export async function main(): Promise<void> {
-  console.log("\n📦 Using ADVANCED API (x402MCPServer with manual setup)\n");
+  console.log("\n📦 Using Payment Wrapper with Hooks\n");
 
   // ========================================================================
-  // ADVANCED: Manual setup with full control
+  // STEP 1: Create standard MCP server
   // ========================================================================
-
-  // Step 1: Create the MCP server manually
   const mcpServer = new McpServer({
     name: "x402 Weather Service (Advanced)",
     version: "1.0.0",
   });
 
-  // Step 2: Create facilitator client(s) manually
+  // ========================================================================
+  // STEP 2: Set up x402 resource server
+  // ========================================================================
   const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
-
-  // Step 3: Create x402 resource server with custom configuration
   const resourceServer = new x402ResourceServer(facilitatorClient);
-
-  // Step 4: Register payment schemes
   resourceServer.register("eip155:84532", new ExactEvmScheme());
-
-  // Step 5: Initialize resource server
   await resourceServer.initialize();
 
-  // Step 6: Create x402MCPServer by composing the servers
-  const x402Server = new x402MCPServer(mcpServer, resourceServer);
-
   // ========================================================================
-  // ADVANCED: Register hooks for observability and control
+  // STEP 3: Build payment requirements for different tools
   // ========================================================================
-
-  // Hook: Log before tool execution
-  x402Server.onBeforeExecution(async context => {
-    console.log(`\n🔧 [Hook] Before execution: ${context.toolName}`);
-    console.log(`   Payment from: ${context.paymentPayload.payload.authorization.from}`);
-    console.log(`   Amount: ${context.paymentRequirements.amount}`);
-    // Return false to abort execution
-    return true;
+  const weatherAccepts = await resourceServer.buildPaymentRequirements({
+    scheme: "exact",
+    network: "eip155:84532",
+    payTo: evmAddress,
+    price: "$0.001",
+    extra: { name: "USDC", version: "2" }, // EIP-712 domain parameters
   });
 
-  // Hook: Log after tool execution
-  x402Server.onAfterExecution(async context => {
-    console.log(`✅ [Hook] After execution: ${context.toolName}`);
-    console.log(`   Result error: ${context.result.isError ?? false}`);
-  });
-
-  // Hook: Log after settlement
-  x402Server.onAfterSettlement(async context => {
-    console.log(`💸 [Hook] Settlement complete: ${context.toolName}`);
-    console.log(`   Transaction: ${context.settlement.transaction}`);
-    console.log(`   Success: ${context.settlement.success}\n`);
+  const forecastAccepts = await resourceServer.buildPaymentRequirements({
+    scheme: "exact",
+    network: "eip155:84532",
+    payTo: evmAddress,
+    price: "$0.005",
+    extra: { name: "USDC", version: "2" }, // EIP-712 domain parameters
   });
 
   // ========================================================================
-  // Register tools
+  // STEP 4: Create payment wrappers with hooks for production features
   // ========================================================================
 
-  x402Server.paidTool(
+  // Shared hooks for all paid tools
+  const sharedHooks = {
+    // Hook 1: Before execution - can abort based on business logic
+    onBeforeExecution: async (context: {
+      toolName: string;
+      arguments: Record<string, unknown>;
+      paymentPayload: { payload: { authorization: { from: string } } };
+      paymentRequirements: { amount: string };
+    }) => {
+      console.log(`\n🔧 [Hook] Before execution: ${context.toolName}`);
+      console.log(`   Payment from: ${context.paymentPayload.payload.authorization.from}`);
+      console.log(`   Amount: ${context.paymentRequirements.amount}`);
+
+      // Example: Rate limiting (return false to abort)
+      // if (await isRateLimited(context.paymentPayload.payer)) {
+      //   console.log(`   ⛔ Rate limit exceeded`);
+      //   return false;
+      // }
+
+      return true; // Continue execution
+    },
+
+    // Hook 2: After execution - logging and metrics
+    onAfterExecution: async (context: { toolName: string; result: { isError?: boolean } }) => {
+      console.log(`✅ [Hook] After execution: ${context.toolName}`);
+      console.log(`   Result error: ${context.result.isError ?? false}`);
+
+      // Example: Log to analytics
+      // await analytics.trackToolExecution(context.toolName, context.result);
+    },
+
+    // Hook 3: After settlement - receipts and notifications
+    onAfterSettlement: async (context: {
+      toolName: string;
+      settlement: { transaction: string; success: boolean };
+    }) => {
+      console.log(`💸 [Hook] Settlement complete: ${context.toolName}`);
+      console.log(`   Transaction: ${context.settlement.transaction}`);
+      console.log(`   Success: ${context.settlement.success}\n`);
+
+      // Example: Send receipt to user
+      // await sendReceipt(context.paymentPayload.payer, context.settlement);
+    },
+  };
+
+  const paidWeather = createPaymentWrapper(resourceServer, {
+    accepts: weatherAccepts,
+    hooks: sharedHooks,
+  });
+
+  const paidForecast = createPaymentWrapper(resourceServer, {
+    accepts: forecastAccepts,
+    hooks: sharedHooks,
+  });
+
+  // ========================================================================
+  // STEP 5: Register tools - each wrapper has its own price and hooks
+  // ========================================================================
+
+  // Weather tool - $0.001
+  mcpServer.tool(
     "get_weather",
-    {
-      description: "Get current weather for a city. Requires payment of $0.001.",
-      inputSchema: {
-        city: z.string().describe("The city name to get weather for"),
-      },
-    },
-    {
-      scheme: "exact",
-      network: "eip155:84532",
-      price: "$0.001",
-      payTo: evmAddress,
-      extra: { name: "USDC", version: "2" },
-    },
-    async ({ city }) => ({
+    "Get current weather for a city. Requires payment of $0.001.",
+    { city: z.string().describe("The city name to get weather for") },
+    paidWeather(async (args: { city: string }) => ({
       content: [
-        { type: "text" as const, text: JSON.stringify(getWeatherData(city as string), null, 2) },
+        {
+          type: "text" as const,
+          text: JSON.stringify(getWeatherData(args.city), null, 2),
+        },
       ],
+    })),
+  );
+
+  // Forecast tool - $0.005
+  mcpServer.tool(
+    "get_forecast",
+    "Get 7-day weather forecast. Requires payment of $0.005.",
+    { city: z.string().describe("The city name to get forecast for") },
+    paidForecast(async (args: { city: string }) => {
+      const forecast = Array.from({ length: 7 }, (_, i) => ({
+        day: i + 1,
+        ...getWeatherData(args.city),
+      }));
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(forecast, null, 2) }],
+      };
     }),
   );
 
-  x402Server.tool("ping", "A free tool that returns pong", {}, async () => ({
+  // Free tool - no wrapper, no hooks
+  mcpServer.tool("ping", "A free health check tool", {}, async () => ({
     content: [{ type: "text", text: "pong" }],
   }));
 
@@ -174,15 +226,22 @@ function startExpressServer(mcpServer: McpServer, port: number): void {
   });
 
   app.get("/health", (_, res) => {
-    res.json({ status: "ok", mode: "advanced", tools: ["get_weather (paid)", "ping (free)"] });
+    res.json({
+      status: "ok",
+      mode: "advanced-with-hooks",
+      tools: ["get_weather (paid: $0.001)", "ping (free)"],
+    });
   });
 
   app.listen(port, () => {
     console.log(`🚀 x402 MCP Server (Advanced) running on http://localhost:${port}`);
     console.log(`\n📋 Available tools:`);
-    console.log(`   - get_weather (paid: $0.001)`);
+    console.log(`   - get_weather (paid: $0.001) [with hooks]`);
     console.log(`   - ping (free)`);
     console.log(`\n🔗 Connect via SSE: http://localhost:${port}/sse`);
-    console.log(`📊 Hooks enabled: onBeforeExecution, onAfterExecution, onAfterSettlement\n`);
+    console.log(`\n📊 Hooks enabled:`);
+    console.log(`   - onBeforeExecution: Rate limiting, validation`);
+    console.log(`   - onAfterExecution: Logging, metrics`);
+    console.log(`   - onAfterSettlement: Receipts, notifications\n`);
   });
 }

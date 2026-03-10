@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+
+	goethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // ExactEIP3009Authorization represents the EIP-3009 TransferWithAuthorization data
@@ -55,7 +57,6 @@ type Permit2TokenPermissions struct {
 type Permit2Witness struct {
 	To         string `json:"to"`         // Destination address for funds (hex)
 	ValidAfter string `json:"validAfter"` // Unix timestamp (decimal string) - payment invalid before this time
-	Extra      string `json:"extra"`      // Extra data (hex, typically "0x" for empty)
 }
 
 // Permit2Authorization represents the Permit2 authorization parameters.
@@ -92,7 +93,6 @@ func (p *ExactPermit2Payload) ToMap() map[string]interface{} {
 			"witness": map[string]interface{}{
 				"to":         p.Permit2Authorization.Witness.To,
 				"validAfter": p.Permit2Authorization.Witness.ValidAfter,
-				"extra":      p.Permit2Authorization.Witness.Extra,
 			},
 		},
 	}
@@ -170,13 +170,6 @@ func Permit2PayloadFromMap(data map[string]interface{}) (*ExactPermit2Payload, e
 		return nil, fmt.Errorf("missing or invalid permit2Authorization.witness.validAfter field")
 	}
 
-	if extra, ok := witness["extra"].(string); ok {
-		payload.Permit2Authorization.Witness.Extra = extra
-	} else {
-		// Extra is optional, default to "0x"
-		payload.Permit2Authorization.Witness.Extra = "0x"
-	}
-
 	return payload, nil
 }
 
@@ -192,7 +185,53 @@ func IsEIP3009Payload(data map[string]interface{}) bool {
 	return ok
 }
 
-// ClientEvmSigner defines the interface for client-side EVM signing operations
+// ClientEvmSignerWithTxSigning extends ClientEvmSigner with raw transaction signing capabilities.
+// Required for the ERC-20 approval gas sponsoring extension, where the client signs
+// (but does not broadcast) an approve(Permit2, MaxUint256) transaction.
+type ClientEvmSignerWithTxSigning interface {
+	ClientEvmSignerWithSignTransaction
+	ClientEvmSignerWithGetTransactionCount
+	ClientEvmSignerWithEstimateFeesPerGas
+}
+
+// ClientEvmSignerWithSignTransaction extends ClientEvmSigner with raw tx signing.
+type ClientEvmSignerWithSignTransaction interface {
+	ClientEvmSigner
+
+	// SignTransaction signs an EIP-1559 transaction and returns the RLP-encoded bytes.
+	SignTransaction(ctx context.Context, tx *goethtypes.Transaction) ([]byte, error)
+}
+
+// ClientEvmSignerWithGetTransactionCount extends ClientEvmSigner with nonce lookup.
+type ClientEvmSignerWithGetTransactionCount interface {
+	ClientEvmSigner
+
+	// GetTransactionCount returns the pending nonce for an address.
+	GetTransactionCount(ctx context.Context, address string) (uint64, error)
+}
+
+// ClientEvmSignerWithEstimateFeesPerGas extends ClientEvmSigner with fee estimation.
+type ClientEvmSignerWithEstimateFeesPerGas interface {
+	ClientEvmSigner
+
+	// EstimateFeesPerGas returns the EIP-1559 maxFeePerGas and maxPriorityFeePerGas.
+	EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error)
+}
+
+// ClientEvmSignerWithReadContract extends ClientEvmSigner with on-chain read capability.
+// Used by extension enrichment paths (EIP-2612 nonce lookup, allowance checks).
+type ClientEvmSignerWithReadContract interface {
+	ClientEvmSigner
+
+	// ReadContract reads data from a smart contract.
+	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
+}
+
+// ClientEvmSigner defines the minimal interface for client-side EVM signing operations.
+//
+// Base payment signing only requires address + typed-data signing.
+// Optional extension flows can use additional capability interfaces like
+// ClientEvmSignerWithReadContract and ClientEvmSignerWithTxSigning.
 type ClientEvmSigner interface {
 	// Address returns the signer's Ethereum address
 	Address() string
@@ -258,10 +297,12 @@ type TransactionReceipt struct {
 
 // AssetInfo contains information about an ERC20 token
 type AssetInfo struct {
-	Address  string
-	Name     string
-	Version  string
-	Decimals int
+	Address             string
+	Name                string
+	Version             string
+	Decimals            int
+	AssetTransferMethod AssetTransferMethod
+	SupportsEip2612     bool
 }
 
 // NetworkConfig contains network-specific configuration

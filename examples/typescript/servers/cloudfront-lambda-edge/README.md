@@ -91,12 +91,12 @@ export const NETWORK = 'eip155:84532';              // Base Sepolia (testnet)
 Define which routes require payment:
 
 ```typescript
-const ROUTES: RoutesConfig = {
+export const ROUTES: RoutesConfig = {
   '/api/*': {
     accepts: {
       scheme: 'exact',
-      network: 'eip155:84532',
-      payTo: '0xYourAddress',
+      network: NETWORK,
+      payTo: PAY_TO,
       price: '$0.001',
     },
     description: 'API access',
@@ -117,12 +117,52 @@ Bundle and deploy both Lambda functions:
 import { originRequestHandler, originResponseHandler } from './index';
 ```
 
+---
+
 ## Networks
 
-| Network      | ID             | Use        |
-| ------------ | -------------- | ---------- |
-| Base Sepolia | `eip155:84532` | Testing    |
-| Base Mainnet | `eip155:8453`  | Production |
+| Network        | ID                                        | Use        |
+| -------------- | ----------------------------------------- | ---------- |
+| Base Sepolia   | `eip155:84532`                            | Testing    |
+| Base Mainnet   | `eip155:8453`                             | Production |
+| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testing    |
+| Solana Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Production |
+
+---
+
+## Running on Mainnet
+
+To accept real payments, you need a mainnet facilitator. Each facilitator may have different authentication requirements. Browse available facilitators at the [x402 Ecosystem — Facilitators](https://www.x402.org/ecosystem?filter=facilitators).
+
+Update `config.ts` with your chosen facilitator, a mainnet network, and your wallet address:
+
+```typescript
+export const FACILITATOR_URL = 'https://your-facilitator-url';
+export const NETWORK = 'eip155:8453'; // Base mainnet
+export const PAY_TO = '0xYourMainnetWalletAddress';
+```
+
+If your facilitator requires authentication, you can pass a `facilitatorConfig` object (with `url` and `createAuthHeaders`) via the middleware config. Update `config.ts`:
+
+```typescript
+// Example: using a facilitator package that provides a config with auth
+import { createFacilitatorConfig } from 'your-facilitator-package';
+
+export const FACILITATOR_CONFIG = createFacilitatorConfig('api-key-id', 'api-key-secret');
+```
+
+Then pass it in `origin-request.ts` and `origin-response.ts`:
+
+```typescript
+const x402 = createX402Middleware({
+  facilitatorUrl: FACILITATOR_URL,
+  network: NETWORK,
+  routes: ROUTES,
+  facilitatorConfig: FACILITATOR_CONFIG, // overrides facilitatorUrl when provided
+});
+```
+
+> **Note**: Lambda@Edge does not support environment variables. If your facilitator reads credentials from `process.env`, you can pass them explicitly via the config function, or fetch them from AWS Secrets Manager at runtime.
 
 ---
 
@@ -136,33 +176,44 @@ cloudfront-lambda-edge/
 │   ├── origin-response.ts # Handler for origin-response event
 │   ├── config.ts          # Routes, addresses, network config
 │   └── lib/               # Reusable x402 middleware
-│       ├── middleware.ts  # createX402Middleware factory
+│       ├── index.ts       # Package exports
+│       ├── middleware.ts   # createX402Middleware factory
 │       ├── server.ts      # createX402Server factory
 │       ├── adapter.ts     # CloudFrontHTTPAdapter
 │       └── responses.ts   # Lambda@Edge response helpers
 ```
 
+---
+
 ## Middleware Pattern
 
-The x402 logic is composable middleware, so you can integrate it with your existing Lambda@Edge logic:
+The `lib/` folder follows the same pattern as `@x402/express`, `@x402/hono`, etc.:
 
 ```typescript
-import { createX402Middleware } from './lib';
+import { createX402Middleware, MiddlewareResultType } from './lib';
 
-const x402 = createX402Middleware({ getServer: createServer });
+// Create middleware with config
+const x402 = createX402Middleware({
+  facilitatorUrl: 'https://x402.org/facilitator',
+  network: 'eip155:84532',
+  routes: {
+    '/api/*': {
+      accepts: { scheme: 'exact', network: 'eip155:84532', payTo: '0x...', price: '$0.01' },
+      description: 'API access',
+    },
+  },
+});
 
+// Use in handlers
 export const handler = async (event: CloudFrontRequestEvent) => {
   const request = event.Records[0].cf.request;
+  const distributionDomain = event.Records[0].cf.config.distributionDomainName;
   
   // Your custom logic first (auth, WAF, logging, etc.)
-  if (request.headers['x-api-key']?.[0]?.value !== 'secret') {
-    return { status: '401', body: 'Unauthorized' };
-  }
   
-  // x402 payment check
   const result = await x402.processOriginRequest(request, distributionDomain);
   
-  if (result.type === 'respond') {
+  if (result.type === MiddlewareResultType.RESPOND) {
     return result.response; // 402 Payment Required
   }
   
@@ -217,13 +268,6 @@ getHeader(name: string): string | undefined {
   return this.request.headers[name.toLowerCase()]?.[0]?.value;
 }
 ```
-
-</details>
-
-<details>
-<summary>Browser Paywall</summary>
-
-HTML paywall is disabled by default due to Lambda@Edge's 1MB response limit. For browser-based payment flows, consider hosting the paywall HTML on S3 and using CloudFront origin routing to serve it.
 
 </details>
 

@@ -3,16 +3,32 @@
   "type": "server",
   "language": "typescript",
   "x402Version": 2,
-  "extensions": [
-    "bazaar"
-  ],
+  "extensions": ["bazaar", "eip2612GasSponsoring", "erc20ApprovalGasSponsoring"],
   "endpoints": [
     {
       "path": "/api/protected-proxy",
       "method": "GET",
       "description": "Protected endpoint using proxy middleware",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
+    },
+    {
+      "path": "/api/protected-permit2-proxy",
+      "method": "GET",
+      "description": "Protected Permit2 endpoint using proxy middleware",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2"
+    },
+    {
+      "path": "/api/protected-permit2-erc20-proxy",
+      "method": "GET",
+      "description": "Protected Permit2 endpoint with ERC-20 approval gas sponsoring using proxy middleware",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2",
+      "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
       "path": "/api/protected-svm-proxy",
@@ -22,11 +38,26 @@
       "protocolFamily": "svm"
     },
     {
+      "path": "/api/protected-aptos-proxy",
+      "method": "GET",
+      "description": "Protected endpoint using proxy middleware on Aptos",
+      "requiresPayment": true,
+      "protocolFamily": "aptos"
+    },
+    {
+      "path": "/api/protected-stellar-proxy",
+      "method": "GET",
+      "description": "Protected Stellar endpoint using proxy middleware",
+      "requiresPayment": true,
+      "protocolFamily": "stellar"
+    },
+    {
       "path": "/api/protected-withx402",
       "method": "GET",
       "description": "Protected endpoint using withX402 wrapper",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/api/protected-svm-withx402",
@@ -34,6 +65,13 @@
       "description": "Protected endpoint using withX402 wrapper on SVM",
       "requiresPayment": true,
       "protocolFamily": "svm"
+    },
+    {
+      "path": "/api/protected-stellar-withx402",
+      "method": "GET",
+      "description": "Protected Stellar endpoint using withX402 wrapper",
+      "requiresPayment": true,
+      "protocolFamily": "stellar"
     },
     {
       "path": "/api/health",
@@ -49,12 +87,7 @@
     }
   ],
   "environment": {
-    "required": [
-      "PORT",
-      "EVM_PAYEE_ADDRESS",
-      "SVM_PAYEE_ADDRESS",
-      "FACILITATOR_URL"
-    ],
-    "optional": []
+    "required": ["PORT", "EVM_PAYEE_ADDRESS", "SVM_PAYEE_ADDRESS", "FACILITATOR_URL"],
+    "optional": ["APTOS_PAYEE_ADDRESS", "STELLAR_PAYEE_ADDRESS"]
   }
 }

@@ -30,6 +30,7 @@ from .types import (
     HTTPAdapter,
     HTTPProcessResult,
     HTTPRequestContext,
+    HTTPResponseBody,
     HTTPResponseInstructions,
     PaymentOption,
     PaywallConfig,
@@ -38,8 +39,8 @@ from .types import (
     RouteConfigurationError,
     RoutesConfig,
     RouteValidationError,
+    SettlementFailedResponseBody,
     UnpaidResponseBody,
-    UnpaidResponseResult,
 )
 from .utils import (
     decode_payment_required_header,
@@ -53,7 +54,11 @@ from .utils import (
     safe_base64_encode,
 )
 from .x402_http_client import PaymentRoundTripper, x402HTTPClient, x402HTTPClientSync
-from .x402_http_server import PaywallProvider, x402HTTPResourceServer, x402HTTPResourceServerSync
+from .x402_http_server import (
+    PaywallProvider,
+    x402HTTPResourceServer,
+    x402HTTPResourceServerSync,
+)
 
 # HTTP clients (imported on demand to avoid requiring httpx/requests)
 # from .clients import (
@@ -111,8 +116,9 @@ __all__ = [
     "CompiledRoute",
     "DynamicPayTo",
     "DynamicPrice",
+    "HTTPResponseBody",
+    "SettlementFailedResponseBody",
     "UnpaidResponseBody",
-    "UnpaidResponseResult",
     "RouteValidationError",
     "RouteConfigurationError",
     # Utils

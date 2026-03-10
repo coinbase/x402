@@ -9,12 +9,12 @@ description: "This guide walks you through integrating with **x402** to enable p
 
 Before you begin, ensure you have:
 
-* A crypto wallet to receive funds (any EVM-compatible wallet)
+* A crypto wallet to receive funds (any EVM or SVM compatible wallet)
 * [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip installed
 * An existing API or server
 
 **Note**\
-We have pre-configured examples available in our repo for both [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/servers) and [Go](https://github.com/coinbase/x402/tree/main/examples/go/servers). We also have an [advanced example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) that shows how to use the x402 SDKs to build a more complex payment flow.
+There are pre-configured examples available in the x402 repo for both [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/servers) and [Go](https://github.com/coinbase/x402/tree/main/examples/go/servers). There is also an [advanced example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) that shows how to use the x402 SDKs to build a more complex payment flow.
 
 ### 1. Install Dependencies
 
@@ -23,21 +23,21 @@ We have pre-configured examples available in our repo for both [Node.js](https:/
     Install the [x402 Express middleware package](https://www.npmjs.com/package/@x402/express).
 
     ```bash
-    npm install @x402/express @x402/core @x402/evm
+    npm install @x402/express @x402/core @x402/evm @x402/svm
     ```
   </Tab>
   <Tab title="Next.js">
     Install the [x402 Next.js middleware package](https://www.npmjs.com/package/@x402/next).
 
     ```bash
-    npm install @x402/next @x402/core @x402/evm
+    npm install @x402/next @x402/core @x402/evm @x402/svm
     ```
   </Tab>
   <Tab title="Hono">
     Install the [x402 Hono middleware package](https://www.npmjs.com/package/@x402/hono).
 
     ```bash
-    npm install @x402/hono @x402/core @x402/evm
+    npm install @x402/hono @x402/core @x402/evm @x402/svm
     ```
   </Tab>
   <Tab title="Go">
@@ -84,23 +84,21 @@ Integrate the payment middleware into your application. You will need to provide
 
     ```typescript
     import express from "express";
-    import { paymentMiddleware } from "@x402/express";
-    import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
+    import { HTTPFacilitatorClient } from "@x402/core/server";
 
     const app = express();
 
-    // Your receiving wallet address
-    const payTo = "0xYourAddress";
+    // Your receiving wallet addresses
+    const evmAddress = "0xYourEvmAddress";
+    const svmAddress = "YourSolanaAddress";
 
     // Create facilitator client (testnet)
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://x402.org/facilitator"
     });
-
-    // Create resource server and register EVM scheme
-    const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
 
     app.use(
       paymentMiddleware(
@@ -109,20 +107,27 @@ Integrate the payment middleware into your application. You will need to provide
             accepts: [
               {
                 scheme: "exact",
-                price: "$0.001", // USDC amount in dollars
-                network: "eip155:84532", // Base Sepolia (CAIP-2 format)
-                payTo,
+                price: "$0.001",
+                network: "eip155:84532", // Base Sepolia
+                payTo: evmAddress,
+              },
+              {
+                scheme: "exact",
+                price: "$0.001",
+                network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
+                payTo: svmAddress,
               },
             ],
-            description: "Get current weather data for any location",
+            description: "Weather data",
             mimeType: "application/json",
           },
         },
-        server,
+        new x402ResourceServer(facilitatorClient)
+          .register("eip155:84532", new ExactEvmScheme())
+          .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
       ),
     );
 
-    // Implement your route
     app.get("/weather", (req, res) => {
       res.send({
         report: {
@@ -140,42 +145,99 @@ Integrate the payment middleware into your application. You will need to provide
   <Tab title="Next.js">
     Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/fullstack/next).
 
+    Next.js offers two approaches: `paymentProxy` for protecting page routes (or multiple routes at once), and `withX402` for wrapping individual API route handlers. The key difference is that `withX402` only settles payment after a successful response (status \< 400), making it the recommended approach for API routes.
+
+    **Option A: `paymentProxy`** — best for page routes or protecting multiple routes with a single config:
+
     ```typescript
-    // middleware.ts
+    // proxy.ts
     import { paymentProxy } from "@x402/next";
     import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
 
-    const payTo = "0xYourAddress";
+    export const evmAddress = "0xYourEvmAddress";
+    export const svmAddress = "YourSolanaAddress";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://x402.org/facilitator"
     });
 
-    const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
+    export const server = new x402ResourceServer(facilitatorClient);
+    server.register("eip155:*", new ExactEvmScheme());
+    server.register("solana:*", new ExactSvmScheme());
 
-    export const middleware = paymentProxy(
+    export const proxy = paymentProxy(
       {
-        "/api/protected": {
+        "/protected": {
           accepts: [
             {
               scheme: "exact",
-              price: "$0.01",
-              network: "eip155:84532",
-              payTo,
+              price: "$0.001",
+              network: "eip155:84532", // Base Sepolia
+              payTo: evmAddress,
+            },
+            {
+              scheme: "exact",
+              price: "$0.001",
+              network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
+              payTo: svmAddress,
             },
           ],
-          description: "Access to protected content",
-          mimeType: "application/json",
+          description: "Premium content",
+          mimeType: "text/html",
         },
       },
       server,
     );
 
     export const config = {
-      matcher: ["/api/protected/:path*"],
+      matcher: ["/protected/:path*"],
     };
+    ```
+
+    **Option B: `withX402`** — recommended for API routes, settles payment only after a successful response:
+
+    ```typescript
+    // app/api/weather/route.ts
+    import { NextRequest, NextResponse } from "next/server";
+    import { withX402 } from "@x402/next";
+    import { server, evmAddress, svmAddress } from "../../../proxy";
+
+    const handler = async (_: NextRequest) => {
+      return NextResponse.json(
+        {
+          report: {
+            weather: "sunny",
+            temperature: 72,
+          },
+        },
+        { status: 200 },
+      );
+    };
+
+    export const GET = withX402(
+      handler,
+      {
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.001",
+            network: "eip155:84532", // Base Sepolia
+            payTo: evmAddress,
+          },
+          {
+            scheme: "exact",
+            price: "$0.001",
+            network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
+            payTo: svmAddress,
+          },
+        ],
+        description: "Access to weather API",
+        mimeType: "application/json",
+      },
+      server,
+    );
     ```
   </Tab>
   <Tab title="Hono">
@@ -184,45 +246,57 @@ Integrate the payment middleware into your application. You will need to provide
     ```typescript
     import { Hono } from "hono";
     import { serve } from "@hono/node-server";
-    import { paymentMiddleware } from "@x402/hono";
-    import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
+    import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
+    import { HTTPFacilitatorClient } from "@x402/core/server";
 
     const app = new Hono();
-    const payTo = "0xYourAddress";
+    const evmAddress = "0xYourEvmAddress";
+    const svmAddress = "YourSolanaAddress";
 
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://x402.org/facilitator"
     });
 
-    const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
-
     app.use(
       paymentMiddleware(
         {
-          "/protected-route": {
+          "GET /weather": {
             accepts: [
               {
                 scheme: "exact",
-                price: "$0.10",
-                network: "eip155:84532",
-                payTo,
+                price: "$0.001",
+                network: "eip155:84532", // Base Sepolia
+                payTo: evmAddress,
+              },
+              {
+                scheme: "exact",
+                price: "$0.001",
+                network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
+                payTo: svmAddress,
               },
             ],
-            description: "Access to premium content",
+            description: "Weather data",
             mimeType: "application/json",
           },
         },
-        server,
+        new x402ResourceServer(facilitatorClient)
+          .register("eip155:84532", new ExactEvmScheme())
+          .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
       ),
     );
 
-    app.get("/protected-route", (c) => {
-      return c.json({ message: "This content is behind a paywall" });
+    app.get("/weather", (c) => {
+      return c.json({
+        report: {
+          weather: "sunny",
+          temperature: 70,
+        },
+      });
     });
 
-    serve({ fetch: app.fetch, port: 3000 });
+    serve({ fetch: app.fetch, port: 4021 });
     ```
   </Tab>
   <Tab title="Go (Gin)">
@@ -239,12 +313,15 @@ Integrate the payment middleware into your application. You will need to provide
         x402http "github.com/coinbase/x402/go/http"
         ginmw "github.com/coinbase/x402/go/http/gin"
         evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+        svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
         "github.com/gin-gonic/gin"
     )
 
     func main() {
-        payTo := "0xYourAddress"
-        network := x402.Network("eip155:84532") // Base Sepolia (CAIP-2 format)
+        evmAddress := "0xYourEvmAddress"
+        svmAddress := "YourSolanaAddress"
+        evmNetwork := x402.Network("eip155:84532")                              // Base Sepolia
+        svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")  // Solana Devnet
 
         r := gin.Default()
 
@@ -260,9 +337,15 @@ Integrate the payment middleware into your application. You will need to provide
                     Accepts: x402http.PaymentOptions{
                         {
                             Scheme:  "exact",
-                            PayTo:   payTo,
                             Price:   "$0.001",
-                            Network: network,
+                            Network: "eip155:84532",
+                            PayTo:   evmAddress,
+                        },
+                        {
+                            Scheme:  "exact",
+                            Price:   "$0.001",
+                            Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+                            PayTo:   svmAddress,
                         },
                     },
                     Description: "Get weather data for a city",
@@ -271,10 +354,10 @@ Integrate the payment middleware into your application. You will need to provide
             },
             Facilitator: facilitatorClient,
             Schemes: []ginmw.SchemeConfig{
-                {Network: network, Server: evm.NewExactEvmScheme()},
+                {Network: evmNetwork, Server: evm.NewExactEvmScheme()},
+                {Network: svmNetwork, Server: svm.NewExactSvmScheme()},
             },
-            SyncFacilitatorOnStart: true,
-            Timeout:    30 * time.Second,
+            Timeout: 30 * time.Second,
         }))
 
         // Protected endpoint
@@ -301,21 +384,27 @@ Integrate the payment middleware into your application. You will need to provide
     from x402.http.middleware.fastapi import PaymentMiddlewareASGI
     from x402.http.types import RouteConfig
     from x402.mechanisms.evm.exact import ExactEvmServerScheme
+    from x402.mechanisms.svm.exact import ExactSvmServerScheme
+    from x402.schemas import Network
     from x402.server import x402ResourceServer
 
     app = FastAPI()
 
-    # Your receiving wallet address
-    pay_to = "0xYourAddress"
+    # Your receiving wallet addresses
+    evm_address = "0xYourEvmAddress"
+    svm_address = "YourSolanaAddress"
+    EVM_NETWORK: Network = "eip155:84532"  # Base Sepolia
+    SVM_NETWORK: Network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
     # Create facilitator client (testnet)
     facilitator = HTTPFacilitatorClient(
         FacilitatorConfig(url="https://x402.org/facilitator")
     )
 
-    # Create resource server and register EVM scheme
+    # Create resource server and register schemes
     server = x402ResourceServer(facilitator)
-    server.register("eip155:84532", ExactEvmServerScheme())
+    server.register(EVM_NETWORK, ExactEvmServerScheme())
+    server.register(SVM_NETWORK, ExactSvmServerScheme())
 
     # Define protected routes
     routes: dict[str, RouteConfig] = {
@@ -323,13 +412,19 @@ Integrate the payment middleware into your application. You will need to provide
             accepts=[
                 PaymentOption(
                     scheme="exact",
-                    pay_to=pay_to,
-                    price="$0.001",  # USDC amount in dollars
-                    network="eip155:84532",  # Base Sepolia (CAIP-2 format)
+                    pay_to=evm_address,
+                    price="$0.001",
+                    network=EVM_NETWORK,
+                ),
+                PaymentOption(
+                    scheme="exact",
+                    pay_to=svm_address,
+                    price="$0.001",
+                    network=SVM_NETWORK,
                 ),
             ],
             mime_type="application/json",
-            description="Get current weather data for any location",
+            description="Weather report",
         ),
     }
 
@@ -362,31 +457,44 @@ Integrate the payment middleware into your application. You will need to provide
     from x402.http.middleware.flask import payment_middleware
     from x402.http.types import RouteConfig
     from x402.mechanisms.evm.exact import ExactEvmServerScheme
+    from x402.mechanisms.svm.exact import ExactSvmServerScheme
+    from x402.schemas import Network
     from x402.server import x402ResourceServerSync
 
     app = Flask(__name__)
 
-    pay_to = "0xYourAddress"
+    # Your receiving wallet addresses
+    evm_address = "0xYourEvmAddress"
+    svm_address = "YourSolanaAddress"
+    EVM_NETWORK: Network = "eip155:84532"  # Base Sepolia
+    SVM_NETWORK: Network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
     facilitator = HTTPFacilitatorClientSync(
         FacilitatorConfig(url="https://x402.org/facilitator")
     )
 
     server = x402ResourceServerSync(facilitator)
-    server.register("eip155:84532", ExactEvmServerScheme())
+    server.register(EVM_NETWORK, ExactEvmServerScheme())
+    server.register(SVM_NETWORK, ExactSvmServerScheme())
 
     routes: dict[str, RouteConfig] = {
         "GET /weather": RouteConfig(
             accepts=[
                 PaymentOption(
                     scheme="exact",
-                    pay_to=pay_to,
+                    pay_to=evm_address,
                     price="$0.001",
-                    network="eip155:84532",
+                    network=EVM_NETWORK,
+                ),
+                PaymentOption(
+                    scheme="exact",
+                    pay_to=svm_address,
+                    price="$0.001",
+                    network=SVM_NETWORK,
                 ),
             ],
             mime_type="application/json",
-            description="Get current weather data for any location",
+            description="Weather report",
         ),
     }
 
@@ -416,7 +524,7 @@ interface RouteConfig {
   accepts: Array<{
     scheme: string;           // Payment scheme (e.g., "exact")
     price: string;            // Price in dollars (e.g., "$0.01")
-    network: string;          // Network in CAIP-2 format (e.g., "eip155:84532")
+    network: string;          // Network in CAIP-2 format (e.g., "eip155:84532" or "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
     payTo: string;            // Your wallet address
   }>;
   description?: string;       // Description of the resource
@@ -439,7 +547,7 @@ To verify:
 
 ### 4. Enhance Discovery with Metadata (Recommended)
 
-When using a facilitator that supports the Bazaar extension, your endpoints can be listed in the [x402 Bazaar](/extensions/bazaar), our discovery layer that helps buyers and AI agents find services. To enable discovery:
+When using a facilitator that supports the Bazaar extension, your endpoints can be listed in the [x402 Bazaar](/extensions/bazaar), the discovery layer that helps buyers and AI agents find services. To enable discovery:
 
 ```typescript
 {
@@ -450,6 +558,12 @@ When using a facilitator that supports the Bazaar extension, your endpoints can 
         price: "$0.001",
         network: "eip155:8453",
         payTo: "0xYourAddress",
+      },
+      {
+        scheme: "exact",
+        price: "$0.001",
+        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",  // Solana mainnet
+        payTo: "YourSolanaAddress",
       },
     ],
     description: "Get real-time weather data including temperature, conditions, and humidity",
@@ -480,13 +594,14 @@ Once you've tested your integration on testnet, you're ready to accept real paym
 
 ### 1. Update the Facilitator URL
 
-For mainnet, use a production facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options. Example using one facilitator:
+For mainnet, use a production facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options. Example using one facilitator:
 
 <Tabs>
   <Tab title="Node.js">
     ```typescript
     const facilitatorClient = new HTTPFacilitatorClient({
       url: "https://api.cdp.coinbase.com/platform/v2/x402"
+      // url: "https://facilitator.payai.network"  // PayAI Facilitator
     });
     ```
   </Tab>
@@ -494,6 +609,7 @@ For mainnet, use a production facilitator. See the [x402 Ecosystem](https://www.
     ```go
     facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
         URL: "https://api.cdp.coinbase.com/platform/v2/x402",
+        // URL: "https://facilitator.payai.network",  // PayAI Facilitator
     })
     ```
   </Tab>
@@ -503,6 +619,7 @@ For mainnet, use a production facilitator. See the [x402 Ecosystem](https://www.
 
     facilitator = HTTPFacilitatorClient(
         FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+        #FacilitatorConfig(url="https://facilitator.payai.network")  # PayAI Facilitator
     )
     ```
   </Tab>
@@ -512,6 +629,7 @@ For mainnet, use a production facilitator. See the [x402 Ecosystem](https://www.
 
     facilitator = HTTPFacilitatorClientSync(
         FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+        #FacilitatorConfig(url="https://facilitator.payai.network")  # PayAI Facilitator
     )
     ```
   </Tab>
@@ -570,12 +688,12 @@ For multi-network support, register both EVM and SVM schemes:
 <Tabs>
   <Tab title="Node.js">
     ```typescript
-    import { registerExactEvmScheme } from "@x402/evm/exact/server";
-    import { registerExactSvmScheme } from "@x402/svm/exact/server";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
 
     const server = new x402ResourceServer(facilitatorClient);
-    registerExactEvmScheme(server);
-    registerExactSvmScheme(server);
+    server.register("eip155:*", new ExactEvmScheme());
+    server.register("solana:*", new ExactSvmScheme());
     ```
   </Tab>
   <Tab title="Go">

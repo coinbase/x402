@@ -24,7 +24,7 @@ const response = await fetchWithPayment("http://localhost:4021/weather");
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Valid EVM and/or SVM private keys for making payments
+- Valid EVM, SVM, and/or Stellar private keys for making payments
 - A running x402 server (see [server examples](../../servers/))
 - Familiarity with the [basic fetch client](../fetch/)
 
@@ -40,6 +40,7 @@ and fill required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
 - `SVM_PRIVATE_KEY` - Solana private key for SVM payments
+- `STELLAR_PRIVATE_KEY` - Stellar secret key (starts with `S`) for signing Stellar payments
 
 2. Install and build all packages from the typescript examples root:
 
@@ -55,15 +56,26 @@ cd clients/advanced
 pnpm dev
 ```
 
+### Account Setup Instructions
+
+#### Stellar Testnet
+
+Stellar accounts need to be created and funded with both XLM and USDC. Instructions:
+
+1. Go to [Stellar Laboratory](https://lab.stellar.org/account/create) ➡️ Generate keypair ➡️ Fund account with Friendbot, then copy the `Secret` and `Public` keys so you can use them.
+2. Add USDC trustline (required to transact USDC): go to [Fund Account](https://lab.stellar.org/account/fund) ➡️ Paste your `Public Key` ➡️ Add USDC Trustline ➡️ paste your `Secret key` ➡️ Sign transaction ➡️ Add Trustline.
+3. Get testnet USDC from [Circle Faucet](https://faucet.circle.com/) (select Stellar network).
+
 ## Available Examples
 
 Each example demonstrates a specific advanced pattern:
 
-| Example             | Command                      | Description                       |
-| ------------------- | ---------------------------- | --------------------------------- |
-| `builder-pattern`   | `pnpm dev:builder-pattern`   | Fine-grained network registration |
-| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks           |
-| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences   |
+| Example | Command | Description |
+| --- | --- | --- |
+| `all-networks` | `pnpm dev:all-networks` | All supported networks with optional chain configuration |
+| `builder-pattern` | `pnpm dev:builder-pattern` | Fine-grained network registration |
+| `hooks` | `pnpm dev:hooks` | Payment lifecycle hooks |
+| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences |
 
 ## Testing the Examples
 
@@ -89,6 +101,7 @@ Use the builder pattern for fine-grained control over which networks are support
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 
 const evmSigner = privateKeyToAccount(evmPrivateKey);
@@ -99,6 +112,7 @@ const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(evmSigner)) // All EVM networks
   .register("eip155:1", new ExactEvmScheme(mainnetSigner)) // Ethereum mainnet override
   .register("solana:*", new ExactSvmScheme(svmSigner)); // All Solana networks
+  .register("stellar:*", new ExactStellarScheme(stellarSigner)); // All Stellar networks
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 const response = await fetchWithPayment("http://localhost:4021/weather");
@@ -161,9 +175,10 @@ Configure client-side network preferences with automatic fallback:
 import { x402Client, wrapFetchWithPayment, type PaymentRequirements } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
 
 // Define network preference order (most preferred first)
-const networkPreferences = ["solana:", "eip155:"];
+const networkPreferences = ["eip155:", "solana:", "stellar:"];
 
 const preferredNetworkSelector = (
   _x402Version: number,
@@ -180,7 +195,8 @@ const preferredNetworkSelector = (
 
 const client = new x402Client(preferredNetworkSelector)
   .register("eip155:*", new ExactEvmScheme(evmSigner))
-  .register("solana:*", new ExactSvmScheme(svmSigner));
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .register("stellar:*", new ExactStellarScheme(stellarSigner));
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 const response = await fetchWithPayment("http://localhost:4021/weather");

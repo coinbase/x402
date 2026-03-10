@@ -4,15 +4,42 @@ import type { ClientEvmSigner } from "../../src/signer";
 
 describe("EVM Signer Converters", () => {
   describe("toClientEvmSigner", () => {
-    it("should return the same signer (identity function)", () => {
+    it("should return a composed signer when signer already has readContract", () => {
       const mockSigner: ClientEvmSigner = {
         address: "0x1234567890123456789012345678901234567890",
         signTypedData: async () => "0xsignature" as `0x${string}`,
+        readContract: async () => BigInt(0),
       };
 
       const result = toClientEvmSigner(mockSigner);
-      expect(result).toBe(mockSigner);
       expect(result.address).toBe(mockSigner.address);
+      expect(result.readContract).toBeDefined();
+    });
+
+    it("should compose a signer with readContract from publicClient", () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signTypedData: async () => "0xsignature" as `0x${string}`,
+      };
+
+      const mockPublicClient = {
+        readContract: async () => BigInt(42),
+      };
+
+      const result = toClientEvmSigner(mockAccount, mockPublicClient);
+      expect(result.address).toBe(mockAccount.address);
+      expect(result.readContract).toBeDefined();
+    });
+
+    it("should return minimal signer when no readContract exists", () => {
+      const mockAccount = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
+        signTypedData: async () => "0xsignature" as `0x${string}`,
+      };
+
+      const result = toClientEvmSigner(mockAccount);
+      expect(result.address).toBe(mockAccount.address);
+      expect(result.readContract).toBeUndefined();
     });
   });
 

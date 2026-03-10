@@ -18,6 +18,8 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
+	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
@@ -29,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -217,15 +220,6 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 
 	// Make the call
 	to := common.HexToAddress(contractAddress)
-
-	// Check if contract exists at this address
-	code, err := s.client.CodeAt(ctx, to, nil)
-	if err != nil {
-		log.Printf("Failed to check contract code: contract=%s, error=%v", contractAddress, err)
-	} else if len(code) == 0 {
-		log.Printf("WARNING: No contract code at address %s", contractAddress)
-	}
-
 	msg := ethereum.CallMsg{
 		To:   &to,
 		Data: data,
@@ -233,11 +227,8 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 
 	result, err := s.client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Printf("Contract call failed: method=%s, contract=%s, error=%v", method, contractAddress, err)
 		return nil, fmt.Errorf("failed to call contract: %w", err)
 	}
-
-	log.Printf("Contract call: method=%s, contract=%s, dataLen=%d, resultLen=%d, result=%x", method, contractAddress, len(data), len(result), result)
 
 	// Handle empty result (some contract calls return nothing or revert)
 	if len(result) == 0 {
@@ -426,6 +417,48 @@ func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) 
 	return code, nil
 }
 
+func (s *realFacilitatorEvmSigner) sendRawTransaction(ctx context.Context, signedTx string) (string, error) {
+	txBytes, err := hexutil.Decode(signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode signed transaction: %w", err)
+	}
+
+	tx := new(types.Transaction)
+	if err := tx.UnmarshalBinary(txBytes); err != nil {
+		return "", fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+
+	if err := s.client.SendTransaction(ctx, tx); err != nil {
+		return "", fmt.Errorf("failed to send raw transaction: %w", err)
+	}
+
+	return tx.Hash().Hex(), nil
+}
+
+func (s *realFacilitatorEvmSigner) SendTransactions(ctx context.Context, transactions []erc20approvalgassponsor.TransactionRequest) ([]string, error) {
+	var hashes []string
+	for _, tx := range transactions {
+		var hash string
+		var err error
+		if tx.Serialized != "" {
+			hash, err = s.sendRawTransaction(ctx, tx.Serialized)
+		} else if tx.Call != nil {
+			hash, err = s.WriteContract(ctx, tx.Call.Address, tx.Call.ABI, tx.Call.Function, tx.Call.Args...)
+		} else {
+			return hashes, fmt.Errorf("transaction_failed: empty transaction request")
+		}
+		if err != nil {
+			return hashes, fmt.Errorf("transaction_failed: %w", err)
+		}
+		receipt, err := s.WaitForTransactionReceipt(ctx, hash)
+		if err != nil || receipt.Status != evmmech.TxStatusSuccess {
+			return hashes, fmt.Errorf("transaction_failed: %s", hash)
+		}
+		hashes = append(hashes, hash)
+	}
+	return hashes, nil
+}
+
 // Helper functions for type conversion
 func getStringFromInterface(v interface{}) string {
 	if v == nil {
@@ -466,6 +499,11 @@ var (
 
 func createPaymentHash(paymentPayload x402.PaymentPayload) string {
 	data, _ := json.Marshal(paymentPayload)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func hashBytes(data []byte) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }
@@ -774,16 +812,19 @@ func main() {
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
 
+	// Register the EIP-2612 Gas Sponsoring extension
+	facilitator.RegisterExtension(eip2612gassponsor.EIP2612GasSponsoring)
+
+	// Register the ERC-20 Approval Gas Sponsoring extension
+	erc20Ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: evmSigner}
+	facilitator.RegisterExtension(erc20Ext)
+
 	// Lifecycle hooks for payment tracking and discovery
 	facilitator.
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
 			// Hook 1: Track verified payment for verify→settle flow validation
 			if ctx.Result.IsValid {
-				// Hooks now use view interfaces - create hash from payload view
-				paymentHash := fmt.Sprintf("v%d-%s-%s",
-					ctx.Payload.GetVersion(),
-					ctx.Payload.GetScheme(),
-					ctx.Payload.GetNetwork())
+				paymentHash := hashBytes(ctx.PayloadBytes)
 				verificationMutex.Lock()
 				verifiedPayments[paymentHash] = time.Now().Unix()
 				verificationMutex.Unlock()
@@ -842,10 +883,7 @@ func main() {
 		}).
 		OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
 			// Hook 3: Validate payment was previously verified
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.RLock()
 			verificationTimestamp, verified := verifiedPayments[paymentHash]
 			verificationMutex.RUnlock()
@@ -874,10 +912,7 @@ func main() {
 		}).
 		OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
 			// Hook 4: Clean up verified payment tracking after successful settlement
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -889,10 +924,7 @@ func main() {
 		}).
 		OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
 			// Hook 5: Clean up verified payment tracking on failure too
-			paymentHash := fmt.Sprintf("v%d-%s-%s",
-				ctx.Payload.GetVersion(),
-				ctx.Payload.GetScheme(),
-				ctx.Payload.GetNetwork())
+			paymentHash := hashBytes(ctx.PayloadBytes)
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -909,24 +941,10 @@ func main() {
 	// POST /verify - Verify a payment against requirements
 	// Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
 	router.POST("/verify", func(c *gin.Context) {
-		// First, peek at the version to determine which struct to use
-		var versionCheck struct {
-			X402Version int `json:"x402Version"`
-		}
-
-		// Read body into buffer so we can parse it twice
 		bodyBytes, err := c.GetRawData()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to read request body: %v", err),
-			})
-			return
-		}
-
-		// Parse version
-		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Failed to parse version: %v", err),
 			})
 			return
 		}
@@ -964,27 +982,10 @@ func main() {
 	// POST /settle - Settle a payment on-chain
 	// Note: Verification validation and cleanup are handled by lifecycle hooks
 	router.POST("/settle", func(c *gin.Context) {
-		// First, peek at the version to determine which struct to use
-		var versionCheck struct {
-			X402Version int `json:"x402Version"`
-		}
-
-		// Read body into buffer so we can parse it twice
 		bodyBytes, err := c.GetRawData()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to read request body: %v", err),
-			})
-			return
-		}
-
-		// Debug: Log raw request body
-		log.Printf("🔍 [FACILITATOR SETTLE] Received raw body: %s", string(bodyBytes))
-
-		// Parse version
-		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Failed to parse version: %v", err),
 			})
 			return
 		}
@@ -1005,9 +1006,6 @@ func main() {
 			[]byte(req.PaymentRequirements),
 		)
 
-		// Debug: Log response
-		log.Printf("🔍 [FACILITATOR SETTLE] Response: %+v", response)
-		log.Printf("🔍 [FACILITATOR SETTLE] Error: %v", err)
 		if err != nil {
 			log.Printf("Settle error: %v", err)
 
@@ -1070,7 +1068,7 @@ func main() {
 			"svmNetwork":          svmNetwork,
 			"facilitator":         "go",
 			"version":             "2.0.0",
-			"extensions":          []string{exttypes.BAZAAR},
+			"extensions":          []string{exttypes.BAZAAR.Key()},
 			"discoveredResources": bazaarCatalog.GetCount(),
 		})
 	})
