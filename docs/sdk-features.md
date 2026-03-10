@@ -28,6 +28,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |---------|------------|-----|--------|
 | evm (EIP-155) | ✅ | ✅ | ✅ |
 | svm (Solana) | ✅ | ✅ | ✅ |
+| stellar | ✅ | ❌ | ❌ |
 | aptos | ✅ | ❌ | ❌ |
 
 ## Mechanisms
@@ -36,6 +37,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |-----------|------------|-----|--------|
 | exact/evm (EIP-3009) | ✅ | ✅ | ✅ |
 | exact/svm (SPL) | ✅ | ✅ | ✅ |
+| exact/stellar (Soroban) | ✅ | ❌ | ❌ |
 | exact/aptos (Fungible Assets) | ✅ | ❌ | ❌ |
 
 ## Extensions

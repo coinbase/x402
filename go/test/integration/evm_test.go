@@ -161,7 +161,9 @@ func (s *realFacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to commo
 
 		err = s.ethClient.SendTransaction(ctx, signedTx)
 		if err != nil {
-			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+			if (strings.Contains(err.Error(), "replacement transaction underpriced") ||
+				strings.Contains(err.Error(), "nonce too low") ||
+				strings.Contains(err.Error(), "already known")) && attempt < maxRetries {
 				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
 				continue
 			}
@@ -342,7 +344,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
 		// Register for Base Sepolia
 		client.Register("eip155:84532", evmClient)
 
@@ -526,7 +528,7 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
 		client.Register("eip155:84532", evmClient)
 
 		// Create facilitator signer with Permit2 support
@@ -827,7 +829,9 @@ func (s *permit2FacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to co
 
 		err = s.ethClient.SendTransaction(ctx, signedTx)
 		if err != nil {
-			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+			if (strings.Contains(err.Error(), "replacement transaction underpriced") ||
+				strings.Contains(err.Error(), "nonce too low") ||
+				strings.Contains(err.Error(), "already known")) && attempt < maxRetries {
 				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
 				continue
 			}
