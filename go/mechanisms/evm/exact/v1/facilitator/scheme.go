@@ -13,6 +13,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -107,18 +108,13 @@ func (f *ExactEvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError(ErrMissingSignature, "", "missing signature")
 	}
 
-	// Get network configuration
-	networkStr := string(requirements.Network)
-	config, err := evm.GetNetworkConfig(networkStr)
+	// Parse chain ID from v1 network name
+	chainID, err := evmv1.GetEvmChainId(string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrFailedToGetNetworkConfig, "", err.Error())
 	}
 
-	// Get asset info
-	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrFailedToGetAssetInfo, "", err.Error())
-	}
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
 	// Check EIP-712 domain parameters
 	var extraMap map[string]interface{}
@@ -169,7 +165,7 @@ func (f *ExactEvmSchemeV1) Verify(
 	}
 
 	// Check balance
-	balance, err := f.signer.GetBalance(ctx, evmPayload.Authorization.From, assetInfo.Address)
+	balance, err := f.signer.GetBalance(ctx, evmPayload.Authorization.From, tokenAddress)
 	if err == nil && balance.Cmp(requiredValue) < 0 {
 		return nil, x402.NewVerifyError(ErrInsufficientFunds, evmPayload.Authorization.From, fmt.Sprintf("insufficient funds: wallet balance %s < %s", balance.String(), requiredValue.String()))
 	}
@@ -188,8 +184,8 @@ func (f *ExactEvmSchemeV1) Verify(
 		ctx,
 		evmPayload.Authorization,
 		signatureBytes,
-		config.ChainID,
-		assetInfo.Address,
+		chainID,
+		tokenAddress,
 		tokenName,
 		tokenVersion,
 	)
@@ -233,12 +229,7 @@ func (f *ExactEvmSchemeV1) Settle(
 		return nil, x402.NewSettleError(ErrInvalidPayload, verifyResp.Payer, network, "", err.Error())
 	}
 
-	// Get asset info
-	networkStr := string(requirements.Network)
-	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrFailedToGetAssetInfo, verifyResp.Payer, network, "", err.Error())
-	}
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
 	// Parse signature
 	signatureBytes, err := evm.HexToBytes(evmPayload.Signature)
@@ -299,7 +290,7 @@ func (f *ExactEvmSchemeV1) Settle(
 
 		txHash, err = f.signer.WriteContract(
 			ctx,
-			assetInfo.Address,
+			tokenAddress,
 			evm.TransferWithAuthorizationVRSABI,
 			evm.FunctionTransferWithAuthorization,
 			common.HexToAddress(evmPayload.Authorization.From),
@@ -316,7 +307,7 @@ func (f *ExactEvmSchemeV1) Settle(
 		// For smart wallets, use bytes signature overload
 		txHash, err = f.signer.WriteContract(
 			ctx,
-			assetInfo.Address,
+			tokenAddress,
 			evm.TransferWithAuthorizationBytesABI,
 			evm.FunctionTransferWithAuthorization,
 			common.HexToAddress(evmPayload.Authorization.From),
