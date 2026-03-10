@@ -125,7 +125,7 @@ func (f *ExactEvmScheme) verifyEIP3009(
 				tokenName,
 				tokenVersion,
 			)
-			return nil, x402.NewVerifyError(reason, evmPayload.Authorization.From, reason)
+			return nil, x402.NewVerifyError(reason, evmPayload.Authorization.From, "")
 		}
 	}
 
