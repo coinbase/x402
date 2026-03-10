@@ -207,6 +207,7 @@ class TestVerify:
         # Transaction decoding or instruction validation fails
         assert "invalid_exact_svm_payload" in result.invalid_reason
 
+
 class TestSettle:
     """Test settle method."""
 

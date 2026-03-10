@@ -589,6 +589,21 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 		// Setup resource server with EVM v2
 		evmServer := evmserver.NewExactEvmScheme()
+		evmServer.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+			if string(network) != "eip155:84532" {
+				return nil, nil
+			}
+
+			return &x402.AssetAmount{
+				Asset:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
+				Amount: fmt.Sprintf("%.0f", amount*1e6),
+				Extra: map[string]interface{}{
+					"assetTransferMethod": "permit2",
+					"name":                "USDC",
+					"version":             "2",
+				},
+			}, nil
+		})
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -600,21 +615,19 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
-		// Server - builds PaymentRequired response with Permit2 method
-		accepts := []types.PaymentRequirements{
-			{
-				Scheme:            evm.SchemeExact,
-				Network:           "eip155:84532",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-				Amount:            "1000",                                       // 0.001 USDC
-				PayTo:             resourceServerAddress,
-				MaxTimeoutSeconds: 300,
-				Extra: map[string]interface{}{
-					"assetTransferMethod": "permit2", // Request Permit2 flow
-					"name":                "USDC",
-					"version":             "2",
-				},
-			},
+		// Server - builds PaymentRequired response with Permit2 method via money parser
+		accepts, err := server.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
+			Scheme:            evm.SchemeExact,
+			Network:           "eip155:84532",
+			PayTo:             resourceServerAddress,
+			Price:             "$0.001",
+			MaxTimeoutSeconds: 300,
+		})
+		if err != nil {
+			t.Fatalf("Failed to build payment requirements: %v", err)
+		}
+		if accepts[0].Extra["assetTransferMethod"] != "permit2" {
+			t.Fatalf("Expected Permit2 payment requirements, got extra=%v", accepts[0].Extra)
 		}
 		resource := &types.ResourceInfo{
 			URL:         "https://api.example.com/permit2",
