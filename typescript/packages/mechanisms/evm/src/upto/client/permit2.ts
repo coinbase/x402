@@ -1,10 +1,6 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { getAddress } from "viem";
-import {
-  permit2WitnessTypes,
-  PERMIT2_ADDRESS,
-  x402UptoPermit2ProxyAddress,
-} from "../../constants";
+import { permit2WitnessTypes, PERMIT2_ADDRESS, x402UptoPermit2ProxyAddress } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
 import { Permit2Authorization } from "../../types";
 import { createPermit2Nonce, getEvmChainId } from "../../utils";
@@ -54,7 +50,11 @@ export async function createUptoPermit2Payload(
     },
   };
 
-  const signature = await signPermit2Authorization(signer, permit2Authorization, paymentRequirements);
+  const signature = await signPermit2Authorization(
+    signer,
+    permit2Authorization,
+    paymentRequirements,
+  );
 
   return {
     x402Version,

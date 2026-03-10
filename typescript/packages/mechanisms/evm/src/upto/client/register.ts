@@ -12,6 +12,13 @@ export interface UptoEvmClientConfig {
   networks?: Network[];
 }
 
+/**
+ * Registers EVM upto payment schemes to an x402Client instance.
+ *
+ * @param client - The x402Client instance to register schemes to
+ * @param config - Configuration for EVM client registration
+ * @returns The client instance for chaining
+ */
 export function registerUptoEvmScheme(client: x402Client, config: UptoEvmClientConfig): x402Client {
   const evmScheme = new UptoEvmScheme(config.signer, config.schemeOptions);
 

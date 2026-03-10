@@ -7,15 +7,32 @@ import {
   MoneyParser,
 } from "@x402/core/types";
 
+/**
+ * EVM server implementation for the Upto payment scheme.
+ * Handles price parsing, payment requirements enhancement, and default asset resolution.
+ */
 export class UptoEvmScheme implements SchemeNetworkServer {
   readonly scheme = "upto";
   private moneyParsers: MoneyParser[] = [];
 
+  /**
+   * Registers a custom money parser for converting prices to asset amounts.
+   *
+   * @param parser - The money parser function to register
+   * @returns This instance for chaining
+   */
   registerMoneyParser(parser: MoneyParser): UptoEvmScheme {
     this.moneyParsers.push(parser);
     return this;
   }
 
+  /**
+   * Parses a price into an asset amount for the given network.
+   *
+   * @param price - The price to parse (string, number, or AssetAmount)
+   * @param network - The target network
+   * @returns Promise resolving to an asset amount
+   */
   async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
     if (typeof price === "object" && price !== null && "amount" in price) {
       if (!price.asset) {
@@ -40,6 +57,18 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     return this.defaultMoneyConversion(amount, network);
   }
 
+  /**
+   * Enhances payment requirements with upto-specific metadata.
+   *
+   * @param paymentRequirements - The base payment requirements
+   * @param supportedKind - The supported scheme/network kind
+   * @param supportedKind.x402Version - The x402 protocol version
+   * @param supportedKind.scheme - The payment scheme name
+   * @param supportedKind.network - The target network
+   * @param supportedKind.extra - Optional extra metadata
+   * @param extensionKeys - Extension keys to include
+   * @returns Promise resolving to enhanced payment requirements
+   */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
     supportedKind: {
@@ -61,6 +90,12 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     });
   }
 
+  /**
+   * Parses a money string or number into a decimal value.
+   *
+   * @param money - The money value to parse
+   * @returns The parsed decimal amount
+   */
   private parseMoneyToDecimal(money: string | number): number {
     if (typeof money === "number") {
       return money;
@@ -76,6 +111,13 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     return amount;
   }
 
+  /**
+   * Converts a decimal amount to an asset amount using the default stablecoin for the network.
+   *
+   * @param amount - The decimal amount to convert
+   * @param network - The target network
+   * @returns The converted asset amount
+   */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
     const assetInfo = this.getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
@@ -91,6 +133,13 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     };
   }
 
+  /**
+   * Converts a decimal amount string to the smallest token unit.
+   *
+   * @param decimalAmount - The decimal amount as a string
+   * @param decimals - The number of decimal places for the token
+   * @returns The amount in smallest token units as a string
+   */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);
     if (isNaN(amount)) {
@@ -102,6 +151,12 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     return tokenAmount;
   }
 
+  /**
+   * Returns the default stablecoin asset configuration for the given network.
+   *
+   * @param network - The target network
+   * @returns The default asset info including address, name, version, and decimals
+   */
   private getDefaultAsset(network: Network): {
     address: string;
     name: string;

@@ -1,7 +1,11 @@
 export { UptoEvmScheme } from "./scheme";
 export { registerUptoEvmScheme } from "./register";
 export type { UptoEvmClientConfig } from "./register";
-export type { UptoEvmSchemeConfig, UptoEvmSchemeConfigByChainId, UptoEvmSchemeOptions } from "./rpc";
+export type {
+  UptoEvmSchemeConfig,
+  UptoEvmSchemeConfigByChainId,
+  UptoEvmSchemeOptions,
+} from "./rpc";
 export {
   createPermit2ApprovalTx,
   getPermit2AllowanceReadParams,

@@ -10,20 +10,49 @@ import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload, isUptoPermit2Payload } from "../../types";
 import { verifyUptoPermit2, settleUptoPermit2 } from "./permit2";
 
+/**
+ * EVM facilitator implementation for the Upto payment scheme.
+ * Handles verification and settlement of Permit2-based payments.
+ */
 export class UptoEvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "upto";
   readonly caipFamily = "eip155:*";
 
+  /**
+   * Creates a new UptoEvmScheme facilitator instance.
+   *
+   * @param signer - The EVM signer for facilitator operations
+   */
   constructor(private readonly signer: FacilitatorEvmSigner) {}
 
+  /**
+   * Returns undefined — EVM upto has no mechanism-specific extra data.
+   *
+   * @param _ - The network identifier (unused)
+   * @returns undefined
+   */
   getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
   }
 
+  /**
+   * Returns the facilitator signer addresses for the given network.
+   *
+   * @param _ - The network identifier (unused)
+   * @returns Array of signer addresses
+   */
   getSigners(_: string): string[] {
     return [...this.signer.getAddresses()];
   }
 
+  /**
+   * Verifies an upto Permit2 payment payload against the given requirements.
+   *
+   * @param payload - The payment payload to verify
+   * @param requirements - The payment requirements to verify against
+   * @param context - Optional facilitator context
+   * @returns Promise resolving to a verification response
+   */
   async verify(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
@@ -42,6 +71,14 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
     );
   }
 
+  /**
+   * Settles an upto Permit2 payment on-chain.
+   *
+   * @param payload - The payment payload to settle
+   * @param requirements - The payment requirements
+   * @param context - Optional facilitator context
+   * @returns Promise resolving to a settlement response
+   */
   async settle(
     payload: PaymentPayload,
     requirements: PaymentRequirements,

@@ -8,6 +8,13 @@ export interface UptoEvmFacilitatorConfig {
   networks: Network | Network[];
 }
 
+/**
+ * Registers EVM upto payment schemes to an x402Facilitator instance.
+ *
+ * @param facilitator - The x402Facilitator instance to register schemes to
+ * @param config - Configuration for EVM facilitator registration
+ * @returns The facilitator instance for chaining
+ */
 export function registerUptoEvmScheme(
   facilitator: x402Facilitator,
   config: UptoEvmFacilitatorConfig,
