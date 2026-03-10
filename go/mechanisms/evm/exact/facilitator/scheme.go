@@ -78,8 +78,9 @@ func (f *ExactEvmScheme) Verify(
 	requirements types.PaymentRequirements,
 	fctx *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
-	// Check if this is a Permit2 payload and route accordingly
-	if evm.IsPermit2Payload(payload.Payload) {
+	isPermit2 := evm.IsPermit2Payload(payload.Payload)
+
+	if isPermit2 {
 		permit2Payload, err := evm.Permit2PayloadFromMap(payload.Payload)
 		if err != nil {
 			return nil, x402.NewVerifyError(ErrInvalidPayload, "", fmt.Sprintf("failed to parse Permit2 payload: %s", err.Error()))
@@ -87,7 +88,6 @@ func (f *ExactEvmScheme) Verify(
 		return VerifyPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
 	}
 
-	// Default to EIP-3009 verification
 	return f.verifyEIP3009(ctx, payload, requirements)
 }
 
@@ -230,8 +230,9 @@ func (f *ExactEvmScheme) Settle(
 	requirements types.PaymentRequirements,
 	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
-	// Check if this is a Permit2 payload and route accordingly
-	if evm.IsPermit2Payload(payload.Payload) {
+	isPermit2 := evm.IsPermit2Payload(payload.Payload)
+
+	if isPermit2 {
 		permit2Payload, err := evm.Permit2PayloadFromMap(payload.Payload)
 		if err != nil {
 			network := x402.Network(payload.Accepted.Network)
@@ -240,7 +241,6 @@ func (f *ExactEvmScheme) Settle(
 		return SettlePermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
 	}
 
-	// Default to EIP-3009 settlement
 	return f.settleEIP3009(ctx, payload, requirements)
 }
 

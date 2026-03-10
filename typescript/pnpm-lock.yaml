@@ -1158,9 +1158,6 @@ importers:
       '@x402/core':
         specifier: workspace:~
         version: link:../../core
-      '@x402/extensions':
-        specifier: workspace:~
-        version: link:../../extensions
       viem:
         specifier: ^2.39.3
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)

@@ -165,10 +165,12 @@ const evmSigner = toFacilitatorEvmSigner({
     abi: readonly unknown[];
     functionName: string;
     args: readonly unknown[];
+    gas?: bigint;
   }) =>
     viemClient.writeContract({
       ...args,
       args: args.args || [],
+      gas: args.gas,
     }),
   sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
     viemClient.sendTransaction(args),
@@ -221,10 +223,47 @@ if (stellarSigner) {
   facilitator.register(STELLAR_NETWORK as Network, new ExactStellarScheme([stellarSigner]));
 }
 
+const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+const erc20AllowanceAbi = [
+  {
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    name: "allowance",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+const erc20ApprovalSigner = {
+  ...evmSigner,
+  sendTransactions: async (
+    transactions: (`0x${string}` | { to: `0x${string}`; data: `0x${string}`; gas?: bigint })[],
+  ): Promise<`0x${string}`[]> => {
+    const hashes: `0x${string}`[] = [];
+    for (const tx of transactions) {
+      let hash: `0x${string}`;
+      if (typeof tx === "string") {
+        hash = await viemClient.sendRawTransaction({ serializedTransaction: tx });
+      } else {
+        hash = await viemClient.sendTransaction(tx);
+      }
+      const receipt = await viemClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        throw new Error(`transaction_failed: ${hash}`);
+      }
+      hashes.push(hash);
+    }
+    return hashes;
+  },
+};
+
 facilitator
   .registerExtension(BAZAAR)
   .registerExtension(EIP2612_GAS_SPONSORING)
-  .registerExtension(createErc20ApprovalGasSponsoringExtension(evmSigner, viemClient))
+  .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner))
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation
