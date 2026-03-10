@@ -79,8 +79,8 @@ async function demonstrateResource(path: string): Promise<void> {
   const response1 = await fetchWithPayment(url);
   const body1 = await response1.json();
 
+  logPaymentResponse(response1);
   if (response1.ok) {
-    logPaymentResponse(response1);
     console.log("   Response:", body1);
   } else if (body1.error) {
     console.log("   ✗ Payment failed:", body1.details || body1.error);
@@ -91,8 +91,8 @@ async function demonstrateResource(path: string): Promise<void> {
   const response2 = await fetchWithPayment(url);
   const body2 = await response2.json();
 
+  const hasPayment = logPaymentResponse(response2);
   if (response2.ok) {
-    const hasPayment = logPaymentResponse(response2);
     if (!hasPayment) {
       console.log("   ✓ Authenticated via SIWX (previously paid)");
     }

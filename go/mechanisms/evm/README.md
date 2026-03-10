@@ -22,8 +22,10 @@ github.com/coinbase/x402/go/mechanisms/evm/exact/client
 ```
 
 **Exports:**
-- `NewExactEvmScheme(signer)` - Creates client-side EVM exact payment mechanism
+- `NewExactEvmScheme(signer, config)` - Creates client-side EVM exact payment mechanism
 - Used for creating payment payloads that clients sign
+- Pass `nil` config for signer-only mode
+- Use config to provide explicit RPC URLs for extension enrichment (`RPCURL` or `RPCByChainID`)
 
 #### For Servers
 

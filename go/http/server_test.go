@@ -417,6 +417,59 @@ func TestProcessSettlement(t *testing.T) {
 	}
 }
 
+func TestProcessSettlement_Failure(t *testing.T) {
+	ctx := context.Background()
+
+	mockClient := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return &x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "insufficient_funds",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		RoutesConfig{},
+		x402.WithFacilitatorClient(mockClient),
+	)
+	_ = server.Initialize(ctx)
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xtest",
+	}
+
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	result := server.ProcessSettlement(ctx, payload, requirements)
+	if result.Success {
+		t.Fatal("Expected settlement failure")
+	}
+	if result.Headers == nil || result.Headers["PAYMENT-RESPONSE"] == "" {
+		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
+	}
+	if result.Response == nil {
+		t.Fatal("Expected Response to be set on settlement failure")
+	}
+	if result.Response.Status != 402 {
+		t.Errorf("Expected status 402, got %d", result.Response.Status)
+	}
+	body, ok := result.Response.Body.(map[string]interface{})
+	if !ok || len(body) != 0 {
+		t.Errorf("Expected empty body {}, got %v", result.Response.Body)
+	}
+}
+
 func TestParseRoutePattern(t *testing.T) {
 	tests := []struct {
 		pattern     string

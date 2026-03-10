@@ -248,13 +248,15 @@ export function paymentMiddlewareFromHTTPServer(
           // If settlement fails, return an error and do not send the buffered response
           if (!settleResult.success) {
             bufferedCalls = [];
-            Object.entries(settleResult.headers).forEach(([key, value]) => {
+            const { response } = settleResult;
+            Object.entries(response.headers).forEach(([key, value]) => {
               res.setHeader(key, value);
             });
-            res.status(402).json({
-              error: "Settlement failed",
-              details: settleResult.errorReason,
-            });
+            if (response.isHtml) {
+              res.status(response.status).send(response.body);
+            } else {
+              res.status(response.status).json(response.body ?? {});
+            }
             return;
           }
 
@@ -266,10 +268,7 @@ export function paymentMiddlewareFromHTTPServer(
           console.error(error);
           // If settlement fails, don't send the buffered response
           bufferedCalls = [];
-          res.status(402).json({
-            error: "Settlement failed",
-            details: error instanceof Error ? error.message : "Unknown error",
-          });
+          res.status(402).json({});
           return;
         } finally {
           settled = true;
