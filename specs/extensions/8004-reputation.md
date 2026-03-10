@@ -487,9 +487,9 @@ Two submission paths are available:
     "reviewerSignatureAlgorithm": "ed25519"
   },
 
-  "tag1": "x402-resource-delivered",
-  "tag2": "proof-of-participation",
-  "comment": "Excellent service"
+  "tag1": "starred",
+  "tag2": "x402",
+  "reasoning": "Excellent service"
 }
 ```
 
@@ -511,9 +511,9 @@ Two submission paths are available:
 | `value` | number | ERC-8004 | Yes | Feedback score (0-100) |
 | `valueDecimals` | number | ERC-8004 | Yes | Decimal places (0 = integer) |
 | `proofOfParticipation` | object | x402 | Yes | Proof-of-service object (see below) |
-| `tag1` | string | Both | No | Primary structured tag |
-| `tag2` | string | Both | No | Secondary structured tag |
-| `comment` | string | Both | No | Free-form text |
+| `tag1` | string | Both | No | Primary structured tag (what `value` measures, e.g. `starred`) |
+| `tag2` | string | Both | No | Secondary structured tag (feedback source, e.g. `x402`) |
+| `reasoning` | string | Both | No | Free-form text explaining the rating |
 
 **Numeric fields:** All numeric fields in feedbackURI (`value`, `valueDecimals`) MUST be JSON integers. JCS (RFC 8785) has floating-point edge cases; ERC-8004's `value` (`int128`) and `valueDecimals` (`uint8`) are always integers.
 
@@ -550,9 +550,9 @@ reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 
 - Null byte (`0x00`) separators prevent boundary ambiguity between variable-length string fields. CAIP identifiers are ASCII and never contain null bytes.
 - `dataHash` (32 raw bytes, decoded from hex, strip `0x` prefix before decoding) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
-- `tag1`/`tag2` are included so an aggregator cannot silently change feedback sentiment (e.g., flipping `x402-resource-delivered` to `x402-resource-missing`). If no tags are provided, use empty strings.
+- `tag1`/`tag2` are included so an aggregator cannot silently change feedback categorization. If no tags are provided, use empty strings.
 - `value` uses `int128_be` (16 bytes, signed big-endian) to match ERC-8004's on-chain `int128` type exactly. This covers negative values (e.g., yield loss), large magnitudes, and high-precision decimals. The reviewer's hash commitment must encode the same type as the on-chain parameter - any mismatch silently produces wrong hashes.
-- `comment` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
+- `reasoning` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
 
 #### feedbackHash Computation
 
@@ -578,8 +578,8 @@ registry.giveFeedback(
   agentId: "42",
   value: 95,
   valueDecimals: 0,
-  tag1: "x402-resource-delivered",
-  tag2: "proof-of-participation",
+  tag1: "starred",
+  tag2: "x402",
   endpoint: "https://agent.example/weather",
   feedbackURI: feedbackURI,
   feedbackHash: feedbackHash
@@ -595,8 +595,8 @@ await satiClient.giveFeedback({
   taskRef: "solana:5eykt4...:5A2CSREG...",
   value: 95,
   valueDecimals: 0,
-  tag1: "x402-resource-delivered",
-  tag2: "proof-of-participation",
+  tag1: "starred",
+  tag2: "x402",
   endpoint: "https://agent.example/weather",
   feedbackURI: "ipfs://QmX...",
   feedbackHash: "0x...", // keccak256(JCS(feedbackURIContent))
@@ -644,10 +644,10 @@ Content-Type: application/json
   "review": {
     "value": 95,
     "valueDecimals": 0,
-    "tag1": "x402-resource-delivered",
-    "tag2": "proof-of-participation",
+    "tag1": "starred",
+    "tag2": "x402",
     "endpoint": "https://agent.example/weather",
-    "comment": "Excellent service"
+    "reasoning": "Excellent service"
   },
   "reviewerAddress": "solana:5eykt4...:ClientWallet...",
   "reviewerSignature": "0xfedcba987654...",
@@ -708,25 +708,17 @@ A facilitator that operates a feedback aggregator advertises its URL via the age
 
 ## Tag Conventions
 
-ERC-8004 uses a **two-tag model**:
-- **tag1**: Dimension being measured
-- **tag2**: Qualifier or proof level
+ERC-8004 uses a **two-tag model** ([spec](https://github.com/erc-8004/erc-8004-contracts/blob/master/ERC8004SPEC.md#examples-of-value--valuedecimals)):
+- **tag1**: What `value` measures (e.g. `starred`, `reachable`, `uptime`, `responseTime`)
+- **tag2**: Source context or qualifier
 
-### x402-specific Tags
+### x402 Feedback Tags
 
-| tag1 | tag2 | Meaning |
-|------|------|---------|
-| `x402-resource-delivered` | `proof-of-participation` | Resource delivered with agent signature |
-| `x402-resource-missing` | `proof-of-participation` | Agent signed but failed to deliver |
-| `x402-response-delayed` | `proof-of-participation` | Exceeded timeout but eventually delivered |
-| `x402-payment-amount` | `mismatch` | Agent requested different amount than declared |
+| tag1 | tag2 | value | Meaning |
+|------|------|-------|---------|
+| `starred` | `x402` | 0-100 | Quality rating for an x402 interaction |
 
-### ERC-8004 Standard Tags
-
-- `starred` / `5` (5-star rating)
-- `uptime` / `high`
-- `successRate` / `95`
-- `response-time` / `fast`
+Service delivery is proven cryptographically via `proofOfParticipation` - the tag measures quality, not delivery. For failure cases (charged but didn't deliver), use `value: 0` with details in `reasoning`.
 
 ---
 
