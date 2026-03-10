@@ -476,7 +476,7 @@ Two submission paths are available:
   "value": 95,
   "valueDecimals": 0,
 
-  "proofOfParticipation": {
+  "proofOfInteraction": {
     "taskRef": "solana:5eykt4...:5A2CSREG...",
     "dataHash": "0x9f86d081884c...",
     "agentSignerPublicKey": "0xa1b2c3d4...",
@@ -493,7 +493,7 @@ Two submission paths are available:
 }
 ```
 
-**Why `proofOfParticipation` (not `proofOfPayment`):** ERC-8004 defines `proofOfPayment` with fields `fromAddress`, `toAddress`, `chainId`, `txHash` -- a receipt proving money moved. x402's `proofOfParticipation` is a different concept: it proves the client actually **received service**, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery. Payment proof is already captured in `taskRef` (CAIP-220 contains chain + txHash). `proofOfParticipation` supersedes `proofOfPayment` in x402 context.
+**Why `proofOfInteraction` (not `proofOfPayment`):** ERC-8004 defines `proofOfPayment` with fields `fromAddress`, `toAddress`, `chainId`, `txHash` -- a receipt proving money moved. x402's `proofOfInteraction` is a different concept: it proves the client actually **received service**, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery. Payment proof is already captured in `taskRef` (CAIP-220 contains chain + txHash). `proofOfInteraction` supersedes `proofOfPayment` in x402 context.
 
 **Why `reviewerAddress` + `reviewerSignature`:** ERC-8004's `giveFeedback()` hardcodes `clientAddress = msg.sender`. When an aggregator submits on behalf of a client, on-chain `clientAddress` becomes the aggregator's address. The actual reviewer must be identified and verified in feedbackURI so consumers know who left the feedback.
 
@@ -510,7 +510,7 @@ Two submission paths are available:
 | `createdAt` | string | ERC-8004 | Yes | ISO 8601 timestamp |
 | `value` | number | ERC-8004 | Yes | Feedback score (0-100) |
 | `valueDecimals` | number | ERC-8004 | Yes | Decimal places (0 = integer) |
-| `proofOfParticipation` | object | x402 | Yes | Proof-of-service object (see below) |
+| `proofOfInteraction` | object | x402 | Yes | Proof-of-service object (see below) |
 | `tag1` | string | Both | No | Primary structured tag (what `value` measures, e.g. `starred`) |
 | `tag2` | string | Both | No | Secondary structured tag (feedback source, e.g. `x402`) |
 | `reasoning` | string | Both | No | Free-form text explaining the rating |
@@ -519,7 +519,7 @@ Two submission paths are available:
 
 **Tag validation:** `tag1` and `tag2` MUST NOT contain null bytes (`0x00`).
 
-#### proofOfParticipation Fields
+#### proofOfInteraction Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -600,7 +600,7 @@ await satiClient.giveFeedback({
   endpoint: "https://agent.example/weather",
   feedbackURI: "ipfs://QmX...",
   feedbackHash: "0x...", // keccak256(JCS(feedbackURIContent))
-  proofOfParticipation: {
+  proofOfInteraction: {
     dataHash: "0x9f86d081884c...",
     agentSignerPublicKey: "0xa1b2c3d4...",
     agentSignature: "0xa1b2c3d4e5f6...",
@@ -687,7 +687,7 @@ Error codes: `INVALID_AGENT_SIGNATURE`, `INVALID_REVIEWER_SIGNATURE`, `UNKNOWN_A
 The aggregator MUST:
 - Validate `agentSignature`: Fetch the agent's registration file (via `agentURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The aggregator SHOULD cache registration files to avoid repeated on-chain lookups.
 - Validate `reviewerSignature`: Recompute the reviewer message and verify the signature against `reviewerAddress`
-- Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfParticipation`)
+- Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfInteraction`)
 - Upload feedbackURI to IPFS or equivalent content-addressed storage
 - Call `giveFeedback()` on the appropriate reputation registry
 - Submit all valid feedback regardless of sentiment
@@ -718,7 +718,7 @@ ERC-8004 uses a **two-tag model** ([spec](https://github.com/erc-8004/erc-8004-c
 |------|------|-------|---------|
 | `starred` | `x402` | 0-100 | Quality rating for an x402 interaction |
 
-Service delivery is proven cryptographically via `proofOfParticipation` - the tag measures quality, not delivery. For failure cases (charged but didn't deliver), use `value: 0` with details in `reasoning`.
+Service delivery is proven cryptographically via `proofOfInteraction` - the tag measures quality, not delivery. For failure cases (charged but didn't deliver), use `value: 0` with details in `reasoning`.
 
 ---
 
