@@ -122,7 +122,7 @@ Steps to verify a payment for the `exact` scheme on Lightning Network:
    - If `payTo` is a Lightning node public key, verify it matches the recipient derived from the invoice.
    - If `payTo` is `"anonymous"`, no additional validation needed.
 10. Verify the invoice has not already been used.
-11. Query the Lightning wallet API or Lightning node to verify the invoice has been paid.
+11. Query the Lightning wallet API or Lightning node to verify the invoice has been paid. If the payment is still in-flight (HTLC locked but not yet settled), the server SHOULD respond with `402` and a `Retry-After` header indicating when the client should retry.
 
 ## Settlement
 
