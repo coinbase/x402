@@ -3,11 +3,8 @@ import { UptoEvmScheme } from "../../../src/upto/facilitator/scheme";
 import { verifyUptoPermit2, settleUptoPermit2 } from "../../../src/upto/facilitator/permit2";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
-import { x402UptoPermit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
-import {
-  ErrUptoSettlementExceedsAmount,
-  ErrPermit2AmountMismatch,
-} from "../../../src/upto/facilitator/errors";
+import { x402UptoPermit2ProxyAddress } from "../../../src/constants";
+import { ErrPermit2AmountMismatch } from "../../../src/upto/facilitator/errors";
 import type { UptoPermit2Payload } from "../../../src/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -33,7 +30,10 @@ function makePermit2Payload(overrides?: Partial<UptoPermit2Payload>): UptoPermit
   return { ...base, ...overrides };
 }
 
-function makePayload(permit2?: UptoPermit2Payload, acceptedOverrides?: Record<string, unknown>): PaymentPayload {
+function makePayload(
+  permit2?: UptoPermit2Payload,
+  acceptedOverrides?: Record<string, unknown>,
+): PaymentPayload {
   const p2 = permit2 ?? makePermit2Payload();
   return {
     x402Version: 2,
@@ -319,12 +319,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
   describe("direct function calls (verifyUptoPermit2 / settleUptoPermit2)", () => {
     it("verifyUptoPermit2 returns isValid=true for valid input", async () => {
       const p2 = makePermit2Payload();
-      const result = await verifyUptoPermit2(
-        mockSigner,
-        makePayload(p2),
-        makeRequirements(),
-        p2,
-      );
+      const result = await verifyUptoPermit2(mockSigner, makePayload(p2), makeRequirements(), p2);
 
       expect(result.isValid).toBe(true);
     });

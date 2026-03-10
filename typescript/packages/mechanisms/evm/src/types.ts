@@ -100,6 +100,8 @@ export type UptoPermit2Payload = {
  * @param payload - The payload to check.
  * @returns True if the payload has a `permit2Authorization` field.
  */
-export function isUptoPermit2Payload(payload: Record<string, unknown>): payload is UptoPermit2Payload {
+export function isUptoPermit2Payload(
+  payload: Record<string, unknown>,
+): payload is UptoPermit2Payload {
   return "permit2Authorization" in payload;
 }

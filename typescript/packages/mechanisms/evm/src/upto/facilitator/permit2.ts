@@ -121,9 +121,7 @@ export async function verifyUptoPermit2(
     };
   }
 
-  if (
-    BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)
-  ) {
+  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
     return {
       isValid: false,
       invalidReason: ErrPermit2AmountMismatch,
