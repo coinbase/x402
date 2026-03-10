@@ -73,20 +73,27 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
     verboseLog(`  📂 Server directory: ${this.directory}, isV1: ${isV1Server}`);
 
     // For legacy servers, translate CAIP-2 to v1 network names
+    let avmNetwork = config.networks.avm.caip2;
     let evmNetwork = config.networks.evm.caip2;
     let svmNetwork = config.networks.svm.caip2;
 
     if (isV1Server) {
+      avmNetwork = translateNetworkForV1(config.networks.avm.caip2);
       evmNetwork = translateNetworkForV1(config.networks.evm.caip2);
       svmNetwork = translateNetworkForV1(config.networks.svm.caip2);
 
-      verboseLog(`  🔄 Translating networks for v1 server: ${config.networks.evm.caip2} → ${evmNetwork}, ${config.networks.svm.caip2} → ${svmNetwork}`);
+      verboseLog(`  🔄 Translating networks for v1 server: ${config.networks.avm.caip2} → ${avmNetwork}, ${config.networks.evm.caip2} → ${evmNetwork}, ${config.networks.svm.caip2} → ${svmNetwork}`);
     }
 
     const runConfig: RunConfig = {
       port: config.port,
       env: {
         PORT: config.port.toString(),
+
+        // AVM network config
+        AVM_NETWORK: avmNetwork,
+        AVM_RPC_URL: config.networks.avm.rpcUrl,
+        AVM_PAYEE_ADDRESS: config.avmPayTo,
 
         // EVM network config
         EVM_NETWORK: evmNetwork,
@@ -237,9 +244,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
 function translateNetworkForV1(network: string): string {
   const networkMap: Record<string, string> = {
     // Testnets
+    'algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=': 'algorand-testnet',
     'eip155:84532': 'base-sepolia',
     'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'solana-devnet',
     // Mainnets
+    'algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=': 'algorand-mainnet',
     'eip155:8453': 'base',
     'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'solana',
   };

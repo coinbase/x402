@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { paymentMiddleware } from "@x402/hono";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactAvmScheme } from "@x402/avm/exact/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
@@ -23,6 +24,7 @@ dotenv.config();
  */
 
 const PORT = process.env.PORT || "4023";
+const AVM_NETWORK = (process.env.AVM_NETWORK || "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=") as `${string}:${string}`;
 const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
 const SVM_NETWORK = (process.env.SVM_NETWORK ||
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
@@ -31,6 +33,7 @@ const STELLAR_NETWORK = (process.env.STELLAR_NETWORK || "stellar:testnet") as `$
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
+const AVM_PAYEE_ADDRESS = process.env.AVM_PAYEE_ADDRESS as string;
 const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
@@ -59,6 +62,9 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const x402Server = new x402ResourceServer(facilitatorClient);
 
 // Register server schemes
+if (AVM_PAYEE_ADDRESS) {
+  x402Server.register("algorand:*", new ExactAvmScheme());
+}
 x402Server.register("eip155:*", new ExactEvmScheme());
 x402Server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
@@ -75,6 +81,20 @@ console.log(
   `Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + "..." : "not configured"}`,
 );
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+
+/**
+ * Pre-middleware guard for optional AVM endpoint
+ * Returns 501 Not Implemented if AVM is not configured
+ */
+app.use("/protected-avm", async (c, next) => {
+  if (!AVM_PAYEE_ADDRESS) {
+    return c.json({
+      error: "AVM payments not configured",
+      message: "AVM_PAYEE_ADDRESS environment variable is not set",
+    }, 501);
+  }
+  await next();
+});
 
 /**
  * Pre-middleware guard for optional Aptos endpoint
@@ -118,6 +138,35 @@ app.use(
   paymentMiddleware(
     {
       // Route-specific payment configuration
+      ...(AVM_PAYEE_ADDRESS
+        ? {
+            "GET /protected-avm": {
+              accepts: {
+                payTo: AVM_PAYEE_ADDRESS,
+                scheme: "exact",
+                price: "$0.001",
+                network: AVM_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
+                    },
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
+                  },
+                }),
+              },
+            },
+          }
+        : {}),
       "GET /protected": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
@@ -279,6 +328,16 @@ app.use(
 );
 
 /**
+ * Protected AVM endpoint - requires payment to access
+ */
+app.get("/protected-avm", (c) => {
+  return c.json({
+    message: "Protected endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Protected endpoint - requires payment to access
  *
  * This endpoint demonstrates a resource protected by x402 payment middleware.
@@ -398,16 +457,19 @@ console.log(`
 ║           x402 Hono E2E Test Server                    ║
 ╠════════════════════════════════════════════════════════╣
 ║  Server:         http://localhost:${PORT}              ║
+║  AVM Network:    ${AVM_NETWORK}                         ║
 ║  EVM Network:    ${EVM_NETWORK}                         ║
 ║  SVM Network:    ${SVM_NETWORK}                         ║
 ║  Aptos Network:  ${APTOS_NETWORK}                       ║
 ║  Stellar Network: ${STELLAR_NETWORK}                    ║
+║  AVM Payee:      ${AVM_PAYEE_ADDRESS || "(not configured)"}
 ║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
 ║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
 ║  Aptos Payee:    ${APTOS_PAYEE_ADDRESS || "(not configured)"}
 ║  Stellar Payee:  ${STELLAR_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
+║  • GET  /protected-avm           (AVM payment)             ║
 ║  • GET  /protected               (EIP-3009 payment)        ║
 ║  • GET  /protected-permit2       (Permit2 + EIP-2612)      ║
 ║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval)║

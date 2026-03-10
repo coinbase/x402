@@ -6,7 +6,7 @@ Next.js application demonstrating how to protect routes with a paywall using the
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Valid EVM and SVM addresses for receiving payments
+- Valid EVM, SVM, and AVM addresses for receiving payments
 - URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
 ## Setup
@@ -17,11 +17,12 @@ Next.js application demonstrating how to protect routes with a paywall using the
 cp .env-local .env
 ```
 
-and fill required environment variables:
+and fill the following environment variables:
 
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_ADDRESS` - Ethereum address to receive payments
 - `SVM_ADDRESS` - Solana address to receive payments
+- `AVM_ADDRESS` - Algorand address to receive payments
 
 2. Install and build all packages from the typescript examples root:
 ```bash
@@ -49,9 +50,11 @@ import { paymentProxy } from "@x402/next";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { registerExactAvmScheme } from "@x402/avm/exact/server";
 import { createPaywall } from "@x402/paywall";
 import { evmPaywall } from "@x402/paywall/evm";
 import { svmPaywall } from "@x402/paywall/svm";
+import { avmPaywall } from "@x402/paywall/avm";
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const server = new x402ResourceServer(facilitatorClient);
@@ -59,11 +62,13 @@ const server = new x402ResourceServer(facilitatorClient);
 // Register schemes
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
+registerExactAvmScheme(server);
 
 // Build paywall using builder pattern
 const paywall = createPaywall()
   .withNetwork(evmPaywall)
   .withNetwork(svmPaywall)
+  .withNetwork(avmPaywall)
   .withConfig({
     appName: "Next x402 Demo",
     appLogo: "/x402-icon-blue.png",
@@ -86,6 +91,12 @@ export const proxy = paymentProxy(
           price: "$0.001",
           network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
           payTo: svmAddress,
+        },
+        {
+          scheme: "exact",
+          price: "$0.001",
+          network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+          payTo: avmAddress,
         },
       ],
       description: "Premium music: x402 Remix",
@@ -110,8 +121,7 @@ The `/api/weather` route demonstrates the `withX402` wrapper for individual API 
 // app/api/weather/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@x402/next";
-import { server, paywall, evmAddress, svmAddress } from "../../../proxy";
-
+import { server, paywall, evmAddress, svmAddress, avmAddress } from "../../../proxy";
 const handler = async (_: NextRequest) => {
   return NextResponse.json({
     report: {
@@ -136,6 +146,12 @@ export const GET = withX402(
         price: "$0.001",
         network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         payTo: svmAddress,
+      },
+      {
+        scheme: "exact",
+        price: "$0.001",
+        network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+        payTo: avmAddress,
       },
     ],
     description: "Access to weather API",
@@ -275,3 +291,5 @@ export const config = {
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=` — Algorand Testnet
+- `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=` — Algorand Mainnet

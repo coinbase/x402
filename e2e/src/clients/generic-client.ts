@@ -20,6 +20,7 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
     try {
       const runConfig: RunConfig = {
         env: {
+          AVM_PRIVATE_KEY: config.avmPrivateKey,
           EVM_PRIVATE_KEY: config.evmPrivateKey,
           SVM_PRIVATE_KEY: config.svmPrivateKey,
           APTOS_PRIVATE_KEY: config.aptosPrivateKey,

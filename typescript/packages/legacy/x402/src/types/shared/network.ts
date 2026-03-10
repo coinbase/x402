@@ -18,6 +18,8 @@ export const NetworkSchema = z.enum([
   "story",
   "educhain",
   "skale-base-sepolia",
+  "algorand-mainnet",
+  "algorand-testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -64,9 +66,16 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
+// avm (Algorand)
+export const SupportedAVMNetworks: Network[] = ["algorand-mainnet", "algorand-testnet"];
+export const AvmNetworkToGenesisHash = new Map<Network, string>([
+  ["algorand-mainnet", "wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8="],
+  ["algorand-testnet", "SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI="],
+]);
+
 export const ChainIdToNetwork = Object.fromEntries(
-  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
+  [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedAVMNetworks].map(network => [
+    EvmNetworkToChainId.get(network) ?? SvmNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;

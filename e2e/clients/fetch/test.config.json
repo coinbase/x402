@@ -3,6 +3,7 @@
   "type": "client",
   "language": "typescript",
   "protocolFamilies": [
+    "avm",
     "evm",
     "svm",
     "aptos",
@@ -30,6 +31,7 @@
       "ENDPOINT_PATH"
     ],
     "optional": [
+      "AVM_PRIVATE_KEY",
       "APTOS_PRIVATE_KEY",
       "STELLAR_PRIVATE_KEY"
     ]

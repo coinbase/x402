@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import express, { Request, Response, NextFunction } from "express";
 import { x402ResourceServer, HTTPFacilitatorClient, ResourceConfig } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactAvmScheme } from "@x402/avm/exact/server";
 import type { PaymentRequirements } from "@x402/core/types";
 
 config();
@@ -27,10 +28,16 @@ config();
  */
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
+const avmAddress = process.env.AVM_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!evmAddress) {
   console.error("❌ EVM_ADDRESS environment variable is required");
+  process.exit(1);
+}
+
+if (!avmAddress) {
+  console.error("❌ AVM_ADDRESS environment variable is required");
   process.exit(1);
 }
 
@@ -46,30 +53,43 @@ console.log(`✅ Facilitator: ${facilitatorUrl}\n`);
 
 // Create facilitator client and resource server
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
-const resourceServer = new x402ResourceServer(facilitatorClient).register(
-  "eip155:84532",
-  new ExactEvmScheme(),
-);
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register("eip155:84532", new ExactEvmScheme())
+  .register("algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", new ExactAvmScheme());
+
+// Build route accepts configs
+const routeAccepts: ResourceConfig[] = [
+  {
+    scheme: "exact",
+    price: "$0.001",
+    network: "eip155:84532",
+    payTo: evmAddress,
+  },
+  {
+    scheme: "exact",
+    price: "$0.001",
+    network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+    payTo: avmAddress,
+  },
+];
 
 // Define route configurations (will be converted to PaymentRequirements at runtime)
-interface RoutePaymentConfig extends ResourceConfig {
+interface RoutePaymentConfig {
+  accepts: ResourceConfig[];
   description: string;
   mimeType: string;
 }
 
 const routeConfigs: Record<string, RoutePaymentConfig> = {
   "GET /weather": {
-    scheme: "exact",
-    price: "$0.001",
-    network: "eip155:84532",
-    payTo: evmAddress,
+    accepts: routeAccepts,
     description: "Weather data",
     mimeType: "application/json",
   },
 };
 
 // Cache for built payment requirements
-const routeRequirements: Record<string, PaymentRequirements> = {};
+const routeRequirements: Record<string, PaymentRequirements[]> = {};
 
 /**
  * Custom payment middleware implementation
@@ -96,13 +116,17 @@ async function customPaymentMiddleware(
 
   // Build PaymentRequirements from config (cached for efficiency)
   if (!routeRequirements[routeKey]) {
-    const builtRequirements = await resourceServer.buildPaymentRequirements(routeConfig);
+    const builtRequirements: PaymentRequirements[] = [];
+    for (const acceptConfig of routeConfig.accepts) {
+      const built = await resourceServer.buildPaymentRequirements(acceptConfig);
+      builtRequirements.push(...built);
+    }
     if (builtRequirements.length === 0) {
       console.error("❌ Failed to build payment requirements");
       res.status(500).json({ error: "Server configuration error" });
       return;
     }
-    routeRequirements[routeKey] = builtRequirements[0];
+    routeRequirements[routeKey] = builtRequirements;
   }
   const requirements = routeRequirements[routeKey];
 
@@ -115,7 +139,7 @@ async function customPaymentMiddleware(
     console.log("💳 No payment provided, returning 402 Payment Required");
 
     // Step 2: Return 402 with payment requirements
-    const paymentRequired = resourceServer.createPaymentRequiredResponse([requirements], {
+    const paymentRequired = resourceServer.createPaymentRequiredResponse(requirements, {
       url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
       description: routeConfig.description,
       mimeType: routeConfig.mimeType,
@@ -137,7 +161,19 @@ async function customPaymentMiddleware(
     console.log("🔐 Payment provided, verifying with facilitator...");
 
     const paymentPayload = JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8"));
-    const verifyResult = await resourceServer.verifyPayment(paymentPayload, requirements);
+
+    // Find the matching requirement for the payment's network
+    const matchingRequirement = requirements.find(r => r.network === paymentPayload.network);
+    if (!matchingRequirement) {
+      console.log(`❌ No matching requirement for network: ${paymentPayload.network}`);
+      res.status(402).json({
+        error: "Invalid Payment",
+        reason: `Network ${paymentPayload.network} not supported`,
+      });
+      return;
+    }
+
+    const verifyResult = await resourceServer.verifyPayment(paymentPayload, matchingRequirement);
 
     if (!verifyResult.isValid) {
       console.log(`❌ Payment verification failed: ${verifyResult.invalidReason}`);
@@ -162,7 +198,7 @@ async function customPaymentMiddleware(
       console.log("💰 Settling payment on-chain...");
 
       try {
-        const settleResult = await resourceServer.settlePayment(paymentPayload, requirements);
+        const settleResult = await resourceServer.settlePayment(paymentPayload, matchingRequirement);
 
         console.log(`✅ Payment settled: ${settleResult.transaction}`);
 

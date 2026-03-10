@@ -16,6 +16,7 @@
     "permit2:revoke": "tsx scripts/permit2-approval.ts revoke"
   },
   "dependencies": {
+    "@algorandfoundation/algokit-utils": "10.0.0-alpha.39",
     "axios": "^1.6.0",
     "dotenv": "^17.0.1",
     "express": "^4.18.0",

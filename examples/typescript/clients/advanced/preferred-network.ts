@@ -2,6 +2,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { x402Client, type PaymentRequirements } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { toClientAvmSigner } from "@x402/avm";
+import { ExactAvmScheme } from "@x402/avm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 import { x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
@@ -24,6 +26,7 @@ import { x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
 export async function runPreferredNetworkExample(
   evmPrivateKey: `0x${string}`,
   svmPrivateKey: string,
+  avmPrivateKey: string,
   url: string,
 ): Promise<void> {
   console.log("🎯 Creating client with preferred network selection...\n");
@@ -32,7 +35,7 @@ export async function runPreferredNetworkExample(
   const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
   // Define network preference order (most preferred first)
-  const networkPreferences = ["solana:", "eip155:"];
+  const networkPreferences = ["algorand:", "solana:", "eip155:"];
 
   /**
    * Custom selector that picks payment options based on preference order.
@@ -70,9 +73,12 @@ export async function runPreferredNetworkExample(
     return options[0];
   };
 
+  const avmSigner = toClientAvmSigner(avmPrivateKey);
+
   const client = new x402Client(preferredNetworkSelector)
     .register("eip155:*", new ExactEvmScheme(evmSigner))
-    .register("solana:*", new ExactSvmScheme(svmSigner));
+    .register("solana:*", new ExactSvmScheme(svmSigner))
+    .register("algorand:*", new ExactAvmScheme(avmSigner));
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 

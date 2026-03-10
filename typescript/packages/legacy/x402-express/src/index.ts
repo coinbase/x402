@@ -12,6 +12,7 @@ import {
 import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
+  ASAAmount,
   ERC20TokenAmount,
   moneySchema,
   PaymentPayload,
@@ -20,6 +21,7 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
+  SupportedAVMNetworks,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
 } from "x402/types";
@@ -121,6 +123,7 @@ export function paymentMiddleware(
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
     if (SupportedEVMNetworks.includes(network)) {
+      const evmAsset = asset as ERC20TokenAmount["asset"];
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -130,7 +133,7 @@ export function paymentMiddleware(
         mimeType: mimeType ?? "",
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: getAddress(asset.address),
+        asset: getAddress(evmAsset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -141,7 +144,7 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: evmAsset.eip712,
       });
     }
 
@@ -164,6 +167,8 @@ export function paymentMiddleware(
         throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
       }
 
+      const svmAsset = asset as { address: string; decimals: number };
+
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -173,7 +178,7 @@ export function paymentMiddleware(
         mimeType: mimeType ?? "",
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
+        asset: svmAsset.address,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -186,6 +191,49 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+        },
+      });
+    }
+    // avm networks (Algorand)
+    else if (SupportedAVMNetworks.includes(network)) {
+      // get the supported payments from the facilitator
+      const paymentKinds = await supported();
+
+      // find the payment kind that matches the network and scheme
+      // feePayer is optional for AVM (unlike SVM)
+      let feePayer: string | undefined;
+      for (const kind of paymentKinds.kinds) {
+        if (kind.network === network && kind.scheme === "exact") {
+          feePayer = kind?.extra?.feePayer;
+          break;
+        }
+      }
+
+      const asaAsset = asset as ASAAmount["asset"];
+
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "",
+        payTo: payTo as string,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: asaAsset.id,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method.toUpperCase(),
+            discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
+        extra: {
+          decimals: asaAsset.decimals,
+          ...(feePayer ? { feePayer } : {}),
         },
       });
     } else {
@@ -220,7 +268,10 @@ export function paymentMiddleware(
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
-            testnet: network === "base-sepolia",
+            testnet:
+              network === "base-sepolia" ||
+              network === "algorand-testnet" ||
+              network === "solana-devnet",
             cdpClientKey: paywall?.cdpClientKey,
             appName: paywall?.appName,
             appLogo: paywall?.appLogo,
@@ -239,7 +290,13 @@ export function paymentMiddleware(
 
     let decodedPayment: PaymentPayload;
     try {
-      decodedPayment = exact.evm.decodePayment(payment);
+      // Use network-specific decoding
+      const paymentNetwork = paymentRequirements[0]?.network;
+      if (SupportedAVMNetworks.includes(paymentNetwork)) {
+        decodedPayment = exact.avm.decodePayment(payment);
+      } else {
+        decodedPayment = exact.evm.decodePayment(payment);
+      }
       decodedPayment.x402Version = x402Version;
     } catch (error) {
       console.error(error);

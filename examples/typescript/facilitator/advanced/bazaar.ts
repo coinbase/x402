@@ -5,8 +5,8 @@
  * catalogs discovered x402 resources.
  */
 
-import { base58 } from "@scure/base";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { toFacilitatorAvmSigner } from "@x402/avm";
+import { ExactAvmScheme } from "@x402/avm/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   PaymentPayload,
@@ -17,8 +17,10 @@ import {
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { extractDiscoveryInfo, DiscoveryInfo } from "@x402/extensions/bazaar";
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { base58 } from "@scure/base";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
@@ -30,19 +32,21 @@ dotenv.config();
 // Configuration
 const PORT = process.env.PORT || "4022";
 
-// Configuration - optional per network
+// Configuration - optional per network (alphabetic order)
+const avmPrivateKey = process.env.AVM_PRIVATE_KEY as string | undefined;
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string | undefined;
 
 // Validate at least one private key is provided
-if (!evmPrivateKey && !svmPrivateKey) {
+if (!avmPrivateKey && !evmPrivateKey && !svmPrivateKey) {
   console.error(
-    "❌ At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required",
+    "❌ At least one of AVM_PRIVATE_KEY, EVM_PRIVATE_KEY, or SVM_PRIVATE_KEY is required",
   );
   process.exit(1);
 }
 
-// Network configuration
+// Network configuration (alphabetic order)
+const AVM_NETWORK = "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI="; // Algorand Testnet
 const EVM_NETWORK = "eip155:84532"; // Base Sepolia
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"; // Solana Devnet
 
@@ -141,6 +145,13 @@ const facilitator = new x402Facilitator()
   .onSettleFailure(async (context) => {
     console.log("Settle failure", context);
   });
+
+// Register AVM scheme if private key is provided
+if (avmPrivateKey) {
+  const avmSigner = toFacilitatorAvmSigner(avmPrivateKey);
+  console.info(`AVM Facilitator account: ${avmSigner.getAddresses()[0]}`);
+  facilitator.register(AVM_NETWORK, new ExactAvmScheme(avmSigner));
+}
 
 // Register EVM scheme if private key is provided
 if (evmPrivateKey) {
