@@ -1,0 +1,7 @@
+{
+  "name": "Finance Data API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/finance-data.png",
+  "description": "Financial market data service with x402 micropayments. Access stock prices, company profiles, financial news, reports, forex rates, and AI-powered market analysis.",
+  "websiteUrl": "https://finance-data-api-production.up.railway.app"
+}

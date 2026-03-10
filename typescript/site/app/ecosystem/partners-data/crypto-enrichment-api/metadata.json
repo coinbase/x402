@@ -1,0 +1,7 @@
+{
+  "name": "Crypto Data Enrichment API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/crypto-data.png",
+  "description": "Multi-source crypto market intelligence via x402 micropayments. Offers real-time price data, trading signals, deep analysis, and AI-powered market reports.",
+  "websiteUrl": "https://crypto-enrichment-api-production.up.railway.app"
+}
