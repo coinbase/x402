@@ -232,6 +232,10 @@ func TestServerBuildPaymentRequirements(t *testing.T) {
 		Price:             "$5.00",
 		Network:           "eip155:1",
 		MaxTimeoutSeconds: 600,
+		Extra: map[string]interface{}{
+			"assetTransferMethod": "permit2",
+			"merchantNote":        "custom-scheme-data",
+		},
 	}
 
 	// BuildPaymentRequirements now requires supportedKind
@@ -259,6 +263,15 @@ func TestServerBuildPaymentRequirements(t *testing.T) {
 	}
 	if requirements.Extra["enhanced"] != true {
 		t.Fatal("Expected requirements to be enhanced")
+	}
+	if requirements.Extra["decimals"] != 6 {
+		t.Fatalf("Expected parsed extra to be preserved, got %v", requirements.Extra["decimals"])
+	}
+	if requirements.Extra["assetTransferMethod"] != "permit2" {
+		t.Fatalf("Expected config extra to be merged, got %v", requirements.Extra["assetTransferMethod"])
+	}
+	if requirements.Extra["merchantNote"] != "custom-scheme-data" {
+		t.Fatalf("Expected merchant extra to be merged, got %v", requirements.Extra["merchantNote"])
 	}
 }
 
