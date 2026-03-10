@@ -1,7 +1,7 @@
 {
-  "name": "Alpha AI Agent",
-  "category": "Services/Endpoints",
+  "name": "Alpha AI Agent — Token Safety & Wallet Risk",
+  "description": "AI-powered security scanning for Web3. Token safety scan (0.01 USDC) detects honeypots, hidden mints, sell tax traps. Wallet risk scoring (0.02 USDC) analyzes full portfolio risk. Pay-per-use via x402 micropayments on Base. ERC-8004 verified agent identity.",
   "logoUrl": "/logos/alpha-ai-agent.png",
-  "description": "AI-powered wallet risk scoring service. Scans token holdings for security risks (honeypot detection, ownership analysis, tax checks) across Base, Ethereum, Polygon, Arbitrum, and Optimism. First agent registered on-chain via ERC-8004 Identity Registry on Base.",
-  "websiteUrl": "https://x402-wallet-risk.airdropalpha.workers.dev/"
+  "websiteUrl": "https://x402-wallet-risk.airdropalpha.workers.dev",
+  "category": "Services/Endpoints"
 }
