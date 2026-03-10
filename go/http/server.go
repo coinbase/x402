@@ -392,6 +392,7 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 			Price:             resolvedPrice,
 			Network:           option.Network,
 			MaxTimeoutSeconds: option.MaxTimeoutSeconds,
+			Extra:             option.Extra,
 		}
 
 		// Use existing BuildPaymentRequirementsFromConfig for each option

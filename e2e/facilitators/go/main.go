@@ -212,6 +212,11 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
+	methodObj, exists := contractABI.Methods[method]
+	if !exists {
+		return nil, fmt.Errorf("method %s not found in ABI", method)
+	}
+
 	// Pack the method call
 	data, err := contractABI.Pack(method, args...)
 	if err != nil {
@@ -230,26 +235,12 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("failed to call contract: %w", err)
 	}
 
-	// Handle empty result (some contract calls return nothing or revert)
-	if len(result) == 0 {
-		// For authorizationState, empty means false (nonce not used)
-		if method == "authorizationState" {
-			return false, nil
-		}
-		// For balanceOf or allowance, empty might mean 0
-		if method == "balanceOf" || method == "allowance" {
-			return big.NewInt(0), nil
-		}
-		return nil, fmt.Errorf("empty result from contract call")
+	if len(methodObj.Outputs) == 0 {
+		return nil, nil
 	}
 
 	// Unpack the result based on method
-	method_obj, exists := contractABI.Methods[method]
-	if !exists {
-		return nil, fmt.Errorf("method %s not found in ABI", method)
-	}
-
-	output, err := method_obj.Outputs.Unpack(result)
+	output, err := methodObj.Outputs.Unpack(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unpack result: %w", err)
 	}

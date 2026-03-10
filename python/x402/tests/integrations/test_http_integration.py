@@ -315,6 +315,46 @@ class TestDynamicPricing:
 
         return Factory  # type: ignore
 
+    def test_route_option_extra_is_preserved(
+        self,
+        components_factory: Any,
+    ) -> None:
+        """Route-level extra should flow into built payment requirements."""
+        routes = {
+            "GET /api/permit2": {
+                "accepts": {
+                    "scheme": "cash",
+                    "payTo": "merchant@example.com",
+                    "price": "$0.10",
+                    "network": "x402:cash",
+                    "extra": {
+                        "assetTransferMethod": "permit2",
+                        "merchantNote": "route-level-extra",
+                    },
+                },
+            },
+        }
+
+        components = components_factory.create(routes)
+        adapter = MockHTTPAdapter(
+            path="/api/permit2",
+            method="GET",
+        )
+        context = HTTPRequestContext(
+            adapter=adapter,
+            path="/api/permit2",
+            method="GET",
+        )
+
+        result = components.process_http_request(context)
+        payment_required = decode_payment_required_header(
+            result.response.headers["PAYMENT-REQUIRED"]
+        )
+
+        assert payment_required.accepts[0].extra is not None
+        assert payment_required.accepts[0].extra["assetTransferMethod"] == "permit2"
+        assert payment_required.accepts[0].extra["merchantNote"] == "route-level-extra"
+
     def test_dynamic_price_from_query_params(
         self,
         components_factory: Any,
