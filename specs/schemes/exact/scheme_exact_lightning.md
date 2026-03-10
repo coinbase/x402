@@ -148,7 +148,8 @@ Once decoded, the `PAYMENT-RESPONSE` is a JSON string following the standard `Se
   "payer": "anonymous",
   "extra": {
     "invoice": "lnbc1u1p3...",
-    "settledAt": 1739116800
+    "settledAt": 1739116800,
+    "paymentHash": "a]1b2c3d4e5f..."
   }
 }
 ```
@@ -156,11 +157,12 @@ Once decoded, the `PAYMENT-RESPONSE` is a JSON string following the standard `Se
 ### Field Descriptions
 
 - `success`: Boolean indicating whether the payment settlement was successful
-- `transaction`: The BOLT11 invoice string (serves as the transaction identifier). Note: Unlike blockchain transaction hashes, this is the full invoice string. If integration with Lightning tooling requires a payment hash, it can be extracted by decoding this BOLT11 invoice.
+- `transaction`: The BOLT11 invoice string (serves as the transaction identifier). Note: Unlike blockchain transaction hashes, this is the full invoice string. If integration with Lightning tooling requires a payment hash, it can be extracted by decoding this BOLT11 invoice, or use the optional `extra.paymentHash` field if provided.
 - `network`: The CAIP-2 network identifier
 - `payer`: The payer identifier. Since Lightning provides limited privacy features, this may be `"anonymous"` or a Lightning node public key if available
 - `extra.invoice`: The BOLT11 invoice string
 - `extra.settledAt`: Unix timestamp when the payment was confirmed
+- `extra.paymentHash` *(optional)*: The SHA-256 payment hash (hex-encoded) derived from the BOLT11 invoice. Convenience field for Lightning tooling that indexes by payment hash. When present, it MUST match the payment hash embedded in `extra.invoice`.
 
 ## Appendix
 
