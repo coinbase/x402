@@ -2,16 +2,20 @@ package unit_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	evmv1facilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -72,12 +76,15 @@ type mockFacilitatorSigner struct {
 	chainID                *big.Int
 	writeContractTxHash    string
 	writeContractError     error
+	sendTransactionError   error
 	receiptStatus          uint64
 	receiptError           error
 	readContractError      error
+	readContractFn         func(contractAddress string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 	verifyTypedDataResult  bool
 	verifyTypedDataError   error
 	code                   []byte
+	getCodeError           error
 	authorizationStateUsed bool
 	lastWriteFunctionName  string
 }
@@ -101,6 +108,9 @@ func (m *mockFacilitatorSigner) GetChainID(ctx context.Context) (*big.Int, error
 }
 
 func (m *mockFacilitatorSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
+	if m.getCodeError != nil {
+		return nil, m.getCodeError
+	}
 	return m.code, nil
 }
 
@@ -111,6 +121,9 @@ func (m *mockFacilitatorSigner) ReadContract(
 	functionName string,
 	args ...interface{},
 ) (interface{}, error) {
+	if m.readContractFn != nil {
+		return m.readContractFn(contractAddress, abi, functionName, args...)
+	}
 	if m.readContractError != nil {
 		return nil, m.readContractError
 	}
@@ -150,6 +163,9 @@ func (m *mockFacilitatorSigner) WriteContract(
 }
 
 func (m *mockFacilitatorSigner) SendTransaction(ctx context.Context, to string, data []byte) (string, error) {
+	if m.sendTransactionError != nil {
+		return "", m.sendTransactionError
+	}
 	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
 }
 
@@ -486,6 +502,119 @@ func mockSignature65Bytes() string {
 	return "0x" + strings.Repeat("00", 65)
 }
 
+type mockMulticallResult struct {
+	Success    bool
+	ReturnData []byte
+}
+
+func defaultEIP3009Requirements() types.PaymentRequirements {
+	return types.PaymentRequirements{
+		Scheme:  evm.SchemeExact,
+		Network: "eip155:84532",
+		Asset:   "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		Amount:  "1000000",
+		PayTo:   "0x9876543210987654321098765432109876543210",
+		Extra: map[string]interface{}{
+			"name":    "USDC",
+			"version": "2",
+		},
+	}
+}
+
+func defaultEIP3009Payload(signature string) types.PaymentPayload {
+	return types.PaymentPayload{
+		X402Version: 2,
+		Accepted: types.PaymentRequirements{
+			Scheme:  evm.SchemeExact,
+			Network: "eip155:84532",
+		},
+		Payload: map[string]interface{}{
+			"signature": signature,
+			"authorization": map[string]interface{}{
+				"from":        "0x1234567890123456789012345678901234567890",
+				"to":          "0x9876543210987654321098765432109876543210",
+				"value":       "1000000",
+				"validAfter":  "0",
+				"validBefore": "99999999999",
+				"nonce":       "0x0000000000000000000000000000000000000000000000000000000000000001",
+			},
+		},
+	}
+}
+
+func defaultEIP3009RequirementsV1(t *testing.T) types.PaymentRequirementsV1 {
+	t.Helper()
+
+	extra, err := json.Marshal(map[string]interface{}{
+		"name":    "USDC",
+		"version": "2",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal v1 extra: %v", err)
+	}
+
+	raw := json.RawMessage(extra)
+	return types.PaymentRequirementsV1{
+		Scheme:            evm.SchemeExact,
+		Network:           "base-sepolia",
+		MaxAmountRequired: "1000000",
+		PayTo:             "0x9876543210987654321098765432109876543210",
+		Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		Extra:             &raw,
+	}
+}
+
+func defaultEIP3009PayloadV1(signature string) types.PaymentPayloadV1 {
+	return types.PaymentPayloadV1{
+		X402Version: 1,
+		Scheme:      evm.SchemeExact,
+		Network:     "base-sepolia",
+		Payload:     defaultEIP3009Payload(signature).Payload,
+	}
+}
+
+func packABIOutput(t *testing.T, abiBytes []byte, functionName string, values ...interface{}) []byte {
+	t.Helper()
+
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		t.Fatalf("failed to parse ABI for %s: %v", functionName, err)
+	}
+
+	data, err := contractABI.Methods[functionName].Outputs.Pack(values...)
+	if err != nil {
+		t.Fatalf("failed to pack output for %s: %v", functionName, err)
+	}
+
+	return data
+}
+
+func wrapERC6492SignatureForTest(t *testing.T, factory common.Address, factoryData []byte, originalSig []byte) string {
+	t.Helper()
+
+	addressTy, err := abi.NewType("address", "", nil)
+	if err != nil {
+		t.Fatalf("failed to create address ABI type: %v", err)
+	}
+	bytesTy, err := abi.NewType("bytes", "", nil)
+	if err != nil {
+		t.Fatalf("failed to create bytes ABI type: %v", err)
+	}
+
+	arguments := abi.Arguments{
+		{Type: addressTy},
+		{Type: bytesTy},
+		{Type: bytesTy},
+	}
+
+	packed, err := arguments.Pack(factory, factoryData, originalSig)
+	if err != nil {
+		t.Fatalf("failed to pack ERC-6492 signature: %v", err)
+	}
+
+	return "0x" + fmt.Sprintf("%x%x", packed, common.Hex2Bytes(evm.ERC6492MagicValue[2:]))
+}
+
 // TestVerifyPermit2InvalidInputs tests validation in VerifyPermit2
 func TestVerifyPermit2InvalidInputs(t *testing.T) {
 	ctx := context.Background()
@@ -802,6 +931,257 @@ func TestVerifyEIP3009TimingValidation(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestVerifyEIP3009SimulationParity(t *testing.T) {
+	ctx := context.Background()
+	requirements := defaultEIP3009Requirements()
+
+	t.Run("Rejects wrong token name from simulation diagnostics", func(t *testing.T) {
+		factory := common.HexToAddress("0x1111111111111111111111111111111111111111")
+		payload := defaultEIP3009Payload("0x")
+		payload.Payload["signature"] = wrapERC6492SignatureForTest(t, factory, []byte{0xde, 0xad}, make([]byte, 65))
+
+		multicallCount := 0
+		signer := &mockFacilitatorSigner{
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				if functionName != evm.FunctionTryAggregate {
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+				multicallCount++
+				if multicallCount == 1 {
+					return []mockMulticallResult{
+						{Success: true, ReturnData: []byte{}},
+						{Success: false, ReturnData: []byte{}},
+					}, nil
+				}
+				return []mockMulticallResult{
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20BalanceOfABI, "balanceOf", big.NewInt(1_000_000))},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20NameABI, "name", "Wrong Name")},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20VersionABI, "version", "2")},
+					{Success: true, ReturnData: packABIOutput(t, evm.AuthorizationStateABI, evm.FunctionAuthorizationState, false)},
+				}, nil
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
+		if err == nil {
+			t.Fatal("expected token name mismatch")
+		}
+		if !strings.Contains(err.Error(), evmfacilitator.ErrEip3009TokenNameMismatch) {
+			t.Fatalf("expected %q, got %v", evmfacilitator.ErrEip3009TokenNameMismatch, err)
+		}
+	})
+
+	t.Run("Rejects wrong token version from simulation diagnostics", func(t *testing.T) {
+		factory := common.HexToAddress("0x1111111111111111111111111111111111111111")
+		payload := defaultEIP3009Payload("0x")
+		payload.Payload["signature"] = wrapERC6492SignatureForTest(t, factory, []byte{0xde, 0xad}, make([]byte, 65))
+
+		multicallCount := 0
+		signer := &mockFacilitatorSigner{
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				if functionName != evm.FunctionTryAggregate {
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+				multicallCount++
+				if multicallCount == 1 {
+					return []mockMulticallResult{
+						{Success: true, ReturnData: []byte{}},
+						{Success: false, ReturnData: []byte{}},
+					}, nil
+				}
+				return []mockMulticallResult{
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20BalanceOfABI, "balanceOf", big.NewInt(1_000_000))},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20NameABI, "name", "USDC")},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20VersionABI, "version", "999")},
+					{Success: true, ReturnData: packABIOutput(t, evm.AuthorizationStateABI, evm.FunctionAuthorizationState, false)},
+				}, nil
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
+		if err == nil {
+			t.Fatal("expected token version mismatch")
+		}
+		if !strings.Contains(err.Error(), evmfacilitator.ErrEip3009TokenVersionMismatch) {
+			t.Fatalf("expected %q, got %v", evmfacilitator.ErrEip3009TokenVersionMismatch, err)
+		}
+	})
+
+	t.Run("Accepts deployed smart wallet when simulation succeeds", func(t *testing.T) {
+		signer := &mockFacilitatorSigner{
+			code: []byte{0x60, 0x80},
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				switch functionName {
+				case "isValidSignature":
+					return []byte{0x16, 0x26, 0xba, 0x7e}, nil
+				case evm.FunctionTransferWithAuthorization:
+					return nil, nil
+				default:
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+		verifyResp, err := scheme.Verify(ctx, defaultEIP3009Payload(mockSignature65Bytes()), requirements, nil)
+		if err != nil {
+			t.Fatalf("expected verification success, got %v", err)
+		}
+		if !verifyResp.IsValid {
+			t.Fatal("expected valid verification response")
+		}
+	})
+
+	t.Run("Rejects undeployed ERC-6492 when deploy+transfer simulation fails", func(t *testing.T) {
+		factory := common.HexToAddress("0x1111111111111111111111111111111111111111")
+		payload := defaultEIP3009Payload("0x")
+		payload.Payload["signature"] = wrapERC6492SignatureForTest(t, factory, []byte{0xde, 0xad}, make([]byte, 65))
+
+		multicallCount := 0
+		signer := &mockFacilitatorSigner{
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				if functionName != evm.FunctionTryAggregate {
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+				multicallCount++
+				if multicallCount == 1 {
+					return []mockMulticallResult{
+						{Success: true, ReturnData: []byte{}},
+						{Success: false, ReturnData: []byte{}},
+					}, nil
+				}
+				return []mockMulticallResult{
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20BalanceOfABI, "balanceOf", big.NewInt(1_000_000))},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20NameABI, "name", "USDC")},
+					{Success: true, ReturnData: packABIOutput(t, evm.ERC20VersionABI, "version", "2")},
+					{Success: true, ReturnData: packABIOutput(t, evm.AuthorizationStateABI, evm.FunctionAuthorizationState, false)},
+				}, nil
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+		_, err := scheme.Verify(ctx, payload, requirements, nil)
+		if err == nil {
+			t.Fatal("expected simulation failure")
+		}
+		if !strings.Contains(err.Error(), evmfacilitator.ErrEip3009SimulationFailed) {
+			t.Fatalf("expected %q, got %v", evmfacilitator.ErrEip3009SimulationFailed, err)
+		}
+	})
+
+	t.Run("Accepts undeployed ERC-6492 when deploy+transfer simulation succeeds", func(t *testing.T) {
+		factory := common.HexToAddress("0x2222222222222222222222222222222222222222")
+		payload := defaultEIP3009Payload("0x")
+		payload.Payload["signature"] = wrapERC6492SignatureForTest(t, factory, []byte{0xbe, 0xef}, make([]byte, 65))
+
+		signer := &mockFacilitatorSigner{
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				if functionName != evm.FunctionTryAggregate {
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+				return []mockMulticallResult{
+					{Success: true, ReturnData: []byte{}},
+					{Success: true, ReturnData: []byte{}},
+				}, nil
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
+
+		verifyResp, err := scheme.Verify(ctx, payload, requirements, nil)
+		if err != nil {
+			t.Fatalf("expected verification success, got %v", err)
+		}
+		if !verifyResp.IsValid {
+			t.Fatal("expected valid verification response")
+		}
+	})
+}
+
+func TestSettleEIP3009SimulateInSettleToggle(t *testing.T) {
+	ctx := context.Background()
+	requirements := defaultEIP3009Requirements()
+	payload := defaultEIP3009Payload(mockSignature65Bytes())
+
+	runCase := func(simulateInSettle bool) int {
+		simulations := 0
+		signer := &mockFacilitatorSigner{
+			code: []byte{0x60, 0x80},
+			readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+				switch functionName {
+				case "isValidSignature":
+					return []byte{0x16, 0x26, 0xba, 0x7e}, nil
+				case evm.FunctionTransferWithAuthorization:
+					simulations++
+					return nil, nil
+				default:
+					return nil, fmt.Errorf("unsupported function: %s", functionName)
+				}
+			},
+		}
+		scheme := evmfacilitator.NewExactEvmScheme(signer, &evmfacilitator.ExactEvmSchemeConfig{
+			SimulateInSettle: simulateInSettle,
+		})
+
+		if _, err := scheme.Verify(ctx, payload, requirements, nil); err != nil {
+			t.Fatalf("verify failed: %v", err)
+		}
+		if _, err := scheme.Settle(ctx, payload, requirements, nil); err != nil {
+			t.Fatalf("settle failed: %v", err)
+		}
+
+		return simulations
+	}
+
+	if got := runCase(false); got != 1 {
+		t.Fatalf("expected 1 simulation when SimulateInSettle=false, got %d", got)
+	}
+	if got := runCase(true); got != 2 {
+		t.Fatalf("expected 2 simulations when SimulateInSettle=true, got %d", got)
+	}
+}
+
+func TestVerifyEIP3009V1UsesSimulationDiagnostics(t *testing.T) {
+	ctx := context.Background()
+	requirements := defaultEIP3009RequirementsV1(t)
+
+	factory := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	payload := defaultEIP3009PayloadV1("0x")
+	payload.Payload["signature"] = wrapERC6492SignatureForTest(t, factory, []byte{0xde, 0xad}, make([]byte, 65))
+
+	multicallCount := 0
+	signer := &mockFacilitatorSigner{
+		readContractFn: func(contractAddress string, abiBytes []byte, functionName string, args ...interface{}) (interface{}, error) {
+			if functionName != evm.FunctionTryAggregate {
+				return nil, fmt.Errorf("unsupported function: %s", functionName)
+			}
+			multicallCount++
+			if multicallCount == 1 {
+				return []mockMulticallResult{
+					{Success: true, ReturnData: []byte{}},
+					{Success: false, ReturnData: []byte{}},
+				}, nil
+			}
+			return []mockMulticallResult{
+				{Success: true, ReturnData: packABIOutput(t, evm.ERC20BalanceOfABI, "balanceOf", big.NewInt(1_000_000))},
+				{Success: true, ReturnData: packABIOutput(t, evm.ERC20NameABI, "name", "Wrong Name")},
+				{Success: true, ReturnData: packABIOutput(t, evm.ERC20VersionABI, "version", "2")},
+				{Success: true, ReturnData: packABIOutput(t, evm.AuthorizationStateABI, evm.FunctionAuthorizationState, false)},
+			}, nil
+		},
+	}
+	scheme := evmv1facilitator.NewExactEvmSchemeV1(signer, nil)
+
+	_, err := scheme.Verify(ctx, payload, requirements, nil)
+	if err == nil {
+		t.Fatal("expected token name mismatch")
+	}
+	if !strings.Contains(err.Error(), evmfacilitator.ErrEip3009TokenNameMismatch) {
+		t.Fatalf("expected %q, got %v", evmfacilitator.ErrEip3009TokenNameMismatch, err)
+	}
 }
 
 // TestExactEvmFacilitatorScheme tests the scheme initialization
