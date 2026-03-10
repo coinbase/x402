@@ -46,6 +46,138 @@ go get github.com/coinbase/x402/go
 
 </details>
 
+## Quick Start
+
+Get up and running with x402 in minutes with this complete example.
+
+<details>
+<summary><b>Express Server</b></summary>
+
+Create a payment-protected API endpoint:
+
+```typescript
+// server.js
+import express from 'express';
+import { paymentMiddleware } from '@x402/express';
+
+const app = express();
+
+// Configure payment protection for your endpoint
+app.use(paymentMiddleware({
+  "GET /weather": {
+    accepts: [
+      {
+        scheme: "exact", 
+        network: "eip155:8453", // Base network
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC
+        amount: "1000000", // $1.00 (6 decimals)
+        payTo: "your-wallet-address",
+        maxTimeoutSeconds: 300,
+        extra: {
+          name: "USD Coin",
+          version: "2"
+        }
+      }
+    ],
+    description: "Current weather data",
+  }
+}));
+
+// Your protected endpoint
+app.get('/weather', (req, res) => {
+  res.json({
+    temperature: "22°C",
+    condition: "Sunny",
+    humidity: "45%"
+  });
+});
+
+app.listen(3000, () => {
+  console.log('Payment-protected server running on port 3000');
+});
+```
+
+Run your server:
+```bash
+node server.js
+```
+
+</details>
+
+<details>
+<summary><b>Client Usage</b></summary>
+
+Create a client that can make payments:
+
+```typescript
+// client.js
+import { x402Fetch } from '@x402/fetch';
+import { createX402Client } from '@x402/core';
+import { EVMScheme } from '@x402/evm';
+
+// Configure the client with payment schemes
+const client = createX402Client({
+  schemes: [
+    new EVMScheme(walletClient) // Your wallet client from viem, wagmi, etc.
+  ]
+});
+
+// Make payment-protected requests
+async function getWeatherData() {
+  try {
+    const response = await x402Fetch('http://localhost:3000/weather', {
+      client
+    });
+    
+    if (response.ok) {
+      const weather = await response.json();
+      console.log('Weather:', weather);
+    }
+  } catch (error) {
+    console.error('Payment or request failed:', error);
+  }
+}
+
+getWeatherData();
+```
+
+</details>
+
+<details>
+<summary><b>Testing Your Setup</b></summary>
+
+1. **Test without payment** (should return 402):
+   ```bash
+   curl -i http://localhost:3000/weather
+   # Returns: HTTP/1.1 402 Payment Required
+   ```
+
+2. **Test with client** (handles payment automatically):
+   ```bash
+   node client.js
+   # Returns: Weather data after successful payment
+   ```
+
+3. **Check payment details** in the 402 response:
+   ```bash
+   curl -s http://localhost:3000/weather | grep -i payment-required
+   ```
+
+</details>
+
+<details>
+<summary><b>Next Steps</b></summary>
+
+- **Multiple Networks**: Add support for Ethereum, Solana, and other chains
+- **Different Schemes**: Explore beyond `exact` payments for usage-based billing
+- **Framework Integration**: See examples for Next.js, Hono, and other frameworks
+- **Production Setup**: Configure facilitators for payment verification and settlement
+- **Client Libraries**: Use with React, Angular, or any HTTP client
+
+Browse the `examples/` directory for more advanced use cases and integrations.
+
+</details>
+
 ## Principles
 
 - **Open standard:** x402 is an open standard, freely accessible and usable by anyone. It will never force reliance on a single party.
@@ -87,7 +219,7 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 
 ## Specification
 
-See `specs/` for full documentation of the x402 standard/
+See [`specs/`](./specs/) for full documentation of the x402 standard.
 
 ### Typical x402 flow
 
