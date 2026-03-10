@@ -2,6 +2,6 @@
   "name": "Social Intel API",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/social-intel.png",
-  "description": "AI-native Instagram data API with built-in x402 payments. Get followers, engagement metrics, and lead data for any public profile — pay-per-request in USDC on Base, no subscriptions needed.",
+  "description": "Instagram influencer search API with x402 micropayments. Search by niche, location, and follower count — get engagement metrics, audience demographics, and contact emails. $0.10/search in USDC on Base. MCP-native for AI agent integration, no API keys or subscriptions.",
   "websiteUrl": "https://socialintel.dev"
 }
