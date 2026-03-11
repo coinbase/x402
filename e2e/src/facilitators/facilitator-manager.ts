@@ -10,6 +10,13 @@ interface Facilitator {
   stop: () => Promise<void>;
 }
 
+export interface FacilitatorKeys {
+  evmPrivateKey?: string;
+  svmPrivateKey?: string;
+  aptosPrivateKey?: string;
+  stellarPrivateKey?: string;
+}
+
 /**
  * Manages the async lifecycle of a facilitator process: start, health-check,
  * ready-gate, and stop.
@@ -20,29 +27,29 @@ export class FacilitatorManager {
   private readyPromise: Promise<string | null>;
   private url: string | null = null;
 
-  constructor(facilitator: Facilitator, port: number, networks: NetworkSet) {
+  constructor(facilitator: Facilitator, port: number, networks: NetworkSet, keys?: FacilitatorKeys) {
     this.facilitator = facilitator;
     this.port = port;
 
     // Start facilitator and health checks asynchronously
-    this.readyPromise = this.startAndWaitForHealth(networks);
+    this.readyPromise = this.startAndWaitForHealth(networks, keys);
   }
 
-  private async startAndWaitForHealth(networks: NetworkSet): Promise<string | null> {
+  private async startAndWaitForHealth(networks: NetworkSet, keys?: FacilitatorKeys): Promise<string | null> {
     verboseLog(`  🏛️ Starting facilitator on port ${this.port}...`);
 
     await this.facilitator.start({
       port: this.port,
-      evmPrivateKey: process.env.FACILITATOR_EVM_PRIVATE_KEY,
-      svmPrivateKey: process.env.FACILITATOR_SVM_PRIVATE_KEY,
-      aptosPrivateKey: process.env.FACILITATOR_APTOS_PRIVATE_KEY,
-      stellarPrivateKey: process.env.FACILITATOR_STELLAR_PRIVATE_KEY,
+      evmPrivateKey: keys?.evmPrivateKey ?? process.env.FACILITATOR_EVM_PRIVATE_KEY,
+      svmPrivateKey: keys?.svmPrivateKey ?? process.env.FACILITATOR_SVM_PRIVATE_KEY,
+      aptosPrivateKey: keys?.aptosPrivateKey ?? process.env.FACILITATOR_APTOS_PRIVATE_KEY,
+      stellarPrivateKey: keys?.stellarPrivateKey ?? process.env.FACILITATOR_STELLAR_PRIVATE_KEY,
       networks,
     });
 
     const healthy = await waitForHealth(
       () => this.facilitator.health(),
-      { label: 'Facilitator' },
+      { label: 'Facilitator', initialDelayMs: 500 },
     );
 
     if (healthy) {

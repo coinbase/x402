@@ -2,9 +2,14 @@
  * Concurrency utilities for parallel E2E test execution.
  *
  * - Semaphore: bounds how many combos run at once.
- * - FacilitatorLock: async mutex keyed by facilitator name, used to serialize
- *   EVM tests through the same facilitator (prevents nonce collisions).
+ * - SlotPool: manages N numbered key-pair slots so up to N tests of the same
+ *   protocol family can run concurrently without nonce collisions (each slot
+ *   maps to a unique key pair).
+ * - FamilyLanePool: maintains one SlotPool per protocol family so EVM, SVM,
+ *   APTOS and STELLAR work can proceed independently.
  */
+
+import type { ProtocolFamily } from './types';
 
 /**
  * Counting semaphore that limits concurrent async operations.
@@ -41,38 +46,62 @@ export class Semaphore {
 }
 
 /**
- * Per-facilitator async mutex for EVM tests.
+ * Pool of numbered key-pair slots. Each slot has a unique index that maps
+ * to a specific client key and facilitator instance. Callers acquire a slot
+ * before running a test combo and release it when done.
  *
- * EVM transactions use `PendingNonceAt()` — two concurrent EVM tests routed
- * through the same facilitator will get the same nonce and one will fail.
- * This lock serializes EVM tests per facilitator while allowing SVM tests
- * (which use blockhash + random memo) to proceed freely.
+ * With N slots, up to N combos can run concurrently.
+ * With 1 slot (default / no plural keys), behaviour is fully sequential.
  */
-export class FacilitatorLock {
-  private locks = new Map<string, Promise<void>>();
+export class SlotPool {
+  private available: number[];
+  private waiters: Array<(slot: number) => void> = [];
 
-  /**
-   * Acquire the EVM lock for a facilitator. Returns a release function.
-   * Only call this for EVM tests — SVM tests should skip locking entirely.
-   */
-  async acquire(facilitatorName: string): Promise<() => void> {
-    const key = `evm:${facilitatorName}`;
+  constructor(slotCount: number) {
+    this.available = Array.from({ length: slotCount }, (_, i) => i);
+  }
 
-    // Wait for the current holder (if any) to finish
-    while (this.locks.has(key)) {
-      await this.locks.get(key);
+  async acquire(): Promise<{ slotIndex: number; release: () => void }> {
+    if (this.available.length > 0) {
+      const slotIndex = this.available.shift()!;
+      return { slotIndex, release: () => this.releaseSlot(slotIndex) };
     }
-
-    // Set up our own lock
-    let releaseFn: () => void;
-    const lockPromise = new Promise<void>((resolve) => {
-      releaseFn = resolve;
+    return new Promise((resolve) => {
+      this.waiters.push((slot) => {
+        resolve({ slotIndex: slot, release: () => this.releaseSlot(slot) });
+      });
     });
-    this.locks.set(key, lockPromise);
+  }
 
-    return () => {
-      this.locks.delete(key);
-      releaseFn!();
-    };
+  private releaseSlot(slotIndex: number): void {
+    const next = this.waiters.shift();
+    if (next) {
+      next(slotIndex);
+    } else {
+      this.available.push(slotIndex);
+    }
+  }
+}
+
+/**
+ * Per-family lane pool: each protocol family gets its own SlotPool sized
+ * by that family's key count, so EVM/SVM/APTOS/STELLAR run independently.
+ */
+export class FamilyLanePool {
+  private pools: Map<ProtocolFamily, SlotPool>;
+
+  constructor(laneCounts: Record<ProtocolFamily, number>) {
+    this.pools = new Map();
+    for (const [family, count] of Object.entries(laneCounts) as [ProtocolFamily, number][]) {
+      this.pools.set(family, new SlotPool(Math.max(count, 1)));
+    }
+  }
+
+  async acquire(family: ProtocolFamily): Promise<{ slotIndex: number; release: () => void }> {
+    const pool = this.pools.get(family);
+    if (!pool) {
+      return { slotIndex: 0, release: () => {} };
+    }
+    return pool.acquire();
   }
 }
