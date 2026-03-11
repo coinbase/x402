@@ -1,0 +1,7 @@
+{
+  "name": "token-rugcheck",
+  "description": "Solana token safety audit MCP server for AI agents. Three-layer risk analysis (machine verdict + LLM analysis + raw on-chain evidence) from RugCheck.xyz, DexScreener, and GoPlus Security. Live on mainnet with USDC micropayments ($0.02/audit).",
+  "logoUrl": "",
+  "websiteUrl": "https://github.com/AetherCore-Dev/token-rugcheck",
+  "category": "DeFi & Finance"
+}
