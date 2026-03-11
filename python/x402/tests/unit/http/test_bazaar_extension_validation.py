@@ -174,6 +174,7 @@ class TestFastAPIBazaarExtensionValidation:
 
 try:
     import flask as _flask  # noqa: F401
+
     _HAS_FLASK = True
 except ImportError:
     _HAS_FLASK = False

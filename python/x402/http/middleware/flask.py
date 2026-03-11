@@ -117,7 +117,11 @@ def _validate_bazaar_extensions(routes: RoutesConfig) -> None:
             continue
 
         bazaar_ext = extensions["bazaar"]
-        if not isinstance(bazaar_ext, dict) or "info" not in bazaar_ext or "schema" not in bazaar_ext:
+        if (
+            not isinstance(bazaar_ext, dict)
+            or "info" not in bazaar_ext
+            or "schema" not in bazaar_ext
+        ):
             continue
 
         try:
@@ -125,7 +129,7 @@ def _validate_bazaar_extensions(routes: RoutesConfig) -> None:
             if not result.valid:
                 _warnings.warn(
                     f'x402: Route "{pattern}" has an invalid bazaar extension: '
-                    f'{", ".join(result.errors)}',
+                    f"{', '.join(result.errors)}",
                     stacklevel=2,
                 )
         except Exception:
