@@ -298,29 +298,19 @@ The verifier must execute these checks in order:
 
 4. **Verify network**: Confirm the `entryPoint` address and chain match the `PaymentRequirements.network`.
 
-5. **Estimate gas**: Call the bundler's `eth_estimateUserOperationGas` with the UserOperation. If estimation fails, the UserOperation is invalid.
-
-6. **Verify gas limits**: Confirm the UserOperation's gas parameters (`callGasLimit`, `verificationGasLimit`, `preVerificationGas`) are sufficient for execution. The facilitator MAY reject UserOperations with unreasonably high gas limits to prevent griefing.
+5. **Simulate**: Call the bundler's `eth_estimateUserOperationGas` with the UserOperation. This validates the signature (the EntryPoint calls `validateUserOp` on the smart wallet during simulation), confirms gas sufficiency, and ensures the operation will succeed. If simulation fails, the UserOperation is invalid.
 
 ### Phase 3: Settlement Logic
 
-Settlement is performed by submitting the signed UserOperation to an ERC-4337 bundler:
+Settlement is performed by submitting the signed UserOperation to an ERC-4337 bundler via `eth_sendUserOperation(userOperation, entryPoint)`.
 
-1. **Submit**: Call the bundler's `eth_sendUserOperation(userOperation, entryPoint)` to submit the UserOperation to the bundler mempool.
+> **Note:** Unlike EIP-3009 and Permit2 where the facilitator submits a transaction directly to the network, UserOperations are submitted to the bundler's mempool. The bundler packages the operation into an on-chain transaction via the EntryPoint contract. Facilitators poll for the receipt via `eth_getUserOperationReceipt(userOpHash)` rather than standard `eth_getTransactionReceipt`.
 
-2. **Poll for receipt**: Call `eth_getUserOperationReceipt(userOpHash)` with retry and exponential backoff until the UserOperation is included in a block or the timeout expires.
+### Gas Sponsorship
 
-3. **Extract result**: On success, return the transaction hash from the receipt. On failure, return the revert reason.
+In the base `userOp` flow, the smart wallet pays its own gas via its EntryPoint deposit. The facilitator does not sponsor gas.
 
-### Security Considerations
-
-- **callData integrity**: The facilitator MUST decode and verify `callData` to ensure it performs only the intended `transfer()`. A malicious client could craft `callData` that performs arbitrary operations from the smart wallet. The facilitator MUST reject UserOperations whose `callData` does not match the expected `transfer(payTo, amount)` call.
-
-- **Gas griefing**: A malicious client could submit UserOperations with inflated gas limits, causing the facilitator's bundler to spend excessive gas. Facilitators SHOULD enforce maximum gas limit policies.
-
-- **Bundler trust**: The facilitator relies on a bundler to submit UserOperations. The bundler is a trusted component; facilitators SHOULD use their own bundler infrastructure or trusted third-party bundlers.
-
-- **Signature scheme agnosticism**: The facilitator does not validate the UserOperation signature directly. Signature validation is performed on-chain by the smart wallet's `validateUserOp` function via the EntryPoint. This enables support for any signature scheme (secp256k1, P256, WebAuthn, multi-sig) without facilitator changes.
+ERC-4337 supports gas sponsorship via **Paymasters** — contracts that pay gas on behalf of the smart wallet. Paymaster support is a future extension analogous to the [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md) and [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md) extensions for Permit2. When a Paymaster is used, the UserOperation includes `paymasterAndData` specifying the paymaster contract and any required authorization data.
 
 ---
 
