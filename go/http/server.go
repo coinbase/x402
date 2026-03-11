@@ -392,6 +392,7 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 			Price:             resolvedPrice,
 			Network:           option.Network,
 			MaxTimeoutSeconds: option.MaxTimeoutSeconds,
+			Extra:             option.Extra,
 		}
 
 		// Use existing BuildPaymentRequirementsFromConfig for each option
@@ -939,7 +940,7 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 
 	// Select template based on network
 	template := s.selectPaywallTemplate(paymentRequired)
-	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+	return strings.Replace(template, "</head>", configScript+"\n</head>", 1)
 }
 
 // selectPaywallTemplate chooses the appropriate paywall template based on the network
@@ -1023,7 +1024,7 @@ func injectPaywallConfig(template string, paymentRequired types.PaymentRequired,
 		html.EscapeString(currentURL),
 	)
 
-	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+	return strings.Replace(template, "</head>", configScript+"\n</head>", 1)
 }
 
 // ============================================================================
