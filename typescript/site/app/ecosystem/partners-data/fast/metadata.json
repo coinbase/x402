@@ -1,0 +1,7 @@
+{
+  "name": "Fast",
+  "description": "Fast powers autonomous agents with sub-100ms, zero-fee settlement for x402 payments. Full x402 SDK for clients, servers, and facilitators with native USDC and auto-bridge to EVM chains.",
+  "logoUrl": "/logos/fast.png",
+  "websiteUrl": "https://docs.fast.xyz/sdk-references/payment-protocol-adapters/x402-sdk",
+  "category": "Infrastructure & Tooling"
+}
