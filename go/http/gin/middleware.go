@@ -313,6 +313,12 @@ func validateSingleBazaarExtension(pattern string, extensions map[string]interfa
 	if err := json.Unmarshal(extJSON, &ext); err != nil {
 		return
 	}
+	specResult := bazaar.ValidateDiscoveryExtensionSpec(ext)
+	if !specResult.Valid {
+		fmt.Printf("x402 Warning: Route %q has invalid bazaar extension: %s\n",
+			pattern, strings.Join(specResult.Errors, ", "))
+		return
+	}
 	result := bazaar.ValidateDiscoveryExtension(ext)
 	if !result.Valid {
 		fmt.Printf("x402 Warning: Route %q has invalid bazaar extension: %s\n",
