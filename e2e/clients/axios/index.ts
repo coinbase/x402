@@ -4,6 +4,8 @@ import { wrapAxiosWithPayment, decodePaymentResponseHeader } from "@x402/axios";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
+import { toClientAvmSigner } from "@x402/avm";
+import { ExactAvmScheme } from "@x402/avm/exact/client";
 import { ExactEvmScheme, type ExactEvmSchemeOptions } from "@x402/evm/exact/client";
 import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
@@ -55,7 +57,15 @@ if (process.env.STELLAR_PRIVATE_KEY) {
   stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY);
 }
 
-const client = new x402Client()
+const client = new x402Client();
+
+// Register AVM if key is provided
+if (process.env.AVM_PRIVATE_KEY) {
+  const avmSigner = toClientAvmSigner(process.env.AVM_PRIVATE_KEY);
+  client.register("algorand:*", new ExactAvmScheme(avmSigner));
+}
+
+client
   .register("eip155:*", new ExactEvmScheme(evmSigner, evmSchemeOptions))
   .registerV1("base-sepolia", new ExactEvmSchemeV1(evmSigner))
   .registerV1("base", new ExactEvmSchemeV1(evmSigner))

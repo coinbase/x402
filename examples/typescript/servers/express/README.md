@@ -1,6 +1,6 @@
 # @x402/express Example Server
 
-Express.js server demonstrating how to protect API endpoints with a paywall using the `@x402/express` middleware.
+Express.js server demonstrating how to protect API endpoints with a paywall using the `@x402/express` middleware. Supports EVM (Ethereum), SVM (Solana), and AVM (Algorand) networks.
 
 ```typescript
 import express from "express";
@@ -31,8 +31,8 @@ app.get("/weather", (req, res) => res.json({ weather: "sunny", temperature: 70 }
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Valid EVM and SVM addresses for receiving payments 
-- URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators) 
+- Valid EVM, SVM, and AVM addresses for receiving payments
+- URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
 ## Setup
 
@@ -47,6 +47,7 @@ and fill required environment variables:
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_ADDRESS` - Ethereum address to receive payments
 - `SVM_ADDRESS` - Solana address to receive payments
+- `AVM_ADDRESS` - Algorand address to receive payments
 
 2. Install and build all packages from the typescript examples root:
 ```bash
@@ -85,7 +86,7 @@ These clients will demonstrate how to:
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia or Solana Devnet to access. The endpoint returns a simple weather report.
+The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia or Solana Devnet or Algorand Testnet to access. The endpoint returns a simple weather report.
 
 ## Response Format
 
@@ -134,6 +135,19 @@ Note: `amount` is in atomic units (e.g., 1000 = 0.001 USDC, since USDC has 6 dec
       "maxTimeoutSeconds": 300,
       "extra": {
         "feePayer": "...",
+        "resourceUrl": "http://localhost:4021/weather"
+      }
+    },
+    {
+      "scheme": "exact",
+      "network": "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+      "amount": "1000",
+      "asset": "10458941",
+      "payTo": "...",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "feePayer": "...",
+        "decimals": 6,
         "resourceUrl": "http://localhost:4021/weather"
       }
     }
@@ -212,6 +226,8 @@ app.get("/your-endpoint", (req, res) => {
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=` — Algorand Testnet
+- `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=` — Algorand Mainnet
 
 ## x402ResourceServer Config
 
@@ -221,6 +237,7 @@ The `x402ResourceServer` uses a builder pattern to register payment schemes that
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register("eip155:*", new ExactEvmScheme())   // All EVM chains
   .register("solana:*", new ExactSvmScheme())   // All SVM chains
+  .register("algorand:*", new ExactAvmScheme()) // All Algorand networks
 ```
 
 ## Facilitator Config
@@ -242,6 +259,6 @@ const facilitatorClient = [
 See [Advanced Examples](../advanced/) for:
 - **Bazaar discovery** — make your API discoverable
 - **Dynamic pricing** — price based on request context
-- **Dynamic payTo** — route payments to different recipients  
+- **Dynamic payTo** — route payments to different recipients
 - **Lifecycle hooks** — custom logic on verify/settle
 - **Custom tokens** — accept payments in custom tokens

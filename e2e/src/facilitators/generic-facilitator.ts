@@ -51,6 +51,7 @@ export interface FacilitatorResult<T> {
 
 export interface FacilitatorConfig {
   port: number;
+  avmPrivateKey?: string;
   evmPrivateKey?: string;
   svmPrivateKey?: string;
   aptosPrivateKey?: string;
@@ -112,12 +113,15 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
 
     const baseEnv: Record<string, string> = {
       PORT: config.port.toString(),
+      AVM_PRIVATE_KEY: config.avmPrivateKey || '',
       EVM_PRIVATE_KEY: config.evmPrivateKey || '',
       SVM_PRIVATE_KEY: config.svmPrivateKey || '',
       APTOS_PRIVATE_KEY: config.aptosPrivateKey || '',
       STELLAR_PRIVATE_KEY: config.stellarPrivateKey || '',
 
       // Network configs from NetworkSet
+      AVM_NETWORK: config.networks.avm.caip2,
+      AVM_RPC_URL: config.networks.avm.rpcUrl,
       EVM_NETWORK: config.networks.evm.caip2,
       EVM_RPC_URL: config.networks.evm.rpcUrl,
       SVM_NETWORK: config.networks.svm.caip2,

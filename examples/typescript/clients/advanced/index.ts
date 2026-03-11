@@ -7,6 +7,7 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const avmPrivateKey = process.env.AVM_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
@@ -16,7 +17,6 @@ const url = `${baseURL}${endpointPath}`;
  *
  * This package demonstrates advanced patterns for production-ready x402 clients:
  *
- * - all-networks: All supported networks with optional chain configuration
  * - builder-pattern: Fine-grained control over network registration
  * - hooks: Payment lifecycle hooks for custom logic at different stages
  * - preferred-network: Client-side payment network preferences
@@ -24,9 +24,9 @@ const url = `${baseURL}${endpointPath}`;
  * To run this example, you need to set the following environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
+ * - AVM_PRIVATE_KEY: The private key of the AVM signer (Base64-encoded 64-byte key)
  *
  * Usage:
- *   pnpm start all-networks
  *   pnpm start builder-pattern
  *   pnpm start hooks
  *   pnpm start preferred-network
@@ -41,21 +41,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  switch (pattern) {
-    case "all-networks":
-      await import("./all_networks.js");
-      return;
+  if (!avmPrivateKey) {
+    console.error("❌ AVM_PRIVATE_KEY environment variable is required");
+    process.exit(1);
+  }
 
+  switch (pattern) {
     case "builder-pattern":
       if (!svmPrivateKey) {
         console.error("❌ SVM_PRIVATE_KEY environment variable is required for builder-pattern");
         process.exit(1);
       }
-      await runBuilderPatternExample(evmPrivateKey, svmPrivateKey, url);
+      await runBuilderPatternExample(evmPrivateKey, svmPrivateKey, avmPrivateKey, url);
       break;
 
     case "hooks":
-      await runHooksExample(evmPrivateKey, url);
+      await runHooksExample(evmPrivateKey, avmPrivateKey, url);
       break;
 
     case "preferred-network":
@@ -63,12 +64,12 @@ async function main(): Promise<void> {
         console.error("❌ SVM_PRIVATE_KEY environment variable is required for preferred-network");
         process.exit(1);
       }
-      await runPreferredNetworkExample(evmPrivateKey, svmPrivateKey, url);
+      await runPreferredNetworkExample(evmPrivateKey, svmPrivateKey, avmPrivateKey, url);
       break;
 
     default:
       console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: all-networks, builder-pattern, hooks, preferred-network");
+      console.error("Available patterns: builder-pattern, hooks, preferred-network");
       process.exit(1);
   }
 }

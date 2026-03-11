@@ -11,6 +11,8 @@ import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { toFacilitatorAvmSigner } from "@x402/avm";
+import { ExactAvmScheme } from "@x402/avm/exact/facilitator";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
@@ -30,6 +32,11 @@ if (!process.env.EVM_PRIVATE_KEY) {
 
 if (!process.env.SVM_PRIVATE_KEY) {
   console.error("❌ SVM_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
+
+if (!process.env.AVM_PRIVATE_KEY) {
+  console.error("❌ AVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
 
@@ -95,6 +102,10 @@ const evmSigner = toFacilitatorEvmSigner({
 // Facilitator can now handle all Solana networks with automatic RPC creation
 const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
+// Initialize the AVM signer from private key
+const avmSigner = toFacilitatorAvmSigner(process.env.AVM_PRIVATE_KEY as string);
+console.info(`AVM Facilitator account: ${avmSigner.getAddresses()[0]}`);
+
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     console.log("Before verify", context);
@@ -115,7 +126,7 @@ const facilitator = new x402Facilitator()
     console.log("Settle failure", context);
   });
 
-// Register EVM and SVM schemes
+// Register EVM, SVM, and AVM schemes
 facilitator.register(
   "eip155:84532",
   new ExactEvmScheme(evmSigner, { deployERC4337WithEIP6492: true }),
@@ -124,6 +135,10 @@ facilitator.register(
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
   new ExactSvmScheme(svmSigner),
 ); // Devnet
+facilitator.register(
+  "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+  new ExactAvmScheme(avmSigner),
+); // Algorand Testnet
 
 // Initialize Express app
 const app = express();
