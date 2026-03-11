@@ -212,6 +212,24 @@ export type FacilitatorSvmSigner = {
    * @returns Token balance in atomic units, or null if account not found
    */
   getTokenAccountBalance?(tokenAccountAddress: string, network: string): Promise<bigint | null>;
+
+  /**
+   * Resolve Address Lookup Tables for v0 transactions.
+   * Returns a map of ALT address to resolved account address arrays.
+   * Used by fee payer isolation check to inspect ALT-resolved accounts.
+   *
+   * Optional — if not implemented, transactions with ALTs are rejected
+   * conservatively (safe, but limits smart wallet coverage for wallets
+   * that use ALTs like Crossmint/Swig).
+   *
+   * @param lookupTableAddresses - Base58 encoded ALT addresses to resolve
+   * @param network - CAIP-2 network identifier
+   * @returns Map of ALT address to ordered array of resolved account addresses
+   */
+  fetchAddressLookupTables?(
+    lookupTableAddresses: string[],
+    network: string,
+  ): Promise<Record<string, string[]>>;
 };
 
 /**
@@ -560,6 +578,27 @@ export function toFacilitatorSvmSigner(
         return amount ? BigInt(amount) : null;
       } catch {
         return null;
+      }
+    },
+
+    fetchAddressLookupTables: async (
+      lookupTableAddresses: string[],
+      network: string,
+    ): Promise<Record<string, string[]>> => {
+      const { fetchAddressesForLookupTables } = await import("@solana/kit");
+      const rpc = getRpcForNetwork(network);
+      try {
+        const resolved = await fetchAddressesForLookupTables(
+          lookupTableAddresses.map(a => a as Address),
+          rpc,
+        );
+        const result: Record<string, string[]> = {};
+        for (const [key, addresses] of Object.entries(resolved)) {
+          result[key] = addresses.map((a: Address) => a.toString());
+        }
+        return result;
+      } catch {
+        return {};
       }
     },
   };

@@ -50,10 +50,49 @@ export type TransferCheckedInfo = {
  *
  * @param transaction - Decoded transaction to inspect
  * @param feePayerAddress - Facilitator fee payer address that must remain isolated
+ * @param signer - Optional facilitator signer for resolving Address Lookup Tables
+ * @param network - Optional CAIP-2 network identifier for ALT resolution RPC calls
  */
-export function assertFeePayerIsolated(transaction: Transaction, feePayerAddress: string): void {
+export async function assertFeePayerIsolated(
+  transaction: Transaction,
+  feePayerAddress: string,
+  signer?: FacilitatorSvmSigner,
+  network?: string,
+): Promise<void> {
   const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
-  const decompiled = decompileTransactionMessage(compiled);
+
+  // Check if transaction uses Address Lookup Tables
+  const hasALTs =
+    "addressTableLookups" in compiled &&
+    Array.isArray(compiled.addressTableLookups) &&
+    compiled.addressTableLookups.length > 0;
+
+  let decompiled;
+  if (hasALTs) {
+    // Resolve ALTs before decompiling so all accounts are visible
+    if (!signer || !network || typeof signer.fetchAddressLookupTables !== "function") {
+      throw new Error(
+        "smart_wallet_alt_resolution_not_available: transaction uses Address Lookup Tables " +
+          "but signer does not implement fetchAddressLookupTables",
+      );
+    }
+
+    const altAddresses = (
+      compiled.addressTableLookups as Array<{ lookupTableAddress: string }>
+    ).map(l => l.lookupTableAddress.toString());
+    const resolved = await signer.fetchAddressLookupTables(altAddresses, network);
+
+    // Convert to the format decompileTransactionMessage expects
+    const addressesByLookupTableAddress: Record<string, Array<Address>> = {};
+    for (const [key, addresses] of Object.entries(resolved)) {
+      addressesByLookupTableAddress[key] = addresses.map(a => a as Address);
+    }
+
+    decompiled = decompileTransactionMessage(compiled, { addressesByLookupTableAddress });
+  } else {
+    decompiled = decompileTransactionMessage(compiled);
+  }
+
   const instructions = decompiled.instructions ?? [];
 
   for (const ix of instructions) {
@@ -252,7 +291,7 @@ export async function verifySmartWalletTransaction(
 
   // 1. Fee payer must not appear in any instruction's accounts.
   try {
-    assertFeePayerIsolated(transaction, feePayerAddress);
+    await assertFeePayerIsolated(transaction, feePayerAddress, signer, requirements.network);
   } catch (error) {
     return {
       isValid: false,
@@ -372,7 +411,7 @@ export async function verifySmartWalletTransaction(
     t =>
       t.mint === requirements.asset &&
       expectedATAs.has(t.destination) &&
-      t.amount === requiredAmount,
+      t.amount >= requiredAmount,
   );
 
   if (matchingTransfers.length === 0) {
@@ -456,7 +495,7 @@ export async function verifyPostSettlement(
           t =>
             t.mint === requirements.asset &&
             expectedATAs.has(t.destination) &&
-            t.amount === requiredAmount &&
+            t.amount >= requiredAmount &&
             !signerAddresses.includes(t.authority),
         );
 

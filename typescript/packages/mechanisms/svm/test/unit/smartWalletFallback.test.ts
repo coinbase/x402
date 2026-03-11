@@ -121,6 +121,8 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
       confirmTransaction: vi.fn(),
+      getConfirmedTransactionInnerInstructions: vi.fn().mockResolvedValue(null),
+      getTokenAccountBalance: vi.fn().mockResolvedValue(null),
       simulateTransactionWithInnerInstructions: vi.fn().mockResolvedValue({
         innerInstructions: [
           {
@@ -197,6 +199,8 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
       confirmTransaction: vi.fn(),
+      getConfirmedTransactionInnerInstructions: vi.fn().mockResolvedValue(null),
+      getTokenAccountBalance: vi.fn().mockResolvedValue(null),
       simulateTransactionWithInnerInstructions: vi.fn().mockResolvedValue({
         innerInstructions: [
           {
@@ -281,6 +285,8 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
       confirmTransaction: vi.fn(),
+      getConfirmedTransactionInnerInstructions: vi.fn().mockResolvedValue(null),
+      getTokenAccountBalance: vi.fn().mockResolvedValue(null),
       simulateTransactionWithInnerInstructions: vi.fn().mockResolvedValue({
         innerInstructions: [
           {

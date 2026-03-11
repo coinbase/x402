@@ -59,7 +59,7 @@ describe("assertFeePayerIsolated", () => {
       },
     ]);
 
-    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).not.toThrow();
+    await expect(assertFeePayerIsolated(tx as never, feePayer.address)).resolves.not.toThrow();
   });
 
   it("throws when fee payer appears in instruction accounts", async () => {
@@ -73,7 +73,7 @@ describe("assertFeePayerIsolated", () => {
       },
     ]);
 
-    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).toThrow(
+    await expect(assertFeePayerIsolated(tx as never, feePayer.address)).rejects.toThrow(
       "smart_wallet_fee_payer_not_isolated",
     );
   });
@@ -98,7 +98,7 @@ describe("assertFeePayerIsolated", () => {
       },
     ]);
 
-    expect(() => assertFeePayerIsolated(tx as never, feePayer.address)).toThrow(
+    await expect(assertFeePayerIsolated(tx as never, feePayer.address)).rejects.toThrow(
       "smart_wallet_fee_payer_not_isolated",
     );
   });
@@ -589,5 +589,256 @@ describe("verifyPostSettlement", () => {
 
     expect(result.verified).toBe(false);
     expect(result.method).toBe("unverified");
+  });
+
+  it("rejects when both RPC calls fail (double failure)", async () => {
+    const { verifyPostSettlement } = await import(
+      "../../src/exact/facilitator/smartWalletVerification"
+    );
+
+    const mockSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      getConfirmedTransactionInnerInstructions: async () => {
+        throw new Error("RPC timeout");
+      },
+      getTokenAccountBalance: async () => {
+        throw new Error("RPC timeout");
+      },
+    };
+
+    const result = await verifyPostSettlement(
+      mockSigner as never,
+      "fakeSig123",
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      mockRequirements as never,
+      [],
+      BigInt(10000),
+    );
+
+    expect(result.verified).toBe(false);
+    expect(result.method).toBe("unverified");
+  });
+
+  it("accepts overpayment (amount > required)", async () => {
+    const { verifyPostSettlement } = await import(
+      "../../src/exact/facilitator/smartWalletVerification"
+    );
+
+    const mockSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      getConfirmedTransactionInnerInstructions: async () => null,
+      getTokenAccountBalance: async () => BigInt(30000), // 30000 - 10000 = 20000 >= 10000 required
+    };
+
+    const result = await verifyPostSettlement(
+      mockSigner as never,
+      "fakeSig123",
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      mockRequirements as never,
+      [],
+      BigInt(10000),
+    );
+
+    expect(result.verified).toBe(true);
+    expect(result.method).toBe("balanceDelta");
+  });
+});
+
+describe("ExactSvmScheme constructor enforcement", () => {
+  it("throws when signer missing required methods for smart wallet verification", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+
+    const incompleteSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+    };
+
+    expect(
+      () =>
+        new ExactSvmScheme(incompleteSigner as never, undefined, {
+          enableSmartWalletVerification: true,
+        }),
+    ).toThrow("enableSmartWalletVerification requires");
+  });
+
+  it("succeeds when signer has all required methods", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+
+    const completeSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      simulateTransactionWithInnerInstructions: async () => ({ innerInstructions: null }),
+      getConfirmedTransactionInnerInstructions: async () => null,
+      getTokenAccountBalance: async () => null,
+    };
+
+    expect(
+      () =>
+        new ExactSvmScheme(completeSigner as never, undefined, {
+          enableSmartWalletVerification: true,
+        }),
+    ).not.toThrow();
+  });
+
+  it("does not throw when smart wallet verification is disabled", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+
+    const minimalSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+    };
+
+    expect(() => new ExactSvmScheme(minimalSigner as never)).not.toThrow();
+  });
+});
+
+describe("assertFeePayerIsolated ALT handling", () => {
+  it("passes non-ALT transaction without signer (backward compatible)", async () => {
+    const { assertFeePayerIsolated } = await import(
+      "../../src/exact/facilitator/smartWalletVerification"
+    );
+
+    const feePayer = await generateKeyPairSigner();
+    const otherAccount = await generateKeyPairSigner();
+
+    const tx = await buildTransaction(feePayer.address, [
+      {
+        programAddress: COMPUTE_BUDGET_PROGRAM,
+        accounts: [{ address: otherAccount.address, role: 1 }],
+        data: new Uint8Array([2, 0, 0, 0, 0]),
+      },
+    ]);
+
+    await expect(assertFeePayerIsolated(tx as never, feePayer.address)).resolves.not.toThrow();
+  });
+
+  it("rejects ALT transaction when signer lacks fetchAddressLookupTables", async () => {
+    const { assertFeePayerIsolated } = await import(
+      "../../src/exact/facilitator/smartWalletVerification"
+    );
+    const { getCompiledTransactionMessageEncoder } = await import("@solana/kit");
+
+    const feePayer = await generateKeyPairSigner();
+    const altAddr = await generateKeyPairSigner();
+
+    const compiled = {
+      version: 0 as const,
+      header: {
+        numSignerAccounts: 1,
+        numReadonlySignerAccounts: 0,
+        numReadonlyNonSignerAccounts: 1,
+      },
+      staticAccounts: [feePayer.address, COMPUTE_BUDGET_PROGRAM],
+      lifetimeToken: "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      instructions: [
+        {
+          programAddressIndex: 1,
+          accountIndices: [2],
+          data: new Uint8Array([2, 0, 0, 0, 0]),
+        },
+      ],
+      addressTableLookups: [
+        {
+          lookupTableAddress: altAddr.address,
+          writableIndexes: [0],
+          readonlyIndexes: [],
+        },
+      ],
+    };
+
+    const messageBytes = getCompiledTransactionMessageEncoder().encode(compiled);
+    const tx = { messageBytes, signatures: {} };
+
+    const signerWithoutALT = {
+      getAddresses: () => [feePayer.address],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+    };
+
+    await expect(
+      assertFeePayerIsolated(
+        tx as never,
+        feePayer.address,
+        signerWithoutALT as never,
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      ),
+    ).rejects.toThrow("smart_wallet_alt_resolution_not_available");
+  });
+
+  it("catches fee payer hidden in ALT-resolved accounts", async () => {
+    const { assertFeePayerIsolated } = await import(
+      "../../src/exact/facilitator/smartWalletVerification"
+    );
+    const { getCompiledTransactionMessageEncoder } = await import("@solana/kit");
+
+    const feePayer = await generateKeyPairSigner();
+    const altAddr = await generateKeyPairSigner();
+
+    const compiled = {
+      version: 0 as const,
+      header: {
+        numSignerAccounts: 1,
+        numReadonlySignerAccounts: 0,
+        numReadonlyNonSignerAccounts: 1,
+      },
+      staticAccounts: [feePayer.address, COMPUTE_BUDGET_PROGRAM],
+      lifetimeToken: "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      instructions: [
+        {
+          programAddressIndex: 1,
+          accountIndices: [2],
+          data: new Uint8Array([2, 0, 0, 0, 0]),
+        },
+      ],
+      addressTableLookups: [
+        {
+          lookupTableAddress: altAddr.address,
+          writableIndexes: [0],
+          readonlyIndexes: [],
+        },
+      ],
+    };
+
+    const messageBytes = getCompiledTransactionMessageEncoder().encode(compiled);
+    const tx = { messageBytes, signatures: {} };
+
+    const signerWithALT = {
+      getAddresses: () => [feePayer.address],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      fetchAddressLookupTables: async () => ({
+        [altAddr.address.toString()]: [feePayer.address.toString()],
+      }),
+    };
+
+    await expect(
+      assertFeePayerIsolated(
+        tx as never,
+        feePayer.address,
+        signerWithALT as never,
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      ),
+    ).rejects.toThrow("smart_wallet_fee_payer_not_isolated");
   });
 });

@@ -100,6 +100,23 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     private readonly options?: ExactSvmSchemeOptions,
   ) {
     this.settlementCache = settlementCache ?? new SettlementCache();
+
+    if (this.options?.enableSmartWalletVerification) {
+      const required = [
+        "simulateTransactionWithInnerInstructions",
+        "getConfirmedTransactionInnerInstructions",
+        "getTokenAccountBalance",
+      ] as const;
+
+      for (const method of required) {
+        if (typeof (this.signer as Record<string, unknown>)[method] !== "function") {
+          throw new Error(
+            `enableSmartWalletVerification requires ${method} on the signer. ` +
+              `Use toFacilitatorSvmSigner() which provides all required methods.`,
+          );
+        }
+      }
+    }
   }
 
   /**
@@ -336,7 +353,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
           balanceBefore,
         );
 
-        if (!postVerify.verified && postVerify.method !== "unverified") {
+        if (!postVerify.verified) {
           return {
             success: false,
             errorReason: "post_settlement_transfer_not_confirmed",
