@@ -28,7 +28,7 @@ sequenceDiagram
 
     Note over C,Ch: verify payTo against on-chain agentWallet
 
-    C->>S: request + X-PAYMENT
+    C->>S: request + PAYMENT-REQUEST
     S->>F: settle payment
     F->>Ch: tx
     F-->>S: txRef
