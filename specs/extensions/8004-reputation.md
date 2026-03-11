@@ -10,25 +10,50 @@ The `8004-reputation` extension enables **on-chain reputation and proof-of-servi
 - Registry-agnostic design (works with any ERC-8004 compliant registry)
 - Payment address verification (prevent fraud from compromised servers)
 
-The extension is organized into four parts: server extension ([§1](#1-server-extension)), client extension ([§2](#2-client-extension)), feedback aggregator API ([§3](#3-feedback-aggregator-api)), and facilitator extension ([§4](#4-facilitator-extension)).
+The extension is organized into three parts: server extension ([§1](#1-server-extension)), client extension ([§2](#2-client-extension)), and facilitator feedback API ([§3](#3-facilitator-feedback-api)).
 
 ---
 
 ## Protocol Flow
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    participant F as Facilitator
+    participant Ch as Chain
+
+    C->>S: GET /resource
+    S-->>C: 402 {registrations, feedbackEndpoint}
+
+    Note over C,Ch: verify payTo against on-chain agentWallet
+
+    C->>S: request + X-PAYMENT
+    S->>F: settle payment
+    F->>Ch: tx
+    F-->>S: txRef
+    S-->>C: response + PAYMENT-RESPONSE {sig, interactionData}
+
+    Note over C,Ch: verify signature against on-chain identity
+
+    C->>F: feedback (optional)
+    F->>Ch: giveFeedback()
+```
+
 The `8004-reputation` extension adds identity, signatures, and feedback to the standard x402 payment flow:
 
-1. **Server declares identity**: Includes `8004-reputation` extension in 402 response with agent registrations and optional `feedbackAggregator` URL ([§1](#1-server-extension))
+1. **Server declares identity**: Includes `8004-reputation` extension in 402 response with agent registrations and optional `feedbackEndpoint` URL ([§1](#1-server-extension))
 2. **Client verifies payment address**: Resolves agent's registration file and confirms `payTo` matches declared wallet ([§2](#2-client-extension))
 3. **Payment settlement**: Client pays, facilitator settles (standard x402 flow)
 4. **Server signs response**: Computes interaction hash over request + response, signs with authorized key, includes in `PAYMENT-RESPONSE` header ([§1](#1-server-extension))
-5. **Client verifies signature**: Fetches registration file, checks signer validity, verifies signature ([§2](#2-client-extension))
-6. **Client submits feedback** (optional): Via feedback aggregator ([§3](#3-feedback-aggregator-api)) or directly on-chain ([§2](#2-client-extension))
-7. **Facilitator as aggregator** (optional): Facilitator may operate a feedback aggregator, leveraging its settlement role ([§4](#4-facilitator-extension))
+5. **Client verifies signature**: Fetches registration file, verifies signature against on-chain `agentWallet` ([§2](#2-client-extension))
+6. **Client submits feedback** (optional): Via facilitator ([§3](#3-facilitator-feedback-api)) or directly on-chain ([§2](#2-client-extension))
+
+**Reading guide:** Section 1 covers server identity declaration and response signing. Section 2 covers client-side verification and feedback submission. Section 3 covers the facilitator's feedback API. Reviewers short on time should read the overview diagram and Section 1.
 
 **Conventions:**
 - All hex-encoded values (hashes, signatures) use `0x` prefix unless otherwise noted
-- **0x prefix normalization:** Public keys in registration file `signers` array use hex encoding **without** `0x` prefix (per ERC-8004 convention). `InteractionData.agentSignerPublicKey` uses `0x` prefix. Implementations MUST normalize by stripping or adding the prefix before comparison. As a general rule: strip `0x` prefixes before any byte-level comparison or hash input.
+- **0x prefix normalization:** Public keys in registration file `signers` array (see [Dedicated Signing Keys](#dedicated-signing-keys-advanced)) use hex encoding **without** `0x` prefix (per ERC-8004 convention). `InteractionData.agentSignerPublicKey` uses `0x` prefix. Implementations MUST normalize by stripping or adding the prefix before comparison. As a general rule: strip `0x` prefixes before any byte-level comparison or hash input.
 - `||` denotes byte concatenation
 - All hashing uses keccak256 across both EVM and Solana (Solana provides `keccak::hashv` as a native syscall, ensuring cross-chain verification consistency)
 - This extension is fully optional. Clients that do not recognize `8004-reputation` in the 402 response ignore it and proceed with standard x402 payment.
@@ -38,50 +63,15 @@ The `8004-reputation` extension adds identity, signatures, and feedback to the s
 
 ## 1. Server Extension
 
-The server extension covers what a resource server (agent) must implement: declaring identity in 402 responses, signing interaction data in payment responses, and publishing a registration file with authorized signers.
+The server extension covers what a resource server (agent) must implement: declaring identity in 402 responses, signing interaction data in payment responses, and publishing a registration file.
 
 ### Declaring Identity (`PaymentRequired`)
 
 A resource server advertises reputation support by including the `8004-reputation` extension in the `extensions` object of the **402 Payment Required** response. Per x402 convention, each extension includes an `info` object (runtime data) and a `schema` object (JSON Schema for validation). The schema is shown once below in [Extension Schema](#extension-schema); examples abbreviate it for readability.
 
-#### Example: Single-Chain Agent (Base)
+#### Example: 402 Response with Identity
 
-```json
-{
-  "x402Version": 2,
-  "resource": {
-    "url": "https://agent.example/weather",
-    "description": "Weather data API"
-  },
-  "accepts": [
-    {
-      "scheme": "exact",
-      "network": "eip155:8453",
-      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "payTo": "0xAgentWallet123456...",
-      "amount": "1000",
-      "maxTimeoutSeconds": 60
-    }
-  ],
-  "extensions": {
-    "8004-reputation": {
-      "info": {
-        "version": "1.0.0",
-        "registrations": [
-          {
-            "agentRegistry": "eip155:8453:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-            "agentId": "42"
-          }
-        ],
-        "feedbackAggregator": "https://feedback.example/submit"
-      },
-      "schema": "...see Extension Schema below..."
-    }
-  }
-}
-```
-
-#### Example: Multi-Chain Agent (Base + Solana)
+Single-chain agents include one `accepts` entry and one registration. The example below shows a multi-chain agent accepting payments on both Base and Solana:
 
 ```json
 {
@@ -119,7 +109,8 @@ A resource server advertises reputation support by including the `8004-reputatio
             "agentRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
             "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
           }
-        ]
+        ],
+        "feedbackEndpoint": "https://facilitator.example/feedback"
       },
       "schema": "...see Extension Schema below..."
     }
@@ -135,9 +126,9 @@ A resource server advertises reputation support by including the `8004-reputatio
 |-------|------|----------|-------------|
 | `version` | string | Yes | Extension version (e.g., `"1.0.0"`) |
 | `registrations` | array | Yes | Agent identity registrations (at least one) |
-| `feedbackAggregator` | string | No | Third-party endpoint for gas-free feedback submission |
+| `feedbackEndpoint` | string | No | Facilitator endpoint for gas-free feedback submission |
 
-**Note:** The aggregator's settlement chain (where it submits feedback on-chain) does not need to match the payment chain (payment and identity are decoupled). Agents declare identity registrations and configure an aggregator URL; the aggregator settles on a chain it supports, provided the agent is registered on that chain. The aggregator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-feedback-aggregator-api)) so clients can see where settlement happened.
+> *Informative.* The facilitator's settlement chain (where it submits feedback on-chain) does not need to match the payment chain (payment and identity are decoupled). Agents declare identity registrations and configure a feedback endpoint; the facilitator settles on a chain it supports, provided the agent is registered on that chain. The facilitator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-facilitator-feedback-api)) so clients can see where settlement happened.
 
 #### AgentRegistration Object
 
@@ -173,7 +164,7 @@ A resource server advertises reputation support by including the `8004-reputatio
         "required": ["agentRegistry", "agentId"]
       }
     },
-    "feedbackAggregator": {
+    "feedbackEndpoint": {
       "type": "string",
       "format": "uri"
     }
@@ -212,45 +203,15 @@ The registration file is JSON referenced by on-chain `agentURI` (ERC-8004, refer
       "agentId": "42",
       "agentRegistry": "eip155:8453:0x8004A818..."
     }
-  ],
-
-  // x402 8004-reputation extension field (not part of ERC-8004 base schema)
-  "signers": [
-    {
-      "publicKey": "a1b2c3d4...",
-      "algorithm": "ed25519",
-      "validFrom": 1737763200,
-      "validUntil": null,
-      "comment": "Hot wallet for Solana signing"
-    },
-    {
-      "publicKey": "04abc123def456...",
-      "algorithm": "secp256k1",
-      "validFrom": 1737763200,
-      "validUntil": null,
-      "comment": "Signing key for EVM chains"
-    }
   ]
 }
 ```
 
+The agent signs responses using its on-chain `agentWallet`. If no `signers` array is present, the `agentWallet` is the sole signing identity. For production deployments requiring key separation, see [Dedicated Signing Keys (Advanced)](#dedicated-signing-keys-advanced).
+
 **Cross-chain payment addresses:** Agents accepting payments on multiple chains advertise wallet addresses as `agentWallet` service entries using CAIP-10 format. This follows the pattern established by the [ERC-8004 best practices](https://github.com/erc-8004/best-practices/blob/main/Registration.md#and-if-you-plan-to-receive-payments). Agents MAY advertise wallets on any chain, even chains where they are not registered. The on-chain `agentWallet` (set via `setAgentWallet()` with signature verification) serves as the trusted anchor on the identity chain; additional `agentWallet` service entries extend payment acceptance to other networks.
 
-**Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields). The `signers` array is a **top-level field** added by x402 8004-reputation extension.
-
-#### Signer Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `publicKey` | string | Yes | Hex-encoded public key (no 0x prefix) |
-| `algorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
-| `validFrom` | number | Yes | Unix timestamp when key becomes valid |
-| `validUntil` | number\|null | Yes | Unix timestamp when key expires (null = no expiry) |
-| `comment` | string | No | Human-readable description |
-
-**Note:** `role` is intentionally omitted -- owner/delegate status is self-declared and unverifiable in the registration file. Check on-chain if role distinction matters. If no `signers` are specified, the agent's on-chain `agentWallet` is used as fallback signer (ERC-8004 default behavior). For `secp256k1`, `agentWallet` is an address, not a public key -- verifiers must recover the public key from the signature and compare the derived address.
-
-Multi-chain agents use the same signing keys across all registrations. Single `signers` array serves all networks.
+**Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields).
 
 ### Signing Responses (`PAYMENT-RESPONSE`)
 
@@ -260,7 +221,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 1. Complete the service and construct the response
 2. Compute: `dataHash = keccak256(uint32_be(len(requestBodyBytes)) || requestBodyBytes || responseBodyBytes)`
 3. Compute: `interactionHash = keccak256("x402:8004-reputation:v1" || UTF8(taskRef) || dataHash)`
-4. Sign the `interactionHash` with an authorized key from their registration file
+4. Sign the `interactionHash` with an authorized key
 5. Include signature WITH every response (blind commitment - before knowing client feedback)
 
 **Domain separator:** The `"x402:8004-reputation:v1"` prefix prevents cross-protocol signature replay - without it, the agent signs `keccak256(variable_string || 32_bytes)`, which is structurally generic enough for other protocols to produce matching inputs. The separator is versioned so future formula changes can coexist.
@@ -382,15 +343,15 @@ if paymentNetwork.startsWith("solana:"):
 
 #### Why This Check Matters
 
-A compromised agent server (or MITM attacker) can change the `payTo` field in the 402 response to steal payments:
+> *Informative.* A compromised agent server (or MITM attacker) can change the `payTo` field in the 402 response to steal payments:
+>
+> 1. Client sends payment to attacker's wallet
+> 2. Blockchain transaction is irreversible
+> 3. Money is gone (even if signature verification later fails)
+>
+> This check prevents payment theft and should happen before any blockchain transaction.
 
-1. Client sends payment to attacker's wallet
-2. Blockchain transaction is irreversible
-3. Money is gone (even if signature verification later fails)
-
-This check prevents payment theft and should happen before any blockchain transaction.
-
-**Trust model for cross-chain wallets:** The on-chain `agentWallet` (set via `setAgentWallet()` with EIP-712/ERC-1271 signature verification) is the most trusted source for the identity chain. For other chains, the `agentWallet` service entries in the registration file are trusted to the same degree as the registration file itself (verified via on-chain `agentURI` pointer).
+> *Informative.* **Trust model for cross-chain wallets:** The on-chain `agentWallet` (set via `setAgentWallet()` with EIP-712/ERC-1271 signature verification) is the most trusted source for the identity chain. For other chains, the `agentWallet` service entries in the registration file are trusted to the same degree as the registration file itself (verified via on-chain `agentURI` pointer).
 
 ### Post-Service Signature Verification
 
@@ -414,40 +375,28 @@ if not found:
   error "Agent not registered on this network"
 ```
 
-#### 3. Get Valid Signers
+#### 3. Verify Signature
 
 ```
-// signers array is TOP-LEVEL (not per-registration) per ERC-8004 compliance
-now = currentUnixTimestamp()
+// Get the agent's on-chain wallet address
+agentWallet = registry.getAgentWallet(agentId)
 
-if registrationFile.signers is empty or missing:
-  // Fallback: use agentWallet as signer (ERC-8004 default)
-  agentWallet = registry.getAgentWallet(agentId)
-  validSigners = [{ publicKey: agentWallet }]
-else:
-  validSigners = registrationFile.signers.filter where:
-    validFrom <= now AND (validUntil == null OR validUntil > now)
-
-if validSigners is empty:
-  error "No valid signers found"
-```
-
-#### 4. Verify Signature
-
-```
-isValid = validSigners.any where:
-  verifySignature(
-    message: interactionData.interactionHash,
-    signature: interactionData.agentSignature,
-    publicKey: signer.publicKey,
-    algorithm: interactionData.agentSignatureAlgorithm
-  )
+// Verify signature against agentWallet
+//   EVM: ecrecover to derive address, compare
+//   Solana: agentWallet = pubkey, verify directly
+isValid = verifyAgentWallet(
+  message: interactionData.interactionHash,
+  signature: interactionData.agentSignature,
+  agentWallet: agentWallet
+)
 
 if not isValid:
   error "Signature verification failed"
 ```
 
-#### 5. Additional Checks (Recommended)
+For agents using dedicated signing keys, see [Dedicated Signing Keys (Advanced)](#dedicated-signing-keys-advanced) for the extended verification flow.
+
+#### 4. Additional Checks (Recommended)
 
 - **dataHash**: Recompute `keccak256(uint32_be(len(requestBodyBytes)) || requestBodyBytes || responseBodyBytes)` and verify it matches. Without this, signature verification only proves the agent signed *something* -- not that it signed *this specific* request/response pair.
 - **interactionHash**: Recompute `keccak256("x402:8004-reputation:v1" || UTF8(taskRef) || dataHash)` and verify it matches
@@ -461,7 +410,7 @@ if not isValid:
 Clients MAY submit feedback to the reputation registry using data from `PAYMENT-RESPONSE`. Feedback submission is optional.
 
 Two submission paths are available:
-- **Aggregator submission** (recommended): POST lightweight payload to the declared `feedbackAggregator` URL. See [§3. Feedback Aggregator API](#3-feedback-aggregator-api) for the request format and requirements.
+- **Facilitator submission** (recommended): POST lightweight payload to the declared `feedbackEndpoint` URL. See [§3. Facilitator Feedback API](#3-facilitator-feedback-api) for the request format and requirements.
 - **Direct on-chain submission**: Client constructs feedbackURI, uploads to IPFS, and calls `giveFeedback()` directly (see below).
 
 #### feedbackURI JSON Structure
@@ -493,9 +442,9 @@ Two submission paths are available:
 }
 ```
 
-**Why `proofOfInteraction` (not `proofOfPayment`):** ERC-8004 defines `proofOfPayment` with fields `fromAddress`, `toAddress`, `chainId`, `txHash` -- a receipt proving money moved. x402's `proofOfInteraction` is a different concept: it proves the client actually **received service**, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery. Payment proof is already captured in `taskRef` (CAIP-220 contains chain + txHash). `proofOfInteraction` supersedes `proofOfPayment` in x402 context.
+> *Informative.* **Why `proofOfInteraction` (not `proofOfPayment`):** ERC-8004 defines `proofOfPayment` with fields `fromAddress`, `toAddress`, `chainId`, `txHash` -- a receipt proving money moved. x402's `proofOfInteraction` is a different concept: it proves the client actually **received service**, not just that they paid. The agent signature over `dataHash` (request + response content) cryptographically binds feedback to actual service delivery. Payment proof is already captured in `taskRef` (CAIP-220 contains chain + txHash). `proofOfInteraction` supersedes `proofOfPayment` in x402 context.
 
-**Why `reviewerAddress` + `reviewerSignature`:** ERC-8004's `giveFeedback()` hardcodes `clientAddress = msg.sender`. When an aggregator submits on behalf of a client, on-chain `clientAddress` becomes the aggregator's address. The actual reviewer must be identified and verified in feedbackURI so consumers know who left the feedback.
+> *Informative.* **Why `reviewerAddress` + `reviewerSignature`:** ERC-8004's `giveFeedback()` hardcodes `clientAddress = msg.sender`. When a facilitator submits on behalf of a client, on-chain `clientAddress` becomes the facilitator's address. The actual reviewer must be identified and verified in feedbackURI so consumers know who left the feedback.
 
 **Note:** `interactionHash` is not stored in feedbackURI -- it is computable from `taskRef + dataHash`.
 
@@ -505,7 +454,7 @@ Two submission paths are available:
 |-------|------|--------|----------|-------------|
 | `agentRegistry` | string | ERC-8004 | Yes | CAIP-10 registry address |
 | `agentId` | string | ERC-8004 | Yes | Agent identifier |
-| `clientAddress` | string | ERC-8004 | Yes | CAIP-10 address of the feedback submitter. For direct submission, equals reviewer. For aggregator submission, equals aggregator address. |
+| `clientAddress` | string | ERC-8004 | Yes | CAIP-10 address of the feedback submitter. For direct submission, equals reviewer. For facilitator submission, equals facilitator address. |
 | `endpoint` | string | ERC-8004 | No | Service endpoint URL (e.g., `"https://agent.example/weather"`) |
 | `createdAt` | string | ERC-8004 | Yes | ISO 8601 timestamp |
 | `value` | number | ERC-8004 | Yes | Feedback score (0-100) |
@@ -550,7 +499,7 @@ reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 
 - Null byte (`0x00`) separators prevent boundary ambiguity between variable-length string fields. CAIP identifiers are ASCII and never contain null bytes.
 - `dataHash` (32 raw bytes, decoded from hex, strip `0x` prefix before decoding) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
-- `tag1`/`tag2` are included so an aggregator cannot silently change feedback categorization. If no tags are provided, use empty strings.
+- `tag1`/`tag2` are included so a facilitator cannot silently change feedback categorization. If no tags are provided, use empty strings.
 - `value` uses `int128_be` (16 bytes, signed big-endian) to match ERC-8004's on-chain `int128` type exactly. This covers negative values (e.g., yield loss), large magnitudes, and high-precision decimals. The reviewer's hash commitment must encode the same type as the on-chain parameter - any mismatch silently produces wrong hashes.
 - `reasoning` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
 
@@ -564,18 +513,16 @@ feedbackHash = keccak256(JCS(feedbackURIContent))
 
 #### Direct On-Chain Submission
 
-If no `feedbackAggregator` is specified, or if the client prefers direct submission, the client constructs the feedbackURI JSON, uploads it, and calls `giveFeedback()` on-chain.
+If no `feedbackEndpoint` is specified, or if the client prefers direct submission, the client constructs the feedbackURI JSON, uploads it, and calls `giveFeedback()` on-chain.
 
-**ERC-8004:**
-
-```solidity
+```
 // 1. Upload feedbackURI JSON to IPFS/HTTPS (or use data: URI for on-chain storage)
-const feedbackURI = "ipfs://QmX...";
-const feedbackHash = keccak256(canonicalize(feedbackURIContent)); // RFC 8785 JCS
+feedbackURI = "ipfs://QmX..."
+feedbackHash = keccak256(canonicalize(feedbackURIContent))  // RFC 8785 JCS
 
 // 2. Call reputation registry
 registry.giveFeedback(
-  agentId: "42",
+  agentId,
   value: 95,
   valueDecimals: 0,
   tag1: "starred",
@@ -583,49 +530,133 @@ registry.giveFeedback(
   endpoint: "https://agent.example/weather",
   feedbackURI: feedbackURI,
   feedbackHash: feedbackHash
-);
+)
 ```
 
-**SATI:**
-
-```typescript
-await satiClient.giveFeedback({
-  agentId: "7xKXtg2CW87...",
-  clientAddress: "ClientWallet...",
-  taskRef: "solana:5eykt4...:5A2CSREG...",
-  value: 95,
-  valueDecimals: 0,
-  tag1: "starred",
-  tag2: "x402",
-  endpoint: "https://agent.example/weather",
-  feedbackURI: "ipfs://QmX...",
-  feedbackHash: "0x...", // keccak256(JCS(feedbackURIContent))
-  proofOfInteraction: {
-    dataHash: "0x9f86d081884c...",
-    agentSignerPublicKey: "0xa1b2c3d4...",
-    agentSignature: "0xa1b2c3d4e5f6...",
-    agentSignatureAlgorithm: "ed25519",
-    reviewerAddress: "ClientWallet...",
-    reviewerSignature: "0xfedcba987654...",
-    reviewerSignatureAlgorithm: "ed25519"
-  }
-});
-```
+On ERC-8004 (EVM), `giveFeedback()` is called on the reputation registry contract. On SATI (Solana), the equivalent instruction includes `proofOfInteraction` fields and `clientAddress` as additional parameters.
 
 ---
 
-## 3. Feedback Aggregator API
+## Dedicated Signing Keys (Advanced)
 
-The feedback aggregator is a general-purpose service that accepts lightweight feedback submissions from clients, assembles the full feedbackURI, and submits on-chain. It may be operated by a facilitator, a reputation aggregator, or any third-party infrastructure provider.
+Production agents MAY declare dedicated signing keys in the registration file to separate payment keys from operational signing keys.
 
-When a `feedbackAggregator` URL is declared in the `8004-reputation` extension, clients POST a lightweight payload containing the PAYMENT-RESPONSE interaction data, their review, and their signature. The aggregator handles the rest.
+When `signers` is present and non-empty in the registration file, verifiers MUST use signers instead of `agentWallet` for signature verification.
+
+**Benefits:**
+- **Key separation**: signing key compromise doesn't expose payment wallet
+- **Chain-agnostic verification**: one key works across all registrations without chain-specific `ecrecover`/pubkey logic
+- **Graceful rotation**: overlap old/new keys via `validFrom`/`validUntil` (no on-chain transaction, no downtime)
+- **Multi-instance**: each server instance can have its own signing key
+
+### Registration File with Signers
+
+```json
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Agent Name",
+  "services": [
+    { "name": "MCP", "endpoint": "https://mcp.agent.example/" },
+    { "name": "agentWallet", "endpoint": "eip155:8453:0xBaseWallet..." }
+  ],
+  "registrations": [
+    { "agentId": "42", "agentRegistry": "eip155:8453:0x8004A818..." }
+  ],
+
+  "signers": [
+    {
+      "publicKey": "a1b2c3d4...",
+      "algorithm": "ed25519",
+      "validFrom": 1737763200,
+      "validUntil": null,
+      "comment": "Hot wallet for Solana signing"
+    },
+    {
+      "publicKey": "04abc123def456...",
+      "algorithm": "secp256k1",
+      "validFrom": 1737763200,
+      "validUntil": null,
+      "comment": "Signing key for EVM chains"
+    }
+  ]
+}
+```
+
+**Important:** Per ERC-8004 line 123, the `registrations` array MUST contain ONLY `agentId` and `agentRegistry` (2 fields). The `signers` array is a **top-level field** added by the x402 extension.
+
+### Signer Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `publicKey` | string | Yes | Hex-encoded public key (no 0x prefix) |
+| `algorithm` | string | Yes | `"ed25519"` or `"secp256k1"` |
+| `validFrom` | number | Yes | Unix timestamp when key becomes valid |
+| `validUntil` | number\|null | Yes | Unix timestamp when key expires (null = no expiry) |
+| `comment` | string | No | Human-readable description |
+
+**Note:** `role` is intentionally omitted -- owner/delegate status is self-declared and unverifiable in the registration file. Check on-chain if role distinction matters. For `secp256k1`, `agentWallet` is an address, not a public key -- verifiers must recover the public key from the signature and compare the derived address.
+
+Multi-chain agents use the same signing keys across all registrations. Single `signers` array serves all networks.
+
+### Verification with Signers
+
+When the registration file includes a `signers` array, verification uses signers instead of `agentWallet`:
+
+```
+now = currentUnixTimestamp()
+
+if registrationFile.signers is non-empty:
+  validSigners = registrationFile.signers.filter where:
+    validFrom <= now AND (validUntil == null OR validUntil > now)
+
+  if validSigners is empty:
+    error "No valid signers found"
+
+  isValid = validSigners.any where:
+    verifySignature(
+      message: interactionData.interactionHash,
+      signature: interactionData.agentSignature,
+      publicKey: signer.publicKey,
+      algorithm: interactionData.agentSignatureAlgorithm
+    )
+else:
+  // Fallback: use agentWallet (see §2 verification flow)
+  agentWallet = registry.getAgentWallet(agentId)
+  isValid = verifyAgentWallet(interactionHash, agentSignature, agentWallet)
+
+if not isValid:
+  error "Signature verification failed"
+```
+
+### Key Rotation
+
+1. Update registration file with new signer (or set `validUntil` on old key)
+2. Re-upload to IPFS or update HTTPS file
+3. Call on-chain: `setAgentURI(agentId, newUri)`
+4. **Grace period**: Overlap old/new keys by 24 hours
+
+### agentWallet vs Signers Separation
+
+- **agentWallet** (on-chain): Signature-verified payment address on the identity chain (set via `setAgentWallet()`)
+- **agentWallet** (service entries): Payment addresses on additional chains ([ERC-8004 best practices](https://github.com/erc-8004/best-practices/blob/main/Registration.md#and-if-you-plan-to-receive-payments)), trusted via registration file integrity
+- **signers** (registration file): Response signing keys (hot wallet for automation)
+
+This separation enables secure payment reception on multiple chains while allowing operational signing with hot wallets.
+
+---
+
+## 3. Facilitator Feedback API
+
+In the standard x402 flow, facilitators already abstract complex blockchain interactions away from servers and clients -- including subsidizing the USDC transfer fee during payment settlement. The same role extends naturally to reputation: the facilitator handles feedback submissions, subsidizing on-chain feedback so clients don't pay gas to leave reviews while agents still receive trustless, verifiable feedback.
+
+When a `feedbackEndpoint` URL is declared in the `8004-reputation` extension, clients POST a lightweight payload containing the PAYMENT-RESPONSE interaction data, their review, and their signature. The facilitator handles the rest.
 
 ### POST Interface
 
 **Request:**
 
 ```
-POST {feedbackAggregator}
+POST {feedbackEndpoint}
 Content-Type: application/json
 ```
 
@@ -682,27 +713,19 @@ Content-Type: application/json
 
 Error codes: `INVALID_AGENT_SIGNATURE`, `INVALID_REVIEWER_SIGNATURE`, `UNKNOWN_AGENT`, `DUPLICATE_TASK_REF`, `INVALID_PAYLOAD`.
 
-### Aggregator Requirements
+### Facilitator Requirements
 
-The aggregator MUST:
-- Validate `agentSignature`: Fetch the agent's registration file (via `agentURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The aggregator SHOULD cache registration files to avoid repeated on-chain lookups.
+The facilitator MUST:
+- Validate `agentSignature`: Fetch the agent's registration file (via `agentURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The facilitator SHOULD cache registration files to avoid repeated on-chain lookups.
 - Validate `reviewerSignature`: Recompute the reviewer message and verify the signature against `reviewerAddress`
 - Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfInteraction`)
 - Upload feedbackURI to IPFS or equivalent content-addressed storage
 - Call `giveFeedback()` on the appropriate reputation registry
 - Submit all valid feedback regardless of sentiment
 
-The agent is responsible for funding the aggregator (deposit, subscription, or per-feedback fee).
+Feedback gas costs are part of the existing facilitator-agent economic relationship -- the facilitator already subsidizes settlement gas and may include feedback submission in the same arrangement.
 
-**Aggregator neutrality:** Clients who do not trust the agent's declared aggregator SHOULD submit feedback directly on-chain.
-
----
-
-## 4. Facilitator Extension
-
-In the standard x402 flow, facilitators already abstract complex blockchain interactions away from servers and clients -- including subsidizing the USDC transfer fee during payment settlement. The same role extends naturally to reputation: a facilitator may operate a feedback aggregator, subsidizing on-chain feedback submissions so clients don't pay gas to leave reviews while agents still receive trustless, verifiable feedback.
-
-A facilitator that operates a feedback aggregator advertises its URL via the agent's `feedbackAggregator` field in the 402 response and implements the [§3 Feedback Aggregator API](#3-feedback-aggregator-api).
+**Neutrality:** Clients who do not trust the facilitator SHOULD submit feedback directly on-chain.
 
 ---
 
@@ -728,30 +751,15 @@ Service delivery is proven cryptographically via `proofOfInteraction` - the tag 
 
 - Always verify signatures cryptographically before trusting interaction data
 - Fetch registration file from on-chain URI (never trust x402 headers alone)
-- Check signer validity period (`validFrom` to `validUntil`)
+- If using dedicated signing keys: check signer validity period (`validFrom` to `validUntil`) -- see [Dedicated Signing Keys](#dedicated-signing-keys-advanced)
 - Verify `taskRef` matches actual payment transaction
-- Registration file integrity: prefer content-addressed storage (IPFS with CID verification) over mutable HTTPS. When using HTTPS, clients and aggregators should re-fetch on signature verification failure (handles key rotation) and should not cache longer than the key rotation grace period (24 hours)
+- Registration file integrity: prefer content-addressed storage (IPFS with CID verification) over mutable HTTPS. When using HTTPS, clients and facilitators should re-fetch on signature verification failure (handles key rotation) and should not cache longer than the key rotation grace period (24 hours)
 
 ### Recommended Practices (SHOULD)
 
 - Verify `payTo` address matches declared `agentWallet` BEFORE payment (prevents theft from compromised servers)
 - See [Pre-Payment Verification in §2](#pre-payment-verification-recommended) for implementation details (supports cross-chain wallets via `agentWallet` service entries)
 - Blockchain transactions are irreversible - verify before money moves
-
-### Key Rotation
-
-1. Update registration file with new signer (or set `validUntil` on old key)
-2. Re-upload to IPFS or update HTTPS file
-3. Call on-chain: `setAgentURI(agentId, newUri)`
-4. **Grace period**: Overlap old/new keys by 24 hours
-
-### agentWallet vs signers Separation
-
-- **agentWallet** (on-chain): Signature-verified payment address on the identity chain (set via `setAgentWallet()`)
-- **agentWallet** (service entries): Payment addresses on additional chains ([ERC-8004 best practices](https://github.com/erc-8004/best-practices/blob/main/Registration.md#and-if-you-plan-to-receive-payments)), trusted via registration file integrity
-- **signers** (registration file): Response signing keys (hot wallet for automation)
-
-This separation enables secure payment reception on multiple chains while allowing operational signing with hot wallets.
 
 ---
 
