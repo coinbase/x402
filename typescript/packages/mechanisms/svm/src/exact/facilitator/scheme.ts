@@ -33,7 +33,7 @@ import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSvmSigner } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
-import { verifySmartWalletTransaction } from "./smartWalletVerification";
+import { verifySmartWalletTransaction, verifyPostSettlement } from "./smartWalletVerification";
 
 /**
  * Configuration options for ExactSvmScheme.
@@ -267,6 +267,42 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
+    // Determine if this settlement went through the smart wallet (Path 2) verify path.
+    // If so, we need post-settlement verification to defend against TOCTOU.
+    const isSmartWalletSettlement =
+      this.options?.enableSmartWalletVerification &&
+      (() => {
+        try {
+          const tx = decodeTransactionFromPayload(exactSvmPayload);
+          const payer = getTokenPayerFromTransaction(tx);
+          // If getTokenPayerFromTransaction returns null, the static path would have
+          // failed, meaning this went through the smart wallet path.
+          return !payer;
+        } catch {
+          return false;
+        }
+      })();
+
+    // For smart wallet settlements: record destination ATA balance before sending.
+    // Used as fallback verification if getTransaction has indexing lag.
+    let balanceBefore: bigint | null = null;
+    if (isSmartWalletSettlement && typeof this.signer.getTokenAccountBalance === "function") {
+      try {
+        const [destinationAta] = await findAssociatedTokenPda({
+          mint: requirements.asset as Address,
+          owner: requirements.payTo as Address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS as unknown as Address,
+        });
+        balanceBefore = await this.signer.getTokenAccountBalance(
+          destinationAta.toString(),
+          requirements.network,
+        );
+      } catch {
+        // If balance fetch fails, we proceed without fallback capability.
+        // The primary getTransaction path still works.
+      }
+    }
+
     try {
       // Extract feePayer from requirements (already validated in verify)
       const feePayer = requirements.extra.feePayer as Address;
@@ -286,6 +322,30 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
       // Wait for confirmation
       await this.signer.confirmTransaction(signature, requirements.network);
+
+      // Post-settlement verification for smart wallet transactions.
+      // Confirms the TransferChecked actually executed on-chain (TOCTOU defense).
+      if (isSmartWalletSettlement) {
+        const signerAddresses = this.signer.getAddresses().map(a => a.toString());
+        const postVerify = await verifyPostSettlement(
+          this.signer,
+          signature,
+          requirements.network,
+          requirements,
+          signerAddresses,
+          balanceBefore,
+        );
+
+        if (!postVerify.verified && postVerify.method !== "unverified") {
+          return {
+            success: false,
+            errorReason: "post_settlement_transfer_not_confirmed",
+            transaction: signature,
+            network: payload.accepted.network,
+            payer: valid.payer || "",
+          };
+        }
+      }
 
       return {
         success: true,

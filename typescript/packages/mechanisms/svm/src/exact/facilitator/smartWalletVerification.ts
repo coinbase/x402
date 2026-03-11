@@ -396,3 +396,108 @@ export async function verifySmartWalletTransaction(
 
   return { isValid: true, payer: matchingTransfers[0].authority };
 }
+
+/**
+ * Post-settlement verification for smart wallet transactions.
+ *
+ * After a transaction confirms on-chain, verifies the TransferChecked actually
+ * executed by inspecting the confirmed transaction's inner instructions.
+ * Falls back to balance-delta checking if the RPC's transaction index has lag.
+ *
+ * This closes the TOCTOU gap where a malicious program could pass simulation
+ * but skip the transfer during on-chain execution.
+ *
+ * @param signer - Facilitator signer with optional getConfirmedTransactionInnerInstructions
+ * @param signature - Confirmed transaction signature
+ * @param network - CAIP-2 network identifier
+ * @param requirements - Payment requirements (asset, payTo, amount)
+ * @param signerAddresses - Facilitator signer addresses
+ * @param balanceBefore - Destination ATA balance before settlement (for fallback)
+ * @returns Whether the transfer was verified on-chain
+ */
+export async function verifyPostSettlement(
+  signer: FacilitatorSvmSigner,
+  signature: string,
+  network: string,
+  requirements: PaymentRequirements,
+  signerAddresses: string[],
+  balanceBefore: bigint | null,
+): Promise<{ verified: boolean; method: "innerInstructions" | "balanceDelta" | "unverified" }> {
+  const requiredAmount = BigInt(requirements.amount);
+
+  // Primary path: fetch confirmed transaction and inspect inner instructions.
+  if (typeof signer.getConfirmedTransactionInnerInstructions === "function") {
+    try {
+      const confirmed = await signer.getConfirmedTransactionInnerInstructions(signature, network);
+
+      if (confirmed?.innerInstructions) {
+        // Reuse the same extraction logic used for simulation results.
+        // We pass an empty accountKeys array because the confirmed transaction's
+        // inner instructions from jsonParsed encoding are already in parsed format
+        // (programId as string, not index), so index-based resolution isn't needed.
+        const transfers = extractTransfersFromInnerInstructions(confirmed.innerInstructions, []);
+
+        // Derive expected destination ATAs (same logic as in verifySmartWalletTransaction).
+        const expectedATAs = new Set<string>();
+        for (const tokenProgram of [TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS]) {
+          try {
+            const [ata] = await findAssociatedTokenPda({
+              mint: requirements.asset as Address,
+              owner: requirements.payTo as Address,
+              tokenProgram: tokenProgram as unknown as Address,
+            });
+            expectedATAs.add(ata.toString());
+          } catch {
+            // Skip invalid address combinations
+          }
+        }
+
+        const matching = transfers.filter(
+          t =>
+            t.mint === requirements.asset &&
+            expectedATAs.has(t.destination) &&
+            t.amount === requiredAmount &&
+            !signerAddresses.includes(t.authority),
+        );
+
+        if (matching.length >= 1) {
+          return { verified: true, method: "innerInstructions" };
+        }
+
+        // Inner instructions fetched but no matching transfer found.
+        // The malicious program skipped the CPI. TOCTOU caught.
+        return { verified: false, method: "innerInstructions" };
+      }
+    } catch {
+      // getTransaction failed or returned null (indexing lag). Fall through to balance delta.
+    }
+  }
+
+  // Fallback: balance-delta check.
+  // If we recorded balanceBefore and the signer supports getTokenAccountBalance,
+  // check whether the destination ATA balance increased by at least the required amount.
+  if (balanceBefore !== null && typeof signer.getTokenAccountBalance === "function") {
+    try {
+      const [destinationAta] = await findAssociatedTokenPda({
+        mint: requirements.asset as Address,
+        owner: requirements.payTo as Address,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS as unknown as Address,
+      });
+
+      const balanceAfter = await signer.getTokenAccountBalance(destinationAta.toString(), network);
+
+      if (balanceAfter !== null && balanceAfter - balanceBefore >= requiredAmount) {
+        return { verified: true, method: "balanceDelta" };
+      }
+
+      // Balance didn't increase enough. Transfer likely didn't execute.
+      return { verified: false, method: "balanceDelta" };
+    } catch {
+      // Balance check failed. Cannot verify.
+    }
+  }
+
+  // Neither verification method available or both failed.
+  // Return unverified — caller decides policy.
+  return { verified: false, method: "unverified" };
+}

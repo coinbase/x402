@@ -14,6 +14,7 @@ export {
   validateComputeBudgetLimits,
   extractTransfersFromInnerInstructions,
   verifySmartWalletTransaction,
+  verifyPostSettlement,
 } from "./exact/facilitator/smartWalletVerification";
 export type {
   SmartWalletOptions,

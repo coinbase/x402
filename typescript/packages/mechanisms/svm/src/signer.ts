@@ -183,6 +183,35 @@ export type FacilitatorSvmSigner = {
     feePayer: Address,
     network: string,
   ): Promise<SmartWalletSimulationResult>;
+
+  /**
+   * Fetch inner instructions from a confirmed transaction.
+   * Used for post-settlement verification to confirm that the TransferChecked
+   * actually executed on-chain (defends against TOCTOU in simulation path).
+   *
+   * Optional — if not implemented, post-settlement verification falls back
+   * to balance-delta checking only.
+   *
+   * @param signature - Transaction signature to fetch
+   * @param network - CAIP-2 network identifier
+   * @returns Inner instructions from the confirmed transaction, or null if not yet indexed
+   */
+  getConfirmedTransactionInnerInstructions?(
+    signature: string,
+    network: string,
+  ): Promise<SmartWalletSimulationResult | null>;
+
+  /**
+   * Get the token balance of a specific token account.
+   * Used for balance-delta fallback in post-settlement verification.
+   *
+   * Optional — if not implemented, balance-delta fallback is unavailable.
+   *
+   * @param tokenAccountAddress - Base58 encoded token account (ATA) address
+   * @param network - CAIP-2 network identifier
+   * @returns Token balance in atomic units, or null if account not found
+   */
+  getTokenAccountBalance?(tokenAccountAddress: string, network: string): Promise<bigint | null>;
 };
 
 /**
@@ -485,6 +514,53 @@ export function toFacilitatorSvmSigner(
       }
 
       return { innerInstructions: value.innerInstructions ?? null };
+    },
+
+    getConfirmedTransactionInnerInstructions: async (
+      signature: string,
+      network: string,
+    ): Promise<SmartWalletSimulationResult | null> => {
+      const rpc = getRpcForNetwork(network);
+      const result = await rpc
+        .getTransaction(
+          signature as never,
+          {
+            commitment: "confirmed",
+            maxSupportedTransactionVersion: 0,
+            encoding: "jsonParsed",
+          } as never,
+        )
+        .send();
+
+      if (!result) {
+        return null;
+      }
+
+      const meta = (
+        result as unknown as {
+          meta?: { innerInstructions?: SmartWalletSimulationResult["innerInstructions"] };
+        }
+      ).meta;
+      return { innerInstructions: meta?.innerInstructions ?? null };
+    },
+
+    getTokenAccountBalance: async (
+      tokenAccountAddress: string,
+      network: string,
+    ): Promise<bigint | null> => {
+      const rpc = getRpcForNetwork(network);
+      try {
+        const result = await rpc
+          .getTokenAccountBalance(
+            tokenAccountAddress as never,
+            { commitment: "confirmed" } as never,
+          )
+          .send();
+        const amount = (result as unknown as { value?: { amount?: string } }).value?.amount;
+        return amount ? BigInt(amount) : null;
+      } catch {
+        return null;
+      }
     },
   };
 }
