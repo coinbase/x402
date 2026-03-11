@@ -308,9 +308,17 @@ Settlement is performed by submitting the signed UserOperation to an ERC-4337 bu
 
 ### Gas Sponsorship
 
-In the base `userOp` flow, the smart wallet pays its own gas via its EntryPoint deposit. The facilitator does not sponsor gas.
+The specification supports two gas payment modes:
 
-ERC-4337 supports gas sponsorship via **Paymasters** — contracts that pay gas on behalf of the smart wallet. Paymaster support is a future extension analogous to the [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md) and [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md) extensions for Permit2. When a Paymaster is used, the UserOperation includes `paymasterAndData` specifying the paymaster contract and any required authorization data.
+#### Option A: Self-Funded (Default)
+
+The smart wallet pays its own gas via its EntryPoint deposit. The facilitator does not sponsor gas. No additional fields are required.
+
+#### Option B: Paymaster-Sponsored (Extension: [`erc4337PaymasterGasSponsoring`](../../extensions/erc4337_paymaster_gas_sponsoring.md))
+
+A [Paymaster](https://eips.ethereum.org/EIPS/eip-4337#paymasters) contract pays gas on behalf of the smart wallet, enabling a fully gasless experience analogous to the [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md) and [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md) extensions for Permit2.
+
+When a Paymaster is used, the UserOperation includes `paymasterAndData` specifying the paymaster contract and any required authorization data. See the [extension spec](../../extensions/erc4337_paymaster_gas_sponsoring.md) for payload structure, verification, and settlement details.
 
 ---
 
