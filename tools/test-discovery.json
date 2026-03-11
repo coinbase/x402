@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "metadata": {
+    "name": "Example x402 API",
+    "description": "A comprehensive example of an x402-enabled API service",
+    "maintainer": {
+      "name": "Example Team",
+      "email": "team@example.com"
+    },
+    "homepage": "https://example.com",
+    "documentation": "https://docs.example.com"
+  },
+  "resources": [
+    {
+      "resource": "/api/weather",
+      "description": "Get current weather data for a location",
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "maxAmountRequired": "0.01",
+          "maxTimeoutSeconds": 60
+        }
+      ],
+      "schema": {
+        "input": {
+          "type": "http",
+          "method": "GET",
+          "discoverable": true
+        },
+        "output": {
+          "type": "application/json"
+        }
+      }
+    },
+    {
+      "resource": "/api/translate",
+      "description": "Translate text between languages",
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "maxAmountRequired": "0.05",
+          "maxTimeoutSeconds": 120
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "maxAmountRequired": "0.05",
+          "maxTimeoutSeconds": 120
+        }
+      ]
+    }
+  ],
+  "bazaar": {
+    "category": "ai-ml",
+    "tags": ["translation", "weather", "api"],
+    "pricing": {
+      "model": "pay-per-request",
+      "range": {
+        "min": "0.01",
+        "max": "0.05"
+      }
+    },
+    "contact": {
+      "email": "support@example.com",
+      "url": "https://support.example.com"
+    }
+  }
+}
