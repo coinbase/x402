@@ -176,6 +176,42 @@ func PaymentMiddlewareFromConfig(routes x402http.RoutesConfig, opts ...Middlewar
 	return createMiddlewareHandler(httpServer, config)
 }
 
+// PaymentMiddlewareFromHTTPServer creates net/http middleware using a pre-configured HTTPServer.
+// This allows registering hooks (e.g., OnProtectedRequest) on the server before attaching to the router.
+//
+// Example:
+//
+//	resourceServer := x402.Newx402ResourceServer(
+//	    x402.WithFacilitatorClient(facilitator),
+//	).Register("eip155:*", evm.NewExactEvmScheme())
+//
+//	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer).
+//	    OnProtectedRequest(requestHook)
+//
+//	handler := nethttp.PaymentMiddlewareFromHTTPServer(httpServer)(mux)
+func PaymentMiddlewareFromHTTPServer(httpServer *x402http.HTTPServer, opts ...MiddlewareOption) func(http.Handler) http.Handler {
+	config := &MiddlewareConfig{
+		SyncFacilitatorOnStart: true,
+		Timeout:                30 * time.Second,
+	}
+
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
+
+	if config.SyncFacilitatorOnStart {
+		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+		defer cancel()
+		if err := httpServer.Initialize(ctx); err != nil {
+			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
+		}
+	}
+
+	return createMiddlewareHandler(httpServer, config)
+}
+
 // createMiddlewareHandler creates the actual http.Handler middleware function.
 func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

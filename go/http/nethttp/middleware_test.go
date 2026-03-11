@@ -1083,3 +1083,134 @@ func TestPaymentMiddleware_PayloadAvailableInDownstreamHandler(t *testing.T) {
 		t.Errorf("Expected X402Version 2, got %d", capturedPayload.X402Version)
 	}
 }
+
+// ============================================================================
+// PaymentMiddlewareFromHTTPServer Tests
+// ============================================================================
+
+func TestPaymentMiddlewareFromHTTPServer_Returns402ForProtectedRoute(t *testing.T) {
+	mockClient := &mockFacilitatorClient{supportedFunc: defaultSupportedFunc()}
+	mockServer := &mockSchemeServer{scheme: "exact"}
+
+	routes := x402http.RoutesConfig{
+		"GET /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	// Create resource server and wrap as HTTPServer (same pattern as user would)
+	resourceServer := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockClient),
+	)
+	resourceServer.Register("eip155:1", mockServer)
+
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"data": "protected"})
+	})
+
+	middleware := PaymentMiddlewareFromHTTPServer(httpServer,
+		WithSyncFacilitatorOnStart(true),
+		WithTimeout(5*time.Second),
+	)
+	wrapped := middleware(handler)
+
+	// Protected route should require payment
+	req := httptest.NewRequest("GET", "/api", nil)
+	w := httptest.NewRecorder()
+	wrapped.ServeHTTP(w, req)
+
+	if w.Code != http.StatusPaymentRequired {
+		t.Errorf("Expected status 402 for protected route, got %d", w.Code)
+	}
+
+	// Non-protected route should pass through
+	req = httptest.NewRequest("GET", "/public", nil)
+	w = httptest.NewRecorder()
+	wrapped.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for public route, got %d", w.Code)
+	}
+}
+
+func TestPaymentMiddlewareFromHTTPServer_SettlesVerifiedPayment(t *testing.T) {
+	settleCalled := false
+
+	mockClient := &mockFacilitatorClient{
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
+			return &x402.VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+		},
+		settleFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			settleCalled = true
+			return &x402.SettleResponse{
+				Success:     true,
+				Transaction: "0xtx",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}, nil
+		},
+		supportedFunc: defaultSupportedFunc(),
+	}
+	mockServer := &mockSchemeServer{scheme: "exact"}
+
+	routes := x402http.RoutesConfig{
+		"POST /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	resourceServer := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockClient),
+	)
+	resourceServer.Register("eip155:1", mockServer)
+
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"data": "protected-data"})
+	})
+
+	middleware := PaymentMiddlewareFromHTTPServer(httpServer,
+		WithSyncFacilitatorOnStart(true),
+		WithTimeout(5*time.Second),
+	)
+	wrapped := middleware(handler)
+
+	req := httptest.NewRequest("POST", "/api", nil)
+	req.Header.Set("PAYMENT-SIGNATURE", createPaymentHeader("0xtest"))
+	req.Host = "example.com"
+
+	w := httptest.NewRecorder()
+	wrapped.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	if !settleCalled {
+		t.Error("Expected settlement to be called")
+	}
+
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header")
+	}
+}
