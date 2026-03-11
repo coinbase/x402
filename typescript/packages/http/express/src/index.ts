@@ -29,6 +29,41 @@ function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
   });
 }
 
+type ValidateFn = (ext: unknown) => { valid: boolean; errors?: string[] };
+
+/**
+ *
+ * @param routes
+ * @param validate
+ */
+/**
+ * Validate bazaar extensions on all routes using the extension's JSON-schema validator.
+ *
+ * @param routes - Route configuration to scan for bazaar extensions
+ * @param validate - Validation function from the bazaar extension package
+ */
+function validateBazaarExtensions(routes: RoutesConfig, validate: ValidateFn): void {
+  const entries: [string, { extensions?: Record<string, unknown> }][] =
+    "accepts" in routes ? [["*", routes]] : Object.entries(routes);
+
+  for (const [pattern, config] of entries) {
+    const bazaarExt = config.extensions?.["bazaar"];
+    if (
+      bazaarExt &&
+      typeof bazaarExt === "object" &&
+      "info" in (bazaarExt as Record<string, unknown>) &&
+      "schema" in (bazaarExt as Record<string, unknown>)
+    ) {
+      const result = validate(bazaarExt);
+      if (!result.valid) {
+        console.warn(
+          `x402: Route "${pattern}" has an invalid bazaar extension: ${result.errors?.join(", ")}`,
+        );
+      }
+    }
+  }
+}
+
 /**
  * Configuration for registering a payment scheme with a specific network
  */
@@ -88,8 +123,11 @@ export function paymentMiddlewareFromHTTPServer(
   let bazaarPromise: Promise<void> | null = null;
   if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
     bazaarPromise = import("@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
+      .then(({ bazaarResourceServerExtension, validateDiscoveryExtension }) => {
         httpServer.server.registerExtension(bazaarResourceServerExtension);
+        validateBazaarExtensions(httpServer.routes, (ext: unknown) =>
+          validateDiscoveryExtension(ext as Parameters<typeof validateDiscoveryExtension>[0]),
+        );
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);

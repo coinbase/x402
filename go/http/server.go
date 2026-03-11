@@ -269,6 +269,11 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 	return server
 }
 
+// GetCompiledRoutes returns the compiled routes for inspection (e.g., extension validation).
+func (s *x402HTTPResourceServer) GetCompiledRoutes() []CompiledRoute {
+	return s.compiledRoutes
+}
+
 // RegisterPaywallProvider registers a custom PaywallProvider for generating paywall HTML.
 // The provider takes precedence over the built-in EVM/SVM templates but is overridden
 // by per-route CustomPaywallHTML. Returns the server for method chaining.
@@ -330,6 +335,7 @@ func (s *x402HTTPResourceServer) validateRouteConfiguration() error {
 				})
 			}
 		}
+
 	}
 
 	if len(errors) > 0 {

@@ -80,8 +80,57 @@ def _register_bazaar_extension(server: x402ResourceServer) -> None:
 
         server.register_extension(bazaar_resource_server_extension)
     except ImportError:
-        # Bazaar extension not available, skip silently
         pass
+
+
+def _validate_bazaar_extensions(routes: RoutesConfig) -> None:
+    """Validate bazaar extensions on all routes using the extension's JSON-schema validator.
+
+    Emits warnings for invalid extensions but does not block startup.
+
+    Args:
+        routes: Route configuration.
+    """
+    try:
+        from ...extensions.bazaar import validate_discovery_extension
+    except ImportError:
+        return
+
+    import warnings as _warnings
+
+    entries: list[tuple[str, Any]] = []
+    if isinstance(routes, RouteConfig):
+        entries = [("*", routes)]
+    elif isinstance(routes, dict):
+        if "accepts" in routes:
+            entries = [("*", routes)]
+        else:
+            entries = list(routes.items())
+
+    for pattern, config in entries:
+        extensions = None
+        if isinstance(config, RouteConfig):
+            extensions = config.extensions
+        elif isinstance(config, dict):
+            extensions = config.get("extensions")
+
+        if not extensions or "bazaar" not in extensions:
+            continue
+
+        bazaar_ext = extensions["bazaar"]
+        if not isinstance(bazaar_ext, dict) or "info" not in bazaar_ext or "schema" not in bazaar_ext:
+            continue
+
+        try:
+            result = validate_discovery_extension(bazaar_ext)
+            if not result.valid:
+                _warnings.warn(
+                    f'x402: Route "{pattern}" has an invalid bazaar extension: '
+                    f'{", ".join(result.errors)}',
+                    stacklevel=2,
+                )
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -241,6 +290,7 @@ def payment_middleware(
     # Auto-register bazaar extension if routes declare it
     if _check_if_bazaar_needed(routes):
         _register_bazaar_extension(server)
+        _validate_bazaar_extensions(routes)
 
     # Create HTTP server wrapper
     http_server = x402HTTPResourceServer(server, routes)
