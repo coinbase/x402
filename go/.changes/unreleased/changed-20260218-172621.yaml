@@ -1,3 +1,0 @@
-kind: changed
-body: Upgraded facilitator extension registration from string keys to FacilitatorExtension objects. Added FacilitatorContext to SchemeNetworkFacilitator functions
-time: 2026-02-18T17:26:21.195315-05:00

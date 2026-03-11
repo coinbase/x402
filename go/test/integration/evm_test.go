@@ -36,6 +36,49 @@ func newRealClientEvmSigner(privateKeyHex string) (evm.ClientEvmSigner, error) {
 	return evmsigners.NewClientSignerFromPrivateKey(privateKeyHex)
 }
 
+// callContractAndDecode performs a generic eth_call and returns the decoded result.
+// Used by integration test signers to support any contract read (tryAggregate, transferWithAuthorization, etc.).
+func callContractAndDecode(
+	ctx context.Context,
+	ethClient *ethclient.Client,
+	contractAddress string,
+	abiBytes []byte,
+	functionName string,
+	args ...interface{},
+) (interface{}, error) {
+	contractABI, err := abi.JSON(strings.NewReader(string(abiBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	callData, err := contractABI.Pack(functionName, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack %s: %w", functionName, err)
+	}
+
+	addr := common.HexToAddress(contractAddress)
+	result, err := ethClient.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: callData,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("eth_call failed: %w", err)
+	}
+
+	outputs, err := contractABI.Unpack(functionName, result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack %s result: %w", functionName, err)
+	}
+
+	if len(outputs) == 0 {
+		return nil, nil
+	}
+	if len(outputs) == 1 {
+		return outputs[0], nil
+	}
+	return outputs, nil
+}
+
 // Real EVM facilitator signer
 type realFacilitatorEvmSigner struct {
 	privateKey *ecdsa.PrivateKey
@@ -100,15 +143,11 @@ func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) 
 func (s *realFacilitatorEvmSigner) ReadContract(
 	ctx context.Context,
 	contractAddress string,
-	abi []byte,
+	abiBytes []byte,
 	functionName string,
 	args ...interface{},
 ) (interface{}, error) {
-	// For integration tests with authorizationState, assume nonce not used
-	if functionName == "authorizationState" {
-		return false, nil
-	}
-	return nil, fmt.Errorf("read contract not fully implemented for integration tests")
+	return callContractAndDecode(ctx, s.ethClient, contractAddress, abiBytes, functionName, args...)
 }
 
 func (s *realFacilitatorEvmSigner) WriteContract(
@@ -161,7 +200,9 @@ func (s *realFacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to commo
 
 		err = s.ethClient.SendTransaction(ctx, signedTx)
 		if err != nil {
-			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+			if (strings.Contains(err.Error(), "replacement transaction underpriced") ||
+				strings.Contains(err.Error(), "nonce too low") ||
+				strings.Contains(err.Error(), "already known")) && attempt < maxRetries {
 				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
 				continue
 			}
@@ -342,7 +383,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
 		// Register for Base Sepolia
 		client.Register("eip155:84532", evmClient)
 
@@ -499,25 +540,34 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 	t.Run("EVM V2 Permit2 Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
+		rpcURL := "https://sepolia.base.org"
 
 		// Wait for any pending transactions from previous tests (shared facilitator wallet)
-		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, "https://sepolia.base.org")
+		waitForPendingTransactions(t, ctx, facilitatorPrivateKey, rpcURL)
 
-		// Ensure client wallet has approved Permit2 contract to spend USDC
-		ensurePermit2Approval(t, ctx, clientPrivateKey,
+		// Revoke Permit2 approval so the test exercises the settleWithPermit path
+		// via EIP-2612 gas sponsoring (instead of hiding behind pre-existing allowance)
+		revokePermit2Approval(t, ctx, clientPrivateKey,
 			"0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-			"https://sepolia.base.org",
+			rpcURL,
 		)
 
-		// Create real client signer
-		clientSigner, err := newRealClientEvmSigner(clientPrivateKey)
+		// Create real client signer with RPC connectivity so it can:
+		// - Read Permit2 allowance before deciding whether to sign EIP-2612 permit
+		// - Query the EIP-2612 nonce from the token contract
+		clientEthClient, err := ethclient.Dial(rpcURL)
+		if err != nil {
+			t.Fatalf("Failed to connect to Base Sepolia: %v", err)
+		}
+		defer clientEthClient.Close()
+		clientSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(clientPrivateKey, clientEthClient)
 		if err != nil {
 			t.Fatalf("Failed to create client signer: %v", err)
 		}
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
 		client.Register("eip155:84532", evmClient)
 
 		// Create facilitator signer with Permit2 support
@@ -539,6 +589,21 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 		// Setup resource server with EVM v2
 		evmServer := evmserver.NewExactEvmScheme()
+		evmServer.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+			if string(network) != "eip155:84532" {
+				return nil, nil
+			}
+
+			return &x402.AssetAmount{
+				Asset:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
+				Amount: fmt.Sprintf("%.0f", amount*1e6),
+				Extra: map[string]interface{}{
+					"assetTransferMethod": "permit2",
+					"name":                "USDC",
+					"version":             "2",
+				},
+			}, nil
+		})
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -550,26 +615,35 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
-		// Server - builds PaymentRequired response with Permit2 method
-		accepts := []types.PaymentRequirements{
-			{
-				Scheme:            evm.SchemeExact,
-				Network:           "eip155:84532",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-				Amount:            "1000",                                       // 0.001 USDC
-				PayTo:             resourceServerAddress,
-				MaxTimeoutSeconds: 300,
-				Extra: map[string]interface{}{
-					"assetTransferMethod": "permit2", // Request Permit2 flow
-				},
-			},
+		// Server - builds PaymentRequired response with Permit2 method via money parser
+		accepts, err := server.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
+			Scheme:            evm.SchemeExact,
+			Network:           "eip155:84532",
+			PayTo:             resourceServerAddress,
+			Price:             "$0.001",
+			MaxTimeoutSeconds: 300,
+		})
+		if err != nil {
+			t.Fatalf("Failed to build payment requirements: %v", err)
+		}
+		if accepts[0].Extra["assetTransferMethod"] != "permit2" {
+			t.Fatalf("Expected Permit2 payment requirements, got extra=%v", accepts[0].Extra)
 		}
 		resource := &types.ResourceInfo{
 			URL:         "https://api.example.com/permit2",
 			Description: "Permit2 API Access",
 			MimeType:    "application/json",
 		}
-		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+
+		// Advertise eip2612GasSponsoring so client signs an EIP-2612 permit
+		// when Permit2 allowance is insufficient
+		serverExtensions := map[string]interface{}{
+			"eip2612GasSponsoring": map[string]interface{}{
+				"info":   map[string]interface{}{"description": "EIP-2612 gas sponsoring", "version": "1"},
+				"schema": map[string]interface{}{},
+			},
+		}
+		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", serverExtensions)
 
 		// Verify it's V2
 		if paymentRequiredResponse.X402Version != 2 {
@@ -720,33 +794,16 @@ func (s *permit2FacilitatorEvmSigner) ReadContract(
 	functionName string,
 	args ...interface{},
 ) (interface{}, error) {
-	// For authorizationState, assume nonce not used (random nonces are unique)
-	if functionName == "authorizationState" {
-		return false, nil
-	}
-
-	// For allowance, read real on-chain value (fall back to MaxUint256 on any error)
+	// For allowance, fall back to MaxUint256 on any error (Permit2 integration test convenience)
 	if functionName == "allowance" {
-		contractABI, parseErr := abi.JSON(strings.NewReader(string(abiBytes)))
-		if parseErr != nil {
+		result, err := callContractAndDecode(ctx, s.ethClient, contractAddress, abiBytes, functionName, args...)
+		if err != nil {
 			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
 		}
-		callData, packErr := contractABI.Pack(functionName, args...)
-		if packErr != nil {
-			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
-		}
-		addr := common.HexToAddress(contractAddress)
-		result, callErr := s.ethClient.CallContract(ctx, ethereum.CallMsg{
-			To:   &addr,
-			Data: callData,
-		}, nil)
-		if callErr != nil {
-			return evm.MaxUint256(), nil //nolint:nilerr // fallback to assume approved
-		}
-		return new(big.Int).SetBytes(result), nil
+		return result, nil
 	}
 
-	return nil, fmt.Errorf("read contract not fully implemented for integration tests")
+	return callContractAndDecode(ctx, s.ethClient, contractAddress, abiBytes, functionName, args...)
 }
 
 func (s *permit2FacilitatorEvmSigner) WriteContract(
@@ -807,7 +864,9 @@ func (s *permit2FacilitatorEvmSigner) sendTxWithRetry(ctx context.Context, to co
 
 		err = s.ethClient.SendTransaction(ctx, signedTx)
 		if err != nil {
-			if strings.Contains(err.Error(), "replacement transaction underpriced") && attempt < maxRetries {
+			if (strings.Contains(err.Error(), "replacement transaction underpriced") ||
+				strings.Contains(err.Error(), "nonce too low") ||
+				strings.Contains(err.Error(), "already known")) && attempt < maxRetries {
 				time.Sleep(time.Duration(2*(attempt+1)) * time.Second)
 				continue
 			}
@@ -980,29 +1039,27 @@ func waitForPendingTransactions(t *testing.T, ctx context.Context, privateKeyHex
 	}
 }
 
-// ensurePermit2Approval checks if the client wallet has approved the Permit2 contract
-// to spend the given token. If the allowance is insufficient, it sends an approval transaction
-// and waits for it to be mined.
-func ensurePermit2Approval(t *testing.T, ctx context.Context, clientPrivateKey string, tokenAddress string, rpcURL string) {
+// revokePermit2Approval sets the Permit2 allowance to 0 so the test exercises the settleWithPermit path.
+func revokePermit2Approval(t *testing.T, ctx context.Context, clientPrivateKey string, tokenAddress string, rpcURL string) {
 	t.Helper()
 
 	privateKeyHex := strings.TrimPrefix(clientPrivateKey, "0x")
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
-		t.Fatalf("Failed to parse client private key for approval: %v", err)
+		t.Fatalf("Failed to parse client private key: %v", err)
 	}
 
 	clientAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
 	ethClient, err := ethclient.Dial(rpcURL)
 	if err != nil {
-		t.Fatalf("Failed to connect to RPC for approval check: %v", err)
+		t.Fatalf("Failed to connect to RPC: %v", err)
 	}
 	defer ethClient.Close()
 
-	// Check current allowance: token.allowance(client, PERMIT2)
 	permit2Addr := common.HexToAddress(evm.PERMIT2Address)
 	tokenAddr := common.HexToAddress(tokenAddress)
 
+	// Check current allowance
 	erc20ABI, err := abi.JSON(strings.NewReader(string(evm.ERC20AllowanceABI)))
 	if err != nil {
 		t.Fatalf("Failed to parse ERC20 allowance ABI: %v", err)
@@ -1022,56 +1079,52 @@ func ensurePermit2Approval(t *testing.T, ctx context.Context, clientPrivateKey s
 	}
 
 	allowance := new(big.Int).SetBytes(result)
-	// MaxUint256 / 2 as threshold — if allowance is already huge, skip approval
-	threshold := new(big.Int).Div(evm.MaxUint256(), big.NewInt(2))
-
-	if allowance.Cmp(threshold) >= 0 {
-		t.Logf("✅ Permit2 allowance already sufficient: %s", allowance.String())
+	if allowance.Sign() == 0 {
+		t.Logf("✅ Permit2 allowance already revoked")
 		return
 	}
 
-	t.Logf("⚠️  Permit2 allowance insufficient (%s), sending approval transaction...", allowance.String())
+	t.Logf("🔓 Revoking Permit2 approval (current allowance: %s)...", allowance.String())
 
-	// Build approve(PERMIT2, MaxUint256) transaction
+	// Build approve(PERMIT2, 0) transaction
 	approveABI, err := abi.JSON(strings.NewReader(string(evm.ERC20ApproveABI)))
 	if err != nil {
 		t.Fatalf("Failed to parse ERC20 approve ABI: %v", err)
 	}
 
-	approveData, err := approveABI.Pack("approve", permit2Addr, evm.MaxUint256())
+	approveData, err := approveABI.Pack("approve", permit2Addr, big.NewInt(0))
 	if err != nil {
 		t.Fatalf("Failed to pack approve call: %v", err)
 	}
 
 	nonce, err := ethClient.PendingNonceAt(ctx, clientAddress)
 	if err != nil {
-		t.Fatalf("Failed to get nonce for approval: %v", err)
+		t.Fatalf("Failed to get nonce: %v", err)
 	}
 
 	gasPrice, err := ethClient.SuggestGasPrice(ctx)
 	if err != nil {
-		t.Fatalf("Failed to get gas price for approval: %v", err)
+		t.Fatalf("Failed to get gas price: %v", err)
 	}
 
 	chainID, err := ethClient.ChainID(ctx)
 	if err != nil {
-		t.Fatalf("Failed to get chain ID for approval: %v", err)
+		t.Fatalf("Failed to get chain ID: %v", err)
 	}
 
 	tx := ethtypes.NewTransaction(nonce, tokenAddr, big.NewInt(0), 100000, gasPrice, approveData)
 	signedTx, err := ethtypes.SignTx(tx, ethtypes.LatestSignerForChainID(chainID), privateKey)
 	if err != nil {
-		t.Fatalf("Failed to sign approval transaction: %v", err)
+		t.Fatalf("Failed to sign revoke transaction: %v", err)
 	}
 
 	err = ethClient.SendTransaction(ctx, signedTx)
 	if err != nil {
-		t.Fatalf("Failed to send approval transaction: %v", err)
+		t.Fatalf("Failed to send revoke transaction: %v", err)
 	}
 
-	t.Logf("📤 Approval tx sent: %s", signedTx.Hash().Hex())
+	t.Logf("📤 Revoke tx sent: %s", signedTx.Hash().Hex())
 
-	// Wait for receipt
 	deadline := time.Now().Add(2 * time.Minute)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -1080,19 +1133,19 @@ func ensurePermit2Approval(t *testing.T, ctx context.Context, clientPrivateKey s
 		receipt, err := ethClient.TransactionReceipt(ctx, signedTx.Hash())
 		if err == nil && receipt != nil {
 			if receipt.Status == 1 {
-				t.Logf("✅ Permit2 approval confirmed in block %d", receipt.BlockNumber.Uint64())
+				t.Logf("✅ Permit2 approval revoked in block %d", receipt.BlockNumber.Uint64())
 				return
 			}
-			t.Fatalf("Permit2 approval transaction reverted (status=0)")
+			t.Fatalf("Permit2 revoke transaction reverted (status=0)")
 		}
 
 		if time.Now().After(deadline) {
-			t.Fatalf("Permit2 approval transaction not mined after 2 minutes")
+			t.Fatalf("Permit2 revoke transaction not mined after 2 minutes")
 		}
 
 		select {
 		case <-ctx.Done():
-			t.Fatalf("Context cancelled waiting for approval receipt")
+			t.Fatalf("Context cancelled waiting for revoke receipt")
 		case <-ticker.C:
 		}
 	}
@@ -1148,7 +1201,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				"witness": map[string]interface{}{
 					"to":         "0x9876543210987654321098765432109876543210",
 					"validAfter": "0",
-					"extra":      "0x",
 				},
 			},
 		}
@@ -1278,36 +1330,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Permit2PayloadFromMap defaults extra to 0x when missing", func(t *testing.T) {
-		payloadMap := map[string]interface{}{
-			"signature": "0xabcdef",
-			"permit2Authorization": map[string]interface{}{
-				"from":     "0x1234567890123456789012345678901234567890",
-				"spender":  evm.X402ExactPermit2ProxyAddress,
-				"nonce":    "12345",
-				"deadline": "9999999999",
-				"permitted": map[string]interface{}{
-					"token":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					"amount": "1000000",
-				},
-				"witness": map[string]interface{}{
-					"to":         "0x9876543210987654321098765432109876543210",
-					"validAfter": "0",
-					// extra is missing - should default to "0x"
-				},
-			},
-		}
-
-		payload, err := evm.Permit2PayloadFromMap(payloadMap)
-		if err != nil {
-			t.Fatalf("Failed to parse payload: %v", err)
-		}
-
-		if payload.Permit2Authorization.Witness.Extra != "0x" {
-			t.Errorf("Expected extra to default to 0x, got %s", payload.Permit2Authorization.Witness.Extra)
-		}
-	})
-
 	t.Run("Permit2Payload ToMap round-trips correctly", func(t *testing.T) {
 		original := &evm.ExactPermit2Payload{
 			Signature: "0xsignature",
@@ -1323,7 +1345,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x3333333333333333333333333333333333333333",
 					ValidAfter: "100",
-					Extra:      "0x",
 				},
 			},
 		}

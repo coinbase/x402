@@ -36,11 +36,11 @@ ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
 ERR_UNDEPLOYED_SMART_WALLET = "invalid_exact_evm_payload_undeployed_smart_wallet"
 ERR_SMART_WALLET_DEPLOYMENT_FAILED = "smart_wallet_deployment_failed"
 ERR_RECIPIENT_MISMATCH = "invalid_exact_evm_payload_recipient_mismatch"
-ERR_INSUFFICIENT_AMOUNT = "invalid_exact_evm_payload_authorization_value"
+ERR_AUTHORIZATION_VALUE_MISMATCH = "invalid_exact_evm_payload_authorization_value_mismatch"
 ERR_VALID_BEFORE_EXPIRED = "invalid_exact_evm_payload_authorization_valid_before"
 ERR_VALID_AFTER_FUTURE = "invalid_exact_evm_payload_authorization_valid_after"
-ERR_NONCE_ALREADY_USED = "nonce_already_used"
-ERR_INSUFFICIENT_BALANCE = "insufficient_balance"
+ERR_NONCE_ALREADY_USED = "invalid_exact_evm_nonce_already_used"
+ERR_INSUFFICIENT_BALANCE = "invalid_exact_evm_insufficient_balance"
 ERR_MISSING_EIP712_DOMAIN = "missing_eip712_domain"
 ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_UNSUPPORTED_SCHEME = "unsupported_scheme"
@@ -48,10 +48,14 @@ ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_conf
 ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
 ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
+ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
+ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
+ERR_EIP3009_NOT_SUPPORTED = "invalid_exact_evm_eip3009_not_supported"
+ERR_TRANSACTION_SIMULATION_FAILED = "invalid_exact_evm_transaction_simulation_failed"
 
 
-class AssetInfo(TypedDict):
-    """Information about a token asset."""
+class _AssetInfoRequired(TypedDict):
+    """Required fields for a token asset."""
 
     address: str
     name: str
@@ -59,34 +63,27 @@ class AssetInfo(TypedDict):
     decimals: int
 
 
-class NetworkConfig(TypedDict):
-    """Configuration for an EVM network."""
+class AssetInfo(_AssetInfoRequired, total=False):
+    """Information about a token asset."""
+
+    asset_transfer_method: str
+    supports_eip2612: bool
+
+
+class _NetworkConfigRequired(TypedDict):
+    """Required fields for an EVM network configuration."""
 
     chain_id: int
+
+
+class NetworkConfig(_NetworkConfigRequired, total=False):
+    """Configuration for an EVM network."""
+
     default_asset: AssetInfo
-    supported_assets: dict[str, AssetInfo]
 
 
 # Network configurations
 NETWORK_CONFIGS: dict[str, NetworkConfig] = {
-    # Ethereum Mainnet
-    "eip155:1": {
-        "chain_id": 1,
-        "default_asset": {
-            "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-        "supported_assets": {
-            "USDC": {
-                "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-                "name": "USD Coin",
-                "version": "2",
-                "decimals": 6,
-            },
-        },
-    },
     # Base Mainnet
     "eip155:8453": {
         "chain_id": 8453,
@@ -95,14 +92,6 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "name": "USD Coin",
             "version": "2",
             "decimals": 6,
-        },
-        "supported_assets": {
-            "USDC": {
-                "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                "name": "USD Coin",
-                "version": "2",
-                "decimals": 6,
-            },
         },
     },
     # Base Sepolia (Testnet)
@@ -114,52 +103,8 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "version": "2",
             "decimals": 6,
         },
-        "supported_assets": {
-            "USDC": {
-                "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-                "name": "USDC",
-                "version": "2",
-                "decimals": 6,
-            },
-        },
     },
-    # Polygon Mainnet
-    "eip155:137": {
-        "chain_id": 137,
-        "default_asset": {
-            "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-        "supported_assets": {
-            "USDC": {
-                "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-                "name": "USD Coin",
-                "version": "2",
-                "decimals": 6,
-            },
-        },
-    },
-    # Avalanche C-Chain
-    "eip155:43114": {
-        "chain_id": 43114,
-        "default_asset": {
-            "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-        "supported_assets": {
-            "USDC": {
-                "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-                "name": "USD Coin",
-                "version": "2",
-                "decimals": 6,
-            },
-        },
-    },
-    # MegaETH Mainnet
+    # MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
     "eip155:4326": {
         "chain_id": 4326,
         "default_asset": {
@@ -167,70 +112,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "name": "MegaUSD",
             "version": "1",
             "decimals": 18,
+            "asset_transfer_method": "permit2",
+            "supports_eip2612": True,
         },
-        "supported_assets": {
-            "USDM": {
-                "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-                "name": "MegaUSD",
-                "version": "1",
-                "decimals": 18,
-            },
+    },
+    # Monad Mainnet
+    "eip155:143": {
+        "chain_id": 143,
+        "default_asset": {
+            "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+            "name": "USD Coin",
+            "version": "2",
+            "decimals": 6,
         },
     },
 }
 
-# Network aliases (legacy names to CAIP-2)
-NETWORK_ALIASES: dict[str, str] = {
-    "base": "eip155:8453",
-    "base-mainnet": "eip155:8453",
-    "base-sepolia": "eip155:84532",
-    "ethereum": "eip155:1",
-    "mainnet": "eip155:1",
-    "polygon": "eip155:137",
-    "avalanche": "eip155:43114",
-    "megaeth": "eip155:4326",
-}
-
-# V1 supported networks (legacy name-based)
-V1_NETWORKS = [
-    "abstract",
-    "abstract-testnet",
-    "base-sepolia",
-    "base",
-    "avalanche-fuji",
-    "avalanche",
-    "iotex",
-    "sei",
-    "sei-testnet",
-    "polygon",
-    "polygon-amoy",
-    "peaq",
-    "story",
-    "educhain",
-    "skale-base-sepolia",
-    "megaeth",
-]
-
-# V1 network name to chain ID mapping
-V1_NETWORK_CHAIN_IDS: dict[str, int] = {
-    "base": 8453,
-    "base-sepolia": 84532,
-    "ethereum": 1,
-    "polygon": 137,
-    "polygon-amoy": 80002,
-    "avalanche": 43114,
-    "avalanche-fuji": 43113,
-    "abstract": 2741,
-    "abstract-testnet": 11124,
-    "iotex": 4689,
-    "sei": 1329,
-    "sei-testnet": 713715,
-    "peaq": 3338,
-    "story": 1513,
-    "educhain": 656476,
-    "skale-base-sepolia": 1444673419,
-    "megaeth": 4326,
-}
+# V1 legacy constants are in x402.mechanisms.evm.v1.constants
+# (V1_NETWORKS, V1_NETWORK_CHAIN_IDS, V1_DEFAULT_ASSETS)
 
 # EIP-3009 ABIs
 TRANSFER_WITH_AUTHORIZATION_VRS_ABI = [
@@ -294,6 +193,26 @@ BALANCE_OF_ABI = [
     }
 ]
 
+NAME_ABI = [
+    {
+        "inputs": [],
+        "name": "name",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+VERSION_ABI = [
+    {
+        "inputs": [],
+        "name": "version",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
 IS_VALID_SIGNATURE_ABI = [
     {
         "inputs": [
@@ -303,6 +222,37 @@ IS_VALID_SIGNATURE_ABI = [
         "name": "isValidSignature",
         "outputs": [{"name": "magicValue", "type": "bytes4"}],
         "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11"
+
+MULTICALL3_TRY_AGGREGATE_ABI = [
+    {
+        "inputs": [
+            {"name": "requireSuccess", "type": "bool"},
+            {
+                "name": "calls",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "target", "type": "address"},
+                    {"name": "callData", "type": "bytes"},
+                ],
+            },
+        ],
+        "name": "tryAggregate",
+        "outputs": [
+            {
+                "name": "returnData",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "success", "type": "bool"},
+                    {"name": "returnData", "type": "bytes"},
+                ],
+            }
+        ],
+        "stateMutability": "payable",
         "type": "function",
     }
 ]

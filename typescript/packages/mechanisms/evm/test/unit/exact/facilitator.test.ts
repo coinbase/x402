@@ -3,7 +3,22 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
-import { x402ExactPermit2ProxyAddress } from "../../../src/constants";
+import { x402ExactPermit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
+import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/exact/extensions";
+import { MULTICALL3_ADDRESS } from "../../../src/multicall";
+import { concat, encodeAbiParameters } from "viem";
+import * as Errors from "../../../src/exact/facilitator/errors";
+
+// Mock viem's transaction parsing utilities for ERC-20 approval tests
+// Uses importOriginal to preserve all other viem exports (getAddress, etc.)
+vi.mock("viem", async importOriginal => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return {
+    ...actual,
+    parseTransaction: vi.fn(),
+    recoverTransactionAddress: vi.fn(),
+  };
+});
 
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
@@ -101,7 +116,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(payload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("unsupported_scheme");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidScheme);
     });
 
     it("should reject if missing EIP-712 domain parameters", async () => {
@@ -129,7 +144,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("missing_eip712_domain");
+      expect(result.invalidReason).toBe(Errors.ErrMissingEip712Domain);
     });
 
     it("should reject if network doesn't match", async () => {
@@ -147,7 +162,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       const fullPayload: PaymentPayload = {
         ...paymentPayload,
-        accepted: { ...requirements, network: "eip155:1" }, // Wrong network in accepted
+        accepted: requirements,
         resource: { url: "", description: "", mimeType: "" },
       };
 
@@ -156,7 +171,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, wrongNetworkRequirements);
 
       expect(result.isValid).toBe(false);
-      // Verification should fail (network mismatch or other validation error)
+      expect(result.invalidReason).toBe(Errors.ErrNetworkMismatch);
     });
 
     it("should reject if recipient doesn't match payTo", async () => {
@@ -187,7 +202,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(fullPayload, modifiedRequirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_evm_payload_recipient_mismatch");
+      expect(result.invalidReason).toBe(Errors.ErrRecipientMismatch);
     });
 
     it("should reject if amount doesn't match", async () => {
@@ -277,7 +292,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -321,7 +335,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -363,7 +376,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -405,7 +417,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -447,7 +458,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: "0x0000000000000000000000000000000000000001", // Wrong recipient
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -494,7 +504,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -540,7 +549,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -591,7 +599,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.verify(payload, requirements);
 
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toContain("invalid_exact_evm_payload_signature");
+      expect(result.invalidReason).toBe(Errors.ErrInvalidSignature);
     });
 
     it("should normalize addresses (case-insensitive)", async () => {
@@ -769,6 +777,234 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
   });
 
+  describe("ERC-6492 counterfactual signature verification", () => {
+    const ERC6492_MAGIC = "0x6492649264926492649264926492649264926492649264926492649264926492";
+
+    function makeERC6492Sig(
+      factory: `0x${string}`,
+      calldata: `0x${string}`,
+      innerSig: `0x${string}`,
+    ): `0x${string}` {
+      const encoded = encodeAbiParameters(
+        [{ type: "address" }, { type: "bytes" }, { type: "bytes" }],
+        [factory, calldata, innerSig],
+      );
+      return concat([encoded, ERC6492_MAGIC]) as `0x${string}`;
+    }
+
+    const erc6492Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 300,
+      extra: { name: "USDC", version: "2" },
+    };
+
+    const erc6492Payer = "0x1234567890123456789012345678901234567890";
+    const factory = "0x1111111111111111111111111111111111111111" as `0x${string}`;
+    const factoryCalldata = "0xdeadbeef" as `0x${string}`;
+    const garbageInnerSig = ("0x" + "00".repeat(65)) as `0x${string}`;
+    const erc6492Sig = makeERC6492Sig(factory, factoryCalldata, garbageInnerSig);
+
+    function makeERC6492Payload(sig: `0x${string}`): PaymentPayload {
+      return {
+        x402Version: 2,
+        payload: {
+          authorization: {
+            from: erc6492Payer,
+            to: erc6492Requirements.payTo,
+            value: erc6492Requirements.amount,
+            validAfter: "0",
+            validBefore: "999999999999",
+            nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+          },
+          signature: sig,
+        },
+        accepted: erc6492Requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+    }
+
+    it("should accept ERC-6492 when verifyTypedData returns true and simulation passes", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(true);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: true, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve(BigInt("10000000"));
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should accept ERC-6492 when verifyTypedData fails but simulation passes (EOA-only signer)", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: true, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve(BigInt("10000000"));
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should accept ERC-6492 when verifyTypedData throws but simulation passes", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi
+        .fn()
+        .mockRejectedValue(new Error("invalid signature length"));
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: true, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve(BigInt("10000000"));
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should reject ERC-6492 when simulation fails (multicall transfer reverts)", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(true);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: false, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve([
+            {
+              success: true,
+              returnData: "0x00000000000000000000000000000000000000000000000000000000000f4240",
+            },
+            { success: true, returnData: "0x" },
+            { success: true, returnData: "0x" },
+            {
+              success: true,
+              returnData: "0x0000000000000000000000000000000000000000000000000000000000000000",
+            },
+          ]);
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(false);
+    });
+
+    it("should reject forged ERC-6492 when verifyTypedData fails and simulation fails", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: false, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve([
+            {
+              success: true,
+              returnData: "0x00000000000000000000000000000000000000000000000000000000000f4240",
+            },
+            { success: true, returnData: "0x" },
+            { success: true, returnData: "0x" },
+            {
+              success: true,
+              returnData: "0x0000000000000000000000000000000000000000000000000000000000000000",
+            },
+          ]);
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should reject undeployed smart wallet without ERC-6492 deployment info", async () => {
+      const longNonERC6492Sig = ("0x" + "ab".repeat(100)) as `0x${string}`;
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+
+      const result = await facilitator.verify(
+        makeERC6492Payload(longNonERC6492Sig),
+        erc6492Requirements,
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_exact_evm_payload_undeployed_smart_wallet");
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should accept deployed smart wallet when verifyTypedData fails but simulation passes (ERC-1271)", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x6080604052");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ address }: { address: string }) => {
+          if (address === MULTICALL3_ADDRESS) {
+            return Promise.resolve([
+              { success: true, returnData: "0x" },
+              { success: true, returnData: "0x" },
+            ]);
+          }
+          return Promise.resolve(undefined);
+        });
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(erc6492Payer);
+    });
+
+    it("should reject deployed smart wallet when both verifyTypedData and simulation fail", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x6080604052");
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted"));
+
+      const result = await facilitator.verify(makeERC6492Payload(erc6492Sig), erc6492Requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrEip3009SimulationFailed);
+    });
+  });
+
   describe("EIP-2612 Gas Sponsoring - Settlement", () => {
     const permit2Requirements: PaymentRequirements = {
       scheme: "exact",
@@ -798,7 +1034,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
             witness: {
               to: permit2Requirements.payTo,
               validAfter: "0",
-              extra: "0x",
             },
           },
         },
@@ -866,6 +1101,45 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(writeCall.functionName).toBe("settle");
     });
 
+    it("should map Permit2612AmountMismatch contract revert to permit2_2612_amount_mismatch", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: Permit2612AmountMismatch()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_2612_amount_mismatch");
+    });
+
+    it("should map InvalidAmount contract revert to permit2_invalid_amount", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: InvalidAmount()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_invalid_amount");
+    });
+
+    it("should map InvalidNonce contract revert to permit2_invalid_nonce", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(BigInt("10000000000"));
+      mockFacilitatorSigner.writeContract = vi
+        .fn()
+        .mockRejectedValue(new Error("execution reverted: InvalidNonce()"));
+
+      const payload = makePermit2Payload();
+      const result = await facilitator.settle(payload, permit2Requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("permit2_invalid_nonce");
+    });
+
     it("should pass correct EIP-2612 permit struct to settleWithPermit", async () => {
       mockFacilitatorSigner.readContract = vi
         .fn()
@@ -892,6 +1166,412 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(permit2612Struct.v).toBeDefined();
       // v should be a number (27 or 28)
       expect(typeof permit2612Struct.v).toBe("number");
+    });
+  });
+
+  describe("ERC-20 Approval Gas Sponsoring - Verify", () => {
+    const PAYER = "0x1234567890123456789012345678901234567890" as `0x${string}`;
+    const TOKEN_ADDRESS = "0xeED520980fC7C7B4eB379B96d61CEdea2423005a" as `0x${string}`;
+    const MOCK_SIGNED_TX = "0x02f8ab0102030405060708" as `0x${string}`;
+
+    // Approve calldata: approve(PERMIT2_ADDRESS, MaxUint256)
+    const APPROVE_CALLDATA =
+      `0x095ea7b3000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3` +
+      `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff`;
+
+    const erc20Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: TOKEN_ADDRESS,
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: { assetTransferMethod: "permit2" },
+    };
+
+    function makeErc20Permit2Payload(extensions?: Record<string, unknown>): PaymentPayload {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        x402Version: 2,
+        payload: {
+          signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+          permit2Authorization: {
+            from: PAYER,
+            permitted: {
+              token: TOKEN_ADDRESS,
+              amount: erc20Requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "99999",
+            deadline: (now + 300).toString(),
+            witness: {
+              to: erc20Requirements.payTo,
+              validAfter: "0",
+            },
+          },
+        },
+        accepted: erc20Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        ...(extensions ? { extensions } : {}),
+      };
+    }
+
+    function makeValidErc20Extension() {
+      return {
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: PAYER,
+            asset: TOKEN_ADDRESS,
+            spender: PERMIT2_ADDRESS,
+            amount:
+              "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      };
+    }
+
+    /** Creates a mock FacilitatorContext with the ERC-20 extension registered. */
+    function makeErc20Context() {
+      return {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return { key: ERC20_APPROVAL_GAS_SPONSORING_KEY };
+          }
+          return undefined;
+        }),
+      };
+    }
+
+    it("should reject when allowance is 0 and no ERC-20 extension (no context)", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const payload = makeErc20Permit2Payload();
+      const result = await facilitator.verify(payload, erc20Requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("permit2_allowance_required");
+    });
+
+    it("should reject when ERC-20 extension has invalid format (bad address)", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const payload = makeErc20Permit2Payload({
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: "not-an-address", // invalid
+            asset: TOKEN_ADDRESS,
+            spender: PERMIT2_ADDRESS,
+            amount: "100",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      });
+
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_erc20_approval_extension_format");
+    });
+
+    it("should reject when ERC-20 extension `from` doesn't match payer", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const payload = makeErc20Permit2Payload({
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: "0x0000000000000000000000000000000000000001", // wrong address
+            asset: TOKEN_ADDRESS,
+            spender: PERMIT2_ADDRESS,
+            amount: "100",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      });
+
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("erc20_approval_from_mismatch");
+    });
+
+    it("should reject when ERC-20 extension `asset` doesn't match token", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const payload = makeErc20Permit2Payload({
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: PAYER,
+            asset: "0x0000000000000000000000000000000000000002", // wrong token
+            spender: PERMIT2_ADDRESS,
+            amount: "100",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      });
+
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("erc20_approval_asset_mismatch");
+    });
+
+    it("should reject when ERC-20 extension spender is not PERMIT2_ADDRESS", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const payload = makeErc20Permit2Payload({
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: PAYER,
+            asset: TOKEN_ADDRESS,
+            spender: "0x0000000000000000000000000000000000000003", // not Permit2
+            amount: "100",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      });
+
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("erc20_approval_spender_not_permit2");
+    });
+
+    it("should accept when allowance insufficient but valid ERC-20 extension present", async () => {
+      // allowance=0 (verifyPermit2 returns permit2_allowance_required, scheme handles it)
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      // Mock viem functions used in validateErc20ApprovalForPayment
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      // Should NOT fail with permit2_allowance_required
+      if (!result.isValid) {
+        expect(result.invalidReason).not.toBe("permit2_allowance_required");
+      }
+    });
+
+    it("should reject when calldata targets wrong address (not PERMIT2_ADDRESS)", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValueOnce(0n);
+
+      const wrongSpenderCalldata =
+        "0x095ea7b3" +
+        "0000000000000000000000000000000000000000000000000000000000000001" + // wrong spender
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: wrongSpenderCalldata as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      const result = await facilitator.verify(payload, erc20Requirements, makeErc20Context());
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("erc20_approval_tx_wrong_spender");
+    });
+  });
+
+  describe("ERC-20 Approval Gas Sponsoring - Settlement", () => {
+    const PAYER = "0x1234567890123456789012345678901234567890" as `0x${string}`;
+    const TOKEN_ADDRESS = "0xeED520980fC7C7B4eB379B96d61CEdea2423005a" as `0x${string}`;
+    const MOCK_SIGNED_TX = "0x02f8ab0102030405060708" as `0x${string}`;
+
+    const APPROVE_CALLDATA =
+      `0x095ea7b3000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3` +
+      `ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff`;
+
+    const erc20Requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532",
+      amount: "1000",
+      asset: TOKEN_ADDRESS,
+      payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      maxTimeoutSeconds: 60,
+      extra: { assetTransferMethod: "permit2" },
+    };
+
+    function makeErc20Permit2Payload(extensions?: Record<string, unknown>): PaymentPayload {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        x402Version: 2,
+        payload: {
+          signature: "0x" + "ab".repeat(32) + "cd".repeat(32) + "1b",
+          permit2Authorization: {
+            from: PAYER,
+            permitted: {
+              token: TOKEN_ADDRESS,
+              amount: erc20Requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "99999",
+            deadline: (now + 300).toString(),
+            witness: {
+              to: erc20Requirements.payTo,
+              validAfter: "0",
+            },
+          },
+        },
+        accepted: erc20Requirements,
+        resource: { url: "https://test.com", description: "", mimeType: "" },
+        ...(extensions ? { extensions } : {}),
+      };
+    }
+
+    function makeValidErc20Extension() {
+      return {
+        erc20ApprovalGasSponsoring: {
+          info: {
+            from: PAYER,
+            asset: TOKEN_ADDRESS,
+            spender: PERMIT2_ADDRESS,
+            amount:
+              "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+            signedTransaction: MOCK_SIGNED_TX,
+            version: "1",
+          },
+          schema: {},
+        },
+      };
+    }
+
+    it("should broadcast approval tx via extension signer then settle via extension signer", async () => {
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      // Base signer: allowance=0 (re-verify sees ERC-20 extension in context and accepts it)
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "allowance") return Promise.resolve(0n);
+          if (functionName === "balanceOf") return Promise.resolve(BigInt("10000000"));
+          return Promise.resolve(0n);
+        });
+
+      const SETTLE_TX_HASH = "0xsettle_tx_hash_mock" as `0x${string}`;
+      const mockSendTransactions = vi.fn().mockResolvedValue([SETTLE_TX_HASH]);
+      const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
+
+      // Extension signer has all FacilitatorEvmSigner methods + sendTransactions
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return {
+              key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+              signer: {
+                getAddresses: vi.fn().mockReturnValue([PAYER]),
+                readContract: mockFacilitatorSigner.readContract,
+                verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+                writeContract: vi.fn(),
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: mockExtWaitForReceipt,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendTransactions: mockSendTransactions,
+              },
+            };
+          }
+          return undefined;
+        }),
+      };
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      const result = await facilitator.settle(payload, erc20Requirements, mockContext);
+
+      // Extension signer called sendTransactions with [approvalTx, settleCall]
+      expect(mockSendTransactions).toHaveBeenCalled();
+      const transactions = mockSendTransactions.mock.calls[0][0];
+      expect(transactions[0]).toBe(MOCK_SIGNED_TX);
+      expect(transactions[1]).toHaveProperty("to");
+      expect(transactions[1]).toHaveProperty("data");
+
+      // Base signer's writeContract should NOT have been called
+      expect(mockFacilitatorSigner.writeContract).not.toHaveBeenCalled();
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should resolve extension signer by network when signerForNetwork is present", async () => {
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      mockFacilitatorSigner.readContract = vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "allowance") return Promise.resolve(0n);
+          if (functionName === "balanceOf") return Promise.resolve(BigInt("10000000"));
+          return Promise.resolve(0n);
+        });
+
+      const selectedSignerSendTransactions = vi
+        .fn()
+        .mockResolvedValue(["0xsettle_hash" as `0x${string}`]);
+      const selectedSignerWait = vi.fn().mockResolvedValue({ status: "success" });
+      const fallbackSignerSendTransactions = vi.fn();
+
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key !== ERC20_APPROVAL_GAS_SPONSORING_KEY) return undefined;
+          return {
+            key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+            signer: {
+              getAddresses: vi.fn().mockReturnValue([PAYER]),
+              readContract: mockFacilitatorSigner.readContract,
+              verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+              writeContract: vi.fn(),
+              sendTransaction: vi.fn(),
+              waitForTransactionReceipt: selectedSignerWait,
+              getCode: vi.fn().mockResolvedValue("0x"),
+              sendTransactions: fallbackSignerSendTransactions,
+            },
+            signerForNetwork: (network: string) => {
+              if (network !== "eip155:84532") return undefined;
+              return {
+                getAddresses: vi.fn().mockReturnValue([PAYER]),
+                readContract: mockFacilitatorSigner.readContract,
+                verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+                writeContract: vi.fn(),
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: selectedSignerWait,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendTransactions: selectedSignerSendTransactions,
+              };
+            },
+          };
+        }),
+      };
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      await facilitator.settle(payload, erc20Requirements, mockContext);
+
+      expect(selectedSignerSendTransactions).toHaveBeenCalled();
+      expect(fallbackSignerSendTransactions).not.toHaveBeenCalled();
     });
   });
 });

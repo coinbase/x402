@@ -132,7 +132,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				"witness": map[string]interface{}{
 					"to":         "0x9876543210987654321098765432109876543210",
 					"validAfter": "0",
-					"extra":      "0x",
 				},
 			},
 		}
@@ -338,36 +337,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Permit2PayloadFromMap defaults extra to 0x when missing", func(t *testing.T) {
-		payloadMap := map[string]interface{}{
-			"signature": "0xabcdef",
-			"permit2Authorization": map[string]interface{}{
-				"from":     "0x1234567890123456789012345678901234567890",
-				"spender":  evm.X402ExactPermit2ProxyAddress,
-				"nonce":    "12345",
-				"deadline": "9999999999",
-				"permitted": map[string]interface{}{
-					"token":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					"amount": "1000000",
-				},
-				"witness": map[string]interface{}{
-					"to":         "0x9876543210987654321098765432109876543210",
-					"validAfter": "0",
-					// extra is missing - should default to "0x"
-				},
-			},
-		}
-
-		payload, err := evm.Permit2PayloadFromMap(payloadMap)
-		if err != nil {
-			t.Fatalf("Failed to parse payload: %v", err)
-		}
-
-		if payload.Permit2Authorization.Witness.Extra != "0x" {
-			t.Errorf("Expected extra to default to 0x, got %s", payload.Permit2Authorization.Witness.Extra)
-		}
-	})
-
 	t.Run("Permit2Payload ToMap round-trips correctly", func(t *testing.T) {
 		original := &evm.ExactPermit2Payload{
 			Signature: "0xsignature",
@@ -383,7 +352,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 				Witness: evm.Permit2Witness{
 					To:         "0x3333333333333333333333333333333333333333",
 					ValidAfter: "100",
-					Extra:      "0x",
 				},
 			},
 		}
@@ -428,10 +396,6 @@ func TestPermit2PayloadParsing(t *testing.T) {
 
 		if parsed.Permit2Authorization.Witness.ValidAfter != original.Permit2Authorization.Witness.ValidAfter {
 			t.Errorf("Witness.ValidAfter mismatch")
-		}
-
-		if parsed.Permit2Authorization.Witness.Extra != original.Permit2Authorization.Witness.Extra {
-			t.Errorf("Witness.Extra mismatch")
 		}
 	})
 }

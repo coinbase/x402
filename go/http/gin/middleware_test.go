@@ -199,21 +199,46 @@ func TestGinAdapter_GetPath(t *testing.T) {
 }
 
 func TestGinAdapter_GetURL(t *testing.T) {
-	router := createTestRouter()
-	var adapter *GinAdapter
+	tests := []struct {
+		name     string
+		target   string
+		expected string
+	}{
+		{
+			name:     "with query params",
+			target:   "/api/test?id=1",
+			expected: "http://example.com/api/test?id=1",
+		},
+		{
+			name:     "without query params",
+			target:   "/api/test",
+			expected: "http://example.com/api/test",
+		},
+		{
+			name:     "with multiple query params",
+			target:   "/api/test?id=1&foo=bar",
+			expected: "http://example.com/api/test?id=1&foo=bar",
+		},
+	}
 
-	router.GET("/api/test", func(c *gin.Context) {
-		adapter = NewGinAdapter(c)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			var adapter *GinAdapter
 
-	req := httptest.NewRequest("GET", "/api/test", nil)
-	req.Host = "example.com"
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			router.GET("/api/test", func(c *gin.Context) {
+				adapter = NewGinAdapter(c)
+			})
 
-	expected := "http://example.com/api/test"
-	if adapter.GetURL() != expected {
-		t.Errorf("Expected URL '%s', got '%s'", expected, adapter.GetURL())
+			req := httptest.NewRequest("GET", tt.target, nil)
+			req.Host = "example.com"
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if adapter.GetURL() != tt.expected {
+				t.Errorf("Expected URL '%s', got '%s'", tt.expected, adapter.GetURL())
+			}
+		})
 	}
 }
 
@@ -621,16 +646,18 @@ func TestPaymentMiddleware_Returns402WhenSettlementFails(t *testing.T) {
 		t.Errorf("Expected status 402, got %d", w.Code)
 	}
 
+	// Empty body by default on settlement failure
 	var response map[string]interface{}
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
-
-	if response["error"] != "Settlement failed" {
-		t.Errorf("Expected error 'Settlement failed', got '%v'", response["error"])
+	if len(response) != 0 {
+		t.Errorf("Expected empty body {}, got %v", response)
 	}
-	if response["details"] != "Insufficient funds" {
-		t.Errorf("Expected details 'Insufficient funds', got '%v'", response["details"])
+
+	// AYMENT-RESPONSE header must be included on settlement failure
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
 	}
 }
 
@@ -711,6 +738,11 @@ func TestPaymentMiddleware_CustomErrorHandler(t *testing.T) {
 
 	if response["custom_error"] == nil {
 		t.Error("Expected custom_error in response")
+	}
+
+	// PAYMENT-RESPONSE header must be set even when using custom error handler
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header when using custom error handler")
 	}
 }
 
@@ -854,6 +886,213 @@ func TestPaymentMiddleware_WithTimeout(t *testing.T) {
 	// Route should require payment
 	if w.Code != http.StatusPaymentRequired {
 		t.Errorf("Expected status 402, got %d", w.Code)
+	}
+}
+
+// ============================================================================
+// PaymentMiddlewareFromHTTPServer Tests
+// ============================================================================
+
+func TestPaymentMiddlewareFromHTTPServer_Returns402ForProtectedRoute(t *testing.T) {
+	mockClient := &mockFacilitatorClient{
+		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	routes := x402http.RoutesConfig{
+		"GET /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	// Build the resource server externally
+	resourceServer := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockClient),
+	)
+	resourceServer.Register("eip155:1", &mockSchemeServer{scheme: "exact"})
+
+	// Wrap with HTTP server
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer)
+
+	// Use PaymentMiddlewareFromHTTPServer
+	router := createTestRouter()
+	router.Use(PaymentMiddlewareFromHTTPServer(httpServer, WithTimeout(5*time.Second)))
+
+	router.GET("/api", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": "protected"})
+	})
+
+	req := httptest.NewRequest("GET", "/api", nil)
+	req.Header.Set("Accept", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusPaymentRequired {
+		t.Errorf("Expected status 402, got %d", w.Code)
+	}
+}
+
+func TestPaymentMiddlewareFromHTTPServer_PassesThroughNonProtectedRoute(t *testing.T) {
+	routes := x402http.RoutesConfig{
+		"GET /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	resourceServer := x402.Newx402ResourceServer()
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer)
+
+	router := createTestRouter()
+	router.Use(PaymentMiddlewareFromHTTPServer(httpServer, WithSyncFacilitatorOnStart(false)))
+
+	nextCalled := false
+	router.GET("/public", func(c *gin.Context) {
+		nextCalled = true
+		c.JSON(http.StatusOK, gin.H{"message": "public"})
+	})
+
+	req := httptest.NewRequest("GET", "/public", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if !nextCalled {
+		t.Error("Expected next() to be called for non-protected route")
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestPaymentMiddlewareFromHTTPServer_HookGrantsAccess(t *testing.T) {
+	mockClient := &mockFacilitatorClient{
+		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	routes := x402http.RoutesConfig{
+		"GET /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	resourceServer := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockClient),
+	)
+	resourceServer.Register("eip155:1", &mockSchemeServer{scheme: "exact"})
+
+	// Register a hook that grants free access
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer).
+		OnProtectedRequest(func(ctx context.Context, reqCtx x402http.HTTPRequestContext, routeConfig x402http.RouteConfig) (*x402http.ProtectedRequestHookResult, error) {
+			return &x402http.ProtectedRequestHookResult{GrantAccess: true}, nil
+		})
+
+	router := createTestRouter()
+	router.Use(PaymentMiddlewareFromHTTPServer(httpServer, WithTimeout(5*time.Second)))
+
+	nextCalled := false
+	router.GET("/api", func(c *gin.Context) {
+		nextCalled = true
+		c.JSON(http.StatusOK, gin.H{"data": "free-access"})
+	})
+
+	// Request without payment header - hook should grant access
+	req := httptest.NewRequest("GET", "/api", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 (hook granted access), got %d. Body: %s", w.Code, w.Body.String())
+	}
+	if !nextCalled {
+		t.Error("Expected next handler to be called when hook grants access")
+	}
+}
+
+func TestPaymentMiddlewareFromHTTPServer_HookAbortsRequest(t *testing.T) {
+	mockClient := &mockFacilitatorClient{
+		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	routes := x402http.RoutesConfig{
+		"GET /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	resourceServer := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(mockClient),
+	)
+	resourceServer.Register("eip155:1", &mockSchemeServer{scheme: "exact"})
+
+	// Register a hook that aborts the request
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, resourceServer).
+		OnProtectedRequest(func(ctx context.Context, reqCtx x402http.HTTPRequestContext, routeConfig x402http.RouteConfig) (*x402http.ProtectedRequestHookResult, error) {
+			return &x402http.ProtectedRequestHookResult{Abort: true, Reason: "IP blocked"}, nil
+		})
+
+	router := createTestRouter()
+	router.Use(PaymentMiddlewareFromHTTPServer(httpServer, WithTimeout(5*time.Second)))
+
+	router.GET("/api", func(c *gin.Context) {
+		t.Error("Handler should not be called when hook aborts")
+	})
+
+	req := httptest.NewRequest("GET", "/api", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 (hook aborted), got %d", w.Code)
 	}
 }
 

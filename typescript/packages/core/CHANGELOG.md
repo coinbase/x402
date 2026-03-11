@@ -1,5 +1,47 @@
 # @x402/core Changelog
 
+## 2.6.0
+
+### Minor Changes
+
+- f41baed: Added `x402Version` field to `VerifyRequest`, `SettleRequest`, `VerifyRequestV1`, and `SettleRequestV1` types to match what all SDK implementations already send in facilitator request bodies.
+- aeef1bf: Added dynamic function for servers to generate custom response for settlement failures defaulting to empty
+- 2564781: Include PAYMENT-RESPONSE header on settlement failure responses
+- b341973: Remove duplicate server-local `ResourceInfo` interface; use the wire-format `ResourceInfo` from `types/payments.ts` directly throughout the server module.
+- 29fe09a: Make ResourceInfo.description, ResourceInfo.mimeType, and PaymentPayload.resource optional to match v2 spec
+
+## 2.5.0
+
+### Minor Changes
+
+- Bumped to align version with dependent packages (@x402/evm, @x402/extensions)
+
+### Patch Changes
+
+- 96a9db0: Fix extra field passthrough in buildPaymentRequirementsFromOptions for custom schemes
+- d0a2b11: Added transport context to enrichSettleResponse and enrichPaymentRequiredResponse hooks
+
+## 2.4.0
+
+### Minor Changes
+
+- 57a5488: Add Aptos blockchain support to x402 payment protocol
+
+  - Introduces new `@x402/aptos` package with full client, server, and facilitator scheme implementations
+  - Supports exact payment mechanism for Aptos using native APT and fungible assets
+  - Includes sponsored transaction support where facilitator pays gas fees
+  - Provides `registerExactAptosScheme` helpers for easy client and server integration
+  - Adds Aptos network constants for mainnet and testnet
+  - Updates core types to support Aptos-specific payment flows
+
+- 018181b: Implement EIP-2612 gasless Permit2 approval extension
+
+  - Added extension enrichment hooks to `x402Client`, enabling scheme clients to inject extension data (e.g. EIP-2612 permits) into payment payloads when the server advertises support
+
+### Patch Changes
+
+- 3fb55d7: Upgraded facilitator extension registration from string keys to FacilitatorExtension objects. Added FacilitatorContext threaded through SchemeNetworkFacilitator.verify/settle for mechanism access to extension capabilities
+
 ## 2.3.1
 
 ### Patch Changes

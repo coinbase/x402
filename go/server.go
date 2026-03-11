@@ -149,6 +149,32 @@ func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 	return nil
 }
 
+// HasRegisteredScheme checks if a scheme is registered for a given network
+func (s *x402ResourceServer) HasRegisteredScheme(network Network, scheme string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	networkSchemes, ok := s.schemes[network]
+	if !ok {
+		return false
+	}
+	_, exists := networkSchemes[scheme]
+	return exists
+}
+
+// HasFacilitatorSupport checks if a facilitator client supports a given network/scheme combination
+func (s *x402ResourceServer) HasFacilitatorSupport(network Network, scheme string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	networkClients, ok := s.facilitatorClients[network]
+	if !ok {
+		return false
+	}
+	_, exists := networkClients[scheme]
+	return exists
+}
+
 // Register registers a payment mechanism (V2, default)
 func (s *x402ResourceServer) Register(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
 	s.mu.Lock()
@@ -220,6 +246,22 @@ func (s *x402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *x402Reso
 // Core Payment Methods (V2 Only)
 // ============================================================================
 
+func mergeExtraFields(parsedExtra map[string]interface{}, configExtra map[string]interface{}) map[string]interface{} {
+	if len(parsedExtra) == 0 && len(configExtra) == 0 {
+		return nil
+	}
+
+	merged := make(map[string]interface{}, len(parsedExtra)+len(configExtra))
+	for key, value := range parsedExtra {
+		merged[key] = value
+	}
+	for key, value := range configExtra {
+		merged[key] = value
+	}
+
+	return merged
+}
+
 // BuildPaymentRequirements creates payment requirements for a resource
 func (s *x402ResourceServer) BuildPaymentRequirements(
 	ctx context.Context,
@@ -262,7 +304,7 @@ func (s *x402ResourceServer) BuildPaymentRequirements(
 		Amount:            assetAmount.Amount,
 		PayTo:             config.PayTo,
 		MaxTimeoutSeconds: maxTimeout,
-		Extra:             assetAmount.Extra,
+		Extra:             mergeExtraFields(assetAmount.Extra, config.Extra),
 	}
 
 	// Enhance with scheme-specific details
