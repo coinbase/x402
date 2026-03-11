@@ -1,0 +1,7 @@
+{
+  "name": "Crypto Data Enrichment API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/crypto-data-enrichment.png",
+  "description": "x402-gated cryptocurrency data enrichment service with 4 micropayment endpoints for AI agents: price feeds ($0.01), market signals ($0.05), deep analysis ($0.10), and LLM reports ($0.25). Built with Express.js and USDC payments on Base mainnet.",
+  "websiteUrl": "https://crypto-enrichment-api-production.up.railway.app"
+}

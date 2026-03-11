@@ -1,0 +1,7 @@
+{
+  "name": "Web Extract API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/web-extract-api.png",
+  "description": "Comprehensive web scraping and content extraction service with 10 specialized x402-gated endpoints for AI agents: text extraction, metadata parsing, contact extraction, PDF processing, structured data, product data, batch processing, content comparison, translation, and AI-powered summaries. Pricing from $0.01-$0.15 USDC on Base mainnet.",
+  "websiteUrl": "https://web-extract-api.up.railway.app"
+}

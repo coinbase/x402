@@ -1,0 +1,7 @@
+{
+  "name": "Finance Data API",
+  "category": "Services/Endpoints", 
+  "logoUrl": "/logos/finance-data-api.png",
+  "description": "Professional financial data service with 8 x402-gated endpoints for AI agents: stock prices, company profiles, financial news, earnings data, forex rates, currency conversion, market overviews, and AI-powered financial reports. Pricing from $0.01-$0.25 USDC on Base mainnet with comprehensive market coverage.",
+  "websiteUrl": "https://finance-data-api-production.up.railway.app"
+}
