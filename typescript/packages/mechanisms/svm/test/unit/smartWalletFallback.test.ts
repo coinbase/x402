@@ -143,6 +143,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const scheme = new ExactSvmScheme(mockSigner as never, undefined, {
       enableSmartWalletVerification: true,
+      smartWalletAllowedPrograms: [unknownProgram.address],
     });
 
     const result = await scheme.verify(
@@ -228,6 +229,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const scheme = new ExactSvmScheme(mockSigner as never, undefined, {
       enableSmartWalletVerification: true,
+      smartWalletAllowedPrograms: [unknownProgram.address],
     });
 
     const result = await scheme.verify(
@@ -307,6 +309,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const scheme = new ExactSvmScheme(mockSigner as never, undefined, {
       enableSmartWalletVerification: true,
+      smartWalletAllowedPrograms: [unknownProgram.address],
     });
 
     const result = await scheme.verify(
@@ -339,5 +342,66 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
     expect(result.invalidReason).toBe(
       "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
     );
+  });
+
+  it("verify rejects smart wallet transaction when program is not in allowlist", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+
+    const feePayer = await generateKeyPairSigner();
+    const unknownProgram = await generateKeyPairSigner();
+    const payTo = await generateKeyPairSigner();
+    const payer = await generateKeyPairSigner();
+
+    const txBase64 = await buildSmartWalletPayload(
+      feePayer.address,
+      unknownProgram.address,
+      payer.address,
+    );
+
+    const mockSigner = {
+      getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      signTransaction: vi.fn().mockResolvedValue(txBase64),
+      simulateTransaction: vi.fn().mockResolvedValue(undefined),
+      sendTransaction: vi.fn(),
+      confirmTransaction: vi.fn(),
+      simulateTransactionWithInnerInstructions: vi.fn().mockResolvedValue({
+        innerInstructions: [],
+      }),
+      getConfirmedTransactionInnerInstructions: vi.fn().mockResolvedValue(null),
+      getTokenAccountBalance: vi.fn().mockResolvedValue(null),
+    };
+
+    // Allowlist does NOT include unknownProgram
+    const scheme = new ExactSvmScheme(mockSigner as never, undefined, {
+      enableSmartWalletVerification: true,
+      smartWalletAllowedPrograms: ["SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"],
+    });
+
+    const result = await scheme.verify(
+      {
+        x402Version: 2,
+        accepted: {
+          scheme: "exact",
+          network: SOLANA_DEVNET_CAIP2,
+          asset: USDC_DEVNET_ADDRESS,
+          amount: "100000",
+          payTo: payTo.address,
+          extra: { feePayer: feePayer.address },
+        },
+        payload: { transaction: txBase64 },
+      } as never,
+      {
+        scheme: "exact",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "100000",
+        payTo: payTo.address,
+        maxTimeoutSeconds: 3600,
+        extra: { feePayer: feePayer.address },
+      } as never,
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toContain("smart_wallet_program_not_allowed");
   });
 });

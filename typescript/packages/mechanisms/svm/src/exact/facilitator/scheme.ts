@@ -36,6 +36,18 @@ import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../.
 import { verifySmartWalletTransaction, verifyPostSettlement } from "./smartWalletVerification";
 
 /**
+ * Default allowed smart wallet program addresses.
+ * Only these programs can reach Path 2 (simulation-based verification).
+ * Operators can override via smartWalletAllowedPrograms in options.
+ */
+const DEFAULT_SMART_WALLET_ALLOWED_PROGRAMS = [
+  "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf", // Squads Multisig v4
+  "SMRTzfY6DfH5ik3TKiyLFfXexV8uSG3d2UksSCYdunG", // Squads Smart Account
+  "SWiGmQedKzMz1tiTqoJCWeGDnGXfNBp2PkXLkpCAtQo", // Swig
+  "GovER5Lthms3bLBqWub97yVrMmEogzX7xNjdXpPPCVZw", // SPL Governance
+];
+
+/**
  * Configuration options for ExactSvmScheme.
  */
 export type ExactSvmSchemeOptions = {
@@ -66,6 +78,16 @@ export type ExactSvmSchemeOptions = {
    * Default: 50,000
    */
   smartWalletMaxPriorityFeeMicroLamports?: number;
+
+  /**
+   * Allowed smart wallet program addresses for Path 2 verification.
+   * Only transactions whose top-level non-ComputeBudget instruction invokes
+   * a program in this list will be accepted through the simulation path.
+   * Prevents unknown/malicious programs from reaching CPI verification.
+   *
+   * Default: Squads Multisig v4, Squads Smart Account, Swig, SPL Governance
+   */
+  smartWalletAllowedPrograms?: string[];
 };
 
 /**
@@ -224,10 +246,29 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
     // ─── Path 2: Simulation-based verification (smart wallets) ──────────
     // If static validation failed and smart wallet verification is enabled,
-    // try simulation-based outcome verification. This handles any wallet
-    // program (Squads, Swig, SPL Governance, etc.) that executes
-    // TransferChecked via CPI.
+    // try simulation-based outcome verification for allowed wallet programs.
     if (this.options?.enableSmartWalletVerification) {
+      // Program allowlist: only known, audited smart wallet programs can reach Path 2.
+      // This prevents custom malicious programs from exploiting the simulation path.
+      const allowedPrograms = new Set(
+        this.options.smartWalletAllowedPrograms ?? DEFAULT_SMART_WALLET_ALLOWED_PROGRAMS,
+      );
+
+      const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
+      const decompiledForCheck = decompileTransactionMessage(compiled);
+      const topLevelPrograms = (decompiledForCheck.instructions ?? [])
+        .map(ix => ix.programAddress.toString())
+        .filter(addr => addr !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString());
+
+      const disallowedProgram = topLevelPrograms.find(addr => !allowedPrograms.has(addr));
+      if (disallowedProgram) {
+        return {
+          isValid: false,
+          invalidReason: `smart_wallet_program_not_allowed: ${disallowedProgram}`,
+          payer: "",
+        };
+      }
+
       const feePayer = requirements.extra.feePayer;
       return verifySmartWalletTransaction(
         exactSvmPayload.transaction,

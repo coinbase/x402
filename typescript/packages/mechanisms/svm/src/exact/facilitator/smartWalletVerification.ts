@@ -465,10 +465,23 @@ export async function verifyPostSettlement(
   const requiredAmount = BigInt(requirements.amount);
 
   // Primary path: fetch confirmed transaction and inspect inner instructions.
+  // Retry with backoff to handle RPC indexing lag (transaction confirmed but
+  // not yet indexed). Same polling pattern as confirmTransaction in the SVM signer.
   if (typeof signer.getConfirmedTransactionInnerInstructions === "function") {
-    try {
-      const confirmed = await signer.getConfirmedTransactionInnerInstructions(signature, network);
+    let confirmed: SmartWalletSimulationResult | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        confirmed = await signer.getConfirmedTransactionInnerInstructions(signature, network);
+        if (confirmed?.innerInstructions) break;
+      } catch {
+        // RPC error — retry
+      }
+      if (attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+      }
+    }
 
+    try {
       if (confirmed?.innerInstructions) {
         // Reuse the same extraction logic used for simulation results.
         // We pass an empty accountKeys array because the confirmed transaction's
