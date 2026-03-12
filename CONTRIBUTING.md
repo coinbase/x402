@@ -21,6 +21,7 @@ x402/
 ├── python/              # Python SDK
 ├── go/                  # Go SDK
 ├── java/                # Java SDK
+├── rust/                # Rust SDK
 ├── specs/               # Protocol specifications
 └── examples/            # Example implementations
     ├── typescript/
@@ -35,6 +36,7 @@ For setup instructions, development workflow, and contribution patterns for each
 - [TypeScript Development Guide](typescript/CONTRIBUTING.md)
 - [Python Development Guide](python/CONTRIBUTING.md)
 - [Go Development Guide](go/CONTRIBUTING.md)
+- [Rust Development Guide](rust/CONTRIBUTING.md)
 - [Specifications Guide](specs/CONTRIBUTING.md)
 
 ## Contributing Workflow
@@ -72,6 +74,9 @@ cd python/x402 && uv run pytest
 
 # Go
 cd go && make test
+
+# Rust
+cd rust/x402 && cargo test
 ```
 
 ### 6. Submit PR
@@ -196,7 +201,8 @@ Examples for each SDK live in `examples/`:
 examples/
 ├── typescript/    # TypeScript examples
 ├── python/        # Python examples
-└── go/            # Go examples
+├── go/            # Go examples
+└── rust/          # Rust examples
 ```
 
 When adding a new example, follow the patterns in the language-specific guide.
