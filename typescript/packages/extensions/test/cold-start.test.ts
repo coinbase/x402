@@ -299,6 +299,88 @@ describe("Cold-start signal helpers", () => {
       });
     });
 
+    it("accepts the Ed25519 alias and normalizes it to EdDSA", async () => {
+      const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+
+      const unsignedSignal = {
+        type: "reasoningAttestation",
+        provider: "thoughtproof",
+        checkedAt: "2026-03-11T12:00:00Z",
+        ttlSeconds: 300,
+        verdict: "PASS",
+      };
+
+      const signature = signBuffer(
+        null,
+        Buffer.from(canonicalizeColdStartSignal(unsignedSignal), "utf8"),
+        privateKey,
+      ).toString("base64url");
+
+      const result = await verifyColdStartSignalSignature(
+        {
+          ...unsignedSignal,
+          sig: signature,
+          kid: "ed25519-key-3",
+          alg: "Ed25519",
+        },
+        {
+          jwk: publicKey.export({ format: "jwk" }) as JsonWebKey,
+        },
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        algorithm: "EdDSA",
+        keyId: "ed25519-key-3",
+      });
+    });
+
+    it("verifies a caller-supplied canonical payload override", async () => {
+      const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+        modulusLength: 2048,
+      });
+
+      const signal = {
+        type: "serviceHealth",
+        provider: "discovery-service",
+        checkedAt: "2026-03-11T12:00:00Z",
+        ttlSeconds: 300,
+        uptimePct: 99.5,
+      };
+
+      const customPayload = JSON.stringify({
+        provider: signal.provider,
+        type: signal.type,
+      });
+
+      const signature = signBuffer("RSA-SHA256", Buffer.from(customPayload, "utf8"), privateKey).toString(
+        "base64url",
+      );
+
+      const result = await verifyColdStartSignalSignature(
+        {
+          ...signal,
+          sig: signature,
+          kid: "provider-key-custom-payload",
+          alg: "RS256",
+        },
+        {
+          jwk: publicKey.export({ format: "jwk" }) as JsonWebKey,
+          canonicalize: current =>
+            JSON.stringify({
+              provider: current.provider,
+              type: current.type,
+            }),
+        },
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        algorithm: "RS256",
+        keyId: "provider-key-custom-payload",
+      });
+    });
+
     it("returns an error for unsupported algorithms", async () => {
       const result = await verifyColdStartSignalSignature(
         {
