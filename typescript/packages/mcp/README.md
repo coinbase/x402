@@ -346,6 +346,186 @@ server.onAfterSettlement(async ({ toolName, settlement }) => {
 });
 ```
 
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. "402 Payment Required" not being caught by client
+
+**Symptoms:**
+- Tools return 402 but payment flow doesn't trigger
+- `onPaymentRequested` never called
+
+**Causes & Solutions:**
+
+```typescript
+// ❌ Wrong: Using standard MCP client without x402 wrapper
+const client = new Client({ name: "my-agent", version: "1.0.0" });
+
+// ✅ Correct: Use x402-enabled client
+const client = createX402MCPClient({
+  name: "my-agent",
+  version: "1.0.0",
+  schemes: [{ network: "eip155:84532", client: new ExactEvmScheme(walletAccount) }],
+});
+```
+
+#### 2. Payment verification failures
+
+**Symptoms:**
+- Server rejects payments with verification errors
+- "Invalid signature" or "Insufficient amount" errors
+
+**Debug steps:**
+
+```typescript
+// Add debug logging to server
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+  hooks: {
+    onBeforeExecution: async ({ paymentPayload, paymentRequirements }) => {
+      console.log("Payment payload:", JSON.stringify(paymentPayload, null, 2));
+      console.log("Requirements:", JSON.stringify(paymentRequirements, null, 2));
+      return true;
+    },
+  },
+});
+```
+
+**Common fixes:**
+- Ensure wallet has sufficient USDC balance
+- Check network ID matches (client and server on same network)
+- Verify facilitator URL is accessible from both client and server
+
+#### 3. Settlement failures
+
+**Symptoms:**
+- Payment verified but settlement fails
+- Tools execute but no on-chain transaction
+
+**Check facilitator health:**
+
+```typescript
+// Test facilitator connectivity
+const facilitatorClient = new HTTPFacilitatorClient({ 
+  url: "https://x402.org/facilitator" 
+});
+
+try {
+  const health = await facilitatorClient.checkHealth();
+  console.log("Facilitator healthy:", health);
+} catch (error) {
+  console.error("Facilitator unreachable:", error.message);
+}
+```
+
+#### 4. MCP transport connection issues
+
+**Symptoms:**
+- Client fails to connect to server
+- "Transport error" or connection timeouts
+
+**Debug transport setup:**
+
+```typescript
+// Server: Log transport events
+mcpServer.onerror = (error) => console.error("MCP server error:", error);
+
+// Client: Check transport before connecting
+const transport = new SSEClientTransport(new URL("http://localhost:4022/sse"));
+transport.onerror = (error) => console.error("Transport error:", error);
+```
+
+#### 5. Payment wrapper not working
+
+**Symptoms:**
+- Tools run without payment requirement
+- No 402 returned for protected tools
+
+**Check configuration:**
+
+```typescript
+// ❌ Wrong: Wrapper not applied to tool
+mcpServer.tool("paid-tool", "Description", {}, async (args) => {
+  return { content: [...] };
+});
+
+// ✅ Correct: Tool wrapped with payment
+mcpServer.tool("paid-tool", "Description", {}, 
+  paid(async (args) => {
+    return { content: [...] };
+  })
+);
+```
+
+### Performance Optimization
+
+#### Reuse payment wrapper instances
+
+```typescript
+// ❌ Slow: Create new wrapper per tool
+mcpServer.tool("tool1", "...", {}, createPaymentWrapper(...)(handler1));
+mcpServer.tool("tool2", "...", {}, createPaymentWrapper(...)(handler2));
+
+// ✅ Fast: Reuse wrapper
+const paid = createPaymentWrapper(resourceServer, { accepts });
+mcpServer.tool("tool1", "...", {}, paid(handler1));
+mcpServer.tool("tool2", "...", {}, paid(handler2));
+```
+
+#### Optimize resource server initialization
+
+```typescript
+// Initialize once, reuse across tools
+const resourceServer = new x402ResourceServer(facilitatorClient);
+resourceServer.register("eip155:84532", new ExactEvmScheme());
+await resourceServer.initialize(); // Do this once at startup
+
+// Build requirements once, reuse
+const accepts = await resourceServer.buildPaymentRequirements({...});
+```
+
+### Debugging Tips
+
+#### Enable verbose logging
+
+```typescript
+// Client debugging
+const client = createX402MCPClient({
+  // ... other options
+  debug: true, // If available
+});
+
+// Server debugging with hooks
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+  hooks: {
+    onBeforeExecution: async (context) => {
+      console.log("[DEBUG] Before execution:", context.toolName);
+      return true;
+    },
+    onAfterSettlement: async (context) => {
+      console.log("[DEBUG] Settlement:", context.settlement);
+    },
+  },
+});
+```
+
+#### Test with minimal setup
+
+```typescript
+// Minimal working server for testing
+const mcpServer = new McpServer({ name: "test", version: "1.0.0" });
+const resourceServer = new x402ResourceServer(facilitatorClient);
+
+// Test with simple free tool first
+mcpServer.tool("ping", "Test tool", {}, async () => ({
+  content: [{ type: "text", text: "pong" }],
+}));
+
+// Add payment after basic MCP works
+```
+
 ## License
 
 Apache-2.0
