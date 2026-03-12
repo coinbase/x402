@@ -9,11 +9,13 @@ import {
   extractEip2612GasSponsoringInfo,
   validateEip2612GasSponsoringInfo,
   extractErc20ApprovalGasSponsoringInfo,
-  ERC20_APPROVAL_GAS_SPONSORING,
+  ERC20_APPROVAL_GAS_SPONSORING_KEY,
+  resolveErc20ApprovalExtensionSigner,
+  type Eip2612GasSponsoringInfo,
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
-} from "@x402/extensions";
-import type { Eip2612GasSponsoringInfo } from "@x402/extensions";
-import { getAddress } from "viem";
+  type Erc20ApprovalGasSponsoringSigner,
+} from "../extensions";
+import { getAddress, encodeFunctionData } from "viem";
 import {
   eip3009ABI,
   PERMIT2_ADDRESS,
@@ -24,6 +26,7 @@ import {
 } from "../../constants";
 import {
   ErrPermit2612AmountMismatch,
+  ErrPermit2AmountMismatch,
   ErrPermit2InvalidAmount,
   ErrPermit2InvalidDestination,
   ErrPermit2InvalidNonce,
@@ -117,10 +120,13 @@ export async function verifyPermit2(
     };
   }
 
-  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
+  // Verify amount exactly matches requirements
+  if (
+    BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)
+  ) {
     return {
       isValid: false,
-      invalidReason: "permit2_insufficient_amount",
+      invalidReason: ErrPermit2AmountMismatch,
       payer,
     };
   }
@@ -262,7 +268,7 @@ async function _verifyPermit2Allowance(
     // Try ERC-20 approval gas sponsoring as fallback
     const erc20GasSponsorshipExtension =
       context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
-        ERC20_APPROVAL_GAS_SPONSORING.key,
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
       );
     if (erc20GasSponsorshipExtension) {
       const erc20Info = extractErc20ApprovalGasSponsoringInfo(payload);
@@ -277,15 +283,32 @@ async function _verifyPermit2Allowance(
 
     return { isValid: false, invalidReason: "permit2_allowance_required", payer };
   } catch {
-    // If allowance check fails, validate extensions if present; otherwise proceed optimistically
+    // Allowance check failed — validate extensions if present; fail closed if none valid
     const eip2612Info = extractEip2612GasSponsoringInfo(payload);
     if (eip2612Info) {
       const result = validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress);
       if (!result.isValid) {
         return { isValid: false, invalidReason: result.invalidReason!, payer };
       }
+      return null;
     }
-    return null;
+
+    const erc20GasSponsorshipExtension =
+      context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
+      );
+    if (erc20GasSponsorshipExtension) {
+      const erc20Info = extractErc20ApprovalGasSponsoringInfo(payload);
+      if (erc20Info) {
+        const result = await validateErc20ApprovalForPayment(erc20Info, payer, tokenAddress);
+        if (!result.isValid) {
+          return { isValid: false, invalidReason: result.invalidReason!, payer };
+        }
+        return null;
+      }
+    }
+
+    return { isValid: false, invalidReason: "permit2_allowance_required", payer };
   }
 }
 
@@ -334,15 +357,14 @@ export async function settlePermit2(
   if (erc20Info) {
     const erc20GasSponsorshipExtension =
       context?.getExtension<Erc20ApprovalGasSponsoringFacilitatorExtension>(
-        ERC20_APPROVAL_GAS_SPONSORING.key,
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
       );
-    if (erc20GasSponsorshipExtension?.signer) {
-      return _settlePermit2WithERC20Approval(
-        erc20GasSponsorshipExtension.signer,
-        payload,
-        permit2Payload,
-        erc20Info,
-      );
+    const extensionSigner = resolveErc20ApprovalExtensionSigner(
+      erc20GasSponsorshipExtension,
+      payload.accepted.network,
+    );
+    if (extensionSigner) {
+      return _settlePermit2WithERC20Approval(extensionSigner, payload, permit2Payload, erc20Info);
     }
   }
 
@@ -405,18 +427,18 @@ async function _settlePermit2WithEIP2612(
 }
 
 /**
- * Broadcasts the pre-signed ERC-20 approve tx then settles via the extension signer.
- * Both operations use the extension signer, enabling atomic bundling by production implementations.
+ * Delegates the full approve+settle flow to the extension signer via sendTransactions.
+ * The signer owns execution strategy (sequential, batched, or atomic bundling).
  *
- * @param extensionSigner - The extension signer with sendRawTransaction + writeContract
+ * @param extensionSigner - The extension signer with sendTransactions
  * @param payload - The payment payload
  * @param permit2Payload - The Permit2 specific payload
  * @param erc20Info - Object containing the signed approval transaction
- * @param erc20Info.signedTransaction - The RLP-encoded signed EIP-1559 approval tx
+ * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction hex string
  * @returns Promise resolving to settlement response
  */
 async function _settlePermit2WithERC20Approval(
-  extensionSigner: Erc20ApprovalGasSponsoringFacilitatorExtension["signer"] & {},
+  extensionSigner: Erc20ApprovalGasSponsoringSigner,
   payload: PaymentPayload,
   permit2Payload: ExactPermit2Payload,
   erc20Info: { signedTransaction: string },
@@ -424,26 +446,7 @@ async function _settlePermit2WithERC20Approval(
   const payer = permit2Payload.permit2Authorization.from;
 
   try {
-    const approvalTxHash = await extensionSigner.sendRawTransaction({
-      serializedTransaction: erc20Info.signedTransaction as `0x${string}`,
-    });
-
-    const approvalReceipt = await extensionSigner.waitForTransactionReceipt({
-      hash: approvalTxHash,
-    });
-
-    if (approvalReceipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: "erc20_approval_tx_failed",
-        transaction: approvalTxHash,
-        network: payload.accepted.network,
-        payer,
-      };
-    }
-
-    const tx = await extensionSigner.writeContract({
-      address: x402ExactPermit2ProxyAddress,
+    const settleData = encodeFunctionData({
       abi: x402ExactPermit2ProxyABI,
       functionName: "settle",
       args: [
@@ -464,7 +467,13 @@ async function _settlePermit2WithERC20Approval(
       ],
     });
 
-    return _waitAndReturn(extensionSigner, tx, payload, payer);
+    const txHashes = await extensionSigner.sendTransactions([
+      erc20Info.signedTransaction as `0x${string}`,
+      { to: x402ExactPermit2ProxyAddress, data: settleData, gas: BigInt(300_000) },
+    ]);
+
+    const settleTxHash = txHashes[txHashes.length - 1];
+    return _waitAndReturn(extensionSigner, settleTxHash, payload, payer);
   } catch (error) {
     return _mapSettleError(error, payload, payer);
   }
@@ -578,6 +587,8 @@ function _mapSettleError(
       errorReason = ErrPermit2InvalidSignature;
     } else if (message.includes("InvalidNonce")) {
       errorReason = ErrPermit2InvalidNonce;
+    } else if (message.includes("erc20_approval_tx_failed")) {
+      errorReason = "erc20_approval_tx_failed";
     } else {
       errorReason = `transaction_failed: ${message.slice(0, 500)}`;
     }

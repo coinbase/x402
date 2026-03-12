@@ -150,16 +150,12 @@ export async function handleSettlement(
 
     if (!result.success) {
       // Settlement failed - do not return the protected resource
-      return new NextResponse(
-        JSON.stringify({
-          error: "Settlement failed",
-          details: result.errorReason,
-        }),
-        {
-          status: 402,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      const { response } = result;
+      const body = response.isHtml ? response.body : JSON.stringify(response.body ?? {});
+      return new NextResponse(body, {
+        status: response.status,
+        headers: response.headers,
+      });
     }
 
     // Settlement succeeded - add headers and return original response
@@ -171,15 +167,9 @@ export async function handleSettlement(
   } catch (error) {
     console.error("Settlement failed:", error);
     // If settlement fails, return an error response
-    return new NextResponse(
-      JSON.stringify({
-        error: "Settlement failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 402,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return new NextResponse(JSON.stringify({}), {
+      status: 402,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

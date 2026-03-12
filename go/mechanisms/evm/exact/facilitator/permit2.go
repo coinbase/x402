@@ -84,8 +84,8 @@ func VerifyPermit2(
 	if !ok {
 		return nil, x402.NewVerifyError(ErrInvalidRequiredAmount, payer, "invalid required amount format")
 	}
-	if authAmount.Cmp(requiredAmount) < 0 {
-		return nil, x402.NewVerifyError(ErrPermit2InsufficientAmount, payer, "insufficient amount")
+	if authAmount.Cmp(requiredAmount) != 0 {
+		return nil, x402.NewVerifyError(ErrPermit2AmountMismatch, payer, "amount mismatch")
 	}
 
 	// Verify token matches
@@ -104,36 +104,18 @@ func VerifyPermit2(
 		return nil, x402.NewVerifyError(ErrPermit2InvalidSignature, payer, "invalid signature")
 	}
 
-	// Check Permit2 allowance
-	allowance, err := signer.ReadContract(ctx, tokenAddress, evm.ERC20AllowanceABI, "allowance",
+	needsExtension := true
+	allowance, allowanceErr := signer.ReadContract(ctx, tokenAddress, evm.ERC20AllowanceABI, "allowance",
 		common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address))
-	if err == nil {
-		if allowanceBig, ok := allowance.(*big.Int); ok && allowanceBig.Cmp(requiredAmount) < 0 {
-			// Allowance insufficient - try EIP-2612 first, then ERC-20 approval extension
-			eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
-			if eip2612Info != nil {
-				// Validate the EIP-2612 extension data
-				if validErr := validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress); validErr != "" {
-					return nil, x402.NewVerifyError(validErr, payer, "eip2612 validation failed")
-				}
-				// EIP-2612 extension is valid, allowance will be set during settlement
-			} else {
-				// Try ERC-20 approval extension
-				erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
-				if erc20Info != nil && facilCtx != nil {
-					ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
-					if ok && ext != nil && ext.Signer != nil {
-						if reason, msg := ValidateErc20ApprovalForPayment(erc20Info, payer, tokenAddress); reason != "" {
-							return nil, x402.NewVerifyError(reason, payer, msg)
-						}
-						// ERC-20 approval valid, tx will be broadcast during settlement
-					} else {
-						return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
-					}
-				} else {
-					return nil, x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
-				}
-			}
+	if allowanceErr == nil {
+		if allowanceBig, ok := allowance.(*big.Int); ok && allowanceBig.Cmp(requiredAmount) >= 0 {
+			needsExtension = false
+		}
+	}
+
+	if needsExtension {
+		if extErr := verifyPermit2Extensions(payload, payer, tokenAddress, facilCtx); extErr != nil {
+			return nil, extErr
 		}
 	}
 
@@ -147,6 +129,41 @@ func VerifyPermit2(
 		IsValid: true,
 		Payer:   payer,
 	}, nil
+}
+
+// verifyPermit2Extensions validates gas-sponsoring extensions when Permit2 allowance
+// is insufficient or could not be read. Returns nil if a valid extension is found,
+// or a VerifyError if none are present/valid.
+func verifyPermit2Extensions(
+	payload types.PaymentPayload,
+	payer string,
+	tokenAddress string,
+	facilCtx *x402.FacilitatorContext,
+) error {
+	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
+	if eip2612Info != nil {
+		if validErr := validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress); validErr != "" {
+			return x402.NewVerifyError(validErr, payer, "eip2612 validation failed")
+		}
+		return nil
+	}
+
+	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
+	if erc20Info != nil && facilCtx != nil {
+		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
+		var extensionSigner erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner
+		if ok && ext != nil {
+			extensionSigner = ext.ResolveSigner(payload.Accepted.Network)
+		}
+		if extensionSigner != nil {
+			if reason, msg := ValidateErc20ApprovalForPayment(erc20Info, payer, tokenAddress); reason != "" {
+				return x402.NewVerifyError(reason, payer, msg)
+			}
+			return nil
+		}
+	}
+
+	return x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
 }
 
 // SettlePermit2 settles a Permit2 payment by calling x402ExactPermit2Proxy.settle().
@@ -222,7 +239,6 @@ func SettlePermit2(
 		ValidAfter: validAfter,
 	}
 
-	// Check for EIP-2612 gas sponsoring extension
 	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
 	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
 
@@ -271,38 +287,29 @@ func SettlePermit2(
 			signatureBytes,
 		)
 	case erc20Info != nil && facilCtx != nil:
-		// ERC-20 approval path: broadcast pre-signed approve tx, then settle
+		// Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
-		if ok && ext != nil && ext.Signer != nil {
-			// 1. Broadcast the pre-signed approve transaction
-			approveTxHash, broadcastErr := ext.Signer.SendRawTransaction(ctx, erc20Info.SignedTransaction)
-			if broadcastErr != nil {
-				return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, payer, network, "", broadcastErr.Error())
+		var extensionSigner erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner
+		if ok && ext != nil {
+			extensionSigner = ext.ResolveSigner(payload.Accepted.Network)
+		}
+		if extensionSigner != nil {
+			settle := erc20approvalgassponsor.WriteContractCall{
+				Address:  evm.X402ExactPermit2ProxyAddress,
+				ABI:      evm.X402ExactPermit2ProxySettleABI,
+				Function: evm.FunctionSettle,
+				Args:     []interface{}{permitStruct, common.HexToAddress(payer), witnessStruct, signatureBytes},
 			}
-
-			// 2. Wait for approve tx confirmation
-			approveReceipt, receiptErr := ext.Signer.WaitForTransactionReceipt(ctx, approveTxHash)
-			if receiptErr != nil || approveReceipt.Status != evm.TxStatusSuccess {
-				msg := "approve tx failed"
-				if receiptErr != nil {
-					msg = receiptErr.Error()
-				}
-				return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, payer, network, approveTxHash, msg)
+			txHashes, sendErr := extensionSigner.SendTransactions(ctx, []erc20approvalgassponsor.TransactionRequest{
+				{Serialized: erc20Info.SignedTransaction},
+				{Call: &settle},
+			})
+			if sendErr != nil {
+				err = sendErr
+			} else if len(txHashes) > 0 {
+				txHash = txHashes[len(txHashes)-1]
 			}
-
-			// 3. Call settle via extension signer
-			txHash, err = ext.Signer.WriteContract(
-				ctx,
-				evm.X402ExactPermit2ProxyAddress,
-				evm.X402ExactPermit2ProxySettleABI,
-				evm.FunctionSettle,
-				permitStruct,
-				common.HexToAddress(payer),
-				witnessStruct,
-				signatureBytes,
-			)
 		} else {
-			// Extension not properly configured, fall through to standard settle
 			txHash, err = signer.WriteContract(
 				ctx,
 				evm.X402ExactPermit2ProxyAddress,
@@ -315,7 +322,6 @@ func SettlePermit2(
 			)
 		}
 	default:
-		// Standard settle - no gas sponsoring extension
 		txHash, err = signer.WriteContract(
 			ctx,
 			evm.X402ExactPermit2ProxyAddress,
@@ -334,7 +340,15 @@ func SettlePermit2(
 	}
 
 	// Wait for transaction confirmation
-	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
+	receiptWaitSigner := signer
+	if erc20Info != nil && facilCtx != nil {
+		if ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension); ok && ext != nil {
+			if extensionSigner := ext.ResolveSigner(payload.Accepted.Network); extensionSigner != nil {
+				receiptWaitSigner = extensionSigner
+			}
+		}
+	}
+	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrFailedToGetReceipt, payer, network, txHash, err.Error())
 	}
@@ -442,6 +456,8 @@ func parsePermit2Error(err error) string {
 		return ErrPermit2InvalidSignature
 	case strings.Contains(msg, "InvalidNonce"):
 		return ErrPermit2InvalidNonce
+	case strings.Contains(msg, "erc20_approval_tx_failed"):
+		return ErrErc20ApprovalBroadcastFailed
 	default:
 		return ErrFailedToExecuteTransfer
 	}

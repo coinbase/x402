@@ -15,6 +15,7 @@ const (
 	FunctionTransferWithAuthorization = "transferWithAuthorization"
 	FunctionReceiveWithAuthorization  = "receiveWithAuthorization"
 	FunctionAuthorizationState        = "authorizationState"
+	FunctionTryAggregate              = "tryAggregate"
 
 	// Permit2 function names
 	FunctionSettle = "settle"
@@ -40,6 +41,10 @@ const (
 	// PERMIT2Address is the canonical Uniswap Permit2 contract address.
 	// Same address on all EVM chains via CREATE2 deployment.
 	PERMIT2Address = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+
+	// MULTICALL3Address is the canonical Multicall3 deployment address.
+	// Same address on all EVM chains via CREATE2 deployment.
+	MULTICALL3Address = "0xcA11bde05977b3631167028862bE2a173976CA11"
 
 	// X402ExactPermit2ProxyAddress is the x402 exact payment proxy.
 	// Vanity address: 0x4020...0001 for easy recognition.
@@ -95,14 +100,16 @@ var (
 				Decimals: DefaultDecimals,
 			},
 		},
-		// MegaETH Mainnet
+		// MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
 		"eip155:4326": {
 			ChainID: ChainIDMegaETH,
 			DefaultAsset: AssetInfo{
-				Address:  "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", // USDM (MegaUSD)
-				Name:     "MegaUSD",
-				Version:  "1",
-				Decimals: 18,
+				Address:             "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", // USDM (MegaUSD)
+				Name:                "MegaUSD",
+				Version:             "1",
+				Decimals:            18,
+				AssetTransferMethod: AssetTransferMethodPermit2,
+				SupportsEip2612:     true,
 			},
 		},
 		// Monad Mainnet
@@ -174,6 +181,36 @@ var (
 		}
 	]`)
 
+	// Multicall3TryAggregateABI batches arbitrary eth_call requests.
+	Multicall3TryAggregateABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "requireSuccess", "type": "bool"},
+				{
+					"name": "calls",
+					"type": "tuple[]",
+					"components": [
+						{"name": "target", "type": "address"},
+						{"name": "callData", "type": "bytes"}
+					]
+				}
+			],
+			"name": "tryAggregate",
+			"outputs": [
+				{
+					"name": "returnData",
+					"type": "tuple[]",
+					"components": [
+						{"name": "success", "type": "bool"},
+						{"name": "returnData", "type": "bytes"}
+					]
+				}
+			],
+			"stateMutability": "payable",
+			"type": "function"
+		}
+	]`)
+
 	// ERC20AllowanceABI for checking Permit2 approval
 	ERC20AllowanceABI = []byte(`[
 		{
@@ -210,6 +247,28 @@ var (
 			],
 			"name": "balanceOf",
 			"outputs": [{"name": "", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// ERC20NameABI for checking EIP-712 domain name diagnostics.
+	ERC20NameABI = []byte(`[
+		{
+			"inputs": [],
+			"name": "name",
+			"outputs": [{"name": "", "type": "string"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// ERC20VersionABI for checking EIP-712 domain version diagnostics.
+	ERC20VersionABI = []byte(`[
+		{
+			"inputs": [],
+			"name": "version",
+			"outputs": [{"name": "", "type": "string"}],
 			"stateMutability": "view",
 			"type": "function"
 		}

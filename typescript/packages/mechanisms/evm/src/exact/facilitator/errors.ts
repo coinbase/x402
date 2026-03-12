@@ -5,16 +5,31 @@
  * go/mechanisms/evm/exact/facilitator/errors.go to maintain cross-SDK parity.
  */
 
-// EIP-3009 verify errors
 export const ErrInvalidScheme = "invalid_exact_evm_scheme";
 export const ErrNetworkMismatch = "invalid_exact_evm_network_mismatch";
+export const ErrMissingEip712Domain = "invalid_exact_evm_missing_eip712_domain";
+export const ErrRecipientMismatch = "invalid_exact_evm_recipient_mismatch";
+export const ErrInvalidSignature = "invalid_exact_evm_signature";
+export const ErrValidBeforeExpired = "invalid_exact_evm_payload_authorization_valid_before";
+export const ErrValidAfterInFuture = "invalid_exact_evm_payload_authorization_valid_after";
+export const ErrInvalidAuthorizationValue = "invalid_exact_evm_authorization_value";
+export const ErrUndeployedSmartWallet = "invalid_exact_evm_payload_undeployed_smart_wallet";
+export const ErrTransactionFailed = "invalid_exact_evm_transaction_failed";
+
+// EIP-3009 verify errors
+export const ErrEip3009TokenNameMismatch = "invalid_exact_evm_token_name_mismatch";
+export const ErrEip3009TokenVersionMismatch = "invalid_exact_evm_token_version_mismatch";
+export const ErrEip3009NotSupported = "invalid_exact_evm_eip3009_not_supported";
+export const ErrEip3009NonceAlreadyUsed = "invalid_exact_evm_nonce_already_used";
+export const ErrEip3009InsufficientBalance = "invalid_exact_evm_insufficient_balance";
+export const ErrEip3009SimulationFailed = "invalid_exact_evm_transaction_simulation_failed";
 
 // Permit2 verify errors
 export const ErrPermit2InvalidSpender = "invalid_permit2_spender";
 export const ErrPermit2RecipientMismatch = "invalid_permit2_recipient_mismatch";
 export const ErrPermit2DeadlineExpired = "permit2_deadline_expired";
 export const ErrPermit2NotYetValid = "permit2_not_yet_valid";
-export const ErrPermit2InsufficientAmount = "permit2_insufficient_amount";
+export const ErrPermit2AmountMismatch = "permit2_amount_mismatch";
 export const ErrPermit2TokenMismatch = "permit2_token_mismatch";
 export const ErrPermit2InvalidSignature = "invalid_permit2_signature";
 export const ErrPermit2AllowanceRequired = "permit2_allowance_required";
