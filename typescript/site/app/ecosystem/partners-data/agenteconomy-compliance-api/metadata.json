@@ -3,5 +3,5 @@
   "category": "Services/Endpoints",
   "logoUrl": "/logos/agenteconomy-compliance-api.png",
   "description": "KYC, AML, and risk assessment API powered by real OFAC and UN sanctions data. Pay-per-call via x402 USDC micropayments on Base. Includes sanctions screening, PEP checks, risk scoring, and comprehensive risk reports.",
-  "websiteUrl": "https://netbrainis.co.za"
+  "websiteUrl": "https://api.netbrainis.co.za"
 }
