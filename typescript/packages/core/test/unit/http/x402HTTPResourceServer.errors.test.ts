@@ -99,7 +99,7 @@ describe("x402HTTPResourceServer facilitator response errors", () => {
 
   it("rethrows FacilitatorResponseError during settlement", async () => {
     facilitator.setSettleResponse(
-      new FacilitatorResponseError("Facilitator settle returned invalid data: {\"success\":true}"),
+      new FacilitatorResponseError('Facilitator settle returned invalid data: {"success":true}'),
     );
 
     const accepted = buildPaymentRequirements({

@@ -26,10 +26,7 @@ describe("HTTPFacilitatorClient", () => {
   });
 
   it("throws FacilitatorResponseError for invalid verify JSON on success", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })));
 
     const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
     const error = await client
@@ -43,9 +40,7 @@ describe("HTTPFacilitatorClient", () => {
   it("throws FacilitatorResponseError for invalid settle data on success", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ success: true }), { status: 200 }),
-      ),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })),
     );
 
     const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
@@ -60,9 +55,11 @@ describe("HTTPFacilitatorClient", () => {
   it("throws FacilitatorResponseError for invalid supported data on success", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ kinds: [{ scheme: "exact" }] }), { status: 200 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ kinds: [{ scheme: "exact" }] }), { status: 200 }),
+        ),
     );
 
     const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });

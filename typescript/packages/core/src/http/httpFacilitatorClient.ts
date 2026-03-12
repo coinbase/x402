@@ -62,7 +62,7 @@ const GET_SUPPORTED_RETRIES = 3;
 /** Base delay in ms for exponential backoff on retries */
 const GET_SUPPORTED_RETRY_DELAY_MS = 1000;
 
-const verifyResponseSchema: z.ZodType<VerifyResponse> = z.object({
+const verifyResponseSchema: z.ZodType<VerifyResponse, z.ZodTypeDef, unknown> = z.object({
   isValid: z.boolean(),
   invalidReason: z.string().optional(),
   invalidMessage: z.string().optional(),
@@ -70,7 +70,7 @@ const verifyResponseSchema: z.ZodType<VerifyResponse> = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-const settleResponseSchema: z.ZodType<SettleResponse> = z.object({
+const settleResponseSchema: z.ZodType<SettleResponse, z.ZodTypeDef, unknown> = z.object({
   success: z.boolean(),
   errorReason: z.string().optional(),
   errorMessage: z.string().optional(),
@@ -80,21 +80,29 @@ const settleResponseSchema: z.ZodType<SettleResponse> = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-const supportedKindSchema: z.ZodType<SupportedResponse["kinds"][number]> = z.object({
-  x402Version: z.number(),
-  scheme: z.string(),
-  network: z.custom<SupportedResponse["kinds"][number]["network"]>(
-    value => typeof value === "string",
-  ),
-  extra: z.record(z.string(), z.unknown()).optional(),
-});
+const supportedKindSchema: z.ZodType<SupportedResponse["kinds"][number], z.ZodTypeDef, unknown> =
+  z.object({
+    x402Version: z.number(),
+    scheme: z.string(),
+    network: z.custom<SupportedResponse["kinds"][number]["network"]>(
+      value => typeof value === "string",
+    ),
+    extra: z.record(z.string(), z.unknown()).optional(),
+  });
 
-const supportedResponseSchema: z.ZodType<SupportedResponse> = z.object({
+const supportedResponseSchema: z.ZodType<SupportedResponse, z.ZodTypeDef, unknown> = z.object({
   kinds: z.array(supportedKindSchema),
   extensions: z.array(z.string()).default([]),
   signers: z.record(z.string(), z.array(z.string())).default({}),
 });
 
+/**
+ * Produces a compact excerpt of a facilitator response body for error messages.
+ *
+ * @param text - The raw response body text
+ * @param limit - The maximum number of characters to include
+ * @returns A normalized excerpt suitable for logs and thrown errors
+ */
 function responseExcerpt(text: string, limit: number = 200): string {
   const compact = text.trim().replace(/\s+/g, " ");
   if (!compact) {
@@ -108,9 +116,17 @@ function responseExcerpt(text: string, limit: number = 200): string {
   return `${compact.slice(0, limit - 3)}...`;
 }
 
+/**
+ * Parses and validates a successful facilitator response body.
+ *
+ * @param response - The HTTP response returned by the facilitator
+ * @param schema - The schema used to validate the response payload
+ * @param operation - The facilitator operation name for error reporting
+ * @returns The validated facilitator payload
+ */
 async function parseSuccessResponse<T>(
   response: Response,
-  schema: z.ZodType<T>,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   operation: string,
 ): Promise<T> {
   const text = await response.text();
@@ -118,7 +134,7 @@ async function parseSuccessResponse<T>(
   let data: unknown;
   try {
     data = JSON.parse(text);
-  } catch (error) {
+  } catch {
     throw new FacilitatorResponseError(
       `Facilitator ${operation} returned invalid JSON: ${responseExcerpt(text)}`,
     );
