@@ -62,6 +62,16 @@
         "default": "./dist/cjs/index.js"
       }
     },
+    "./cold-start": {
+      "import": {
+        "types": "./dist/esm/cold-start/index.d.mts",
+        "default": "./dist/esm/cold-start/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/cold-start/index.d.ts",
+        "default": "./dist/cjs/cold-start/index.js"
+      }
+    },
     "./bazaar": {
       "import": {
         "types": "./dist/esm/bazaar/index.d.mts",
