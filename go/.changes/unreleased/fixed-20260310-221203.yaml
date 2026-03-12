@@ -1,0 +1,3 @@
+kind: fixed
+body: Fixed paywall config injection targeting `</body>` causing SVG parse errors in the browser
+time: 2026-03-10T22:12:03.806859+09:00

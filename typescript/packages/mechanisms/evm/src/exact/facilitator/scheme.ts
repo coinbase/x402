@@ -19,6 +19,12 @@ export interface ExactEvmSchemeConfig {
    * @default false
    */
   deployERC4337WithEIP6492?: boolean;
+  /**
+   * If enabled, run on-chain simulation during settle's re-verify.
+   *
+   * @default false
+   */
+  simulateInSettle?: boolean;
 }
 
 /**
@@ -44,6 +50,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   ) {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
+      simulateInSettle: config?.simulateInSettle ?? false,
     };
   }
 
