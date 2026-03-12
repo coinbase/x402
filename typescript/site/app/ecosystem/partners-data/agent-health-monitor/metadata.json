@@ -1,0 +1,7 @@
+{
+  "name": "Agent Health Monitor",
+  "description": "10-endpoint wallet intelligence API enriched with Nansen blockchain analytics. Risk scores, health checks, counterparty analysis, wallet network mapping, PnL summaries, and autonomous protection — all pay-per-call via x402 on Base.",
+  "logoUrl": "/logos/agent-health-monitor.png",
+  "websiteUrl": "https://agenthealthmonitor.xyz",
+  "category": "Services/Endpoints"
+}
