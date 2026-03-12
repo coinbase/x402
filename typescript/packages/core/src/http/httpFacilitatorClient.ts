@@ -5,7 +5,9 @@ import {
   SupportedResponse,
   VerifyError,
   SettleError,
+  FacilitatorResponseError,
 } from "../types/facilitator";
+import { z } from "../schemas";
 
 const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 
@@ -60,6 +62,78 @@ const GET_SUPPORTED_RETRIES = 3;
 /** Base delay in ms for exponential backoff on retries */
 const GET_SUPPORTED_RETRY_DELAY_MS = 1000;
 
+const verifyResponseSchema: z.ZodType<VerifyResponse> = z.object({
+  isValid: z.boolean(),
+  invalidReason: z.string().optional(),
+  invalidMessage: z.string().optional(),
+  payer: z.string().optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(),
+});
+
+const settleResponseSchema: z.ZodType<SettleResponse> = z.object({
+  success: z.boolean(),
+  errorReason: z.string().optional(),
+  errorMessage: z.string().optional(),
+  payer: z.string().optional(),
+  transaction: z.string(),
+  network: z.custom<SettleResponse["network"]>(value => typeof value === "string"),
+  extensions: z.record(z.string(), z.unknown()).optional(),
+});
+
+const supportedKindSchema: z.ZodType<SupportedResponse["kinds"][number]> = z.object({
+  x402Version: z.number(),
+  scheme: z.string(),
+  network: z.custom<SupportedResponse["kinds"][number]["network"]>(
+    value => typeof value === "string",
+  ),
+  extra: z.record(z.string(), z.unknown()).optional(),
+});
+
+const supportedResponseSchema: z.ZodType<SupportedResponse> = z.object({
+  kinds: z.array(supportedKindSchema),
+  extensions: z.array(z.string()).default([]),
+  signers: z.record(z.string(), z.array(z.string())).default({}),
+});
+
+function responseExcerpt(text: string, limit: number = 200): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  if (!compact) {
+    return "<empty response>";
+  }
+
+  if (compact.length <= limit) {
+    return compact;
+  }
+
+  return `${compact.slice(0, limit - 3)}...`;
+}
+
+async function parseSuccessResponse<T>(
+  response: Response,
+  schema: z.ZodType<T>,
+  operation: string,
+): Promise<T> {
+  const text = await response.text();
+
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    throw new FacilitatorResponseError(
+      `Facilitator ${operation} returned invalid JSON: ${responseExcerpt(text)}`,
+    );
+  }
+
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    throw new FacilitatorResponseError(
+      `Facilitator ${operation} returned invalid data: ${responseExcerpt(text)}`,
+    );
+  }
+
+  return parsed.data;
+}
+
 /**
  * HTTP-based client for interacting with x402 facilitator services
  * Handles HTTP communication with facilitator endpoints
@@ -108,17 +182,23 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    const data = await response.json();
-
-    if (typeof data === "object" && data !== null && "isValid" in data) {
-      const verifyResponse = data as VerifyResponse;
-      if (!response.ok) {
-        throw new VerifyError(response.status, verifyResponse);
+    if (!response.ok) {
+      const text = await response.text();
+      let data: unknown;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Facilitator verify failed (${response.status}): ${text}`);
       }
-      return verifyResponse;
+
+      if (typeof data === "object" && data !== null && "isValid" in data) {
+        throw new VerifyError(response.status, data as VerifyResponse);
+      }
+
+      throw new Error(`Facilitator verify failed (${response.status}): ${JSON.stringify(data)}`);
     }
 
-    throw new Error(`Facilitator verify failed (${response.status}): ${JSON.stringify(data)}`);
+    return parseSuccessResponse(response, verifyResponseSchema, "verify");
   }
 
   /**
@@ -151,17 +231,23 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    const data = await response.json();
-
-    if (typeof data === "object" && data !== null && "success" in data) {
-      const settleResponse = data as SettleResponse;
-      if (!response.ok) {
-        throw new SettleError(response.status, settleResponse);
+    if (!response.ok) {
+      const text = await response.text();
+      let data: unknown;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Facilitator settle failed (${response.status}): ${text}`);
       }
-      return settleResponse;
+
+      if (typeof data === "object" && data !== null && "success" in data) {
+        throw new SettleError(response.status, data as SettleResponse);
+      }
+
+      throw new Error(`Facilitator settle failed (${response.status}): ${JSON.stringify(data)}`);
     }
 
-    throw new Error(`Facilitator settle failed (${response.status}): ${JSON.stringify(data)}`);
+    return parseSuccessResponse(response, settleResponseSchema, "settle");
   }
 
   /**
@@ -188,7 +274,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       });
 
       if (response.ok) {
-        return (await response.json()) as SupportedResponse;
+        return parseSuccessResponse(response, supportedResponseSchema, "supported");
       }
 
       const errorText = await response.text().catch(() => response.statusText);

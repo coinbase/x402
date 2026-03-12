@@ -22,6 +22,12 @@ vi.mock("@x402/core/server", () => {
     requiresPayment: vi.fn().mockReturnValue(true),
   }));
   return {
+    FacilitatorResponseError: class FacilitatorResponseError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = "FacilitatorResponseError";
+      }
+    },
     x402HTTPResourceServer: MockHTTPResourceServer,
     x402ResourceServer: vi.fn(),
   };

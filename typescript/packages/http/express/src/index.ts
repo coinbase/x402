@@ -6,6 +6,7 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
+  FacilitatorResponseError,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
@@ -42,6 +43,23 @@ export interface SchemeRegistration {
    * The scheme server implementation for this network
    */
   server: SchemeNetworkServer;
+}
+
+function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
+  let current = error;
+
+  while (current instanceof Error) {
+    if (current instanceof FacilitatorResponseError) {
+      return current;
+    }
+    current = current.cause;
+  }
+
+  return null;
+}
+
+function sendFacilitatorError(res: Response, error: FacilitatorResponseError): void {
+  res.status(502).json({ error: error.message });
 }
 
 /**
@@ -113,7 +131,16 @@ export function paymentMiddlewareFromHTTPServer(
 
     // Only initialize when processing a protected route
     if (initPromise) {
-      await initPromise;
+      try {
+        await initPromise;
+      } catch (error) {
+        const facilitatorError = getFacilitatorResponseError(error);
+        if (facilitatorError) {
+          sendFacilitatorError(res, facilitatorError);
+          return;
+        }
+        return next(error);
+      }
       initPromise = null; // Clear after first await
     }
 
@@ -124,7 +151,16 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Process payment requirement check
-    const result = await httpServer.processHTTPRequest(context, paywallConfig);
+    let result: Awaited<ReturnType<x402HTTPResourceServer["processHTTPRequest"]>>;
+    try {
+      result = await httpServer.processHTTPRequest(context, paywallConfig);
+    } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        sendFacilitatorError(res, error);
+        return;
+      }
+      return next(error);
+    }
 
     // Handle the different result types
     switch (result.type) {
@@ -265,6 +301,11 @@ export function paymentMiddlewareFromHTTPServer(
             res.setHeader(key, value);
           });
         } catch (error) {
+          if (error instanceof FacilitatorResponseError) {
+            bufferedCalls = [];
+            sendFacilitatorError(res, error);
+            return;
+          }
           console.error(error);
           // If settlement fails, don't send the buffered response
           bufferedCalls = [];

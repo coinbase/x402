@@ -5,7 +5,7 @@ export type {
   SettleResponse,
   SupportedResponse,
 } from "./facilitator";
-export { VerifyError, SettleError } from "./facilitator";
+export { VerifyError, SettleError, FacilitatorResponseError } from "./facilitator";
 export type {
   PaymentRequirements,
   PaymentPayload,

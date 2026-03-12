@@ -101,3 +101,18 @@ export class SettleError extends Error {
     this.network = response.network;
   }
 }
+
+/**
+ * Error thrown when a facilitator returns malformed success payload data.
+ */
+export class FacilitatorResponseError extends Error {
+  /**
+   * Creates a FacilitatorResponseError for malformed facilitator responses.
+   *
+   * @param message - The boundary error message
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "FacilitatorResponseError";
+  }
+}

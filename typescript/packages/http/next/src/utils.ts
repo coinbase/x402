@@ -6,6 +6,7 @@ import {
   x402HTTPResourceServer,
   x402ResourceServer,
   RoutesConfig,
+  FacilitatorResponseError,
 } from "@x402/core/server";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -16,6 +17,26 @@ import { NextAdapter } from "./adapter";
 export interface HttpServerInstance {
   httpServer: x402HTTPResourceServer;
   init: () => Promise<void>;
+}
+
+export function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
+  let current = error;
+
+  while (current instanceof Error) {
+    if (current instanceof FacilitatorResponseError) {
+      return current;
+    }
+    current = current.cause;
+  }
+
+  return null;
+}
+
+export function createFacilitatorErrorResponse(error: FacilitatorResponseError): NextResponse {
+  return new NextResponse(JSON.stringify({ error: error.message }), {
+    status: 502,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 /**
@@ -165,6 +186,9 @@ export async function handleSettlement(
 
     return response;
   } catch (error) {
+    if (error instanceof FacilitatorResponseError) {
+      return createFacilitatorErrorResponse(error);
+    }
     console.error("Settlement failed:", error);
     // If settlement fails, return an error response
     return new NextResponse(JSON.stringify({}), {

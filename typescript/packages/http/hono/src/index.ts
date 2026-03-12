@@ -6,6 +6,7 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
+  FacilitatorResponseError,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { Context, MiddlewareHandler } from "hono";
@@ -42,6 +43,23 @@ export interface SchemeRegistration {
    * The scheme server implementation for this network
    */
   server: SchemeNetworkServer;
+}
+
+function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
+  let current = error;
+
+  while (current instanceof Error) {
+    if (current instanceof FacilitatorResponseError) {
+      return current;
+    }
+    current = current.cause;
+  }
+
+  return null;
+}
+
+function facilitatorErrorResponse(c: Context, error: FacilitatorResponseError): Response {
+  return c.json({ error: error.message }, 502);
 }
 
 /**
@@ -113,7 +131,15 @@ export function paymentMiddlewareFromHTTPServer(
 
     // Only initialize when processing a protected route
     if (initPromise) {
-      await initPromise;
+      try {
+        await initPromise;
+      } catch (error) {
+        const facilitatorError = getFacilitatorResponseError(error);
+        if (facilitatorError) {
+          return facilitatorErrorResponse(c, facilitatorError);
+        }
+        throw error;
+      }
       initPromise = null; // Clear after first await
     }
 
@@ -124,7 +150,15 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Process payment requirement check
-    const result = await httpServer.processHTTPRequest(context, paywallConfig);
+    let result: Awaited<ReturnType<x402HTTPResourceServer["processHTTPRequest"]>>;
+    try {
+      result = await httpServer.processHTTPRequest(context, paywallConfig);
+    } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        return facilitatorErrorResponse(c, error);
+      }
+      throw error;
+    }
 
     // Handle the different result types
     switch (result.type) {
@@ -190,6 +224,11 @@ export function paymentMiddlewareFromHTTPServer(
             });
           }
         } catch (error) {
+          if (error instanceof FacilitatorResponseError) {
+            res = facilitatorErrorResponse(c, error);
+            c.res = res;
+            return;
+          }
           console.error(error);
           // If settlement fails, return an error response
           res = c.json({}, 402);
