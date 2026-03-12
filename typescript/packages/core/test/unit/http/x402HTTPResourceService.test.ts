@@ -372,6 +372,84 @@ describe("x402HTTPResourceServer", () => {
       expect(result.type).toBe("payment-error"); // Route matched
     });
 
+    it("should match Express-style :param dynamic routes", async () => {
+      const routes = {
+        "/api/chapters/:seriesId/:chapterId": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/chapters/abc123/chapter-7",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("payment-error"); // Route matched
+    });
+
+    it("should match Express-style :param with HTTP method prefix", async () => {
+      const routes = {
+        "GET /api/users/:id": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/users/42",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("payment-error"); // Route matched
+    });
+
+    it("should not match :param against paths with extra segments", async () => {
+      const routes = {
+        "/api/users/:id": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/users/42/posts",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("no-payment-required");
+    });
+
     it("should return no-payment-required for unmatched routes", async () => {
       const routes = {
         "/api/protected": {
