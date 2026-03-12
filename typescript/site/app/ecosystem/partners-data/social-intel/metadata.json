@@ -1,0 +1,7 @@
+{
+  "name": "Social Intel API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/social-intel.png",
+  "description": "Instagram influencer search API with x402 micropayments. Search by niche, location, and follower count — get engagement metrics, audience demographics, and contact emails. $0.10/search in USDC on Base. MCP-native for AI agent integration, no API keys or subscriptions.",
+  "websiteUrl": "https://socialintel.dev"
+}
