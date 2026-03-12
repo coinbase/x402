@@ -49,6 +49,7 @@ svm = [
 tvm = [
     "pytoniq-core>=0.1.36",
     "PyNaCl>=1.5",
+    "httpx>=0.28.1",
 ]
 
 # MCP (Model Context Protocol) integration

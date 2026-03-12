@@ -30,8 +30,12 @@ from .constants import (
 # Signer protocols
 from .signer import ClientTvmSigner, FacilitatorTvmSigner
 
-# Signer implementations
-from .signers import TonapiProvider
+# Signer implementations — lazy import to avoid hard httpx dependency at import time
+def __getattr__(name: str):
+    if name == "TonapiProvider":
+        from .signers import TonapiProvider
+        return TonapiProvider
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Types
 from .types import (
