@@ -90,11 +90,11 @@ type verifyResponseEnvelope struct {
 }
 
 type settleResponseEnvelope struct {
-	Success      *bool        `json:"success"`
-	ErrorReason  string       `json:"errorReason,omitempty"`
-	ErrorMessage string       `json:"errorMessage,omitempty"`
-	Payer        string       `json:"payer,omitempty"`
-	Transaction  *string      `json:"transaction"`
+	Success      *bool         `json:"success"`
+	ErrorReason  string        `json:"errorReason,omitempty"`
+	ErrorMessage string        `json:"errorMessage,omitempty"`
+	Payer        string        `json:"payer,omitempty"`
+	Transaction  *string       `json:"transaction"`
 	Network      *x402.Network `json:"network"`
 }
 
@@ -173,15 +173,6 @@ func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) 
 	if err := json.Unmarshal(body, &response); err != nil {
 		return x402.SupportedResponse{}, newFacilitatorResponseError("getSupported", "JSON", body, err)
 	}
-	if response.Kinds == nil {
-		return x402.SupportedResponse{}, newFacilitatorResponseError(
-			"getSupported",
-			"data",
-			body,
-			fmt.Errorf("missing kinds"),
-		)
-	}
-
 	kinds := make([]x402.SupportedKind, 0, len(response.Kinds))
 	for _, kind := range response.Kinds {
 		if kind.X402Version == nil || kind.Scheme == "" || kind.Network == "" {
@@ -202,9 +193,23 @@ func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) 
 
 	return x402.SupportedResponse{
 		Kinds:      kinds,
-		Extensions: response.Extensions,
-		Signers:    response.Signers,
+		Extensions: nonNilStrings(response.Extensions),
+		Signers:    nonNilSigners(response.Signers),
 	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func nonNilSigners(signers map[string][]string) map[string][]string {
+	if signers == nil {
+		return map[string][]string{}
+	}
+	return signers
 }
 
 // NewHTTPFacilitatorClient creates a new HTTP facilitator client
