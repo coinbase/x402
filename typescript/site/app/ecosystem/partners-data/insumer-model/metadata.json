@@ -1,0 +1,7 @@
+{
+  "name": "InsumerAPI",
+  "description": "Wallet verification infrastructure for cold-start trust in x402. ECDSA-signed attestations verify token balances, NFT ownership, and on-chain credentials across 32 chains — boolean results, no balances exposed. JWKS-verifiable JWTs work with any standard gateway. Used by DJD Agent Score and AsterPay KYA for pre-payment trust signals.",
+  "logoUrl": "/logos/insumer-model.png",
+  "websiteUrl": "https://insumermodel.com",
+  "category": "Infrastructure & Tooling"
+}
