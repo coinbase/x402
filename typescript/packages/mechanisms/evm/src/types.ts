@@ -80,3 +80,28 @@ export function isPermit2Payload(payload: ExactEvmPayloadV2): payload is ExactPe
 export function isEIP3009Payload(payload: ExactEvmPayloadV2): payload is ExactEIP3009Payload {
   return "authorization" in payload;
 }
+
+/**
+ * Permit2 payload for the upto payment scheme.
+ * Structurally identical to ExactPermit2Payload — the upto scheme uses
+ * the same Permit2 witness pattern. The `permitted.amount` represents
+ * the **maximum** authorized amount; actual settlement may be less.
+ */
+export type UptoPermit2Payload = {
+  signature: `0x${string}`;
+  permit2Authorization: Permit2Authorization & {
+    from: `0x${string}`;
+  };
+};
+
+/**
+ * Type guard to check if a payload is an upto Permit2 payload.
+ *
+ * @param payload - The payload to check.
+ * @returns True if the payload has a `permit2Authorization` field.
+ */
+export function isUptoPermit2Payload(
+  payload: Record<string, unknown>,
+): payload is UptoPermit2Payload {
+  return "permit2Authorization" in payload;
+}

@@ -11,18 +11,18 @@ import {
   ERC20_APPROVAL_GAS_SPONSORING_KEY,
   resolveErc20ApprovalExtensionSigner,
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
-} from "../extensions";
+} from "../../exact/extensions";
 import { getAddress } from "viem";
 import {
   eip3009ABI,
   PERMIT2_ADDRESS,
   permit2WitnessTypes,
-  x402ExactPermit2ProxyAddress,
-  x402ExactPermit2ProxyABI,
+  x402UptoPermit2ProxyABI,
+  x402UptoPermit2ProxyAddress,
 } from "../../constants";
-import { ErrPermit2AmountMismatch } from "./errors";
+import { ErrPermit2AmountMismatch, ErrUptoSettlementExceedsAmount } from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
-import { ExactPermit2Payload } from "../../types";
+import { UptoPermit2Payload } from "../../types";
 import { getEvmChainId } from "../../utils";
 import {
   verifyPermit2Allowance,
@@ -32,13 +32,13 @@ import {
   type Permit2ProxyConfig,
 } from "../../shared/permit2";
 
-const exactProxyConfig: Permit2ProxyConfig = {
-  proxyAddress: x402ExactPermit2ProxyAddress,
-  proxyABI: x402ExactPermit2ProxyABI,
+const uptoProxyConfig: Permit2ProxyConfig = {
+  proxyAddress: x402UptoPermit2ProxyAddress,
+  proxyABI: x402UptoPermit2ProxyABI,
 };
 
 /**
- * Verifies a Permit2 payment payload.
+ * Verifies an upto Permit2 payment payload.
  *
  * Handles all Permit2 verification paths:
  * - Standard: checks on-chain Permit2 allowance
@@ -52,16 +52,16 @@ const exactProxyConfig: Permit2ProxyConfig = {
  * @param context - Optional facilitator context for extension-provided capabilities
  * @returns Promise resolving to verification response
  */
-export async function verifyPermit2(
+export async function verifyUptoPermit2(
   signer: FacilitatorEvmSigner,
   payload: PaymentPayload,
   requirements: PaymentRequirements,
-  permit2Payload: ExactPermit2Payload,
+  permit2Payload: UptoPermit2Payload,
   context?: FacilitatorContext,
 ): Promise<VerifyResponse> {
   const payer = permit2Payload.permit2Authorization.from;
 
-  if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
+  if (payload.accepted.scheme !== "upto" || requirements.scheme !== "upto") {
     return {
       isValid: false,
       invalidReason: "unsupported_scheme",
@@ -82,7 +82,7 @@ export async function verifyPermit2(
 
   if (
     getAddress(permit2Payload.permit2Authorization.spender) !==
-    getAddress(x402ExactPermit2ProxyAddress)
+    getAddress(x402UptoPermit2ProxyAddress)
   ) {
     return {
       isValid: false,
@@ -118,10 +118,7 @@ export async function verifyPermit2(
     };
   }
 
-  // Verify amount exactly matches requirements
-  if (
-    BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)
-  ) {
+  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
     return {
       isValid: false,
       invalidReason: ErrPermit2AmountMismatch,
@@ -223,11 +220,12 @@ export async function verifyPermit2(
 }
 
 /**
- * Settles a Permit2 payment. Single entry point for all Permit2 settlement paths:
+ * Settles an upto Permit2 payment. Single entry point for all Permit2 settlement paths:
  *
- * 1. EIP-2612 extension present -> settleWithPermit (atomic single tx via contract)
- * 2. ERC-20 approval extension present + extension signer -> broadcast approval + settle (via extension signer)
- * 3. Standard -> settle directly (allowance already on-chain)
+ * 1. Zero amount -> return immediately (no on-chain tx)
+ * 2. EIP-2612 extension present -> settleWithPermit (atomic single tx via contract)
+ * 3. ERC-20 approval extension present + extension signer -> broadcast approval + settle (via extension signer)
+ * 4. Standard -> settle directly (allowance already on-chain)
  *
  * @param signer - The base facilitator signer for contract writes
  * @param payload - The payment payload to settle
@@ -236,16 +234,16 @@ export async function verifyPermit2(
  * @param context - Optional facilitator context for extension-provided capabilities
  * @returns Promise resolving to settlement response
  */
-export async function settlePermit2(
+export async function settleUptoPermit2(
   signer: FacilitatorEvmSigner,
   payload: PaymentPayload,
   requirements: PaymentRequirements,
-  permit2Payload: ExactPermit2Payload,
+  permit2Payload: UptoPermit2Payload,
   context?: FacilitatorContext,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
 
-  const valid = await verifyPermit2(signer, payload, requirements, permit2Payload, context);
+  const valid = await verifyUptoPermit2(signer, payload, requirements, permit2Payload, context);
   if (!valid.isValid) {
     return {
       success: false,
@@ -256,10 +254,31 @@ export async function settlePermit2(
     };
   }
 
+  // Zero settlement — no on-chain tx needed
+  if (BigInt(requirements.amount) === 0n) {
+    return {
+      success: true,
+      transaction: "",
+      network: payload.accepted.network,
+      payer,
+      amount: "0",
+    };
+  }
+
+  if (BigInt(requirements.amount) > BigInt(permit2Payload.permit2Authorization.permitted.amount)) {
+    return {
+      success: false,
+      network: payload.accepted.network,
+      transaction: "",
+      errorReason: ErrUptoSettlementExceedsAmount,
+      payer,
+    };
+  }
+
   // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
   if (eip2612Info) {
-    return settlePermit2WithEIP2612(exactProxyConfig, signer, payload, permit2Payload, eip2612Info);
+    return settlePermit2WithEIP2612(uptoProxyConfig, signer, payload, permit2Payload, eip2612Info);
   }
 
   // Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
@@ -275,7 +294,7 @@ export async function settlePermit2(
     );
     if (extensionSigner) {
       return settlePermit2WithERC20Approval(
-        exactProxyConfig,
+        uptoProxyConfig,
         extensionSigner,
         payload,
         permit2Payload,
@@ -285,5 +304,5 @@ export async function settlePermit2(
   }
 
   // Branch: standard settle (allowance already on-chain)
-  return settlePermit2Direct(exactProxyConfig, signer, payload, permit2Payload);
+  return settlePermit2Direct(uptoProxyConfig, signer, payload, permit2Payload);
 }

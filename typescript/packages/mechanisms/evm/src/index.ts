@@ -29,6 +29,13 @@ export type {
 } from "./types";
 export { isPermit2Payload, isEIP3009Payload } from "./types";
 
+// Upto scheme client
+export { UptoEvmScheme } from "./upto";
+
+// Upto types
+export type { UptoPermit2Payload } from "./types";
+export { isUptoPermit2Payload } from "./types";
+
 // Constants
 export {
   PERMIT2_ADDRESS,
@@ -38,4 +45,5 @@ export {
   authorizationTypes,
   eip3009ABI,
   x402ExactPermit2ProxyABI,
+  x402UptoPermit2ProxyABI,
 } from "./constants";
