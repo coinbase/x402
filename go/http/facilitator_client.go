@@ -180,7 +180,7 @@ func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) 
 				"getSupported",
 				"data",
 				body,
-				fmt.Errorf("invalid supported kind"),
+				fmt.Errorf("invalid supported response fields"),
 			)
 		}
 		kinds = append(kinds, x402.SupportedKind{
@@ -191,25 +191,21 @@ func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) 
 		})
 	}
 
+	extensions := response.Extensions
+	if extensions == nil {
+		extensions = []string{}
+	}
+
+	signers := response.Signers
+	if signers == nil {
+		signers = map[string][]string{}
+	}
+
 	return x402.SupportedResponse{
 		Kinds:      kinds,
-		Extensions: nonNilStrings(response.Extensions),
-		Signers:    nonNilSigners(response.Signers),
+		Extensions: extensions,
+		Signers:    signers,
 	}, nil
-}
-
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
-}
-
-func nonNilSigners(signers map[string][]string) map[string][]string {
-	if signers == nil {
-		return map[string][]string{}
-	}
-	return signers
 }
 
 // NewHTTPFacilitatorClient creates a new HTTP facilitator client
@@ -331,7 +327,11 @@ func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 			return parseSupportedSuccessResponse(responseBody)
 		}
 
-		lastErr = fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(responseBody))
+		lastErr = fmt.Errorf(
+			"facilitator supported failed (%d): %s",
+			resp.StatusCode,
+			responseExcerpt(responseBody, 200),
+		)
 
 		// Retry on 429 with exponential backoff, except on the last attempt
 		if resp.StatusCode == http.StatusTooManyRequests && attempt < getSupportedRetries-1 {

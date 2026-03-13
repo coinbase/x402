@@ -3,7 +3,7 @@ export type { ResourceConfig, SettleResultContext } from "./x402ResourceServer";
 
 export { HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 export type { FacilitatorClient, FacilitatorConfig } from "../http/httpFacilitatorClient";
-export { FacilitatorResponseError } from "../types";
+export { FacilitatorResponseError, getFacilitatorResponseError } from "../types";
 
 export { x402HTTPResourceServer, RouteConfigurationError } from "../http/x402HTTPResourceServer";
 export type {

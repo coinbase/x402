@@ -7,6 +7,7 @@ import {
   RoutesConfig,
   FacilitatorClient,
   FacilitatorResponseError,
+  getFacilitatorResponseError,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { Context, MiddlewareHandler } from "hono";
@@ -45,19 +46,13 @@ export interface SchemeRegistration {
   server: SchemeNetworkServer;
 }
 
-function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
-  let current = error;
-
-  while (current instanceof Error) {
-    if (current instanceof FacilitatorResponseError) {
-      return current;
-    }
-    current = current.cause;
-  }
-
-  return null;
-}
-
+/**
+ * Builds a normalized 502 response for facilitator boundary failures.
+ *
+ * @param c - The current Hono context
+ * @param error - The facilitator response error to surface
+ * @returns A JSON 502 response
+ */
 function facilitatorErrorResponse(c: Context, error: FacilitatorResponseError): Response {
   return c.json({ error: error.message }, 502);
 }
@@ -100,6 +95,28 @@ export function paymentMiddlewareFromHTTPServer(
   // Store initialization promise (not the result)
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
+
+  /**
+   * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+   */
+  async function initializeHttpServer(): Promise<void> {
+    if (!syncFacilitatorOnStart || isInitialized) {
+      return;
+    }
+
+    if (!initPromise) {
+      initPromise = httpServer.initialize();
+    }
+
+    try {
+      await initPromise;
+      isInitialized = true;
+    } catch (error) {
+      initPromise = null;
+      throw error;
+    }
+  }
 
   // Dynamically register bazaar extension if routes declare it and not already registered
   // Skip if pre-registered (e.g., in serverless environments where static imports are used)
@@ -130,9 +147,9 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Only initialize when processing a protected route
-    if (initPromise) {
+    if (syncFacilitatorOnStart && !isInitialized) {
       try {
-        await initPromise;
+        await initializeHttpServer();
       } catch (error) {
         const facilitatorError = getFacilitatorResponseError(error);
         if (facilitatorError) {
@@ -140,7 +157,6 @@ export function paymentMiddlewareFromHTTPServer(
         }
         throw error;
       }
-      initPromise = null; // Clear after first await
     }
 
     // Await bazaar extension loading if needed

@@ -204,14 +204,16 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Facilitator verify failed (${response.status}): ${text}`);
+        throw new Error(`Facilitator verify failed (${response.status}): ${responseExcerpt(text)}`);
       }
 
       if (typeof data === "object" && data !== null && "isValid" in data) {
         throw new VerifyError(response.status, data as VerifyResponse);
       }
 
-      throw new Error(`Facilitator verify failed (${response.status}): ${JSON.stringify(data)}`);
+      throw new Error(
+        `Facilitator verify failed (${response.status}): ${responseExcerpt(JSON.stringify(data))}`,
+      );
     }
 
     return parseSuccessResponse(response, verifyResponseSchema, "verify");
@@ -253,14 +255,16 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(`Facilitator settle failed (${response.status}): ${text}`);
+        throw new Error(`Facilitator settle failed (${response.status}): ${responseExcerpt(text)}`);
       }
 
       if (typeof data === "object" && data !== null && "success" in data) {
         throw new SettleError(response.status, data as SettleResponse);
       }
 
-      throw new Error(`Facilitator settle failed (${response.status}): ${JSON.stringify(data)}`);
+      throw new Error(
+        `Facilitator settle failed (${response.status}): ${responseExcerpt(JSON.stringify(data))}`,
+      );
     }
 
     return parseSuccessResponse(response, settleResponseSchema, "settle");
@@ -294,7 +298,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }
 
       const errorText = await response.text().catch(() => response.statusText);
-      lastError = new Error(`Facilitator getSupported failed (${response.status}): ${errorText}`);
+      lastError = new Error(
+        `Facilitator getSupported failed (${response.status}): ${responseExcerpt(errorText)}`,
+      );
 
       // Retry on 429 rate limit errors with exponential backoff
       if (response.status === 429 && attempt < GET_SUPPORTED_RETRIES - 1) {

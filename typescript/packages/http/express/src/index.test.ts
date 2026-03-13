@@ -42,10 +42,25 @@ let mockRequiresPayment: ReturnType<typeof vi.fn>;
 
 vi.mock("@x402/core/server", () => ({
   FacilitatorResponseError: class FacilitatorResponseError extends Error {
+    /**
+     * Creates a mock facilitator response error.
+     *
+     * @param message - Error message.
+     */
     constructor(message: string) {
       super(message);
       this.name = "FacilitatorResponseError";
     }
+  },
+  getFacilitatorResponseError: (error: unknown) => {
+    let current = error;
+    while (current instanceof Error) {
+      if (current.name === "FacilitatorResponseError") {
+        return current;
+      }
+      current = (current as Error & { cause?: unknown }).cause;
+    }
+    return null;
   },
   x402ResourceServer: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
@@ -402,21 +417,18 @@ describe("paymentMiddleware", () => {
   });
 
   it("returns 502 when facilitator init fails during protected request", async () => {
+    const initialize = vi.fn().mockRejectedValue(
+      new Error("Failed to initialize: no supported payment kinds loaded from any facilitator.", {
+        cause: new FacilitatorResponseError(
+          "Facilitator supported returned invalid JSON: not-json",
+        ),
+      }),
+    );
+
     vi.mocked(HTTPResourceServer).mockImplementation(
       (server, routes) =>
         ({
-          initialize: vi
-            .fn()
-            .mockRejectedValue(
-              new Error(
-                "Failed to initialize: no supported payment kinds loaded from any facilitator.",
-                {
-                  cause: new FacilitatorResponseError(
-                    "Facilitator supported returned invalid JSON: not-json",
-                  ),
-                },
-              ),
-            ),
+          initialize,
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
@@ -441,6 +453,49 @@ describe("paymentMiddleware", () => {
     expect(res.json).toHaveBeenCalledWith({
       error: "Facilitator supported returned invalid JSON: not-json",
     });
+  });
+
+  it("retries initialization after a facilitator init failure", async () => {
+    const initialize = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Failed to initialize: no supported payment kinds loaded from any facilitator.", {
+          cause: new FacilitatorResponseError(
+            "Facilitator supported returned invalid JSON: not-json",
+          ),
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    vi.mocked(HTTPResourceServer).mockImplementation(
+      (server, routes) =>
+        ({
+          initialize,
+          processHTTPRequest: mockProcessHTTPRequest,
+          processSettlement: mockProcessSettlement,
+          registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
+          routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
+        }) as unknown as x402HTTPResourceServer,
+    );
+    mockProcessHTTPRequest.mockResolvedValue({ type: "no-payment-required" });
+
+    const middleware = paymentMiddleware(mockRoutes, {} as unknown as x402ResourceServer);
+    const firstRes = createMockResponse();
+    const secondRes = createMockResponse();
+    const next = vi.fn();
+
+    await middleware(createMockRequest(), firstRes, next);
+    await middleware(createMockRequest(), secondRes, next);
+
+    expect(firstRes.status).toHaveBeenCalledWith(502);
+    expect(initialize).toHaveBeenCalledTimes(2);
+    expect(mockProcessHTTPRequest).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it("returns 502 when processHTTPRequest surfaces FacilitatorResponseError", async () => {
@@ -475,7 +530,7 @@ describe("paymentMiddleware", () => {
       paymentRequirements: mockPaymentRequirements,
     });
     mockProcessSettlement.mockRejectedValue(
-      new FacilitatorResponseError("Facilitator settle returned invalid data: {\"success\":true}"),
+      new FacilitatorResponseError('Facilitator settle returned invalid data: {"success":true}'),
     );
 
     const middleware = paymentMiddleware(
@@ -496,7 +551,7 @@ describe("paymentMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(502);
     expect(res.json).toHaveBeenCalledWith({
-      error: "Facilitator settle returned invalid data: {\"success\":true}",
+      error: 'Facilitator settle returned invalid data: {"success":true}',
     });
   });
 

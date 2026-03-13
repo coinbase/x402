@@ -36,6 +36,16 @@ vi.mock("@x402/core/server", () => ({
       this.name = "FacilitatorResponseError";
     }
   },
+  getFacilitatorResponseError: (error: unknown) => {
+    let current = error;
+    while (current instanceof Error) {
+      if (current.name === "FacilitatorResponseError") {
+        return current;
+      }
+      current = (current as Error & { cause?: unknown }).cause;
+    }
+    return null;
+  },
   x402ResourceServer: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     registerExtension: vi.fn(),

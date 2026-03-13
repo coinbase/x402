@@ -7,6 +7,7 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorResponseError,
+  getFacilitatorResponseError as getCoreFacilitatorResponseError,
 } from "@x402/core/server";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -19,19 +20,14 @@ export interface HttpServerInstance {
   init: () => Promise<void>;
 }
 
-export function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
-  let current = error;
+export const getFacilitatorResponseError = getCoreFacilitatorResponseError;
 
-  while (current instanceof Error) {
-    if (current instanceof FacilitatorResponseError) {
-      return current;
-    }
-    current = current.cause;
-  }
-
-  return null;
-}
-
+/**
+ * Builds a normalized 502 response for facilitator boundary failures.
+ *
+ * @param error - The facilitator response error to surface
+ * @returns A JSON 502 response
+ */
 export function createFacilitatorErrorResponse(error: FacilitatorResponseError): NextResponse {
   return new NextResponse(JSON.stringify({ error: error.message }), {
     status: 502,
@@ -60,14 +56,28 @@ export function prepareHttpServer(
   // Store initialization promise (not the result)
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
 
   return {
     httpServer,
+    /**
+     * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+     */
     async init() {
-      // Ensure initialization completes before processing
-      if (initPromise) {
+      if (!syncFacilitatorOnStart || isInitialized) {
+        return;
+      }
+
+      if (!initPromise) {
+        initPromise = httpServer.initialize();
+      }
+
+      try {
         await initPromise;
-        initPromise = null; // Clear after first await
+        isInitialized = true;
+      } catch (error) {
+        initPromise = null;
+        throw error;
       }
     },
   };
