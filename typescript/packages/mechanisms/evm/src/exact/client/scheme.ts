@@ -11,7 +11,7 @@ import { createPermit2Payload } from "./permit2";
 import {
   trySignEip2612PermitExtension,
   trySignErc20ApprovalExtension,
-} from "../../shared/permit2-helpers";
+} from "../../shared/extensions";
 import { ExactEvmSchemeOptions } from "./rpc";
 
 /**

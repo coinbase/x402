@@ -1,7 +1,7 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { x402UptoPermit2ProxyAddress } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { createPermit2PayloadForProxy } from "../../shared/permit2-helpers";
+import { createPermit2PayloadForProxy } from "../../shared/permit2";
 
 // Re-export Permit2-generic approval helpers
 export { createPermit2ApprovalTx, getPermit2AllowanceReadParams } from "../../exact/client/permit2";
