@@ -2,21 +2,11 @@ import { describe, expect, it } from "vitest";
 import { PrivateKey } from "@hiero-ledger/sdk";
 import {
   createClientHederaSigner,
-  toClientHederaSigner,
   toFacilitatorHederaSigner,
 } from "../../src/signer";
 import { inspectHederaTransaction } from "../../src/utils";
 
 describe("Hedera signer helpers", () => {
-  it("returns the same client signer reference", () => {
-    const signer = {
-      accountId: "0.0.1001",
-      createPartiallySignedTransferTransaction: async () => "dGVzdA==",
-    };
-
-    expect(toClientHederaSigner(signer)).toBe(signer);
-  });
-
   it("provides in-memory replay tracking for facilitator adapter", async () => {
     const baseSigner = {
       getAddresses: () => ["0.0.5001"],

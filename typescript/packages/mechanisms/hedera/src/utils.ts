@@ -24,16 +24,26 @@ export function isValidHederaEntityId(entityId: string): boolean {
 }
 
 /**
- * Normalize and validate a Hedera CAIP-2 network.
+ * Returns true when the network is supported by this Hedera mechanism.
  *
  * @param network - Network identifier
- * @returns Normalized network
+ * @returns True when supported
  */
-export function normalizeHederaNetwork(network: string): Network {
-  if (!SUPPORTED_HEDERA_NETWORKS.includes(network as (typeof SUPPORTED_HEDERA_NETWORKS)[number])) {
+export function isSupportedHederaNetwork(
+  network: string,
+): network is (typeof SUPPORTED_HEDERA_NETWORKS)[number] {
+  return SUPPORTED_HEDERA_NETWORKS.includes(network as (typeof SUPPORTED_HEDERA_NETWORKS)[number]);
+}
+
+/**
+ * Assert that a Hedera CAIP-2 network is supported by this mechanism.
+ *
+ * @param network - Network identifier
+ */
+export function assertSupportedHederaNetwork(network: string): asserts network is Network {
+  if (!isSupportedHederaNetwork(network)) {
     throw new Error(`Unsupported Hedera network: ${network}`);
   }
-  return network as Network;
 }
 
 /**
@@ -57,12 +67,12 @@ export function isValidHederaAsset(asset: string): boolean {
 }
 
 /**
- * Decode transaction from exact hedera payload.
+ * Extract transaction string from exact hedera payload.
  *
  * @param payload - Hedera payload
  * @returns Base64 transaction string
  */
-export function decodeTransactionFromPayload(payload: ExactHederaPayloadV2): string {
+export function extractTransactionFromPayload(payload: ExactHederaPayloadV2): string {
   if (!payload || typeof payload.transaction !== "string" || payload.transaction.length === 0) {
     throw new Error("invalid_exact_hedera_payload_transaction");
   }
@@ -85,11 +95,18 @@ export function inspectHederaTransaction(transactionBase64: string): InspectedHe
   const tokenTransfers = isTransferTransaction
     ? normalizeTokenTransfers(transaction.tokenTransfers)
     : {};
+  const transactionType = transaction.constructor?.name;
+  const transactionId = transaction.transactionId?.toString?.();
+  const transactionIdAccountId = transaction.transactionId?.accountId?.toString?.();
+
+  if (!transactionType || !transactionId || !transactionIdAccountId) {
+    throw new Error("invalid_hedera_transaction_metadata");
+  }
 
   return {
-    transactionType: transaction.constructor?.name ?? "",
-    transactionId: transaction.transactionId?.toString?.() ?? "",
-    transactionIdAccountId: transaction.transactionId?.accountId?.toString?.() ?? "",
+    transactionType,
+    transactionId,
+    transactionIdAccountId,
     hasNonTransferOperations: !isTransferTransaction,
     hbarTransfers,
     tokenTransfers,
@@ -115,7 +132,7 @@ export function sumTransfers(transfers: HederaTransferEntry[]): bigint {
  */
 export function getNetForAccount(transfers: HederaTransferEntry[], accountId: string): bigint {
   return transfers
-    .filter(entry => entry.accountId === accountId)
+    .filter(entry => hederaAccountIdsEqual(entry.accountId, accountId))
     .reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
 }
 

@@ -1,4 +1,4 @@
-import { x402Client, SelectPaymentRequirements, PaymentPolicy } from "@x402/core/client";
+import { x402Client, PaymentPolicy } from "@x402/core/client";
 import type { Network } from "@x402/core/types";
 import type { ClientHederaSigner } from "../../signer";
 import { ExactHederaScheme } from "./scheme";
@@ -11,11 +11,6 @@ export interface HederaClientConfig {
    * The Hedera signer to use for creating payment payloads
    */
   signer: ClientHederaSigner;
-
-  /**
-   * Optional payment requirements selector function
-   */
-  paymentRequirementsSelector?: SelectPaymentRequirements;
 
   /**
    * Optional policies to apply to the client

@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  createClientHederaSigner,
   HBAR_ASSET_ID,
   HEDERA_MAINNET_CAIP2,
   HEDERA_TESTNET_CAIP2,
   ExactHederaPayloadV2,
-  toClientHederaSigner,
 } from "../../src";
 import { ExactHederaScheme as ExactHederaClient } from "../../src/exact/client/scheme";
 import { ExactHederaScheme as ExactHederaServer } from "../../src/exact/server/scheme";
@@ -28,11 +28,7 @@ describe("@x402/hedera", () => {
     expect(ExactHederaFacilitator).toBeDefined();
   });
 
-  it("exports signer helper", () => {
-    const signer = {
-      accountId: "0.0.1",
-      createPartiallySignedTransferTransaction: vi.fn(async () => "dGVzdA=="),
-    };
-    expect(toClientHederaSigner(signer)).toBe(signer);
+  it("exports signer helpers", () => {
+    expect(createClientHederaSigner).toBeTypeOf("function");
   });
 });

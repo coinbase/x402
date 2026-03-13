@@ -155,7 +155,16 @@ if (hederaAccountId && hederaPrivateKey) {
         throw new Error("expected TransferTransaction");
       }
       const signed = await tx.sign(hederaKey);
-      const client = network === "hedera:mainnet" ? Client.forMainnet() : Client.forTestnet();
+      let client: Client;
+      if (network === "hedera:mainnet") {
+        client = Client.forMainnet();
+      } else if (network === "hedera:testnet") {
+        client = Client.forTestnet();
+      } else {
+        throw new Error(
+          `Unsupported Hedera network for this example: ${network}. Previewnet is not supported.`,
+        );
+      }
       client.setOperator(AccountId.fromString(hederaAccountId), hederaKey);
       const response = await signed.execute(client);
       return { transactionId: response.transactionId.toString() };

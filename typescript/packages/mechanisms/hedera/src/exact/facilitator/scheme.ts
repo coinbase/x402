@@ -12,14 +12,14 @@ import type {
   InspectedHederaTransaction,
 } from "../../types";
 import {
-  decodeTransactionFromPayload,
+  assertSupportedHederaNetwork,
+  extractTransactionFromPayload,
   getPositiveReceivers,
   hederaAccountIdsEqual,
   inspectHederaTransaction,
   isHbarAsset,
   isValidHederaAsset,
   isValidHederaEntityId,
-  normalizeHederaNetwork,
   sumTransfers,
 } from "../../utils";
 
@@ -103,7 +103,7 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
     const exactPayload = payload.payload as ExactHederaPayloadV2;
     let transactionBase64 = "";
     try {
-      transactionBase64 = decodeTransactionFromPayload(exactPayload);
+      transactionBase64 = extractTransactionFromPayload(exactPayload);
     } catch {
       return {
         isValid: false,
@@ -182,7 +182,7 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
 
     const feePayer = requirements.extra?.feePayer as string;
     const exactPayload = payload.payload as ExactHederaPayloadV2;
-    const transactionBase64 = decodeTransactionFromPayload(exactPayload);
+    const transactionBase64 = extractTransactionFromPayload(exactPayload);
     let inspected: InspectedHederaTransaction | null = null;
     try {
       inspected = inspectHederaTransaction(transactionBase64);
@@ -358,7 +358,7 @@ export class ExactHederaScheme implements SchemeNetworkFacilitator {
     }
 
     try {
-      normalizeHederaNetwork(requirements.network);
+      assertSupportedHederaNetwork(requirements.network);
     } catch {
       return { isValid: false, invalidReason: "network_mismatch", payer: "" };
     }

@@ -7,7 +7,11 @@ import type {
   Price,
   SchemeNetworkServer,
 } from "@x402/core/types";
-import { isValidHederaAsset, normalizeHederaNetwork, convertToAtomicAmount } from "../../utils";
+import {
+  assertSupportedHederaNetwork,
+  convertToAtomicAmount,
+  isValidHederaAsset,
+} from "../../utils";
 
 /**
  * Default token config used for Money parsing fallback.
@@ -57,7 +61,7 @@ export class ExactHederaScheme implements SchemeNetworkServer {
    * @returns Asset amount
    */
   async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
-    normalizeHederaNetwork(network);
+    assertSupportedHederaNetwork(network);
 
     if (typeof price === "object" && price !== null && "amount" in price) {
       if (!price.asset || !isValidHederaAsset(price.asset)) {

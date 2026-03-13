@@ -8,8 +8,12 @@ import {
   TransactionId,
   TransferTransaction,
 } from "@hiero-ledger/sdk";
-import { DEFAULT_REPLAY_WINDOW_MS } from "./constants";
-import { isHbarAsset, normalizeHederaNetwork } from "./utils";
+import {
+  DEFAULT_REPLAY_WINDOW_MS,
+  HEDERA_MAINNET_CAIP2,
+  HEDERA_TESTNET_CAIP2,
+} from "./constants";
+import { assertSupportedHederaNetwork, isHbarAsset } from "./utils";
 
 /**
  * Client-side signer interface for Hedera transactions.
@@ -124,16 +128,6 @@ export type HederaClientSignerConfig = {
 };
 
 /**
- * Identity helper for explicit client signer typing.
- *
- * @param signer - Client signer
- * @returns Same signer
- */
-export function toClientHederaSigner(signer: ClientHederaSigner): ClientHederaSigner {
-  return signer;
-}
-
-/**
  * Creates a default SDK-backed client signer from account credentials.
  *
  * @param accountId - Hedera account id of the payer
@@ -146,17 +140,18 @@ export function createClientHederaSigner(
   privateKey: PrivateKey,
   config: HederaClientSignerConfig = {},
 ): ClientHederaSigner {
-  const normalizedNetwork = normalizeHederaNetwork(config.network ?? "hedera:testnet");
+  const configuredNetwork = config.network ?? HEDERA_TESTNET_CAIP2;
+  assertSupportedHederaNetwork(configuredNetwork);
   const parsedAccountId = AccountId.fromString(accountId);
   const parsedPrivateKey = privateKey;
-  const client = createHederaClient(normalizedNetwork, config.nodeUrl);
+  const client = createHederaClient(configuredNetwork, config.nodeUrl);
 
   return {
     accountId: parsedAccountId.toString(),
     createPartiallySignedTransferTransaction: async (
       requirements: PaymentRequirements,
     ): Promise<string> => {
-      normalizeHederaNetwork(requirements.network);
+      assertSupportedHederaNetwork(requirements.network);
       const feePayer = requirements.extra?.feePayer;
       if (typeof feePayer !== "string") {
         throw new Error("feePayer is required in paymentRequirements.extra");
@@ -238,8 +233,11 @@ function createHederaClient(network: string, nodeUrl?: string): Client {
     // This can be overridden by constructing your own ClientHederaSigner.
     return Client.forNetwork({ [nodeUrl]: AccountId.fromString("0.0.3") });
   }
-  if (network === "hedera:mainnet") {
+  if (network === HEDERA_MAINNET_CAIP2) {
     return Client.forMainnet();
   }
-  return Client.forTestnet();
+  if (network === HEDERA_TESTNET_CAIP2) {
+    return Client.forTestnet();
+  }
+  throw new Error(`Unsupported Hedera network: ${network}`);
 }
