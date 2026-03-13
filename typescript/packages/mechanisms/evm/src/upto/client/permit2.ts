@@ -1,9 +1,7 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
-import { getAddress } from "viem";
-import { permit2WitnessTypes, PERMIT2_ADDRESS, x402UptoPermit2ProxyAddress } from "../../constants";
+import { x402UptoPermit2ProxyAddress } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { Permit2Authorization } from "../../types";
-import { createPermit2Nonce, getEvmChainId } from "../../utils";
+import { createPermit2PayloadForProxy } from "../../shared/permit2-helpers";
 
 // Re-export Permit2-generic approval helpers
 export { createPermit2ApprovalTx, getPermit2AllowanceReadParams } from "../../exact/client/permit2";
@@ -27,73 +25,10 @@ export async function createUptoPermit2Payload(
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayloadResult> {
-  const now = Math.floor(Date.now() / 1000);
-  const nonce = createPermit2Nonce();
-
-  // Lower time bound - allow some clock skew
-  const validAfter = (now - 600).toString();
-  // Upper time bound is enforced by Permit2's deadline field
-  const deadline = (now + paymentRequirements.maxTimeoutSeconds).toString();
-
-  const permit2Authorization: Permit2Authorization & { from: `0x${string}` } = {
-    from: signer.address,
-    permitted: {
-      token: getAddress(paymentRequirements.asset),
-      amount: paymentRequirements.amount,
-    },
-    spender: x402UptoPermit2ProxyAddress,
-    nonce,
-    deadline,
-    witness: {
-      to: getAddress(paymentRequirements.payTo),
-      validAfter,
-    },
-  };
-
-  const signature = await signPermit2Authorization(
+  return createPermit2PayloadForProxy(
+    x402UptoPermit2ProxyAddress,
     signer,
-    permit2Authorization,
+    x402Version,
     paymentRequirements,
   );
-
-  return {
-    x402Version,
-    payload: { signature, permit2Authorization },
-  };
-}
-
-/**
- * Sign the Permit2 authorization using EIP-712 with witness data.
- * The signature authorizes the x402UptoPermit2Proxy to transfer tokens on behalf of the signer.
- *
- * @param signer - The EVM signer
- * @param permit2Authorization - The Permit2 authorization parameters
- * @param requirements - The payment requirements
- * @returns Promise resolving to the signature
- */
-async function signPermit2Authorization(
-  signer: ClientEvmSigner,
-  permit2Authorization: Permit2Authorization & { from: `0x${string}` },
-  requirements: PaymentRequirements,
-): Promise<`0x${string}`> {
-  const chainId = getEvmChainId(requirements.network);
-
-  return await signer.signTypedData({
-    domain: { name: "Permit2", chainId, verifyingContract: PERMIT2_ADDRESS },
-    types: permit2WitnessTypes,
-    primaryType: "PermitWitnessTransferFrom",
-    message: {
-      permitted: {
-        token: getAddress(permit2Authorization.permitted.token),
-        amount: BigInt(permit2Authorization.permitted.amount),
-      },
-      spender: getAddress(permit2Authorization.spender),
-      nonce: BigInt(permit2Authorization.nonce),
-      deadline: BigInt(permit2Authorization.deadline),
-      witness: {
-        to: getAddress(permit2Authorization.witness.to),
-        validAfter: BigInt(permit2Authorization.witness.validAfter),
-      },
-    },
-  });
 }
