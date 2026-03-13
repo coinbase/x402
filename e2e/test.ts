@@ -15,6 +15,10 @@ import { Semaphore, FacilitatorLock } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 
+// Base Sepolia token addresses used by permit2 E2E tests
+const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+const MOCK_ERC20_BASE_SEPOLIA = '0xeED520980fC7C7B4eB379B96d61CEdea2423005a';
+
 /**
  * Approve Permit2 so that the standard/direct settle path can be exercised.
  * Grants unlimited Permit2 allowance for the given token (or USDC by default).
@@ -698,10 +702,13 @@ async function runTest() {
 
         if (scenario.endpoint.transferMethod === 'permit2') {
           if (scenario.endpoint.permit2Direct) {
-            await approvePermit2Approval();
+            await approvePermit2Approval(USDC_BASE_SEPOLIA);
           } else {
-            await revokePermit2Approval();
-            await revokePermit2Approval('0xeED520980fC7C7B4eB379B96d61CEdea2423005a');
+            const token =
+              scenario.endpoint.extensions?.includes('erc20ApprovalGasSponsoring')
+                ? MOCK_ERC20_BASE_SEPOLIA
+                : USDC_BASE_SEPOLIA;
+            await revokePermit2Approval(token);
           }
         }
 
