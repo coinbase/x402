@@ -6,8 +6,10 @@ Express.js facilitator service that verifies and settles payments on-chain for t
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- EVM private key with Base Sepolia ETH for transaction fees
-- SVM private key with Solana Devnet SOL for transaction fees
+- AVM private key with Algorand Testnet ALGO for transaction fees (optional)
+- EVM private key with Base Sepolia ETH for transaction fees (optional)
+- SVM private key with Solana Devnet SOL for transaction fees (optional)
+- At least one of AVM, EVM, or SVM private key is required
 
 ## Setup
 
@@ -19,8 +21,11 @@ cp .env-local .env
 
 and fill required environment variables:
 
+- `AVM_PRIVATE_KEY` - Algorand private key (Base64-encoded 64-byte key: 32-byte seed + 32-byte public key)
 - `EVM_PRIVATE_KEY` - Ethereum private key
 - `SVM_PRIVATE_KEY` - Solana private key
+- `ALGOD_SERVER` - Custom Algod server URL (optional, defaults to AlgoNode testnet)
+- `ALGOD_TOKEN` - Algod API token (optional, not needed for AlgoNode)
 - `PORT` - Server port (optional, defaults to 4022)
 
 2. Install and build all packages from the typescript examples root:
@@ -49,6 +54,11 @@ Returns payment schemes and networks this facilitator supports.
     {
       "x402Version": 2,
       "scheme": "exact",
+      "network": "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI="
+    },
+    {
+      "x402Version": 2,
+      "scheme": "exact",
       "network": "eip155:84532"
     },
     {
@@ -62,6 +72,7 @@ Returns payment schemes and networks this facilitator supports.
   ],
   "extensions": [],
   "signers": {
+    "algorand": ["..."],
     "eip155": ["0x..."],
     "solana": ["..."]
   }
@@ -168,10 +179,16 @@ Response (failure):
 Register additional schemes for other networks:
 
 ```typescript
+import { registerExactAvmScheme } from "@x402/avm/exact/facilitator";
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
 
 const facilitator = new x402Facilitator();
+
+registerExactAvmScheme(facilitator, {
+  signer: avmSigner,
+  networks: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+});
 
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
@@ -215,6 +232,8 @@ const facilitator = new x402Facilitator()
 
 Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format:
 
+- `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=` — Algorand Testnet
+- `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=` — Algorand Mainnet
 - `eip155:84532` — Base Sepolia
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet

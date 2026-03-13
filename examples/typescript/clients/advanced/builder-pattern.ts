@@ -2,6 +2,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { toClientAvmSigner } from "@x402/avm";
+import { ExactAvmScheme } from "@x402/avm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 
@@ -18,11 +20,13 @@ import { base58 } from "@scure/base";
  *
  * @param evmPrivateKey - The EVM private key for signing
  * @param svmPrivateKey - The SVM private key for signing
+ * @param avmPrivateKey - The AVM private key for signing
  * @param url - The URL to make the request to
  */
 export async function runBuilderPatternExample(
   evmPrivateKey: `0x${string}`,
   svmPrivateKey: string,
+  avmPrivateKey: string,
   url: string,
 ): Promise<void> {
   console.log("🔧 Creating client with builder pattern...\n");
@@ -32,13 +36,21 @@ export async function runBuilderPatternExample(
   const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
   const solanaDevnetSigner = svmSigner; // Could be a different signer for devnet
 
+  const avmSigner = toClientAvmSigner(avmPrivateKey);
+  const algorandTestnetSigner = avmSigner; // Could be a different signer for testnet
+
   // Builder pattern allows fine-grained control over network registration
   // More specific patterns (e.g., "eip155:1") take precedence over wildcards (e.g., "eip155:*")
   const client = new x402Client()
     .register("eip155:*", new ExactEvmScheme(evmSigner)) // All EVM networks
     .register("eip155:1", new ExactEvmScheme(ethereumMainnetSigner)) // Ethereum mainnet override
     .register("solana:*", new ExactSvmScheme(svmSigner)) // All Solana networks
-    .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(solanaDevnetSigner)); // Devnet override
+    .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(solanaDevnetSigner)) // Devnet override
+    .register("algorand:*", new ExactAvmScheme(avmSigner)) // All Algorand networks
+    .register(
+      "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+      new ExactAvmScheme(algorandTestnetSigner),
+    ); // Testnet override
 
   console.log("Registered networks:");
   console.log("  - eip155:* (all EVM) with default signer");

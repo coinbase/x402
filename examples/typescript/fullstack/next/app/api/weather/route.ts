@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@x402/next";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
-import { server, paywall, evmAddress, svmAddress } from "../../../proxy";
+import { server, paywall, accepts } from "../../../proxy";
 
 /**
  * Weather API endpoint handler
@@ -34,20 +34,7 @@ const handler = async (_: NextRequest) => {
 export const GET = withX402(
   handler,
   {
-    accepts: [
-      {
-        scheme: "exact",
-        price: "$0.001",
-        network: "eip155:84532", // base-sepolia
-        payTo: evmAddress,
-      },
-      {
-        scheme: "exact",
-        price: "$0.001",
-        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // solana devnet
-        payTo: svmAddress,
-      },
-    ],
+    accepts,
     description: "Access to weather API",
     mimeType: "application/json",
     extensions: {
