@@ -308,10 +308,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const latestLedger = await server.getLatestLedger();
       const currentLedger = latestLedger.sequence;
       const maxTimeoutSeconds = requirements.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS;
-      const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(
-        server,
-        currentLedger,
-      );
+      const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(requirements.network);
       const maxLedgerOffset = Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
       const maxLedger = currentLedger + maxLedgerOffset;
 

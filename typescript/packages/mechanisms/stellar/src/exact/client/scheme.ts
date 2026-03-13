@@ -57,14 +57,11 @@ export class ExactStellarScheme implements SchemeNetworkClient {
       throw new Error(`Exact scheme requires areFeesSponsored to be true`);
     }
 
-    // Fetch current ledger and calculate maxLedger (uses RPC getLedgers for close time)
+    // Fetch current ledger and calculate maxLedger
     const rpcServer = getRpcClient(network, this.rpcConfig);
     const latestLedger = await rpcServer.getLatestLedger();
     const currentLedger = latestLedger.sequence;
-    const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(
-      rpcServer,
-      currentLedger,
-    );
+    const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(network);
     const maxLedger = currentLedger + Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
 
     const tx = await contract.AssembledTransaction.build({
