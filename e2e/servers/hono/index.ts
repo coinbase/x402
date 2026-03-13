@@ -32,6 +32,7 @@ const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
 const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
+const EVM_PERMIT2_ASSET = process.env.EVM_PERMIT2_ASSET as `0x${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -202,9 +203,13 @@ app.use(
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "exact",
           network: EVM_NETWORK,
-          price: "$0.001",
-          // Use pre-parsed price with assetTransferMethod to force Permit2
-          extra: { assetTransferMethod: "permit2" },
+          price: {
+            amount: "1000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
         },
         extensions: {
           ...declareDiscoveryExtension({
@@ -234,7 +239,7 @@ app.use(
           network: EVM_NETWORK,
           price: {
             amount: "1000",
-            asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+            asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
             },
