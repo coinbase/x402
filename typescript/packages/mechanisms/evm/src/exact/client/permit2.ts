@@ -7,7 +7,7 @@ import {
   erc20AllowanceAbi,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { createPermit2PayloadForProxy } from "../../shared/permit2-helpers";
+import { createPermit2PayloadForProxy } from "../../shared/permit2";
 
 /** Maximum uint256 value for unlimited approval. */
 const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");

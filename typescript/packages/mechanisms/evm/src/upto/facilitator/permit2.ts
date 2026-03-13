@@ -30,7 +30,7 @@ import {
   settlePermit2WithERC20Approval,
   settlePermit2Direct,
   type Permit2ProxyConfig,
-} from "../../shared/permit2-helpers";
+} from "../../shared/permit2";
 
 const uptoProxyConfig: Permit2ProxyConfig = {
   proxyAddress: x402UptoPermit2ProxyAddress,
