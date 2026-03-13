@@ -19,6 +19,8 @@ export interface ClientConfig {
   stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
+  evmNetwork: string;
+  evmRpcUrl: string;
 }
 
 export interface ServerConfig {
