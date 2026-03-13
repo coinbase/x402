@@ -1,0 +1,7 @@
+{
+  "name": "x402drop",
+  "description": "Crypto-native temporary file storage with x402-integrated USDC payments on Base and Arbitrum. Offers a full web UI for humans and a x402 integrated REST API flow for AI agents. Drop files, pay once with your wallet, and share auto-expiring download links. Powered by our in-hosue facilitator.",
+  "logoUrl": "/logos/x402drop.png",
+  "websiteUrl": "https://x402drop.com/docs",
+  "category": "Client-Side Integrations"
+}
