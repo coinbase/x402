@@ -47,11 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
-
 	url := os.Getenv("SERVER_URL")
 	if url == "" {
-		url = "http://localhost:4021/weather"
+		url = "http://localhost:4021/protected-currency"
 	}
 
 	// Create client based on pattern
@@ -60,9 +58,9 @@ func main() {
 
 	switch pattern {
 	case "builder-pattern":
-		client, err = createBuilderPatternClient(evmPrivateKey, svmPrivateKey)
+		client, err = createBuilderPatternClient(evmPrivateKey)
 	case "mechanism-helper-registration":
-		client, err = createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey)
+		client, err = createMechanismHelperRegistrationClient(evmPrivateKey)
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
 		fmt.Println("Available patterns: builder-pattern, mechanism-helper-registration")

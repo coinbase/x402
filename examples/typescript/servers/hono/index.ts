@@ -1,63 +1,116 @@
 import { config } from "dotenv";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
+import { facilitator } from "@coinbase/x402";
+import {
+  declareEip2612GasSponsoringExtension,
+  declareErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-const svmAddress = process.env.SVM_ADDRESS;
-if (!evmAddress || !svmAddress) {
-  console.error("Missing required environment variables");
+if (!evmAddress) {
+  console.error("EVM_ADDRESS environment variable is required");
   process.exit(1);
 }
 
-const facilitatorUrl = process.env.FACILITATOR_URL;
-if (!facilitatorUrl) {
-  console.error("❌ FACILITATOR_URL environment variable is required");
-  process.exit(1);
-}
-const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+const BASE_MAINNET = "eip155:8453";
+const BASE_MAINNET_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+const facilitatorClient = new HTTPFacilitatorClient(facilitator);
 
 const app = new Hono();
 
 app.use(
   paymentMiddleware(
     {
-      "GET /weather": {
-        accepts: [
-          {
-            scheme: "exact",
-            price: "$0.001",
-            network: "eip155:84532",
-            payTo: evmAddress,
+      "GET /protected-currency": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: BASE_MAINNET,
+          payTo: evmAddress,
+        },
+        description: "Currency shorthand pricing",
+        mimeType: "application/json",
+      },
+      "GET /protected-eip3009": {
+        accepts: {
+          scheme: "exact",
+          network: BASE_MAINNET,
+          payTo: evmAddress,
+          price: {
+            amount: "1000",
+            asset: BASE_MAINNET_USDC,
           },
-          {
-            scheme: "exact",
-            price: "$0.001",
-            network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-            payTo: svmAddress,
+        },
+        description: "EIP-3009 long-form pricing (USDC transferWithAuthorization)",
+        mimeType: "application/json",
+      },
+      "GET /protected-eip2612": {
+        accepts: {
+          scheme: "exact",
+          network: BASE_MAINNET,
+          payTo: evmAddress,
+          price: {
+            amount: "1000",
+            asset: BASE_MAINNET_USDC,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
           },
-        ],
-        description: "Weather data",
+        },
+        extensions: {
+          ...declareEip2612GasSponsoringExtension(),
+        },
+        description: "Permit2 with EIP-2612 gas sponsorship",
+        mimeType: "application/json",
+      },
+      "GET /protected-erc20": {
+        accepts: {
+          scheme: "exact",
+          network: BASE_MAINNET,
+          payTo: evmAddress,
+          price: {
+            amount: "1000",
+            asset: BASE_MAINNET_USDC,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
+        },
+        extensions: {
+          ...declareErc20ApprovalGasSponsoringExtension(),
+        },
+        description: "Permit2 with generic ERC-20 approval gas sponsorship",
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer(facilitatorClient)
-      .register("eip155:84532", new ExactEvmScheme())
-      .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
+    new x402ResourceServer(facilitatorClient).register("eip155:*", new ExactEvmScheme()),
   ),
 );
 
-app.get("/weather", c => {
-  return c.json({
-    report: {
-      weather: "sunny",
-      temperature: 70,
-    },
-  });
+app.get("/protected-currency", c => {
+  return c.json({ message: "Currency shorthand endpoint", timestamp: new Date().toISOString() });
+});
+
+app.get("/protected-eip3009", c => {
+  return c.json({ message: "EIP-3009 endpoint", timestamp: new Date().toISOString() });
+});
+
+app.get("/protected-eip2612", c => {
+  return c.json({ message: "EIP-2612 gas-sponsored endpoint", timestamp: new Date().toISOString() });
+});
+
+app.get("/protected-erc20", c => {
+  return c.json({ message: "ERC-20 approval gas-sponsored endpoint", timestamp: new Date().toISOString() });
+});
+
+app.get("/health", c => {
+  return c.json({ status: "ok", network: BASE_MAINNET });
 });
 
 serve({

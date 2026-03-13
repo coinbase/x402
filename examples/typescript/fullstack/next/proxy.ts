@@ -1,78 +1,112 @@
 import { paymentProxy } from "@x402/next";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { createPaywall } from "@x402/paywall";
 import { evmPaywall } from "@x402/paywall/evm";
-import { svmPaywall } from "@x402/paywall/svm";
-import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { facilitator } from "@coinbase/x402";
+import {
+  declareEip2612GasSponsoringExtension,
+  declareErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 
-const facilitatorUrl = process.env.FACILITATOR_URL;
 export const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-export const svmAddress = process.env.SVM_ADDRESS;
 
-if (!facilitatorUrl) {
-  console.error("❌ FACILITATOR_URL environment variable is required");
+if (!evmAddress) {
+  console.error("EVM_ADDRESS environment variable is required");
   process.exit(1);
 }
 
-if (!evmAddress || !svmAddress) {
-  console.error("❌ EVM_ADDRESS and SVM_ADDRESS environment variables are required");
-  process.exit(1);
-}
+const BASE_MAINNET = "eip155:8453" as const;
+const BASE_MAINNET_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-// Create HTTP facilitator client
-const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+const facilitatorClient = new HTTPFacilitatorClient(facilitator);
 
-// Create x402 resource server
 export const server = new x402ResourceServer(facilitatorClient);
-
-// Register schemes
 server.register("eip155:*", new ExactEvmScheme());
-server.register("solana:*", new ExactSvmScheme());
 
-// Build paywall
 export const paywall = createPaywall()
   .withNetwork(evmPaywall)
-  .withNetwork(svmPaywall)
   .withConfig({
     appName: process.env.APP_NAME || "Next x402 Demo",
     appLogo: process.env.APP_LOGO || "/x402-icon-blue.png",
-    testnet: true,
+    testnet: false,
   })
   .build();
 
-// Build proxy
 export const proxy = paymentProxy(
   {
-    "/protected": {
-      accepts: [
-        {
-          scheme: "exact",
-          price: "$0.001",
-          network: "eip155:84532", // base-sepolia
-          payTo: evmAddress,
-        },
-        {
-          scheme: "exact",
-          price: "$0.001",
-          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // solana devnet
-          payTo: svmAddress,
-        },
-      ],
-      description: "Premium music: x402 Remix",
-      mimeType: "text/html",
-      extensions: {
-        ...declareDiscoveryExtension({}),
+    "/protected-currency": {
+      accepts: {
+        scheme: "exact",
+        price: "$0.001",
+        network: BASE_MAINNET,
+        payTo: evmAddress,
       },
+      description: "Currency shorthand pricing",
+      mimeType: "text/html",
+    },
+    "/protected-eip3009": {
+      accepts: {
+        scheme: "exact",
+        network: BASE_MAINNET,
+        payTo: evmAddress,
+        price: {
+          amount: "1000",
+          asset: BASE_MAINNET_USDC,
+        },
+      },
+      description: "EIP-3009 long-form pricing (USDC transferWithAuthorization)",
+      mimeType: "text/html",
+    },
+    "/protected-eip2612": {
+      accepts: {
+        scheme: "exact",
+        network: BASE_MAINNET,
+        payTo: evmAddress,
+        price: {
+          amount: "1000",
+          asset: BASE_MAINNET_USDC,
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
+      },
+      extensions: {
+        ...declareEip2612GasSponsoringExtension(),
+      },
+      description: "Permit2 with EIP-2612 gas sponsorship",
+      mimeType: "text/html",
+    },
+    "/protected-erc20": {
+      accepts: {
+        scheme: "exact",
+        network: BASE_MAINNET,
+        payTo: evmAddress,
+        price: {
+          amount: "1000",
+          asset: BASE_MAINNET_USDC,
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
+      },
+      extensions: {
+        ...declareErc20ApprovalGasSponsoringExtension(),
+      },
+      description: "Permit2 with generic ERC-20 approval gas sponsorship",
+      mimeType: "text/html",
     },
   },
   server,
-  undefined, // paywallConfig (using custom paywall instead)
-  paywall, // custom paywall provider
+  undefined,
+  paywall,
 );
 
-// Configure which paths the proxy should run on
 export const config = {
-  matcher: ["/protected/:path*"],
+  matcher: [
+    "/protected-currency/:path*",
+    "/protected-eip3009/:path*",
+    "/protected-eip2612/:path*",
+    "/protected-erc20/:path*",
+  ],
 };
