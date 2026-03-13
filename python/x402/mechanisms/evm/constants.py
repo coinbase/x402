@@ -36,11 +36,11 @@ ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
 ERR_UNDEPLOYED_SMART_WALLET = "invalid_exact_evm_payload_undeployed_smart_wallet"
 ERR_SMART_WALLET_DEPLOYMENT_FAILED = "smart_wallet_deployment_failed"
 ERR_RECIPIENT_MISMATCH = "invalid_exact_evm_payload_recipient_mismatch"
-ERR_INSUFFICIENT_AMOUNT = "invalid_exact_evm_payload_authorization_value"
+ERR_AUTHORIZATION_VALUE_MISMATCH = "invalid_exact_evm_payload_authorization_value_mismatch"
 ERR_VALID_BEFORE_EXPIRED = "invalid_exact_evm_payload_authorization_valid_before"
 ERR_VALID_AFTER_FUTURE = "invalid_exact_evm_payload_authorization_valid_after"
-ERR_NONCE_ALREADY_USED = "nonce_already_used"
-ERR_INSUFFICIENT_BALANCE = "insufficient_balance"
+ERR_NONCE_ALREADY_USED = "invalid_exact_evm_nonce_already_used"
+ERR_INSUFFICIENT_BALANCE = "invalid_exact_evm_insufficient_balance"
 ERR_MISSING_EIP712_DOMAIN = "missing_eip712_domain"
 ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_UNSUPPORTED_SCHEME = "unsupported_scheme"
@@ -48,6 +48,10 @@ ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_conf
 ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
 ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
+ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
+ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
+ERR_EIP3009_NOT_SUPPORTED = "invalid_exact_evm_eip3009_not_supported"
+ERR_TRANSACTION_SIMULATION_FAILED = "invalid_exact_evm_transaction_simulation_failed"
 
 
 class _AssetInfoRequired(TypedDict):
@@ -189,6 +193,26 @@ BALANCE_OF_ABI = [
     }
 ]
 
+NAME_ABI = [
+    {
+        "inputs": [],
+        "name": "name",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+VERSION_ABI = [
+    {
+        "inputs": [],
+        "name": "version",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
 IS_VALID_SIGNATURE_ABI = [
     {
         "inputs": [
@@ -198,6 +222,37 @@ IS_VALID_SIGNATURE_ABI = [
         "name": "isValidSignature",
         "outputs": [{"name": "magicValue", "type": "bytes4"}],
         "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11"
+
+MULTICALL3_TRY_AGGREGATE_ABI = [
+    {
+        "inputs": [
+            {"name": "requireSuccess", "type": "bool"},
+            {
+                "name": "calls",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "target", "type": "address"},
+                    {"name": "callData", "type": "bytes"},
+                ],
+            },
+        ],
+        "name": "tryAggregate",
+        "outputs": [
+            {
+                "name": "returnData",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "success", "type": "bool"},
+                    {"name": "returnData", "type": "bytes"},
+                ],
+            }
+        ],
+        "stateMutability": "payable",
         "type": "function",
     }
 ]

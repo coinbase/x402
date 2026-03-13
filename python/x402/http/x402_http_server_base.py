@@ -749,7 +749,7 @@ class x402HTTPServerBase:
             f"<script>\n    window.x402 = {htmlsafe_json_dumps(x402_config)};\n</script>"
         )
 
-        return template.replace("</body>", config_script + "</body>")
+        return template.replace("</head>", config_script + "\n</head>", 1)
 
     def _generate_fallback_html(
         self,

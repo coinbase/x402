@@ -24,26 +24,36 @@ import {
   getAddress,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia } from 'viem/chains';
+import { base, baseSepolia } from 'viem/chains';
 
 config();
 
 // Permit2 canonical address (same on all EVM chains)
 const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
 
-// Known tokens on Base Sepolia
-const TOKENS: Record<string, { address: `0x${string}`; decimals: number; name: string }> = {
-  USDC: {
-    address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-    decimals: 6,
-    name: 'USDC',
+const evmNetwork = process.env.EVM_NETWORK || 'eip155:84532';
+const evmRpcUrl = process.env.EVM_RPC_URL;
+const evmChain = evmNetwork === 'eip155:8453' ? base : baseSepolia;
+const isMainnet = evmNetwork === 'eip155:8453';
+
+const TOKENS_BY_NETWORK: Record<string, Record<string, { address: `0x${string}`; decimals: number; name: string }>> = {
+  'eip155:84532': {
+    USDC: {
+      address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      decimals: 6,
+      name: 'USDC',
+    },
   },
-  MockERC20: {
-    address: '0xeED520980fC7C7B4eB379B96d61CEdea2423005a',
-    decimals: 6,
-    name: 'MockERC20',
+  'eip155:8453': {
+    USDC: {
+      address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      decimals: 6,
+      name: 'USDC',
+    },
   },
 };
+
+const TOKENS = TOKENS_BY_NETWORK[evmNetwork] || TOKENS_BY_NETWORK['eip155:84532'];
 
 // Maximum uint256 for unlimited approval
 const MAX_UINT256 = 2n ** 256n - 1n;
@@ -83,18 +93,18 @@ Environment variables required:
   const account = privateKeyToAccount(privateKey as `0x${string}`);
 
   const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(),
+    chain: evmChain,
+    transport: http(evmRpcUrl),
   });
 
   const walletClient = createWalletClient({
     account,
-    chain: baseSepolia,
-    transport: http(),
+    chain: evmChain,
+    transport: http(evmRpcUrl),
   });
 
   console.log(`\n🔑 Wallet: ${account.address}`);
-  console.log(`📍 Network: Base Sepolia`);
+  console.log(`📍 Network: ${evmChain.name} (${evmNetwork})`);
   console.log(`🔐 Permit2: ${PERMIT2_ADDRESS}\n`);
 
   // Display balance and allowance for all known tokens
