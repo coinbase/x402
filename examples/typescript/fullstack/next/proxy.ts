@@ -35,6 +35,7 @@ export const paywall = createPaywall()
 
 export const proxy = paymentProxy(
   {
+    // Backwards compatibility case (EIP3009)
     "/protected-currency": {
       accepts: {
         scheme: "exact",
@@ -45,6 +46,7 @@ export const proxy = paymentProxy(
       description: "Currency shorthand pricing",
       mimeType: "text/html",
     },
+    // Explicit EIP3009
     "/protected-eip3009": {
       accepts: {
         scheme: "exact",
@@ -53,6 +55,11 @@ export const proxy = paymentProxy(
         price: {
           amount: "1000",
           asset: BASE_MAINNET_USDC,
+          extra: {
+            assetTransferMethod: "eip3009",
+            name: "USD Coin",
+            version: "2",
+          }
         },
       },
       description: "EIP-3009 long-form pricing (USDC transferWithAuthorization)",

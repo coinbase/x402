@@ -6,9 +6,17 @@ import axios from "axios";
 
 config();
 
+/**
+ * Endpoints to test
+ * - /protected-currency
+ * - /protected-eip3009
+ * - /protected-eip2612
+ * - /protected-erc20
+ */
+
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
-const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
-const endpointPath = process.env.ENDPOINT_PATH || "/protected-eip2612";
+const baseURL = "http://localhost:4021";
+const endpointPath = "/protected-currency";
 const url = `${baseURL}${endpointPath}`;
 
 async function main(): Promise<void> {

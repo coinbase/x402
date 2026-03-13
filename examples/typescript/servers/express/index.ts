@@ -26,6 +26,7 @@ const app = express();
 app.use(
   paymentMiddleware(
     {
+      // Backwards compatibility case (EIP3009)
       "GET /protected-currency": {
         accepts: {
           scheme: "exact",
@@ -36,6 +37,7 @@ app.use(
         description: "Currency shorthand pricing",
         mimeType: "application/json",
       },
+      // Explicit EIP3009 
       "GET /protected-eip3009": {
         accepts: {
           scheme: "exact",
@@ -44,6 +46,11 @@ app.use(
           price: {
             amount: "1000",
             asset: BASE_MAINNET_USDC,
+            extra: {
+              assetTransferMethod: "eip3009",
+              name: "USD Coin",
+              version: "2",
+            }
           },
         },
         description: "EIP-3009 long-form pricing (USDC transferWithAuthorization)",
