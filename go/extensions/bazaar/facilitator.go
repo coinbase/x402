@@ -86,6 +86,89 @@ func ValidateDiscoveryExtension(extension types.DiscoveryExtension) ValidationRe
 	}
 }
 
+// ValidateDiscoveryExtensionSpec validates a discovery extension against the Bazaar protocol
+// specification. Unlike ValidateDiscoveryExtension which checks internal consistency (info vs
+// schema), this function enforces protocol-level invariants:
+//   - info.input.type must be "http" or "mcp"
+//   - HTTP: if method is present it must be GET/POST/PUT/PATCH/DELETE/HEAD
+//   - HTTP body methods: bodyType must be "json", "form-data", or "text"
+//   - MCP: toolName (string) and inputSchema (object) are required
+//   - MCP: if transport is present it must be "streamable-http" or "sse"
+//
+// Safe for pre-enrichment HTTP extensions where method may be absent.
+func ValidateDiscoveryExtensionSpec(extension types.DiscoveryExtension) ValidationResult {
+	infoJSON, err := json.Marshal(extension.Info)
+	if err != nil {
+		return ValidationResult{Valid: false, Errors: []string{"Failed to marshal info"}}
+	}
+
+	var raw struct {
+		Input map[string]interface{} `json:"input"`
+	}
+	if err := json.Unmarshal(infoJSON, &raw); err != nil || raw.Input == nil {
+		return ValidationResult{Valid: false, Errors: []string{"Missing or invalid 'info.input' field"}}
+	}
+
+	inputType, _ := raw.Input["type"].(string)
+	if inputType != "http" && inputType != "mcp" {
+		return ValidationResult{
+			Valid:  false,
+			Errors: []string{fmt.Sprintf(`info.input.type must be "http" or "mcp", got %q`, inputType)},
+		}
+	}
+
+	var errors []string
+
+	if inputType == "http" {
+		if method, ok := raw.Input["method"]; ok {
+			methodStr, _ := method.(string)
+			if !types.IsQueryMethod(methodStr) && !types.IsBodyMethod(methodStr) {
+				errors = append(errors, fmt.Sprintf(
+					"info.input.method must be one of DELETE, GET, HEAD, PATCH, POST, PUT, got %q", methodStr))
+			}
+		}
+
+		if bt, ok := raw.Input["bodyType"]; ok {
+			btStr, _ := bt.(string)
+			if btStr != "json" && btStr != "form-data" && btStr != "text" {
+				errors = append(errors, fmt.Sprintf(
+					`info.input.bodyType must be one of json, form-data, text, got %q`, btStr))
+			}
+			if method, ok2 := raw.Input["method"]; ok2 {
+				methodStr, _ := method.(string)
+				if !types.IsBodyMethod(methodStr) {
+					errors = append(errors, fmt.Sprintf(
+						`info.input.bodyType is set but method %q is not a body method (POST, PUT, PATCH)`, methodStr))
+				}
+			}
+		}
+	}
+
+	if inputType == "mcp" {
+		toolName, _ := raw.Input["toolName"].(string)
+		if toolName == "" {
+			errors = append(errors, "info.input.toolName is required and must be a non-empty string for MCP extensions")
+		}
+		if is, ok := raw.Input["inputSchema"]; !ok || is == nil {
+			errors = append(errors, "info.input.inputSchema is required and must be an object for MCP extensions")
+		} else if _, isMap := is.(map[string]interface{}); !isMap {
+			errors = append(errors, "info.input.inputSchema is required and must be an object for MCP extensions")
+		}
+		if transport, ok := raw.Input["transport"]; ok {
+			tStr, _ := transport.(string)
+			if tStr != "streamable-http" && tStr != "sse" {
+				errors = append(errors, fmt.Sprintf(
+					`info.input.transport must be one of streamable-http, sse, got %q`, tStr))
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ValidationResult{Valid: false, Errors: errors}
+	}
+	return ValidationResult{Valid: true}
+}
+
 type DiscoveredResource struct {
 	ResourceURL   string
 	Method        string

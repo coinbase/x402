@@ -3,13 +3,16 @@ package gin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
+	extypes "github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/gin-gonic/gin"
 )
@@ -189,6 +192,8 @@ func PaymentMiddleware(routes x402http.RoutesConfig, server *x402.X402ResourceSe
 		}
 	}
 
+	validateBazaarExtensions(routes)
+
 	// Create middleware handler using shared logic
 	return createMiddlewareHandler(httpServer, config)
 }
@@ -227,6 +232,8 @@ func PaymentMiddlewareFromHTTPServer(httpServer *x402http.HTTPServer, opts ...Mi
 			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
 		}
 	}
+
+	validateBazaarExtensionsFromServer(httpServer)
 
 	// Create middleware handler using shared logic
 	return createMiddlewareHandler(httpServer, config)
@@ -271,8 +278,52 @@ func PaymentMiddlewareFromConfig(routes x402http.RoutesConfig, opts ...Middlewar
 		}
 	}
 
+	validateBazaarExtensions(config.Routes)
+
 	// Create middleware handler
 	return createMiddlewareHandler(httpServer, config)
+}
+
+// validateBazaarExtensions validates all bazaar extensions declared on routes using
+// the bazaar package's JSON-schema validator. Emits warnings but does not block startup.
+func validateBazaarExtensions(routes x402http.RoutesConfig) {
+	for pattern, config := range routes {
+		validateSingleBazaarExtension(pattern, config.Extensions)
+	}
+}
+
+// validateBazaarExtensionsFromServer validates bazaar extensions from pre-compiled routes.
+func validateBazaarExtensionsFromServer(server *x402http.HTTPServer) {
+	for _, route := range server.GetCompiledRoutes() {
+		pattern := route.Verb + " " + route.Regex.String()
+		validateSingleBazaarExtension(pattern, route.Config.Extensions)
+	}
+}
+
+func validateSingleBazaarExtension(pattern string, extensions map[string]interface{}) {
+	extVal, ok := extensions[extypes.BAZAAR.Key()]
+	if !ok || extVal == nil {
+		return
+	}
+	extJSON, err := json.Marshal(extVal)
+	if err != nil {
+		return
+	}
+	var ext extypes.DiscoveryExtension
+	if err := json.Unmarshal(extJSON, &ext); err != nil {
+		return
+	}
+	specResult := bazaar.ValidateDiscoveryExtensionSpec(ext)
+	if !specResult.Valid {
+		fmt.Printf("x402 Warning: Route %q has invalid bazaar extension: %s\n",
+			pattern, strings.Join(specResult.Errors, ", "))
+		return
+	}
+	result := bazaar.ValidateDiscoveryExtension(ext)
+	if !result.Valid {
+		fmt.Printf("x402 Warning: Route %q has invalid bazaar extension: %s\n",
+			pattern, strings.Join(result.Errors, ", "))
+	}
 }
 
 // createMiddlewareHandler creates the actual Gin handler function.

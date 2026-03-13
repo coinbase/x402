@@ -16,6 +16,13 @@ import {
 } from "./utils";
 import { x402HTTPResourceServer } from "@x402/core/server";
 
+function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
+  if ("accepts" in routes) {
+    return !!(routes.extensions && "bazaar" in routes.extensions);
+  }
+  return Object.values(routes).some(r => !!(r.extensions && "bazaar" in r.extensions));
+}
+
 /**
  * Configuration for registering a payment scheme with a specific network
  */
@@ -68,8 +75,9 @@ export function paymentProxyFromHTTPServer(
   let bazaarPromise: Promise<void> | null = null;
   if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
     bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
+      .then(({ bazaarResourceServerExtension, validateBazaarRouteExtensions }) => {
         httpServer.server.registerExtension(bazaarResourceServerExtension);
+        validateBazaarRouteExtensions(httpServer.routes);
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);
@@ -247,13 +255,12 @@ export function withX402FromHTTPServer<T = unknown>(
 ): (request: NextRequest) => Promise<NextResponse<T>> {
   const { init } = prepareHttpServer(httpServer, paywall, syncFacilitatorOnStart);
 
-  // Dynamically register bazaar extension if route declares it and not already registered
-  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
   if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
     bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
+      .then(({ bazaarResourceServerExtension, validateBazaarRouteExtensions }) => {
         httpServer.server.registerExtension(bazaarResourceServerExtension);
+        validateBazaarRouteExtensions(httpServer.routes);
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);
@@ -362,24 +369,6 @@ export function withX402<T = unknown>(
     paywall,
     syncFacilitatorOnStart,
   );
-}
-
-/**
- * Check if any routes in the configuration declare bazaar extensions
- *
- * @param routes - Route configuration
- * @returns True if any route has extensions.bazaar defined
- */
-function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
-  // Handle single route config
-  if ("accepts" in routes) {
-    return !!(routes.extensions && "bazaar" in routes.extensions);
-  }
-
-  // Handle multiple routes
-  return Object.values(routes).some(routeConfig => {
-    return !!(routeConfig.extensions && "bazaar" in routeConfig.extensions);
-  });
 }
 
 export type {

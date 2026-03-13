@@ -11,22 +11,11 @@ import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
 import { ExpressAdapter } from "./adapter";
 
-/**
- * Check if any routes in the configuration declare bazaar extensions
- *
- * @param routes - Route configuration
- * @returns True if any route has extensions.bazaar defined
- */
 function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
-  // Handle single route config
   if ("accepts" in routes) {
     return !!(routes.extensions && "bazaar" in routes.extensions);
   }
-
-  // Handle multiple routes
-  return Object.values(routes).some(routeConfig => {
-    return !!(routeConfig.extensions && "bazaar" in routeConfig.extensions);
-  });
+  return Object.values(routes).some(r => !!(r.extensions && "bazaar" in r.extensions));
 }
 
 /**
@@ -88,8 +77,9 @@ export function paymentMiddlewareFromHTTPServer(
   let bazaarPromise: Promise<void> | null = null;
   if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
     bazaarPromise = import("@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
+      .then(({ bazaarResourceServerExtension, validateBazaarRouteExtensions }) => {
         httpServer.server.registerExtension(bazaarResourceServerExtension);
+        validateBazaarRouteExtensions(httpServer.routes);
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);
