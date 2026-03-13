@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@x402/core": "workspace:*",
-    "@hashgraph/sdk": "^2.75.0"
+    "@hiero-ledger/sdk": "2.80.0"
   },
   "exports": {
     ".": {

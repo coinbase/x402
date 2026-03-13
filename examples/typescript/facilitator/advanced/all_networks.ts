@@ -25,7 +25,7 @@ import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import dotenv from "dotenv";
 import express from "express";
-import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hashgraph/sdk";
+import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hiero-ledger/sdk";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";

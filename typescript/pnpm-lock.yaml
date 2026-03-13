@@ -1216,8 +1216,8 @@ importers:
 
   packages/mechanisms/hedera:
     dependencies:
-      '@hashgraph/sdk':
-        specifier: ^2.75.0
+      '@hiero-ledger/sdk':
+        specifier: 2.80.0
         version: 2.80.0(bn.js@5.2.2)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))
       '@x402/core':
         specifier: workspace:*
@@ -2721,8 +2721,13 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hashgraph/cryptography@1.16.0-beta.3':
-    resolution: {integrity: sha512-6uSMGOCPysopy56usx6NS5lGZLIBty9dCsRZoaPwAKxEGpOMUHP0mFcSKxcyq5l/7nvefj9fGqGeEf9bki5dMw==}
+  '@heroicons/react@2.2.0':
+    resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
+    peerDependencies:
+      react: '>= 16 || ^19.0.0-rc'
+
+  '@hiero-ledger/cryptography@1.16.0-beta.3':
+    resolution: {integrity: sha512-7+R/HKGq6LiqUZ1agn52sQS6J3+VXBWvqIMUCIU1EVdbEPQDPoVPJYEd7dDreBCLIcjBRcHVjDc9wbi+ar2rsA==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
       expo-crypto: '*'
@@ -2730,8 +2735,8 @@ packages:
       expo-crypto:
         optional: true
 
-  '@hashgraph/proto@2.26.0-beta.3':
-    resolution: {integrity: sha512-i89RMYEjpG5uVOa7VzDMVQq8gNs4feeXvEJFyZzwp6i1NSmMHn9DfmIWePylh67LOFBNnX5ZyXNcgUJaAC8Fmw==}
+  '@hiero-ledger/proto@2.26.0-beta.3':
+    resolution: {integrity: sha512-2UhTKX2RbL2LC8XcgetFa4iS5d8cELY/8PmFolj750z4CoQu2YOchZTqNTdI431qR9uAx3aBVSf+mx/YBYIUNA==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       ansi-regex: 6.2.2
@@ -2740,16 +2745,11 @@ packages:
       protobufjs: 7.5.4
       strip-ansi: 7.1.2
 
-  '@hashgraph/sdk@2.80.0':
-    resolution: {integrity: sha512-EoofLZBCryR4SoddlxJ1JYmrzcdeUcGAHVU1K65BLoX0ia4RAGxydR4ZUogM4fP4aLUILF/3KSBy7yJAWpf1wQ==}
+  '@hiero-ledger/sdk@2.80.0':
+    resolution: {integrity: sha512-9FHNPduWl27eNI2Gns0O6GJTqcEJ11lBTML84A7D8albCErVXaUVsnRrASafH+Xfq1dqK5dwsNHRwu8WtM3zVQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       bn.js: 5.2.1
-
-  '@heroicons/react@2.2.0':
-    resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
-    peerDependencies:
-      react: '>= 16 || ^19.0.0-rc'
 
   '@hono/node-server@1.19.9':
     resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
@@ -11055,7 +11055,11 @@ snapshots:
       protobufjs: 7.5.4
       yargs: 17.7.2
 
-  '@hashgraph/cryptography@1.16.0-beta.3(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))':
+  '@heroicons/react@2.2.0(react@19.2.4)':
+    dependencies:
+      react: 19.2.4
+
+  '@hiero-ledger/cryptography@1.16.0-beta.3(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))':
     dependencies:
       '@noble/curves': 1.8.1
       ansi-regex: 6.2.2
@@ -11077,7 +11081,7 @@ snapshots:
       - react-native
       - supports-color
 
-  '@hashgraph/proto@2.26.0-beta.3(ansi-regex@6.2.2)(ansi-styles@6.2.3)(debug@4.4.1)(protobufjs@7.5.4)(strip-ansi@7.1.2)':
+  '@hiero-ledger/proto@2.26.0-beta.3(ansi-regex@6.2.2)(ansi-styles@6.2.3)(debug@4.4.1)(protobufjs@7.5.4)(strip-ansi@7.1.2)':
     dependencies:
       ansi-regex: 6.2.2
       ansi-styles: 6.2.3
@@ -11086,15 +11090,15 @@ snapshots:
       protobufjs: 7.5.4
       strip-ansi: 7.1.2
 
-  '@hashgraph/sdk@2.80.0(bn.js@5.2.2)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))':
+  '@hiero-ledger/sdk@2.80.0(bn.js@5.2.2)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))':
     dependencies:
       '@ethersproject/abi': 5.8.0
       '@ethersproject/bignumber': 5.8.0
       '@ethersproject/bytes': 5.8.0
       '@ethersproject/rlp': 5.8.0
       '@grpc/grpc-js': 1.12.6
-      '@hiero-ledger/cryptography': '@hashgraph/cryptography@1.16.0-beta.3(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))'
-      '@hiero-ledger/proto': '@hashgraph/proto@2.26.0-beta.3(ansi-regex@6.2.2)(ansi-styles@6.2.3)(debug@4.4.1)(protobufjs@7.5.4)(strip-ansi@7.1.2)'
+      '@hiero-ledger/cryptography': 1.16.0-beta.3(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.10)(bufferutil@4.1.0)(react@19.2.4)(utf-8-validate@5.0.10))
+      '@hiero-ledger/proto': 2.26.0-beta.3(ansi-regex@6.2.2)(ansi-styles@6.2.3)(debug@4.4.1)(protobufjs@7.5.4)(strip-ansi@7.1.2)
       ansi-regex: 6.2.2
       ansi-styles: 6.2.3
       bignumber.js: 9.1.1
@@ -11113,10 +11117,6 @@ snapshots:
       - expo-crypto
       - react-native
       - supports-color
-
-  '@heroicons/react@2.2.0(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
 
   '@hono/node-server@1.19.9(hono@4.11.7)':
     dependencies:

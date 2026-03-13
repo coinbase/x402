@@ -7,7 +7,7 @@ import { createClientHederaSigner } from "@x402/hedera";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
-import { PrivateKey } from "@hashgraph/sdk";
+import { PrivateKey } from "@hiero-ledger/sdk";
 
 config();
 

@@ -1,5 +1,5 @@
 import type { Network } from "@x402/core/types";
-import { AccountId, Transaction } from "@hashgraph/sdk";
+import { AccountId, Transaction, TransferTransaction } from "@hiero-ledger/sdk";
 import {
   HBAR_ASSET_ID,
   HEDERA_ENTITY_ID_REGEX,
@@ -77,19 +77,13 @@ export function decodeTransactionFromPayload(payload: ExactHederaPayloadV2): str
  */
 export function inspectHederaTransaction(transactionBase64: string): InspectedHederaTransaction {
   const bytes = Buffer.from(transactionBase64, "base64");
-  const transaction = Transaction.fromBytes(bytes) as {
-    constructor?: { name?: string };
-    transactionId?: { toString?: () => string; accountId?: { toString?: () => string } };
-    _hbarTransfers?: unknown[];
-    _tokenTransfers?: unknown[];
-  };
-  const isTransferTransaction =
-    Array.isArray(transaction._hbarTransfers) && Array.isArray(transaction._tokenTransfers);
+  const transaction = Transaction.fromBytes(bytes);
+  const isTransferTransaction = transaction instanceof TransferTransaction;
   const hbarTransfers = isTransferTransaction
-    ? (transaction._hbarTransfers ?? []).map(transfer => normalizeHbarTransfer(transfer))
+    ? normalizeHbarTransfers(transaction.hbarTransfers)
     : [];
   const tokenTransfers = isTransferTransaction
-    ? normalizeTokenTransfers(transaction._tokenTransfers ?? [])
+    ? normalizeTokenTransfers(transaction.tokenTransfers)
     : {};
 
   return {
@@ -152,19 +146,7 @@ export function convertToAtomicAmount(decimalAmount: string, decimals: number): 
     throw new Error(`Invalid decimal amount: ${decimalAmount}`);
   }
   const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
-  return BigInt(`${whole}${paddedFraction || "0"}`).toString();
-}
-
-/**
- * Default network-specific HTS token config map key helper.
- *
- * @param network - CAIP-2 network
- * @returns Network key
- */
-export function getNetworkKey(network: string): string {
-  if (network === HEDERA_MAINNET_CAIP2) return HEDERA_MAINNET_CAIP2;
-  if (network === HEDERA_TESTNET_CAIP2) return HEDERA_TESTNET_CAIP2;
-  return network;
+  return BigInt(`${whole}${paddedFraction}`).toString();
 }
 
 /**
@@ -193,48 +175,45 @@ export function hederaAccountIdsEqual(left: string, right: string): boolean {
 }
 
 /**
- * Normalize a raw SDK hbar transfer into shared transfer shape.
+ * Normalize SDK hbar transfers into shared transfer shape.
  *
- * @param transfer - Raw transfer object from Hedera SDK internals
- * @returns Normalized transfer entry
+ * @param hbarTransfers - Public Hedera SDK hbar transfer map
+ * @returns Normalized transfer entries
  */
-function normalizeHbarTransfer(transfer: unknown): HederaTransferEntry {
-  const candidate = transfer as {
-    accountId?: { toString?: () => string };
-    amount?: { toTinybars?: () => { toString?: () => string }; toString?: () => string };
-  };
-  return {
-    accountId: candidate.accountId?.toString?.() ?? "",
-    amount: candidate.amount?.toTinybars?.().toString?.() ?? candidate.amount?.toString?.() ?? "",
-  };
+function normalizeHbarTransfers(
+  hbarTransfers: TransferTransaction["hbarTransfers"],
+): HederaTransferEntry[] {
+  const normalizedTransfers: HederaTransferEntry[] = [];
+  for (const [accountId, amount] of hbarTransfers) {
+    normalizedTransfers.push({
+      accountId: accountId.toString(),
+      amount: amount.toTinybars().toString(),
+    });
+  }
+  return normalizedTransfers;
 }
 
 /**
- * Group raw SDK token transfers by token id.
+ * Group SDK token transfers by token id.
  *
- * @param tokenTransfers - Raw token transfer objects from Hedera SDK internals
+ * @param tokenTransfers - Public Hedera SDK token transfer map
  * @returns Token transfer map keyed by token id
  */
-function normalizeTokenTransfers(tokenTransfers: unknown[]): Record<string, HederaTransferEntry[]> {
+function normalizeTokenTransfers(
+  tokenTransfers: TransferTransaction["tokenTransfers"],
+): Record<string, HederaTransferEntry[]> {
   const grouped: Record<string, HederaTransferEntry[]> = {};
-  for (const tokenTransfer of tokenTransfers) {
-    const candidate = tokenTransfer as {
-      tokenId?: { toString?: () => string };
-      accountId?: { toString?: () => string };
-      amount?: { toString?: () => string };
-    };
-    const tokenId = candidate.tokenId?.toString?.() ?? "";
-    if (tokenId.length === 0) {
-      continue;
+  for (const [tokenId, accountTransfers] of tokenTransfers) {
+    const normalizedTokenId = tokenId.toString();
+    if (!grouped[normalizedTokenId]) {
+      grouped[normalizedTokenId] = [];
     }
-    const normalizedTransfer = {
-      accountId: candidate.accountId?.toString?.() ?? "",
-      amount: candidate.amount?.toString?.() ?? "",
-    };
-    if (!grouped[tokenId]) {
-      grouped[tokenId] = [];
+    for (const [accountId, amount] of accountTransfers) {
+      grouped[normalizedTokenId].push({
+        accountId: accountId.toString(),
+        amount: amount.toString(),
+      });
     }
-    grouped[tokenId].push(normalizedTransfer);
   }
   return grouped;
 }

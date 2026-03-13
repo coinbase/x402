@@ -11,7 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 import { createClientHederaSigner } from "@x402/hedera";
-import { PrivateKey } from "@hashgraph/sdk";
+import { PrivateKey } from "@hiero-ledger/sdk";
 import axios from "axios";
 
 const client = new x402Client();

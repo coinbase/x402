@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PrivateKey } from "@hashgraph/sdk";
+import { PrivateKey } from "@hiero-ledger/sdk";
 import {
   createClientHederaSigner,
   toClientHederaSigner,

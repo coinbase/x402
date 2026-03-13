@@ -24,7 +24,7 @@ pnpm add @x402/hedera
 import { x402Client } from "@x402/core/client";
 import { createClientHederaSigner } from "@x402/hedera";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
-import { PrivateKey } from "@hashgraph/sdk";
+import { PrivateKey } from "@hiero-ledger/sdk";
 
 const signer = createClientHederaSigner(
   "0.0.1111",

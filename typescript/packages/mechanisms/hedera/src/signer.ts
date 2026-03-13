@@ -7,7 +7,7 @@ import {
   TokenId,
   TransactionId,
   TransferTransaction,
-} from "@hashgraph/sdk";
+} from "@hiero-ledger/sdk";
 import { DEFAULT_REPLAY_WINDOW_MS } from "./constants";
 import { isHbarAsset, normalizeHederaNetwork } from "./utils";
 

@@ -16,7 +16,7 @@ import type {
   SupportedResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hashgraph/sdk";
+import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hiero-ledger/sdk";
 import { createClientHederaSigner, toFacilitatorHederaSigner } from "../../src/signer";
 import { ExactHederaScheme as ExactHederaClient } from "../../src/exact/client/scheme";
 import { ExactHederaScheme as ExactHederaServer } from "../../src/exact/server/scheme";
@@ -27,7 +27,7 @@ class HederaFacilitatorClient implements FacilitatorClient {
   readonly network = "hedera:testnet";
   readonly x402Version = 2;
 
-  constructor(private readonly facilitator: x402Facilitator) {}
+  constructor(private readonly facilitator: x402Facilitator) { }
 
   verify(
     paymentPayload: PaymentPayload,
@@ -60,10 +60,10 @@ describe("Hedera integration", () => {
   const liveResourceServerAccount = process.env.HEDERA_RESOURCE_SERVER_ACCOUNT_ID;
   const hasLiveEnv = Boolean(
     liveClientAccount &&
-      liveClientPrivateKeyRaw &&
-      liveFeePayerAccount &&
-      liveFeePayerPrivateKeyRaw &&
-      liveResourceServerAccount,
+    liveClientPrivateKeyRaw &&
+    liveFeePayerAccount &&
+    liveFeePayerPrivateKeyRaw &&
+    liveResourceServerAccount,
   );
 
   function parseEcdsaPrivateKeyFromEnv(name: string, value: string): PrivateKey {

@@ -9,7 +9,7 @@ import {
   TopicCreateTransaction,
   TransactionId,
   TransferTransaction,
-} from "@hashgraph/sdk";
+} from "@hiero-ledger/sdk";
 import { ExactHederaScheme } from "../../src/exact/facilitator/scheme";
 
 const baseRequirements: PaymentRequirements = {
