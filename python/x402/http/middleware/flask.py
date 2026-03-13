@@ -373,10 +373,12 @@ class PaymentMiddleware:
                             # Centralized error propagation if init fails
                             status = "503 Service Unavailable"
                             headers = [("Content-Type", "application/json")]
-                            body = json.dumps({
-                                "error": "Payment system initialization failed",
-                                "details": str(e),
-                            }).encode("utf-8")
+                            body = json.dumps(
+                                {
+                                    "error": "Payment system initialization failed",
+                                    "details": str(e),
+                                }
+                            ).encode("utf-8")
                             start_response(status, headers)
                             return [body]
 
