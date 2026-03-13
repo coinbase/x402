@@ -4,17 +4,18 @@
 
 The `exact` scheme on EVM executes a transfer where the Facilitator (server) pays the gas, but the Client (user) controls the exact flow of funds via cryptographic signatures.
 
-This is implemented via one of three asset transfer methods, depending on the token's capabilities and the client's wallet type:
+This is implemented via one of two asset transfer methods, depending on the token's capabilities:
 
 | AssetTransferMethod | Use Case                                                     | Recommendation                                 |
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
-| **3. UserOp**       | Smart wallets using ERC-4337 UserOperations.                 | **Smart Wallet Native** (Hardware-backed signing, on-chain spending limits). |
 
-If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`. The `userOp` method must be explicitly requested.
+If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
 In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
+
+Additionally, the `exact` scheme supports **ERC-4337 UserOperation payments** from smart contract wallets. This is advertised via `extra.userOperation.supported` and is orthogonal to the asset transfer method — see [Section 3](#3-erc-4337-useroperation-payments).
 
 ---
 
@@ -202,15 +203,15 @@ Settlement is performed by calling the `x402ExactPermit2Proxy`.
 
 ---
 
-## 3. AssetTransferMethod: `UserOp`
+## 3. ERC-4337 UserOperation Payments
 
-The `userOp` asset transfer method uses [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) UserOperations to execute payments from smart contract wallets (e.g., Safe) via an on-chain EntryPoint contract and bundler infrastructure.
+The `exact` scheme supports payments from [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) smart contract wallets (e.g., Safe, Coinbase Smart Wallet) via UserOperations submitted through bundler infrastructure. This capability is advertised via the `extra.userOperation` field in PaymentRequirements, following the approach proposed in [coinbase/x402#639](https://github.com/coinbase/x402/issues/639).
 
 ### Relationship to Existing Methods
 
-EIP-3009 and Permit2 already work with ERC-4337 smart wallets — a smart wallet can sign `transferWithAuthorization` or Permit2 messages like any EOA. The `userOp` method is **not** a replacement for these methods but addresses a distinct set of requirements:
+EIP-3009 and Permit2 work with smart wallets that can produce secp256k1 ECDSA signatures. UserOperation support addresses a distinct set of requirements that cannot be retrofitted onto signature-based methods:
 
-| Capability | EIP-3009 / Permit2 | UserOp |
+| Capability | EIP-3009 / Permit2 | UserOperation |
 | :--- | :--- | :--- |
 | EOA support | Yes | No (smart wallets only) |
 | Smart wallet support | Yes (if wallet can produce ECDSA signatures) | Yes (native) |
@@ -220,39 +221,73 @@ EIP-3009 and Permit2 already work with ERC-4337 smart wallets — a smart wallet
 | Multi-signature thresholds | No | Yes (enforced by smart contract) |
 | Token compatibility | EIP-3009 tokens only / Any ERC-20 | Any ERC-20 |
 
-The primary value add is enabling payments from wallets that use **non-secp256k1 signature schemes** (P256, WebAuthn) and wallets that enforce **on-chain authorization policies** (spending limits, multi-sig, time-locked session keys). These capabilities cannot be retrofitted onto EIP-3009 or Permit2, which require `ecrecover`-compatible signatures.
+### When to Use UserOperations
 
-### When to Use UserOp
-
-- The client wallet is a smart contract account (e.g., Safe, Coinbase Smart Wallet) that signs with P256 or WebAuthn credentials
+- The client wallet is a smart contract account that signs with P256 or WebAuthn credentials
 - The client requires on-chain spending limits or multi-signature authorization
 - The client cannot produce secp256k1 ECDSA signatures required by EIP-3009 / Permit2
+
+### Advertising Support: `PaymentRequirements`
+
+A Facilitator advertises ERC-4337 support by setting `extra.userOperation.supported: true` in the PaymentRequirements. This works within the existing `extra` field without requiring changes to the core x402 schema and is compatible with both v1 and v2 of the x402 specification.
+
+```json
+{
+  "x402Version": 1,
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base-sepolia",
+      "maxAmountRequired": "10000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "resource": "https://api.example.com/data",
+      "description": "Access to premium market data",
+      "mimeType": "application/json",
+      "outputSchema": null,
+      "maxTimeoutSeconds": 60,
+      "extra": {
+        "name": "USDC",
+        "version": "2",
+        "userOperation": {
+          "supported": true,
+          "bundlerUrl": "https://bundler.example.com",
+          "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "paymaster": "0xPaymasterAddress"
+        }
+      }
+    }
+  ]
+}
+```
+
+**`extra.userOperation` fields:**
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `supported` | `boolean` | Yes | When `true`, the facilitator accepts ERC-4337 UserOperation payments. |
+| `bundlerUrl` | `string` | No | The bundler endpoint URL the facilitator uses. |
+| `entryPoint` | `string` | No | Default EntryPoint contract address. The client may override this (see [EntryPoint Resolution](#entrypoint-resolution)). |
+| `paymaster` | `string` | No | Paymaster contract address, if gas sponsorship is available. |
+
+When `extra.userOperation.supported` is absent or `false`, the client falls back to standard authorization flows (EIP-3009 / Permit2).
 
 ### Phase 1: `PAYMENT-SIGNATURE` Header Payload
 
 The `payload` field must contain:
 
-- `userOperation`: A signed [PackedUserOperation](https://eips.ethereum.org/EIPS/eip-4337#packed-user-operation) (v0.7) whose `callData` encodes an ERC-20 `transfer(to, amount)` call from the smart wallet to the `payTo` address.
+- `userOperation`: A signed UserOperation whose `callData` encodes an ERC-20 `transfer(to, amount)` call from the smart wallet to the `payTo` address.
+- `entryPoint`: The EntryPoint contract address the client is using.
 
-The `accepted.extra` field must contain:
+The `payload` field may optionally contain:
 
-- `assetTransferMethod`: `"userOp"`
-- `entryPoint`: The canonical ERC-4337 v0.7 EntryPoint address (`0x0000000071727De22E5E9d8BAf0edAc6f37da032`)
+- `bundlerRpcUrl`: A bundler endpoint the facilitator should use for this specific operation.
 
-The `accepted.extra` field may optionally contain:
-
-- `bundlerRpcUrl`: A bundler endpoint the facilitator should use. If omitted, the facilitator uses its own configured bundler.
-
-**Example PaymentPayload:**
+**Example PaymentPayload (v2):**
 
 ```json
 {
   "x402Version": 2,
-  "resource": {
-    "url": "https://api.example.com/premium-data",
-    "description": "Access to premium market data",
-    "mimeType": "application/json"
-  },
   "accepted": {
     "scheme": "exact",
     "network": "eip155:8453",
@@ -261,13 +296,16 @@ The `accepted.extra` field may optionally contain:
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
     "extra": {
-      "assetTransferMethod": "userOp",
-      "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
       "name": "USDC",
-      "version": "2"
+      "version": "2",
+      "userOperation": {
+        "supported": true,
+        "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+      }
     }
   },
   "payload": {
+    "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
     "userOperation": {
       "sender": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
       "nonce": "0x0",
@@ -296,7 +334,7 @@ The verifier must execute these checks in order:
 
 3. **Verify balance**: Confirm the `sender` smart wallet holds sufficient balance of the `asset`.
 
-4. **Verify network**: Confirm the `entryPoint` address and chain match the `PaymentRequirements.network`.
+4. **Verify EntryPoint**: Confirm the `entryPoint` address is a canonical EntryPoint contract supported by the facilitator for the given network (see [EntryPoint Resolution](#entrypoint-resolution)).
 
 5. **Simulate**: Call the bundler's `eth_estimateUserOperationGas` with the UserOperation. This validates the signature (the EntryPoint calls `validateUserOp` on the smart wallet during simulation), confirms gas sufficiency, and ensures the operation will succeed. If simulation fails, the UserOperation is invalid.
 
@@ -306,19 +344,43 @@ Settlement is performed by submitting the signed UserOperation to an ERC-4337 bu
 
 > **Note:** Unlike EIP-3009 and Permit2 where the facilitator submits a transaction directly to the network, UserOperations are submitted to the bundler's mempool. The bundler packages the operation into an on-chain transaction via the EntryPoint contract. Facilitators poll for the receipt via `eth_getUserOperationReceipt(userOpHash)` rather than standard `eth_getTransactionReceipt`.
 
-### Gas Sponsorship
+### Bundler URL Resolution
+
+The facilitator resolves the bundler endpoint using a 3-level fallback:
+
+1. `payload.bundlerRpcUrl` — client-specified override for this operation
+2. `requirements.extra.userOperation.bundlerUrl` — advertised in PaymentRequirements
+3. Facilitator's default configured bundler URL
+
+This allows clients to specify a preferred bundler while ensuring the facilitator always has a fallback.
+
+### EntryPoint Resolution
+
+The client specifies which EntryPoint contract it is using via `payload.entryPoint`. The facilitator must validate that this is a canonical EntryPoint contract it supports for the given network (e.g., v0.6, v0.7, v0.8). If the requirements advertise a default `extra.userOperation.entryPoint`, the client may use it or override it with a different supported version. This ensures forward compatibility with future EntryPoint versions without requiring spec changes.
+
+### Gas Sponsorship (Paymaster)
 
 The specification supports two gas payment modes:
 
 #### Option A: Self-Funded (Default)
 
-The smart wallet pays its own gas via its EntryPoint deposit. The facilitator does not sponsor gas. No additional fields are required.
+The smart wallet pays its own gas via its EntryPoint deposit. No additional fields are required in the UserOperation.
 
-#### Option B: Paymaster-Sponsored (Extension: [`erc4337PaymasterGasSponsoring`](../../extensions/erc4337_paymaster_gas_sponsoring.md))
+#### Option B: Paymaster-Sponsored
 
-A [Paymaster](https://eips.ethereum.org/EIPS/eip-4337#paymasters) contract pays gas on behalf of the smart wallet, enabling a fully gasless experience analogous to the [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md) and [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md) extensions for Permit2.
+A [Paymaster](https://eips.ethereum.org/EIPS/eip-4337#paymasters) contract pays gas on behalf of the smart wallet, enabling a fully gasless experience. When the facilitator advertises `extra.userOperation.paymaster`, the client knows gas sponsorship is available.
 
-When a Paymaster is used, the UserOperation includes `paymasterAndData` specifying the paymaster contract and any required authorization data. See the [extension spec](../../extensions/erc4337_paymaster_gas_sponsoring.md) for payload structure, verification, and settlement details.
+Paymaster fields are optional fields within the UserOperation itself — no separate extension is needed. The facilitator passes them transparently to the bundler RPC:
+
+- `paymaster`: Paymaster contract address
+- `paymasterData`: Paymaster-specific authorization data
+- `paymasterVerificationGasLimit`: Gas limit for paymaster verification
+- `paymasterPostOpGasLimit`: Gas limit for paymaster post-operation
+
+When a Paymaster is used, the facilitator should verify that:
+1. The `paymaster` in the UserOperation matches the expected Paymaster contract.
+2. The Paymaster has sufficient deposit in the EntryPoint to cover gas costs.
+3. Simulation via `eth_estimateUserOperationGas` validates both the smart wallet signature and the Paymaster's `validatePaymasterUserOp`.
 
 ---
 
