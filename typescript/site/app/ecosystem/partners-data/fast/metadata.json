@@ -1,0 +1,7 @@
+{
+  "name": "Fast",
+  "description": "Fast settles agent-to-agent payments in under 100ms with near-zero fees and full parallelism. Ships a complete x402 SDK for clients, servers, and facilitators with native support for cross-chain payments.",
+  "logoUrl": "/logos/fast.png",
+  "websiteUrl": "https://docs.fast.xyz/sdk-references/payment-protocol-adapters/x402-sdk",
+  "category": "Infrastructure & Tooling"
+}
