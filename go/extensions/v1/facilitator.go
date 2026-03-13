@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/coinbase/x402/go/extensions/types"
+	"github.com/coinbase/x402/go/v2/extensions/types"
 )
 
 // V1OutputSchema represents the v1 outputSchema structure

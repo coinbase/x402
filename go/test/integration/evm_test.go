@@ -22,13 +22,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/mechanisms/evm"
+	evmclient "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/client"
+	evmfacilitator "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/facilitator"
+	evmserver "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
+	evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // newRealClientEvmSigner creates a client signer using the helper

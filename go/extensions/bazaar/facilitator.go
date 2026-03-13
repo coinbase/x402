@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/url"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/types"
-	v1 "github.com/coinbase/x402/go/extensions/v1"
-	x402types "github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/extensions/types"
+	v1 "github.com/coinbase/x402/go/v2/extensions/v1"
+	x402types "github.com/coinbase/x402/go/v2/types"
 	"github.com/xeipuuv/gojsonschema"
 )
 

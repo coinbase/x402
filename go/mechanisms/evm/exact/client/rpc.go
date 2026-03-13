@@ -13,7 +13,7 @@ import (
 	goethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/coinbase/x402/go/mechanisms/evm"
+	"github.com/coinbase/x402/go/v2/mechanisms/evm"
 )
 
 // ExactEvmChainConfig configures extension RPC behavior for one chain.

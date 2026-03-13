@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/coinbase/x402/go/mechanisms/evm"
+	"github.com/coinbase/x402/go/v2/mechanisms/evm"
 )
 
 // ParsedEIP3009Authorization contains the parsed transfer arguments used by verify and settle.
