@@ -6,8 +6,8 @@ Client-side Ed25519 signing for Solana-based x402 payments.
 
 ```go
 import (
-    svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
-    svmsigners "github.com/coinbase/x402/go/signers/svm"
+    svmclient "github.com/coinbase/x402/go/v2/mechanisms/svm/exact/client"
+    svmsigners "github.com/coinbase/x402/go/v2/signers/svm"
 )
 
 // Create signer from private key
@@ -174,7 +174,7 @@ Use in your own tests:
 ```go
 import (
     "testing"
-    svmsigners "github.com/coinbase/x402/go/signers/svm"
+    svmsigners "github.com/coinbase/x402/go/v2/signers/svm"
 )
 
 func TestPayment(t *testing.T) {

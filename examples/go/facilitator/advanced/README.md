@@ -238,9 +238,9 @@ Register additional schemes for other networks:
 
 ```go
 import (
-    x402 "github.com/coinbase/x402/go"
-    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-    svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+    x402 "github.com/coinbase/x402/go/v2"
+    evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/facilitator"
+    svm "github.com/coinbase/x402/go/v2/mechanisms/svm/exact/facilitator"
 )
 
 facilitator := x402.Newx402Facilitator()
@@ -260,7 +260,7 @@ facilitator.Register([]x402.Network{"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"}, 
 Extract and validate payment identifiers for deduplication:
 
 ```go
-import "github.com/coinbase/x402/go/extensions/paymentidentifier"
+import "github.com/coinbase/x402/go/v2/extensions/paymentidentifier"
 
 // In verification hook, extract and track payment ID
 facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {

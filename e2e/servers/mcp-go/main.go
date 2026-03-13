@@ -9,11 +9,11 @@ import (
 	"os"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	mcp402 "github.com/coinbase/x402/go/mcp"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	x402http "github.com/coinbase/x402/go/v2/http"
+	mcp402 "github.com/coinbase/x402/go/v2/mcp"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
+	"github.com/coinbase/x402/go/v2/types"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

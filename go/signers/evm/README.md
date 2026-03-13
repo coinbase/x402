@@ -6,8 +6,8 @@ Client-side EIP-712 signing for Ethereum-based x402 payments.
 
 ```go
 import (
-    evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-    evmsigners "github.com/coinbase/x402/go/signers/evm"
+    evmclient "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
 )
 
 // Create signer from private key
@@ -145,7 +145,7 @@ Use in your own tests:
 ```go
 import (
     "testing"
-    evmsigners "github.com/coinbase/x402/go/signers/evm"
+    evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
 )
 
 func TestPayment(t *testing.T) {

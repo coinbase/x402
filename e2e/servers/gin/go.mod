@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/coinbase/x402/go v0.0.0
+	github.com/coinbase/x402/go/v2 v2.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.11.0
 	github.com/joho/godotenv v1.5.1
 )
@@ -80,4 +80,4 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 )
 
-replace github.com/coinbase/x402/go => ../../../go
+replace github.com/coinbase/x402/go/v2 => ../../../go

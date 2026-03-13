@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/paymentidentifier"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/extensions/paymentidentifier"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/facilitator"
+	svm "github.com/coinbase/x402/go/v2/mechanisms/svm/exact/facilitator"
 	"github.com/gin-gonic/gin"
 )
 

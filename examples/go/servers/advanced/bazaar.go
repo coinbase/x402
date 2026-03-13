@@ -6,12 +6,12 @@ import (
 	"os"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/bazaar"
-	"github.com/coinbase/x402/go/extensions/types"
-	x402http "github.com/coinbase/x402/go/http"
-	ginmw "github.com/coinbase/x402/go/http/gin"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/extensions/bazaar"
+	"github.com/coinbase/x402/go/v2/extensions/types"
+	x402http "github.com/coinbase/x402/go/v2/http"
+	ginmw "github.com/coinbase/x402/go/v2/http/gin"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )

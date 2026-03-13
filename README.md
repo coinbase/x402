@@ -41,7 +41,7 @@ pip install x402
 ### Go
 
 ```shell
-go get github.com/coinbase/x402/go
+go get github.com/coinbase/x402/go/v2
 ```
 
 </details>

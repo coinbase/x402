@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // x402ResourceServer manages payment requirements and verification for protected resources

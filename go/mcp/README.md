@@ -17,7 +17,7 @@ package main
 
 import (
     "context"
-    "github.com/coinbase/x402/go/mcp"
+    "github.com/coinbase/x402/go/v2/mcp"
     mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -55,7 +55,7 @@ import (
     "context"
     "fmt"
     "log"
-    "github.com/coinbase/x402/go/mcp"
+    "github.com/coinbase/x402/go/v2/mcp"
     mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/mechanisms/evm"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // ExactEvmSchemeConfig holds configuration for the ExactEvmScheme facilitator
