@@ -1,0 +1,14 @@
+.env
+.logs/
+.DS_Store
+
+# Java
+java-server/build/
+java-server/.gradle/
+
+# TypeScript
+typescript-client/node_modules/
+
+# Python
+python-client/.venv/
+python-client/uv.lock
