@@ -531,6 +531,8 @@ async function runTest() {
       stellarPrivateKey: clientStellarPrivateKey || '',
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
+      evmNetwork: networks.evm.caip2,
+      evmRpcUrl: networks.evm.rpcUrl,
     };
 
     try {

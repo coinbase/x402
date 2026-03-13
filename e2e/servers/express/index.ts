@@ -29,6 +29,7 @@ const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${s
 const STELLAR_NETWORK = (process.env.STELLAR_NETWORK || "stellar:testnet") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+const EVM_PERMIT2_ASSET = process.env.EVM_PERMIT2_ASSET as `0x${string}`;
 const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
 const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
 const facilitatorUrl = process.env.FACILITATOR_URL;
@@ -192,7 +193,7 @@ app.use(
             },
           }
         : {}),
-      // Permit2 endpoint for generic ERC-20 tokens (no EIP-2612, uses raw approve tx)
+      // Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
       "GET /protected-permit2-erc20": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
@@ -200,10 +201,9 @@ app.use(
           network: EVM_NETWORK,
           price: {
             amount: "1000",
-            asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a", // Generic MockERC20 token (no EIP-2612)
+            asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
-              // No name/version - generic ERC-20 without EIP-2612
             },
           },
         },
@@ -217,9 +217,13 @@ app.use(
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "exact",
           network: EVM_NETWORK,
-          price: "$0.001",
-          // Use pre-parsed price with assetTransferMethod to force Permit2
-          extra: { assetTransferMethod: "permit2" },
+          price: {
+            amount: "1000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
         },
         extensions: {
           ...declareDiscoveryExtension({
