@@ -72,6 +72,11 @@ func main() {
 	evmNetwork := x402.Network(evmNetworkStr)
 	svmNetwork := x402.Network(svmNetworkStr)
 
+	evmPermit2Asset := os.Getenv("EVM_PERMIT2_ASSET")
+	if evmPermit2Asset == "" {
+		evmPermit2Asset = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+	}
+
 	fmt.Printf("EVM Payee address: %s\n", evmPayeeAddress)
 	fmt.Printf("SVM Payee address: %s\n", svmPayeeAddress)
 	fmt.Printf("Using remote facilitator at: %s\n", facilitatorURL)
@@ -150,14 +155,13 @@ func main() {
 					Scheme:  "exact",
 					PayTo:   evmPayeeAddress,
 					Network: evmNetwork,
-					// Use pre-parsed price with assetTransferMethod to force Permit2
-					Price: map[string]interface{}{
-						"amount": "1000", // 0.001 USDC (6 decimals)
-						"asset":  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-						"extra": map[string]interface{}{
-							"assetTransferMethod": "permit2",
-						},
+				Price: map[string]interface{}{
+					"amount": "1000",
+					"asset":  evmPermit2Asset,
+					"extra": map[string]interface{}{
+						"assetTransferMethod": "permit2",
 					},
+				},
 				},
 			},
 			Extensions: func() map[string]interface{} {
@@ -178,14 +182,13 @@ func main() {
 				Scheme:  "exact",
 				PayTo:   evmPayeeAddress,
 				Network: evmNetwork,
-				// Use MockGenericERC20 token that does NOT implement EIP-2612
-				Price: map[string]interface{}{
-					"amount": "1000", // smallest unit
-					"asset":  "0xeED520980fC7C7B4eB379B96d61CEdea2423005a", // MockGenericERC20 on Base Sepolia
-					"extra": map[string]interface{}{
-						"assetTransferMethod": "permit2",
-					},
+			Price: map[string]interface{}{
+				"amount": "1000",
+				"asset":  evmPermit2Asset,
+				"extra": map[string]interface{}{
+					"assetTransferMethod": "permit2",
 				},
+			},
 			},
 		},
 		Extensions: func() map[string]interface{} {
