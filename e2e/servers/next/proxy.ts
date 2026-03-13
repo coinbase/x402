@@ -20,6 +20,7 @@ export const SVM_NETWORK = (process.env.SVM_NETWORK ||
 export const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 export const STELLAR_NETWORK = (process.env.STELLAR_NETWORK ||
   "stellar:testnet") as `${string}:${string}`;
+const EVM_PERMIT2_ASSET = process.env.EVM_PERMIT2_ASSET as `0x${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!facilitatorUrl) {
@@ -163,8 +164,13 @@ export const proxy = paymentProxy(
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
         network: EVM_NETWORK,
-        price: "$0.001",
-        extra: { assetTransferMethod: "permit2" },
+        price: {
+          amount: "1000",
+          asset: EVM_PERMIT2_ASSET,
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
       },
       extensions: {
         ...declareDiscoveryExtension({
@@ -194,7 +200,7 @@ export const proxy = paymentProxy(
         network: EVM_NETWORK,
         price: {
           amount: "1000",
-          asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+          asset: EVM_PERMIT2_ASSET,
           extra: {
             assetTransferMethod: "permit2",
           },
