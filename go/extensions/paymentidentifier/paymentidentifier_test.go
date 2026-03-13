@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/paymentidentifier"
-	"github.com/coinbase/x402/go/extensions/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/extensions/paymentidentifier"
+	"github.com/coinbase/x402/go/v2/extensions/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

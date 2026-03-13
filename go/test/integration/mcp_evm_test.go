@@ -32,12 +32,12 @@ import (
 	"testing"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mcp"
-	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/mcp"
+	evmclient "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/client"
+	evmfacilitator "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/facilitator"
+	evmserver "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
+	evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

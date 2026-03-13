@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
-	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
+	evmmech "github.com/coinbase/x402/go/v2/mechanisms/evm"
+	svmmech "github.com/coinbase/x402/go/v2/mechanisms/svm"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"

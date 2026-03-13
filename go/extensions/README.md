@@ -24,7 +24,7 @@ The extension helpers facilitate the conversation between:
 Servers use helpers to attach extension metadata to payment requirements:
 
 ```go
-import "github.com/coinbase/x402/go/extensions/bazaar"
+import "github.com/coinbase/x402/go/v2/extensions/bazaar"
 
 // Server declares: "This resource supports Bazaar discovery"
 extension, _ := bazaar.DeclareDiscoveryExtension(...)
@@ -72,7 +72,7 @@ PaymentPayload (Client → Server → Facilitator):
 Recipients (clients, facilitators) can extract extension data:
 
 ```go
-import "github.com/coinbase/x402/go/extensions/bazaar"
+import "github.com/coinbase/x402/go/v2/extensions/bazaar"
 
 // Facilitator extracts from client payment (in hook context)
 discovered, _ := bazaar.ExtractDiscoveredResourceFromPaymentPayload(

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coinbase/x402/go/mechanisms/svm"
+	"github.com/coinbase/x402/go/v2/mechanisms/svm"
 	"github.com/stretchr/testify/assert"
 )
 

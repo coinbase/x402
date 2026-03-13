@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	x402http "github.com/coinbase/x402/go/v2/http"
+	"github.com/coinbase/x402/go/v2/types"
 	"github.com/gin-gonic/gin"
 )
 

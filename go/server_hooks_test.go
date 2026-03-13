@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // Mock facilitator client for testing

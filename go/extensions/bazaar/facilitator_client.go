@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strconv"
 
-	x402http "github.com/coinbase/x402/go/http"
+	x402http "github.com/coinbase/x402/go/v2/http"
 )
 
 // ListDiscoveryResourcesParams contains optional filtering and pagination parameters

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/mechanisms/evm"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // verifyEIP3009 verifies an EIP-3009 payment payload.

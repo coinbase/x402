@@ -1,11 +1,11 @@
 package main
 
 import (
-	x402 "github.com/coinbase/x402/go"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
-	svmsigners "github.com/coinbase/x402/go/signers/svm"
+	x402 "github.com/coinbase/x402/go/v2"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/client"
+	svm "github.com/coinbase/x402/go/v2/mechanisms/svm/exact/client"
+	evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
+	svmsigners "github.com/coinbase/x402/go/v2/signers/svm"
 )
 
 /**

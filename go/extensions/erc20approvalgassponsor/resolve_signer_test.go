@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	evm "github.com/coinbase/x402/go/mechanisms/evm"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm"
 )
 
 type mockApprovalSigner struct {

@@ -76,7 +76,7 @@ This package includes a built-in `SettlementCache` that prevents a known race co
 The cache rejects concurrent `/settle` calls that carry the same transaction payload, returning a `duplicate_settlement` error for the second and subsequent attempts. Entries are automatically evicted after 120 seconds (approximately twice the Solana blockhash lifetime).
 
 ```go
-import svm "github.com/coinbase/x402/go/mechanisms/svm"
+import svm "github.com/coinbase/x402/go/v2/mechanisms/svm"
 
 cache := svm.NewSettlementCache()
 

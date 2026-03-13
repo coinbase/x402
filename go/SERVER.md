@@ -27,10 +27,10 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    x402 "github.com/coinbase/x402/go"
-    x402http "github.com/coinbase/x402/go/http"
-    ginmw "github.com/coinbase/x402/go/http/gin"
-    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+    x402 "github.com/coinbase/x402/go/v2"
+    x402http "github.com/coinbase/x402/go/v2/http"
+    ginmw "github.com/coinbase/x402/go/v2/http/gin"
+    evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
 )
 
 func main() {
@@ -172,7 +172,7 @@ settleResp, err := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 ### Gin Middleware
 
 ```go
-import ginmw "github.com/coinbase/x402/go/http/gin"
+import ginmw "github.com/coinbase/x402/go/v2/http/gin"
 
 r.Use(ginmw.X402Payment(ginmw.Config{
     Routes:      routes,
@@ -318,8 +318,8 @@ Add protocol extensions like Bazaar discovery:
 
 ```go
 import (
-    "github.com/coinbase/x402/go/extensions/bazaar"
-    "github.com/coinbase/x402/go/extensions/types"
+    "github.com/coinbase/x402/go/v2/extensions/bazaar"
+    "github.com/coinbase/x402/go/v2/extensions/types"
 )
 
 discoveryExt, _ := bazaar.DeclareDiscoveryExtension(
@@ -761,12 +761,12 @@ routes := x402http.RoutesConfig{
 
 **V1:**
 ```go
-import "github.com/coinbase/x402/go/middleware/gin"
+import "github.com/coinbase/x402/go/v2/middleware/gin"
 ```
 
 **V2:**
 ```go
-import ginmw "github.com/coinbase/x402/go/http/gin"
+import ginmw "github.com/coinbase/x402/go/v2/http/gin"
 ```
 
 ## Related Documentation

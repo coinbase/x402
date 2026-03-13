@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/types"
+	x402 "github.com/coinbase/x402/go/v2"
+	"github.com/coinbase/x402/go/v2/types"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

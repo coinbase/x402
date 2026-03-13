@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coinbase/x402/go/types"
+	"github.com/coinbase/x402/go/v2/types"
 )
 
 // Test Facilitator BeforeVerify hook - abort verification

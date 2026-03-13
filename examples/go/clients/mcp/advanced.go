@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	x402 "github.com/coinbase/x402/go"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
-	"github.com/coinbase/x402/go/mcp"
+	x402 "github.com/coinbase/x402/go/v2"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/client"
+	evmsigners "github.com/coinbase/x402/go/v2/signers/evm"
+	"github.com/coinbase/x402/go/v2/mcp"
 	"github.com/joho/godotenv"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )

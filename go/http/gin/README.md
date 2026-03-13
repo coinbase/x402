@@ -16,10 +16,10 @@ package main
 import (
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	ginmw "github.com/coinbase/x402/go/http/gin"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	x402 "github.com/coinbase/x402/go/v2"
+	x402http "github.com/coinbase/x402/go/v2/http"
+	ginmw "github.com/coinbase/x402/go/v2/http/gin"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
 	"github.com/gin-gonic/gin"
 )
 
@@ -154,8 +154,8 @@ Register schemes for different networks:
 
 ```go
 import (
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
+	svm "github.com/coinbase/x402/go/v2/mechanisms/svm/exact/server"
 )
 
 r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
@@ -225,10 +225,10 @@ import (
 	"log"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	ginmw "github.com/coinbase/x402/go/http/gin"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	x402 "github.com/coinbase/x402/go/v2"
+	x402http "github.com/coinbase/x402/go/v2/http"
+	ginmw "github.com/coinbase/x402/go/v2/http/gin"
+	evm "github.com/coinbase/x402/go/v2/mechanisms/evm/exact/server"
 	"github.com/gin-gonic/gin"
 )
 
