@@ -180,26 +180,34 @@ export async function verifyPermit2(
     },
   };
 
+  // Verify signature
+  // Note: verifyTypedData is implementation-dependent and pluggable on FacilitatorEvmSigner
+  // Some implementations only do EOA-style ECDSA recovery (e.g. viem/utils verifyTypedData, ethers.verifyTypedData)
+  // Viem's publicClient.verifyTypedData supports EOA and Smart Contract Account (ERC-1271 / ERC-6492) signature verification
+  let signatureValid = false;
   try {
-    const isValid = await signer.verifyTypedData({
+    signatureValid = await signer.verifyTypedData({
       address: payer,
       ...permit2TypedData,
       signature: permit2Payload.signature,
     });
+  } catch {
+    signatureValid = false;
+  }
 
-    if (!isValid) {
+  if (!signatureValid) {
+    // Check if the payer is a deployed smart contract
+    const bytecode = await signer.getCode({ address: payer });
+    const isDeployedContract = bytecode && bytecode !== "0x";
+
+    if (!isDeployedContract) {
       return {
         isValid: false,
         invalidReason: Errors.ErrPermit2InvalidSignature,
         payer,
       };
     }
-  } catch {
-    return {
-      isValid: false,
-      invalidReason: Errors.ErrPermit2InvalidSignature,
-      payer,
-    };
+    // Deployed smart contract: fall through to simulation
   }
 
   // If simulation is disabled, return early
