@@ -61,7 +61,10 @@ export class ExactStellarScheme implements SchemeNetworkClient {
     const rpcServer = getRpcClient(network, this.rpcConfig);
     const latestLedger = await rpcServer.getLatestLedger();
     const currentLedger = latestLedger.sequence;
-    const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(rpcServer);
+    const estimatedLedgerSeconds = await getEstimatedLedgerCloseTimeSeconds(
+      rpcServer,
+      currentLedger,
+    );
     const maxLedger = currentLedger + Math.ceil(maxTimeoutSeconds / estimatedLedgerSeconds);
 
     const tx = await contract.AssembledTransaction.build({

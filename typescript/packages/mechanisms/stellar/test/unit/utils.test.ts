@@ -240,7 +240,7 @@ describe("Stellar RPC Helper Functions", () => {
         getLedgers: mockGetLedgers,
       } as unknown as rpc.Server;
 
-      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer, 100);
 
       expect(result).toBe(3);
       expect(mockGetLedgers).toHaveBeenCalledWith(
@@ -253,39 +253,24 @@ describe("Stellar RPC Helper Functions", () => {
       expect(callArg.startLedger).toBeLessThanOrEqual(105);
     });
 
-    it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLatestLedger throws", async () => {
-      const mockGetLedgers = vi.fn();
-      const mockServer = {
-        getLatestLedger: vi.fn().mockRejectedValue(new Error("RPC error")),
-        getLedgers: mockGetLedgers,
-      } as unknown as rpc.Server;
-
-      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
-
-      expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
-      expect(mockGetLedgers).not.toHaveBeenCalled();
-    });
-
     it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLedgers throws", async () => {
       const mockServer = {
-        getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100 }),
         getLedgers: vi.fn().mockRejectedValue(new Error("Network error")),
       } as unknown as rpc.Server;
 
-      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer, 100);
 
       expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
     });
 
     it("should return DEFAULT_ESTIMATED_LEDGER_SECONDS when getLedgers returns fewer than 2 records", async () => {
       const mockServer = {
-        getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100 }),
         getLedgers: vi.fn().mockResolvedValue({
           ledgers: [{ sequence: 100, ledgerCloseTime: "1734032457" }],
         }),
       } as unknown as rpc.Server;
 
-      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer);
+      const result = await getEstimatedLedgerCloseTimeSeconds(mockServer, 100);
 
       expect(result).toBe(DEFAULT_ESTIMATED_LEDGER_SECONDS);
     });

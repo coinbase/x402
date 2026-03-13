@@ -112,12 +112,14 @@ export function getRpcClient(network: Network, rpcConfig?: RpcConfig): rpc.Serve
  * Fetches the estimated ledger close time (seconds per ledger) from RPC getLedgers.
  *
  * @param server - The Soroban RPC Server instance
+ * @param startLedger - The current ledger sequence number
  * @returns Estimated seconds per ledger, or DEFAULT_ESTIMATED_LEDGER_SECONDS (5) on error
  */
-export async function getEstimatedLedgerCloseTimeSeconds(server: rpc.Server): Promise<number> {
+export async function getEstimatedLedgerCloseTimeSeconds(
+  server: rpc.Server,
+  startLedger: number,
+): Promise<number> {
   try {
-    const latestLedger = await server.getLatestLedger();
-    const startLedger = latestLedger.sequence;
     const { ledgers } = await server.getLedgers({
       startLedger,
       pagination: { limit: RPC_LEDGERS_SAMPLE_SIZE },
