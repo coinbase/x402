@@ -12,7 +12,7 @@ export interface WaitForHealthOptions {
  * exhausted. Returns true when healthy, false on timeout.
  */
 export async function waitForHealth(
-  healthCheck: () => Promise<{ success: boolean }>,
+  healthCheck: () => Promise<{ success: boolean; error?: string }>,
   options?: WaitForHealthOptions,
 ): Promise<boolean> {
   const maxAttempts = options?.maxAttempts ?? 10;
@@ -26,7 +26,8 @@ export async function waitForHealth(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const result = await healthCheck();
-    verboseLog(` 🔍 ${label} health check ${attempt}/${maxAttempts}: ${result.success ? '✅' : '❌'}`);
+    const errorSuffix = !result.success && result.error ? ` (${result.error})` : '';
+    verboseLog(` 🔍 ${label} health check ${attempt}/${maxAttempts}: ${result.success ? '✅' : '❌'}${errorSuffix}`);
 
     if (result.success) {
       verboseLog(`  ✅ ${label} is healthy`);

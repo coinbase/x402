@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import { spawn, execSync } from 'child_process';
 import { writeFileSync } from 'fs';
 import { TestDiscovery } from './src/discovery';
-import { ClientConfig, ScenarioResult, ServerConfig, TestScenario } from './src/types';
+import { ClientConfig, ProtocolFamily, ScenarioResult, ServerConfig, TestScenario } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger, createComboLogger } from './src/logger';
 import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
@@ -11,7 +11,7 @@ import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/c
 import { minimizeScenarios } from './src/sampling';
 import { getNetworkSet, NetworkMode, NetworkSet, getNetworkModeDescription } from './src/networks/networks';
 import { GenericServerProxy } from './src/servers/generic-server';
-import { Semaphore, FacilitatorLock } from './src/concurrency';
+import { Semaphore, FamilyLanePool } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 
@@ -182,6 +182,13 @@ async function runClientTest(
   }
 }
 
+// ── Per-family key configuration ──────────────────────────────────────
+interface FamilyKeyConfig {
+  clientKeys: string[];
+  facilitatorKeys: string[];
+  laneCount: number;
+}
+
 async function runTest() {
   // Show help if requested
   if (parsedArgs.showHelp) {
@@ -200,19 +207,64 @@ async function runTest() {
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const serverAptosAddress = process.env.SERVER_APTOS_ADDRESS;
   const serverStellarAddress = process.env.SERVER_STELLAR_ADDRESS;
-  const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
-  const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
-  const clientAptosPrivateKey = process.env.CLIENT_APTOS_PRIVATE_KEY;
-  const clientStellarPrivateKey = process.env.CLIENT_STELLAR_PRIVATE_KEY;
-  const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
-  const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
-  const facilitatorAptosPrivateKey = process.env.FACILITATOR_APTOS_PRIVATE_KEY;
-  const facilitatorStellarPrivateKey = process.env.FACILITATOR_STELLAR_PRIVATE_KEY;
-  if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
+
+  // Parse plural (comma-delimited) or singular key env vars per family
+  function parseKeyArray(pluralVar: string, singularVar: string): string[] {
+    const plural = process.env[pluralVar];
+    if (plural) {
+      return plural.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    }
+    const singular = process.env[singularVar];
+    return singular ? [singular] : [];
+  }
+
+  // Build per-family key config: each family gets its own lane count
+  const familyKeys: Record<ProtocolFamily, FamilyKeyConfig> = {
+    evm: {
+      clientKeys: parseKeyArray('CLIENT_EVM_PRIVATE_KEYS', 'CLIENT_EVM_PRIVATE_KEY'),
+      facilitatorKeys: parseKeyArray('FACILITATOR_EVM_PRIVATE_KEYS', 'FACILITATOR_EVM_PRIVATE_KEY'),
+      laneCount: 1,
+    },
+    svm: {
+      clientKeys: parseKeyArray('CLIENT_SVM_PRIVATE_KEYS', 'CLIENT_SVM_PRIVATE_KEY'),
+      facilitatorKeys: parseKeyArray('FACILITATOR_SVM_PRIVATE_KEYS', 'FACILITATOR_SVM_PRIVATE_KEY'),
+      laneCount: 1,
+    },
+    aptos: {
+      clientKeys: parseKeyArray('CLIENT_APTOS_PRIVATE_KEYS', 'CLIENT_APTOS_PRIVATE_KEY'),
+      facilitatorKeys: parseKeyArray('FACILITATOR_APTOS_PRIVATE_KEYS', 'FACILITATOR_APTOS_PRIVATE_KEY'),
+      laneCount: 1,
+    },
+    stellar: {
+      clientKeys: parseKeyArray('CLIENT_STELLAR_PRIVATE_KEYS', 'CLIENT_STELLAR_PRIVATE_KEY'),
+      facilitatorKeys: parseKeyArray('FACILITATOR_STELLAR_PRIVATE_KEYS', 'FACILITATOR_STELLAR_PRIVATE_KEY'),
+      laneCount: 1,
+    },
+  };
+
+  // Baseline required check: EVM + SVM must be present
+  if (!serverEvmAddress || !serverSvmAddress ||
+      familyKeys.evm.clientKeys.length === 0 || familyKeys.evm.facilitatorKeys.length === 0 ||
+      familyKeys.svm.clientKeys.length === 0 || familyKeys.svm.facilitatorKeys.length === 0) {
     errorLog('❌ Missing required environment variables:');
     errorLog(' SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
     process.exit(1);
   }
+
+  // Validate per-family key counts and derive lane counts
+  for (const [family, cfg] of Object.entries(familyKeys) as [ProtocolFamily, FamilyKeyConfig][]) {
+    if (cfg.clientKeys.length > 0 && cfg.facilitatorKeys.length > 0 &&
+        cfg.clientKeys.length !== cfg.facilitatorKeys.length) {
+      errorLog(`❌ Key count mismatch for ${family}: ${cfg.clientKeys.length} client keys vs ${cfg.facilitatorKeys.length} facilitator keys`);
+      process.exit(1);
+    }
+    cfg.laneCount = Math.max(cfg.clientKeys.length, cfg.facilitatorKeys.length, 1);
+  }
+
+  // The maximum number of facilitator instances needed per facilitator name
+  // is the highest lane count across all families (since each facilitator
+  // process serves all families simultaneously).
+  const maxLaneCount = Math.max(...Object.values(familyKeys).map(c => c.laneCount));
 
   // Discover all servers, clients, and facilitators (always include legacy)
   const discovery = new TestDiscovery('.', true); // Always discover legacy
@@ -432,27 +484,40 @@ async function runTest() {
   let testResults: DetailedTestResult[] = [];
   let currentPort = 4022;
 
-  // Assign ports and start all facilitators
-  const facilitatorManagers = new Map<string, FacilitatorManager>();
+  // Node's fetch follows the WHATWG blocked-port list and rejects some
+  // localhost ports (for example 4045) with "bad port". Skip them when
+  // assigning ephemeral test ports because the harness uses fetch for
+  // server/facilitator health checks and local HTTP calls.
+  const fetchBlockedPorts = new Set([1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080]);
 
-  // Group scenarios by server + facilitator combination
-  // This ensures we restart servers when switching facilitators
+  function allocatePort(): number {
+    while (fetchBlockedPorts.has(currentPort)) {
+      currentPort++;
+    }
+
+    return currentPort++;
+  }
+
+  // ── Group scenarios by server + facilitator + protocolFamily ─────────
+  // This ensures each combo contains only one protocol family so that
+  // different families can run independently in their own lanes.
   interface ServerFacilitatorCombo {
     serverName: string;
     facilitatorName: string | undefined;
+    protocolFamily: ProtocolFamily;
     scenarios: typeof filteredScenarios;
     comboIndex: number;
     port: number;
   }
 
   const serverFacilitatorCombos: ServerFacilitatorCombo[] = [];
-  const groupKey = (serverName: string, facilitatorName: string | undefined) =>
-    `${serverName}::${facilitatorName || 'none'}`;
+  const comboGroupKey = (serverName: string, facilitatorName: string | undefined, family: ProtocolFamily) =>
+    `${serverName}::${facilitatorName || 'none'}::${family}`;
 
   const comboMap = new Map<string, typeof filteredScenarios>();
 
   for (const scenario of filteredScenarios) {
-    const key = groupKey(scenario.server.name, scenario.facilitator?.name);
+    const key = comboGroupKey(scenario.server.name, scenario.facilitator?.name, scenario.protocolFamily);
     if (!comboMap.has(key)) {
       comboMap.set(key, []);
     }
@@ -466,45 +531,67 @@ async function runTest() {
     serverFacilitatorCombos.push({
       serverName: firstScenario.server.name,
       facilitatorName: firstScenario.facilitator?.name,
+      protocolFamily: firstScenario.protocolFamily,
       scenarios,
       comboIndex,
-      port: currentPort++,
+      port: allocatePort(),
     });
     comboIndex++;
   }
 
-  // Start all facilitators with unique ports
-  for (const [facilitatorName, facilitator] of uniqueFacilitators) {
-    const port = currentPort++;
-    log(`\n🏛️ Starting facilitator: ${facilitatorName} on port ${port}`);
+  // ── Start facilitator instances ─────────────────────────────────────
+  // Each facilitator process serves all families, but we start enough
+  // instances to cover the highest per-family lane count.
+  const facilitatorInstanceManagers = new Map<string, FacilitatorManager>();
 
-    const manager = new FacilitatorManager(
-      facilitator.proxy,
-      port,
-      networks
-    );
-    facilitatorManagers.set(facilitatorName, manager);
+  for (const [facilitatorName, facilitator] of uniqueFacilitators) {
+    for (let i = 0; i < maxLaneCount; i++) {
+      const port = allocatePort();
+      log(`\n🏛️ Starting facilitator: ${facilitatorName} (slot ${i}) on port ${port}`);
+      const keys = {
+        evmPrivateKey: familyKeys.evm.facilitatorKeys[i] ?? familyKeys.evm.facilitatorKeys[0],
+        svmPrivateKey: familyKeys.svm.facilitatorKeys[i] ?? familyKeys.svm.facilitatorKeys[0],
+        aptosPrivateKey: familyKeys.aptos.facilitatorKeys[i] ?? familyKeys.aptos.facilitatorKeys[0],
+        stellarPrivateKey: familyKeys.stellar.facilitatorKeys[i] ?? familyKeys.stellar.facilitatorKeys[0],
+      };
+      const manager = new FacilitatorManager(facilitator.proxy, port, networks, keys);
+      facilitatorInstanceManagers.set(`${facilitatorName}::${i}`, manager);
+    }
   }
 
-  // Wait for all facilitators to be ready
+  // Wait for all facilitator instances to be ready
   log('\n⏳ Waiting for all facilitators to be ready...');
-  const facilitatorUrls = new Map<string, string>();
+  const facilitatorInstanceUrls = new Map<string, string>();
 
-  for (const [facilitatorName, manager] of facilitatorManagers) {
+  for (const [instanceKey, manager] of facilitatorInstanceManagers) {
     const url = await manager.ready();
     if (!url) {
-      log(`❌ Failed to start facilitator ${facilitatorName}`);
+      errorLog(`❌ Failed to start facilitator instance ${instanceKey}`);
+      for (const [, m] of facilitatorInstanceManagers) {
+        await m.stop().catch(() => {});
+      }
       process.exit(1);
     }
-    facilitatorUrls.set(facilitatorName, url);
-    log(`  ✅ Facilitator ${facilitatorName} ready at ${url}`);
+    facilitatorInstanceUrls.set(instanceKey, url);
+    log(`  ✅ Facilitator ${instanceKey} ready at ${url}`);
   }
 
-  log('\n✅ All facilitators are ready! Servers will be started/restarted as needed per test scenario.\n');
+  // For discovery validation: keep a map of facilitatorName -> first slot manager
+  const facilitatorManagers = new Map<string, FacilitatorManager>();
+  for (const [facilitatorName] of uniqueFacilitators) {
+    const firstSlot = facilitatorInstanceManagers.get(`${facilitatorName}::0`);
+    if (firstSlot) facilitatorManagers.set(facilitatorName, firstSlot);
+  }
 
-  log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
+  // Print lane configuration summary
+  const activeFamilies = [...new Set(filteredScenarios.map(s => s.protocolFamily))];
+  const laneDesc = activeFamilies.map(f => `${f.toUpperCase()}:${familyKeys[f].laneCount}`).join(', ');
+  log(`\n✅ All facilitator instances are ready! Lanes: ${laneDesc}`);
+  log(`   Servers will be started/restarted as needed per test scenario.\n`);
+
+  log(`🔧 Server/Facilitator/Family combinations: ${serverFacilitatorCombos.length}`);
   serverFacilitatorCombos.forEach(combo => {
-    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s)`);
+    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'} [${combo.protocolFamily}]: ${combo.scenarios.length} test(s)`);
   });
   if (parsedArgs.parallel) {
     log(`\n⚡ Parallel mode enabled (concurrency: ${parsedArgs.concurrency})`);
@@ -519,16 +606,17 @@ async function runTest() {
     scenario: TestScenario,
     port: number,
     localTestNumber: number,
+    clientKeys: { evm: string; svm: string; aptos: string; stellar: string },
     cLog: { log: typeof log; verboseLog: typeof verboseLog; errorLog: typeof errorLog },
   ): Promise<DetailedTestResult> {
     const facilitatorLabel = scenario.facilitator ? ` via ${scenario.facilitator.name}` : '';
     const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path}${facilitatorLabel}`;
 
     const clientConfig: ClientConfig = {
-      evmPrivateKey: clientEvmPrivateKey!,
-      svmPrivateKey: clientSvmPrivateKey!,
-      aptosPrivateKey: clientAptosPrivateKey || '',
-      stellarPrivateKey: clientStellarPrivateKey || '',
+      evmPrivateKey: clientKeys.evm,
+      svmPrivateKey: clientKeys.svm,
+      aptosPrivateKey: clientKeys.aptos,
+      stellarPrivateKey: clientKeys.stellar,
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
     };
@@ -579,10 +667,12 @@ async function runTest() {
     }
   }
 
-  // ── Execute a single server+facilitator combo ─────────────────────────
+  // ── Execute a single server+facilitator+family combo ─────────────────
   async function executeCombo(
     combo: ServerFacilitatorCombo,
-    evmLock: FacilitatorLock | null,
+    slotIndex: number,
+    facilitatorUrl: string | undefined,
+    clientKeys: { evm: string; svm: string; aptos: string; stellar: string },
     nextTestNumber: () => number,
   ): Promise<DetailedTestResult[]> {
     const { serverName, facilitatorName, scenarios, port } = combo;
@@ -600,11 +690,7 @@ async function runTest() {
     // Create a fresh server instance for this combo (own port, own process)
     const serverProxy = new GenericServerProxy(server.directory);
 
-    const facilitatorUrl = facilitatorName
-      ? facilitatorUrls.get(facilitatorName)
-      : undefined;
-
-    cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
+    cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'} [${combo.protocolFamily}] (slot ${slotIndex})`);
 
     const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
     const facilitatorSupportsAptos = facilitatorConfig?.protocolFamilies?.includes('aptos') ?? false;
@@ -640,24 +726,13 @@ async function runTest() {
     try {
       for (const scenario of scenarios) {
         const tn = nextTestNumber();
-        const isEvm = scenario.protocolFamily === 'evm';
 
         if (scenario.endpoint.transferMethod === 'permit2') {
           await revokePermit2Approval();
           await revokePermit2Approval('0xeED520980fC7C7B4eB379B96d61CEdea2423005a');
         }
 
-        if (isEvm && facilitatorName && evmLock) {
-          const releaseLock = await evmLock.acquire(facilitatorName);
-          try {
-            results.push(await runSingleTest(scenario, port, tn, cLog));
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } finally {
-            releaseLock();
-          }
-        } else {
-          results.push(await runSingleTest(scenario, port, tn, cLog));
-        }
+        results.push(await runSingleTest(scenario, port, tn, clientKeys, cLog));
       }
     } finally {
       cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
@@ -667,19 +742,37 @@ async function runTest() {
     return results;
   }
 
-  // ── Unified execution: concurrency=1 for sequential, N for parallel ──
+  // ── Unified execution: per-family lanes + global concurrency cap ─────
   const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
-  const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
   const semaphore = new Semaphore(effectiveConcurrency);
+  const familyLanePool = new FamilyLanePool({
+    evm: familyKeys.evm.laneCount,
+    svm: familyKeys.svm.laneCount,
+    aptos: familyKeys.aptos.laneCount,
+    stellar: familyKeys.stellar.laneCount,
+  });
 
   let globalTestNumber = 0;
   const nextTestNumber = () => ++globalTestNumber;
 
   const comboPromises = serverFacilitatorCombos.map(async (combo) => {
-    const release = await semaphore.acquire();
+    // Acquire a lane slot for this combo's protocol family
+    const { slotIndex, release } = await familyLanePool.acquire(combo.protocolFamily);
+    // Also respect global --concurrency cap
+    const semRelease = await semaphore.acquire();
     try {
-      return await executeCombo(combo, evmLock, nextTestNumber);
+      const facilitatorUrl = combo.facilitatorName
+        ? facilitatorInstanceUrls.get(`${combo.facilitatorName}::${slotIndex}`)
+        : undefined;
+      const comboClientKeys = {
+        evm: familyKeys.evm.clientKeys[slotIndex] ?? familyKeys.evm.clientKeys[0] ?? '',
+        svm: familyKeys.svm.clientKeys[slotIndex] ?? familyKeys.svm.clientKeys[0] ?? '',
+        aptos: familyKeys.aptos.clientKeys[slotIndex] ?? familyKeys.aptos.clientKeys[0] ?? '',
+        stellar: familyKeys.stellar.clientKeys[slotIndex] ?? familyKeys.stellar.clientKeys[0] ?? '',
+      };
+      return await executeCombo(combo, slotIndex, facilitatorUrl, comboClientKeys, nextTestNumber);
     } finally {
+      semRelease();
       release();
     }
   });
@@ -717,10 +810,10 @@ async function runTest() {
   // Clean up facilitators (servers already stopped in test loop for both modes)
   log('\n🧹 Cleaning up...');
 
-  // Stop all facilitators
+  // Stop all facilitator instances
   const facilitatorStopPromises: Promise<void>[] = [];
-  for (const [facilitatorName, manager] of facilitatorManagers) {
-    log(`  🛑 Stopping facilitator: ${facilitatorName}`);
+  for (const [instanceKey, manager] of facilitatorInstanceManagers) {
+    log(`  🛑 Stopping facilitator: ${instanceKey}`);
     facilitatorStopPromises.push(manager.stop());
   }
   await Promise.all(facilitatorStopPromises);

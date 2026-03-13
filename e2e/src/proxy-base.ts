@@ -75,7 +75,8 @@ export abstract class BaseProxy {
       this.process = spawn(command[0], command.slice(1), {
         env,
         stdio: 'pipe',
-        cwd: this.directory
+        cwd: this.directory,
+        detached: true,
       });
 
       let output = '';
@@ -94,6 +95,10 @@ export abstract class BaseProxy {
       this.process.stderr?.on('data', (data) => {
         stderr += data.toString();
         verboseLog(`[${this.directory}] stderr: ${data.toString()}`);
+        if (stderr.includes(this.readyLog) && !resolved) {
+          resolved = true;
+          resolve();
+        }
       });
 
       this.process.on('error', (error) => {
@@ -130,17 +135,31 @@ export abstract class BaseProxy {
   protected async stopProcess(): Promise<void> {
     if (this.process) {
       return new Promise((resolve) => {
-        const process = this.process!;
-        process.kill('SIGTERM');
+        const child = this.process!;
+        const pid = child.pid;
+
+        // Kill the entire process group (pnpm -> tsx -> node) via negative PID
+        if (pid) {
+          try {
+            process.kill(-pid, 'SIGTERM');
+          } catch {
+            child.kill('SIGTERM');
+          }
+        } else {
+          child.kill('SIGTERM');
+        }
 
         // Force kill after 5 seconds
         const forceKillTimeout = setTimeout(() => {
-          if (process && !process.killed) {
-            process.kill('SIGKILL');
+          if (pid) {
+            try { process.kill(-pid, 'SIGKILL'); } catch { /* already dead */ }
+          }
+          if (child && !child.killed) {
+            child.kill('SIGKILL');
           }
         }, 5000);
 
-        process.on('exit', () => {
+        child.on('exit', () => {
           clearTimeout(forceKillTimeout);
           this.process = null;
           resolve();
