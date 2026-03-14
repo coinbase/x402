@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect width="120" height="120" rx="20" fill="#0052FF"/>
+  <text x="60" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="16" fill="white">PAY</text>
+  <text x="60" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="16" fill="white">CROW</text>
+  <path d="M40 88 L60 95 L80 88" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,7 @@
+{
+  "name": "PayCrow",
+  "description": "Escrow protection for autonomous agent payments. Trust scoring + USDC escrow + dispute resolution on Base. The trust layer for x402.",
+  "logoUrl": "/logos/paycrow.svg",
+  "websiteUrl": "https://github.com/michu5696/paycrow",
+  "category": "Services/Endpoints"
+}
