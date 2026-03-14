@@ -1,0 +1,7 @@
+{
+  "name": "Silverback Services",
+  "description": "DeFi intelligence APIs gated by x402 micropayments. Trading analytics, yield data, token audits, and AI-powered market analysis on Base and Solana.",
+  "logoUrl": "/logos/silverback.png",
+  "websiteUrl": "https://x402.silverbackdefi.app/",
+  "category": "Services/Endpoints"
+}
