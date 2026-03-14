@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="256" height="256" rx="56" fill="#0a0a0a"/>
+  <!-- GPU chip body -->
+  <rect x="32" y="72" width="192" height="112" rx="16" fill="none" stroke="url(#g)" stroke-width="8"/>
+  <!-- Processing cores -->
+  <rect x="56" y="96" width="36" height="36" rx="6" fill="#10b981" opacity=".9"/>
+  <rect x="110" y="96" width="36" height="36" rx="6" fill="#10b981" opacity=".65"/>
+  <rect x="164" y="96" width="36" height="36" rx="6" fill="#10b981" opacity=".4"/>
+  <!-- Status bar -->
+  <rect x="56" y="148" width="144" height="12" rx="6" fill="#10b981" opacity=".2"/>
+  <rect x="56" y="148" width="96" height="12" rx="6" fill="#10b981" opacity=".35"/>
+  <!-- Bottom pins -->
+  <line x1="80" y1="184" x2="80" y2="212" stroke="#10b981" stroke-width="8" stroke-linecap="round"/>
+  <line x1="128" y1="184" x2="128" y2="212" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity=".7"/>
+  <line x1="176" y1="184" x2="176" y2="212" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+  <!-- Top pins -->
+  <line x1="80" y1="44" x2="80" y2="72" stroke="#10b981" stroke-width="8" stroke-linecap="round"/>
+  <line x1="128" y1="44" x2="128" y2="72" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity=".7"/>
+  <line x1="176" y1="44" x2="176" y2="72" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+  <!-- Bridge arc (connects the concept) -->
+  <path d="M48 152 Q128 180 208 152" fill="none" stroke="#10b981" stroke-width="3" opacity=".15"/>
+</svg>
