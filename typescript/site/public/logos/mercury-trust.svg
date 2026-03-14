@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Mercury Trust</title>
+  <desc id="desc">Shield logo with MT monogram for Mercury Trust.</desc>
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0b1220" />
+  <path
+    d="M64 18l32 10v24c0 28-16.6 48.8-32 58-15.4-9.2-32-30-32-58V28l32-10z"
+    fill="url(#shield)"
+  />
+  <path
+    d="M42 44h11l11 20 11-20h11v40H75V63L64 81 53 63v21H42V44z"
+    fill="#f8fafc"
+  />
+</svg>
