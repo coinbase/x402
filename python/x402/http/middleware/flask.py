@@ -7,6 +7,7 @@ Uses x402HTTPResourceServerSync for synchronous request processing without async
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
 
@@ -320,6 +321,7 @@ class PaymentMiddleware:
         self._paywall_config = paywall_config
         self._sync_on_start = sync_facilitator_on_start
         self._init_done = False
+        self._init_lock = threading.Lock()
         self._original_wsgi = app.wsgi_app
 
         if paywall_provider:
@@ -358,10 +360,14 @@ class PaymentMiddleware:
             if not self._http_server.requires_payment(context):
                 return self._original_wsgi(environ, start_response)
 
-            # Initialize on first protected request
+            # Initialize on first protected request (thread-safe)
             if self._sync_on_start and not self._init_done:
-                self._http_server.initialize()
-                self._init_done = True
+                with self._init_lock:
+                    # Double-check pattern: another thread might have initialized
+                    # while we were waiting for the lock
+                    if not self._init_done:
+                        self._http_server.initialize()
+                        self._init_done = True
 
             # Process payment request synchronously (no asyncio overhead)
             result = self._http_server.process_http_request(context, self._paywall_config)
