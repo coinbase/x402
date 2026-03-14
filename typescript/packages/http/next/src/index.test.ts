@@ -31,6 +31,11 @@ const mockFunctions = {
 // Mock @x402/core/server
 vi.mock("@x402/core/server", () => ({
   FacilitatorResponseError: class FacilitatorResponseError extends Error {
+    /**
+     * Creates a mock facilitator response error.
+     *
+     * @param message - Error message.
+     */
     constructor(message: string) {
       super(message);
       this.name = "FacilitatorResponseError";

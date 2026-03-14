@@ -123,9 +123,7 @@ export class FacilitatorResponseError extends Error {
  * @param error - The thrown value to inspect
  * @returns The nested facilitator response error, if present
  */
-export function getFacilitatorResponseError(
-  error: unknown,
-): FacilitatorResponseError | null {
+export function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
   let current = error;
 
   while (current instanceof Error) {
