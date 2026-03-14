@@ -1,0 +1,7 @@
+{
+  "name": "BV-7X",
+  "description": "Autonomous Bitcoin oracle delivering 7-day directional signals via x402-paid API endpoints. 81.8% live accuracy with on-chain EAS attestations on Base. Free trial tier (10 calls/day), basic ($0.05), and premium ($0.25) tiers available.",
+  "logoUrl": "/logos/bv7x.png",
+  "websiteUrl": "https://bv7x.ai/api",
+  "category": "Services/Endpoints"
+}
