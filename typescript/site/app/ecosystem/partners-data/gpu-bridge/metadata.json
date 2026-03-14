@@ -1,0 +1,7 @@
+{
+  "name": "GPU-Bridge",
+  "description": "The first GPU inference provider with native x402 support. 30 AI services — LLM, image, video, audio, embeddings, reranking, PDF parsing — via one REST endpoint. Autonomous agents pay with USDC on Base, no account required.",
+  "logoUrl": "/logos/gpu-bridge.png",
+  "websiteUrl": "https://gpubridge.xyz",
+  "category": "Services/Endpoints"
+}
