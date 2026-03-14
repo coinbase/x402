@@ -1,0 +1,7 @@
+{
+  "name": "FilX",
+  "description": "The x402 File Primitive for AI agents. 20+ file conversion endpoints — PDF to Markdown, OCR, background removal, image conversion, table extraction and more. No API keys, no accounts. Pay per request with USDC on Base.",
+  "logoUrl": "/logos/filx.png",
+  "websiteUrl": "https://filx.io",
+  "category": "Services/Endpoints"
+}
