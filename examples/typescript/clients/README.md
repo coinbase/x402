@@ -10,6 +10,7 @@ This directory contains TypeScript client examples demonstrating how to make HTT
 | [`axios/`](./axios/) | Using `@x402/axios` with Axios |
 | [`advanced/`](./advanced/) | Advanced patterns: lifecycle hooks, network preferences |
 | [`custom/`](./custom/) | Manual implementation using only `@x402/core` |
+| [`error-handling/`](./error-handling/) | Comprehensive error handling, retry logic, and monitoring |
 
 ## Framework Examples
 
@@ -30,6 +31,17 @@ The **advanced** directory demonstrates advanced features supported by our clien
 - **Network Preferences** — Configure preferred payment networks with fallbacks
 
 These patterns are useful for production applications that need observability, custom validation, or user preference handling.
+
+## Error Handling
+
+The **error-handling** directory provides comprehensive examples of handling x402 payment errors gracefully:
+
+- **Basic Error Handling** — Try/catch patterns with proper error classification
+- **Advanced Patterns** — Custom error types, lifecycle hooks, monitoring
+- **Retry Logic** — Exponential backoff with jitter and circuit breaker
+- **Monitoring** — Error tracking, alerting, and metrics collection
+
+Essential for production applications where payment reliability is critical.
 
 ## Custom Implementation
 

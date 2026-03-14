@@ -1,0 +1,42 @@
+{
+  "name": "@x402/example-error-handling",
+  "version": "1.0.0",
+  "description": "Comprehensive error handling examples for x402 clients",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "basic": "tsx basic-error-handling.ts",
+    "advanced": "tsx advanced-error-handling.ts",
+    "retry": "tsx retry-with-backoff.ts",
+    "monitoring": "tsx error-monitoring.ts",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
+  },
+  "dependencies": {
+    "@x402/fetch": "workspace:*",
+    "@x402/evm": "workspace:*",
+    "@x402/svm": "workspace:*",
+    "@solana/kit": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "viem": "^1.19.11",
+    "@scure/base": "^1.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.2.0",
+    "eslint": "^8.52.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0"
+  },
+  "keywords": [
+    "x402",
+    "error-handling",
+    "retry",
+    "monitoring",
+    "payments",
+    "typescript"
+  ],
+  "author": "x402 Team",
+  "license": "MIT"
+}
