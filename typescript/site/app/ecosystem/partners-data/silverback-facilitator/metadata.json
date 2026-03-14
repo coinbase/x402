@@ -1,0 +1,14 @@
+{
+  "name": "Silverback Facilitator",
+  "description": "Silverback x402 Facilitator available on Base, Solana, and SKALE. Supports EIP-3009 and SPL compliant tokens including USDC.",
+  "logoUrl": "/logos/silverback.png",
+  "websiteUrl": "https://www.silverbackdefi.app/",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.silverbackdefi.app",
+    "networks": ["base", "solana", "skale"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009", "SPL"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": true }
+  }
+}
