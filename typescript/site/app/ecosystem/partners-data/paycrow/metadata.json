@@ -1,0 +1,7 @@
+{
+  "name": "PayCrow",
+  "description": "Escrow protection for autonomous agent payments. Trust scoring from 4 on-chain sources + USDC escrow with dispute resolution on Base. 10 MCP tools including safe_pay (trust-informed smart escrow) and trust_gate (go/no-go before payment). PayPal for AI agents.",
+  "logoUrl": "/logos/paycrow.svg",
+  "websiteUrl": "https://github.com/michu5696/paycrow",
+  "category": "Infrastructure & Tooling"
+}
