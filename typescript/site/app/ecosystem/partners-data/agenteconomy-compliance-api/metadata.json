@@ -2,6 +2,6 @@
   "name": "AgentEconomy Compliance API",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/agenteconomy-compliance-api.png",
-  "description": "Compliance-as-a-Service API for autonomous agents and applications. On-demand KYC, AML, and risk assessment — accessible via x402 micropayments with no contracts or subscriptions required.",
+  "description": "Sanctions screening and jurisdiction risk assessment API for autonomous agents. Real-time OFAC SDN and UN Consolidated list screening, AML checks, and multi-country risk analysis via x402 micropayments.",
   "websiteUrl": "https://api.netbrainis.co.za"
 }
