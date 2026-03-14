@@ -4,18 +4,18 @@
 
 The `exact` scheme on EVM executes a transfer where the Facilitator (server) pays the gas, but the Client (user) controls the exact flow of funds via cryptographic signatures.
 
-This is implemented via one of two asset transfer methods, depending on the token's capabilities:
+This is implemented via one of several asset transfer methods, depending on the token's and wallet's capabilities:
 
-| AssetTransferMethod | Use Case                                                     | Recommendation                                 |
-| :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
-| **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
-| **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+| AssetTransferMethod | Use Case                                                     | Recommendation                                 | Usage Semantics                     |
+| :------------------ | :----------------------------------------------------------- | :--------------------------------------------- | :---------------------------------- |
+| **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     | One-time use                        |
+| **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). | One-time use                        |
+| **3. ERC-7710**     | Smart accounts with delegation support.                      | **Smart Account Option** (Paid from ERC-7710 compatible account). | One-time use and multi-use |
+| **4. ERC-4337 UserOp** | Smart wallets using ERC-4337 bundler infrastructure.      | **Smart Wallet Option** (P256/WebAuthn/Passkey signing, on-chain policies). | One-time use |
 
 If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
-In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
-
-Additionally, the `exact` scheme supports **ERC-4337 UserOperation payments** from smart contract wallets. This is advertised via `extra.userOperation.supported` and is orthogonal to the asset transfer method — see [Section 3](#3-erc-4337-useroperation-payments).
+In all cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
 
 ---
 
@@ -146,7 +146,7 @@ The `payload` field must contain:
         "amount": "10000"
       },
       "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-      "spender": "0x4020CD856C882D5fb903D99CE35316A085Bb0001", // Canonical x402ExactPermit2Proxy address
+      "spender": "0x402085c248EeA27D92E8b30b2C58ed07f9E20001", // Canonical x402ExactPermit2Proxy address
       "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
       "deadline": "1740672154",
       "witness": {
@@ -203,87 +203,136 @@ Settlement is performed by calling the `x402ExactPermit2Proxy`.
 
 ---
 
-## 3. ERC-4337 UserOperation Payments
+## 3. AssetTransferMethod: `ERC-7710`
 
-The `exact` scheme supports payments from [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) smart contract wallets (e.g., Safe, Coinbase Smart Wallet) via UserOperations submitted through bundler infrastructure. This capability is advertised via the `extra.userOperation` field in PaymentRequirements, following the approach proposed in [coinbase/x402#639](https://github.com/coinbase/x402/issues/639).
+This asset transfer method uses [ERC-7710](https://eips.ethereum.org/EIPS/eip-7710) smart contract delegation to authorize transfers from accounts that support the standard. It is particularly suited for smart contract accounts (e.g., ERC-4337 accounts, ERC-7579 modular accounts) that have enabled delegation capabilities.
 
-### Relationship to Existing Methods
+### Prerequisites
 
-EIP-3009 and Permit2 work with smart wallets that can produce secp256k1 ECDSA signatures. UserOperation support addresses a distinct set of requirements that cannot be retrofitted onto signature-based methods:
+For ERC-7710 to work, the following must be true:
 
-| Capability | EIP-3009 / Permit2 | UserOperation |
-| :--- | :--- | :--- |
-| EOA support | Yes | No (smart wallets only) |
-| Smart wallet support | Yes (if wallet can produce ECDSA signatures) | Yes (native) |
-| Hardware-backed signing (P256 / Secure Enclave) | No (requires secp256k1) | Yes |
-| WebAuthn / Passkey signing | No | Yes |
-| On-chain spending limits & session keys | No (enforced off-chain only) | Yes (enforced by smart contract) |
-| Multi-signature thresholds | No | Yes (enforced by smart contract) |
-| Token compatibility | EIP-3009 tokens only / Any ERC-20 | Any ERC-20 |
+1. **Delegator Account**: The payer's account must be a smart contract that supports ERC-7710 delegation (e.g., a modular smart account with delegation capabilities).
+2. **Delegation Manager**: A `DelegationManager` contract implementing the `ERC7710Manager` interface must be deployed on the network.
+3. **Active Delegation**: The payer must have created a delegation authorizing the delegate to execute token transfers on their behalf, with appropriate caveats (amount limits, recipient restrictions, etc.).
+
+### Phase 1: Obtaining a Delegation
+
+The process of obtaining a delegation is outside the scope of x402. Delegations may be obtained through:
+
+- [ERC-7715](https://eips.ethereum.org/EIPS/eip-7715) permission requests
+- Direct wallet interactions
+- Pre-configured session keys
+- Other delegation protocols
+
+The key requirement is that the client is able to issue a delegation to the facilitator that permits the required token transfer.
+
+### Phase 2: `PAYMENT-SIGNATURE` Header Payload
+
+The `payload` field must contain:
+
+- `delegationManager`: The address of the ERC-7710 Delegation Manager contract.
+- `permissionContext`: The delegation proof/context required by the specific Delegation Manager implementation.
+- `delegator`: The address of the account that created the delegation.
+
+**Example PaymentPayload:**
+
+```json
+{
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "assetTransferMethod": "erc7710",
+      "name": "USDC",
+      "version": "2"
+    }
+  },
+  "payload": {
+    "delegationManager": "0xDelegationManagerAddress",
+    "permissionContext": "0x...",
+    "delegator": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+  }
+}
+```
+
+**Note:** The structure of `permissionContext` is determined by the specific Delegation Manager implementation. Common implementations (e.g., MetaMask Delegation Framework) use EIP-712 signed delegation chains.
+
+### Phase 3: Verification Logic
+
+Unlike EIP-3009 and Permit2, ERC-7710 verification is performed entirely through simulation. The `permissionContext` is opaque to the facilitator but verifiable by simulating the intended action.
+
+The facilitator:
+
+1. **Constructs** the `executionCallData` encoding an ERC-20 `transfer(payTo, amount)` call for the required payment.
+
+2. **Constructs** the `mode` appropriate for the execution (typically `0x00...` for single call mode per ERC-7579).
+
+3. **Simulates** `delegationManager.redeemDelegations([permissionContext], [mode], [executionCallData])` to verify:
+   - The delegation is valid and authorizes the intended transfer.
+   - The delegator has sufficient balance of the asset.
+   - The transaction will succeed when executed.
+
+If the simulation succeeds, the payment is considered valid. The simulation serves as the sole verification mechanism—no trusted list of Delegation Manager implementations is required.
+
+**Security Considerations**:
+
+1. **Race Condition Risk**: A facilitator may be vulnerable to a race condition where the client invalidates their delegation between simulation and transaction execution, causing the facilitator to pay gas for a failed transaction. This risk can be mitigated by:
+   - Submitting transactions via a private mempool to reduce the window for front-running.
+   - Building trust signals for client accounts (e.g., reputation systems) that can be used to flag or ban abusive behavior.
+
+2. **Malicious Delegation Manager Gas Consumption**: A malicious or poorly implemented Delegation Manager could attempt to consume excessive gas during execution. To mitigate this risk:
+   - Facilitators should always set an explicit gas limit on their `redeemDelegations` call, as is standard practice for all Ethereum transactions.
+   - Pre-execution simulation helps identify whether a transaction is likely to use a reasonable amount of gas.
+   - If simulation reveals unexpectedly high gas consumption, this may indicate a "trap door" implementation designed to drain facilitator funds, and the transaction should be rejected.
+
+### Phase 4: Settlement Logic
+
+Settlement is performed by calling `redeemDelegations` on the Delegation Manager:
+
+```solidity
+delegationManager.redeemDelegations(
+    [permissionContext],  // bytes[] - delegation proof
+    [mode],               // bytes32[] - execution mode
+    [executionCallData]   // bytes[] - encoded transfer call
+);
+```
+
+The Delegation Manager validates the delegation authority and calls the delegator account to execute the token transfer. The delegator account then performs `token.transfer(payTo, amount)`.
+
+---
+
+## 4. AssetTransferMethod: `ERC-4337 UserOp`
+
+This asset transfer method uses [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) UserOperations to execute token transfers from smart contract wallets (e.g., Safe, Coinbase Smart Wallet) via bundler infrastructure. It enables payments from wallets that cannot produce secp256k1 ECDSA signatures required by EIP-3009 and Permit2, including wallets using P256/Secure Enclave, WebAuthn/Passkey, or on-chain authorization policies.
 
 ### When to Use UserOperations
 
 - The client wallet is a smart contract account that signs with P256 or WebAuthn credentials
-- The client requires on-chain spending limits or multi-signature authorization
+- The client requires on-chain spending limits or multi-signature authorization enforced by the smart contract
 - The client cannot produce secp256k1 ECDSA signatures required by EIP-3009 / Permit2
-
-### Advertising Support: `PaymentRequirements`
-
-A Facilitator advertises ERC-4337 support by setting `extra.userOperation.supported: true` in the PaymentRequirements. This works within the existing `extra` field without requiring changes to the core x402 schema and is compatible with both v1 and v2 of the x402 specification.
-
-```json
-{
-  "x402Version": 1,
-  "accepts": [
-    {
-      "scheme": "exact",
-      "network": "base-sepolia",
-      "maxAmountRequired": "10000",
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-      "resource": "https://api.example.com/data",
-      "description": "Access to premium market data",
-      "mimeType": "application/json",
-      "outputSchema": null,
-      "maxTimeoutSeconds": 60,
-      "extra": {
-        "name": "USDC",
-        "version": "2",
-        "userOperation": {
-          "supported": true,
-          "bundlerUrl": "https://bundler.example.com",
-          "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-          "paymaster": "0xPaymasterAddress"
-        }
-      }
-    }
-  ]
-}
-```
-
-**`extra.userOperation` fields:**
-
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `supported` | `boolean` | Yes | When `true`, the facilitator accepts ERC-4337 UserOperation payments. |
-| `bundlerUrl` | `string` | No | The bundler endpoint URL the facilitator uses. |
-| `entryPoint` | `string` | No | Default EntryPoint contract address. The client may override this (see [EntryPoint Resolution](#entrypoint-resolution)). |
-| `paymaster` | `string` | No | Paymaster contract address, if gas sponsorship is available. |
-
-When `extra.userOperation.supported` is absent or `false`, the client falls back to standard authorization flows (EIP-3009 / Permit2).
 
 ### Phase 1: `PAYMENT-SIGNATURE` Header Payload
 
 The `payload` field must contain:
 
+- `entryPoint`: The canonical EntryPoint contract address the client is using (e.g., v0.6, v0.7, v0.8).
 - `userOperation`: A signed UserOperation whose `callData` encodes an ERC-20 `transfer(to, amount)` call from the smart wallet to the `payTo` address.
-- `entryPoint`: The EntryPoint contract address the client is using.
 
 The `payload` field may optionally contain:
 
 - `bundlerRpcUrl`: A bundler endpoint the facilitator should use for this specific operation.
 
-**Example PaymentPayload (v2):**
+**Example PaymentPayload:**
 
 ```json
 {
@@ -296,12 +345,9 @@ The `payload` field may optionally contain:
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
     "extra": {
+      "assetTransferMethod": "userOp",
       "name": "USDC",
-      "version": "2",
-      "userOperation": {
-        "supported": true,
-        "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
-      }
+      "version": "2"
     }
   },
   "payload": {
@@ -334,7 +380,7 @@ The verifier must execute these checks in order:
 
 3. **Verify balance**: Confirm the `sender` smart wallet holds sufficient balance of the `asset`.
 
-4. **Verify EntryPoint**: Confirm the `entryPoint` address is a canonical EntryPoint contract supported by the facilitator for the given network (see [EntryPoint Resolution](#entrypoint-resolution)).
+4. **Verify EntryPoint**: Confirm the `entryPoint` address is a canonical EntryPoint contract supported by the facilitator for the given network (e.g., v0.6, v0.7, v0.8).
 
 5. **Simulate**: Call the bundler's `eth_estimateUserOperationGas` with the UserOperation. This validates the signature (the EntryPoint calls `validateUserOp` on the smart wallet during simulation), confirms gas sufficiency, and ensures the operation will succeed. If simulation fails, the UserOperation is invalid.
 
@@ -349,14 +395,10 @@ Settlement is performed by submitting the signed UserOperation to an ERC-4337 bu
 The facilitator resolves the bundler endpoint using a 3-level fallback:
 
 1. `payload.bundlerRpcUrl` — client-specified override for this operation
-2. `requirements.extra.userOperation.bundlerUrl` — advertised in PaymentRequirements
+2. `extra.bundlerUrl` — advertised in PaymentRequirements
 3. Facilitator's default configured bundler URL
 
 This allows clients to specify a preferred bundler while ensuring the facilitator always has a fallback.
-
-### EntryPoint Resolution
-
-The client specifies which EntryPoint contract it is using via `payload.entryPoint`. The facilitator must validate that this is a canonical EntryPoint contract it supports for the given network (e.g., v0.6, v0.7, v0.8). If the requirements advertise a default `extra.userOperation.entryPoint`, the client may use it or override it with a different supported version. This ensures forward compatibility with future EntryPoint versions without requiring spec changes.
 
 ### Gas Sponsorship (Paymaster)
 
@@ -368,7 +410,7 @@ The smart wallet pays its own gas via its EntryPoint deposit. No additional fiel
 
 #### Option B: Paymaster-Sponsored
 
-A [Paymaster](https://eips.ethereum.org/EIPS/eip-4337#paymasters) contract pays gas on behalf of the smart wallet, enabling a fully gasless experience. When the facilitator advertises `extra.userOperation.paymaster`, the client knows gas sponsorship is available.
+A [Paymaster](https://eips.ethereum.org/EIPS/eip-4337#paymasters) contract pays gas on behalf of the smart wallet, enabling a fully gasless experience.
 
 Paymaster fields are optional fields within the UserOperation itself — no separate extension is needed. The facilitator passes them transparently to the bundler RPC:
 
@@ -382,6 +424,14 @@ When a Paymaster is used, the facilitator should verify that:
 2. The Paymaster has sufficient deposit in the EntryPoint to cover gas costs.
 3. Simulation via `eth_estimateUserOperationGas` validates both the smart wallet signature and the Paymaster's `validatePaymasterUserOp`.
 
+**Security Considerations**:
+
+1. **Race Condition Risk**: Similar to ERC-7710, a client could invalidate a UserOperation between simulation and settlement (e.g., by spending the nonce or draining the wallet). Mitigations include private mempool submission and client reputation tracking.
+
+2. **callData Integrity**: The facilitator MUST decode and verify the `callData` to ensure it encodes only the expected `ERC20.transfer(payTo, amount)`. Arbitrary callData could execute unintended operations on the smart wallet.
+
+3. **Bundler Trust**: The facilitator depends on the bundler to honestly submit the UserOperation. When using a client-specified `bundlerRpcUrl`, the facilitator should consider whether it trusts that endpoint, or prefer its own configured bundler.
+
 ---
 
 ## Implementer Notes
@@ -391,6 +441,14 @@ When a Paymaster is used, the facilitator should verify that:
 ---
 
 ## Annex
+
+### ERC-7710 Delegation Managers
+
+ERC-7710 does not define a canonical Delegation Manager. Implementations may vary in their delegation structure, caveat enforcement, and permission context format. Notable implementations include:
+
+- **MetaMask Delegation Framework**: A full-featured implementation supporting EIP-712 signed delegation chains, caveat enforcement, and batch processing. See [gator.metamask.io](https://gator.metamask.io/) for documentation.
+
+Since verification is performed entirely through simulation, facilitators do not need to maintain a trusted list of Delegation Manager implementations.
 
 ### Canonical Permit2
 
@@ -402,7 +460,7 @@ This contract acts as the authorized Spender. It validates the Witness data to e
 
 > **Requirement**: This contract will be deployed to the same address across all supported EVM chains using `CREATE2` to ensure consistent behavior and simpler integration.
 
-**Canonical Address:** `0x4020CD856C882D5fb903D99CE35316A085Bb0001`
+**Canonical Address:** `0x402085c248EeA27D92E8b30b2C58ed07f9E20001`
 
 ```solidity
 // SPDX-License-Identifier: MIT
