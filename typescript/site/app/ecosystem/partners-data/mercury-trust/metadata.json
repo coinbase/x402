@@ -1,0 +1,7 @@
+{
+  "name": "Mercury Trust",
+  "description": "Pre-execution trust gate for agent-to-agent handoffs. Paid x402 endpoints verify delegation authority, agent provenance, and decision-memory continuity on Base.",
+  "logoUrl": "/logos/mercury-trust.svg",
+  "websiteUrl": "https://merc-trust.vercel.app/start",
+  "category": "Services/Endpoints"
+}
