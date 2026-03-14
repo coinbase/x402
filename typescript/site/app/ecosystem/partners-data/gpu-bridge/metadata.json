@@ -1,0 +1,7 @@
+{
+  "name": "GPU-Bridge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/gpu-bridge.svg",
+  "description": "GPU-as-a-Service API — 30 AI services (LLM, image gen, embeddings, TTS, STT, video) payable with USDC via x402. Agents call POST /run and pay per inference with no account required.",
+  "websiteUrl": "https://gpubridge.xyz"
+}
