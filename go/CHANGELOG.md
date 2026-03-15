@@ -1,3 +1,11 @@
+## 2.6.1 - 2026-03-15
+### Added
+- Added comprehensive Go module versioning documentation (`docs/GO_MODULE_VERSIONING.md`)
+- Added automated release script (`scripts/release-go-module.sh`) for proper semver tagging
+### Fixed
+- Documented solution for Go module semver tagging issues preventing security updates (#1580)
+- Standardized Go module release process to use `go/vX.Y.Z` tag format
+
 ## 2.6.0 - 2026-03-14
 ### Changed
 - Replaced SendRawApprovalAndSettle with a generic SendTransactions signer method that accepts an array of transaction requests (pre-signed or unsigned intents). Closed fail-open verification paths, aligned Permit2 amount check to exact match, and improved client extension fallback error handling
