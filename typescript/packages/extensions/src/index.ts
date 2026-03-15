@@ -15,6 +15,9 @@ export * from "./offer-receipt";
 export * from "./payment-identifier";
 export { paymentIdentifierResourceServerExtension } from "./payment-identifier/resourceServer";
 
+// Cold-start signal helpers
+export * from "./cold-start";
+
 // EIP-2612 Gas Sponsoring extension
 export * from "./eip2612-gas-sponsoring";
 
