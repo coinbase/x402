@@ -1,0 +1,7 @@
+{
+  "name": "AgentOracle",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agentoracle.png",
+  "description": "Pay-per-query research API for AI agents. $0.02 USDC per query on Base mainnet — structured JSON with real-time summaries, key facts, sources, and confidence scores. Powered by Perplexity Sonar. No API keys, no subscriptions.",
+  "websiteUrl": "https://agentoracle.co"
+}
