@@ -81,6 +81,9 @@ importers:
 
   packages/extensions:
     dependencies:
+      '@noble/curves':
+        specifier: ^1.9.0
+        version: 1.9.7
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
@@ -90,6 +93,9 @@ importers:
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
       siwe:
         specifier: ^2.3.2
         version: 2.3.2(ethers@6.16.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
@@ -216,7 +222,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       viem:
         specifier: ^2.39.3
@@ -344,7 +350,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       zod:
         specifier: ^3.24.2
@@ -408,7 +414,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       next:
         specifier: ^16.0.10
@@ -13449,7 +13455,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.42.0(typescript@5.9.2)
       '@typescript-eslint/types': 8.42.0
-      debug: 4.4.1
+      debug: 4.4.3
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
@@ -15521,7 +15527,7 @@ snapshots:
   eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.34.0(jiti@2.6.1)):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
-      debug: 4.4.1
+      debug: 4.4.3
       eslint: 9.34.0(jiti@2.6.1)
       get-tsconfig: 4.10.1
       is-bun-module: 2.0.0
