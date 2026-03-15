@@ -49,7 +49,8 @@ class FacilitatorContext:
     """
 
     def __init__(self, extensions: dict[str, FacilitatorExtension]) -> None:
-        self._extensions = extensions
+        # Create a copy to ensure isolation from the original dict
+        self._extensions = extensions.copy()
 
     def get_extension(self, key: str) -> FacilitatorExtension | None:
         """Get a registered extension by key.
@@ -61,6 +62,33 @@ class FacilitatorContext:
             The extension object, or None if not registered.
         """
         return self._extensions.get(key)
+
+    def has_extension(self, key: str) -> bool:
+        """Check if an extension is registered.
+
+        Args:
+            key: The extension key to check.
+
+        Returns:
+            True if the extension is registered, False otherwise.
+        """
+        return key in self._extensions
+
+    def get_extension_keys(self) -> list[str]:
+        """Get all registered extension keys.
+
+        Returns:
+            List of all extension keys in registration order.
+        """
+        return list(self._extensions.keys())
+
+    def get_extension_count(self) -> int:
+        """Get the number of registered extensions.
+
+        Returns:
+            The count of registered extensions.
+        """
+        return len(self._extensions)
 
 
 # ============================================================================
