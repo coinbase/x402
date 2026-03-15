@@ -1,0 +1,7 @@
+{
+  "name": "GPU-Bridge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/gpu-bridge.png",
+  "description": "GPU inference API for autonomous agents. 30 AI services (LLM, image, embeddings, STT, TTS, video, PDF) via a single POST endpoint. Accepts x402 payments natively — agents pay per inference call with USDC on Base L2, no signup required.",
+  "websiteUrl": "https://gpubridge.xyz"
+}
