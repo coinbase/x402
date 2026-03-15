@@ -1,0 +1,7 @@
+{
+  "name": "EnrichAPI",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/enrichapi.svg",
+  "description": "B2B lead intelligence API for AI sales agents. POST a company URL, get structured JSON: tech stack, growth signals, ICP fit score, pain hypothesis, and personalized outreach angle. $0.01 USDC per call via x402 — no API key or account needed.",
+  "websiteUrl": "http://72.62.52.171:8000"
+}
