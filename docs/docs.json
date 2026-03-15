@@ -66,6 +66,7 @@
         "group": "Extensions",
         "pages": [
           "extensions/bazaar",
+          "extensions/state-channels",
           "extensions/sign-in-with-x",
           "extensions/payment-identifier"
         ]
