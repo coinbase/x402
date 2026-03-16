@@ -288,9 +288,6 @@ importers:
       '@x402/paywall':
         specifier: workspace:*
         version: link:../paywall
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.76
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
