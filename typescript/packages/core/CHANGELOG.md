@@ -1,5 +1,11 @@
 # @x402/core Changelog
 
+## 2.7.0
+
+### Minor Changes
+
+- 8931cb3: Added support for Express-style `:param` dynamic route parameters in route matching. Routes like `/api/users/:id` and `/api/chapters/:seriesId/:chapterId` now match correctly alongside the existing `[param]` (Next.js) and `*` (wildcard) patterns.
+
 ## 2.6.0
 
 ### Minor Changes

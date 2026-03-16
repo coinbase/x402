@@ -1,5 +1,18 @@
 # @x402/next Changelog
 
+## 2.7.0
+
+### Minor Changes
+
+- Updated dependencies [34d2442]
+- Updated dependencies [8b731cb]
+- Updated dependencies [f2bbb5c]
+- Updated dependencies [8931cb3]
+- Updated dependencies [34d2442]
+  - @x402/extensions@2.7.0
+  - @x402/core@2.7.0
+  - @x402/paywall@2.7.0
+
 ## 2.6.0
 
 ### Minor Changes
