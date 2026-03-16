@@ -833,6 +833,9 @@ async function runTest() {
             await new Promise(resolve => setTimeout(resolve, 2000));
             await drainClientETH();
           }
+          // Wait for RPC nonce propagation across load-balanced nodes before the
+          // test client (which may use a separate RPC connection) queries the nonce.
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         if (isEvm && facilitatorName && evmLock) {
