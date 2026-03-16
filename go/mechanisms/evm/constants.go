@@ -60,6 +60,9 @@ const (
 
 	// ERC20ApproveGasLimit is the gas limit for a standard ERC-20 approve() transaction.
 	ERC20ApproveGasLimit = 70000
+
+	// DefaultMaxFeePerGas is the fallback max fee per gas (1 gwei) for gas cost estimation.
+	DefaultMaxFeePerGas = 1_000_000_000
 )
 
 var (
@@ -309,6 +312,30 @@ var (
 			],
 			"outputs": [],
 			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// X402ExactPermit2ProxyPermit2ABI for verifying proxy deployment
+	X402ExactPermit2ProxyPermit2ABI = []byte(`[
+		{
+			"inputs": [],
+			"name": "PERMIT2",
+			"outputs": [{"name": "", "type": "address"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// Multicall3GetEthBalanceABI for querying native ETH balance via Multicall3.
+	Multicall3GetEthBalanceABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "addr", "type": "address"}
+			],
+			"name": "getEthBalance",
+			"outputs": [{"name": "balance", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
 		}
 	]`)
 

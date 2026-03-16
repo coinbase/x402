@@ -16,7 +16,16 @@
     {
       "path": "/protected-permit2",
       "method": "GET",
-      "description": "Protected endpoint requiring Permit2 payment",
+      "description": "Protected endpoint requiring Permit2 payment (standard settle, no gas sponsoring)",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2",
+      "permit2Direct": true
+    },
+    {
+      "path": "/protected-permit2-eip2612",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment with EIP-2612 gas sponsoring",
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "permit2"
