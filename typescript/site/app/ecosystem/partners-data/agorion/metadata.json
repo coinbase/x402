@@ -1,0 +1,7 @@
+{
+  "name": "Agorion",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/agorion.png",
+  "description": "Open discovery network for AI agent services. Providers publish service manifests at /.well-known/agent-services.json declaring endpoints, pricing, and capabilities. Agents query the registry to discover x402-enabled services by capability, chain, price, and reputation. Solves the service discovery problem for the agent economy.",
+  "websiteUrl": "https://agorion.dev"
+}
