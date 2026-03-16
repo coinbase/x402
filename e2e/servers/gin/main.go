@@ -178,9 +178,17 @@ func main() {
 				Price: map[string]interface{}{
 					"amount": "1000",
 					"asset":  evmPermit2Asset,
-					"extra": map[string]interface{}{
-						"assetTransferMethod": "permit2",
-					},
+					"extra": func() map[string]interface{} {
+						name := "USD Coin"
+						if evmNetworkStr == "eip155:84532" {
+							name = "USDC"
+						}
+						return map[string]interface{}{
+							"assetTransferMethod": "permit2",
+							"name":               name,
+							"version":            "2",
+						}
+					}(),
 				},
 				},
 			},
