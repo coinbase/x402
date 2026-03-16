@@ -9,6 +9,7 @@ import {
   PaymentRequired,
   SettleResponse,
   SettleError,
+  FacilitatorResponseError,
   Price,
   Network,
   PaymentRequirements,
@@ -542,6 +543,9 @@ export class x402HTTPResourceServer {
         declaredExtensions: routeConfig.extensions,
       };
     } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        throw error;
+      }
       const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
@@ -599,6 +603,9 @@ export class x402HTTPResourceServer {
         requirements,
       };
     } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        throw error;
+      }
       if (error instanceof SettleError) {
         const errorReason = error.errorReason || error.message;
         const settleResponse: SettleResponse = {
