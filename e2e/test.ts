@@ -1,6 +1,9 @@
 import { config } from 'dotenv';
 import { spawn, execSync } from 'child_process';
 import { writeFileSync } from 'fs';
+import { createWalletClient, createPublicClient, http, parseEther, formatEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig, TestScenario } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger, createComboLogger } from './src/logger';
@@ -118,6 +121,123 @@ async function revokePermit2Approval(tokenAddress?: string): Promise<boolean> {
       resolve(false);
     });
   });
+}
+
+/**
+ * Shared EVM clients for the ETH sandwich helpers.
+ * Lazily initialised on first use so that missing env vars don't blow up
+ * non-EVM test runs.
+ */
+function getEvmClients() {
+  const evmNetwork = process.env.EVM_NETWORK || 'eip155:84532';
+  const evmRpcUrl = process.env.EVM_RPC_URL;
+  const evmChain = evmNetwork === 'eip155:8453' ? base : baseSepolia;
+
+  const facilitatorKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
+  const clientKey = process.env.CLIENT_EVM_PRIVATE_KEY;
+  if (!facilitatorKey || !clientKey) {
+    throw new Error('FACILITATOR_EVM_PRIVATE_KEY and CLIENT_EVM_PRIVATE_KEY must be set');
+  }
+
+  const facilitatorAccount = privateKeyToAccount(facilitatorKey as `0x${string}`);
+  const clientAccount = privateKeyToAccount(clientKey as `0x${string}`);
+
+  const publicClient = createPublicClient({
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+  const facilitatorWallet = createWalletClient({
+    account: facilitatorAccount,
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+  const clientWallet = createWalletClient({
+    account: clientAccount,
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+
+  return { publicClient, facilitatorWallet, clientWallet, facilitatorAccount, clientAccount };
+}
+
+const REVOKE_FUND_AMOUNT = parseEther('0.001');
+
+/**
+ * Send a small amount of ETH from the facilitator wallet to the client wallet
+ * so the client can pay gas for Permit2 revocation transactions.
+ */
+async function fundClientForRevoke(): Promise<boolean> {
+  try {
+    const { publicClient, facilitatorWallet, facilitatorAccount, clientAccount } = getEvmClients();
+
+    const clientBalance = await publicClient.getBalance({ address: clientAccount.address });
+    if (clientBalance >= REVOKE_FUND_AMOUNT) {
+      verboseLog(`  ℹ️  Client already has ${formatEther(clientBalance)} ETH, skipping fund`);
+      return true;
+    }
+
+    const facilitatorBalance = await publicClient.getBalance({ address: facilitatorAccount.address });
+    if (facilitatorBalance < REVOKE_FUND_AMOUNT) {
+      errorLog(`  ❌ Facilitator wallet ${facilitatorAccount.address} has insufficient ETH (${formatEther(facilitatorBalance)}) to fund client for revoke.`);
+      errorLog(`     Please fund the facilitator wallet with testnet ETH (need at least ${formatEther(REVOKE_FUND_AMOUNT)} ETH).`);
+      return false;
+    }
+
+    verboseLog(`  💸 Funding client ${clientAccount.address} with ${formatEther(REVOKE_FUND_AMOUNT)} ETH for revoke...`);
+    const hash = await facilitatorWallet.sendTransaction({
+      to: clientAccount.address,
+      value: REVOKE_FUND_AMOUNT,
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+    verboseLog(`  ✅ Funded client (tx: ${hash})`);
+    return true;
+  } catch (err) {
+    errorLog(`  ❌ Failed to fund client for revoke: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
+}
+
+/**
+ * Drain all ETH from the client wallet back to the facilitator wallet,
+ * leaving the client with ~0 ETH so the gas sponsoring funding step is
+ * exercised during the test.
+ */
+async function drainClientETH(): Promise<boolean> {
+  try {
+    const { publicClient, clientWallet, facilitatorAccount, clientAccount } = getEvmClients();
+
+    const balance = await publicClient.getBalance({ address: clientAccount.address });
+    if (balance === 0n) {
+      verboseLog('  ℹ️  Client ETH balance is already 0');
+      return true;
+    }
+
+    // Reserve enough for gas. On L2s getGasPrice() returns a tiny value but
+    // viem's sendTransaction uses a higher maxFeePerGas with safety margin.
+    // Use a generous fixed buffer to avoid "insufficient funds" from the
+    // estimateGas pre-check.
+    const GAS_RESERVE = parseEther('0.0001');
+    const sendAmount = balance - GAS_RESERVE;
+
+    if (sendAmount <= 0n) {
+      verboseLog(`  ℹ️  Client balance (${formatEther(balance)} ETH) too small to drain, leaving as dust`);
+      return true;
+    }
+
+    verboseLog(`  💸 Draining ${formatEther(sendAmount)} ETH from client back to facilitator...`);
+    const hash = await clientWallet.sendTransaction({
+      to: facilitatorAccount.address,
+      value: sendAmount,
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+
+    const remaining = await publicClient.getBalance({ address: clientAccount.address });
+    verboseLog(`  ✅ Drained client ETH (tx: ${hash}, remaining: ${formatEther(remaining)} ETH)`);
+    return true;
+  } catch (err) {
+    errorLog(`  ❌ Failed to drain client ETH: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
 }
 
 // Load environment variables
@@ -704,12 +824,18 @@ async function runTest() {
           if (scenario.endpoint.permit2Direct) {
             await approvePermit2Approval(USDC_BASE_SEPOLIA);
           } else {
+            await fundClientForRevoke();
             const token =
               scenario.endpoint.extensions?.includes('erc20ApprovalGasSponsoring')
                 ? MOCK_ERC20_BASE_SEPOLIA
                 : USDC_BASE_SEPOLIA;
             await revokePermit2Approval(token);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await drainClientETH();
           }
+          // Wait for RPC nonce propagation across load-balanced nodes before the
+          // test client (which may use a separate RPC connection) queries the nonce.
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         if (isEvm && facilitatorName && evmLock) {
