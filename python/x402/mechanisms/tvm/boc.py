@@ -2,7 +2,7 @@
 
 Extracts payment details from signed W5R1 external messages:
 - Wallet parameters (seqno, valid_until)
-- Internal messages (jetton transfers, relay commissions)
+- Internal messages (jetton transfers)
 - Jetton transfer fields (destination, amount, response_destination)
 """
 
@@ -19,7 +19,7 @@ except ImportError as e:
         "TVM mechanism requires pytoniq-core. Install with: pip install x402[tvm]"
     ) from e
 
-from .constants import JETTON_TRANSFER_OP, MAX_BOC_SIZE
+from .constants import INTERNAL_SIGNED_OP, EXTERNAL_SIGNED_OP, JETTON_TRANSFER_OP, MAX_BOC_SIZE, SEND_MSG_OP
 from .types import JettonTransferInfo, W5ParsedMessage
 
 
@@ -78,6 +78,12 @@ def parse_external_message(boc_b64: str) -> Cell:
 def parse_w5_body(body_cell: Cell) -> W5ParsedMessage:
     """Parse a W5R1 wallet body cell into structured data.
 
+    V5R1 body layout (signature at tail):
+        opcode(32) | walletId(32) | validUntil(32) | seqno(32)
+        | maybeRef(packed_basic_actions)(1 bit + ref?)
+        | has_extended(1 bit)
+        | signature(512 bits at tail)
+
     Args:
         body_cell: The body cell from a W5 external message.
 
@@ -86,27 +92,29 @@ def parse_w5_body(body_cell: Cell) -> W5ParsedMessage:
     """
     cs = body_cell.begin_parse()
 
-    # Skip signature (512 bits = 64 bytes)
-    cs.skip_bits(512)
+    # Detect W5 body format: internal_signed (0x73696e74) or external_signed (0x7369676e)
+    if cs.remaining_bits >= 32:
+        first_32 = cs.preload_uint(32)
+        if first_32 in (INTERNAL_SIGNED_OP, EXTERNAL_SIGNED_OP):
+            cs.load_uint(32)  # skip opcode
 
     # Parse W5 fields
     _wallet_id = cs.load_int(32)
     valid_until = cs.load_uint(32)
     seqno = cs.load_uint(32)
 
-    # Parse W5 actions (extensions or messages)
+    # V5R1 action format: maybeRef(packed_basic_actions) | has_extended(1bit)
     internal_messages: list[dict[str, Any]] = []
 
-    is_extension = cs.load_bit()
-    if not is_extension:
-        if cs.remaining_bits >= 8:
-            _flags = cs.load_uint(8)
+    has_basic_actions = cs.load_bit()  # MaybeRef flag
+    if has_basic_actions and cs.remaining_refs > 0:
+        action_cell = cs.load_ref()
+        msgs = _parse_w5_actions(action_cell)
+        internal_messages.extend(msgs)
 
-        # W5R1 uses a chain of action cells in refs
-        while cs.remaining_refs > 0:
-            action_cell = cs.load_ref()
-            msgs = _parse_w5_actions(action_cell)
-            internal_messages.extend(msgs)
+    _has_extended = cs.load_bit()  # Extended actions flag (not used for payments)
+
+    # Remaining bits are the signature (512 bits) - skip for parsing purposes
 
     body_hash = hashlib.sha256(body_cell.to_boc()).hexdigest()
 
@@ -119,57 +127,63 @@ def parse_w5_body(body_cell: Cell) -> W5ParsedMessage:
 
 
 def _parse_w5_actions(action_cell: Cell) -> list[dict[str, Any]]:
-    """Parse W5 action chain from a cell."""
+    """Parse W5 OutList from a cell.
+
+    TVM OutList format (c5 register):
+        out_list_empty$_ = OutList 0  (empty cell)
+        out_list$_ prev:^(OutList n) action:OutAction = OutList (n + 1)
+
+    Each action_send_msg: op#0ec3c86d mode:(## 8) out_msg:^(MessageRelaxed)
+    Layout: [ref:prev] [op(32)] [mode(8)] [ref:msg]
+
+    Args:
+        action_cell: Cell containing the OutList.
+
+    Returns:
+        List of parsed internal message dicts.
+    """
     messages: list[dict[str, Any]] = []
     current = action_cell
 
     while True:
         cs = current.begin_parse()
 
-        next_action = None
-        if cs.remaining_refs > 0 and cs.remaining_bits >= 32:
-            op = cs.preload_uint(32)
+        if cs.remaining_bits < 32:
+            break  # reached empty cell (OutList 0) or malformed
 
-            SEND_MSG_OP = 0x0EC3C86D
-            SET_DATA_OP = 0x1FF8EA0B
-
-            if op == SEND_MSG_OP:
-                cs.load_uint(32)  # consume op
-                mode = cs.load_uint(8)
-                msg_cell = cs.load_ref()
-
-                parsed = _parse_internal_message(msg_cell)
-                parsed["send_mode"] = mode
-                messages.append(parsed)
-
-                if cs.remaining_refs > 0:
-                    next_action = cs.load_ref()
-            elif op == SET_DATA_OP:
-                cs.load_uint(32)
-                if cs.remaining_refs > 0:
-                    cs.load_ref()
-                if cs.remaining_refs > 0:
-                    next_action = cs.load_ref()
-            else:
-                if cs.remaining_refs > 0:
-                    ref = cs.load_ref()
-                    try:
-                        parsed = _parse_internal_message(ref)
-                        messages.append(parsed)
-                    except Exception:
-                        next_action = ref
-        elif cs.remaining_refs > 0:
-            next_action = cs.load_ref()
-
-        if next_action is None:
+        # OutList node: prev ref comes first
+        if cs.remaining_refs < 1:
             break
-        current = next_action
+        prev_cell = cs.load_ref()  # ref to previous OutList
+
+        # Read action
+        op = cs.load_uint(32)
+        if op == SEND_MSG_OP and cs.remaining_refs > 0:
+            mode = cs.load_uint(8)
+            msg_cell = cs.load_ref()
+            parsed = _parse_internal_message(msg_cell)
+            parsed["send_mode"] = mode
+            messages.append(parsed)
+
+        # Walk to previous actions
+        if prev_cell.begin_parse().remaining_bits == 0 and len(prev_cell.refs) == 0:
+            break  # empty cell = OutList(0), stop
+        current = prev_cell
 
     return messages
 
 
 def _parse_internal_message(msg_cell: Cell) -> dict[str, Any]:
-    """Parse an internal message cell."""
+    """Parse an internal message cell.
+
+    Internal message TL-B: int_msg_info$0 ...
+
+    Args:
+        msg_cell: Cell containing an internal message.
+
+    Returns:
+        Dict with destination, amount, body fields.
+    """
     cs = msg_cell.begin_parse()
 
     tag = cs.load_bit()

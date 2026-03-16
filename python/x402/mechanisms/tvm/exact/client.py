@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import secrets
-import time
 from typing import Any
 
+try:
+    import httpx
+except ImportError as e:
+    raise ImportError(
+        "TVM exact client requires httpx. Install with: pip install httpx"
+    ) from e
+
 from ..constants import SCHEME_EXACT
-from ..signer import ClientTvmSigner, FacilitatorTvmSigner
+from ..signer import ClientTvmSigner
 from ..utils import normalize_address
 
 
@@ -15,7 +21,8 @@ class ExactTvmScheme:
     """TVM client for the 'exact' payment scheme.
 
     Implements the SchemeNetworkClient protocol from x402 SDK.
-    Creates payment payloads using TONAPI gasless flow.
+    Uses self-relay architecture: calls facilitator /prepare to get
+    signing data, signs locally, returns payload.
 
     Attributes:
         scheme: The scheme identifier ("exact").
@@ -26,16 +33,13 @@ class ExactTvmScheme:
     def __init__(
         self,
         signer: ClientTvmSigner,
-        provider: FacilitatorTvmSigner,
     ):
         """Initialize TVM client scheme.
 
         Args:
             signer: TVM signer for payment authorizations.
-            provider: TVM provider for seqno/jetton wallet lookup and gasless estimation.
         """
         self._signer = signer
-        self._provider = provider
 
     async def create_payment_payload(
         self,
@@ -43,15 +47,15 @@ class ExactTvmScheme:
     ) -> dict[str, Any]:
         """Create a signed TVM payment payload.
 
-        This orchestrates the full gasless payment flow:
-        1. Build jetton transfer message
-        2. Get gasless estimate from TONAPI
-        3. Sign the W5 transfer with all estimated messages
+        Self-relay flow:
+        1. POST to facilitatorUrl/prepare with wallet info and payment requirements
+        2. Facilitator returns seqno, validUntil, messages to sign
+        3. Sign the W5 transfer locally
         4. Return the payload for x402 header
 
         Args:
             requirements: PaymentRequirements dict with scheme, network, asset,
-                         amount, pay_to, etc.
+                         amount, pay_to, extra.facilitatorUrl, etc.
 
         Returns:
             Inner payload dict for x402 PaymentPayload.
@@ -61,37 +65,37 @@ class ExactTvmScheme:
         amount = str(requirements["amount"])
         wallet_address = normalize_address(self._signer.address)
 
-        # Get current seqno
-        seqno = await self._provider.get_seqno(wallet_address)
+        # Get facilitator URL from requirements extra
+        extra = requirements.get("extra", {})
+        facilitator_url = extra.get("facilitatorUrl", "")
+        if not facilitator_url:
+            raise ValueError("Missing facilitatorUrl in payment requirements extra")
 
-        # Resolve sender's jetton wallet
-        jetton_wallet = await self._provider.get_jetton_wallet(asset, wallet_address)
-
-        valid_until = int(time.time()) + 300  # 5 min validity
         nonce = secrets.token_hex(16)
 
-        # Get gasless estimate
-        estimate = await self._provider.gasless_estimate(
-            wallet_address=wallet_address,
-            wallet_public_key=self._signer.public_key,
-            jetton_master=asset,
-            messages=[{
-                "address": jetton_wallet,
-                "amount": "0",
-                "destination": pay_to,
-                "jetton_amount": amount,
-            }],
-        )
+        # Call facilitator /prepare
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{facilitator_url.rstrip('/')}/prepare",
+                json={
+                    "walletAddress": wallet_address,
+                    "walletPublicKey": self._signer.public_key,
+                    "paymentRequirements": requirements,
+                },
+            )
+            resp.raise_for_status()
+            prepare_data = resp.json()
 
-        # Sign the complete W5 transfer
-        estimated_messages = estimate.get("messages", [])
+        seqno = prepare_data["seqno"]
+        valid_until = prepare_data["validUntil"]
+        messages = prepare_data["messages"]
+
+        # Sign the W5 transfer with messages from facilitator
         settlement_boc = await self._signer.sign_transfer(
             seqno=seqno,
             valid_until=valid_until,
-            messages=estimated_messages,
+            messages=messages,
         )
-
-        commission = str(estimate.get("commission", "0"))
 
         return {
             "from": wallet_address,
@@ -100,8 +104,6 @@ class ExactTvmScheme:
             "amount": amount,
             "validUntil": valid_until,
             "nonce": nonce,
-            "signedMessages": estimated_messages,
-            "commission": commission,
             "settlementBoc": settlement_boc,
             "walletPublicKey": self._signer.public_key,
         }

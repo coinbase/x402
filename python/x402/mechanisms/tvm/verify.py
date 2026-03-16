@@ -1,4 +1,12 @@
-"""Ed25519 signature and payment verification for TVM (TON) networks."""
+"""Ed25519 signature and payment verification for TVM (TON) networks.
+
+5 verification rules for TON x402 payments:
+1. Protocol: scheme and network match
+2. Signature: valid Ed25519 on W5 message (signature at tail)
+3. Payment intent: exactly 1 jetton transfer with correct amount/destination
+4. Replay protection: seqno, validUntil, BoC hash dedup
+5. Simulation: optional pre-simulation check
+"""
 
 from __future__ import annotations
 
@@ -18,7 +26,8 @@ except ImportError as e:
 
 from .boc import compute_boc_hash, extract_jetton_transfer, parse_external_message, parse_w5_body
 from .constants import (
-    DEFAULT_MAX_RELAY_COMMISSION,
+    INTERNAL_SIGNED_OP,
+    EXTERNAL_SIGNED_OP,
     SCHEME_EXACT,
     SUPPORTED_NETWORKS,
     W5R1_CODE_HASH,
@@ -32,8 +41,6 @@ from .utils import normalize_address
 class VerifyConfig:
     """Configuration for payment verification."""
 
-    relay_address: str | None = None
-    max_relay_commission: int = DEFAULT_MAX_RELAY_COMMISSION
     supported_networks: set[str] | None = None
     skip_simulation: bool = True
     max_valid_until_seconds: int = 600
@@ -46,6 +53,9 @@ _seen_boc_hashes: set[str] = set()
 def verify_w5_signature(boc_b64: str, pubkey_hex: str) -> tuple[bool, str]:
     """Verify the Ed25519 signature of a W5R1 external message.
 
+    W5R1 body layout: [signing_message_data...] [signature(512 bits at tail)]
+    The signature is always the LAST 512 bits of the body cell.
+
     Args:
         boc_b64: Base64-encoded BoC containing the external message.
         pubkey_hex: Hex-encoded Ed25519 public key of the wallet owner.
@@ -54,28 +64,32 @@ def verify_w5_signature(boc_b64: str, pubkey_hex: str) -> tuple[bool, str]:
         (True, "") on success, (False, reason) on failure.
     """
     try:
-        cell = Cell.one_from_boc(base64.b64decode(boc_b64))
+        body = parse_external_message(boc_b64)
     except Exception as e:
         return False, f"Failed to parse BoC: {e}"
 
-    body = cell.refs[0] if cell.refs else cell
     body_slice = body.begin_parse()
 
-    if body_slice.remaining_bits < 512:
-        return False, f"Body too short for signature: {body_slice.remaining_bits} bits"
+    # V5R1 body layout: [signing_message_data...] [signature(512 bits at tail)]
+    # The signature is always the LAST 512 bits of the body cell.
+    total_bits = body_slice.remaining_bits
+    if total_bits < 512:
+        return False, f"Body too short for signature: {total_bits} bits"
 
-    signature = body_slice.load_bytes(64)
+    signed_data_bits = total_bits - 512  # everything before the signature
+    refs_count = body_slice.remaining_refs
 
-    signed_bits = body_slice.remaining_bits
-    signed_refs_count = body_slice.remaining_refs
-
+    # Reconstruct the signing message cell (data before signature + all refs)
     builder = Builder()
-    if signed_bits > 0:
-        builder.store_bits(body_slice.load_bits(signed_bits))
-    for _ in range(signed_refs_count):
+    if signed_data_bits > 0:
+        builder.store_bits(body_slice.load_bits(signed_data_bits))
+    for _ in range(refs_count):
         builder.store_ref(body_slice.load_ref())
     signed_cell = builder.end_cell()
     signed_data = signed_cell.hash
+
+    # Read signature from the remaining 512 bits
+    signature = body_slice.load_bytes(64)
 
     try:
         verify_key = VerifyKey(bytes.fromhex(pubkey_hex))
@@ -160,7 +174,10 @@ async def check_payment_intent(
     required_asset: str,
     provider: FacilitatorTvmSigner,
 ) -> VerifyResult:
-    """Rule 3: Verify jetton transfer amount, destination, and asset."""
+    """Rule 3: Verify jetton transfer amount, destination, and asset.
+
+    Self-relay model: expects exactly 1 jetton transfer (no relay commission).
+    """
     try:
         pay_to_norm = normalize_address(required_pay_to)
         asset_norm = normalize_address(required_asset)
@@ -180,22 +197,15 @@ async def check_payment_intent(
             reason=f"Insufficient amount: expected {required_amount}, got {payload.amount}",
         )
 
-    try:
-        expected_jetton_wallet = await provider.get_jetton_wallet(asset_norm, pay_to_norm)
-        normalize_address(expected_jetton_wallet)
-    except Exception as e:
-        return VerifyResult(ok=False, reason=f"Failed to resolve jetton wallet: {e}")
-
+    # Parse the BoC to verify the actual transfer destination
     try:
         body = parse_external_message(payload.settlement_boc)
         w5_msg = parse_w5_body(body)
 
+        # Find jetton transfers among internal messages
         found_valid_transfer = False
+        jetton_transfer_count = 0
         for msg in w5_msg.internal_messages:
-            msg_dest = msg.get("destination", "")
-            if not msg_dest:
-                continue
-
             body_cell = msg.get("body")
             if body_cell is None:
                 continue
@@ -204,18 +214,27 @@ async def check_payment_intent(
             if transfer is None:
                 continue
 
+            jetton_transfer_count += 1
+
             if transfer.destination:
                 transfer_dest_norm = normalize_address(transfer.destination)
                 if transfer_dest_norm == pay_to_norm:
                     if transfer.amount >= int(required_amount):
                         found_valid_transfer = True
-                        break
 
         if not found_valid_transfer:
             return VerifyResult(
                 ok=False,
                 reason="No valid jetton transfer found matching required amount and destination",
             )
+
+        # Self-relay model: expect exactly 1 jetton transfer (no commission transfer)
+        if jetton_transfer_count > 1:
+            return VerifyResult(
+                ok=False,
+                reason=f"Expected 1 jetton transfer, found {jetton_transfer_count}",
+            )
+
     except Exception as e:
         return VerifyResult(ok=False, reason=f"Failed to parse payment BoC: {e}")
 
@@ -260,19 +279,16 @@ async def check_replay(
     return VerifyResult(ok=True)
 
 
-def check_relay_safety(
+async def check_simulation(
     payload: TvmPaymentPayload,
+    provider: FacilitatorTvmSigner,
     config: VerifyConfig,
 ) -> VerifyResult:
-    """Rule 5: Verify relay commission is within bounds."""
-    commission = int(payload.commission)
+    """Rule 5: Pre-simulation check (optional)."""
+    if config.skip_simulation:
+        return VerifyResult(ok=True)
 
-    if commission > config.max_relay_commission:
-        return VerifyResult(
-            ok=False,
-            reason=f"Commission too high: {commission} > {config.max_relay_commission}",
-        )
-
+    # TODO: In production, use emulation API to pre-simulate
     return VerifyResult(ok=True)
 
 
@@ -321,10 +337,11 @@ async def verify_payment(
     if not result.ok:
         return result
 
-    result = check_relay_safety(payload, cfg)
+    result = await check_simulation(payload, provider, cfg)
     if not result.ok:
         return result
 
+    # Mark BoC as seen (after all checks pass)
     boc_hash = compute_boc_hash(payload.settlement_boc)
     _seen_boc_hashes.add(boc_hash)
 

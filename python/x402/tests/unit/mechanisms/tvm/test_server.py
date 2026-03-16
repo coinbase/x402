@@ -71,14 +71,14 @@ class TestParsePrice:
 class TestEnhancePaymentRequirements:
     """Test enhance_payment_requirements method."""
 
-    def test_should_add_relay_address_from_supported_kind(self):
+    def test_should_add_facilitator_url_from_supported_kind(self):
         server = ExactTvmServerScheme()
         requirements = {"scheme": "exact", "network": "tvm:-239", "extra": {}}
-        supported_kind = {"extra": {"relayAddress": "0:" + "a" * 64}}
+        supported_kind = {"extra": {"facilitatorUrl": "https://facilitator.example.com"}}
 
         result = server.enhance_payment_requirements(requirements, supported_kind)
 
-        assert result["extra"]["relayAddress"] == "0:" + "a" * 64
+        assert result["extra"]["facilitatorUrl"] == "https://facilitator.example.com"
 
     def test_should_preserve_existing_extra_fields(self):
         server = ExactTvmServerScheme()
@@ -94,7 +94,7 @@ class TestEnhancePaymentRequirements:
 
         result = server.enhance_payment_requirements(requirements)
 
-        assert "relayAddress" not in result["extra"]
+        assert "facilitatorUrl" not in result["extra"]
 
 
 class TestSchemeAttributes:

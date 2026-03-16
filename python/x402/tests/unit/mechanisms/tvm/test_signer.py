@@ -37,14 +37,8 @@ class MockFacilitatorSigner:
     async def get_transaction(self, tx_hash):
         return None
 
-    async def gasless_estimate(self, **kwargs):
-        return {"messages": [], "commission": "0"}
-
-    async def gasless_send(self, boc, wallet_public_key):
-        return "msg_hash_123"
-
-    async def get_gasless_config(self):
-        return {"relay_address": "0:" + "e" * 64, "gas_jettons": []}
+    async def send_boc(self, boc):
+        return True
 
 
 class TestClientTvmSignerProtocol:
@@ -82,9 +76,7 @@ class TestFacilitatorTvmSignerProtocol:
         assert hasattr(signer, "get_jetton_wallet")
         assert hasattr(signer, "get_account_state")
         assert hasattr(signer, "get_transaction")
-        assert hasattr(signer, "gasless_estimate")
-        assert hasattr(signer, "gasless_send")
-        assert hasattr(signer, "get_gasless_config")
+        assert hasattr(signer, "send_boc")
 
     def test_all_methods_are_callable(self):
         signer = MockFacilitatorSigner()
@@ -92,6 +84,4 @@ class TestFacilitatorTvmSignerProtocol:
         assert callable(signer.get_jetton_wallet)
         assert callable(signer.get_account_state)
         assert callable(signer.get_transaction)
-        assert callable(signer.gasless_estimate)
-        assert callable(signer.gasless_send)
-        assert callable(signer.get_gasless_config)
+        assert callable(signer.send_boc)

@@ -8,9 +8,15 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+try:
+    import httpx
+except ImportError as e:
+    raise ImportError(
+        "TVM exact facilitator requires httpx. Install with: pip install httpx"
+    ) from e
+
 from ..boc import compute_boc_hash, parse_external_message, parse_w5_body
 from ..constants import (
-    DEFAULT_MAX_RELAY_COMMISSION,
     ERR_SETTLEMENT_FAILED,
     SCHEME_EXACT,
     SETTLEMENT_TIMEOUT,
@@ -28,8 +34,7 @@ logger = logging.getLogger(__name__)
 class ExactTvmSchemeConfig:
     """Configuration for ExactTvmScheme facilitator."""
 
-    relay_address: str | None = None
-    max_relay_commission: int = DEFAULT_MAX_RELAY_COMMISSION
+    facilitator_url: str = ""
     supported_networks: set[str] = field(default_factory=lambda: set(SUPPORTED_NETWORKS))
     settlement_timeout: int = SETTLEMENT_TIMEOUT
 
@@ -95,7 +100,8 @@ class _PaymentStateStore:
 class ExactTvmScheme:
     """TVM facilitator for the 'exact' payment scheme.
 
-    Implements the SchemeNetworkFacilitator protocol from x402 SDK.
+    Uses self-relay architecture: the facilitator sponsors gas and relays
+    the user's signed W5 message via its own wallet.
 
     Attributes:
         scheme: The scheme identifier ("exact").
@@ -120,15 +126,13 @@ class ExactTvmScheme:
         self._config = config or ExactTvmSchemeConfig()
         self._state_store = _PaymentStateStore()
         self._verify_config = VerifyConfig(
-            relay_address=self._config.relay_address,
-            max_relay_commission=self._config.max_relay_commission,
             supported_networks=self._config.supported_networks,
         )
 
     def get_extra(self, network: str) -> dict[str, Any] | None:
         """Return extra data for SupportedKind."""
-        if self._config.relay_address:
-            return {"relayAddress": self._config.relay_address}
+        if self._config.facilitator_url:
+            return {"facilitatorUrl": self._config.facilitator_url}
         return None
 
     def get_signers(self, network: str) -> list[str]:
@@ -196,7 +200,10 @@ class ExactTvmScheme:
         requirements: dict[str, Any],
         context: Any = None,
     ) -> dict[str, Any]:
-        """Settle a TVM payment on-chain.
+        """Settle a TVM payment on-chain via self-relay.
+
+        Posts the signed BoC to the facilitator's /settle endpoint,
+        which wraps it in an internal message and broadcasts.
 
         Idempotent: if already settled, returns the existing tx hash.
 
@@ -252,26 +259,44 @@ class ExactTvmScheme:
         except ValueError:
             pass
 
-        # Submit via gasless relay
+        # Self-relay: POST to facilitator /settle endpoint
         try:
-            msg_hash = await self._provider.gasless_send(
-                boc=tvm_payload.settlement_boc,
-                wallet_public_key=tvm_payload.wallet_public_key,
-            )
+            facilitator_url = self._config.facilitator_url
+            if not facilitator_url:
+                # Extract from requirements extra as fallback
+                extra = requirements.get("extra", {})
+                facilitator_url = extra.get("facilitatorUrl", "")
 
-            record.tx_hash = msg_hash or boc_hash[:16]
+            if not facilitator_url:
+                raise ValueError("No facilitatorUrl configured for settlement")
+
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{facilitator_url.rstrip('/')}/settle",
+                    json={
+                        "settlementBoc": tvm_payload.settlement_boc,
+                        "walletAddress": tvm_payload.sender,
+                    },
+                    timeout=30.0,
+                )
+                resp.raise_for_status()
+                settle_data = resp.json()
+
+            tx_hash = settle_data.get("txHash", boc_hash[:16])
+            record.tx_hash = tx_hash
             record.transition(PaymentState.SUBMITTED)
 
-            tx_hash = await self._wait_for_confirmation(
+            # Wait for confirmation via seqno bump
+            confirmed_tx = await self._wait_for_confirmation(
                 tvm_payload, record, timeout=self._config.settlement_timeout
             )
 
-            if tx_hash:
-                record.tx_hash = tx_hash
+            if confirmed_tx:
+                record.tx_hash = confirmed_tx
                 record.transition(PaymentState.CONFIRMED)
                 return {
                     "success": True,
-                    "transaction": tx_hash,
+                    "transaction": confirmed_tx,
                     "network": network,
                     "payer": payer,
                 }

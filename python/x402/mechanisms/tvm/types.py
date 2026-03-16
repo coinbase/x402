@@ -8,18 +8,13 @@ from typing import Any
 
 
 @dataclass
-class SignedW5Message:
-    """A signed W5 internal message (from TONAPI gasless flow)."""
-
-    address: str
-    amount: str
-    payload: str = ""
-    state_init: str | None = None
-
-
-@dataclass
 class TvmPaymentPayload:
-    """TON-specific payment payload sent by the client."""
+    """TON-specific payment payload sent by the client.
+
+    In the self-relay architecture, the client sends:
+    - A signed W5 internal_signed BoC (wrapped in external message for transport)
+    - Their public key for verification
+    """
 
     sender: str  # "from" in JSON
     to: str
@@ -27,8 +22,6 @@ class TvmPaymentPayload:
     amount: str
     valid_until: int
     nonce: str
-    signed_messages: list[SignedW5Message] = field(default_factory=list)
-    commission: str = "0"
     settlement_boc: str = ""
     wallet_public_key: str = ""
 
@@ -41,16 +34,6 @@ class TvmPaymentPayload:
             "amount": self.amount,
             "validUntil": self.valid_until,
             "nonce": self.nonce,
-            "signedMessages": [
-                {
-                    "address": m.address,
-                    "amount": m.amount,
-                    "payload": m.payload,
-                    **({"stateInit": m.state_init} if m.state_init else {}),
-                }
-                for m in self.signed_messages
-            ],
-            "commission": self.commission,
             "settlementBoc": self.settlement_boc,
             "walletPublicKey": self.wallet_public_key,
         }
@@ -58,15 +41,6 @@ class TvmPaymentPayload:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TvmPaymentPayload:
         """Create from dictionary."""
-        signed_msgs = [
-            SignedW5Message(
-                address=m.get("address", ""),
-                amount=m.get("amount", ""),
-                payload=m.get("payload", ""),
-                state_init=m.get("stateInit"),
-            )
-            for m in data.get("signedMessages", [])
-        ]
         return cls(
             sender=data.get("from", ""),
             to=data.get("to", ""),
@@ -74,8 +48,6 @@ class TvmPaymentPayload:
             amount=data.get("amount", ""),
             valid_until=int(data.get("validUntil", 0)),
             nonce=data.get("nonce", ""),
-            signed_messages=signed_msgs,
-            commission=data.get("commission", "0"),
             settlement_boc=data.get("settlementBoc", ""),
             wallet_public_key=data.get("walletPublicKey", ""),
         )

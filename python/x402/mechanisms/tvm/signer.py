@@ -39,7 +39,7 @@ class ClientTvmSigner(Protocol):
         Args:
             seqno: Current wallet seqno.
             valid_until: Unix timestamp for transfer validity.
-            messages: List of message dicts from gasless estimation.
+            messages: List of message dicts from facilitator /prepare.
 
         Returns:
             Base64-encoded signed external message BoC.
@@ -51,8 +51,8 @@ class ClientTvmSigner(Protocol):
 class FacilitatorTvmSigner(Protocol):
     """Facilitator-side TVM signer for verification and settlement.
 
-    Implement this protocol to integrate with your TON blockchain provider
-    (e.g., TONAPI, toncenter).
+    Implements read-only blockchain methods and BoC broadcast.
+    No gasless methods - the facilitator handles relay internally.
     """
 
     async def get_seqno(self, address: str) -> int:
@@ -100,42 +100,13 @@ class FacilitatorTvmSigner(Protocol):
         """
         ...
 
-    async def gasless_estimate(
-        self,
-        wallet_address: str,
-        wallet_public_key: str,
-        jetton_master: str,
-        messages: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        """Estimate gasless transaction parameters.
+    async def send_boc(self, boc: str) -> bool:
+        """Broadcast a signed BoC to the network.
 
         Args:
-            wallet_address: Sender wallet address (raw).
-            wallet_public_key: Sender public key (hex).
-            jetton_master: Jetton master for fee payment.
-            messages: List of message dicts with 'boc' field.
+            boc: Base64-encoded BoC.
 
         Returns:
-            Estimation result with 'messages' field for signing.
-        """
-        ...
-
-    async def gasless_send(self, boc: str, wallet_public_key: str) -> str:
-        """Submit a signed message via gasless relay.
-
-        Args:
-            boc: Base64-encoded signed external message BoC.
-            wallet_public_key: Sender's public key (hex).
-
-        Returns:
-            Message hash or empty string on success.
-        """
-        ...
-
-    async def get_gasless_config(self) -> dict[str, Any]:
-        """Get gasless relay configuration.
-
-        Returns:
-            Dict with 'relay_address', 'gas_jettons' fields.
+            True on success.
         """
         ...

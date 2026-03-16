@@ -7,7 +7,9 @@ from x402.mechanisms.tvm import (
     SUPPORTED_NETWORKS,
     USDT_MASTER,
     DEFAULT_DECIMALS,
-    DEFAULT_MAX_RELAY_COMMISSION,
+    INTERNAL_SIGNED_OP,
+    EXTERNAL_SIGNED_OP,
+    SEND_MSG_OP,
     ERR_INVALID_SIGNATURE,
     ERR_UNSUPPORTED_SCHEME,
     ERR_UNSUPPORTED_NETWORK,
@@ -19,7 +21,6 @@ from x402.mechanisms.tvm import (
     ClientTvmSigner,
     FacilitatorTvmSigner,
     TonapiProvider,
-    SignedW5Message,
     TvmPaymentPayload,
     W5ParsedMessage,
     JettonTransferInfo,
@@ -59,7 +60,6 @@ class TestExports:
 
     def test_should_export_payload_types(self):
         assert TvmPaymentPayload is not None
-        assert SignedW5Message is not None
         assert W5ParsedMessage is not None
         assert JettonTransferInfo is not None
 
@@ -86,8 +86,10 @@ class TestConstants:
     def test_should_export_default_decimals(self):
         assert DEFAULT_DECIMALS == 6
 
-    def test_should_export_default_relay_commission(self):
-        assert DEFAULT_MAX_RELAY_COMMISSION == 500_000
+    def test_should_export_w5_opcodes(self):
+        assert INTERNAL_SIGNED_OP == 0x73696E74
+        assert EXTERNAL_SIGNED_OP == 0x7369676E
+        assert SEND_MSG_OP == 0x0EC3C86D
 
     def test_should_export_error_codes(self):
         assert ERR_INVALID_SIGNATURE is not None

@@ -66,7 +66,7 @@ class ExactTvmScheme:
 
         Args:
             requirements: Base payment requirements.
-            supported_kind: Supported kind from facilitator (may have relay info).
+            supported_kind: Supported kind from facilitator (may have facilitatorUrl).
             extensions: List of enabled extension keys.
 
         Returns:
@@ -76,8 +76,8 @@ class ExactTvmScheme:
 
         if supported_kind and supported_kind.get("extra"):
             sk_extra = supported_kind["extra"]
-            if "relayAddress" in sk_extra:
-                extra["relayAddress"] = sk_extra["relayAddress"]
+            if "facilitatorUrl" in sk_extra:
+                extra["facilitatorUrl"] = sk_extra["facilitatorUrl"]
 
         requirements = dict(requirements)
         requirements["extra"] = extra

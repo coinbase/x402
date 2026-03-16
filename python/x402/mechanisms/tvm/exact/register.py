@@ -25,18 +25,17 @@ FacilitatorT = TypeVar("FacilitatorT", "x402Facilitator", "x402FacilitatorSync")
 def register_exact_tvm_client(
     client: ClientT,
     signer: "ClientTvmSigner",
-    provider: "FacilitatorTvmSigner",
     networks: str | list[str] | None = None,
     policies: list | None = None,
 ) -> ClientT:
     """Register TVM exact payment scheme to x402Client.
 
     Registers V2 only (no V1 for TVM).
+    Client no longer needs a provider - it calls the facilitator's /prepare endpoint.
 
     Args:
         client: x402Client instance.
         signer: TVM signer for payment authorizations.
-        provider: TVM provider for seqno/jetton wallet lookup.
         networks: Optional specific network(s) (default: tvm:* wildcard).
         policies: Optional payment policies.
 
@@ -45,7 +44,7 @@ def register_exact_tvm_client(
     """
     from .client import ExactTvmScheme as ExactTvmClientScheme
 
-    scheme = ExactTvmClientScheme(signer, provider)
+    scheme = ExactTvmClientScheme(signer)
 
     if networks:
         if isinstance(networks, str):

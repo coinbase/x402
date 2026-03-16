@@ -17,7 +17,7 @@ class MockFacilitatorProvider:
     def __init__(self, seqno=0, jetton_wallet=None):
         self._seqno = seqno
         self._jetton_wallet = jetton_wallet or ("0:" + "d" * 64)
-        self.gasless_send_calls = 0
+        self.send_boc_calls = 0
 
     async def get_seqno(self, address):
         return self._seqno
@@ -31,15 +31,9 @@ class MockFacilitatorProvider:
     async def get_transaction(self, tx_hash):
         return None
 
-    async def gasless_estimate(self, **kwargs):
-        return {"messages": [], "commission": "0"}
-
-    async def gasless_send(self, boc, wallet_public_key):
-        self.gasless_send_calls += 1
-        return "msg_hash_123"
-
-    async def get_gasless_config(self):
-        return {}
+    async def send_boc(self, boc):
+        self.send_boc_calls += 1
+        return True
 
 
 class TestExactTvmSchemeConstructor:
@@ -54,29 +48,27 @@ class TestExactTvmSchemeConstructor:
     def test_creates_instance_with_config(self):
         provider = MockFacilitatorProvider()
         config = ExactTvmSchemeConfig(
-            relay_address="0:" + "a" * 64,
-            max_relay_commission=100_000,
+            facilitator_url="https://facilitator.example.com",
         )
         facilitator = ExactTvmFacilitatorScheme(provider, config)
-        assert facilitator._config.relay_address == "0:" + "a" * 64
-        assert facilitator._config.max_relay_commission == 100_000
+        assert facilitator._config.facilitator_url == "https://facilitator.example.com"
 
 
 class TestGetExtra:
     """Test get_extra method."""
 
-    def test_returns_none_without_relay_address(self):
+    def test_returns_none_without_facilitator_url(self):
         provider = MockFacilitatorProvider()
         facilitator = ExactTvmFacilitatorScheme(provider)
         assert facilitator.get_extra(TVM_MAINNET) is None
 
-    def test_returns_relay_address_when_configured(self):
+    def test_returns_facilitator_url_when_configured(self):
         provider = MockFacilitatorProvider()
-        config = ExactTvmSchemeConfig(relay_address="0:" + "a" * 64)
+        config = ExactTvmSchemeConfig(facilitator_url="https://facilitator.example.com")
         facilitator = ExactTvmFacilitatorScheme(provider, config)
         extra = facilitator.get_extra(TVM_MAINNET)
         assert extra is not None
-        assert extra["relayAddress"] == "0:" + "a" * 64
+        assert extra["facilitatorUrl"] == "https://facilitator.example.com"
 
 
 class TestGetSigners:
@@ -134,6 +126,5 @@ class TestFacilitatorSchemeConfig:
 
     def test_default_config(self):
         config = ExactTvmSchemeConfig()
-        assert config.relay_address is None
-        assert config.max_relay_commission == 500_000
+        assert config.facilitator_url == ""
         assert config.settlement_timeout == 15

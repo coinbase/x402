@@ -7,7 +7,7 @@ try:
 except ImportError:
     pytest.skip("TVM requires pytoniq-core", allow_module_level=True)
 
-from x402.mechanisms.tvm.verify import VerifyConfig, check_protocol, check_relay_safety
+from x402.mechanisms.tvm.verify import VerifyConfig, check_protocol
 from x402.mechanisms.tvm.types import TvmPaymentPayload, VerifyResult
 from x402.mechanisms.tvm.constants import SCHEME_EXACT, TVM_MAINNET, TVM_TESTNET
 
@@ -46,60 +46,11 @@ class TestCheckProtocol:
         assert result.ok is True
 
 
-class TestCheckRelaySafety:
-    """Test relay commission check."""
-
-    def test_accepts_zero_commission(self):
-        payload = TvmPaymentPayload(
-            sender="0:" + "a" * 64,
-            to="0:" + "b" * 64,
-            token_master="0:" + "c" * 64,
-            amount="1000000",
-            valid_until=1700000000,
-            nonce="abc",
-            commission="0",
-        )
-        config = VerifyConfig()
-        result = check_relay_safety(payload, config)
-        assert result.ok is True
-
-    def test_accepts_commission_within_limit(self):
-        payload = TvmPaymentPayload(
-            sender="0:" + "a" * 64,
-            to="0:" + "b" * 64,
-            token_master="0:" + "c" * 64,
-            amount="1000000",
-            valid_until=1700000000,
-            nonce="abc",
-            commission="100000",
-        )
-        config = VerifyConfig(max_relay_commission=500_000)
-        result = check_relay_safety(payload, config)
-        assert result.ok is True
-
-    def test_rejects_commission_over_limit(self):
-        payload = TvmPaymentPayload(
-            sender="0:" + "a" * 64,
-            to="0:" + "b" * 64,
-            token_master="0:" + "c" * 64,
-            amount="1000000",
-            valid_until=1700000000,
-            nonce="abc",
-            commission="1000000",
-        )
-        config = VerifyConfig(max_relay_commission=500_000)
-        result = check_relay_safety(payload, config)
-        assert result.ok is False
-        assert "Commission too high" in result.reason
-
-
 class TestVerifyConfig:
     """Test VerifyConfig defaults."""
 
     def test_default_config(self):
         config = VerifyConfig()
-        assert config.relay_address is None
-        assert config.max_relay_commission == 500_000
         assert config.supported_networks is None
         assert config.skip_simulation is True
         assert config.max_valid_until_seconds == 600

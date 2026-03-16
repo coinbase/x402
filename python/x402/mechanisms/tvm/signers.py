@@ -17,7 +17,7 @@ from .constants import TONAPI_MAINNET_URL, TONAPI_TESTNET_URL
 class TonapiProvider:
     """Combined read + settlement provider backed by TONAPI.
 
-    Implements both ``FacilitatorTvmSigner`` read ops and settlement methods.
+    Implements ``FacilitatorTvmSigner`` read ops and BoC broadcast.
     """
 
     def __init__(self, api_key: str | None = None, testnet: bool = False) -> None:
@@ -63,36 +63,13 @@ class TonapiProvider:
         return resp.json()
 
     # ------------------------------------------------------------------
-    # Settlement — gasless operations
+    # Settlement — broadcast BoC
     # ------------------------------------------------------------------
 
-    async def gasless_estimate(
-        self,
-        wallet_address: str,
-        wallet_public_key: str,
-        jetton_master: str,
-        messages: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+    async def send_boc(self, boc: str) -> bool:
         resp = await self._client.post(
-            f"/v2/gasless/estimate/{jetton_master}",
-            json={
-                "wallet_address": wallet_address,
-                "wallet_public_key": wallet_public_key,
-                "messages": messages,
-            },
+            "/v2/blockchain/message",
+            json={"boc": boc},
         )
         resp.raise_for_status()
-        return resp.json()
-
-    async def gasless_send(self, boc: str, wallet_public_key: str) -> str:
-        resp = await self._client.post(
-            "/v2/gasless/send",
-            json={"boc": boc, "wallet_public_key": wallet_public_key},
-        )
-        resp.raise_for_status()
-        return resp.text
-
-    async def get_gasless_config(self) -> dict[str, Any]:
-        resp = await self._client.get("/v2/gasless/config")
-        resp.raise_for_status()
-        return resp.json()
+        return True
