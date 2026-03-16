@@ -45,7 +45,7 @@
   },
   "peerDependencies": {
     "hono": "^4.0.0",
-    "@x402/paywall": "workspace:*"
+    "@x402/paywall": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@x402/paywall": {
