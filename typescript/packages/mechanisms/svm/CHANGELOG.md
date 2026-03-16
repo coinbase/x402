@@ -1,5 +1,12 @@
 # @x402/svm Changelog
 
+## 2.7.0
+
+### Minor Changes
+
+- Updated dependencies [8931cb3]
+  - @x402/core@2.7.0
+
 ## 2.6.0
 
 ### Minor Changes
