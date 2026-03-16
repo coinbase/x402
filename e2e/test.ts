@@ -15,6 +15,60 @@ import { Semaphore, FacilitatorLock } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 
+// Base Sepolia token addresses used by permit2 E2E tests
+const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+const MOCK_ERC20_BASE_SEPOLIA = '0xeED520980fC7C7B4eB379B96d61CEdea2423005a';
+
+/**
+ * Approve Permit2 so that the standard/direct settle path can be exercised.
+ * Grants unlimited Permit2 allowance for the given token (or USDC by default).
+ */
+async function approvePermit2Approval(tokenAddress?: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const label = tokenAddress ? `token ${tokenAddress}` : 'USDC (default)';
+    verboseLog(`  🔓 Approving Permit2 for ${label}...`);
+
+    const args = ['scripts/permit2-approval.ts', 'approve'];
+    if (tokenAddress) {
+      args.push(tokenAddress);
+    }
+    const child = spawn('tsx', args, {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      shell: true,
+    });
+
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      verboseLog(data.toString().trim());
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      verboseLog(data.toString().trim());
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        verboseLog('  ✅ Permit2 approval granted');
+        resolve(true);
+      } else {
+        errorLog(`  ❌ Permit2 approve failed (exit code ${code})`);
+        if (stderr) {
+          errorLog(`  Error: ${stderr}`);
+        }
+        resolve(false);
+      }
+    });
+
+    child.on('error', (error) => {
+      errorLog(`  ❌ Failed to run Permit2 approve: ${error.message}`);
+      resolve(false);
+    });
+  });
+}
+
 /**
  * Revoke Permit2 approval so that gas sponsoring extensions are exercised.
  * Sets the Permit2 allowance to 0 for the given token (or USDC by default),
@@ -323,12 +377,14 @@ async function runTest() {
   if (evmScenarios.length > 0) {
     const hasEip3009 = evmScenarios.some(s => (s.endpoint.transferMethod || 'eip3009') === 'eip3009');
     const hasPermit2 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2');
-    const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+    const hasPermit2Direct = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.permit2Direct === true);
+    const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
     const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
 
     log('🔍 EVM Branch Coverage Check:');
     log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
     log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
+    log(`   Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
     log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
     log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
     log('');
@@ -340,7 +396,7 @@ async function runTest() {
   );
 
   if (hasPermit2Scenarios) {
-    log('🔐 Permit2 scenarios detected — approval will be revoked before each test to exercise extension paths');
+    log('🔐 Permit2 scenarios detected — revoke before gas-sponsored tests, approve before permit2-direct tests');
   }
 
   // Collect unique facilitators and servers
@@ -645,8 +701,15 @@ async function runTest() {
         const isEvm = scenario.protocolFamily === 'evm';
 
         if (scenario.endpoint.transferMethod === 'permit2') {
-          await revokePermit2Approval();
-          await revokePermit2Approval('0xeED520980fC7C7B4eB379B96d61CEdea2423005a');
+          if (scenario.endpoint.permit2Direct) {
+            await approvePermit2Approval(USDC_BASE_SEPOLIA);
+          } else {
+            const token =
+              scenario.endpoint.extensions?.includes('erc20ApprovalGasSponsoring')
+                ? MOCK_ERC20_BASE_SEPOLIA
+                : USDC_BASE_SEPOLIA;
+            await revokePermit2Approval(token);
+          }
         }
 
         if (isEvm && facilitatorName && evmLock) {

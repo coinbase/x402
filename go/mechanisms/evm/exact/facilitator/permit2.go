@@ -7,14 +7,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/eip2612gassponsor"
 	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/types"
 )
+
+// VerifyPermit2Options controls optional behaviour for VerifyPermit2.
+type VerifyPermit2Options struct {
+	// Simulate enables onchain simulation. Defaults to true when zero-value.
+	Simulate *bool
+}
+
+func (o *VerifyPermit2Options) shouldSimulate() bool {
+	if o == nil || o.Simulate == nil {
+		return true
+	}
+	return *o.Simulate
+}
 
 // VerifyPermit2 verifies a Permit2 payment payload.
 func VerifyPermit2(
@@ -24,6 +35,7 @@ func VerifyPermit2(
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.ExactPermit2Payload,
 	facilCtx *x402.FacilitatorContext,
+	opts *VerifyPermit2Options,
 ) (*x402.VerifyResponse, error) {
 	payer := permit2Payload.Permit2Authorization.From
 
@@ -60,8 +72,7 @@ func VerifyPermit2(
 	if !ok {
 		return nil, x402.NewVerifyError(ErrInvalidPayload, payer, "invalid deadline format")
 	}
-	deadlineThreshold := big.NewInt(now + evm.Permit2DeadlineBuffer)
-	if deadline.Cmp(deadlineThreshold) < 0 {
+	if deadline.Cmp(big.NewInt(now+evm.Permit2DeadlineBuffer)) < 0 {
 		return nil, x402.NewVerifyError(ErrPermit2DeadlineExpired, payer, "deadline expired")
 	}
 
@@ -70,8 +81,7 @@ func VerifyPermit2(
 	if !ok {
 		return nil, x402.NewVerifyError(ErrInvalidPayload, payer, "invalid validAfter format")
 	}
-	nowBig := big.NewInt(now)
-	if validAfter.Cmp(nowBig) > 0 {
+	if validAfter.Cmp(big.NewInt(now)) > 0 {
 		return nil, x402.NewVerifyError(ErrPermit2NotYetValid, payer, "not yet valid")
 	}
 
@@ -99,55 +109,38 @@ func VerifyPermit2(
 		return nil, x402.NewVerifyError(ErrInvalidSignatureFormat, payer, err.Error())
 	}
 
-	valid, err := verifyPermit2Signature(ctx, signer, permit2Payload.Permit2Authorization, signatureBytes, chainID)
-	if err != nil || !valid {
-		return nil, x402.NewVerifyError(ErrPermit2InvalidSignature, payer, "invalid signature")
-	}
-
-	needsExtension := true
-	allowance, allowanceErr := signer.ReadContract(ctx, tokenAddress, evm.ERC20AllowanceABI, "allowance",
-		common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address))
-	if allowanceErr == nil {
-		if allowanceBig, ok := allowance.(*big.Int); ok && allowanceBig.Cmp(requiredAmount) >= 0 {
-			needsExtension = false
+	sigValid, sigErr := verifyPermit2Signature(ctx, signer, permit2Payload.Permit2Authorization, signatureBytes, chainID)
+	if sigErr != nil || !sigValid {
+		// Check if payer is a deployed smart contract
+		// ERC-1271 signatures may not be verifiable by all signer implementations
+		code, codeErr := signer.GetCode(ctx, payer)
+		if codeErr != nil || len(code) == 0 {
+			return nil, x402.NewVerifyError(ErrPermit2InvalidSignature, payer, "invalid signature")
 		}
+		// Deployed smart contract: fall through to simulation
 	}
 
-	if needsExtension {
-		if extErr := verifyPermit2Extensions(payload, payer, tokenAddress, facilCtx); extErr != nil {
-			return nil, extErr
-		}
+	// Early return when simulation is disabled
+	if !opts.shouldSimulate() {
+		return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 	}
 
-	// Check balance
-	balance, err := signer.GetBalance(ctx, payer, tokenAddress)
-	if err == nil && balance.Cmp(requiredAmount) < 0 {
-		return nil, x402.NewVerifyError(ErrInsufficientBalance, payer, "insufficient balance")
-	}
-
-	return &x402.VerifyResponse{
-		IsValid: true,
-		Payer:   payer,
-	}, nil
-}
-
-// verifyPermit2Extensions validates gas-sponsoring extensions when Permit2 allowance
-// is insufficient or could not be read. Returns nil if a valid extension is found,
-// or a VerifyError if none are present/valid.
-func verifyPermit2Extensions(
-	payload types.PaymentPayload,
-	payer string,
-	tokenAddress string,
-	facilCtx *x402.FacilitatorContext,
-) error {
+	// EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
 	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
 	if eip2612Info != nil {
 		if validErr := validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress); validErr != "" {
-			return x402.NewVerifyError(validErr, payer, "eip2612 validation failed")
+			return nil, x402.NewVerifyError(validErr, payer, "eip2612 validation failed")
 		}
-		return nil
+
+		simOk, simErr := SimulatePermit2SettleWithPermit(ctx, signer, permit2Payload, eip2612Info.Signature, eip2612Info.Amount, eip2612Info.Deadline)
+		if simErr != nil || !simOk {
+			resp := DiagnosePermit2SimulationFailure(ctx, signer, tokenAddress, permit2Payload, requirements.Amount)
+			return nil, x402.NewVerifyError(resp.InvalidReason, payer, "simulation failed")
+		}
+		return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 	}
 
+	// ERC-20 approval gas sponsoring
 	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
 	if erc20Info != nil && facilCtx != nil {
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
@@ -155,15 +148,57 @@ func verifyPermit2Extensions(
 		if ok && ext != nil {
 			extensionSigner = ext.ResolveSigner(payload.Accepted.Network)
 		}
+
 		if extensionSigner != nil {
 			if reason, msg := ValidateErc20ApprovalForPayment(erc20Info, payer, tokenAddress); reason != "" {
-				return x402.NewVerifyError(reason, payer, msg)
+				return nil, x402.NewVerifyError(reason, payer, msg)
 			}
-			return nil
+
+			// If the signer supports SimulateTransactions, use it for the approve+settle bundle
+			if simulator, ok := extensionSigner.(erc20approvalgassponsor.Erc20ApprovalGasSponsoringSimulator); ok {
+				simArgs, buildErr := BuildPermit2SettleArgs(permit2Payload)
+				if buildErr == nil {
+					simOk, simErr := simulator.SimulateTransactions(ctx, []erc20approvalgassponsor.TransactionRequest{
+						{Serialized: erc20Info.SignedTransaction},
+						{Call: &erc20approvalgassponsor.WriteContractCall{
+							Address:  evm.X402ExactPermit2ProxyAddress,
+							ABI:      evm.X402ExactPermit2ProxySettleABI,
+							Function: evm.FunctionSettle,
+							Args:     []interface{}{simArgs.permitStruct(), simArgs.Owner, simArgs.witnessStruct(), simArgs.Signature},
+						}},
+					})
+					if simErr == nil && simOk {
+						return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
+					}
+				}
+				resp := DiagnosePermit2SimulationFailure(ctx, signer, tokenAddress, permit2Payload, requirements.Amount)
+				return nil, x402.NewVerifyError(resp.InvalidReason, payer, "simulation failed")
+			}
+
+			// Fallback: signer does not support simulation; check prerequisites only
+			prereqResp := CheckPermit2Prerequisites(ctx, signer, tokenAddress, payer, requirements.Amount)
+			if !prereqResp.IsValid {
+				return nil, x402.NewVerifyError(prereqResp.InvalidReason, payer, "prerequisites check failed")
+			}
+			return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 		}
 	}
 
-	return x402.NewVerifyError(ErrPermit2AllowanceRequired, payer, "permit2 allowance required")
+	// Standard settle (allowance already on-chain)
+	simOk, simErr := SimulatePermit2Settle(ctx, signer, permit2Payload)
+	if simErr != nil || !simOk {
+		resp := DiagnosePermit2SimulationFailure(ctx, signer, tokenAddress, permit2Payload, requirements.Amount)
+		return nil, x402.NewVerifyError(resp.InvalidReason, payer, "simulation failed")
+	}
+
+	return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
+}
+
+// Permit2FacilitatorConfig holds optional settlement-time configuration.
+type Permit2FacilitatorConfig struct {
+	// SimulateInSettle re-runs simulation during settle
+	// When false (default), the settle path skips simulation since verify already ran it
+	SimulateInSettle bool
 }
 
 // SettlePermit2 settles a Permit2 payment by calling x402ExactPermit2Proxy.settle().
@@ -174,12 +209,17 @@ func SettlePermit2(
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.ExactPermit2Payload,
 	facilCtx *x402.FacilitatorContext,
+	config *Permit2FacilitatorConfig,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
 	payer := permit2Payload.Permit2Authorization.From
 
-	// Re-verify before settling
-	verifyResp, err := VerifyPermit2(ctx, signer, payload, requirements, permit2Payload, facilCtx)
+	simulate := false
+	if config != nil {
+		simulate = config.SimulateInSettle
+	}
+
+	verifyResp, err := VerifyPermit2(ctx, signer, payload, requirements, permit2Payload, facilCtx, &VerifyPermit2Options{Simulate: &simulate})
 	if err != nil {
 		ve := &x402.VerifyError{}
 		if errors.As(err, &ve) {
@@ -188,56 +228,13 @@ func SettlePermit2(
 		return nil, x402.NewSettleError(ErrVerificationFailed, payer, network, "", err.Error())
 	}
 
-	// Parse values for contract call (validated during verify, but check again for safety)
-	amount, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Permitted.Amount, 10)
-	if !ok {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid permitted amount")
-	}
-	nonce, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Nonce, 10)
-	if !ok {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid nonce")
-	}
-	deadline, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Deadline, 10)
-	if !ok {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid deadline")
-	}
-	validAfter, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Witness.ValidAfter, 10)
-	if !ok {
-		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", "invalid validAfter")
-	}
-	signatureBytes, err := evm.HexToBytes(permit2Payload.Signature)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidSignatureFormat, payer, network, "", "invalid signature format")
+	args, buildErr := BuildPermit2SettleArgs(permit2Payload)
+	if buildErr != nil {
+		return nil, x402.NewSettleError(ErrInvalidPayload, payer, network, "", buildErr.Error())
 	}
 
-	// Create struct args for the settle call
-	// The ABI expects: settle(permit, owner, witness, signature)
-	permitStruct := struct {
-		Permitted struct {
-			Token  common.Address
-			Amount *big.Int
-		}
-		Nonce    *big.Int
-		Deadline *big.Int
-	}{
-		Permitted: struct {
-			Token  common.Address
-			Amount *big.Int
-		}{
-			Token:  common.HexToAddress(permit2Payload.Permit2Authorization.Permitted.Token),
-			Amount: amount,
-		},
-		Nonce:    nonce,
-		Deadline: deadline,
-	}
-
-	witnessStruct := struct {
-		To         common.Address
-		ValidAfter *big.Int
-	}{
-		To:         common.HexToAddress(permit2Payload.Permit2Authorization.Witness.To),
-		ValidAfter: validAfter,
-	}
+	permitStruct := args.permitStruct()
+	witnessStruct := args.witnessStruct()
 
 	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
 	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
@@ -282,10 +279,11 @@ func SettlePermit2(
 			evm.FunctionSettleWithPermit,
 			permit2612Struct,
 			permitStruct,
-			common.HexToAddress(payer),
+			args.Owner,
 			witnessStruct,
-			signatureBytes,
+			args.Signature,
 		)
+
 	case erc20Info != nil && facilCtx != nil:
 		// Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
@@ -298,7 +296,7 @@ func SettlePermit2(
 				Address:  evm.X402ExactPermit2ProxyAddress,
 				ABI:      evm.X402ExactPermit2ProxySettleABI,
 				Function: evm.FunctionSettle,
-				Args:     []interface{}{permitStruct, common.HexToAddress(payer), witnessStruct, signatureBytes},
+				Args:     []interface{}{permitStruct, args.Owner, witnessStruct, args.Signature},
 			}
 			txHashes, sendErr := extensionSigner.SendTransactions(ctx, []erc20approvalgassponsor.TransactionRequest{
 				{Serialized: erc20Info.SignedTransaction},
@@ -316,11 +314,12 @@ func SettlePermit2(
 				evm.X402ExactPermit2ProxySettleABI,
 				evm.FunctionSettle,
 				permitStruct,
-				common.HexToAddress(payer),
+				args.Owner,
 				witnessStruct,
-				signatureBytes,
+				args.Signature,
 			)
 		}
+
 	default:
 		txHash, err = signer.WriteContract(
 			ctx,
@@ -328,9 +327,9 @@ func SettlePermit2(
 			evm.X402ExactPermit2ProxySettleABI,
 			evm.FunctionSettle,
 			permitStruct,
-			common.HexToAddress(payer),
+			args.Owner,
 			witnessStruct,
-			signatureBytes,
+			args.Signature,
 		)
 	}
 

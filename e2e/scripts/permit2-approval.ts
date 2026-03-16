@@ -8,7 +8,7 @@
  *   pnpm tsx scripts/permit2-approval.ts approve [tokenAddress]
  *   pnpm tsx scripts/permit2-approval.ts revoke  [tokenAddress]
  *
- * If tokenAddress is not provided, defaults to Base Sepolia USDC.
+ * If tokenAddress is not provided, processes all known tokens.
  *
  * Environment variables required:
  *   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet
@@ -43,6 +43,11 @@ const TOKENS_BY_NETWORK: Record<string, Record<string, { address: `0x${string}`;
       decimals: 6,
       name: 'USDC',
     },
+    MockERC20: {
+      address: '0xeED520980fC7C7B4eB379B96d61CEdea2423005a',
+      decimals: 6,
+      name: 'MockERC20',
+    },
   },
   'eip155:8453': {
     USDC: {
@@ -67,6 +72,8 @@ const erc20Abi = parseAbi([
 
 async function main() {
   const action = process.argv[2];
+  const tokenAddressArg = process.argv[3];
+  const filterAddress = tokenAddressArg ? (getAddress(tokenAddressArg) as `0x${string}`) : undefined;
 
   if (!action || (action !== 'approve' && action !== 'revoke')) {
     console.log(`
@@ -76,7 +83,7 @@ Usage:
   pnpm tsx scripts/permit2-approval.ts approve [tokenAddress]
   pnpm tsx scripts/permit2-approval.ts revoke  [tokenAddress]
 
-If tokenAddress is not provided, defaults to Base Sepolia USDC.
+If tokenAddress is not provided, processes all known tokens (USDC and MockERC20).
 
 Environment variables required:
   CLIENT_EVM_PRIVATE_KEY - Private key of the client wallet
@@ -139,8 +146,20 @@ Environment variables required:
   }
   console.log();
 
+  const tokensToProcess = filterAddress
+    ? tokenStates.filter((t) => getAddress(t.address) === filterAddress)
+    : tokenStates;
+
+  if (tokensToProcess.length === 0) {
+    const addr = filterAddress ?? 'none';
+    console.error(`❌ No matching token found for address ${addr}`);
+    process.exit(1);
+  }
+
+  let nonce = await publicClient.getTransactionCount({ address: account.address });
+
   if (action === 'revoke') {
-    for (const token of tokenStates) {
+    for (const token of tokensToProcess) {
       if (token.allowance === 0n) {
         console.log(`✅ ${token.name}: Permit2 approval already revoked (allowance is 0)`);
         continue;
@@ -153,6 +172,7 @@ Environment variables required:
         abi: erc20Abi,
         functionName: 'approve',
         args: [PERMIT2_ADDRESS, 0n],
+        nonce: nonce++,
       });
 
       console.log(`   📝 Transaction: ${hash}`);
@@ -169,7 +189,7 @@ Environment variables required:
   }
 
   // action === 'approve'
-  for (const token of tokenStates) {
+  for (const token of tokensToProcess) {
     if (token.allowance === MAX_UINT256) {
       console.log(`✅ ${token.name}: Permit2 already has unlimited approval`);
       continue;
@@ -182,6 +202,7 @@ Environment variables required:
       abi: erc20Abi,
       functionName: 'approve',
       args: [PERMIT2_ADDRESS, MAX_UINT256],
+      nonce: nonce++,
     });
 
     console.log(`   📝 Transaction: ${hash}`);
