@@ -272,8 +272,6 @@ Full SVM details are specified in `specs/schemes/exact/scheme_exact_svm.md`.
 
 The facilitator provides HTTP REST APIs for payment verification and settlement. This allows resource servers to delegate blockchain operations to trusted third parties or host the endpoints themselves. Note that while the core x402 protocol is transport-agnostic, facilitator APIs are currently standardized as HTTP endpoints.
 
-The `deferred` scheme adds additional APIs to manage a facilitator voucher store for sellers. The specification for this can be found here: [Deferred Facilitator Spec](./schemes/deferred/scheme_deferred_evm_facilitator.md)
-
 **7.1 POST /verify**
 
 Verifies a payment authorization without executing the transaction on the blockchain.
