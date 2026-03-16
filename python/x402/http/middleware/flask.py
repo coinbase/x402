@@ -319,7 +319,12 @@ class PaymentMiddleware:
         self._http_server = x402HTTPResourceServerSync(server, routes)
         self._paywall_config = paywall_config
         self._sync_on_start = sync_facilitator_on_start
+        
+        # Concurrency-safe lazy initialization state
+        import threading
+        self._init_lock = threading.Lock()
         self._init_done = False
+        self._init_error = None
         self._original_wsgi = app.wsgi_app
 
         if paywall_provider:
@@ -358,10 +363,21 @@ class PaymentMiddleware:
             if not self._http_server.requires_payment(context):
                 return self._original_wsgi(environ, start_response)
 
-            # Initialize on first protected request
+            # Single-flight initialization with error propagation
             if self._sync_on_start and not self._init_done:
-                self._http_server.initialize()
-                self._init_done = True
+                with self._init_lock:
+                    # Double-check pattern: another thread may have completed init
+                    if not self._init_done:
+                        try:
+                            self._http_server.initialize()
+                            self._init_done = True
+                        except Exception as e:
+                            self._init_error = e
+                            raise
+
+            # Check if initialization failed on a previous request
+            if self._init_error is not None:
+                raise self._init_error
 
             # Process payment request synchronously (no asyncio overhead)
             result = self._http_server.process_http_request(context, self._paywall_config)

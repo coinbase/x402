@@ -565,3 +565,206 @@ class TestFlaskMiddlewareIntegration:
                 data = json.loads(response.data)
                 assert data == {}
                 assert "PAYMENT-RESPONSE" in response.headers
+
+
+# =============================================================================
+# Concurrency Safety Tests
+# =============================================================================
+
+
+class TestConcurrencySafety:
+    """Test concurrency safety of lazy initialization."""
+
+    def test_concurrent_initialization_single_call(self):
+        """Test that concurrent requests result in only one initialize() call."""
+        import threading
+        import time
+        from unittest.mock import call
+
+        app = Flask(__name__)
+
+        @app.route("/health")
+        def health():
+            return {"status": "ok"}
+
+        @app.route("/api/protected")
+        def protected():
+            return {"data": "secret"}
+
+        # Create mock server that tracks initialize calls with delay
+        mock_server = MagicMock()
+        mock_http_server_instance = MagicMock()
+        
+        # Add delay to simulate slow initialization
+        def slow_initialize():
+            time.sleep(0.1)  # 100ms delay
+            
+        mock_http_server_instance.initialize = slow_initialize
+        mock_http_server_instance.requires_payment.return_value = True
+        mock_http_server_instance.process_http_request.return_value = HTTPProcessResult(
+            type="no-payment-required"
+        )
+
+        routes = {"GET /api/*": RouteConfig(accepts=make_payment_option())}
+        
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
+            mock_http_server.return_value = mock_http_server_instance
+
+            # Create middleware
+            PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=True)
+
+            # Track initialization calls
+            init_calls = []
+            original_init = mock_http_server_instance.initialize
+
+            def tracked_init():
+                init_calls.append(time.time())
+                original_init()
+
+            mock_http_server_instance.initialize = tracked_init
+
+            # Make concurrent requests using threads
+            def make_request(results, index):
+                with app.test_client() as client:
+                    response = client.get("/api/protected")
+                    results[index] = response.status_code
+
+            threads = []
+            results = {}
+            
+            # Start 5 concurrent threads
+            for i in range(5):
+                thread = threading.Thread(target=make_request, args=(results, i))
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all threads to complete
+            for thread in threads:
+                thread.join()
+
+            # Verify initialize was called exactly once
+            assert len(init_calls) == 1, f"Expected 1 init call, got {len(init_calls)}"
+
+    def test_initialization_error_propagation(self):
+        """Test that initialization errors are properly propagated to all waiting requests."""
+        import threading
+        from unittest.mock import call
+
+        app = Flask(__name__)
+
+        @app.route("/api/protected")
+        def protected():
+            return {"data": "secret"}
+
+        # Create mock server that raises during initialization
+        mock_server = MagicMock()
+        mock_http_server_instance = MagicMock()
+        mock_http_server_instance.requires_payment.return_value = True
+        
+        init_error = RuntimeError("Facilitator connection failed")
+        mock_http_server_instance.initialize.side_effect = init_error
+
+        routes = {"GET /api/*": RouteConfig(accepts=make_payment_option())}
+        
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
+            mock_http_server.return_value = mock_http_server_instance
+
+            # Create middleware
+            PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=True)
+
+            # Make concurrent requests that should all fail
+            def make_request(results, index):
+                with app.test_client() as client:
+                    try:
+                        response = client.get("/api/protected")
+                        results[index] = ("response", response.status_code)
+                    except RuntimeError as e:
+                        results[index] = ("error", str(e))
+
+            threads = []
+            results = {}
+            
+            # Start 3 concurrent threads
+            for i in range(3):
+                thread = threading.Thread(target=make_request, args=(results, i))
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all threads to complete
+            for thread in threads:
+                thread.join()
+
+            # Verify all requests saw the same error
+            assert len(results) == 3
+            for result_type, result_data in results.values():
+                assert result_type == "error"
+                assert "Facilitator connection failed" in result_data
+
+            # Verify initialize was called only once
+            mock_http_server_instance.initialize.assert_called_once()
+
+    def test_no_initialization_race_with_mixed_routes(self):
+        """Test that non-protected routes don't interfere with initialization."""
+        import threading
+        
+        app = Flask(__name__)
+
+        @app.route("/health")
+        def health():
+            return {"status": "ok"}
+
+        @app.route("/api/protected")  
+        def protected():
+            return {"data": "secret"}
+
+        mock_server = MagicMock()
+        mock_http_server_instance = MagicMock()
+        
+        def requires_payment_side_effect(context):
+            return "/api/" in context.path
+            
+        mock_http_server_instance.requires_payment.side_effect = requires_payment_side_effect
+        mock_http_server_instance.initialize = MagicMock()
+        mock_http_server_instance.process_http_request.return_value = HTTPProcessResult(
+            type="no-payment-required"
+        )
+
+        routes = {"GET /api/*": RouteConfig(accepts=make_payment_option())}
+        
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
+            mock_http_server.return_value = mock_http_server_instance
+
+            # Create middleware
+            PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=True)
+
+            def make_protected_request(results, index):
+                with app.test_client() as client:
+                    response = client.get("/api/protected")
+                    results[f"protected_{index}"] = response.status_code
+
+            def make_unprotected_request(results, index):
+                with app.test_client() as client:
+                    response = client.get("/health")
+                    results[f"health_{index}"] = response.status_code
+
+            threads = []
+            results = {}
+            
+            # Mix protected and unprotected requests
+            for i in range(3):
+                thread = threading.Thread(target=make_protected_request, args=(results, i))
+                threads.append(thread)
+                
+                thread = threading.Thread(target=make_unprotected_request, args=(results, i))
+                threads.append(thread)
+
+            # Start all threads
+            for thread in threads:
+                thread.start()
+
+            # Wait for all threads to complete
+            for thread in threads:
+                thread.join()
+
+            # Should only initialize once despite multiple requests
+            mock_http_server_instance.initialize.assert_called_once()

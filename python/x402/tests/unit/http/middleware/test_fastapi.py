@@ -478,3 +478,111 @@ class TestPaymentMiddlewareASGI:
 
         assert hasattr(middleware, "_middleware")
         assert callable(middleware._middleware)
+
+
+# =============================================================================
+# Concurrency Safety Tests
+# =============================================================================
+
+
+class TestConcurrencySafety:
+    """Test concurrency safety of lazy initialization."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_initialization_single_call(self):
+        """Test that concurrent requests result in only one initialize() call."""
+        import asyncio
+
+        # Create mock server that tracks initialize calls
+        mock_server = MagicMock()
+        mock_http_server = MagicMock()
+        mock_http_server.requires_payment.return_value = True
+        mock_http_server.initialize = AsyncMock()
+        mock_http_server.process_http_request = AsyncMock()
+        mock_http_server.process_http_request.return_value = HTTPProcessResult(
+            type="no-payment-required"
+        )
+
+        # Create middleware
+        routes = {"GET /api/*": RouteConfig(accepts=make_payment_option())}
+        
+        # Patch the HTTP server creation to return our mock
+        with patch("x402.http.middleware.fastapi.x402HTTPResourceServer") as mock_cls:
+            mock_cls.return_value = mock_http_server
+            
+            middleware_func = payment_middleware(
+                routes, mock_server, sync_facilitator_on_start=True
+            )
+
+            # Create multiple concurrent requests
+            async def make_request():
+                mock_request = MagicMock()
+                mock_request.url.path = "/api/test"
+                mock_request.method = "GET"
+                
+                mock_call_next = AsyncMock()
+                mock_call_next.return_value = MagicMock(status_code=200)
+                
+                # Mock headers
+                mock_request.headers.get.side_effect = lambda name, default=None: {
+                    "payment-signature": None,
+                    "x-payment": None,
+                    "accept": "application/json",
+                    "user-agent": "test-client"
+                }.get(name, default)
+                
+                return await middleware_func(mock_request, mock_call_next)
+
+            # Run 5 concurrent requests
+            tasks = [make_request() for _ in range(5)]
+            await asyncio.gather(*tasks)
+
+            # Verify initialize was called exactly once
+            mock_http_server.initialize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialization_error_propagation(self):
+        """Test that initialization errors are properly propagated to all waiting requests."""
+        import asyncio
+
+        # Create mock server that raises during initialization
+        mock_server = MagicMock()
+        mock_http_server = MagicMock()
+        mock_http_server.requires_payment.return_value = True
+        
+        init_error = RuntimeError("Facilitator connection failed")
+        mock_http_server.initialize = AsyncMock(side_effect=init_error)
+
+        routes = {"GET /api/*": RouteConfig(accepts=make_payment_option())}
+        
+        with patch("x402.http.middleware.fastapi.x402HTTPResourceServer") as mock_cls:
+            mock_cls.return_value = mock_http_server
+            
+            middleware_func = payment_middleware(
+                routes, mock_server, sync_facilitator_on_start=True
+            )
+
+            async def make_request():
+                mock_request = MagicMock()
+                mock_request.url.path = "/api/test"
+                mock_request.method = "GET"
+                
+                mock_call_next = AsyncMock()
+                
+                # Mock headers
+                mock_request.headers.get.side_effect = lambda name, default=None: {
+                    "payment-signature": None,
+                    "x-payment": None,
+                    "accept": "application/json",
+                    "user-agent": "test-client"
+                }.get(name, default)
+                
+                with pytest.raises(RuntimeError, match="Facilitator connection failed"):
+                    await middleware_func(mock_request, mock_call_next)
+
+            # Run multiple concurrent requests that should all fail
+            tasks = [make_request() for _ in range(3)]
+            await asyncio.gather(*tasks, return_exceptions=False)
+
+            # Verify all requests saw the same error
+            mock_http_server.initialize.assert_called_once()

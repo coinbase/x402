@@ -248,14 +248,17 @@ def payment_middleware(
     if paywall_provider:
         http_server.register_paywall_provider(paywall_provider)
 
-    # Lazy initialization state
+    # Concurrency-safe lazy initialization state
+    import asyncio
+    init_lock = asyncio.Lock()
     init_done = False
+    init_error = None
 
     async def middleware(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        nonlocal init_done
+        nonlocal init_done, init_error
 
         # Create adapter and context
         adapter = FastAPIAdapter(request)
@@ -272,10 +275,21 @@ def payment_middleware(
         if not http_server.requires_payment(context):
             return await call_next(request)
 
-        # Initialize on first protected request
+        # Single-flight initialization with error propagation
         if sync_facilitator_on_start and not init_done:
-            http_server.initialize()
-            init_done = True
+            async with init_lock:
+                # Double-check pattern: another request may have completed init
+                if not init_done:
+                    try:
+                        http_server.initialize()
+                        init_done = True
+                    except Exception as e:
+                        init_error = e
+                        raise
+
+        # Check if initialization failed on a previous request
+        if init_error is not None:
+            raise init_error
 
         # Process payment request
         result = await http_server.process_http_request(context, paywall_config)
