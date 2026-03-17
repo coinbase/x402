@@ -31,6 +31,98 @@ ERC6492_MAGIC_VALUE = bytes.fromhex(
 # EIP-1271 magic value (returned by isValidSignature on success)
 EIP1271_MAGIC_VALUE = bytes.fromhex("1626ba7e")
 
+# Permit2 contract address (same on all EVM chains via CREATE2)
+PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+
+# x402ExactPermit2Proxy contract address
+X402_EXACT_PERMIT2_PROXY_ADDRESS = "0x402085c248EeA27D92E8b30b2C58ed07f9E20001"
+
+# Permit2 EIP-712 witness types for PermitWitnessTransferFrom
+# Note: Types must be in alphabetical order after primary type (TokenPermissions < Witness)
+PERMIT2_WITNESS_TYPES: dict[str, list[dict[str, str]]] = {
+    "PermitWitnessTransferFrom": [
+        {"name": "permitted", "type": "TokenPermissions"},
+        {"name": "spender", "type": "address"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "deadline", "type": "uint256"},
+        {"name": "witness", "type": "Witness"},
+    ],
+    "TokenPermissions": [
+        {"name": "token", "type": "address"},
+        {"name": "amount", "type": "uint256"},
+    ],
+    "Witness": [
+        {"name": "to", "type": "address"},
+        {"name": "validAfter", "type": "uint256"},
+    ],
+}
+
+# x402ExactPermit2Proxy settle ABI
+X402_EXACT_PERMIT2_PROXY_ABI = [
+    {
+        "type": "function",
+        "name": "settle",
+        "inputs": [
+            {
+                "name": "permit",
+                "type": "tuple",
+                "components": [
+                    {
+                        "name": "permitted",
+                        "type": "tuple",
+                        "components": [
+                            {"name": "token", "type": "address"},
+                            {"name": "amount", "type": "uint256"},
+                        ],
+                    },
+                    {"name": "nonce", "type": "uint256"},
+                    {"name": "deadline", "type": "uint256"},
+                ],
+            },
+            {"name": "owner", "type": "address"},
+            {
+                "name": "witness",
+                "type": "tuple",
+                "components": [
+                    {"name": "to", "type": "address"},
+                    {"name": "validAfter", "type": "uint256"},
+                ],
+            },
+            {"name": "signature", "type": "bytes"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    }
+]
+
+# ERC-20 allowance ABI
+ERC20_ALLOWANCE_ABI = [
+    {
+        "type": "function",
+        "name": "allowance",
+        "inputs": [
+            {"name": "owner", "type": "address"},
+            {"name": "spender", "type": "address"},
+        ],
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+    }
+]
+
+# ERC-20 approve ABI
+ERC20_APPROVE_ABI = [
+    {
+        "type": "function",
+        "name": "approve",
+        "inputs": [
+            {"name": "spender", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+        ],
+        "outputs": [{"type": "bool"}],
+        "stateMutability": "nonpayable",
+    }
+]
+
 # Error codes
 ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
 ERR_UNDEPLOYED_SMART_WALLET = "invalid_exact_evm_payload_undeployed_smart_wallet"
@@ -52,6 +144,16 @@ ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
 ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
 ERR_EIP3009_NOT_SUPPORTED = "invalid_exact_evm_eip3009_not_supported"
 ERR_TRANSACTION_SIMULATION_FAILED = "invalid_exact_evm_transaction_simulation_failed"
+
+# Permit2-specific error codes
+ERR_PERMIT2_INVALID_SPENDER = "invalid_permit2_spender"
+ERR_PERMIT2_RECIPIENT_MISMATCH = "invalid_permit2_recipient_mismatch"
+ERR_PERMIT2_DEADLINE_EXPIRED = "permit2_deadline_expired"
+ERR_PERMIT2_NOT_YET_VALID = "permit2_not_yet_valid"
+ERR_PERMIT2_AMOUNT_MISMATCH = "invalid_exact_evm_payload_amount_mismatch"
+ERR_PERMIT2_TOKEN_MISMATCH = "permit2_token_mismatch"
+ERR_PERMIT2_INVALID_SIGNATURE = "invalid_permit2_signature"
+ERR_PERMIT2_ALLOWANCE_REQUIRED = "permit2_allowance_required"
 
 
 class _AssetInfoRequired(TypedDict):

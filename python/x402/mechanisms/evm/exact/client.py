@@ -16,6 +16,7 @@ from ..utils import (
     get_asset_info,
     get_evm_chain_id,
 )
+from .permit2_utils import create_permit2_payload
 
 
 def _wrap_if_local_account(signer: Any) -> ClientEvmSigner:
@@ -58,15 +59,21 @@ class ExactEvmScheme:
         self,
         requirements: PaymentRequirements,
     ) -> dict[str, Any]:
-        """Create signed EIP-3009 inner payload.
+        """Create signed payment inner payload.
+
+        Routes to Permit2 or EIP-3009 based on requirements.extra.assetTransferMethod.
 
         Args:
             requirements: Payment requirements from server.
 
         Returns:
-            Inner payload dict (authorization + signature).
+            Inner payload dict.
             x402Client wraps this with x402_version, accepted, resource, extensions.
         """
+        extra = requirements.extra or {}
+        if extra.get("assetTransferMethod") == "permit2":
+            return create_permit2_payload(self._signer, requirements)
+
         nonce = create_nonce()
         valid_after, valid_before = create_validity_window(
             timedelta(seconds=requirements.max_timeout_seconds or 3600)
