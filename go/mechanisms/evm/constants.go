@@ -80,8 +80,9 @@ var (
 	// - If the chain has officially endorsed a stablecoin, that asset should be used
 	// - If no official stance exists, the chain team should make the selection
 	//
-	// NOTE: Currently only EIP-3009 supporting stablecoins can be used.
-	// Generic ERC-20 support via EIP-2612/Permit2 is planned but not yet implemented.
+	// Both EIP-3009 (transferWithAuthorization) and Permit2 asset transfer methods are supported.
+	// EIP-3009 is the default. Set AssetTransferMethod to AssetTransferMethodPermit2 for tokens
+	// that don't support EIP-3009. See DEFAULT_ASSET.md for details.
 	NetworkConfigs = map[string]NetworkConfig{
 		// Base Mainnet
 		"eip155:8453": {
