@@ -301,6 +301,7 @@ In addition to the shared x402 error codes defined in the [x402 v2 specification
 
 ## API Constraints
 
+- **Rate Limits**: Refer to the [Hyperliquid API documentation](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api) for current rate limits and usage guidelines.
 - **Nonce Validity Window**: Hyperliquid requires nonces to be within `(T - 2 days, T + 1 day)` where T is the block's unix millisecond timestamp. This scheme's 1-hour freshness constraint (see Nonce Freshness Validation) is a stricter subset of this window.
 
 ## Appendix
