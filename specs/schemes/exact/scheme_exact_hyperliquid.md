@@ -301,8 +301,6 @@ In addition to the shared x402 error codes defined in the [x402 v2 specification
 
 ## API Constraints
 
-- **Submission Method**: The Hyperliquid exchange API is the sole method for submitting transactions on Hyperliquid. There is no direct chain RPC access.
-- **Request Rate**: Hyperliquid recommends batching requests with a minimum interval of 0.1 seconds between calls.
 - **Nonce Validity Window**: Hyperliquid requires nonces to be within `(T - 2 days, T + 1 day)` where T is the block's unix millisecond timestamp. This scheme's 1-hour freshness constraint (see Nonce Freshness Validation) is a stricter subset of this window.
 
 ## Appendix
