@@ -100,7 +100,7 @@ const routes = {
     accepts: [] as [],
     description: "Auth-only: wallet signature required",
     extensions: declareSIWxExtension({
-      network: EVM_NETWORK, // Required for auth-only routes (no payment to infer from)
+      network: [EVM_NETWORK, SVM_NETWORK], // Required for auth-only routes (no payment to infer from)
       statement: "Sign in to view your profile",
       expirationSeconds: 300,
     }),

@@ -107,11 +107,6 @@ async function demonstrateResource(path: string): Promise<void> {
  * The client hook handles the 402 → sign → retry cycle automatically.
  */
 async function demonstrateAuthOnly(): Promise<void> {
-  if (!evmSigner) {
-    console.log("\n--- /profile (auth-only) --- skipped (no EVM signer)");
-    return;
-  }
-
   const url = `${baseURL}/profile`;
   console.log("\n--- /profile (auth-only, no payment) ---");
 
