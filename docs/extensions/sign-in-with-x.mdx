@@ -7,10 +7,14 @@ The Sign-In-With-X (SIWX) extension implements [CAIP-122](https://chainagnostic.
 
 ## Overview
 
-SIWX solves a key problem in x402: **repeat access to purchased content**. Without SIWX, clients must pay every time they request a resource. With SIWX:
+SIWX solves two key problems in x402:
 
-* **For Buyers**: Sign in with your wallet to access content you've already paid for
-* **For Sellers**: Grant access to returning customers without requiring repayment
+1. **Repeat access to purchased content**: Without SIWX, clients must pay every time they request a resource. With SIWX, sign in with your wallet to access content you've already paid for.
+2. **Auth-only routes**: Protect resources with wallet authentication alone, without requiring payment.
+
+**Key Features:**
+* **For Buyers**: Sign in with your wallet to access content you've already paid for, or authenticate to access wallet-gated resources
+* **For Sellers**: Grant access to returning customers without requiring repayment, or create auth-only routes that require wallet signatures but no payment
 * **Chain-Agnostic**: Works with EVM (Ethereum, Base, etc.) and Solana wallets
 * **Standards-Based**: Built on CAIP-122, EIP-4361 (SIWE), and Sign-In-With-Solana
 
