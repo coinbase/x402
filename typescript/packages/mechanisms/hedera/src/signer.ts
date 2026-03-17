@@ -8,11 +8,7 @@ import {
   TransactionId,
   TransferTransaction,
 } from "@hiero-ledger/sdk";
-import {
-  DEFAULT_REPLAY_WINDOW_MS,
-  HEDERA_MAINNET_CAIP2,
-  HEDERA_TESTNET_CAIP2,
-} from "./constants";
+import { DEFAULT_REPLAY_WINDOW_MS, HEDERA_MAINNET_CAIP2, HEDERA_TESTNET_CAIP2 } from "./constants";
 import { assertSupportedHederaNetwork, isHbarAsset } from "./utils";
 
 /**

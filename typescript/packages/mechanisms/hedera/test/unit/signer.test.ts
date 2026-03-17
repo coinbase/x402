@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PrivateKey } from "@hiero-ledger/sdk";
-import {
-  createClientHederaSigner,
-  toFacilitatorHederaSigner,
-} from "../../src/signer";
+import { createClientHederaSigner, toFacilitatorHederaSigner } from "../../src/signer";
 import { inspectHederaTransaction } from "../../src/utils";
 
 describe("Hedera signer helpers", () => {
