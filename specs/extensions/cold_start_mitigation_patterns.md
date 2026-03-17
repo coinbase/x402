@@ -320,3 +320,14 @@ Possible follow-on work:
 - support for additional signature algorithms and key-distribution helpers
 - optional vocabulary for trust tiers or minimum signal counts
 - tighter linkage with registry-specific schemas once the surrounding discovery work settles
+
+## Acknowledgements
+
+The design of the `coldStartSignals` schema and the patterns in this document emerged from the community discussion in [#1375](https://github.com/coinbase/x402/issues/1375). Key contributions include:
+
+- **@douglasborthwick-crypto** — the three-category signal taxonomy (`onChainCredentials`, `onChainActivity`, `offChainAttestations`), the inline `sig`/`kid`/`jwks` verification pattern, the freshness/TTL model, and detailed EAS attestation and wallet trust schemas
+- **@ruhil6789** — DID/Verifiable Credentials integration design, the `did:pkh` recommendation for EVM agents, and the category-based extensible schema structure
+- **@rplryan** — `discoveryAttestations` as a fourth category, the behavioral trust dimension, service health attestation schemas, and the first signed attestation prototype
+- **@ThoughtProof** — reasoning attestation concept for payment-decision integrity verification
+- **@INJprotocol** — compliance attestation schema for AML/CFT signals
+- **@0xtus** — concrete implementation notes from the Azeth smart account + ERC-8004 integration
