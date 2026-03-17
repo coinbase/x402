@@ -23,7 +23,9 @@ SIWX solves two key problems in x402:
 1. **Server** returns 402 with `sign-in-with-x` extension containing challenge parameters
 2. **Client** signs the CAIP-122 message with their wallet
 3. **Client** sends signed proof in `SIGN-IN-WITH-X` HTTP header
-4. **Server** verifies signature and grants access if wallet has previous payment
+4. **Server** verifies signature and grants access either because:
+   - The route is auth-only (requires signature but no payment), or
+   - The wallet has previously paid for the resource
 
 This is a **Server ↔ Client** extension. The Facilitator is not involved in the authentication flow.
 
