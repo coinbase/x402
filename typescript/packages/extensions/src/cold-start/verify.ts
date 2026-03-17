@@ -12,6 +12,9 @@ const SIGNATURE_METADATA_FIELDS = new Set(["sig", "kid", "jwks", "alg"]);
  *
  * The signature metadata is excluded so callers can sign the semantic payload
  * without including transport-specific verification hints.
+ *
+ * @param signal - The signal to canonicalize.
+ * @returns A deterministic JSON string of the signal payload.
  */
 export function canonicalizeColdStartSignal(signal: ColdStartSignal): string {
   const payload: Record<string, unknown> = {};
@@ -30,6 +33,10 @@ export function canonicalizeColdStartSignal(signal: ColdStartSignal): string {
  *
  * This scaffold intentionally keeps key resolution outside the helper so
  * callers can decide how to fetch, cache, or pin JWKS documents.
+ *
+ * @param signal - The signed cold-start signal to verify.
+ * @param options - Verification options including the key resolver.
+ * @returns A result object with valid flag and optional error message.
  */
 export async function verifyColdStartSignalSignature(
   signal: ColdStartSignal,

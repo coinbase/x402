@@ -206,6 +206,10 @@ export function isColdStartSignalFresh(
 
 /**
  * Flatten and retain only signals that are still within their freshness window.
+ *
+ * @param signals - The signals object to filter.
+ * @param now - The current date for freshness comparison (defaults to new Date()).
+ * @returns Array of fresh categorized signals.
  */
 export function getFreshColdStartSignals(
   signals: ColdStartSignals,
