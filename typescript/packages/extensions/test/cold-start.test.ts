@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-jsdoc, jsdoc/require-param, jsdoc/require-returns */
 import { describe, expect, it } from 'vitest'
 import { generateKeyPairSync, sign as signBuffer } from 'crypto'
 import {
