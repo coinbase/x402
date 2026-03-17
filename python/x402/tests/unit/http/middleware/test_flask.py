@@ -361,11 +361,11 @@ class TestPaymentMiddleware:
     def test_concurrent_initialization_is_safe(self):
         """Test that concurrent requests don't trigger multiple initializations."""
         app = Flask(__name__)
-        
+
         @app.route("/api/protected")
         def protected_route():
             return "Protected content"
-        
+
         mock_server = MagicMock()
         routes = {
             "GET /api/protected": RouteConfig(
@@ -377,14 +377,14 @@ class TestPaymentMiddleware:
                 ),
             )
         }
-        
+
         # Track initialization calls
         init_call_count = 0
-        
+
         def track_initialize():
             nonlocal init_call_count
             init_call_count += 1
-        
+
         with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server:
             mock_http_server_instance = MagicMock()
             mock_http_server_instance.initialize = track_initialize
@@ -393,31 +393,30 @@ class TestPaymentMiddleware:
                 type="no-payment-required"
             )
             mock_http_server.return_value = mock_http_server_instance
-            
+
             PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=True)
-            
+
             # Simulate concurrent requests using threading
             import threading
-            import time
-            
+
             def make_request():
                 with app.test_client() as client:
                     client.get("/api/protected")
-            
+
             # Create 5 threads to make concurrent requests
             threads = []
             for _ in range(5):
                 thread = threading.Thread(target=make_request)
                 threads.append(thread)
-            
+
             # Start all threads at roughly the same time
             for thread in threads:
                 thread.start()
-            
+
             # Wait for all to complete
             for thread in threads:
                 thread.join()
-            
+
             # Initialization should only happen once
             assert init_call_count == 1
 
