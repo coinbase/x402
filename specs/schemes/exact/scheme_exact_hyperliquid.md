@@ -2,9 +2,7 @@
 
 ## Summary
 
-The `exact` scheme on Hyperliquid (Hypercore L1) uses EIP-712 signed `SendAsset` actions combined with API-based settlement. Unlike traditional blockchains that require on-chain transactions, Hyperliquid's approach allows for stateless facilitators with no gas fees, where the client's signature authorizes a direct transfer via the Hyperliquid API.
-
-The key distinction of this scheme is that the facilitator does not need to maintain a funded wallet or pay gas fees—they simply verify the signature and submit the action to the Hyperliquid exchange API endpoint for execution.
+The `exact` scheme on Hyperliquid (Hypercore L1) uses EIP-712 signed `SendAsset` actions combined with API-based settlement. The key distinction of this scheme is that the facilitator does not need to maintain a funded wallet or pay gas fees—it simply verifies the client's signature and submits the action to the Hyperliquid exchange API endpoint for execution.
 
 ## Protocol Sequencing
 
@@ -37,13 +35,13 @@ The following outlines the flow of the `exact` scheme on Hyperliquid:
 
 ## Asset Support
 
-Currently supports USDH (Hyperliquid USD):
+Supports any Hyperliquid spot token using the `{tokenName}:0x{identifier}` format.
+
+**Example — USDH (Hyperliquid USD):**
 
 - **Asset Identifier**: `USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b`
 - **Decimals**: 8
-- **Default**: Used for price parsing (e.g., `$0.01` = `1000000` raw units)
-
-Future: Support for additional Hyperliquid spot tokens.
+- **Example**: `$0.01` = `1000000` raw units
 
 ## `PaymentRequirements` for `exact`
 
@@ -200,13 +198,13 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 
 ### 6. Amount Validation
 
-- The `action.amount` MUST be a decimal string representation with exactly 8 decimals (e.g., `"0.01000000"` for 0.01 USD).
-- When converted to raw units (multiply by 10^8 and truncate decimals), the value MUST be greater than or equal to `PaymentRequirements.amount`.
+- The `action.amount` MUST be a decimal string representation with exactly 8 decimals (e.g., `"0.01000000"` for 0.01 USD). The conversion MUST be performed using string operations only (no floating-point arithmetic).
+- The resulting `action.amount` MUST equal the expected string exactly.
 
 ### 7. Asset/Token Validation
 
 - The `action.token` MUST equal the `PaymentRequirements.asset` exactly.
-- The token format MUST be `USDH:0x{identifier}`.
+- The token format MUST be `{tokenName}:0x{identifier}`.
 
 ### 8. Nonce Freshness Validation
 
@@ -271,11 +269,14 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
 
    Or an error response if submission fails.
 
+   > **Note on Duplicate Settlement**: Hyperliquid enforces nonce uniqueness natively — the 100 highest nonces are stored per address, and previously used nonces are rejected. This means duplicate submissions of the same signed action will fail at the API level, and no facilitator-side deduplication cache is required (unlike SVM).
+
 3. **Transaction Hash Retrieval**: After 1.5 seconds (to allow ledger indexing), the facilitator queries the ledger:
    - Endpoint: `POST /info` with `{"type": "userNonFundingLedgerUpdates", "user": "<payer_address>"}`
    - Matches the ledger entry by comparing `nonce` and `destination`
    - Extracts the transaction hash from the matched entry
    - Retries up to 2 times with 1-second delays if not found
+   - If the transaction hash is NOT found after all retries, the facilitator MUST return a settlement failure response with `success: false`
 
 4. **Settlement Response**: The facilitator returns:
    ```json
@@ -289,31 +290,37 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
 
 ### Error Handling
 
-| Error Code                    | Description                                               | HTTP Status |
-| ----------------------------- | --------------------------------------------------------- | ----------- |
-| `invalid_network`             | Network is not `hypercore:mainnet` or `hypercore:testnet` | 400         |
-| `invalid_action_type`         | Action type is not `sendAsset`                            | 400         |
-| `destination_mismatch`        | Destination doesn't match `payTo`                         | 400         |
-| `insufficient_amount`         | Amount is less than required                              | 400         |
-| `token_mismatch`              | Token doesn't match required asset                        | 400         |
-| `nonce_too_old`               | Nonce is more than 1 hour old                             | 400         |
-| `invalid_signature_structure` | Signature is missing r, s, or v                           | 400         |
-| `invalid_signature`           | Signature verification failed                             | 400         |
-| `settlement_failed`           | Hyperliquid API returned error                            | 500         |
+| Error Code                                            | Description                                               | HTTP Status |
+| ----------------------------------------------------- | --------------------------------------------------------- | ----------- |
+| `invalid_network`                                     | Network is not `hypercore:mainnet` or `hypercore:testnet` | 400         |
+| `invalid_exact_hypercore_payload_action_type`         | Action type is not `sendAsset`                            | 400         |
+| `invalid_exact_hypercore_payload_recipient_mismatch`  | Destination doesn't match `payTo`                         | 400         |
+| `invalid_exact_hypercore_payload_amount`              | Amount is less than required                              | 400         |
+| `invalid_exact_hypercore_payload_token_mismatch`      | Token doesn't match required asset                        | 400         |
+| `invalid_exact_hypercore_payload_nonce`               | Nonce is more than 1 hour old                             | 400         |
+| `invalid_exact_hypercore_payload_signature_structure` | Signature is missing r, s, or v                           | 400         |
+| `invalid_exact_hypercore_payload_signature`           | Signature verification failed                             | 400         |
+| `invalid_transaction_state`                           | Hyperliquid API returned error                            | 500         |
+
+## API Constraints
+
+- **Submission Method**: The Hyperliquid exchange API is the sole method for submitting transactions on Hypercore. There is no direct chain RPC access.
+- **Request Rate**: Hyperliquid recommends batching requests with a minimum interval of 0.1 seconds between calls.
+- **Nonce Validity Window**: Hyperliquid requires nonces to be within `(T - 2 days, T + 1 day)` where T is the block's unix millisecond timestamp. This scheme's 1-hour freshness constraint (see Nonce Freshness Validation) is a stricter subset of this window.
 
 ## Appendix
 
 ### Key Differences from EVM/SVM
 
-| Feature                  | EVM                  | SVM                  | Hyperliquid       |
-| ------------------------ | -------------------- | -------------------- | ----------------- |
-| **Settlement**           | On-chain transaction | On-chain transaction | API submission    |
-| **Facilitator Wallet**   | Required + gas       | Required + SOL       | Not required      |
-| **Gas Fees**             | ETH/token            | SOL                  | None              |
-| **Signature Type**       | EIP-3009 / Permit2   | Ed25519 SPL          | EIP-712 SendAsset |
-| **Nonce Format**         | Sequential           | Recent blockhash     | Timestamp (ms)    |
-| **Confirmation**         | Block inclusion      | Block inclusion      | Ledger query      |
-| **Stateful Facilitator** | Yes (nonce tracking) | Yes (blockhash)      | No (stateless)    |
+| Feature                  | EVM                  | SVM                  | Hyperliquid                           |
+| ------------------------ | -------------------- | -------------------- | ------------------------------------- |
+| **Settlement**           | On-chain transaction | On-chain transaction | API submission                        |
+| **Facilitator Wallet**   | Required + gas       | Required + SOL       | Not required                          |
+| **Gas Fees**             | ETH                  | SOL                  | None                                  |
+| **Signature Type**       | EIP-3009 / Permit2   | Ed25519 SPL          | EIP-712 SendAsset                     |
+| **Nonce Format**         | Sequential           | Recent blockhash     | Timestamp (ms)                        |
+| **Confirmation**         | Block inclusion      | Block inclusion      | Ledger query                          |
+| **Stateful Facilitator** | No                   | Deduplication cache  | No (nonce uniqueness enforced by API) |
 
 ### Nonce Timestamp Format
 
@@ -322,15 +329,13 @@ Unlike sequential nonces (EVM) or blockhash-based nonces (SVM), Hyperliquid uses
 - **Format**: Milliseconds since Unix epoch (`int(time.time() * 1000)`)
 - **Uniqueness**: Millisecond precision prevents collisions in normal usage
 - **Freshness**: Must be within 1 hour of current time
-- **No State**: Facilitator doesn't need to track used nonces (time-based expiry)
 
 ### API-Based Settlement Advantages
 
 1. **No Facilitator Wallet**: Facilitators don't need to manage private keys or maintain funded accounts
 2. **No Gas Fees**: Eliminates operational costs for payment processing
-3. **Stateless Operation**: No nonce tracking or state management required
-4. **Instant Verification**: Signature verification is deterministic without RPC calls
-5. **Simplified Operations**: No transaction construction or gas estimation needed
+3. **Instant Verification**: Signature verification is deterministic without RPC calls
+4. **Simplified Operations**: No transaction construction or gas estimation needed
 
 ### Security Considerations
 
@@ -352,11 +357,9 @@ Unlike sequential nonces (EVM) or blockhash-based nonces (SVM), Hyperliquid uses
 
 Potential future enhancements to the Hyperliquid exact scheme:
 
-1. **Multi-Asset Support**: Extend beyond USDH to support other Hyperliquid spot tokens
-2. **Sub-Account Transfers**: Support transfers from user sub-accounts (`fromSubAccount` non-empty)
-3. **Batch Settlement**: Submit multiple actions in a single API call for efficiency
-4. **Cross-DEX Transfers**: Enable transfers between `spot` and `perp` DEXes
-5. **Native Token Support**: Add support for native HYPE token transfers
+1. **Sub-Account Transfers**: Support transfers from user sub-accounts (`fromSubAccount` non-empty)
+2. **Batch Settlement**: Submit multiple actions in a single API call for efficiency
+3. **Cross-DEX Transfers**: Enable transfers between `spot` and `perp` DEXes
 
 ### API Endpoints
 
