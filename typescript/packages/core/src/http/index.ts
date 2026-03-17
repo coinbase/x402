@@ -78,8 +78,8 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
 }
 
 // Export HTTP service and types
-export { x402HTTPResourceServer, RouteConfigurationError } from "./x402HTTPResourceServer";
-export type {
+export {
+  x402HTTPResourceServer,
   HTTPAdapter,
   HTTPRequestContext,
   HTTPTransportContext,
@@ -100,6 +100,7 @@ export type {
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
   RouteValidationError,
+  RouteConfigurationError,
   ProtectedRequestHook,
 } from "./x402HTTPResourceServer";
 export {

@@ -1,7 +1,0 @@
-docs/
-dist/
-node_modules/
-coverage/
-.github/
-**/**/*.json
-*.md

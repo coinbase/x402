@@ -61,7 +61,7 @@ export class x402HTTPClient {
   ): Promise<Record<string, string> | null> {
     for (const hook of this.paymentRequiredHooks) {
       const result = await hook({ paymentRequired });
-      if (result && result.headers) {
+      if (result?.headers) {
         return result.headers;
       }
     }
