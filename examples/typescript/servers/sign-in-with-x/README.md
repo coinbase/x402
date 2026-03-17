@@ -42,7 +42,7 @@ app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Valid EVM address (SVM optional)
+- At least one payout address: EVM, SVM, or both
 - Facilitator URL (see [facilitator list](https://www.x402.org/ecosystem?category=facilitators))
 
 ## Setup
@@ -56,8 +56,10 @@ cp .env-local .env
 and fill required environment variables:
 
 - `FACILITATOR_URL` - Facilitator endpoint URL
-- `EVM_ADDRESS` - Ethereum address to receive payments
+- `EVM_ADDRESS` - (Optional) Ethereum address to receive payments
 - `SVM_ADDRESS` - (Optional) Solana address for SVM payments
+
+At least one of `EVM_ADDRESS` or `SVM_ADDRESS` is required.
 
 2. Install and build from typescript examples root:
 
