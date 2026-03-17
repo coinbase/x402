@@ -290,17 +290,17 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
 
 ### Error Handling
 
+In addition to the shared x402 error codes defined in the [x402 v2 specification](../x402-specification-v2.md) (e.g., `insufficient_funds`, `invalid_network`, `invalid_transaction_state`), this scheme defines the following Hypercore-specific error codes:
+
 | Error Code                                            | Description                                               | HTTP Status |
 | ----------------------------------------------------- | --------------------------------------------------------- | ----------- |
-| `invalid_network`                                     | Network is not `hypercore:mainnet` or `hypercore:testnet` | 400         |
 | `invalid_exact_hypercore_payload_action_type`         | Action type is not `sendAsset`                            | 400         |
 | `invalid_exact_hypercore_payload_recipient_mismatch`  | Destination doesn't match `payTo`                         | 400         |
-| `invalid_exact_hypercore_payload_amount`              | Amount is less than required                              | 400         |
+| `invalid_exact_hypercore_payload_amount`              | Amount doesn't match required amount                      | 400         |
 | `invalid_exact_hypercore_payload_token_mismatch`      | Token doesn't match required asset                        | 400         |
 | `invalid_exact_hypercore_payload_nonce`               | Nonce is more than 1 hour old                             | 400         |
 | `invalid_exact_hypercore_payload_signature_structure` | Signature is missing r, s, or v                           | 400         |
 | `invalid_exact_hypercore_payload_signature`           | Signature verification failed                             | 400         |
-| `invalid_transaction_state`                           | Hyperliquid API returned error                            | 500         |
 
 ## API Constraints
 
