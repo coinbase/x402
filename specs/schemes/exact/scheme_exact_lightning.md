@@ -54,12 +54,7 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 - `network`: CAIP-2 network identifier - `bip122:000000000019d6689c085ae165831e93` (Bitcoin mainnet) or `bip122:000000000933ea01ad0ee984209779ba` (Bitcoin testnet)
 - `amount`: The exact amount to transfer in **millisatoshis** (1 satoshi = 1000 millisatoshis)
 - `asset`: Always `"BTC"` for Bitcoin Lightning Network
-- `payTo`: Required for schema consistency with other x402 schemes. In Lightning, the actual payment destination is encoded in the invoice itself, so this field is informational. This can be either:
-  - The Lightning node public key (33 bytes, hex-encoded with 0x02 or 0x03 prefix)
-  - The constant string `"anonymous"` when the recipient's identity should remain private
-
-  When set to a public key, it should match the recipient derived from the invoice.
-  When set to `"anonymous"`, the actual recipient is encoded in the invoice's payment hash and route hints.
+- `payTo`: Always `"anonymous"`. Required for schema consistency with other x402 schemes. In Lightning, the payment destination is encoded in the invoice itself, and the actual recipient is anonymous.
 - `maxTimeoutSeconds`: Maximum time in seconds before the payment expires. This should match or be shorter than the invoice expiry
 - `extra.paymentMethod`: The payment method to use. For Lightning Network, this is `"lightning"`. This distinguishes Lightning payments from on-chain Bitcoin transfers on the same network. Valid values include: `"lightning"`, `"on-chain"` (future).
 - `extra.invoice`: The BOLT11 invoice string that the client must pay
@@ -118,11 +113,8 @@ Steps to verify a payment for the `exact` scheme on Lightning Network:
 6. Decode the BOLT11 invoice to extract payment details (payment hash, amount, timestamp, expiry).
 7. Verify the invoice has not expired (check current time against invoice timestamp + expiry).
 8. Verify the invoice amount matches `requirements.amount` exactly.
-9. Verify `payTo`:
-   - If `payTo` is a Lightning node public key, verify it matches the recipient derived from the invoice.
-   - If `payTo` is `"anonymous"`, no additional validation needed.
-10. Verify the invoice has not already been used.
-11. Query the Lightning wallet API or Lightning node to verify the invoice has been paid. If the payment is still in-flight (HTLC locked but not yet settled), the server SHOULD respond with `402` and a `Retry-After` header indicating when the client should retry.
+9. Verify the invoice has not already been used.
+10. Query the Lightning wallet API or Lightning node to verify the invoice has been paid. If the payment is still in-flight (HTLC locked but not yet settled), the server SHOULD respond with `402` and a `Retry-After` header indicating when the client should retry.
 
 ## Settlement
 
