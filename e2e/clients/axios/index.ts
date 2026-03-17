@@ -3,7 +3,7 @@ import axios from "axios";
 import { wrapAxiosWithPayment, decodePaymentResponseHeader } from "@x402/axios";
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 import { ExactEvmScheme, type ExactEvmSchemeOptions } from "@x402/evm/exact/client";
 import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
@@ -27,9 +27,13 @@ const svmSigner = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SVM_PRIVATE_KEY as string),
 );
 
+const evmNetwork = process.env.EVM_NETWORK || "eip155:84532";
+const evmRpcUrl = process.env.EVM_RPC_URL;
+const evmChain = evmNetwork === "eip155:8453" ? base : baseSepolia;
+
 const publicClient = createPublicClient({
-  chain: baseSepolia,
-  transport: http(),
+  chain: evmChain,
+  transport: http(evmRpcUrl),
 });
 
 const evmSigner = toClientEvmSigner(evmAccount, publicClient);

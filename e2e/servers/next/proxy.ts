@@ -20,6 +20,7 @@ export const SVM_NETWORK = (process.env.SVM_NETWORK ||
 export const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
 export const STELLAR_NETWORK = (process.env.STELLAR_NETWORK ||
   "stellar:testnet") as `${string}:${string}`;
+const EVM_PERMIT2_ASSET = process.env.EVM_PERMIT2_ASSET as `0x${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!facilitatorUrl) {
@@ -163,8 +164,13 @@ export const proxy = paymentProxy(
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
         network: EVM_NETWORK,
-        price: "$0.001",
-        extra: { assetTransferMethod: "permit2" },
+        price: {
+          amount: "1000",
+          asset: EVM_PERMIT2_ASSET,
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
       },
       extensions: {
         ...declareDiscoveryExtension({
@@ -173,6 +179,34 @@ export const proxy = paymentProxy(
               message: "Permit2 endpoint accessed successfully",
               timestamp: "2024-01-01T00:00:00Z",
               method: "permit2",
+            },
+            schema: {
+              properties: {
+                message: { type: "string" },
+                timestamp: { type: "string" },
+                method: { type: "string" },
+              },
+              required: ["message", "timestamp", "method"],
+            },
+          },
+        }),
+      },
+    },
+    "/api/protected-permit2-eip2612-proxy": {
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        network: EVM_NETWORK,
+        price: "$0.001",
+        extra: { assetTransferMethod: "permit2" },
+      },
+      extensions: {
+        ...declareDiscoveryExtension({
+          output: {
+            example: {
+              message: "Permit2 EIP-2612 endpoint accessed successfully",
+              timestamp: "2024-01-01T00:00:00Z",
+              method: "permit2-eip2612",
             },
             schema: {
               properties: {
@@ -194,7 +228,7 @@ export const proxy = paymentProxy(
         network: EVM_NETWORK,
         price: {
           amount: "1000",
-          asset: "0xeED520980fC7C7B4eB379B96d61CEdea2423005a",
+          asset: EVM_PERMIT2_ASSET,
           extra: {
             assetTransferMethod: "permit2",
           },
@@ -215,6 +249,7 @@ export const config = {
     "/api/protected-aptos-proxy",
     "/api/protected-stellar-proxy",
     "/api/protected-permit2-proxy",
+    "/api/protected-permit2-eip2612-proxy",
     "/api/protected-permit2-erc20-proxy",
   ],
 };

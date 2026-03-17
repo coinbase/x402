@@ -78,6 +78,13 @@ type Erc20ApprovalGasSponsoringSigner interface {
 	SendTransactions(ctx context.Context, transactions []TransactionRequest) ([]string, error)
 }
 
+// Erc20ApprovalGasSponsoringSimulator is an optional extension of Erc20ApprovalGasSponsoringSigner with multi-transaction simulation.
+// The signer owns the simulation strategy.
+type Erc20ApprovalGasSponsoringSimulator interface {
+	Erc20ApprovalGasSponsoringSigner
+	SimulateTransactions(ctx context.Context, transactions []TransactionRequest) (bool, error)
+}
+
 // Erc20ApprovalFacilitatorExtension carries the signer; registered with the facilitator.
 // It implements x402.FacilitatorExtension so it can be registered and retrieved via FacilitatorContext.
 type Erc20ApprovalFacilitatorExtension struct {

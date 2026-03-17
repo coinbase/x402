@@ -58,6 +58,13 @@ const (
 	ErrPermit2InvalidNonce       = "permit2_invalid_nonce"
 	ErrPermit2612AmountMismatch  = "permit2_2612_amount_mismatch"
 
+	// Permit2 simulation errors
+	ErrPermit2SimulationFailed      = "permit2_simulation_failed"
+	ErrPermit2InsufficientBalance   = "permit2_insufficient_balance"
+	ErrPermit2ProxyNotDeployed      = "permit2_proxy_not_deployed"
+	ErrErc20ApprovalInsufficientEth = "erc20_approval_insufficient_eth_for_gas"
+	ErrErc20ApprovalTxFailed        = "erc20_approval_tx_failed"
+
 	// ERC-20 approval gas sponsoring errors
 	ErrErc20ApprovalInvalidFormat   = "invalid_erc20_approval_extension_format"
 	ErrErc20ApprovalFromMismatch    = "erc20_approval_from_mismatch"
