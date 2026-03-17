@@ -5,7 +5,7 @@
  * optional chain configuration via environment variables.
  *
  * New chain support should be added here in alphabetic order by network prefix
- * (e.g., "eip155" before "solana" before "stellar").
+ * (e.g., "eip155" before "solana" before "stellar" before "tvm").
  */
 
 import { config } from "dotenv";
@@ -14,6 +14,7 @@ import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactStellarScheme } from "@x402/stellar/exact/server";
+import { ExactTvmScheme } from "@x402/tvm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 
 config();
@@ -22,10 +23,11 @@ config();
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}` | undefined;
 const svmAddress = process.env.SVM_ADDRESS as string | undefined;
 const stellarAddress = process.env.STELLAR_ADDRESS as string | undefined;
+const tvmAddress = process.env.TVM_ADDRESS as string | undefined;
 
 // Validate at least one address is provided
-if (!evmAddress && !svmAddress && !stellarAddress) {
-  console.error("❌ At least one of EVM_ADDRESS, SVM_ADDRESS, or STELLAR_ADDRESS is required");
+if (!evmAddress && !svmAddress && !stellarAddress && !tvmAddress) {
+  console.error("❌ At least one of EVM_ADDRESS, SVM_ADDRESS, STELLAR_ADDRESS, or TVM_ADDRESS is required");
   process.exit(1);
 }
 
@@ -39,6 +41,7 @@ if (!facilitatorUrl) {
 const EVM_NETWORK = "eip155:84532" as const; // Base Sepolia
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as const; // Solana Devnet
 const STELLAR_NETWORK = "stellar:testnet" as const; // Stellar Testnet
+const TVM_NETWORK = "tvm:-239" as const; // TON Mainnet
 
 // Build accepts array dynamically based on configured addresses
 const accepts: Array<{
@@ -71,6 +74,14 @@ if (stellarAddress) {
     payTo: stellarAddress,
   });
 }
+if (tvmAddress) {
+  accepts.push({
+    scheme: "exact",
+    price: "$0.001",
+    network: TVM_NETWORK,
+    payTo: tvmAddress,
+  });
+}
 
 // Create facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
@@ -85,6 +96,9 @@ if (svmAddress) {
 }
 if (stellarAddress) {
   server.register(STELLAR_NETWORK, new ExactStellarScheme());
+}
+if (tvmAddress) {
+  server.register(TVM_NETWORK, new ExactTvmScheme());
 }
 
 // Create Express app
@@ -131,6 +145,9 @@ app.listen(port, () => {
   }
   if (stellarAddress) {
     console.log(`   Stellar: ${stellarAddress} on ${STELLAR_NETWORK}`);
+  }
+  if (tvmAddress) {
+    console.log(`   TVM: ${tvmAddress} on ${TVM_NETWORK}`);
   }
   console.log(`   Facilitator: ${facilitatorUrl}`);
   console.log();
