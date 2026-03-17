@@ -182,10 +182,11 @@ For custom implementations, you can use the low-level functions directly:
       }
 
       // verification.address is the verified wallet
-      // Check if this wallet has paid before
+      // Grant access for auth-only routes or if wallet has paid
+      const isAuthOnly = await checkIfAuthOnlyRoute(request);
       const hasPaid = await checkPaymentHistory(verification.address);
-      if (hasPaid) {
-        // Grant access without payment
+      if (isAuthOnly || hasPaid) {
+        // Grant access
       }
     }
     ```
