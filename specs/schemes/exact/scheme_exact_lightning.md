@@ -125,7 +125,7 @@ Settlement for Lightning Network payments is fundamentally different from blockc
 3. **No facilitator required**: Unlike blockchain schemes where a facilitator broadcasts transactions, Lightning payments go directly from payer to payee through the Lightning Network.
 4. **Instant finality**: Lightning payments are final once received, with no risk of reorgs or pending states.
 
-The verification response includes the invoice string as the transaction identifier, which can be used to look up payment details in the Lightning node.
+The verification response includes the payment hash as the transaction identifier, which can be used to look up payment details in the Lightning node.
 
 ## SettlementResponse
 The `PAYMENT-RESPONSE` header is base64 encoded and returned to the client from the resource server.
@@ -135,13 +135,12 @@ Once decoded, the `PAYMENT-RESPONSE` is a JSON string following the standard `Se
 ```json
 {
   "success": true,
-  "transaction": "lnbc1u1p3...",
+  "transaction": "a1b2c3d4e5f...",
   "network": "bip122:000000000019d6689c085ae165831e93",
   "payer": "anonymous",
   "extra": {
     "invoice": "lnbc1u1p3...",
-    "settledAt": 1739116800,
-    "paymentHash": "a]1b2c3d4e5f..."
+    "settledAt": 1739116800
   }
 }
 ```
@@ -149,12 +148,11 @@ Once decoded, the `PAYMENT-RESPONSE` is a JSON string following the standard `Se
 ### Field Descriptions
 
 - `success`: Boolean indicating whether the payment settlement was successful
-- `transaction`: The BOLT11 invoice string (serves as the transaction identifier). Note: Unlike blockchain transaction hashes, this is the full invoice string. If integration with Lightning tooling requires a payment hash, it can be extracted by decoding this BOLT11 invoice, or use the optional `extra.paymentHash` field if provided.
+- `transaction`: The SHA-256 payment hash (hex-encoded) derived from the BOLT11 invoice. This serves as the transaction identifier and is widely used by Lightning tooling for payment lookups.
 - `network`: The CAIP-2 network identifier
 - `payer`: The payer identifier. Since Lightning provides limited privacy features, this may be `"anonymous"` or a Lightning node public key if available
 - `extra.invoice`: The BOLT11 invoice string
 - `extra.settledAt`: Unix timestamp when the payment was confirmed
-- `extra.paymentHash` *(optional)*: The SHA-256 payment hash (hex-encoded) derived from the BOLT11 invoice. Convenience field for Lightning tooling that indexes by payment hash. When present, it MUST match the payment hash embedded in `extra.invoice`.
 
 ## Appendix
 
