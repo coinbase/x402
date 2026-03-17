@@ -113,6 +113,13 @@ export async function verifyColdStartSignalSignature(
   }
 }
 
+/**
+ * Normalize algorithm name to a standard form.
+ *
+ * @param algorithm - The algorithm name to normalize.
+ * @param jwk - Optional JWK for algorithm inference.
+ * @returns Normalized algorithm name or undefined.
+ */
 function normalizeAlgorithm(algorithm: string | undefined, jwk: JsonWebKey): string | undefined {
   if (!algorithm) {
     return jwk.kty === "OKP" && jwk.crv === "Ed25519" ? "EdDSA" : undefined;
@@ -125,6 +132,14 @@ function normalizeAlgorithm(algorithm: string | undefined, jwk: JsonWebKey): str
   return algorithm;
 }
 
+/**
+ * Import a JWK as a CryptoKey for verification.
+ *
+ * @param subtle - The SubtleCrypto instance to use.
+ * @param jwk - The JWK to import.
+ * @param algorithm - The algorithm to use.
+ * @returns An object containing the key and verification algorithm.
+ */
 async function importVerificationKey(
   subtle: SubtleCrypto,
   jwk: JsonWebKey,
@@ -175,6 +190,12 @@ async function importVerificationKey(
   }
 }
 
+/**
+ * Recursively sort a JSON value's keys for deterministic serialization.
+ *
+ * @param value - The value to sort.
+ * @returns The value with sorted keys.
+ */
 function sortJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(sortJsonValue);
@@ -192,12 +213,24 @@ function sortJsonValue(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Convert a string or Uint8Array to an ArrayBuffer.
+ *
+ * @param value - The value to convert.
+ * @returns An ArrayBuffer.
+ */
 function toArrayBuffer(value: string | Uint8Array): ArrayBuffer {
   const bytes =
     value instanceof Uint8Array ? Uint8Array.from(value) : new TextEncoder().encode(value);
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
 
+/**
+ * Decode a base64url-encoded string to an ArrayBuffer.
+ *
+ * @param value - The base64url string to decode.
+ * @returns An ArrayBuffer of the decoded bytes.
+ */
 function decodeBase64Url(value: string): ArrayBuffer {
   if (!/^[A-Za-z0-9_-]+=*$/.test(value)) {
     throw new Error("Signal signature is not valid base64url");

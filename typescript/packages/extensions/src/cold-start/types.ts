@@ -64,13 +64,13 @@ export interface ColdStartSignal extends Record<string, unknown>, ColdStartSigna
   ttlSeconds?: number;
 }
 
-export interface OnChainCredentialSignal extends ColdStartSignal {}
+export type OnChainCredentialSignal = ColdStartSignal;
 
-export interface OnChainActivitySignal extends ColdStartSignal {}
+export type OnChainActivitySignal = ColdStartSignal;
 
-export interface OffChainAttestationSignal extends ColdStartSignal {}
+export type OffChainAttestationSignal = ColdStartSignal;
 
-export interface DiscoveryAttestationSignal extends ColdStartSignal {}
+export type DiscoveryAttestationSignal = ColdStartSignal;
 
 /**
  * Typed container for known cold-start signal categories.

@@ -37,6 +37,9 @@ type ColdStartSignalsParseResult =
  *
  * Unknown categories are ignored so clients can safely adopt newer categories
  * over time without breaking older SDK versions.
+ *
+ * @param value - The value to parse.
+ * @returns Parsed cold-start signals.
  */
 export function parseColdStartSignals(value: unknown): ColdStartSignals {
   const result = safeParseColdStartSignals(value);
@@ -50,6 +53,9 @@ export function parseColdStartSignals(value: unknown): ColdStartSignals {
 
 /**
  * Safe variant of `parseColdStartSignals`.
+ *
+ * @param value - The value to parse.
+ * @returns A parse result with either success+data or error string.
  */
 export function safeParseColdStartSignals(value: unknown): ColdStartSignalsParseResult {
   if (!isRecord(value)) {
@@ -78,6 +84,9 @@ export function safeParseColdStartSignals(value: unknown): ColdStartSignalsParse
 /**
  * Extract cold-start signals from a direct `coldStartSignals` object, an
  * envelope with `coldStartSignals`, or a discovery-style `metadata` object.
+ *
+ * @param value - The value to extract from.
+ * @returns Parsed cold-start signals or undefined.
  */
 export function extractColdStartSignals(value: unknown): ColdStartSignals | undefined {
   if (!isRecord(value)) {
@@ -107,14 +116,32 @@ export function extractColdStartSignals(value: unknown): ColdStartSignals | unde
   return undefined;
 }
 
+/**
+ * Check if a value is a valid cold-start signal.
+ *
+ * @param value - The value to check.
+ * @returns True if the value is a valid ColdStartSignal.
+ */
 export function isColdStartSignal(value: unknown): value is ColdStartSignal {
   return ColdStartSignalSchema.safeParse(value).success;
 }
 
+/**
+ * Check if a value is a valid cold-start signals object.
+ *
+ * @param value - The value to check.
+ * @returns True if the value is a valid ColdStartSignals object.
+ */
 export function isColdStartSignals(value: unknown): value is ColdStartSignals {
   return safeParseColdStartSignals(value).success;
 }
 
+/**
+ * Check if a cold-start signal is signed.
+ *
+ * @param value - The signal to check.
+ * @returns True if the signal has sig and kid fields.
+ */
 export function isSignedColdStartSignal(value: ColdStartSignal): value is SignedColdStartSignal {
   return (
     typeof value.sig === "string" &&
@@ -126,6 +153,9 @@ export function isSignedColdStartSignal(value: ColdStartSignal): value is Signed
 
 /**
  * Flatten signals across categories for simple client-side iteration.
+ *
+ * @param signals - The signals to flatten.
+ * @returns Array of categorized cold-start signals.
  */
 export function listColdStartSignals(signals: ColdStartSignals): CategorizedColdStartSignal[] {
   const entries: CategorizedColdStartSignal[] = [];
@@ -144,6 +174,10 @@ export function listColdStartSignals(signals: ColdStartSignals): CategorizedCold
  *
  * - Signals without freshness metadata are treated as usable by this helper.
  * - Signals with only one freshness field are treated as malformed/stale.
+ *
+ * @param signal - The signal to check freshness for.
+ * @param now - The current date (defaults to new Date()).
+ * @returns True if the signal is fresh.
  */
 export function isColdStartSignalFresh(
   signal: Pick<ColdStartSignal, "checkedAt" | "ttlSeconds">,
@@ -180,6 +214,12 @@ export function getFreshColdStartSignals(
   return listColdStartSignals(signals).filter(entry => isColdStartSignalFresh(entry.signal, now));
 }
 
+/**
+ * Project only known category keys from a record.
+ *
+ * @param value - The source record.
+ * @returns A record containing only known category keys.
+ */
 function projectKnownCategories(
   value: Record<string, unknown>,
 ): Partial<Record<ColdStartSignalCategory, unknown>> {
@@ -194,14 +234,32 @@ function projectKnownCategories(
   return projected;
 }
 
+/**
+ * Check if a value has at least one known cold-start signal category.
+ *
+ * @param value - The record to check.
+ * @returns True if the value has a known category key.
+ */
 function hasKnownCategory(value: Record<string, unknown>): boolean {
   return COLD_START_SIGNAL_CATEGORIES.some(category => category in value);
 }
 
+/**
+ * Check if a value is a plain record object.
+ *
+ * @param value - The value to check.
+ * @returns True if the value is a record.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Format Zod validation issues into a human-readable string.
+ *
+ * @param issues - The Zod issues to format.
+ * @returns A comma-separated string of issue messages.
+ */
 function formatZodIssues(issues: z.ZodIssue[]): string {
   return issues
     .map(issue => {
