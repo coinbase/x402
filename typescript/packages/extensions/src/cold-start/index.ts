@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc, jsdoc/require-param, jsdoc/require-returns */
 /**
  * Cold-start signal helpers for x402 discovery and registration metadata.
  *
@@ -53,9 +52,9 @@ export {
   listColdStartSignals,
   isColdStartSignalFresh,
   getFreshColdStartSignals,
-} from './parse'
+} from "./parse";
 
-export { canonicalizeColdStartSignal, verifyColdStartSignalSignature } from './verify'
+export { canonicalizeColdStartSignal, verifyColdStartSignalSignature } from "./verify";
 
 export {
   COLD_START_SIGNAL_CATEGORIES,
@@ -75,4 +74,4 @@ export {
   type ColdStartSignalJwkResolver,
   type VerifyColdStartSignalOptions,
   type VerifyColdStartSignalResult,
-} from './types'
+} from "./types";
