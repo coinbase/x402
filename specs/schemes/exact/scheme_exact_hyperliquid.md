@@ -369,13 +369,3 @@ Potential future enhancements to the Hyperliquid exact scheme:
 
 - Exchange API: `https://api.hyperliquid-testnet.xyz/exchange`
 - Info API: `https://api.hyperliquid-testnet.xyz/info`
-
-### Reference Implementation
-
-Reference implementations are available in:
-
-- **TypeScript**: `@x402/hyperliquid` package
-- **Python**: `x402[hyperliquid]` extra
-- **Go**: `go/mechanisms/hyperliquid` module
-
-All implementations follow this specification and include comprehensive test coverage.
