@@ -38,6 +38,7 @@ export type TransactionRequest =
 
 export type Erc20ApprovalGasSponsoringSigner = FacilitatorEvmSigner & {
   sendTransactions(transactions: TransactionRequest[]): Promise<`0x${string}`[]>;
+  simulateTransactions?(transactions: TransactionRequest[]): Promise<boolean>;
 };
 
 export interface Erc20ApprovalGasSponsoringFacilitatorExtension {
