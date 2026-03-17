@@ -273,7 +273,7 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
 
 3. **Transaction Hash Retrieval**: After 1.5 seconds (to allow ledger indexing), the facilitator queries the ledger:
    - Endpoint: `POST /info` with `{"type": "userNonFundingLedgerUpdates", "user": "<payer_address>"}`
-   - Matches the ledger entry by comparing `nonce` and `destination`
+   - Filters for entries where `delta.type` is `"send"`, then matches by `delta.nonce` and `delta.destination`
    - Extracts the transaction hash from the matched entry
    - Retries up to 2 times with 1-second delays if not found
    - If the transaction hash is NOT found after all retries, the facilitator MUST return a settlement failure response with `success: false`
