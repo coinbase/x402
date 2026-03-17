@@ -1,0 +1,7 @@
+{
+  "name": "MCP Keeper",
+  "description": "Hosted proxy platform that lets MCP server authors monetize their tools with zero payment code. Authors register their MCP server URL, set prices per tool, and MCP Keeper handles payment collection via x402, agent discovery via Bazaar, and USDC payouts directly to author wallets.",
+  "logoUrl": "/logos/mcpkeeper.png",
+  "websiteUrl": "https://app.mcpkeeper.com/explore",
+  "category": "Infrastructure & Tooling"
+}
