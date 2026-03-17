@@ -1,0 +1,7 @@
+{
+  "name": "Arch Tools",
+  "description": "53 production-ready AI tools accessible via MCP (Model Context Protocol) with native x402 USDC payments on Base L2. Unified API covering web scraping (Tavily, Firecrawl, Brave, Exa), cryptocurrency data across 15 chains (CoinGecko), AI image and video generation (DALL-E, Runway, Gemini), OCR, email verification, and background removal. Also supports traditional Stripe credit payments and BYOK for all AI providers. JS and Python SDKs available.",
+  "logoUrl": "/logos/arch-tools.png",
+  "websiteUrl": "https://archtools.dev",
+  "category": "Services/Endpoints"
+}

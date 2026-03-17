@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="favicon-grad" x1="60" y1="10" x2="60" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF9010"/>
+      <stop offset="60%" stop-color="#FF2896"/>
+      <stop offset="100%" stop-color="#8844FF"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#favicon-grad)" d="M15,100L15,55A35,35,0,0,1,85,55L85,100L74,100L74,55A24,24,0,0,0,26,55L26,100Z M34,100L34,55A16,16,0,0,1,66,55L66,100L58,100L58,55A8,8,0,0,0,42,55L42,100Z"/>
+</svg>
