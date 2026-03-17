@@ -8,7 +8,6 @@ import {
   parseSIWxHeader,
   encodeSIWxHeader,
   declareSIWxExtension,
-  createSIWxChallenge,
   validateSIWxMessage,
   createSIWxMessage,
   createSIWxPayload,
@@ -28,17 +27,48 @@ import {
   createSIWxRequestHook,
   createSIWxClientHook,
   siwxResourceServerExtension,
-  signSIWxChallenge,
-  verifySIWxHeader,
   type SIWxHookEvent,
   type SolanaSigner,
   type EVMSigner,
   type EVMMessageVerifier,
-  type SIWxExtension,
 } from "../src/sign-in-with-x/index";
 import { safeBase64Encode } from "@x402/core/utils";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import nacl from "tweetnacl";
+import { randomBytes } from "crypto";
+import type { SIWxExtension } from "../src/sign-in-with-x/index";
+
+/** Test-only helper: builds a complete SIWX extension with nonce/issuedAt. */
+function createTestChallenge(opts: {
+  domain: string;
+  resourceUri: string;
+  network: string | string[];
+  statement?: string;
+  expirationSeconds?: number;
+}): Record<string, SIWxExtension> {
+  const networks = Array.isArray(opts.network) ? opts.network : [opts.network];
+  return {
+    "sign-in-with-x": {
+      info: {
+        domain: opts.domain,
+        uri: opts.resourceUri,
+        version: "1",
+        nonce: randomBytes(16).toString("hex"),
+        issuedAt: new Date().toISOString(),
+        ...(opts.expirationSeconds !== undefined && {
+          expirationTime: new Date(Date.now() + opts.expirationSeconds * 1000).toISOString(),
+        }),
+        ...(opts.statement && { statement: opts.statement }),
+        resources: [opts.resourceUri],
+      },
+      supportedChains: networks.map(n => ({
+        chainId: n,
+        type: n.startsWith("solana:") ? ("ed25519" as const) : ("eip191" as const),
+      })),
+      schema: { header: "sign-in-with-x", type: "object" },
+    },
+  };
+}
 
 const validPayload = {
   domain: "api.example.com",
@@ -183,83 +213,6 @@ describe("Sign-In-With-X Extension", () => {
     });
   });
 
-  describe("createSIWxChallenge", () => {
-    it("should create challenge with nonce, issuedAt, and expirationTime", () => {
-      const result = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: "eip155:8453",
-        statement: "Sign in to access",
-        expirationSeconds: 300,
-      });
-
-      expect(result).toHaveProperty("sign-in-with-x");
-      const extension = result["sign-in-with-x"];
-      expect(extension.info.domain).toBe("api.example.com");
-      expect(extension.info.uri).toBe("https://api.example.com/data");
-      expect(extension.info.statement).toBe("Sign in to access");
-      expect(extension.info.nonce).toBeDefined();
-      expect(extension.info.nonce).toHaveLength(32);
-      expect(extension.info.issuedAt).toBeDefined();
-      expect(extension.info.expirationTime).toBeDefined();
-      expect(extension.schema).toBeDefined();
-
-      expect(extension.supportedChains).toHaveLength(1);
-      expect(extension.supportedChains[0].chainId).toBe("eip155:8453");
-      expect(extension.supportedChains[0].type).toBe("eip191");
-    });
-
-    it("should support multiple chains", () => {
-      const result = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: ["eip155:8453", SOLANA_DEVNET],
-        expirationSeconds: 300,
-      });
-
-      const extension = result["sign-in-with-x"];
-      expect(extension.supportedChains).toHaveLength(2);
-      expect(extension.supportedChains[0].chainId).toBe("eip155:8453");
-      expect(extension.supportedChains[0].type).toBe("eip191");
-      expect(extension.supportedChains[1].chainId).toBe(SOLANA_DEVNET);
-      expect(extension.supportedChains[1].type).toBe("ed25519");
-    });
-
-    it("should support infinite expiration", () => {
-      const result = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: "eip155:8453",
-      });
-
-      const extension = result["sign-in-with-x"];
-      expect(extension.info.expirationTime).toBeUndefined();
-    });
-
-    it("should generate unique nonces per call", () => {
-      const opts = {
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: "eip155:8453",
-      } as const;
-
-      const a = createSIWxChallenge(opts)["sign-in-with-x"];
-      const b = createSIWxChallenge(opts)["sign-in-with-x"];
-      expect(a.info.nonce).not.toBe(b.info.nonce);
-    });
-
-    it("should not include _options (not designed for enrichment)", () => {
-      const result = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: "eip155:8453",
-      });
-
-      const extension = result["sign-in-with-x"];
-      expect((extension as Record<string, unknown>)._options).toBeUndefined();
-    });
-  });
-
   describe("validateSIWxMessage", () => {
     it("should validate correct message", async () => {
       const now = new Date();
@@ -318,7 +271,7 @@ describe("Sign-In-With-X Extension", () => {
     it("should sign and verify a message with a real wallet", async () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -346,7 +299,7 @@ describe("Sign-In-With-X Extension", () => {
     it("should reject tampered signature", async () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -369,8 +322,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
       const resourceUri = "https://api.example.com/resource";
 
-      // Server: create per-request challenge (auth-only, no enrichment pipeline)
-      const extensions = createSIWxChallenge({
+      const extensions = createTestChallenge({
         domain: "api.example.com",
         resourceUri,
         network: "eip155:8453",
@@ -378,59 +330,22 @@ describe("Sign-In-With-X Extension", () => {
         expirationSeconds: 300,
       });
 
-      // Client: sign challenge
-      const header = await signSIWxChallenge(extensions["sign-in-with-x"], account);
-
-      // Server: verify header
-      const result = await verifySIWxHeader(header, resourceUri);
-      expect(result.valid).toBe(true);
-      expect(result.address?.toLowerCase()).toBe(account.address.toLowerCase());
-    });
-  });
-
-  describe("signSIWxChallenge + verifySIWxHeader convenience", () => {
-    it("should round-trip EVM sign and verify", async () => {
-      const account = privateKeyToAccount(generatePrivateKey());
-      const ext = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: "eip155:8453",
-        expirationSeconds: 300,
-      });
-
-      const header = await signSIWxChallenge(ext["sign-in-with-x"], account);
-      const result = await verifySIWxHeader(header, "https://api.example.com/data");
-
-      expect(result.valid).toBe(true);
-      expect(result.address?.toLowerCase()).toBe(account.address.toLowerCase());
-    });
-
-    it("should round-trip Solana sign and verify", async () => {
-      const keypair = nacl.sign.keyPair();
-      const address = encodeBase58(keypair.publicKey);
-      const solanaSigner: SolanaSigner = {
-        signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
-        publicKey: address,
+      const ext = extensions["sign-in-with-x"];
+      const completeInfo = {
+        ...ext.info,
+        chainId: ext.supportedChains[0].chainId,
+        type: ext.supportedChains[0].type,
       };
+      const payload = await createSIWxPayload(completeInfo, account);
+      const header = encodeSIWxHeader(payload);
 
-      const ext = createSIWxChallenge({
-        domain: "api.example.com",
-        resourceUri: "https://api.example.com/data",
-        network: SOLANA_MAINNET,
-        expirationSeconds: 300,
-      });
+      const parsed = parseSIWxHeader(header);
+      const validation = await validateSIWxMessage(parsed, resourceUri);
+      expect(validation.valid).toBe(true);
 
-      const header = await signSIWxChallenge(ext["sign-in-with-x"], solanaSigner);
-      const result = await verifySIWxHeader(header, "https://api.example.com/data");
-
+      const result = await verifySIWxSignature(parsed);
       expect(result.valid).toBe(true);
-      expect(result.address).toBe(address);
-    });
-
-    it("verifySIWxHeader should return error for invalid header", async () => {
-      const result = await verifySIWxHeader("not-valid", "https://api.example.com/data");
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("Parse error");
+      expect(result.address?.toLowerCase()).toBe(account.address.toLowerCase());
     });
   });
 
@@ -439,7 +354,7 @@ describe("Sign-In-With-X Extension", () => {
       const mockVerifier: EVMMessageVerifier = vi.fn().mockResolvedValue(true);
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -469,7 +384,7 @@ describe("Sign-In-With-X Extension", () => {
     it("should fallback to EOA verification when no verifier provided", async () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -493,7 +408,7 @@ describe("Sign-In-With-X Extension", () => {
       const mockVerifier: EVMMessageVerifier = vi.fn().mockResolvedValue(false);
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -519,7 +434,7 @@ describe("Sign-In-With-X Extension", () => {
       const mockVerifier: EVMMessageVerifier = vi.fn().mockRejectedValue(new Error("RPC error"));
       const account = privateKeyToAccount(generatePrivateKey());
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
@@ -551,7 +466,7 @@ describe("Sign-In-With-X Extension", () => {
         publicKey: address,
       };
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: SOLANA_MAINNET,
@@ -920,7 +835,7 @@ describe("Sign-In-With-X Extension", () => {
           publicKey: address,
         };
 
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "api.example.com",
           resourceUri: "https://api.example.com/resource",
           network: SOLANA_MAINNET,
@@ -955,7 +870,7 @@ describe("Sign-In-With-X Extension", () => {
           publicKey: { toBase58: () => address },
         };
 
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "api.example.com",
           resourceUri: "https://api.example.com/resource",
           network: SOLANA_DEVNET,
@@ -1166,7 +1081,7 @@ describe("SIWX Hooks", () => {
       storage.recordPayment("/resource", account.address);
 
       // Create valid SIWX header
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "example.com",
         resourceUri: "http://example.com/resource",
         network: "eip155:8453",
@@ -1199,7 +1114,7 @@ describe("SIWX Hooks", () => {
 
       // Don't pre-record payment
 
-      const extension = createSIWxChallenge({
+      const extension = createTestChallenge({
         domain: "example.com",
         resourceUri: "http://example.com/resource",
         network: "eip155:8453",
@@ -1319,7 +1234,7 @@ describe("SIWX Hooks", () => {
         storage.recordPayment("/resource", account.address);
 
         // Create valid SIWX header
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/resource",
           network: "eip155:8453",
@@ -1359,7 +1274,7 @@ describe("SIWX Hooks", () => {
         storage.recordPayment("/resource", account.address);
 
         // Create valid SIWX header
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/resource",
           network: "eip155:8453",
@@ -1398,7 +1313,7 @@ describe("SIWX Hooks", () => {
         storage.recordPayment("/resource", account.address);
 
         // Create valid SIWX header
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/resource",
           network: "eip155:8453",
@@ -1445,7 +1360,7 @@ describe("SIWX Hooks", () => {
 
         // Do NOT record any payment — auth-only should not require it
 
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/profile",
           network: "eip155:8453",
@@ -1491,7 +1406,7 @@ describe("SIWX Hooks", () => {
         const account = privateKeyToAccount(generatePrivateKey());
         const events: SIWxHookEvent[] = [];
 
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/profile",
           network: "eip155:8453",
@@ -1531,7 +1446,7 @@ describe("SIWX Hooks", () => {
         const account = privateKeyToAccount(generatePrivateKey());
 
         // No payment recorded, no routeConfig passed — should behave as before
-        const extension = createSIWxChallenge({
+        const extension = createTestChallenge({
           domain: "example.com",
           resourceUri: "http://example.com/resource",
           network: "eip155:8453",
@@ -1576,7 +1491,7 @@ describe("SIWX Hooks", () => {
       const account = privateKeyToAccount(generatePrivateKey());
       const hook = createSIWxClientHook(account);
 
-      const challenge = createSIWxChallenge({
+      const challenge = createTestChallenge({
         domain: "example.com",
         resourceUri: "http://example.com/resource",
         network: "eip155:1",
