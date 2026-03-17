@@ -355,7 +355,7 @@ if paymentNetwork.startsWith("solana:"):
 
 ### Post-Service Signature Verification
 
-After receiving the service response with `PAYMENT-RESPONSE` header, clients MUST verify the agent signature to prove service delivery:
+After receiving the service response with `PAYMENT-RESPONSE` header, clients SHOULD verify the agent signature to prove service delivery:
 
 #### 1. Fetch Registration File
 
