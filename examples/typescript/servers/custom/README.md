@@ -1,14 +1,14 @@
 # @x402/core Custom Server
 
-Demonstrates how to implement x402 payment handling manually without using pre-built middleware packages like `@x402/express` or `@x402/hono`. Supports EVM (Ethereum) and AVM (Algorand) networks.
+Demonstrates how to implement x402 payment handling manually without using pre-built middleware packages like `@x402/express` or `@x402/hono`.
 
 ```typescript
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { ExactAvmScheme } from "@x402/avm/exact/server";
-const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
-  .register("eip155:84532", new ExactEvmScheme())
-  .register("algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", new ExactAvmScheme());
+
+const resourceServer = new x402ResourceServer(
+  new HTTPFacilitatorClient({ url: facilitatorUrl }),
+).register("eip155:84532", new ExactEvmScheme());
 
 // In your request handler:
 if (!paymentHeader) {
@@ -45,7 +45,6 @@ and fill required environment variables:
 
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_ADDRESS` - Ethereum address to receive payments
-- `AVM_ADDRESS` - Algorand address to receive payments
 
 2. Install and build all packages from the typescript examples root:
 
@@ -89,7 +88,7 @@ These clients will demonstrate how to:
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia or Algorand Testnet to access. The endpoint returns weather data for a given city.
+The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia to access. The endpoint returns weather data for a given city.
 
 ## HTTP Headers
 
@@ -206,8 +205,6 @@ The custom implementation demonstrates each step of the x402 payment flow:
 6. **Handler Execution** — Run protected endpoint handler
 7. **Settlement** — Settle payment on-chain (for 2xx responses)
 8. **Response** — Add settlement details in `PAYMENT-RESPONSE` header
-
-When multiple networks are configured, the server must match the incoming payment to the correct requirement based on the payment's network field.
 
 ## Key Implementation Details
 

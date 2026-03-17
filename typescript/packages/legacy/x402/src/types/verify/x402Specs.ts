@@ -6,8 +6,7 @@ import { Base64EncodedRegex } from "../../shared/base64";
 // Constants
 const EvmMaxAtomicUnits = 18;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
-const MixedAddressRegex =
-  /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]|[A-Z2-7]{58}$/;
+const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
 const EvmSignatureRegex = /^0x[0-9a-fA-F]+$/; // Flexible hex signature validation
 // Enums
@@ -40,25 +39,6 @@ export const ErrorReasons = [
   "invalid_exact_svm_payload_transaction_sender_ata_not_found",
   "invalid_exact_svm_payload_transaction_simulation_failed",
   "invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata",
-  "invalid_exact_avm_payload",
-  "invalid_exact_avm_payload_payment_index",
-  "invalid_exact_avm_payload_transaction_encoding",
-  "invalid_exact_avm_payload_transaction_type",
-  "invalid_exact_avm_payload_amount_mismatch",
-  "invalid_exact_avm_payload_receiver_mismatch",
-  "invalid_exact_avm_payload_asset_mismatch",
-  "invalid_exact_avm_payload_not_signed",
-  "invalid_exact_avm_payload_atomic_group",
-  "invalid_exact_avm_payload_transaction",
-  "invalid_exact_avm_payload_amount",
-  "invalid_exact_avm_payload_recipient",
-  "invalid_exact_avm_payload_fee_structure",
-  "invalid_exact_avm_payload_asset_id",
-  "invalid_exact_avm_payload_asa_opt_in_required",
-  "invalid_exact_avm_payload_round_validity",
-  "invalid_exact_avm_payload_simulation",
-  "invalid_exact_avm_payload_simulation_error",
-  "settle_exact_avm_transaction_failed",
   "invalid_network",
   "invalid_payload",
   "invalid_payment_requirements",
@@ -126,19 +106,12 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
-// x402ExactAvmPayload
-export const ExactAvmPayloadSchema = z.object({
-  paymentGroup: z.array(z.string().regex(Base64EncodedRegex)),
-  paymentIndex: z.number().int().nonnegative(),
-});
-export type ExactAvmPayload = z.infer<typeof ExactAvmPayloadSchema>;
-
 // x402PaymentPayload
 export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, ExactAvmPayloadSchema]),
+  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {

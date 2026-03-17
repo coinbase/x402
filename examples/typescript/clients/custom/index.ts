@@ -10,8 +10,6 @@ import {
 } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
-import { toClientAvmSigner } from "@x402/avm";
-import { ExactAvmScheme } from "@x402/avm/exact/client";
 import type { PaymentRequirements } from "@x402/core/types";
 
 config();
@@ -30,7 +28,6 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
-const avmPrivateKey = process.env.AVM_PRIVATE_KEY as string;
 const baseURL = process.env.SERVER_URL || "http://localhost:4021";
 const url = `${baseURL}/weather`;
 
@@ -113,9 +110,6 @@ async function main(): Promise<void> {
   const evmSigner = privateKeyToAccount(evmPrivateKey);
   const solanaSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
-  const avmSigner = toClientAvmSigner(avmPrivateKey);
-  console.info(`AVM signer: ${avmSigner.address}`);
-
   // Custom selector - pick which payment option to use
   // This selects the second payment option (Solana)
   // Create your own logic here to select preferred payment option
@@ -127,9 +121,7 @@ async function main(): Promise<void> {
 
   const client = new x402Client(selectPayment)
     .register("eip155:*", new ExactEvmScheme(evmSigner))
-    .register("solana:*", new ExactSvmScheme(solanaSigner))
-    .register("algorand:*", new ExactAvmScheme(avmSigner));
-
+    .register("solana:*", new ExactSvmScheme(solanaSigner));
   console.log("✅ Client ready\n");
 
   await makeRequestWithPayment(client, url);

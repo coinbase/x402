@@ -2,13 +2,11 @@ import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { ExactAvmScheme } from "@x402/avm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-const avmAddress = process.env.AVM_ADDRESS as string;
-if (!evmAddress || !avmAddress) {
+if (!evmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -20,25 +18,8 @@ if (!facilitatorUrl) {
 }
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const accepts: { scheme: string; price: string; network: `${string}:${string}`; payTo: string }[] =
-  [
-    {
-      scheme: "exact",
-      price: "$0.001",
-      network: "eip155:84532",
-      payTo: evmAddress,
-    },
-    {
-      scheme: "exact",
-      price: "$0.001",
-      network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
-      payTo: avmAddress,
-    },
-  ];
-
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register("eip155:84532", new ExactEvmScheme())
-  .register("algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", new ExactAvmScheme())
   .onBeforeVerify(async context => {
     console.log("Before verify hook", context);
     // Abort verification by returning { abort: true, reason: string }
@@ -70,7 +51,12 @@ app.use(
   paymentMiddleware(
     {
       "GET /weather": {
-        accepts,
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
         description: "Weather data",
         mimeType: "application/json",
       },

@@ -55,15 +55,7 @@ export interface SPLTokenAmount {
   };
 }
 
-export interface ASAAmount {
-  amount: string;
-  asset: {
-    id: string; // ASA ID as string
-    decimals: number;
-  };
-}
-
-export type Price = Money | ERC20TokenAmount | SPLTokenAmount | ASAAmount;
+export type Price = Money | ERC20TokenAmount | SPLTokenAmount;
 
 export interface RouteConfig {
   price: Price;

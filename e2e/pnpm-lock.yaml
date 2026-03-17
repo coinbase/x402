@@ -629,9 +629,6 @@ importers:
 
   ../typescript/packages/legacy/x402:
     dependencies:
-      '@algorandfoundation/algokit-utils':
-        specifier: 10.0.0-alpha.39
-        version: 10.0.0-alpha.39
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6

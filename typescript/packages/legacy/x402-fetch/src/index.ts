@@ -6,7 +6,6 @@ import {
   MultiNetworkSigner,
   isMultiNetworkSigner,
   isSvmSignerWallet,
-  isAvmSignerWallet,
   Network,
   X402Config,
 } from "x402/types";
@@ -79,9 +78,7 @@ export function wrapFetchWithPayment(
         ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
         : isSvmSignerWallet(walletClient)
           ? (["solana", "solana-devnet"] as Network[])
-          : isAvmSignerWallet(walletClient)
-            ? (["algorand-mainnet", "algorand-testnet"] as Network[])
-            : undefined;
+          : undefined;
 
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,
