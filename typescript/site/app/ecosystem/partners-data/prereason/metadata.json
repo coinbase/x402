@@ -1,6 +1,6 @@
 {
   "name": "PreReason",
-  "description": "Pre-reasoned context API for Bitcoin, macro, and cross-asset markets. 17 briefings deliver trend signals, confidence scores, and regime classification. 30 metrics with interpretation. 5 MCP tools. Pay-per-call via x402 from $0.01.",
+  "description": "One API call returns a complete market briefing with trend signals, confidence scores, and regime classification. Covers Bitcoin on-chain, macro liquidity, cross-asset correlations, and FX. 17 briefings, 30 interpreted metrics, 5 MCP tools. From $0.01 per call, no account required.",
   "logoUrl": "/logos/prereason.png",
   "websiteUrl": "https://www.prereason.com/docs#x402-pay-per-call",
   "category": "Services/Endpoints"
