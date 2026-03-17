@@ -278,6 +278,55 @@ class TestPaymentMiddleware:
         assert callable(middleware)
 
     @pytest.mark.asyncio
+    async def test_concurrent_initialization_is_safe(self):
+        """Test that concurrent requests don't trigger multiple initializations."""
+        mock_server = MagicMock()
+        mock_http_server_instance = MagicMock()
+        
+        # Track initialization calls
+        init_call_count = 0
+        
+        def track_initialize():
+            nonlocal init_call_count
+            init_call_count += 1
+        
+        mock_http_server_instance.initialize = track_initialize
+        mock_http_server_instance.requires_payment.return_value = True
+        mock_http_server_instance.process_http_request = AsyncMock(
+            return_value=HTTPProcessResult(type="no-payment-required")
+        )
+        
+        routes = {
+            "GET /api/protected": RouteConfig(
+                accepts=PaymentOption(
+                    scheme="exact",
+                    pay_to="0x1234567890123456789012345678901234567890",
+                    price="$0.01",
+                    network="eip155:8453",
+                ),
+            )
+        }
+
+        with patch("x402.http.middleware.fastapi.x402HTTPResourceServer") as mock_http_server_class:
+            mock_http_server_class.return_value = mock_http_server_instance
+            
+            middleware = payment_middleware(routes, mock_server, sync_facilitator_on_start=True)
+            
+            # Simulate concurrent requests
+            async def make_request():
+                request = make_mock_fastapi_request(path="/api/protected")
+                async def call_next(req):
+                    return MagicMock()
+                await middleware(request, call_next)
+            
+            # Run 5 concurrent requests
+            import asyncio
+            await asyncio.gather(*[make_request() for _ in range(5)])
+            
+            # Initialization should only happen once
+            assert init_call_count == 1
+
+    @pytest.mark.asyncio
     async def test_non_protected_route_passes_through(self):
         """Test that non-protected routes pass through middleware."""
         mock_server = MagicMock()
