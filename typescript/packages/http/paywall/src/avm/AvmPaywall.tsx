@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { WalletManager } from "@txnlab/use-wallet";
 import type { AlgodClient } from "@algorandfoundation/algokit-utils/algod-client";
 
-import { registerExactAvmScheme } from "@x402/avm/exact/client";
+import { ExactAvmScheme } from "@x402/avm/exact/client";
 import { x402Client } from "@x402/core/client";
 import type { PaymentRequired } from "@x402/core/types";
 
@@ -183,10 +183,7 @@ export function AvmPaywall({
       };
 
       const client = new x402Client();
-      registerExactAvmScheme(client, {
-        signer: walletSigner,
-        algodConfig: { algodClient },
-      });
+      client.register("algorand:*", new ExactAvmScheme(walletSigner, { algodClient }));
 
       // Log payment requirements for debugging
       console.log("Creating payment payload with requirements:", {
