@@ -343,6 +343,8 @@ declareSIWxExtension({
 })
 ```
 
+**Note for auth-only routes:** When using `accepts: []`, the `network` parameter cannot be inferred from payment requirements and must be provided explicitly.
+
 ### `parseSIWxHeader(header)`
 
 Parses a base64-encoded SIGN-IN-WITH-X header into a payload object.
