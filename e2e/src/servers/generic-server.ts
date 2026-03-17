@@ -92,6 +92,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         EVM_NETWORK: evmNetwork,
         EVM_RPC_URL: config.networks.evm.rpcUrl,
         EVM_PAYEE_ADDRESS: config.evmPayTo,
+        EVM_PERMIT2_ASSET: config.networks.evm.permit2Asset || '',
 
         // SVM network config
         SVM_NETWORK: svmNetwork,
@@ -102,6 +103,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         APTOS_NETWORK: config.networks.aptos.caip2,
         APTOS_RPC_URL: config.networks.aptos.rpcUrl,
         APTOS_PAYEE_ADDRESS: config.aptosPayTo,
+
+        // Stellar network config
+        STELLAR_NETWORK: config.networks.stellar.caip2,
+        STELLAR_RPC_URL: config.networks.stellar.rpcUrl,
+        STELLAR_PAYEE_ADDRESS: config.stellarPayTo,
 
         // Facilitator
         FACILITATOR_URL: config.facilitatorUrl || '',

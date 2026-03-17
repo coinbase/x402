@@ -2,6 +2,7 @@ import { PaymentPayload, PaymentRequirements } from "./payments";
 import { Network } from "./";
 
 export type VerifyRequest = {
+  x402Version: number;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };
@@ -15,6 +16,7 @@ export type VerifyResponse = {
 };
 
 export type SettleRequest = {
+  x402Version: number;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };
@@ -98,4 +100,38 @@ export class SettleError extends Error {
     this.transaction = response.transaction;
     this.network = response.network;
   }
+}
+
+/**
+ * Error thrown when a facilitator returns malformed success payload data.
+ */
+export class FacilitatorResponseError extends Error {
+  /**
+   * Creates a FacilitatorResponseError for malformed facilitator responses.
+   *
+   * @param message - The boundary error message
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "FacilitatorResponseError";
+  }
+}
+
+/**
+ * Walks an error cause chain to find the first facilitator response error.
+ *
+ * @param error - The thrown value to inspect
+ * @returns The nested facilitator response error, if present
+ */
+export function getFacilitatorResponseError(error: unknown): FacilitatorResponseError | null {
+  let current = error;
+
+  while (current instanceof Error) {
+    if (current instanceof FacilitatorResponseError) {
+      return current;
+    }
+    current = current.cause;
+  }
+
+  return null;
 }

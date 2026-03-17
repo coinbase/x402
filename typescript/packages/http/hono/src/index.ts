@@ -6,6 +6,8 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
+  FacilitatorResponseError,
+  getFacilitatorResponseError,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { Context, MiddlewareHandler } from "hono";
@@ -42,6 +44,17 @@ export interface SchemeRegistration {
    * The scheme server implementation for this network
    */
   server: SchemeNetworkServer;
+}
+
+/**
+ * Builds a normalized 502 response for facilitator boundary failures.
+ *
+ * @param c - The current Hono context
+ * @param error - The facilitator response error to surface
+ * @returns A JSON 502 response
+ */
+function facilitatorErrorResponse(c: Context, error: FacilitatorResponseError): Response {
+  return c.json({ error: error.message }, 502);
 }
 
 /**
@@ -82,6 +95,28 @@ export function paymentMiddlewareFromHTTPServer(
   // Store initialization promise (not the result)
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
+
+  /**
+   * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+   */
+  async function initializeHttpServer(): Promise<void> {
+    if (!syncFacilitatorOnStart || isInitialized) {
+      return;
+    }
+
+    if (!initPromise) {
+      initPromise = httpServer.initialize();
+    }
+
+    try {
+      await initPromise;
+      isInitialized = true;
+    } catch (error) {
+      initPromise = null;
+      throw error;
+    }
+  }
 
   // Dynamically register bazaar extension if routes declare it and not already registered
   // Skip if pre-registered (e.g., in serverless environments where static imports are used)
@@ -112,9 +147,16 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Only initialize when processing a protected route
-    if (initPromise) {
-      await initPromise;
-      initPromise = null; // Clear after first await
+    if (syncFacilitatorOnStart && !isInitialized) {
+      try {
+        await initializeHttpServer();
+      } catch (error) {
+        const facilitatorError = getFacilitatorResponseError(error);
+        if (facilitatorError) {
+          return facilitatorErrorResponse(c, facilitatorError);
+        }
+        throw error;
+      }
     }
 
     // Await bazaar extension loading if needed
@@ -124,7 +166,15 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Process payment requirement check
-    const result = await httpServer.processHTTPRequest(context, paywallConfig);
+    let result: Awaited<ReturnType<x402HTTPResourceServer["processHTTPRequest"]>>;
+    try {
+      result = await httpServer.processHTTPRequest(context, paywallConfig);
+    } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        return facilitatorErrorResponse(c, error);
+      }
+      throw error;
+    }
 
     // Handle the different result types
     switch (result.type) {
@@ -175,15 +225,13 @@ export function paymentMiddlewareFromHTTPServer(
 
           if (!settleResult.success) {
             // Settlement failed - do not return the protected resource
-            res = c.json(
-              {
-                error: "Settlement failed",
-                details: settleResult.errorReason,
-              },
-              402,
-            );
-            Object.entries(settleResult.headers).forEach(([key, value]) => {
-              res.headers.set(key, value);
+            const { response } = settleResult;
+            const body = response.isHtml
+              ? String(response.body ?? "")
+              : JSON.stringify(response.body ?? {});
+            res = new Response(body, {
+              status: response.status,
+              headers: response.headers,
             });
           } else {
             // Settlement succeeded - add headers to response
@@ -192,15 +240,14 @@ export function paymentMiddlewareFromHTTPServer(
             });
           }
         } catch (error) {
+          if (error instanceof FacilitatorResponseError) {
+            res = facilitatorErrorResponse(c, error);
+            c.res = res;
+            return;
+          }
           console.error(error);
           // If settlement fails, return an error response
-          res = c.json(
-            {
-              error: "Settlement failed",
-              details: error instanceof Error ? error.message : "Unknown error",
-            },
-            402,
-          );
+          res = c.json({}, 402);
         }
 
         // Restore the response (potentially modified with settlement headers)

@@ -94,14 +94,18 @@ export type {
   DynamicPayTo,
   DynamicPrice,
   UnpaidResponseBody,
-  UnpaidResponseResult,
+  HTTPResponseBody,
+  SettlementFailedResponseBody,
   ProcessSettleResultResponse,
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
   RouteValidationError,
   ProtectedRequestHook,
 } from "./x402HTTPResourceServer";
-export { HTTPFacilitatorClient } from "./httpFacilitatorClient";
-export type { FacilitatorClient, FacilitatorConfig } from "./httpFacilitatorClient";
-export { x402HTTPClient } from "./x402HTTPClient";
-export type { PaymentRequiredContext, PaymentRequiredHook } from "./x402HTTPClient";
+export {
+  HTTPFacilitatorClient,
+  FacilitatorClient,
+  FacilitatorConfig,
+} from "./httpFacilitatorClient";
+export { FacilitatorResponseError, getFacilitatorResponseError } from "../types";
+export { x402HTTPClient, PaymentRequiredContext, PaymentRequiredHook } from "./x402HTTPClient";
