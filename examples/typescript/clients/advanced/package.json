@@ -19,8 +19,9 @@
     "@x402/evm": "workspace:*",
     "@x402/svm": "workspace:*",
     "@x402/hedera": "workspace:*",
+    "@x402/stellar": "workspace:*",
     "@x402/fetch": "workspace:*",
-    "@hashgraph/sdk": "^2.75.0",
+    "@hiero-ledger/sdk": "2.80.0",
     "dotenv": "^16.4.7",
     "viem": "^2.39.0",
     "@solana/kit": "^6.1.0"

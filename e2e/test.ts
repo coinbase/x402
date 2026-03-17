@@ -1,6 +1,9 @@
 import { config } from 'dotenv';
 import { spawn, execSync } from 'child_process';
 import { writeFileSync } from 'fs';
+import { createWalletClient, createPublicClient, http, parseEther, formatEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig, TestScenario } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger, createComboLogger } from './src/logger';
@@ -15,14 +18,24 @@ import { Semaphore, FacilitatorLock } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 
-/**
- * Run Permit2 setup script to ensure the client wallet has approved the Permit2 contract
- */
-async function setupPermit2Approval(): Promise<boolean> {
-  return new Promise((resolve) => {
-    log('\n🔑 Setting up Permit2 approval for EVM client wallet...');
+// Base Sepolia token addresses used by permit2 E2E tests
+const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+const MOCK_ERC20_BASE_SEPOLIA = '0xeED520980fC7C7B4eB379B96d61CEdea2423005a';
 
-    const child = spawn('pnpm', ['permit2:approve'], {
+/**
+ * Approve Permit2 so that the standard/direct settle path can be exercised.
+ * Grants unlimited Permit2 allowance for the given token (or USDC by default).
+ */
+async function approvePermit2Approval(tokenAddress?: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const label = tokenAddress ? `token ${tokenAddress}` : 'USDC (default)';
+    verboseLog(`  🔓 Approving Permit2 for ${label}...`);
+
+    const args = ['scripts/permit2-approval.ts', 'approve'];
+    if (tokenAddress) {
+      args.push(tokenAddress);
+    }
+    const child = spawn('tsx', args, {
       cwd: process.cwd(),
       stdio: 'pipe',
       shell: true,
@@ -41,10 +54,10 @@ async function setupPermit2Approval(): Promise<boolean> {
 
     child.on('close', (code) => {
       if (code === 0) {
-        log('  ✅ Permit2 approval setup complete');
+        verboseLog('  ✅ Permit2 approval granted');
         resolve(true);
       } else {
-        errorLog(`  ❌ Permit2 setup failed (exit code ${code})`);
+        errorLog(`  ❌ Permit2 approve failed (exit code ${code})`);
         if (stderr) {
           errorLog(`  Error: ${stderr}`);
         }
@@ -53,21 +66,27 @@ async function setupPermit2Approval(): Promise<boolean> {
     });
 
     child.on('error', (error) => {
-      errorLog(`  ❌ Failed to run Permit2 setup: ${error.message}`);
+      errorLog(`  ❌ Failed to run Permit2 approve: ${error.message}`);
       resolve(false);
     });
   });
 }
 
 /**
- * Revoke Permit2 approval so that EIP-2612 gas sponsoring extension is exercised.
- * Sets the Permit2 allowance to 0, forcing the client to use the EIP-2612 permit path.
+ * Revoke Permit2 approval so that gas sponsoring extensions are exercised.
+ * Sets the Permit2 allowance to 0 for the given token (or USDC by default),
+ * forcing the client into the EIP-2612 or ERC-20 approval extension path.
  */
-async function revokePermit2Approval(): Promise<boolean> {
+async function revokePermit2Approval(tokenAddress?: string): Promise<boolean> {
   return new Promise((resolve) => {
-    verboseLog('  🔓 Revoking Permit2 approval for EIP-2612 test...');
+    const label = tokenAddress ? `token ${tokenAddress}` : 'USDC (default)';
+    verboseLog(`  🔓 Revoking Permit2 approval for ${label}...`);
 
-    const child = spawn('pnpm', ['permit2:revoke'], {
+    const args = ['scripts/permit2-approval.ts', 'revoke'];
+    if (tokenAddress) {
+      args.push(tokenAddress);
+    }
+    const child = spawn('tsx', args, {
       cwd: process.cwd(),
       stdio: 'pipe',
       shell: true,
@@ -102,6 +121,123 @@ async function revokePermit2Approval(): Promise<boolean> {
       resolve(false);
     });
   });
+}
+
+/**
+ * Shared EVM clients for the ETH sandwich helpers.
+ * Lazily initialised on first use so that missing env vars don't blow up
+ * non-EVM test runs.
+ */
+function getEvmClients() {
+  const evmNetwork = process.env.EVM_NETWORK || 'eip155:84532';
+  const evmRpcUrl = process.env.EVM_RPC_URL;
+  const evmChain = evmNetwork === 'eip155:8453' ? base : baseSepolia;
+
+  const facilitatorKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
+  const clientKey = process.env.CLIENT_EVM_PRIVATE_KEY;
+  if (!facilitatorKey || !clientKey) {
+    throw new Error('FACILITATOR_EVM_PRIVATE_KEY and CLIENT_EVM_PRIVATE_KEY must be set');
+  }
+
+  const facilitatorAccount = privateKeyToAccount(facilitatorKey as `0x${string}`);
+  const clientAccount = privateKeyToAccount(clientKey as `0x${string}`);
+
+  const publicClient = createPublicClient({
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+  const facilitatorWallet = createWalletClient({
+    account: facilitatorAccount,
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+  const clientWallet = createWalletClient({
+    account: clientAccount,
+    chain: evmChain,
+    transport: http(evmRpcUrl),
+  });
+
+  return { publicClient, facilitatorWallet, clientWallet, facilitatorAccount, clientAccount };
+}
+
+const REVOKE_FUND_AMOUNT = parseEther('0.001');
+
+/**
+ * Send a small amount of ETH from the facilitator wallet to the client wallet
+ * so the client can pay gas for Permit2 revocation transactions.
+ */
+async function fundClientForRevoke(): Promise<boolean> {
+  try {
+    const { publicClient, facilitatorWallet, facilitatorAccount, clientAccount } = getEvmClients();
+
+    const clientBalance = await publicClient.getBalance({ address: clientAccount.address });
+    if (clientBalance >= REVOKE_FUND_AMOUNT) {
+      verboseLog(`  ℹ️  Client already has ${formatEther(clientBalance)} ETH, skipping fund`);
+      return true;
+    }
+
+    const facilitatorBalance = await publicClient.getBalance({ address: facilitatorAccount.address });
+    if (facilitatorBalance < REVOKE_FUND_AMOUNT) {
+      errorLog(`  ❌ Facilitator wallet ${facilitatorAccount.address} has insufficient ETH (${formatEther(facilitatorBalance)}) to fund client for revoke.`);
+      errorLog(`     Please fund the facilitator wallet with testnet ETH (need at least ${formatEther(REVOKE_FUND_AMOUNT)} ETH).`);
+      return false;
+    }
+
+    verboseLog(`  💸 Funding client ${clientAccount.address} with ${formatEther(REVOKE_FUND_AMOUNT)} ETH for revoke...`);
+    const hash = await facilitatorWallet.sendTransaction({
+      to: clientAccount.address,
+      value: REVOKE_FUND_AMOUNT,
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+    verboseLog(`  ✅ Funded client (tx: ${hash})`);
+    return true;
+  } catch (err) {
+    errorLog(`  ❌ Failed to fund client for revoke: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
+}
+
+/**
+ * Drain all ETH from the client wallet back to the facilitator wallet,
+ * leaving the client with ~0 ETH so the gas sponsoring funding step is
+ * exercised during the test.
+ */
+async function drainClientETH(): Promise<boolean> {
+  try {
+    const { publicClient, clientWallet, facilitatorAccount, clientAccount } = getEvmClients();
+
+    const balance = await publicClient.getBalance({ address: clientAccount.address });
+    if (balance === 0n) {
+      verboseLog('  ℹ️  Client ETH balance is already 0');
+      return true;
+    }
+
+    // Reserve enough for gas. On L2s getGasPrice() returns a tiny value but
+    // viem's sendTransaction uses a higher maxFeePerGas with safety margin.
+    // Use a generous fixed buffer to avoid "insufficient funds" from the
+    // estimateGas pre-check.
+    const GAS_RESERVE = parseEther('0.0001');
+    const sendAmount = balance - GAS_RESERVE;
+
+    if (sendAmount <= 0n) {
+      verboseLog(`  ℹ️  Client balance (${formatEther(balance)} ETH) too small to drain, leaving as dust`);
+      return true;
+    }
+
+    verboseLog(`  💸 Draining ${formatEther(sendAmount)} ETH from client back to facilitator...`);
+    const hash = await clientWallet.sendTransaction({
+      to: facilitatorAccount.address,
+      value: sendAmount,
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+
+    const remaining = await publicClient.getBalance({ address: clientAccount.address });
+    verboseLog(`  ✅ Drained client ETH (tx: ${hash}, remaining: ${formatEther(remaining)} ETH)`);
+    return true;
+  } catch (err) {
+    errorLog(`  ❌ Failed to drain client ETH: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
 }
 
 // Load environment variables
@@ -237,13 +373,15 @@ async function runTest() {
   const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const serverAptosAddress = process.env.SERVER_APTOS_ADDRESS;
+  const serverStellarAddress = process.env.SERVER_STELLAR_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
   const clientAptosPrivateKey = process.env.CLIENT_APTOS_PRIVATE_KEY;
+  const clientStellarPrivateKey = process.env.CLIENT_STELLAR_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
   const facilitatorAptosPrivateKey = process.env.FACILITATOR_APTOS_PRIVATE_KEY;
-
+  const facilitatorStellarPrivateKey = process.env.FACILITATOR_STELLAR_PRIVATE_KEY;
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
     errorLog(' SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
@@ -320,6 +458,7 @@ async function runTest() {
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
   log(`   APTOS: ${networks.aptos.name} (${networks.aptos.caip2})`);
+  log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
 
   if (networkMode === 'mainnet') {
     log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
@@ -353,31 +492,31 @@ async function runTest() {
   }
   log('');
 
+  // Branch coverage assertions for EVM scenarios
+  const evmScenarios = filteredScenarios.filter(s => s.protocolFamily === 'evm');
+  if (evmScenarios.length > 0) {
+    const hasEip3009 = evmScenarios.some(s => (s.endpoint.transferMethod || 'eip3009') === 'eip3009');
+    const hasPermit2 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2');
+    const hasPermit2Direct = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.permit2Direct === true);
+    const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
+    const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+
+    log('🔍 EVM Branch Coverage Check:');
+    log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
+    log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
+    log(`   Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
+    log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
+    log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
+    log('');
+  }
+
   // Auto-detect Permit2 scenarios
   const hasPermit2Scenarios = filteredScenarios.some(
     (s) => s.endpoint.transferMethod === 'permit2'
   );
 
-  // Check if eip2612GasSponsoring extension should be tested
-  const hasEip2612Extension = selectedExtensions?.includes('eip2612GasSponsoring') ?? false;
-
   if (hasPermit2Scenarios) {
-    if (hasEip2612Extension) {
-      log('🔐 Permit2 scenarios detected with eip2612GasSponsoring extension');
-    } else {
-      // Standard permit2 flow: ensure approval exists
-      log('🔐 Permit2 scenarios detected - checking approval...');
-      const setupSuccess = await setupPermit2Approval();
-      if (!setupSuccess) {
-        errorLog(
-          '\n❌ Failed to setup Permit2 approval. Cannot continue with Permit2 tests.'
-        );
-        errorLog(
-          '💡 Make sure CLIENT_EVM_PRIVATE_KEY is set and the wallet has USDC.'
-        );
-        process.exit(1);
-      }
-    }
+    log('🔐 Permit2 scenarios detected — revoke before gas-sponsored tests, approve before permit2-direct tests');
   }
 
   // Collect unique facilitators and servers
@@ -396,7 +535,21 @@ async function runTest() {
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
 
   // Environment variables managed by the test framework (don't require user to set)
-  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'APTOS_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'APTOS_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL', 'APTOS_RPC_URL']);
+  const systemManagedVars = new Set([
+    'PORT',
+    'EVM_PRIVATE_KEY',
+    'SVM_PRIVATE_KEY',
+    'APTOS_PRIVATE_KEY',
+    'STELLAR_PRIVATE_KEY',
+    'EVM_NETWORK',
+    'SVM_NETWORK',
+    'APTOS_NETWORK',
+    'STELLAR_NETWORK',
+    'EVM_RPC_URL',
+    'SVM_RPC_URL',
+    'APTOS_RPC_URL',
+    'STELLAR_RPC_URL',
+  ]);
 
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
@@ -551,8 +704,11 @@ async function runTest() {
       evmPrivateKey: clientEvmPrivateKey!,
       svmPrivateKey: clientSvmPrivateKey!,
       aptosPrivateKey: clientAptosPrivateKey || '',
+      stellarPrivateKey: clientStellarPrivateKey || '',
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
+      evmNetwork: networks.evm.caip2,
+      evmRpcUrl: networks.evm.rpcUrl,
     };
 
     try {
@@ -630,12 +786,14 @@ async function runTest() {
 
     const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
     const facilitatorSupportsAptos = facilitatorConfig?.protocolFamilies?.includes('aptos') ?? false;
+    const facilitatorSupportsStellar = facilitatorConfig?.protocolFamilies?.includes('stellar') ?? false;
 
     const serverConfig: ServerConfig = {
       port,
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
       aptosPayTo: facilitatorSupportsAptos ? (serverAptosAddress || '') : '',
+      stellarPayTo: facilitatorSupportsStellar ? (serverStellarAddress || '') : '',
       networks,
       facilitatorUrl,
     };
@@ -662,8 +820,22 @@ async function runTest() {
         const tn = nextTestNumber();
         const isEvm = scenario.protocolFamily === 'evm';
 
-        if (hasEip2612Extension && scenario.endpoint.transferMethod === 'permit2') {
-          await revokePermit2Approval();
+        if (scenario.endpoint.transferMethod === 'permit2') {
+          if (scenario.endpoint.permit2Direct) {
+            await approvePermit2Approval(USDC_BASE_SEPOLIA);
+          } else {
+            await fundClientForRevoke();
+            const token =
+              scenario.endpoint.extensions?.includes('erc20ApprovalGasSponsoring')
+                ? MOCK_ERC20_BASE_SEPOLIA
+                : USDC_BASE_SEPOLIA;
+            await revokePermit2Approval(token);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await drainClientETH();
+          }
+          // Wait for RPC nonce propagation across load-balanced nodes before the
+          // test client (which may use a separate RPC connection) queries the nonce.
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         if (isEvm && facilitatorName && evmLock) {
@@ -679,230 +851,230 @@ async function runTest() {
         }
       }
     } finally {
-  cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
-  await serverProxy.stop();
-}
-
-return results;
-  }
-
-// ── Unified execution: concurrency=1 for sequential, N for parallel ──
-const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
-const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
-const semaphore = new Semaphore(effectiveConcurrency);
-
-let globalTestNumber = 0;
-const nextTestNumber = () => ++globalTestNumber;
-
-const comboPromises = serverFacilitatorCombos.map(async (combo) => {
-  const release = await semaphore.acquire();
-  try {
-    return await executeCombo(combo, evmLock, nextTestNumber);
-  } finally {
-    release();
-  }
-});
-
-testResults = (await Promise.all(comboPromises)).flat();
-
-// Run discovery validation before cleanup (while facilitators are still running)
-const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
-  proxy: facilitatorManagers.get(f.name)!.getProxy(),
-  config: f.config,
-}));
-
-const serversArray = Array.from(uniqueServers.values());
-
-// Build a serverName→port map for discovery validation (first combo per server).
-const discoveryServerPorts = new Map<string, number>();
-for (const combo of serverFacilitatorCombos) {
-  if (!discoveryServerPorts.has(combo.serverName)) {
-    discoveryServerPorts.set(combo.serverName, combo.port);
-  }
-}
-
-// Run discovery validation if bazaar extension is enabled
-const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
-if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
-  log('\n🔍 Running Bazaar Discovery Validation...\n');
-  await handleDiscoveryValidation(
-    facilitatorsWithConfig,
-    serversArray,
-    discoveryServerPorts,
-    facilitatorServerMap
-  );
-}
-
-// Clean up facilitators (servers already stopped in test loop for both modes)
-log('\n🧹 Cleaning up...');
-
-// Stop all facilitators
-const facilitatorStopPromises: Promise<void>[] = [];
-for (const [facilitatorName, manager] of facilitatorManagers) {
-  log(`  🛑 Stopping facilitator: ${facilitatorName}`);
-  facilitatorStopPromises.push(manager.stop());
-}
-await Promise.all(facilitatorStopPromises);
-
-// Calculate totals
-const passed = testResults.filter(r => r.passed).length;
-const failed = testResults.filter(r => !r.passed).length;
-
-// Summary
-log('');
-log('📊 Test Summary');
-log('==============');
-log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
-log(`✅ Passed: ${passed}`);
-log(`❌ Failed: ${failed}`);
-log(`📈 Total: ${passed + failed}`);
-log('');
-
-// Detailed results table
-log('📋 Detailed Test Results');
-log('========================');
-log('');
-
-// Group by status
-const passedTests = testResults.filter(r => r.passed);
-const failedTests = testResults.filter(r => !r.passed);
-
-if (passedTests.length > 0) {
-  log('✅ PASSED TESTS:');
-  log('');
-  passedTests.forEach(test => {
-    log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
-    log(`      Facilitator: ${test.facilitator}`);
-    if (test.network) {
-      log(`      Network: ${test.network}`);
+      cLog.verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
+      await serverProxy.stop();
     }
-    if (test.transaction) {
-      log(`      Tx: ${test.transaction}`);
+
+    return results;
+  }
+
+  // ── Unified execution: concurrency=1 for sequential, N for parallel ──
+  const effectiveConcurrency = parsedArgs.parallel ? parsedArgs.concurrency : 1;
+  const evmLock = parsedArgs.parallel ? new FacilitatorLock() : null;
+  const semaphore = new Semaphore(effectiveConcurrency);
+
+  let globalTestNumber = 0;
+  const nextTestNumber = () => ++globalTestNumber;
+
+  const comboPromises = serverFacilitatorCombos.map(async (combo) => {
+    const release = await semaphore.acquire();
+    try {
+      return await executeCombo(combo, evmLock, nextTestNumber);
+    } finally {
+      release();
     }
   });
-  log('');
-}
 
-if (failedTests.length > 0) {
-  log('❌ FAILED TESTS:');
-  log('');
-  failedTests.forEach(test => {
-    log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
-    log(`      Facilitator: ${test.facilitator}`);
-    if (test.network) {
-      log(`      Network: ${test.network}`);
+  testResults = (await Promise.all(comboPromises)).flat();
+
+  // Run discovery validation before cleanup (while facilitators are still running)
+  const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
+    proxy: facilitatorManagers.get(f.name)!.getProxy(),
+    config: f.config,
+  }));
+
+  const serversArray = Array.from(uniqueServers.values());
+
+  // Build a serverName→port map for discovery validation (first combo per server).
+  const discoveryServerPorts = new Map<string, number>();
+  for (const combo of serverFacilitatorCombos) {
+    if (!discoveryServerPorts.has(combo.serverName)) {
+      discoveryServerPorts.set(combo.serverName, combo.port);
     }
-    log(`      Error: ${test.error || 'Unknown error'}`);
-  });
+  }
+
+  // Run discovery validation if bazaar extension is enabled
+  const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
+  if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+    log('\n🔍 Running Bazaar Discovery Validation...\n');
+    await handleDiscoveryValidation(
+      facilitatorsWithConfig,
+      serversArray,
+      discoveryServerPorts,
+      facilitatorServerMap
+    );
+  }
+
+  // Clean up facilitators (servers already stopped in test loop for both modes)
+  log('\n🧹 Cleaning up...');
+
+  // Stop all facilitators
+  const facilitatorStopPromises: Promise<void>[] = [];
+  for (const [facilitatorName, manager] of facilitatorManagers) {
+    log(`  🛑 Stopping facilitator: ${facilitatorName}`);
+    facilitatorStopPromises.push(manager.stop());
+  }
+  await Promise.all(facilitatorStopPromises);
+
+  // Calculate totals
+  const passed = testResults.filter(r => r.passed).length;
+  const failed = testResults.filter(r => !r.passed).length;
+
+  // Summary
   log('');
-}
+  log('📊 Test Summary');
+  log('==============');
+  log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
+  log(`✅ Passed: ${passed}`);
+  log(`❌ Failed: ${failed}`);
+  log(`📈 Total: ${passed + failed}`);
+  log('');
 
-// Breakdown by facilitator
-const facilitatorBreakdown = testResults.reduce((acc, test) => {
-  const key = test.facilitator;
-  if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
-  if (test.passed) acc[key].passed++;
-  else acc[key].failed++;
-  return acc;
-}, {} as Record<string, { passed: number; failed: number }>);
+  // Detailed results table
+  log('📋 Detailed Test Results');
+  log('========================');
+  log('');
 
-log('📊 Breakdown by Facilitator:');
-Object.entries(facilitatorBreakdown).forEach(([facilitator, stats]) => {
-  const total = stats.passed + stats.failed;
-  const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
-  log(` ${facilitator.padEnd(15)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
-});
-log('');
+  // Group by status
+  const passedTests = testResults.filter(r => r.passed);
+  const failedTests = testResults.filter(r => !r.passed);
 
-// Breakdown by server
-const serverBreakdown = testResults.reduce((acc, test) => {
-  const key = test.server;
-  if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
-  if (test.passed) acc[key].passed++;
-  else acc[key].failed++;
-  return acc;
-}, {} as Record<string, { passed: number; failed: number }>);
+  if (passedTests.length > 0) {
+    log('✅ PASSED TESTS:');
+    log('');
+    passedTests.forEach(test => {
+      log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
+      log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
+      if (test.transaction) {
+        log(`      Tx: ${test.transaction}`);
+      }
+    });
+    log('');
+  }
 
-log('📊 Breakdown by Server:');
-Object.entries(serverBreakdown).forEach(([server, stats]) => {
-  const total = stats.passed + stats.failed;
-  const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
-  log(` ${server.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
-});
-log('');
+  if (failedTests.length > 0) {
+    log('❌ FAILED TESTS:');
+    log('');
+    failedTests.forEach(test => {
+      log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
+      log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
+      log(`      Error: ${test.error || 'Unknown error'}`);
+    });
+    log('');
+  }
 
-// Breakdown by client
-const clientBreakdown = testResults.reduce((acc, test) => {
-  const key = test.client;
-  if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
-  if (test.passed) acc[key].passed++;
-  else acc[key].failed++;
-  return acc;
-}, {} as Record<string, { passed: number; failed: number }>);
+  // Breakdown by facilitator
+  const facilitatorBreakdown = testResults.reduce((acc, test) => {
+    const key = test.facilitator;
+    if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
+    if (test.passed) acc[key].passed++;
+    else acc[key].failed++;
+    return acc;
+  }, {} as Record<string, { passed: number; failed: number }>);
 
-log('📊 Breakdown by Client:');
-Object.entries(clientBreakdown).forEach(([client, stats]) => {
-  const total = stats.passed + stats.failed;
-  const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
-  log(`   ${client.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
-});
-log('');
-
-// Protocol family breakdown
-const protocolBreakdown = testResults.reduce((acc, test) => {
-  const key = test.protocolFamily;
-  if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
-  if (test.passed) acc[key].passed++;
-  else acc[key].failed++;
-  return acc;
-}, {} as Record<string, { passed: number; failed: number }>);
-
-if (Object.keys(protocolBreakdown).length > 1) {
-  log('📊 Protocol Family Breakdown:');
-  Object.entries(protocolBreakdown).forEach(([protocol, stats]) => {
+  log('📊 Breakdown by Facilitator:');
+  Object.entries(facilitatorBreakdown).forEach(([facilitator, stats]) => {
     const total = stats.passed + stats.failed;
-    log(` ${protocol.toUpperCase()}: ✅ ${stats.passed} / ❌ ${stats.failed} / 📈 ${total} total`);
+    const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
+    log(` ${facilitator.padEnd(15)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
   });
   log('');
-}
 
-// Write structured JSON output if requested
-if (parsedArgs.outputJson) {
-  const breakdown = (results: DetailedTestResult[], key: keyof DetailedTestResult) =>
-    results.reduce((acc, test) => {
-      const k = String(test[key]);
-      if (!acc[k]) acc[k] = { passed: 0, failed: 0 };
-      if (test.passed) acc[k].passed++;
-      else acc[k].failed++;
-      return acc;
-    }, {} as Record<string, { passed: number; failed: number }>);
+  // Breakdown by server
+  const serverBreakdown = testResults.reduce((acc, test) => {
+    const key = test.server;
+    if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
+    if (test.passed) acc[key].passed++;
+    else acc[key].failed++;
+    return acc;
+  }, {} as Record<string, { passed: number; failed: number }>);
 
-  const jsonOutput = {
-    summary: {
-      total: passed + failed,
-      passed,
-      failed,
-      networkMode,
-    },
-    results: testResults,
-    breakdowns: {
-      byFacilitator: breakdown(testResults, 'facilitator'),
-      byServer: breakdown(testResults, 'server'),
-      byClient: breakdown(testResults, 'client'),
-      byProtocolFamily: breakdown(testResults, 'protocolFamily'),
-    },
-  };
+  log('📊 Breakdown by Server:');
+  Object.entries(serverBreakdown).forEach(([server, stats]) => {
+    const total = stats.passed + stats.failed;
+    const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
+    log(` ${server.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
+  });
+  log('');
 
-  writeFileSync(parsedArgs.outputJson, JSON.stringify(jsonOutput, null, 2));
-  log(`📄 JSON results written to ${parsedArgs.outputJson}`);
-}
+  // Breakdown by client
+  const clientBreakdown = testResults.reduce((acc, test) => {
+    const key = test.client;
+    if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
+    if (test.passed) acc[key].passed++;
+    else acc[key].failed++;
+    return acc;
+  }, {} as Record<string, { passed: number; failed: number }>);
 
-// Close logger
-closeLogger();
+  log('📊 Breakdown by Client:');
+  Object.entries(clientBreakdown).forEach(([client, stats]) => {
+    const total = stats.passed + stats.failed;
+    const passRate = total > 0 ? Math.round((stats.passed / total) * 100) : 0;
+    log(`   ${client.padEnd(20)} ✅ ${stats.passed} / ❌ ${stats.failed} (${passRate}%)`);
+  });
+  log('');
 
-if (failed > 0) {
-  process.exit(1);
-}
+  // Protocol family breakdown
+  const protocolBreakdown = testResults.reduce((acc, test) => {
+    const key = test.protocolFamily;
+    if (!acc[key]) acc[key] = { passed: 0, failed: 0 };
+    if (test.passed) acc[key].passed++;
+    else acc[key].failed++;
+    return acc;
+  }, {} as Record<string, { passed: number; failed: number }>);
+
+  if (Object.keys(protocolBreakdown).length > 1) {
+    log('📊 Protocol Family Breakdown:');
+    Object.entries(protocolBreakdown).forEach(([protocol, stats]) => {
+      const total = stats.passed + stats.failed;
+      log(` ${protocol.toUpperCase()}: ✅ ${stats.passed} / ❌ ${stats.failed} / 📈 ${total} total`);
+    });
+    log('');
+  }
+
+  // Write structured JSON output if requested
+  if (parsedArgs.outputJson) {
+    const breakdown = (results: DetailedTestResult[], key: keyof DetailedTestResult) =>
+      results.reduce((acc, test) => {
+        const k = String(test[key]);
+        if (!acc[k]) acc[k] = { passed: 0, failed: 0 };
+        if (test.passed) acc[k].passed++;
+        else acc[k].failed++;
+        return acc;
+      }, {} as Record<string, { passed: number; failed: number }>);
+
+    const jsonOutput = {
+      summary: {
+        total: passed + failed,
+        passed,
+        failed,
+        networkMode,
+      },
+      results: testResults,
+      breakdowns: {
+        byFacilitator: breakdown(testResults, 'facilitator'),
+        byServer: breakdown(testResults, 'server'),
+        byClient: breakdown(testResults, 'client'),
+        byProtocolFamily: breakdown(testResults, 'protocolFamily'),
+      },
+    };
+
+    writeFileSync(parsedArgs.outputJson, JSON.stringify(jsonOutput, null, 2));
+    log(`📄 JSON results written to ${parsedArgs.outputJson}`);
+  }
+
+  // Close logger
+  closeLogger();
+
+  if (failed > 0) {
+    process.exit(1);
+  }
 }
 
 // Run the test

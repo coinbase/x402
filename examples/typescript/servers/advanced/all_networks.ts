@@ -5,7 +5,7 @@
  * optional chain configuration via environment variables.
  *
  * New chain support should be added here in alphabetic order by network prefix
- * (e.g., "eip155" before "solana").
+ * (e.g., "eip155" before "solana" before "stellar").
  */
 
 import { config } from "dotenv";
@@ -14,6 +14,7 @@ import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactHederaScheme } from "@x402/hedera/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 
 config();
@@ -22,10 +23,13 @@ config();
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}` | undefined;
 const svmAddress = process.env.SVM_ADDRESS as string | undefined;
 const hederaAddress = process.env.HEDERA_ADDRESS as string | undefined;
+const stellarAddress = process.env.STELLAR_ADDRESS as string | undefined;
 
 // Validate at least one address is provided
-if (!evmAddress && !svmAddress && !hederaAddress) {
-  console.error("❌ At least one of EVM_ADDRESS, SVM_ADDRESS, or HEDERA_ADDRESS is required");
+if (!evmAddress && !svmAddress && !hederaAddress && !stellarAddress) {
+  console.error(
+    "❌ At least one of EVM_ADDRESS, SVM_ADDRESS, HEDERA_ADDRESS, or STELLAR_ADDRESS is required",
+  );
   process.exit(1);
 }
 
@@ -41,6 +45,7 @@ const HEDERA_NETWORK = "hedera:testnet" as const; // Hedera Testnet
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as const; // Solana Devnet
 const HEDERA_HBAR_ASSET = "0.0.0" as const; // Native HBAR asset id
 const HEDERA_WEATHER_PRICE_TINYBARS = "100000" as const; // 0.001 HBAR
+const STELLAR_NETWORK = "stellar:testnet" as const; // Stellar Testnet
 
 // Build accepts array dynamically based on configured addresses
 const accepts: Array<{
@@ -76,6 +81,14 @@ if (hederaAddress) {
     payTo: hederaAddress,
   });
 }
+if (stellarAddress) {
+  accepts.push({
+    scheme: "exact",
+    price: "$0.001",
+    network: STELLAR_NETWORK,
+    payTo: stellarAddress,
+  });
+}
 
 // Create facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
@@ -90,6 +103,9 @@ if (svmAddress) {
 }
 if (hederaAddress) {
   server.register(HEDERA_NETWORK, new ExactHederaScheme());
+}
+if (stellarAddress) {
+  server.register(STELLAR_NETWORK, new ExactStellarScheme());
 }
 
 // Create Express app
@@ -136,6 +152,9 @@ app.listen(port, () => {
   }
   if (hederaAddress) {
     console.log(`   Hedera: ${hederaAddress} on ${HEDERA_NETWORK}`);
+  }
+  if (stellarAddress) {
+    console.log(`   Stellar: ${stellarAddress} on ${STELLAR_NETWORK}`);
   }
   console.log(`   Facilitator: ${facilitatorUrl}`);
   console.log();

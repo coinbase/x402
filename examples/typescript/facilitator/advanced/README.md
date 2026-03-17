@@ -9,6 +9,7 @@ Express.js facilitator service demonstrating advanced x402 patterns including al
 - EVM private key with Base Sepolia ETH for transaction fees
 - SVM private key with Solana Devnet SOL for transaction fees
 - Hedera account id + private key for Hedera testnet fees (optional)
+- Stellar private key with testnet XLM for transaction fees (fund via [Stellar Laboratory](https://lab.stellar.org/account/create) ➡️ Generate keypair ➡️ Fund account with Friendbot)
 
 ## Setup
 
@@ -24,6 +25,7 @@ and fill required environment variables:
 - `SVM_PRIVATE_KEY` - Solana private key
 - `HEDERA_ACCOUNT_ID` - Hedera account id for fee payer (optional)
 - `HEDERA_PRIVATE_KEY` - Hedera **ECDSA** private key (0x-prefixed or DER-encoded) for fee payer (optional)
+- `STELLAR_PRIVATE_KEY` - Stellar secret key (starts with `S`)
 - `PORT` - Server port (optional, defaults to 4022)
 
 2. Install and build all packages from the typescript examples root:
@@ -71,12 +73,21 @@ Returns payment schemes and networks this facilitator supports.
       "extra": {
         "feePayer": "..."
       }
+    },
+    {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "stellar:testnet",
+      "extra": {
+        "areFeesSponsored": true
+      }
     }
   ],
   "extensions": [],
   "signers": {
     "eip155": ["0x..."],
-    "solana": ["..."]
+    "solana": ["..."],
+    "stellar": ["G..."]
   }
 }
 ```
@@ -234,3 +245,5 @@ Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/cai
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
 - `hedera:testnet` — Hedera Testnet
 - `hedera:mainnet` — Hedera Mainnet
+- `stellar:testnet` — Stellar Testnet
+- `stellar:pubnet` — Stellar Mainnet

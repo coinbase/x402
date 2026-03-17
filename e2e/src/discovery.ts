@@ -257,7 +257,6 @@ export class TestDiscovery {
         }) || [];
 
         for (const endpoint of testableEndpoints) {
-          // Default to EVM if no protocol family specified for backward compatibility
           const endpointProtocolFamily = endpoint.protocolFamily || 'evm';
 
           // Only create scenarios where client supports endpoint's protocol family
@@ -336,9 +335,8 @@ export class TestDiscovery {
       const transport = client.config.transport || 'http';
       const evmTransferMethods = client.config.evm?.transferMethods || ['eip3009'];
       const evmInfo = protocolFamilies.includes('evm') ? ` evm:${evmTransferMethods.join(',')}` : '';
-      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}`);
       const extInfo = client.config.extensions ? ` {${client.config.extensions.join(', ')}}` : '';
-      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${extInfo}`);
+      log(`   - ${client.name} (${client.config.language}) [${transport}] v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]${evmInfo}${extInfo}`);
     });
 
     log(`🏛️ Facilitators found: ${facilitators.length}`);

@@ -125,6 +125,30 @@ const client = new x402Client()
   .registerSchemeV1("base", new ExactEvmClientV1(signer));
 ```
 
+### Extension RPC Configuration (Optional)
+
+`ExactEvmClient` only requires signer support for `address` + `signTypedData`.
+Permit2 extension enrichment (EIP-2612 / ERC-20 approval gas sponsoring) can
+optionally use explicit RPC config when signer read/fee helpers are unavailable.
+
+No chain-default RPC fallback is applied by the SDK.
+
+```typescript
+// Per-network explicit registration
+const client = new x402Client()
+  .register("eip155:137", new ExactEvmClient(signer, { rpcUrl: polygonRpcUrl }))
+  .register("eip155:8453", new ExactEvmClient(signer, { rpcUrl: baseRpcUrl }));
+
+// Wildcard registration with chain-id keyed config map
+const wildcardClient = new x402Client().register(
+  "eip155:*",
+  new ExactEvmClient(signer, {
+    137: { rpcUrl: polygonRpcUrl },
+    8453: { rpcUrl: baseRpcUrl },
+  }),
+);
+```
+
 ### 3. Using Config (Flexible)
 
 ```typescript
@@ -181,3 +205,4 @@ npm run format
 - `@x402/core` - Core protocol types and client
 - `@x402/fetch` - HTTP wrapper with automatic payment handling
 - `@x402/svm` - Solana/SVM implementation
+- `@x402/stellar` - Stellar implementation

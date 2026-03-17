@@ -183,6 +183,9 @@ type ProcessSettleResult struct {
 	Transaction string
 	Network     x402.Network
 	Payer       string
+	// Response contains HTTP instructions for the failure case (status 402, body, etc).
+	// Set when Success is false; nil when Success is true.
+	Response *HTTPResponseInstructions
 }
 
 // ============================================================================
@@ -389,6 +392,7 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 			Price:             resolvedPrice,
 			Network:           option.Network,
 			MaxTimeoutSeconds: option.MaxTimeoutSeconds,
+			Extra:             option.Extra,
 		}
 
 		// Use existing BuildPaymentRequirementsFromConfig for each option
@@ -617,25 +621,21 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 	// Settle payment (type-safe, no marshal needed)
 	settleResult, err := s.SettlePayment(ctx, payload, requirements)
 	if err != nil {
-		return &ProcessSettleResult{
-			Success:     false,
-			ErrorReason: err.Error(),
-		}
+		return s.buildSettlementFailureResult(err.Error(), x402.Network(requirements.Network), "", nil)
 	}
 
 	if !settleResult.Success {
-		return &ProcessSettleResult{
-			Success:     false,
-			ErrorReason: settleResult.ErrorReason,
-		}
+		return s.buildSettlementFailureResult(settleResult.ErrorReason, settleResult.Network, settleResult.Payer, settleResult)
 	}
 
 	headers, err := s.createSettlementHeaders(settleResult)
 	if err != nil {
-		return &ProcessSettleResult{
-			Success:     false,
-			ErrorReason: fmt.Sprintf("failed to create settlement headers: %v", err),
-		}
+		return s.buildSettlementFailureResult(
+			fmt.Sprintf("failed to create settlement headers: %v", err),
+			x402.Network(requirements.Network),
+			settleResult.Payer,
+			nil,
+		)
 	}
 
 	return &ProcessSettleResult{
@@ -644,6 +644,47 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 		Transaction: settleResult.Transaction,
 		Network:     settleResult.Network,
 		Payer:       settleResult.Payer,
+	}
+}
+
+// buildSettlementFailureResult creates a ProcessSettleResult for settlement failure.
+// It includes PAYMENT-RESPONSE header and empty body by default.
+func (s *x402HTTPResourceServer) buildSettlementFailureResult(errorReason string, network x402.Network, payer string, settleResult *x402.SettleResponse) *ProcessSettleResult {
+	failureResponse := x402.SettleResponse{
+		Success:     false,
+		ErrorReason: errorReason,
+		Transaction: "",
+		Network:     network,
+		Payer:       payer,
+	}
+	if settleResult != nil {
+		failureResponse.Network = settleResult.Network
+		failureResponse.Payer = settleResult.Payer
+	}
+
+	headers, err := s.createSettlementHeaders(&failureResponse)
+	if err != nil {
+		// Fallback: return minimal result without PAYMENT-RESPONSE if encoding fails
+		return &ProcessSettleResult{
+			Success:     false,
+			ErrorReason: errorReason,
+			Response: &HTTPResponseInstructions{
+				Status:  402,
+				Headers: map[string]string{},
+				Body:    map[string]interface{}{},
+			},
+		}
+	}
+
+	return &ProcessSettleResult{
+		Success:     false,
+		ErrorReason: errorReason,
+		Headers:     headers,
+		Response: &HTTPResponseInstructions{
+			Status:  402,
+			Headers: headers,
+			Body:    map[string]interface{}{},
+		},
 	}
 }
 
@@ -899,7 +940,7 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 
 	// Select template based on network
 	template := s.selectPaywallTemplate(paymentRequired)
-	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+	return strings.Replace(template, "</head>", configScript+"\n</head>", 1)
 }
 
 // selectPaywallTemplate chooses the appropriate paywall template based on the network
@@ -983,7 +1024,7 @@ func injectPaywallConfig(template string, paymentRequired types.PaymentRequired,
 		html.EscapeString(currentURL),
 	)
 
-	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+	return strings.Replace(template, "</head>", configScript+"\n</head>", 1)
 }
 
 // ============================================================================

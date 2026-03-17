@@ -5,7 +5,7 @@
  * optional chain configuration via environment variables.
  *
  * New chain support should be added here in alphabetic order by network prefix
- * (e.g., "eip155" before "solana").
+ * (e.g., "eip155" before "solana" before "stellar").
  */
 
 import { base58 } from "@scure/base";
@@ -23,6 +23,8 @@ import { toFacilitatorHederaSigner } from "@x402/hedera";
 import { ExactHederaScheme } from "@x402/hedera/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { createEd25519Signer } from "@x402/stellar";
+import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import dotenv from "dotenv";
 import express from "express";
 import { AccountId, Client, PrivateKey, Transaction, TransferTransaction } from "@hiero-ledger/sdk";
@@ -41,11 +43,17 @@ const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string | undefined;
 const hederaAccountId = process.env.HEDERA_ACCOUNT_ID;
 // Hedera private key should be an ECDSA key string (0x-prefixed or DER-encoded).
 const hederaPrivateKey = process.env.HEDERA_PRIVATE_KEY;
+const stellarPrivateKey = process.env.STELLAR_PRIVATE_KEY as string | undefined;
 
 // Validate at least one private key is provided
-if (!evmPrivateKey && !svmPrivateKey && !(hederaAccountId && hederaPrivateKey)) {
+if (
+  !evmPrivateKey &&
+  !svmPrivateKey &&
+  !(hederaAccountId && hederaPrivateKey) &&
+  !stellarPrivateKey
+) {
   console.error(
-    "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY is required",
+    "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required",
   );
   process.exit(1);
 }
@@ -54,6 +62,7 @@ if (!evmPrivateKey && !svmPrivateKey && !(hederaAccountId && hederaPrivateKey)) 
 const EVM_NETWORK = "eip155:84532"; // Base Sepolia
 const HEDERA_NETWORK = "hedera:testnet"; // Hedera Testnet
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"; // Solana Devnet
+const STELLAR_NETWORK = "stellar:testnet"; // Stellar Testnet
 
 // Initialize the x402 Facilitator
 const facilitator = new x402Facilitator()
@@ -172,6 +181,17 @@ if (hederaAccountId && hederaPrivateKey) {
   });
   facilitator.register(HEDERA_NETWORK, new ExactHederaScheme(hederaSigner));
   console.info(`Hedera Facilitator account: ${hederaAccountId}`);
+}
+
+// Register Stellar scheme if private key is provided
+if (stellarPrivateKey) {
+  const stellarSigner = createEd25519Signer(stellarPrivateKey);
+  console.info(`Stellar Facilitator account: ${stellarSigner.address}`);
+
+  facilitator.register(
+    STELLAR_NETWORK,
+    new ExactStellarScheme([stellarSigner]),
+  );
 }
 
 // Initialize Express app

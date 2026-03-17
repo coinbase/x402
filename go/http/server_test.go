@@ -189,6 +189,67 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 	}
 }
 
+func TestBuildPaymentRequirementsFromOptionsPreservesOptionExtra(t *testing.T) {
+	ctx := context.Background()
+
+	routes := RoutesConfig{
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+					Extra: map[string]interface{}{
+						"assetTransferMethod": "permit2",
+						"merchantNote":        "route-level-extra",
+					},
+				},
+			},
+		},
+	}
+
+	mockServer := &mockSchemeServer{scheme: "exact"}
+	mockClient := &mockFacilitatorClient{
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds:      []x402.SupportedKind{{X402Version: 2, Scheme: "exact", Network: "eip155:1"}},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		routes,
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:1", mockServer),
+	)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	reqCtx := HTTPRequestContext{
+		Adapter: &mockHTTPAdapter{method: "GET", path: "/api", url: "http://example.com/api"},
+		Path:    "/api",
+		Method:  "GET",
+	}
+
+	requirements, err := server.BuildPaymentRequirementsFromOptions(ctx, routes["GET /api"].Accepts, reqCtx)
+	if err != nil {
+		t.Fatalf("Failed to build payment requirements: %v", err)
+	}
+	if len(requirements) != 1 {
+		t.Fatalf("Expected 1 requirement, got %d", len(requirements))
+	}
+	if requirements[0].Extra["assetTransferMethod"] != "permit2" {
+		t.Fatalf("Expected assetTransferMethod passthrough, got %v", requirements[0].Extra["assetTransferMethod"])
+	}
+	if requirements[0].Extra["merchantNote"] != "route-level-extra" {
+		t.Fatalf("Expected merchant extra passthrough, got %v", requirements[0].Extra["merchantNote"])
+	}
+}
+
 func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 	ctx := context.Background()
 
@@ -414,6 +475,59 @@ func TestProcessSettlement(t *testing.T) {
 	}
 	if result.Headers["PAYMENT-RESPONSE"] == "" {
 		t.Error("Expected PAYMENT-RESPONSE header")
+	}
+}
+
+func TestProcessSettlement_Failure(t *testing.T) {
+	ctx := context.Background()
+
+	mockClient := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return &x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "insufficient_funds",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}, nil
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		RoutesConfig{},
+		x402.WithFacilitatorClient(mockClient),
+	)
+	_ = server.Initialize(ctx)
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xtest",
+	}
+
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	result := server.ProcessSettlement(ctx, payload, requirements)
+	if result.Success {
+		t.Fatal("Expected settlement failure")
+	}
+	if result.Headers == nil || result.Headers["PAYMENT-RESPONSE"] == "" {
+		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
+	}
+	if result.Response == nil {
+		t.Fatal("Expected Response to be set on settlement failure")
+	}
+	if result.Response.Status != 402 {
+		t.Errorf("Expected status 402, got %d", result.Response.Status)
+	}
+	body, ok := result.Response.Body.(map[string]interface{})
+	if !ok || len(body) != 0 {
+		t.Errorf("Expected empty body {}, got %v", result.Response.Body)
 	}
 }
 

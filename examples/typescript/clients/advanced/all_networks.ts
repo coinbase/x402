@@ -5,7 +5,7 @@
  * optional chain configuration via environment variables.
  *
  * New chain support should be added here in alphabetic order by network prefix
- * (e.g., "eip155" before "solana").
+ * (e.g., "eip155" before "solana" before "stellar").
  */
 
 import { config } from "dotenv";
@@ -14,6 +14,8 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
 import { createClientHederaSigner } from "@x402/hedera";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -28,6 +30,7 @@ const hederaAccountId = process.env.HEDERA_ACCOUNT_ID;
 // Hedera private key should be an ECDSA key string (0x-prefixed or DER-encoded).
 const hederaPrivateKey = process.env.HEDERA_PRIVATE_KEY;
 const hederaNetwork = process.env.HEDERA_NETWORK || "hedera:testnet";
+const stellarPrivateKey = process.env.STELLAR_PRIVATE_KEY as string | undefined;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
@@ -38,9 +41,14 @@ const url = `${baseURL}${endpointPath}`;
  */
 async function main(): Promise<void> {
   // Validate at least one private key is provided
-  if (!evmPrivateKey && !svmPrivateKey && !(hederaAccountId && hederaPrivateKey)) {
+  if (
+    !evmPrivateKey &&
+    !svmPrivateKey &&
+    !(hederaAccountId && hederaPrivateKey) &&
+    !stellarPrivateKey
+  ) {
     console.error(
-      "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY is required",
+      "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required",
     );
     process.exit(1);
   }
@@ -71,6 +79,13 @@ async function main(): Promise<void> {
     console.log(`Initialized Hedera account: ${hederaAccountId} on ${hederaNetwork}`);
   }
 
+  // Register Stellar scheme if private key is provided
+  if (stellarPrivateKey) {
+    const stellarSigner = createEd25519Signer(stellarPrivateKey);
+    client.register("stellar:*", new ExactStellarScheme(stellarSigner));
+    console.log(`Initialized Stellar account: ${stellarSigner.address}`);
+  }
+
   // Wrap fetch with payment handling
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
@@ -81,15 +96,10 @@ async function main(): Promise<void> {
   const body = await response.json();
   console.log("Response body:", body);
 
-  // Extract payment response if present
-  if (response.ok) {
-    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
-      response.headers.get(name),
-    );
-    console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
-  } else {
-    console.log(`\nNo payment settled (response status: ${response.status})`);
-  }
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    response.headers.get(name),
+  );
+  console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
 }
 
 main().catch(error => {
