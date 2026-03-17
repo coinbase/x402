@@ -38,7 +38,17 @@ import nacl from "tweetnacl";
 import { randomBytes } from "crypto";
 import type { SIWxExtension } from "../src/sign-in-with-x/index";
 
-/** Test-only helper: builds a complete SIWX extension with nonce/issuedAt. */
+/**
+ * Test-only helper: builds a complete SIWX extension with nonce/issuedAt.
+ *
+ * @param opts - Challenge configuration
+ * @param opts.domain - Server domain
+ * @param opts.resourceUri - Full resource URI
+ * @param opts.network - CAIP-2 network identifier(s)
+ * @param opts.statement - Human-readable signing statement
+ * @param opts.expirationSeconds - Challenge TTL in seconds
+ * @returns Extension object keyed by "sign-in-with-x"
+ */
 function createTestChallenge(opts: {
   domain: string;
   resourceUri: string;
