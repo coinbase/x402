@@ -1,8 +1,8 @@
-# Scheme: `exact` on `Hyperliquid` (Hypercore L1)
+# Scheme: `exact` on `Hyperliquid`
 
 ## Summary
 
-The `exact` scheme on Hyperliquid (Hypercore L1) uses EIP-712 signed `SendAsset` actions combined with API-based settlement. The key distinction of this scheme is that the facilitator does not need to maintain a funded wallet or pay gas fees—it simply verifies the client's signature and submits the action to the Hyperliquid exchange API endpoint for execution.
+The `exact` scheme on Hyperliquid uses EIP-712 signed `SendAsset` actions combined with API-based settlement. The key distinction of this scheme is that the facilitator does not need to maintain a funded wallet or pay gas fees—it simply verifies the client's signature and submits the action to the Hyperliquid exchange API endpoint for execution.
 
 ## Protocol Sequencing
 
@@ -28,8 +28,8 @@ The following outlines the flow of the `exact` scheme on Hyperliquid:
 
 **V2 Networks** (CAIP-2 format):
 
-- `hypercore:mainnet` - Hyperliquid Mainnet
-- `hypercore:testnet` - Hyperliquid Testnet
+- `hyperliquid:mainnet` - Hyperliquid Mainnet
+- `hyperliquid:testnet` - Hyperliquid Testnet
 
 **V1 Networks**: Not supported
 
@@ -50,7 +50,7 @@ Standard x402 `PaymentRequirements` fields:
 ```json
 {
   "scheme": "exact",
-  "network": "hypercore:mainnet",
+  "network": "hyperliquid:mainnet",
   "amount": "1000000",
   "asset": "USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b",
   "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -104,7 +104,7 @@ Full `PaymentPayload` object:
   },
   "accepted": {
     "scheme": "exact",
-    "network": "hypercore:mainnet",
+    "network": "hyperliquid:mainnet",
     "amount": "1000000",
     "asset": "USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b",
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -141,7 +141,6 @@ Full `PaymentPayload` object:
 {
   "name": "HyperliquidSignTransaction",
   "version": "1",
-  "chainId": 421614,
   "verifyingContract": "0x0000000000000000000000000000000000000000"
 }
 ```
@@ -173,8 +172,8 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 
 ### 1. Network Validation
 
-- The `network` field MUST be either `hypercore:mainnet` or `hypercore:testnet`.
-- The `action.hyperliquidChain` MUST match the network: `"Mainnet"` for `hypercore:mainnet`, `"Testnet"` for `hypercore:testnet`.
+- The `network` field MUST be either `hyperliquid:mainnet` or `hyperliquid:testnet`.
+- The `action.hyperliquidChain` MUST match the network: `"Mainnet"` for `hyperliquid:mainnet`, `"Testnet"` for `hyperliquid:testnet`.
 
 ### 2. Action Type Validation
 
@@ -214,7 +213,6 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 
 ### 9. Fixed Field Validation
 
-- `action.signatureChainId` MUST equal `"0x66eee"` (421614 in hex).
 - `action.sourceDex` MUST equal `"spot"`.
 - `action.destinationDex` MUST equal `"spot"`.
 - `action.fromSubAccount` MUST be an empty string `""`.
@@ -239,7 +237,6 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
      "action": {
        "type": "sendAsset",
        "hyperliquidChain": "Mainnet",
-       "signatureChainId": "0x66eee",
        "destination": "0x...",
        "sourceDex": "spot",
        "destinationDex": "spot",
@@ -283,28 +280,28 @@ Settlement is performed via API submission to the Hyperliquid exchange endpoint:
    {
      "success": true,
      "transaction": "0xabcd...1234",
-     "network": "hypercore:mainnet",
+     "network": "hyperliquid:mainnet",
      "payer": "0x..."
    }
    ```
 
 ### Error Handling
 
-In addition to the shared x402 error codes defined in the [x402 v2 specification](../x402-specification-v2.md) (e.g., `insufficient_funds`, `invalid_network`, `invalid_transaction_state`), this scheme defines the following Hypercore-specific error codes:
+In addition to the shared x402 error codes defined in the [x402 v2 specification](../x402-specification-v2.md) (e.g., `insufficient_funds`, `invalid_network`, `invalid_transaction_state`), this scheme defines the following Hyperliquid-specific error codes:
 
-| Error Code                                            | Description                                               | HTTP Status |
-| ----------------------------------------------------- | --------------------------------------------------------- | ----------- |
-| `invalid_exact_hypercore_payload_action_type`         | Action type is not `sendAsset`                            | 400         |
-| `invalid_exact_hypercore_payload_recipient_mismatch`  | Destination doesn't match `payTo`                         | 400         |
-| `invalid_exact_hypercore_payload_amount`              | Amount doesn't match required amount                      | 400         |
-| `invalid_exact_hypercore_payload_token_mismatch`      | Token doesn't match required asset                        | 400         |
-| `invalid_exact_hypercore_payload_nonce`               | Nonce is more than 1 hour old                             | 400         |
-| `invalid_exact_hypercore_payload_signature_structure` | Signature is missing r, s, or v                           | 400         |
-| `invalid_exact_hypercore_payload_signature`           | Signature verification failed                             | 400         |
+| Error Code                                              | Description                          | HTTP Status |
+| ------------------------------------------------------- | ------------------------------------ | ----------- |
+| `invalid_exact_hyperliquid_payload_action_type`         | Action type is not `sendAsset`       | 400         |
+| `invalid_exact_hyperliquid_payload_recipient_mismatch`  | Destination doesn't match `payTo`    | 400         |
+| `invalid_exact_hyperliquid_payload_amount`              | Amount doesn't match required amount | 400         |
+| `invalid_exact_hyperliquid_payload_token_mismatch`      | Token doesn't match required asset   | 400         |
+| `invalid_exact_hyperliquid_payload_nonce`               | Nonce is more than 1 hour old        | 400         |
+| `invalid_exact_hyperliquid_payload_signature_structure` | Signature is missing r, s, or v      | 400         |
+| `invalid_exact_hyperliquid_payload_signature`           | Signature verification failed        | 400         |
 
 ## API Constraints
 
-- **Submission Method**: The Hyperliquid exchange API is the sole method for submitting transactions on Hypercore. There is no direct chain RPC access.
+- **Submission Method**: The Hyperliquid exchange API is the sole method for submitting transactions on Hyperliquid. There is no direct chain RPC access.
 - **Request Rate**: Hyperliquid recommends batching requests with a minimum interval of 0.1 seconds between calls.
 - **Nonce Validity Window**: Hyperliquid requires nonces to be within `(T - 2 days, T + 1 day)` where T is the block's unix millisecond timestamp. This scheme's 1-hour freshness constraint (see Nonce Freshness Validation) is a stricter subset of this window.
 
@@ -340,7 +337,7 @@ Unlike sequential nonces (EVM) or blockhash-based nonces (SVM), Hyperliquid uses
 ### Security Considerations
 
 1. **Signature Replay Prevention**: Timestamp-based nonces with 1-hour expiry prevent replay attacks
-2. **Cross-Chain Safety**: `signatureChainId` and `hyperliquidChain` prevent cross-network replay
+2. **Cross-Chain Safety**: `hyperliquidChain` prevents cross-network replay
 3. **Amount Precision**: 8-decimal string format prevents floating-point precision issues
 4. **Destination Integrity**: EIP-712 signature covers destination, preventing redirects
 5. **API Trust**: Facilitators must trust the Hyperliquid API for settlement (no on-chain verification)
@@ -377,8 +374,8 @@ Potential future enhancements to the Hyperliquid exact scheme:
 
 Reference implementations are available in:
 
-- **TypeScript**: `@x402/hypercore` package
-- **Python**: `x402[hypercore]` extra
-- **Go**: `go/mechanisms/hypercore` module
+- **TypeScript**: `@x402/hyperliquid` package
+- **Python**: `x402[hyperliquid]` extra
+- **Go**: `go/mechanisms/hyperliquid` module
 
 All implementations follow this specification and include comprehensive test coverage.
