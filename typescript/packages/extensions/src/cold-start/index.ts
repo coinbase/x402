@@ -52,9 +52,9 @@ export {
   listColdStartSignals,
   isColdStartSignalFresh,
   getFreshColdStartSignals,
-} from "./parse";
+} from './parse'
 
-export { canonicalizeColdStartSignal, verifyColdStartSignalSignature } from "./verify";
+export { canonicalizeColdStartSignal, verifyColdStartSignalSignature } from './verify'
 
 export {
   COLD_START_SIGNAL_CATEGORIES,
@@ -74,4 +74,4 @@ export {
   type ColdStartSignalJwkResolver,
   type VerifyColdStartSignalOptions,
   type VerifyColdStartSignalResult,
-} from "./types";
+} from './types'
