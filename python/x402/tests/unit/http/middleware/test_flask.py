@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -357,6 +359,101 @@ class TestPaymentMiddleware:
         middleware = PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=False)
 
         assert middleware._original_wsgi == original_wsgi
+
+    def test_concurrent_initialization_safety(self):
+        """Test that multiple concurrent requests only trigger initialization once."""
+        app = Flask(__name__)
+        mock_server = MagicMock()
+        mock_http_server = MagicMock()
+        init_call_count = 0
+
+        def mock_initialize():
+            nonlocal init_call_count
+            init_call_count += 1
+            # Simulate some initialization work
+            time.sleep(0.01)
+
+        mock_http_server.initialize = MagicMock(side_effect=mock_initialize)
+        mock_http_server.requires_payment.return_value = True
+        mock_http_server.process_http_request = MagicMock(
+            return_value=HTTPProcessResult(
+                type="payment-verified",
+                payment_payload=make_v2_payload(),
+                payment_requirements=make_payment_requirements(),
+            )
+        )
+        mock_http_server.process_settlement = MagicMock(
+            return_value=ProcessSettleResult(success=True, headers={})
+        )
+
+        routes = {
+            "GET /api/test": RouteConfig(
+                accepts=PaymentOption(
+                    scheme="exact",
+                    pay_to="0x1234567890123456789012345678901234567890",
+                    price="$0.01",
+                    network="eip155:8453",
+                ),
+            )
+        }
+
+        with patch("x402.http.middleware.flask.x402HTTPResourceServerSync") as mock_http_server_class:
+            mock_http_server_class.return_value = mock_http_server
+
+            # Create middleware with sync_facilitator_on_start=True
+            middleware = PaymentMiddleware(app, routes, mock_server, sync_facilitator_on_start=True)
+
+            # Mock original WSGI to return success response
+            def mock_original_wsgi(environ, start_response):
+                start_response("200 OK", [("Content-Type", "application/json")])
+                return [b'{"data": "success"}']
+
+            middleware._original_wsgi = mock_original_wsgi
+
+            # Create test WSGI environ for /api/test
+            environ = {
+                "REQUEST_METHOD": "GET",
+                "PATH_INFO": "/api/test",
+                "SERVER_NAME": "localhost",
+                "SERVER_PORT": "5000",
+                "wsgi.version": (1, 0),
+                "wsgi.input": MagicMock(),
+                "wsgi.errors": MagicMock(),
+                "wsgi.multithread": True,
+                "wsgi.multiprocess": False,
+                "wsgi.run_once": False,
+                "wsgi.url_scheme": "http",
+            }
+
+            # Function to make a single request in a thread
+            def make_request():
+                start_responses = []
+
+                def start_response(status, headers, exc_info=None):
+                    start_responses.append((status, headers))
+                    return lambda data: None
+
+                list(middleware._wsgi_middleware(environ, start_response))
+                return start_responses
+
+            # Run 5 concurrent requests
+            threads = []
+            results = []
+
+            for _ in range(5):
+                def run_request():
+                    results.append(make_request())
+
+                thread = threading.Thread(target=run_request)
+                threads.append(thread)
+                thread.start()
+
+            for thread in threads:
+                thread.join()
+
+            # Verify initialize was only called once
+            assert init_call_count == 1
+            mock_http_server.initialize.assert_called_once()
 
 
 class TestPaymentMiddlewareFunction:

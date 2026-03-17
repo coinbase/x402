@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -321,6 +323,66 @@ class TestPaymentMiddleware:
             response = await middleware(request, call_next)
 
         assert response == expected_response
+
+    @pytest.mark.asyncio
+    async def test_concurrent_initialization_safety(self):
+        """Test that multiple concurrent requests only trigger initialization once."""
+        mock_server = MagicMock()
+        mock_http_server = MagicMock()
+        init_call_count = 0
+
+        def mock_initialize():
+            nonlocal init_call_count
+            init_call_count += 1
+            # Simulate some initialization work
+            time.sleep(0.01)
+
+        mock_http_server.initialize = MagicMock(side_effect=mock_initialize)
+        mock_http_server.requires_payment.return_value = True
+        mock_http_server.process_http_request = AsyncMock(
+            return_value=HTTPProcessResult(
+                type="payment-verified",
+                payment_payload=make_v2_payload(),
+                payment_requirements=make_payment_requirements(),
+            )
+        )
+        mock_http_server.process_settlement = AsyncMock(
+            return_value=ProcessSettleResult(success=True, headers={})
+        )
+
+        routes = {
+            "GET /api/test": RouteConfig(
+                accepts=PaymentOption(
+                    scheme="exact",
+                    pay_to="0x1234567890123456789012345678901234567890",
+                    price="$0.01",
+                    network="eip155:8453",
+                ),
+            )
+        }
+
+        with patch("x402.http.middleware.fastapi.x402HTTPResourceServer") as mock_http_server_class:
+            mock_http_server_class.return_value = mock_http_server
+
+            # Create middleware with sync_facilitator_on_start=True
+            middleware = payment_middleware(routes, mock_server, sync_facilitator_on_start=True)
+
+            # Create multiple concurrent requests
+            async def make_request():
+                request = make_mock_fastapi_request(path="/api/test")
+
+                async def call_next(req):
+                    return MagicMock(status_code=200, media_type="application/json", body_iterator=iter([b""]), headers={})
+
+                return await middleware(request, call_next)
+
+            # Run 5 concurrent requests
+            tasks = [make_request() for _ in range(5)]
+            await asyncio.gather(*tasks)
+
+            # Verify initialize was only called once
+            assert init_call_count == 1
+            mock_http_server.initialize.assert_called_once()
 
 
 # =============================================================================
