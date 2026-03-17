@@ -232,7 +232,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 
 **`taskRef` construction:** `taskRef = network + ":" + transaction` where `network` and `transaction` are fields from the `SettlementResponse` (e.g., `"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5A2CSREG..."`). This follows CAIP-220 format: `namespace:chainId:txHash`.
 
-**Design note:** `interactionHash = keccak256("x402:reputation:v1" || UTF8(taskRef) || dataHash)` is intentionally chain-agnostic - it does not bind to agent identity or registry. Multi-chain agents reuse the same signature across registrations. The binding to a specific agent happens via the `PAYMENT-RESPONSE` context (which includes `agentRegistry` and `agentId`).
+**Design note:** `interactionHash = keccak256("x402:reputation:v1" || UTF8(taskRef) || dataHash)` is intentionally chain-agnostic - it does not bind to agent identity or registry. With dedicated signers, multi-chain agents can reuse the same signature across registrations. Without signers, the agent signs with the `agentWallet` for the registry declared in `PAYMENT-RESPONSE`. The binding to a specific agent happens via the `PAYMENT-RESPONSE` context (which includes `agentRegistry` and `agentId`).
 
 **Components:**
 - `taskRef`: CAIP-220 payment transaction reference (UTF-8 encoded)
@@ -263,7 +263,8 @@ After successful payment settlement, agents MUST sign the interaction and includ
       "interactionHash": "0x123abc456def...",
       "agentSignerPublicKey": "0xa1b2c3d4...",
       "agentSignature": "0xa1b2c3d4e5f6...",
-      "agentSignatureAlgorithm": "ed25519"
+      "agentSignatureAlgorithm": "ed25519",
+      "feedbackEndpoint": "https://facilitator.example/feedback"
     }
   }
 }
@@ -281,6 +282,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 | `agentSignerPublicKey`    | string | Yes      | Hex-encoded public key that produced the signature                                         |
 | `agentSignature`          | string | Yes      | Hex-encoded signature over `interactionHash`                                               |
 | `agentSignatureAlgorithm` | string | Yes      | `"ed25519"` or `"secp256k1"`                                                               |
+| `feedbackEndpoint`        | string | No       | Facilitator feedback URL (echoed from 402 response for self-containedness)                 |
 
 ---
 
@@ -718,12 +720,18 @@ Error codes: `INVALID_AGENT_SIGNATURE`, `INVALID_REVIEWER_SIGNATURE`, `UNKNOWN_A
 The facilitator MUST:
 - Validate `agentSignature`: Fetch the agent's registration file (via `agentURI(agentId)` on the `agentRegistry`), resolve valid signers, and verify the signature matches a valid signer. The facilitator SHOULD cache registration files to avoid repeated on-chain lookups.
 - Validate `reviewerSignature`: Recompute the reviewer message and verify the signature against `reviewerAddress`
+- Validate `taskRef`: Parse the CAIP-220 reference to identify the payment chain and transaction hash, then verify:
+  - The transaction exists and succeeded on-chain
+  - The sender matches `reviewerAddress` (prevents feedback from non-payers)
+  - The recipient matches a declared `agentWallet` for the payment network (prevents referencing unrelated transactions)
 - Assemble the full feedbackURI JSON (adding `createdAt`, structuring `proofOfInteraction`)
 - Upload feedbackURI to IPFS or equivalent content-addressed storage
 - Call `giveFeedback()` on the appropriate reputation registry
 - Submit all valid feedback regardless of sentiment
 
 Feedback gas costs are part of the existing facilitator-agent economic relationship -- the facilitator already subsidizes settlement gas and may include feedback submission in the same arrangement.
+
+**Discovery:** Facilitators implementing this API SHOULD declare `"reputation"` in their GET /supported `extensions` array so clients can discover feedback support before initiating payment.
 
 **Neutrality:** Clients who do not trust the facilitator SHOULD submit feedback directly on-chain.
 
