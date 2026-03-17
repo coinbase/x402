@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="url(#bg)"/>
+  <circle cx="100" cy="95" r="18" fill="#e94560"/>
+  <ellipse cx="100" cy="95" rx="55" ry="20" fill="none" stroke="#e94560" stroke-width="2.5" opacity="0.7" transform="rotate(-25 100 95)"/>
+  <ellipse cx="100" cy="95" rx="55" ry="20" fill="none" stroke="#0f3460" stroke-width="2" opacity="0.5" transform="rotate(25 100 95)"/>
+  <text x="100" y="148" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="22" fill="#ffffff" letter-spacing="3">SPUTNIK</text>
+  <text x="100" y="168" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="16" fill="#e94560" letter-spacing="5">X</text>
+</svg>

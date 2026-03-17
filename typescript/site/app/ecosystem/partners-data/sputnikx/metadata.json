@@ -1,0 +1,7 @@
+{
+  "name": "SputnikX",
+  "description": "EU trade analytics API with 28M+ Eurostat records across 27 countries. MCP server with 15 tools, freemium gateway, and x402 micropayments for customs, salary, and trade intelligence data.",
+  "logoUrl": "/logos/sputnikx.svg",
+  "websiteUrl": "https://sputnikx.xyz",
+  "category": "Services/Endpoints"
+}
