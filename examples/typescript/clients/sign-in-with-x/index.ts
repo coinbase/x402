@@ -5,11 +5,7 @@ import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
-import {
-  createSIWxClientHook,
-  signSIWxChallenge,
-  type SolanaSigner,
-} from "@x402/extensions/sign-in-with-x";
+import { createSIWxClientHook, type SolanaSigner } from "@x402/extensions/sign-in-with-x";
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
@@ -108,7 +104,7 @@ async function demonstrateResource(path: string): Promise<void> {
 
 /**
  * Demonstrates auth-only SIWX flow (no payment required).
- * Server returns SIWX challenge, client signs and retries.
+ * The client hook handles the 402 → sign → retry cycle automatically.
  */
 async function demonstrateAuthOnly(): Promise<void> {
   if (!evmSigner) {
@@ -119,30 +115,16 @@ async function demonstrateAuthOnly(): Promise<void> {
   const url = `${baseURL}/profile`;
   console.log("\n--- /profile (auth-only, no payment) ---");
 
-  // First request: get SIWX challenge
-  console.log("1. Request without auth...");
-  const response1 = await fetch(url);
-  const body1 = await response1.json();
-  if (response1.status !== 402) {
-    console.log("   Unexpected status:", response1.status);
-    return;
-  }
-  console.log("   Got 402 with SIWX challenge");
+  // fetchWithPayment handles auth-only routes the same way as paid routes:
+  // 402 → SIWX client hook signs the challenge → retry with signature
+  const response = await fetchWithPayment(url);
+  const body = await response.json();
 
-  // Sign the SIWX challenge
-  const header = await signSIWxChallenge(body1.extensions["sign-in-with-x"], evmSigner);
-
-  // Second request: with SIWX signature
-  console.log("2. Request with SIWX signature...");
-  const response2 = await fetch(url, {
-    headers: { "sign-in-with-x": header },
-  });
-  const body2 = await response2.json();
-  if (response2.ok) {
-    console.log("   ✓ Authenticated via SIWX (auth-only, no payment)");
-    console.log("   Response:", body2);
+  if (response.ok) {
+    console.log("   ✓ Authenticated via SIWX (no payment required)");
+    console.log("   Response:", body);
   } else {
-    console.log("   ✗ Auth failed:", body2.error);
+    console.log("   ✗ Auth failed:", body);
   }
 }
 

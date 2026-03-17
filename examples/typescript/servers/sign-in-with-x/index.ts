@@ -14,7 +14,7 @@ import {
   createSIWxSettleHook,
   createSIWxRequestHook,
   InMemorySIWxStorage,
-  verifySIWxHeader,
+  parseSIWxHeader,
 } from "@x402/extensions/sign-in-with-x";
 config();
 
@@ -100,7 +100,7 @@ const routes = {
     accepts: [] as [],
     description: "Auth-only: wallet signature required",
     extensions: declareSIWxExtension({
-      network: EVM_NETWORK,
+      network: EVM_NETWORK, // Required for auth-only routes (no payment to infer from)
       statement: "Sign in to view your profile",
       expirationSeconds: 300,
     }),
@@ -131,13 +131,10 @@ app.get("/weather", (_req, res) => res.json({ weather: "sunny", temperature: 72 
 app.get("/joke", (_req, res) =>
   res.json({ joke: "Why do programmers prefer dark mode? Because light attracts bugs." }),
 );
-app.get("/profile", async (req, res) => {
-  const siwxHeader = req.headers["sign-in-with-x"] as string | undefined;
-  const resourceUri = `${req.protocol}://${req.get("host")}/profile`;
-
-  // Re-verify to extract the wallet address (fast, no RPC)
-  const result = await verifySIWxHeader(siwxHeader ?? "", resourceUri);
-  res.json({ address: result.address, data: "Your profile data" });
+app.get("/profile", (req, res) => {
+  // SIWX hook already verified the signature — just parse to extract the address
+  const { address } = parseSIWxHeader(req.headers["sign-in-with-x"] as string);
+  res.json({ address, data: "Your profile data" });
 });
 
 app.listen(PORT, () => {
