@@ -79,11 +79,19 @@ The easiest way to implement SIWX is using the provided hooks, which handle all 
           statement: 'Sign in to access your purchased content',
         }),
       },
+      'GET /profile': {
+        accepts: [],  // Auth-only route: no payment required
+        extensions: declareSIWxExtension({
+          network: NETWORK,  // Required for auth-only routes (cannot be inferred from accepts)
+          statement: 'Sign in to view your profile',
+          expirationSeconds: 300,
+        }),
+      },
     };
 
     // 3. Verify incoming SIWX proofs
     const httpServer = new x402HTTPResourceServer(resourceServer, routes)
-      .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access if paid
+      .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access for auth-only or paid routes
     ```
   </Tab>
 </Tabs>
