@@ -99,7 +99,9 @@ The easiest way to implement SIWX is using the provided hooks, which handle all 
 The hooks automatically:
 - **siwxResourceServerExtension**: Derives `network` from `accepts`, `domain`/`uri` from request URL, refreshes `nonce`/`issuedAt`/`expirationTime` per request
 - **createSIWxSettleHook**: Records payment when settlement succeeds
-- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access if wallet has paid
+- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access for auth-only routes (`accepts: []`) or when wallet has paid
+
+**Auth-only routes** (declared with `accepts: []`) grant access based on a valid SIWX signature alone, without requiring payment. This is useful for wallet-gated content that doesn't need micropayments.
 
 ### Smart Wallet Support (EIP-1271 / EIP-6492)
 
