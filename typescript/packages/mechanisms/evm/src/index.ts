@@ -33,7 +33,7 @@ export { isPermit2Payload, isEIP3009Payload } from "./types";
 export { UptoEvmScheme } from "./upto";
 
 // Upto types
-export type { UptoPermit2Payload } from "./types";
+export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
 // Constants
@@ -42,6 +42,7 @@ export {
   x402ExactPermit2ProxyAddress,
   x402UptoPermit2ProxyAddress,
   permit2WitnessTypes,
+  uptoPermit2WitnessTypes,
   authorizationTypes,
   eip3009ABI,
   x402ExactPermit2ProxyABI,

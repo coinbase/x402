@@ -6,6 +6,7 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
+import { getDefaultAsset, type ExactDefaultAssetInfo } from "../../shared/defaultAssets";
 
 /**
  * EVM server implementation for the Exact payment scheme.
@@ -128,16 +129,8 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     return amount;
   }
 
-  /**
-   * Default money conversion implementation.
-   * Converts decimal amount to the default stablecoin on the specified network.
-   *
-   * @param amount - The decimal amount (e.g., 1.50)
-   * @param network - The network to use
-   * @returns The parsed asset amount in the default stablecoin
-   */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    const assetInfo = this.getDefaultAsset(network);
+    const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
@@ -161,89 +154,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     };
   }
 
-  /**
-   * Convert decimal amount to token units (e.g., 0.10 -> 100000 for 6-decimal tokens)
-   *
-   * @param decimalAmount - The decimal amount to convert
-   * @param decimals - The number of decimals for the token
-   * @returns The token amount as a string
-   */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);
     if (isNaN(amount)) {
       throw new Error(`Invalid amount: ${decimalAmount}`);
     }
-    // Convert to smallest unit (e.g., for USDC with 6 decimals: 0.10 * 10^6 = 100000)
     const [intPart, decPart = ""] = String(amount).split(".");
     const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
     const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
     return tokenAmount;
-  }
-
-  /**
-   * Get the default asset info for a network (typically USDC)
-   *
-   * @param network - The network to get asset info for
-   * @returns The asset information including address, name, version, and decimals
-   */
-  private getDefaultAsset(network: Network): {
-    address: string;
-    name: string;
-    version: string;
-    decimals: number;
-    assetTransferMethod?: string;
-    supportsEip2612?: boolean;
-  } {
-    // Map of network to stablecoin info including EIP-712 domain parameters.
-    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers.
-    // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
-    // For permit2 tokens, set supportsEip2612: true if the token implements EIP-2612 permit().
-    // When supportsEip2612 is false/absent on a permit2 token, name/version are omitted from
-    // extra so the client skips the EIP-2612 path and falls back to ERC-20 approval gas sponsoring.
-    const stablecoins: Record<
-      string,
-      {
-        address: string;
-        name: string;
-        version: string;
-        decimals: number;
-        assetTransferMethod?: string;
-        supportsEip2612?: boolean;
-      }
-    > = {
-      "eip155:8453": {
-        address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        name: "USD Coin",
-        version: "2",
-        decimals: 6,
-      }, // Base mainnet USDC
-      "eip155:84532": {
-        address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        name: "USDC",
-        version: "2",
-        decimals: 6,
-      }, // Base Sepolia USDC
-      "eip155:4326": {
-        address: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-        name: "MegaUSD",
-        version: "1",
-        decimals: 18,
-        assetTransferMethod: "permit2",
-        supportsEip2612: true,
-      }, // MegaETH mainnet MegaUSD (no EIP-3009, supports EIP-2612)
-      "eip155:143": {
-        address: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
-        name: "USD Coin",
-        version: "2",
-        decimals: 6,
-      }, // Monad mainnet USDC
-    };
-
-    const assetInfo = stablecoins[network];
-    if (!assetInfo) {
-      throw new Error(`No default asset configured for network ${network}`);
-    }
-
-    return assetInfo;
   }
 }

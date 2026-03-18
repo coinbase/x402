@@ -1,5 +1,6 @@
 import {
   PaymentPayload,
+  PaymentPayloadResult,
   PaymentRequirements,
   FacilitatorContext,
   SettleResponse,
@@ -15,7 +16,20 @@ import {
   type Erc20ApprovalGasSponsoringSigner,
 } from "../exact/extensions";
 import { getAddress, encodeFunctionData } from "viem";
-import { PERMIT2_ADDRESS, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
+import {
+  PERMIT2_ADDRESS,
+  eip3009ABI,
+  erc20AllowanceAbi,
+  ERC20_APPROVE_GAS_LIMIT,
+  DEFAULT_MAX_FEE_PER_GAS,
+  permit2WitnessTypes,
+} from "../constants";
+import {
+  multicall,
+  ContractCall,
+  MULTICALL3_ADDRESS,
+  multicall3GetEthBalanceAbi,
+} from "../multicall";
 import { createPermit2Nonce, getEvmChainId } from "../utils";
 import {
   ErrPermit2612AmountMismatch,
@@ -25,10 +39,27 @@ import {
   ErrPermit2InvalidOwner,
   ErrPermit2InvalidSignature,
   ErrPermit2PaymentTooEarly,
+  ErrPermit2AllowanceRequired,
+  ErrPermit2SimulationFailed,
+  ErrPermit2InsufficientBalance,
+  ErrPermit2ProxyNotDeployed,
+  ErrInvalidTransactionState,
+  ErrTransactionFailed,
+  ErrInvalidEip2612ExtensionFormat,
+  ErrEip2612FromMismatch,
+  ErrEip2612AssetMismatch,
+  ErrEip2612SpenderNotPermit2,
+  ErrEip2612DeadlineExpired,
+  ErrErc20ApprovalInsufficientEthForGas,
+  ErrErc20ApprovalTxFailed,
 } from "../exact/facilitator/errors";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
 import { ExactPermit2Payload, Permit2Authorization, UptoPermit2Payload } from "../types";
 import { validateErc20ApprovalForPayment } from "../exact/facilitator/erc20approval";
+import {
+  ErrUptoAmountExceedsPermitted,
+  ErrUptoUnauthorizedFacilitator,
+} from "../upto/facilitator/errors";
 
 /**
  * Base type for Permit2 payloads shared between exact and upto schemes.
@@ -159,7 +190,7 @@ export async function waitAndReturnSettleResponse(
   if (receipt.status !== "success") {
     return {
       success: false,
-      errorReason: "invalid_transaction_state",
+      errorReason: ErrInvalidTransactionState,
       transaction: tx,
       network: payload.accepted.network,
       payer,
@@ -191,7 +222,7 @@ export function mapSettleError(
   payload: PaymentPayload,
   payer: `0x${string}`,
 ): SettleResponse {
-  let errorReason = "transaction_failed";
+  let errorReason: string = ErrTransactionFailed;
   if (error instanceof Error) {
     const message = error.message;
     if (message.includes("Permit2612AmountMismatch")) {
@@ -209,9 +240,13 @@ export function mapSettleError(
     } else if (message.includes("InvalidNonce")) {
       errorReason = ErrPermit2InvalidNonce;
     } else if (message.includes("erc20_approval_tx_failed")) {
-      errorReason = "erc20_approval_tx_failed";
+      errorReason = ErrErc20ApprovalTxFailed;
+    } else if (message.includes("AmountExceedsPermitted")) {
+      errorReason = ErrUptoAmountExceedsPermitted;
+    } else if (message.includes("UnauthorizedFacilitator")) {
+      errorReason = ErrUptoUnauthorizedFacilitator;
     } else {
-      errorReason = `transaction_failed: ${message.slice(0, 500)}`;
+      errorReason = `${ErrTransactionFailed}: ${message.slice(0, 500)}`;
     }
   }
   return {
@@ -240,27 +275,337 @@ export function validateEip2612PermitForPayment(
   tokenAddress: `0x${string}`,
 ): { isValid: boolean; invalidReason?: string } {
   if (!validateEip2612GasSponsoringInfo(info)) {
-    return { isValid: false, invalidReason: "invalid_eip2612_extension_format" };
+    return { isValid: false, invalidReason: ErrInvalidEip2612ExtensionFormat };
   }
 
   if (getAddress(info.from as `0x${string}`) !== getAddress(payer)) {
-    return { isValid: false, invalidReason: "eip2612_from_mismatch" };
+    return { isValid: false, invalidReason: ErrEip2612FromMismatch };
   }
 
   if (getAddress(info.asset as `0x${string}`) !== tokenAddress) {
-    return { isValid: false, invalidReason: "eip2612_asset_mismatch" };
+    return { isValid: false, invalidReason: ErrEip2612AssetMismatch };
   }
 
   if (getAddress(info.spender as `0x${string}`) !== getAddress(PERMIT2_ADDRESS)) {
-    return { isValid: false, invalidReason: "eip2612_spender_not_permit2" };
+    return { isValid: false, invalidReason: ErrEip2612SpenderNotPermit2 };
   }
 
   const now = Math.floor(Date.now() / 1000);
   if (BigInt(info.deadline) < BigInt(now + 6)) {
-    return { isValid: false, invalidReason: "eip2612_deadline_expired" };
+    return { isValid: false, invalidReason: ErrEip2612DeadlineExpired };
   }
 
   return { isValid: true };
+}
+
+// ---------------------------------------------------------------------------
+// Simulation helpers (shared across exact and upto)
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulates settle() via eth_call (readContract).
+ * Returns true if simulation succeeded, false if it failed.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - EVM signer for contract reads
+ * @param settleArgs - Pre-built settle function arguments (scheme-specific)
+ * @returns true if simulation succeeded, false if it failed
+ */
+export async function simulatePermit2Settle(
+  config: Permit2ProxyConfig,
+  signer: FacilitatorEvmSigner,
+  settleArgs: readonly unknown[],
+): Promise<boolean> {
+  try {
+    await signer.readContract({
+      address: config.proxyAddress,
+      abi: config.proxyABI,
+      functionName: "settle",
+      args: settleArgs,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Simulates settleWithPermit() via eth_call (readContract).
+ * The contract atomically calls token.permit() then PERMIT2.permitTransferFrom(),
+ * so simulation covers allowance + balance + nonces.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - EVM signer for contract reads
+ * @param settleArgs - Pre-built settle function arguments (scheme-specific)
+ * @param eip2612Info - EIP-2612 gas sponsoring info from the payload extension
+ * @returns true if simulation succeeded, false if it failed
+ */
+export async function simulatePermit2SettleWithPermit(
+  config: Permit2ProxyConfig,
+  signer: FacilitatorEvmSigner,
+  settleArgs: readonly unknown[],
+  eip2612Info: Eip2612GasSponsoringInfo,
+): Promise<boolean> {
+  try {
+    const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
+
+    await signer.readContract({
+      address: config.proxyAddress,
+      abi: config.proxyABI,
+      functionName: "settleWithPermit",
+      args: [
+        {
+          value: BigInt(eip2612Info.amount),
+          deadline: BigInt(eip2612Info.deadline),
+          r,
+          s,
+          v,
+        },
+        ...settleArgs,
+      ],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delegates the full approve+settle simulation flow to the extension signer via simulateTransactions.
+ * The signer owns execution strategy.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param extensionSigner - The extension signer with simulateTransactions capability
+ * @param settleArgs - Pre-built settle function arguments (scheme-specific)
+ * @param erc20Info - Object containing the signed approval transaction
+ * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction hex string
+ * @returns true if the bundle simulation succeeded, false otherwise
+ */
+export async function simulatePermit2SettleWithErc20Approval(
+  config: Permit2ProxyConfig,
+  extensionSigner: Erc20ApprovalGasSponsoringSigner,
+  settleArgs: readonly unknown[],
+  erc20Info: { signedTransaction: string },
+): Promise<boolean> {
+  if (!extensionSigner.simulateTransactions) {
+    return false;
+  }
+
+  try {
+    const settleData = encodeFunctionData({
+      abi: config.proxyABI,
+      functionName: "settle",
+      args: settleArgs,
+    });
+
+    return await extensionSigner.simulateTransactions([
+      erc20Info.signedTransaction as `0x${string}`,
+      { to: config.proxyAddress, data: settleData, gas: BigInt(300_000) },
+    ]);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Diagnoses a Permit2 simulation failure by performing a multicall to check the proxy deployment, balance and allowance.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - EVM signer for contract reads
+ * @param tokenAddress - ERC-20 token contract address
+ * @param permit2Payload - The Permit2 authorization payload
+ * @param amountRequired - Required payment amount (as string)
+ * @returns VerifyResponse with the most specific failure reason
+ */
+export async function diagnosePermit2SimulationFailure(
+  config: Permit2ProxyConfig,
+  signer: FacilitatorEvmSigner,
+  tokenAddress: `0x${string}`,
+  permit2Payload: Permit2PayloadBase,
+  amountRequired: string,
+): Promise<VerifyResponse> {
+  const payer = permit2Payload.permit2Authorization.from;
+
+  const diagnosticCalls: ContractCall[] = [
+    {
+      address: config.proxyAddress,
+      abi: config.proxyABI,
+      functionName: "PERMIT2",
+    },
+    {
+      address: tokenAddress,
+      abi: eip3009ABI,
+      functionName: "balanceOf",
+      args: [payer],
+    },
+    {
+      address: tokenAddress,
+      abi: erc20AllowanceAbi,
+      functionName: "allowance",
+      args: [payer, PERMIT2_ADDRESS],
+    },
+  ];
+
+  try {
+    const results = await multicall(signer.readContract.bind(signer), diagnosticCalls);
+
+    const [proxyResult, balanceResult, allowanceResult] = results;
+
+    if (proxyResult.status === "failure") {
+      return { isValid: false, invalidReason: ErrPermit2ProxyNotDeployed, payer };
+    }
+
+    if (balanceResult.status === "success") {
+      const balance = balanceResult.result as bigint;
+      if (balance < BigInt(amountRequired)) {
+        return { isValid: false, invalidReason: ErrPermit2InsufficientBalance, payer };
+      }
+    }
+
+    if (allowanceResult.status === "success") {
+      const allowance = allowanceResult.result as bigint;
+      if (allowance < BigInt(amountRequired)) {
+        return { isValid: false, invalidReason: ErrPermit2AllowanceRequired, payer };
+      }
+    }
+  } catch {
+    // Diagnostic multicall itself failed — fall through to generic error
+  }
+
+  return { isValid: false, invalidReason: ErrPermit2SimulationFailed, payer };
+}
+
+/**
+ * Targeted multicall for the ERC-20 approval path where simulation cannot be used
+ * (the approval hasn't been broadcast yet, so settle() would fail for expected reasons).
+ * Checks proxy deployment, payer token balance and payer ETH balance for gas.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - EVM signer for contract reads
+ * @param tokenAddress - ERC-20 token contract address
+ * @param payer - The payer address
+ * @param amountRequired - Required payment amount (as string)
+ * @returns VerifyResponse — valid if checks pass, otherwise the most specific failure
+ */
+export async function checkPermit2Prerequisites(
+  config: Permit2ProxyConfig,
+  signer: FacilitatorEvmSigner,
+  tokenAddress: `0x${string}`,
+  payer: `0x${string}`,
+  amountRequired: string,
+): Promise<VerifyResponse> {
+  const diagnosticCalls: ContractCall[] = [
+    {
+      address: config.proxyAddress,
+      abi: config.proxyABI,
+      functionName: "PERMIT2",
+    },
+    {
+      address: tokenAddress,
+      abi: eip3009ABI,
+      functionName: "balanceOf",
+      args: [payer],
+    },
+    {
+      address: MULTICALL3_ADDRESS,
+      abi: multicall3GetEthBalanceAbi,
+      functionName: "getEthBalance",
+      args: [payer],
+    },
+  ];
+
+  try {
+    const results = await multicall(signer.readContract.bind(signer), diagnosticCalls);
+
+    const [proxyResult, balanceResult, ethBalanceResult] = results;
+
+    if (proxyResult.status === "failure") {
+      return { isValid: false, invalidReason: ErrPermit2ProxyNotDeployed, payer };
+    }
+
+    if (balanceResult.status === "success") {
+      const balance = balanceResult.result as bigint;
+      if (balance < BigInt(amountRequired)) {
+        return { isValid: false, invalidReason: ErrPermit2InsufficientBalance, payer };
+      }
+    }
+
+    if (ethBalanceResult.status === "success") {
+      const minEthForApprovalGas = ERC20_APPROVE_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS;
+      const ethBalance = ethBalanceResult.result as bigint;
+      if (ethBalance < minEthForApprovalGas) {
+        return {
+          isValid: false,
+          invalidReason: ErrErc20ApprovalInsufficientEthForGas,
+          payer,
+        };
+      }
+    }
+  } catch {
+    // Multicall failed — fall through to valid (fail open for prerequisites-only check)
+  }
+
+  return { isValid: true, invalidReason: undefined, payer };
+}
+
+/**
+ * Builds args for exact settle(permit, owner, witness, signature).
+ *
+ * @param permit2Payload - The Permit2 payload containing authorization and signature data
+ * @returns Tuple of contract call arguments for the exact settle function
+ */
+export function buildExactPermit2SettleArgs(permit2Payload: Permit2PayloadBase) {
+  return [
+    {
+      permitted: {
+        token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+        amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+      },
+      nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+      deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+    },
+    getAddress(permit2Payload.permit2Authorization.from),
+    {
+      to: getAddress(permit2Payload.permit2Authorization.witness.to),
+      validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+    },
+    permit2Payload.signature,
+  ] as const;
+}
+
+/**
+ * Builds args for upto settle(permit, amount, owner, witness, signature).
+ * The upto contract's settle() takes an additional `amount` parameter and the witness
+ * includes a `facilitator` field.
+ *
+ * @param permit2Payload - The upto Permit2 payload containing authorization and signature data
+ * @param settlementAmount - The amount to settle on-chain
+ * @param facilitatorAddress - The facilitator address authorized in the witness
+ * @returns Tuple of contract call arguments for the upto settle function
+ */
+export function buildUptoPermit2SettleArgs(
+  permit2Payload: UptoPermit2Payload,
+  settlementAmount: bigint,
+  facilitatorAddress: `0x${string}`,
+) {
+  return [
+    {
+      permitted: {
+        token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+        amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+      },
+      nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+      deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+    },
+    settlementAmount,
+    getAddress(permit2Payload.permit2Authorization.from),
+    {
+      to: getAddress(permit2Payload.permit2Authorization.witness.to),
+      facilitator: getAddress(facilitatorAddress),
+      validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+    },
+    permit2Payload.signature,
+  ] as const;
 }
 
 /**
@@ -288,162 +633,6 @@ export function splitEip2612Signature(signature: string): {
   const v = parseInt(sig.slice(128, 130), 16);
 
   return { v, r, s };
-}
-
-/**
- * Settles a Permit2 payment via settleWithPermit — includes the EIP-2612 permit atomically in one tx.
- *
- * @param config - The proxy contract configuration (address and ABI)
- * @param signer - The base facilitator signer for contract writes
- * @param payload - The payment payload
- * @param permit2Payload - The Permit2 specific payload (exact or upto)
- * @param eip2612Info - The EIP-2612 gas sponsoring info from the payload extension
- * @returns Promise resolving to settlement response
- */
-export async function settlePermit2WithEIP2612(
-  config: Permit2ProxyConfig,
-  signer: FacilitatorEvmSigner,
-  payload: PaymentPayload,
-  permit2Payload: Permit2PayloadBase,
-  eip2612Info: Eip2612GasSponsoringInfo,
-): Promise<SettleResponse> {
-  const payer = permit2Payload.permit2Authorization.from;
-  try {
-    const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
-
-    const tx = await signer.writeContract({
-      address: config.proxyAddress,
-      abi: config.proxyABI,
-      functionName: "settleWithPermit",
-      args: [
-        {
-          value: BigInt(eip2612Info.amount),
-          deadline: BigInt(eip2612Info.deadline),
-          r,
-          s,
-          v,
-        },
-        {
-          permitted: {
-            token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-            amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
-          },
-          nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-          deadline: BigInt(permit2Payload.permit2Authorization.deadline),
-        },
-        getAddress(payer),
-        {
-          to: getAddress(permit2Payload.permit2Authorization.witness.to),
-          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-        },
-        permit2Payload.signature,
-      ],
-    });
-
-    return waitAndReturnSettleResponse(signer, tx, payload, payer);
-  } catch (error) {
-    return mapSettleError(error, payload, payer);
-  }
-}
-
-/**
- * Delegates the full approve+settle flow to the extension signer via sendTransactions.
- * The signer owns execution strategy (sequential, batched, or atomic bundling).
- *
- * @param config - The proxy contract configuration (address and ABI)
- * @param extensionSigner - The extension signer with sendTransactions capability
- * @param payload - The payment payload
- * @param permit2Payload - The Permit2 specific payload (exact or upto)
- * @param erc20Info - Object containing the signed approval transaction
- * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction hex string
- * @returns Promise resolving to settlement response
- */
-export async function settlePermit2WithERC20Approval(
-  config: Permit2ProxyConfig,
-  extensionSigner: Erc20ApprovalGasSponsoringSigner,
-  payload: PaymentPayload,
-  permit2Payload: Permit2PayloadBase,
-  erc20Info: { signedTransaction: string },
-): Promise<SettleResponse> {
-  const payer = permit2Payload.permit2Authorization.from;
-
-  try {
-    const settleData = encodeFunctionData({
-      abi: config.proxyABI,
-      functionName: "settle",
-      args: [
-        {
-          permitted: {
-            token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-            amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
-          },
-          nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-          deadline: BigInt(permit2Payload.permit2Authorization.deadline),
-        },
-        getAddress(payer),
-        {
-          to: getAddress(permit2Payload.permit2Authorization.witness.to),
-          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-        },
-        permit2Payload.signature,
-      ],
-    });
-
-    const txHashes = await extensionSigner.sendTransactions([
-      erc20Info.signedTransaction as `0x${string}`,
-      { to: config.proxyAddress, data: settleData, gas: BigInt(300_000) },
-    ]);
-
-    const settleTxHash = txHashes[txHashes.length - 1];
-    return waitAndReturnSettleResponse(extensionSigner, settleTxHash, payload, payer);
-  } catch (error) {
-    return mapSettleError(error, payload, payer);
-  }
-}
-
-/**
- * Standard Permit2 settle — allowance is already on-chain.
- *
- * @param config - The proxy contract configuration (address and ABI)
- * @param signer - The base facilitator signer for contract writes
- * @param payload - The payment payload
- * @param permit2Payload - The Permit2 specific payload (exact or upto)
- * @returns Promise resolving to settlement response
- */
-export async function settlePermit2Direct(
-  config: Permit2ProxyConfig,
-  signer: FacilitatorEvmSigner,
-  payload: PaymentPayload,
-  permit2Payload: Permit2PayloadBase,
-): Promise<SettleResponse> {
-  const payer = permit2Payload.permit2Authorization.from;
-  try {
-    const tx = await signer.writeContract({
-      address: config.proxyAddress,
-      abi: config.proxyABI,
-      functionName: "settle",
-      args: [
-        {
-          permitted: {
-            token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-            amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
-          },
-          nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-          deadline: BigInt(permit2Payload.permit2Authorization.deadline),
-        },
-        getAddress(payer),
-        {
-          to: getAddress(permit2Payload.permit2Authorization.witness.to),
-          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-        },
-        permit2Payload.signature,
-      ],
-    });
-
-    return waitAndReturnSettleResponse(signer, tx, payload, payer);
-  } catch (error) {
-    return mapSettleError(error, payload, payer);
-  }
 }
 
 // ---------------------------------------------------------------------------
