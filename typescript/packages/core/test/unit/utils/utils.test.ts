@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   findByNetworkAndScheme,
   findSchemesByNetwork,
+  findFacilitatorBySchemeAndNetwork,
   deepEqual,
   safeBase64Encode,
   safeBase64Decode,
+  SchemeData,
 } from "../../../src/utils";
 import { Network } from "../../../src/types";
 
@@ -135,6 +137,177 @@ describe("Utils", () => {
       const result = findByNetworkAndScheme(map, "exact", "eip155:8453" as Network);
 
       expect(result).toBe("evmImpl");
+    });
+  });
+
+  describe("findFacilitatorBySchemeAndNetwork", () => {
+    it("should find facilitator by exact network match", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      schemeMap.set("exact", {
+        facilitator: "exactFacilitator",
+        networks: new Set(["eip155:8453" as Network]),
+        pattern: "eip155:8453" as Network,
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "exact",
+        "eip155:8453" as Network,
+      );
+
+      expect(result).toBe("exactFacilitator");
+    });
+
+    it("should return undefined for unknown scheme", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "unknown",
+        "eip155:8453" as Network,
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should return undefined for network not in set and not matching pattern", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      schemeMap.set("exact", {
+        facilitator: "exactFacilitator",
+        networks: new Set(["eip155:8453" as Network]),
+        pattern: "eip155:8453" as Network,
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "exact",
+        "solana:mainnet" as Network,
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should match networks in the stored networks set", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      const networks = new Set<Network>();
+      networks.add("eip155:8453" as Network);
+      networks.add("eip155:1" as Network);
+
+      schemeMap.set("multi", {
+        facilitator: "multiFacilitator",
+        networks,
+        pattern: "eip155:*" as Network,
+      });
+
+      const result1 = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "multi",
+        "eip155:8453" as Network,
+      );
+      const result2 = findFacilitatorBySchemeAndNetwork(schemeMap, "multi", "eip155:1" as Network);
+
+      expect(result1).toBe("multiFacilitator");
+      expect(result2).toBe("multiFacilitator");
+    });
+
+    it("should use pattern matching when network not in set", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      schemeMap.set("pattern", {
+        facilitator: "patternFacilitator",
+        networks: new Set(["eip155:8453" as Network]),
+        pattern: "eip155:*" as Network,
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "pattern",
+        "eip155:42161" as Network, // Arbitrum
+      );
+
+      expect(result).toBe("patternFacilitator");
+    });
+
+    it("should handle solana pattern matching", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      schemeMap.set("solana", {
+        facilitator: "solanaFacilitator",
+        networks: new Set(["solana:mainnet" as Network]),
+        pattern: "solana:*" as Network,
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "solana",
+        "solana:devnet" as Network,
+      );
+
+      expect(result).toBe("solanaFacilitator");
+    });
+
+    it("should prefer exact network match over pattern match", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      const networks = new Set<Network>();
+      networks.add("eip155:8453" as Network); // Exact match
+
+      schemeMap.set("preference", {
+        facilitator: "preferredFacilitator",
+        networks,
+        pattern: "eip155:*" as Network, // Would also match via pattern
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "preference",
+        "eip155:8453" as Network,
+      );
+
+      expect(result).toBe("preferredFacilitator");
+    });
+
+    it("should handle complex object facilitators", () => {
+      interface MockFacilitator {
+        id: string;
+        name: string;
+      }
+
+      const facilitatorObj: MockFacilitator = {
+        id: "fac-123",
+        name: "Test Facilitator",
+      };
+
+      const schemeMap = new Map<string, SchemeData<MockFacilitator>>();
+      schemeMap.set("complex", {
+        facilitator: facilitatorObj,
+        networks: new Set(["eip155:8453" as Network]),
+        pattern: "eip155:*" as Network,
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "complex",
+        "eip155:8453" as Network,
+      );
+
+      expect(result).toEqual(facilitatorObj);
+      expect(result?.id).toBe("fac-123");
+      expect(result?.name).toBe("Test Facilitator");
+    });
+
+    it("should handle empty networks set with pattern fallback", () => {
+      const schemeMap = new Map<string, SchemeData<string>>();
+      schemeMap.set("empty", {
+        facilitator: "emptyNetworksFacilitator",
+        networks: new Set(),
+        pattern: "*" as Network, // Universal pattern
+      });
+
+      const result = findFacilitatorBySchemeAndNetwork(
+        schemeMap,
+        "empty",
+        "any:network" as Network,
+      );
+
+      expect(result).toBe("emptyNetworksFacilitator");
     });
   });
 
