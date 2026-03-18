@@ -132,3 +132,12 @@ export {
   DiscoveryResource,
   DiscoveryResourcesResponse,
 } from "./facilitatorClient";
+
+// Export debugging utilities for discovery refresh issues
+export {
+  DiscoveryDebugClient,
+  debugDiscoveryRefresh,
+  type DiscoveryResourceSnapshot,
+  type DiscoveryComparisonResult,
+  type DiscoveryDebugOptions,
+} from "./debug";
