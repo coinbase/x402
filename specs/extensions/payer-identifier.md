@@ -18,38 +18,19 @@ Server advertises support:
 {
   "extensions": {
     "payer-identifier": {
-      "info": {
-        "required": false
-      },
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "required": { "type": "boolean" },
-          "id": { "type": "string", "minLength": 16, "maxLength": 128 }
-        },
-        "required": ["required"]
+        "type": "string",
+        "minLength": 16,
+        "maxLength": 128,
+        "pattern": "^[a-zA-Z0-9_:-]+$"
       }
     }
   }
 }
 ```
 
----
-
-## `required` Field
-
-- **Type**: boolean
-- **Purpose**: Indicates whether the server requires clients to include a payer identifier
-- **Default**: `false` (payer identifier is optional)
-
----
-
-## `id` Format
-
-- **Length**: 16-128 characters
-- **Characters**: alphanumeric, hyphens, underscores, colons
-- **Examples**: `0x857b06519E91e3A54538791bDbb0E22373e36b66`, `user_abc123`
+The identifier is expected to be a string of 16-128 characters (alphanumeric, hyphens, underscores, colons).
 
 ---
 
