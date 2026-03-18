@@ -267,7 +267,11 @@ export async function verifyUptoPermit2(
   // Per spec §Phase 3 Step 7: simulate with requirements.amount (the worst-case charge).
   // At verify time, requirements.amount = max authorized amount.
   // At settle time, requirements.amount = actual settlement amount (≤ max).
-  const uptoSettleArgs = buildUptoPermit2SettleArgs(permit2Payload, BigInt(requirements.amount), facilitatorAddress);
+  const uptoSettleArgs = buildUptoPermit2SettleArgs(
+    permit2Payload,
+    BigInt(requirements.amount),
+    facilitatorAddress,
+  );
 
   const eip2612InfoForSim = extractEip2612GasSponsoringInfo(payload);
   if (eip2612InfoForSim) {

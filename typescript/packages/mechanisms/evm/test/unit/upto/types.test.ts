@@ -26,7 +26,8 @@ describe("isUptoPermit2Payload", () => {
   });
 
   it("should return false when signature is missing", () => {
-    const { signature: _, ...rest } = VALID_PAYLOAD;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { signature: _signature, ...rest } = VALID_PAYLOAD;
     expect(isUptoPermit2Payload(rest as Record<string, unknown>)).toBe(false);
   });
 
@@ -35,7 +36,8 @@ describe("isUptoPermit2Payload", () => {
   });
 
   it("should return false when permit2Authorization is missing", () => {
-    const { permit2Authorization: _, ...rest } = VALID_PAYLOAD;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { permit2Authorization: _permit2Authorization, ...rest } = VALID_PAYLOAD;
     expect(isUptoPermit2Payload(rest as Record<string, unknown>)).toBe(false);
   });
 

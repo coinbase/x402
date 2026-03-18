@@ -297,7 +297,11 @@ export async function verifyPermit2(
   }
 
   // Branch: standard settle (allowance already on-chain)
-  const simOk = await simulatePermit2Settle(exactProxyConfig, signer, buildExactPermit2SettleArgs(permit2Payload));
+  const simOk = await simulatePermit2Settle(
+    exactProxyConfig,
+    signer,
+    buildExactPermit2SettleArgs(permit2Payload),
+  );
   if (!simOk) {
     return diagnosePermit2SimulationFailure(
       exactProxyConfig,
@@ -385,6 +389,16 @@ export async function settlePermit2(
 // Exact-only settle helpers (not shared — upto has its own implementations)
 // ---------------------------------------------------------------------------
 
+/**
+ * Settles a Permit2 payment via settleWithPermit, including the EIP-2612 permit atomically.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - The facilitator signer for contract writes
+ * @param payload - The payment payload for network info
+ * @param permit2Payload - The Permit2 payload with authorization and signature
+ * @param eip2612Info - The EIP-2612 gas sponsoring info from the payload extension
+ * @returns Promise resolving to a settlement response
+ */
 async function settlePermit2WithEIP2612(
   config: Permit2ProxyConfig,
   signer: FacilitatorEvmSigner,
@@ -418,6 +432,17 @@ async function settlePermit2WithEIP2612(
   }
 }
 
+/**
+ * Settles a Permit2 payment using an ERC-20 approval gas sponsoring extension.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param extensionSigner - The extension signer with sendTransactions capability
+ * @param payload - The payment payload for network info
+ * @param permit2Payload - The Permit2 payload with authorization and signature
+ * @param erc20Info - Object containing the signed approval transaction
+ * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction
+ * @returns Promise resolving to a settlement response
+ */
 async function settlePermit2WithERC20Approval(
   config: Permit2ProxyConfig,
   extensionSigner: Erc20ApprovalGasSponsoringSigner,
@@ -446,6 +471,15 @@ async function settlePermit2WithERC20Approval(
   }
 }
 
+/**
+ * Settles a Permit2 payment directly when Permit2 allowance is already on-chain.
+ *
+ * @param config - The proxy contract configuration (address and ABI)
+ * @param signer - The facilitator signer for contract writes
+ * @param payload - The payment payload for network info
+ * @param permit2Payload - The Permit2 payload with authorization and signature
+ * @returns Promise resolving to a settlement response
+ */
 async function settlePermit2Direct(
   config: Permit2ProxyConfig,
   signer: FacilitatorEvmSigner,

@@ -129,6 +129,13 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     return amount;
   }
 
+  /**
+   * Converts a numeric dollar amount to an AssetAmount using the default token for the network.
+   *
+   * @param amount - The dollar amount as a number
+   * @param network - The target network
+   * @returns The converted asset amount with token metadata
+   */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
     const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
@@ -154,6 +161,13 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     };
   }
 
+  /**
+   * Converts a decimal string amount to an integer token amount using the given decimals.
+   *
+   * @param decimalAmount - The amount as a decimal string (e.g. "1.5")
+   * @param decimals - The number of decimal places for the token
+   * @returns The token amount as an integer string in smallest units
+   */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);
     if (isNaN(amount)) {
