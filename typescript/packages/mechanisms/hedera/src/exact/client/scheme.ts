@@ -26,12 +26,13 @@ export class ExactHederaScheme implements SchemeNetworkClient {
    *
    * @param x402Version - x402 protocol version
    * @param paymentRequirements - Selected payment requirements
+   * @param _ - Optional payment payload context
    * @returns Payload result
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-    _context?: PaymentPayloadContext,
+    _?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult> {
     if (paymentRequirements.scheme !== "exact") {
       throw new Error("Unsupported scheme for Hedera exact client");

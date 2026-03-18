@@ -1,12 +1,6 @@
 import type { Network } from "@x402/core/types";
 import { AccountId, Transaction, TransferTransaction } from "@hiero-ledger/sdk";
-import {
-  HBAR_ASSET_ID,
-  HEDERA_ENTITY_ID_REGEX,
-  HEDERA_MAINNET_CAIP2,
-  HEDERA_TESTNET_CAIP2,
-  SUPPORTED_HEDERA_NETWORKS,
-} from "./constants";
+import { HBAR_ASSET_ID, HEDERA_ENTITY_ID_REGEX, SUPPORTED_HEDERA_NETWORKS } from "./constants";
 import type {
   HederaTransferEntry,
   ExactHederaPayloadV2,
