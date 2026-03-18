@@ -6,9 +6,13 @@ discovery extensions with HTTP method information from the request context.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .types import BAZAAR
+
+# Compiled once at module level; matches [paramName] route segments.
+_BRACKET_PARAM_RE = re.compile(r"\[([^\]]+)\]")
 
 
 def _is_http_request_context(ctx: Any) -> bool:
@@ -21,6 +25,54 @@ def _is_http_request_context(ctx: Any) -> bool:
         True if context has a method attribute.
     """
     return hasattr(ctx, "method") and isinstance(getattr(ctx, "method", None), str)
+
+
+def _extract_dynamic_route_info(
+    route_pattern: str, url_path: str
+) -> tuple[str, dict[str, str]] | None:
+    """Convert a [param]-style pattern to a :param template and extract concrete values.
+
+    Args:
+        route_pattern: Route pattern with [paramName] segments (e.g. "/users/[userId]")
+        url_path: Concrete URL path (e.g. "/users/123")
+
+    Returns:
+        (routeTemplate, pathParams) tuple, or None if route_pattern has no [param] segments.
+    """
+    if not _BRACKET_PARAM_RE.search(route_pattern):
+        return None
+    route_template = _BRACKET_PARAM_RE.sub(r":\1", route_pattern)
+    path_params = _extract_path_params(route_pattern, url_path)
+    return route_template, path_params
+
+
+def _extract_path_params(route_pattern: str, url_path: str) -> dict[str, str]:
+    """Extract concrete path parameter values by matching a URL path against a route pattern.
+
+    Args:
+        route_pattern: Route pattern with [paramName] segments (e.g. "/users/[userId]")
+        url_path: Concrete URL path (e.g. "/users/123")
+
+    Returns:
+        Dict mapping param names to their concrete values.
+    """
+    parts = _BRACKET_PARAM_RE.split(route_pattern)
+    # parts alternates: literal, paramName, literal, paramName, ...
+    regex_parts: list[str] = []
+    param_names = []
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            regex_parts.append(re.escape(part))
+        else:
+            param_names.append(part)
+            regex_parts.append("([^/]+)")
+
+    regex_str = "^" + "".join(regex_parts) + "$"
+    match = re.match(regex_str, url_path)
+    if not match:
+        return {}
+
+    return {name: match.group(i + 1) for i, name in enumerate(param_names)}
 
 
 class BazaarResourceServerExtension:
@@ -106,6 +158,24 @@ class BazaarResourceServerExtension:
                     properties["input"] = input_schema
                 schema["properties"] = properties
             ext["schema"] = schema
+
+        # Check for dynamic route pattern
+        route_pattern = getattr(transport_context, "route_pattern", None)
+        dynamic = (
+            _extract_dynamic_route_info(route_pattern, transport_context.adapter.get_path())
+            if route_pattern
+            else None
+        )
+        if dynamic is not None:
+            route_template, path_params = dynamic
+            input_data = ext.get("info", {}).get("input", {})
+            if isinstance(input_data, dict):
+                input_data["pathParams"] = path_params
+            info = ext.get("info", {})
+            if isinstance(info, dict):
+                info["input"] = input_data
+            ext["info"] = info
+            ext["routeTemplate"] = route_template
 
         return ext
 

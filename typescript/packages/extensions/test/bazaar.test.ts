@@ -7,6 +7,7 @@ import {
   BAZAAR,
   declareDiscoveryExtension,
   validateDiscoveryExtension,
+  validateRouteTemplate,
   extractDiscoveryInfo,
   extractDiscoveryInfoFromExtension,
   extractDiscoveryInfoV1,
@@ -1588,6 +1589,248 @@ describe("Bazaar Discovery Extension", () => {
       // MCP extension should remain unchanged
       expect(enriched.info.input.type).toBe("mcp");
       expect((enriched.info as McpDiscoveryInfo).input.toolName).toBe("my_tool");
+    });
+  });
+
+  describe("dynamic routes", () => {
+    const createMockAdapterWithPath = (path: string): HTTPAdapter => ({
+      getHeader: () => undefined,
+      getMethod: () => "GET",
+      getPath: () => path,
+      getUrl: () => `http://example.com${path}`,
+      getAcceptHeader: () => "application/json",
+      getUserAgent: () => "test-agent",
+    });
+
+    it("should leave static routes unchanged", () => {
+      const declared = declareDiscoveryExtension({
+        input: { query: "test" },
+        inputSchema: { properties: { query: { type: "string" } } },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users",
+        routePattern: "/users",
+        adapter: createMockAdapterWithPath("/users"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBeUndefined();
+    });
+
+    it("should produce routeTemplate for dynamic routes", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/123",
+        routePattern: "/users/[userId]",
+        adapter: createMockAdapterWithPath("/users/123"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/users/:userId");
+    });
+
+    it("should extract path params from concrete URL", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/123",
+        routePattern: "/users/[userId]",
+        adapter: createMockAdapterWithPath("/users/123"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      expect(input.pathParams).toEqual({ userId: "123" });
+    });
+
+    it("should extract multiple path params", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/42/posts/7",
+        routePattern: "/users/[userId]/posts/[postId]",
+        adapter: createMockAdapterWithPath("/users/42/posts/7"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/users/:userId/posts/:postId");
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      expect(input.pathParams).toEqual({ userId: "42", postId: "7" });
+    });
+
+    it("should use routeTemplate for canonical URL in facilitator", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+      // Simulate enriched extension with routeTemplate
+      const enrichedExtension = {
+        ...extension,
+        routeTemplate: "/users/:userId",
+        info: {
+          ...extension.info,
+          input: { ...extension.info.input, pathParams: { userId: "123" } },
+        },
+      };
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: { url: "http://example.com/users/123" },
+        extensions: {
+          [BAZAAR.key]: enrichedExtension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown, false);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("http://example.com/users/:userId");
+      // Narrow to DiscoveredHTTPResource to access routeTemplate (HTTP-only field)
+      expect((discovered as import("./..").DiscoveredHTTPResource).routeTemplate).toBe("/users/:userId");
+    });
+
+    it("should return empty pathParams when URL path does not match pattern structure", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      // Pattern expects /users/[userId] but path is /api/other — structurally mismatched.
+      // This can occur in production if middleware and extension patterns diverge.
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/api/other",
+        routePattern: "/users/[userId]",
+        adapter: createMockAdapterWithPath("/api/other"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      // extractPathParams returns {} gracefully when pattern and URL structure don't match
+      expect(input.pathParams).toEqual({});
+    });
+
+    it("should use concrete URL for static routes in facilitator", () => {
+      const declared = declareDiscoveryExtension({
+        input: { query: "test" },
+        inputSchema: { properties: { query: { type: "string" } } },
+      });
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: { url: "http://example.com/search?q=test" },
+        extensions: {
+          [BAZAAR.key]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown, false);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("http://example.com/search");
+      // Narrow to DiscoveredHTTPResource to access routeTemplate (HTTP-only field)
+      expect((discovered as import("./..").DiscoveredHTTPResource).routeTemplate).toBeUndefined();
+    });
+  });
+
+  describe("validateRouteTemplate", () => {
+    it("returns undefined for empty string", () => {
+      expect(validateRouteTemplate("")).toBeUndefined();
+    });
+
+    it("returns undefined for undefined input", () => {
+      expect(validateRouteTemplate(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined for paths not starting with /", () => {
+      expect(validateRouteTemplate("users/123")).toBeUndefined();
+      expect(validateRouteTemplate("relative/path")).toBeUndefined();
+      expect(validateRouteTemplate("no-slash")).toBeUndefined();
+    });
+
+    it("returns undefined for paths containing ..", () => {
+      expect(validateRouteTemplate("/users/../admin")).toBeUndefined();
+      expect(validateRouteTemplate("/../etc/passwd")).toBeUndefined();
+      expect(validateRouteTemplate("/users/..")).toBeUndefined();
+    });
+
+    it("returns undefined for paths containing ://", () => {
+      expect(validateRouteTemplate("http://evil.com/path")).toBeUndefined();
+      expect(validateRouteTemplate("/users/http://evil")).toBeUndefined();
+      expect(validateRouteTemplate("javascript://foo")).toBeUndefined();
+    });
+
+    it("returns valid paths unchanged", () => {
+      expect(validateRouteTemplate("/users/:userId")).toBe("/users/:userId");
+      expect(validateRouteTemplate("/api/v1/items")).toBe("/api/v1/items");
+      expect(validateRouteTemplate("/products/:productId/reviews/:reviewId")).toBe(
+        "/products/:productId/reviews/:reviewId",
+      );
+    });
+
+    it("rejects /users/..hidden because it contains '..' as a substring", () => {
+      // The check is a simple substring match, so "..hidden" is caught too.
+      expect(validateRouteTemplate("/users/..hidden")).toBeUndefined();
+    });
+
+    // NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
+    // validateRouteTemplate checks for the literal string ".." only. If encoded-path
+    // handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
+    it("does NOT reject URL-encoded traversal sequences (known limitation)", () => {
+      expect(validateRouteTemplate("/users/%2e%2e/admin")).toBe("/users/%2e%2e/admin");
     });
   });
 });

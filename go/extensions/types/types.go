@@ -60,6 +60,7 @@ type QueryInput struct {
 	Type        string                 `json:"type"` // "http"
 	Method      QueryParamMethods      `json:"method"`
 	QueryParams map[string]interface{} `json:"queryParams,omitempty"`
+	PathParams  map[string]interface{} `json:"pathParams,omitempty"`
 	Headers     map[string]string      `json:"headers,omitempty"`
 }
 
@@ -76,6 +77,7 @@ type BodyInput struct {
 	BodyType    BodyType               `json:"bodyType"`
 	Body        interface{}            `json:"body"`
 	QueryParams map[string]interface{} `json:"queryParams,omitempty"`
+	PathParams  map[string]interface{} `json:"pathParams,omitempty"`
 	Headers     map[string]string      `json:"headers,omitempty"`
 }
 
@@ -145,8 +147,9 @@ type BodyDiscoveryExtension struct {
 
 // DiscoveryExtension is a union type that can be either Query or Body discovery extension
 type DiscoveryExtension struct {
-	Info   DiscoveryInfo `json:"info"`
-	Schema JSONSchema    `json:"schema"`
+	Info          DiscoveryInfo `json:"info"`
+	Schema        JSONSchema    `json:"schema"`
+	RouteTemplate string        `json:"routeTemplate,omitempty"`
 }
 
 // DeclareQueryDiscoveryConfig is the configuration for declaring a query discovery extension

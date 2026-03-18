@@ -112,6 +112,7 @@ export { bazaarResourceServerExtension } from "./server";
 // Export facilitator functions (for facilitators)
 export {
   validateDiscoveryExtension,
+  validateRouteTemplate,
   extractDiscoveryInfo,
   extractDiscoveryInfoFromExtension,
   validateAndExtract,

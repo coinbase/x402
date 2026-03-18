@@ -118,9 +118,10 @@ type RoutesConfig map[string]RouteConfig
 
 // CompiledRoute is a parsed route ready for matching
 type CompiledRoute struct {
-	Verb   string
-	Regex  *regexp.Regexp
-	Config RouteConfig
+	Verb    string
+	Regex   *regexp.Regexp
+	Config  RouteConfig
+	Pattern string
 }
 
 // ============================================================================
@@ -150,6 +151,7 @@ type HTTPRequestContext struct {
 	Path          string
 	Method        string
 	PaymentHeader string
+	RoutePattern  string
 }
 
 // HTTPResponseInstructions tells the framework how to respond
@@ -258,11 +260,12 @@ func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X40
 
 	// Compile routes
 	for pattern, config := range normalizedRoutes {
-		verb, regex := parseRoutePattern(pattern)
+		verb, path, regex := parseRoutePattern(pattern)
 		server.compiledRoutes = append(server.compiledRoutes, CompiledRoute{
-			Verb:   verb,
-			Regex:  regex,
-			Config: config,
+			Verb:    verb,
+			Regex:   regex,
+			Config:  config,
+			Pattern: path,
 		})
 	}
 
@@ -410,10 +413,11 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 // ProcessHTTPRequest handles an HTTP request and returns processing result
 func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx HTTPRequestContext, paywallConfig *PaywallConfig) HTTPProcessResult {
 	// Find matching route
-	routeConfig := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
+	routeConfig, routePattern := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
 	if routeConfig == nil {
 		return HTTPProcessResult{Type: ResultNoPaymentRequired}
 	}
+	reqCtx.RoutePattern = routePattern
 
 	// Execute protected request hooks before any payment processing
 	for _, hook := range s.protectedRequestHooks {
@@ -492,10 +496,9 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	extensions := routeConfig.Extensions
-	// TODO: Add EnrichExtensions method if needed
-	// if extensions != nil && len(extensions) > 0 {
-	// 	extensions = s.EnrichExtensions(extensions, reqCtx)
-	// }
+	if len(extensions) > 0 {
+		extensions = s.EnrichExtensions(extensions, reqCtx)
+	}
 
 	if typedPayload == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
@@ -612,7 +615,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 // RequiresPayment checks if a request requires payment based on route configuration
 func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool {
-	routeConfig := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
+	routeConfig, _ := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
 	return routeConfig != nil
 }
 
@@ -692,8 +695,8 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResult(errorReason string
 // Helper Methods
 // ============================================================================
 
-// getRouteConfig finds matching route configuration
-func (s *x402HTTPResourceServer) getRouteConfig(path, method string) *RouteConfig {
+// getRouteConfig finds matching route configuration and returns the route pattern
+func (s *x402HTTPResourceServer) getRouteConfig(path, method string) (*RouteConfig, string) {
 	normalizedPath := normalizePath(path)
 	upperMethod := strings.ToUpper(method)
 
@@ -701,11 +704,11 @@ func (s *x402HTTPResourceServer) getRouteConfig(path, method string) *RouteConfi
 		if route.Regex.MatchString(normalizedPath) &&
 			(route.Verb == "*" || route.Verb == upperMethod) {
 			config := route.Config // Make a copy
-			return &config
+			return &config, route.Pattern
 		}
 	}
 
-	return nil
+	return nil, ""
 }
 
 // extractPaymentV2 extracts V2 payment from headers (V2 only)
@@ -1032,7 +1035,7 @@ func injectPaywallConfig(template string, paymentRequired types.PaymentRequired,
 // ============================================================================
 
 // parseRoutePattern parses a route pattern like "GET /api/*"
-func parseRoutePattern(pattern string) (string, *regexp.Regexp) {
+func parseRoutePattern(pattern string) (string, string, *regexp.Regexp) {
 	parts := strings.Fields(pattern)
 
 	var verb, path string
@@ -1053,7 +1056,7 @@ func parseRoutePattern(pattern string) (string, *regexp.Regexp) {
 
 	regex := regexp.MustCompile(regexPattern)
 
-	return verb, regex
+	return verb, path, regex
 }
 
 // normalizePath normalizes a URL path for matching

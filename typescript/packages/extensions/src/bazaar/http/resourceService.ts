@@ -23,6 +23,8 @@ export function createQueryDiscoveryExtension({
   method,
   input = {},
   inputSchema = { properties: {} },
+  pathParams,
+  pathParamsSchema,
   output,
 }: DeclareQueryDiscoveryExtensionConfig): QueryDiscoveryExtension {
   return {
@@ -31,6 +33,7 @@ export function createQueryDiscoveryExtension({
         type: "http" as const,
         ...(method ? { method } : {}),
         ...(input ? { queryParams: input } : {}),
+        ...(pathParams ? { pathParams } : {}),
       },
       ...(output?.example
         ? {
@@ -61,6 +64,14 @@ export function createQueryDiscoveryExtension({
                   queryParams: {
                     type: "object" as const,
                     ...(typeof inputSchema === "object" ? inputSchema : {}),
+                  },
+                }
+              : {}),
+            ...(pathParamsSchema
+              ? {
+                  pathParams: {
+                    type: "object" as const,
+                    ...(typeof pathParamsSchema === "object" ? pathParamsSchema : {}),
                   },
                 }
               : {}),
@@ -106,6 +117,8 @@ export function createBodyDiscoveryExtension({
   method,
   input = {},
   inputSchema = { properties: {} },
+  pathParams,
+  pathParamsSchema,
   bodyType,
   output,
 }: DeclareBodyDiscoveryExtensionConfig): BodyDiscoveryExtension {
@@ -116,6 +129,7 @@ export function createBodyDiscoveryExtension({
         ...(method ? { method } : {}),
         bodyType,
         body: input,
+        ...(pathParams ? { pathParams } : {}),
       },
       ...(output?.example
         ? {
@@ -146,6 +160,14 @@ export function createBodyDiscoveryExtension({
               enum: ["json", "form-data", "text"],
             },
             body: inputSchema,
+            ...(pathParamsSchema
+              ? {
+                  pathParams: {
+                    type: "object" as const,
+                    ...(typeof pathParamsSchema === "object" ? pathParamsSchema : {}),
+                  },
+                }
+              : {}),
           },
           required: ["type", "bodyType", "body"] as ("type" | "method" | "bodyType" | "body")[],
           additionalProperties: false,

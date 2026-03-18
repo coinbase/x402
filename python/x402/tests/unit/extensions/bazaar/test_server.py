@@ -5,6 +5,7 @@ from x402.extensions.bazaar import (
     bazaar_resource_server_extension,
     declare_discovery_extension,
 )
+from x402.http.types import HTTPRequestContext
 
 
 class MockHTTPRequest:
@@ -133,3 +134,98 @@ class TestBazaarResourceServerExtension:
         query_params = enriched["info"]["input"].get("queryParams")
         if query_params:
             assert "city" in query_params or "city" in str(query_params)
+
+
+class MockAdapter:
+    """Mock HTTP adapter with configurable path."""
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+
+    def get_path(self) -> str:
+        return self._path
+
+
+class TestBazaarDynamicRoutes:
+    """Tests for dynamic route pattern handling in BazaarResourceServerExtension."""
+
+    def _prepare_declaration(self, ext: dict) -> dict:
+        declaration = ext[BAZAAR.key]
+        if hasattr(declaration, "model_dump"):
+            declaration = declaration.model_dump(by_alias=True)
+        return declaration
+
+    def test_static_route_leaves_extension_unchanged(self) -> None:
+        """Static routes should not produce a routeTemplate."""
+        ext = declare_discovery_extension(input={"query": "test"})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(method="GET", adapter=MockAdapter("/users"), path="/users", route_pattern="/users")
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert "routeTemplate" not in enriched
+
+    def test_dynamic_route_produces_route_template(self) -> None:
+        """Dynamic route should produce routeTemplate with :param syntax."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET", adapter=MockAdapter("/users/123"), path="/users/123", route_pattern="/users/[userId]"
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/users/:userId"
+
+    def test_path_params_extracted_from_concrete_url(self) -> None:
+        """Path params should be extracted from the concrete URL path."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET", adapter=MockAdapter("/users/123"), path="/users/123", route_pattern="/users/[userId]"
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {"userId": "123"}
+
+    def test_multiple_path_params_extracted(self) -> None:
+        """Multiple path params should all be extracted."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/users/42/posts/7"),
+            path="/users/42/posts/7",
+            route_pattern="/users/[userId]/posts/[postId]",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/users/:userId/posts/:postId"
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {"userId": "42", "postId": "7"}
+
+    def test_mismatched_pattern_and_path_returns_empty_params(self) -> None:
+        """extractPathParams returns {} gracefully when pattern and URL path are structurally different.
+
+        This can occur in production if middleware and extension patterns diverge (e.g. the
+        route is mounted at a different prefix than the extension expects).
+        """
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        # Pattern expects /users/[userId] but adapter path is /api/other — fewer segments.
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/api/other"),
+            path="/api/other",
+            route_pattern="/users/[userId]",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        # routeTemplate is still produced (pattern contains a bracket param), but pathParams is empty
+        assert enriched.get("routeTemplate") == "/users/:userId"
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {}

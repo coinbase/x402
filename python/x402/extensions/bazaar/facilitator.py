@@ -38,6 +38,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _validate_route_template(value: str | None) -> str | None:
+    """Validate a routeTemplate value received from the client payment payload.
+
+    The facilitator is a trust boundary: clients control the payment payload and can
+    modify routeTemplate before submission. A malicious value could cause the facilitator
+    to catalog the payment under an arbitrary URL (catalog poisoning).
+
+    Args:
+        value: The raw routeTemplate string from the client payload.
+
+    Returns:
+        The validated value, or None if invalid.
+    """
+    if not value:
+        return None
+    if not value.startswith("/"):
+        return None
+    # TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
+    # Fix must be applied simultaneously across Python, TypeScript, and Go SDKs (use urllib.parse.unquote).
+    # Issue filed; see CDPAI-424 review notes for details.
+    if ".." in value:
+        return None
+    if "://" in value:
+        return None
+    return value
+
+
 @dataclass
 class ValidationResult:
     """Result of validating a discovery extension."""
@@ -56,6 +83,7 @@ class DiscoveredResource:
     discovery_info: DiscoveryInfo
     description: str | None = None
     mime_type: str | None = None
+    route_template: str | None = None
 
 
 @dataclass
@@ -177,6 +205,7 @@ def extract_discovery_info(
 
     discovery_info: DiscoveryInfo | None = None
     resource_url: str = ""
+    route_template: str | None = None
     version = payload_dict.get("x402Version", 1)
 
     if version == 2:
@@ -189,6 +218,7 @@ def extract_discovery_info(
             bazaar_ext = extensions[BAZAAR.key]
 
             if bazaar_ext and isinstance(bazaar_ext, dict):
+                route_template = _validate_route_template(bazaar_ext.get("routeTemplate"))
                 try:
                     extension = parse_discovery_extension(bazaar_ext)
 
@@ -223,7 +253,13 @@ def extract_discovery_info(
     method = _get_method_from_info(discovery_info)
     # Strip query params (?) and hash sections (#) for discovery cataloging
     parsed = urlparse(resource_url)
-    normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    # If a routeTemplate is present (dynamic route), use it as the canonical path
+    if route_template:
+        normalized_url = urlunparse(
+            (parsed.scheme, parsed.netloc, route_template, "", "", "")
+        )
+    else:
+        normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
     # Extract description and mime_type from resource info (V2) or requirements (V1)
     description: str | None = None
@@ -247,6 +283,7 @@ def extract_discovery_info(
         discovery_info=discovery_info,
         description=description,
         mime_type=mime_type,
+        route_template=route_template,
     )
 
 

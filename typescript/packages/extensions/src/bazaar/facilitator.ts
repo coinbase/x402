@@ -17,6 +17,33 @@ import { BAZAAR } from "./types";
 import { extractDiscoveryInfoV1 } from "./v1/facilitator";
 
 /**
+ * Validates a routeTemplate value received from the client payment payload.
+ *
+ * The facilitator is a trust boundary: clients control the payment payload and
+ * can modify routeTemplate before submission. A malicious value could cause the
+ * facilitator to catalog the payment under an arbitrary URL (catalog poisoning).
+ * This function enforces minimal structural requirements.
+ *
+ * @param value - The raw routeTemplate string from the client payload
+ * @returns The validated value, or undefined if invalid
+ *
+ * @internal This function is exported for facilitator use but should not be relied upon
+ * by external consumers for security decisions. It has a known incomplete check:
+ * percent-encoded traversal sequences (%2e%2e) are not rejected. See coinbase/x402#issue.
+ * @experimental
+ */
+export function validateRouteTemplate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (!value.startsWith("/")) return undefined;
+  // TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
+  // Fix must be applied simultaneously across TypeScript, Go, and Python SDKs (use decodeURIComponent).
+  // Issue filed; see CDPAI-424 review notes for details.
+  if (value.includes("..")) return undefined;
+  if (value.includes("://")) return undefined;
+  return value;
+}
+
+/**
  * Validation result for discovery extensions
  */
 export interface ValidationResult {
@@ -124,6 +151,8 @@ export function extractDiscoveryInfo(
   let discoveryInfo: DiscoveryInfo | null = null;
   let resourceUrl: string;
 
+  let routeTemplate: string | undefined;
+
   if (paymentPayload.x402Version === 2) {
     resourceUrl = paymentPayload.resource?.url ?? "";
 
@@ -132,6 +161,14 @@ export function extractDiscoveryInfo(
 
       if (bazaarExtension && typeof bazaarExtension === "object") {
         try {
+          // Extract routeTemplate from the raw object before type-narrowing to DiscoveryExtension.
+          // HTTP extensions (QueryDiscoveryExtension, BodyDiscoveryExtension) carry routeTemplate;
+          // MCP extensions do not, as MCP routes are not parameterized.
+          // Validate before use: the client controls this field in the payment payload.
+          const rawExt = bazaarExtension as Record<string, unknown>;
+          routeTemplate = validateRouteTemplate(
+            typeof rawExt.routeTemplate === "string" ? rawExt.routeTemplate : undefined,
+          );
           const extension = bazaarExtension as DiscoveryExtension;
 
           if (validate) {
@@ -165,7 +202,10 @@ export function extractDiscoveryInfo(
 
   // Strip query params (?) and hash sections (#) for discovery cataloging
   const url = new URL(resourceUrl);
-  const normalizedResourceUrl = `${url.origin}${url.pathname}`;
+  // If a routeTemplate is present (dynamic route), use it as the canonical path
+  const canonicalUrl = routeTemplate
+    ? `${url.origin}${routeTemplate}`
+    : `${url.origin}${url.pathname}`;
 
   // Extract description and mimeType from resource info (v2) or requirements (v1)
   let description: string | undefined;
@@ -181,7 +221,7 @@ export function extractDiscoveryInfo(
   }
 
   const base = {
-    resourceUrl: normalizedResourceUrl,
+    resourceUrl: canonicalUrl,
     description,
     mimeType,
     x402Version: paymentPayload.x402Version,
@@ -189,10 +229,11 @@ export function extractDiscoveryInfo(
   };
 
   if (discoveryInfo.input.type === "mcp") {
+    // MCP routes are not parameterized; routeTemplate is not applicable.
     return { ...base, toolName: (discoveryInfo as McpDiscoveryInfo).input.toolName };
   }
 
-  return { ...base, method: discoveryInfo.input.method };
+  return { ...base, routeTemplate, method: discoveryInfo.input.method };
 }
 
 /**

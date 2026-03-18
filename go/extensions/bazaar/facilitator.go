@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/types"
@@ -93,6 +94,7 @@ type DiscoveredResource struct {
 	DiscoveryInfo *types.DiscoveryInfo
 	Description   string
 	MimeType      string
+	RouteTemplate string
 }
 
 // ExtractDiscoveredResourceFromPaymentPayload extracts a discovered resource from a client's payment payload and requirements.
@@ -142,6 +144,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	var resourceURL string
 	var description string
 	var mimeType string
+	var routeTemplate string
 	version := versionCheck.X402Version
 
 	switch version {
@@ -162,6 +165,14 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		// Extract discovery info from extensions
 		if payload.Extensions != nil {
 			if bazaarExt, ok := payload.Extensions[types.BAZAAR.Key()]; ok {
+				var rawTemplate string
+				if m, ok := bazaarExt.(map[string]interface{}); ok {
+					if v, ok := m["routeTemplate"]; ok {
+						rawTemplate, _ = v.(string)
+					}
+				}
+				routeTemplate = validateRouteTemplate(rawTemplate)
+
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
@@ -221,8 +232,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		return nil, fmt.Errorf("failed to extract method from discovery info")
 	}
 
-	// Strip query params and hash for discovery cataloging
-	normalizedURL := stripQueryParams(resourceURL)
+	normalizedURL := normalizeResourceURL(resourceURL, routeTemplate)
 
 	return &DiscoveredResource{
 		ResourceURL:   normalizedURL,
@@ -231,7 +241,32 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
+		RouteTemplate: routeTemplate,
 	}, nil
+}
+
+// validateRouteTemplate validates a routeTemplate value received from the client payment payload.
+//
+// The facilitator is a trust boundary: the client controls the payment payload and can modify
+// routeTemplate before submission. A malicious value could cause the facilitator to catalog the
+// payment under an arbitrary URL (catalog poisoning). This enforces minimal structural requirements.
+func validateRouteTemplate(s string) string {
+	if s == "" {
+		return ""
+	}
+	if !strings.HasPrefix(s, "/") {
+		return ""
+	}
+	// TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
+	// Fix must be applied simultaneously across Go, TypeScript, and Python SDKs (use url.PathUnescape).
+	// Issue filed; see CDPAI-424 review notes for details.
+	if strings.Contains(s, "..") {
+		return ""
+	}
+	if strings.Contains(s, "://") {
+		return ""
+	}
+	return s
 }
 
 // stripQueryParams removes query parameters and fragments from a URL for cataloging
@@ -243,6 +278,22 @@ func stripQueryParams(rawURL string) string {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return parsed.String()
+}
+
+// normalizeResourceURL returns the canonical URL for discovery cataloging.
+// If routeTemplate is non-empty (dynamic route), it replaces the URL path with the
+// template and strips query/fragment. Otherwise it just strips query/fragment.
+func normalizeResourceURL(rawURL, routeTemplate string) string {
+	if routeTemplate != "" {
+		parsed, err := url.Parse(rawURL)
+		if err == nil {
+			parsed.Path = routeTemplate
+			parsed.RawQuery = ""
+			parsed.Fragment = ""
+			return parsed.String()
+		}
+	}
+	return stripQueryParams(rawURL)
 }
 
 // ExtractDiscoveredResourceFromPaymentRequired extracts a discovered resource from a 402 PaymentRequired response.
@@ -293,6 +344,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 	var resourceURL string
 	var description string
 	var mimeType string
+	var routeTemplate string
 	version := versionCheck.X402Version
 
 	switch version {
@@ -313,6 +365,14 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		// First check PaymentRequired.extensions for bazaar extension
 		if paymentRequired.Extensions != nil {
 			if bazaarExt, ok := paymentRequired.Extensions[types.BAZAAR.Key()]; ok {
+				var rawTemplate string
+				if m, ok := bazaarExt.(map[string]interface{}); ok {
+					if v, ok := m["routeTemplate"]; ok {
+						rawTemplate, _ = v.(string)
+					}
+				}
+				routeTemplate = validateRouteTemplate(rawTemplate)
+
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
@@ -378,8 +438,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		return nil, fmt.Errorf("failed to extract method from discovery info")
 	}
 
-	// Strip query params and hash for discovery cataloging
-	normalizedURL := stripQueryParams(resourceURL)
+	normalizedURL := normalizeResourceURL(resourceURL, routeTemplate)
 
 	return &DiscoveredResource{
 		ResourceURL:   normalizedURL,
@@ -388,6 +447,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
+		RouteTemplate: routeTemplate,
 	}, nil
 }
 
