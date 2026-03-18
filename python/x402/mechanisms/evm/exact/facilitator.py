@@ -109,7 +109,7 @@ class ExactEvmScheme:
         context=None,
     ) -> VerifyResponse:
         if is_permit2_payload(payload.payload):
-            return verify_permit2(self._signer, payload, requirements)
+            return verify_permit2(self._signer, payload, requirements, context)
         return self._verify(payload, requirements, simulate=True)
 
     def _verify(
@@ -291,7 +291,7 @@ class ExactEvmScheme:
             SettleResponse with success, transaction, and payer.
         """
         if is_permit2_payload(payload.payload):
-            return settle_permit2(self._signer, payload, requirements)
+            return settle_permit2(self._signer, payload, requirements, context)
 
         # First verify
         verify_result = self._verify(

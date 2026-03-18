@@ -95,6 +95,83 @@ X402_EXACT_PERMIT2_PROXY_ABI = [
     }
 ]
 
+# x402ExactPermit2Proxy settleWithPermit ABI (EIP-2612 extension path)
+X402_EXACT_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI = [
+    {
+        "type": "function",
+        "name": "settleWithPermit",
+        "inputs": [
+            {
+                "name": "permit2612",
+                "type": "tuple",
+                "components": [
+                    {"name": "value", "type": "uint256"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "r", "type": "bytes32"},
+                    {"name": "s", "type": "bytes32"},
+                    {"name": "v", "type": "uint8"},
+                ],
+            },
+            {
+                "name": "permit",
+                "type": "tuple",
+                "components": [
+                    {
+                        "name": "permitted",
+                        "type": "tuple",
+                        "components": [
+                            {"name": "token", "type": "address"},
+                            {"name": "amount", "type": "uint256"},
+                        ],
+                    },
+                    {"name": "nonce", "type": "uint256"},
+                    {"name": "deadline", "type": "uint256"},
+                ],
+            },
+            {"name": "owner", "type": "address"},
+            {
+                "name": "witness",
+                "type": "tuple",
+                "components": [
+                    {"name": "to", "type": "address"},
+                    {"name": "validAfter", "type": "uint256"},
+                ],
+            },
+            {"name": "signature", "type": "bytes"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    }
+]
+
+# EIP-2612 nonces ABI
+EIP2612_NONCES_ABI = [
+    {
+        "type": "function",
+        "name": "nonces",
+        "inputs": [{"name": "owner", "type": "address"}],
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+    }
+]
+
+# EIP-2612 EIP-712 Permit types
+EIP2612_PERMIT_TYPES: dict[str, list[dict[str, str]]] = {
+    "Permit": [
+        {"name": "owner", "type": "address"},
+        {"name": "spender", "type": "address"},
+        {"name": "value", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "deadline", "type": "uint256"},
+    ]
+}
+
+# Gas limit for a standard ERC-20 approve() transaction
+ERC20_APPROVE_GAS_LIMIT = 70_000
+
+# Permit2 deadline buffer (seconds) for verification
+PERMIT2_DEADLINE_BUFFER = 6
+
 # ERC-20 allowance ABI
 ERC20_ALLOWANCE_ABI = [
     {

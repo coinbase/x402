@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
+logger = logging.getLogger("x402.permit2")
+
 try:
-    from eth_account import Account
-    from eth_account.messages import encode_typed_data
     from eth_utils import to_checksum_address
 except ImportError as e:
     raise ImportError(
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
+from ....interfaces import FacilitatorContext
 from ....schemas import PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse
 from ..constants import (
     BALANCE_OF_ABI,
@@ -36,6 +38,7 @@ from ..constants import (
     TX_STATUS_SUCCESS,
     X402_EXACT_PERMIT2_PROXY_ABI,
     X402_EXACT_PERMIT2_PROXY_ADDRESS,
+    X402_EXACT_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
 )
 from ..signer import ClientEvmSigner, FacilitatorEvmSigner
 from ..types import (
@@ -43,6 +46,7 @@ from ..types import (
     ExactPermit2Payload,
     ExactPermit2TokenPermissions,
     ExactPermit2Witness,
+    TypedDataField,
 )
 from ..utils import (
     create_permit2_nonce,
@@ -121,42 +125,14 @@ def _sign_permit2_authorization(
         Hex-encoded signature with 0x prefix.
     """
     chain_id = get_evm_chain_id(str(requirements.network))
+    domain_dict, typed_fields, primary_type, message = _build_permit2_typed_data(
+        permit2_authorization, chain_id
+    )
 
-    # Permit2 domain has NO version field
-    domain_dict: dict[str, Any] = {
-        "name": "Permit2",
-        "chainId": chain_id,
-        "verifyingContract": PERMIT2_ADDRESS,
-    }
-
-    message = {
-        "permitted": {
-            "token": permit2_authorization.permitted.token,
-            "amount": int(permit2_authorization.permitted.amount),
-        },
-        "spender": permit2_authorization.spender,
-        "nonce": int(permit2_authorization.nonce),
-        "deadline": int(permit2_authorization.deadline),
-        "witness": {
-            "to": permit2_authorization.witness.to,
-            "validAfter": int(permit2_authorization.witness.valid_after),
-        },
-    }
-
-    # Convert PERMIT2_WITNESS_TYPES to TypedDataField-compatible format
-    from ..types import TypedDataField
-
-    typed_fields: dict[str, list[TypedDataField]] = {
-        type_name: [TypedDataField(name=f["name"], type=f["type"]) for f in fields]
-        for type_name, fields in PERMIT2_WITNESS_TYPES.items()
-    }
-
-    # Pass domain as dict — EthAccountSigner handles this via its `else: domain_dict = domain`
-    # branch. This avoids needing TypedDataDomain which requires a version field.
     sig_bytes = signer.sign_typed_data(
         domain_dict,  # type: ignore[arg-type]
         typed_fields,
-        "PermitWitnessTransferFrom",
+        primary_type,
         message,
     )
     return "0x" + sig_bytes.hex()
@@ -166,6 +142,7 @@ def verify_permit2(
     signer: FacilitatorEvmSigner,
     payload: PaymentPayload,
     requirements: PaymentRequirements,
+    context: FacilitatorContext | None = None,
 ) -> VerifyResponse:
     """Verify a Permit2 payment payload.
 
@@ -179,13 +156,14 @@ def verify_permit2(
     7. Amount check
     8. Token check
     9. Signature verification
-    10. Allowance check
+    10. Allowance check (with extension fallbacks)
     11. Balance check
 
     Args:
         signer: Facilitator EVM signer for on-chain reads.
         payload: Payment payload from client.
         requirements: Payment requirements.
+        context: Optional facilitator context for extension lookup.
 
     Returns:
         VerifyResponse with is_valid and payer.
@@ -269,12 +247,17 @@ def verify_permit2(
 
     # 9. Signature verification
     if not permit2_payload.signature:
+        logger.warning("Permit2 verify: missing signature")
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
         )
 
     try:
         sig_bytes = hex_to_bytes(permit2_payload.signature)
+        logger.info(
+            "Permit2 verify: checking signature for payer=%s chain_id=%s sig_len=%d",
+            payer, chain_id, len(sig_bytes),
+        )
         is_valid_sig = _verify_permit2_signature(
             signer,
             payer,
@@ -283,31 +266,27 @@ def verify_permit2(
             sig_bytes,
         )
         if not is_valid_sig:
+            logger.warning("Permit2 verify: signature verification returned False")
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
             )
-    except Exception:
+        logger.info("Permit2 verify: signature OK")
+    except Exception as e:
+        logger.warning("Permit2 verify: signature exception: %s", e, exc_info=True)
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
         )
 
-    # 10. Allowance check
-    try:
-        allowance = signer.read_contract(
-            token_address,
-            ERC20_ALLOWANCE_ABI,
-            "allowance",
-            payer,
-            PERMIT2_ADDRESS,
+    # 10. Allowance check — with extension fallbacks
+    allowance_result = _verify_permit2_allowance(
+        signer, payload, requirements, payer, token_address, context
+    )
+    if allowance_result is not None:
+        logger.warning(
+            "Permit2 verify: allowance check failed: %s", allowance_result.invalid_reason
         )
-        if int(allowance) < int(requirements.amount):
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_PERMIT2_ALLOWANCE_REQUIRED, payer=payer
-            )
-    except Exception:
-        return VerifyResponse(
-            is_valid=False, invalid_reason=ERR_PERMIT2_ALLOWANCE_REQUIRED, payer=payer
-        )
+        return allowance_result
+    logger.info("Permit2 verify: allowance OK")
 
     # 11. Balance check
     try:
@@ -317,35 +296,120 @@ def verify_permit2(
                 is_valid=False, invalid_reason=ERR_INSUFFICIENT_BALANCE, payer=payer
             )
     except Exception:
-        pass  # If balance check fails, proceed
+        logger.warning("Permit2 verify: balance check failed for payer=%s", payer, exc_info=True)
 
     return VerifyResponse(is_valid=True, payer=payer)
+
+
+def _verify_permit2_allowance(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    payer: str,
+    token_address: str,
+    context: FacilitatorContext | None,
+) -> VerifyResponse | None:
+    """Check Permit2 allowance with extension fallbacks.
+
+    Returns a VerifyResponse if verification should stop (failure),
+    or None to continue with remaining checks.
+
+    Fallback order (matching TS/Go):
+    1. On-chain allowance sufficient -> None (continue)
+    2. EIP-2612 gas sponsoring extension valid -> None (continue)
+    3. ERC-20 approval gas sponsoring extension valid -> None (continue)
+    4. Fail with permit2_allowance_required
+    """
+    from ....extensions.eip2612_gas_sponsoring import (
+        extract_eip2612_gas_sponsoring_info,
+        validate_eip2612_permit_for_payment,
+    )
+    from ....extensions.erc20_approval_gas_sponsoring import (
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
+        Erc20ApprovalFacilitatorExtension,
+        extract_erc20_approval_gas_sponsoring_info,
+        validate_erc20_approval_for_payment,
+    )
+
+    needs_extension = True
+    try:
+        allowance = signer.read_contract(
+            token_address,
+            ERC20_ALLOWANCE_ABI,
+            "allowance",
+            payer,
+            PERMIT2_ADDRESS,
+        )
+        if int(allowance) >= int(requirements.amount):
+            needs_extension = False
+    except Exception:
+        logger.warning("Permit2 verify: allowance check failed for payer=%s", payer, exc_info=True)
+
+    if not needs_extension:
+        return None
+
+    # Try EIP-2612 gas sponsoring extension first
+    eip2612_info = extract_eip2612_gas_sponsoring_info(payload)
+    if eip2612_info is not None:
+        reason = validate_eip2612_permit_for_payment(eip2612_info, payer, token_address)
+        if reason:
+            return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
+        return None  # Valid EIP-2612 extension, allowance will be set atomically
+
+    # Try ERC-20 approval gas sponsoring extension
+    erc20_info = extract_erc20_approval_gas_sponsoring_info(payload)
+    if erc20_info is not None and context is not None:
+        ext = context.get_extension(ERC20_APPROVAL_GAS_SPONSORING_KEY)
+        if isinstance(ext, Erc20ApprovalFacilitatorExtension):
+            extension_signer = ext.resolve_signer(str(payload.accepted.network))
+            if extension_signer is not None:
+                reason, _msg = validate_erc20_approval_for_payment(
+                    erc20_info, payer, token_address
+                )
+                if reason:
+                    return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
+                return None  # Valid ERC-20 approval extension
+
+    return VerifyResponse(
+        is_valid=False, invalid_reason=ERR_PERMIT2_ALLOWANCE_REQUIRED, payer=payer
+    )
 
 
 def settle_permit2(
     signer: FacilitatorEvmSigner,
     payload: PaymentPayload,
     requirements: PaymentRequirements,
+    context: FacilitatorContext | None = None,
 ) -> SettleResponse:
     """Settle a Permit2 payment on-chain.
 
-    Calls x402ExactPermit2Proxy.settle() which uses Permit2's
-    permitWitnessTransferFrom to atomically transfer tokens.
+    Routes to the appropriate settlement path:
+    1. EIP-2612 extension -> settleWithPermit (atomic single tx)
+    2. ERC-20 approval extension -> send_transactions (approval + settle)
+    3. Standard -> settle directly (allowance already on-chain)
 
     Args:
         signer: Facilitator EVM signer for on-chain writes.
         payload: Verified payment payload.
         requirements: Payment requirements.
+        context: Optional facilitator context for extension lookup.
 
     Returns:
         SettleResponse with success, transaction, and payer.
     """
+    from ....extensions.eip2612_gas_sponsoring import extract_eip2612_gas_sponsoring_info
+    from ....extensions.erc20_approval_gas_sponsoring import (
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
+        Erc20ApprovalFacilitatorExtension,
+        extract_erc20_approval_gas_sponsoring_info,
+    )
+
     permit2_payload = ExactPermit2Payload.from_dict(payload.payload)
     payer = permit2_payload.permit2_authorization.from_address
     network = str(requirements.network)
 
     # Re-verify before settling
-    verify_result = verify_permit2(signer, payload, requirements)
+    verify_result = verify_permit2(signer, payload, requirements, context)
     if not verify_result.is_valid:
         return SettleResponse(
             success=False,
@@ -355,22 +419,62 @@ def settle_permit2(
             transaction="",
         )
 
-    try:
-        sig_bytes = hex_to_bytes(permit2_payload.signature or "")
+    # Branch: EIP-2612 gas sponsoring (atomic settleWithPermit)
+    eip2612_info = extract_eip2612_gas_sponsoring_info(payload)
+    if eip2612_info is not None:
+        return _settle_permit2_with_eip2612(signer, payload, permit2_payload, eip2612_info)
 
-        # Build tuple args for web3.py — matches ABI struct layout
-        permit_tuple = (
-            (
-                to_checksum_address(permit2_payload.permit2_authorization.permitted.token),
-                int(permit2_payload.permit2_authorization.permitted.amount),
-            ),
-            int(permit2_payload.permit2_authorization.nonce),
-            int(permit2_payload.permit2_authorization.deadline),
-        )
-        owner_addr = to_checksum_address(payer)
-        witness_tuple = (
-            to_checksum_address(permit2_payload.permit2_authorization.witness.to),
-            int(permit2_payload.permit2_authorization.witness.valid_after),
+    # Branch: ERC-20 approval gas sponsoring (broadcast approval + settle)
+    erc20_info = extract_erc20_approval_gas_sponsoring_info(payload)
+    if erc20_info is not None and context is not None:
+        ext = context.get_extension(ERC20_APPROVAL_GAS_SPONSORING_KEY)
+        if isinstance(ext, Erc20ApprovalFacilitatorExtension):
+            extension_signer = ext.resolve_signer(str(payload.accepted.network))
+            if extension_signer is not None:
+                return _settle_permit2_with_erc20_approval(
+                    extension_signer, payload, permit2_payload, erc20_info
+                )
+
+    # Branch: standard settle (allowance already on-chain)
+    return _settle_permit2_direct(signer, payload, permit2_payload)
+
+
+def _build_permit2_settle_args(
+    permit2_payload: ExactPermit2Payload,
+) -> tuple:
+    """Build common settle call arguments from a Permit2 payload.
+
+    Returns (permit_tuple, owner_addr, witness_tuple, sig_bytes).
+    """
+    sig_bytes = hex_to_bytes(permit2_payload.signature or "")
+    permit_tuple = (
+        (
+            to_checksum_address(permit2_payload.permit2_authorization.permitted.token),
+            int(permit2_payload.permit2_authorization.permitted.amount),
+        ),
+        int(permit2_payload.permit2_authorization.nonce),
+        int(permit2_payload.permit2_authorization.deadline),
+    )
+    owner_addr = to_checksum_address(permit2_payload.permit2_authorization.from_address)
+    witness_tuple = (
+        to_checksum_address(permit2_payload.permit2_authorization.witness.to),
+        int(permit2_payload.permit2_authorization.witness.valid_after),
+    )
+    return permit_tuple, owner_addr, witness_tuple, sig_bytes
+
+
+def _settle_permit2_direct(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    permit2_payload: ExactPermit2Payload,
+) -> SettleResponse:
+    """Standard Permit2 settle — allowance is already on-chain."""
+    payer = permit2_payload.permit2_authorization.from_address
+    network = str(payload.accepted.network)
+
+    try:
+        permit_tuple, owner_addr, witness_tuple, sig_bytes = _build_permit2_settle_args(
+            permit2_payload
         )
 
         tx_hash = signer.write_contract(
@@ -401,59 +505,167 @@ def settle_permit2(
         )
 
     except Exception as e:
-        error_msg = str(e)
-        error_reason = ERR_TRANSACTION_FAILED
-        if "InvalidAmount" in error_msg:
-            error_reason = "invalid_permit2_amount"
-        elif "InvalidDestination" in error_msg:
-            error_reason = "invalid_permit2_destination"
-        elif "InvalidOwner" in error_msg:
-            error_reason = "invalid_permit2_owner"
-        elif "PaymentTooEarly" in error_msg:
-            error_reason = "permit2_payment_too_early"
-        elif "InvalidSignature" in error_msg or "SignatureExpired" in error_msg:
-            error_reason = ERR_PERMIT2_INVALID_SIGNATURE
+        return _map_settle_error(e, network, payer)
 
-        return SettleResponse(
-            success=False,
-            error_reason=error_reason,
-            error_message=error_msg[:500],
-            network=network,
-            payer=payer,
-            transaction="",
+
+def _settle_permit2_with_eip2612(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    permit2_payload: ExactPermit2Payload,
+    eip2612_info: Any,
+) -> SettleResponse:
+    """Settle via settleWithPermit — includes the EIP-2612 permit atomically."""
+    payer = permit2_payload.permit2_authorization.from_address
+    network = str(payload.accepted.network)
+
+    try:
+        permit_tuple, owner_addr, witness_tuple, sig_bytes = _build_permit2_settle_args(
+            permit2_payload
         )
 
+        sig_hex = eip2612_info.signature
+        sig_raw = hex_to_bytes(sig_hex)
+        if len(sig_raw) != 65:
+            return _map_settle_error(
+                ValueError("EIP-2612 signature must be 65 bytes"), network, payer
+            )
+        r = sig_raw[:32]
+        s = sig_raw[32:64]
+        v = sig_raw[64]
 
-def _verify_permit2_signature(
-    signer: FacilitatorEvmSigner,
-    payer: str,
+        permit2612_tuple = (
+            int(eip2612_info.amount),
+            int(eip2612_info.deadline),
+            r,
+            s,
+            v,
+        )
+
+        tx_hash = signer.write_contract(
+            X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            X402_EXACT_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
+            "settleWithPermit",
+            permit2612_tuple,
+            permit_tuple,
+            owner_addr,
+            witness_tuple,
+            sig_bytes,
+        )
+
+        receipt = signer.wait_for_transaction_receipt(tx_hash)
+        if receipt.status != TX_STATUS_SUCCESS:
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_TRANSACTION_FAILED,
+                transaction=tx_hash,
+                network=network,
+                payer=payer,
+            )
+
+        return SettleResponse(
+            success=True,
+            transaction=tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    except Exception as e:
+        return _map_settle_error(e, network, payer)
+
+
+def _settle_permit2_with_erc20_approval(
+    extension_signer: Any,
+    payload: PaymentPayload,
+    permit2_payload: ExactPermit2Payload,
+    erc20_info: Any,
+) -> SettleResponse:
+    """Settle via extension signer's send_transactions (approval + settle)."""
+    payer = permit2_payload.permit2_authorization.from_address
+    network = str(payload.accepted.network)
+
+    try:
+        permit_tuple, owner_addr, witness_tuple, sig_bytes = _build_permit2_settle_args(
+            permit2_payload
+        )
+
+        tx_hashes = extension_signer.send_transactions([
+            erc20_info.signed_transaction,
+            {
+                "address": X402_EXACT_PERMIT2_PROXY_ADDRESS,
+                "abi": X402_EXACT_PERMIT2_PROXY_ABI,
+                "function": "settle",
+                "args": [permit_tuple, owner_addr, witness_tuple, sig_bytes],
+            },
+        ])
+
+        settle_tx_hash = tx_hashes[-1] if tx_hashes else ""
+        receipt = extension_signer.wait_for_transaction_receipt(settle_tx_hash)
+        if receipt.status != TX_STATUS_SUCCESS:
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_TRANSACTION_FAILED,
+                transaction=settle_tx_hash,
+                network=network,
+                payer=payer,
+            )
+
+        return SettleResponse(
+            success=True,
+            transaction=settle_tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    except Exception as e:
+        return _map_settle_error(e, network, payer)
+
+
+def _map_settle_error(error: Exception, network: str, payer: str) -> SettleResponse:
+    """Map contract revert errors to structured SettleResponse."""
+    error_msg = str(error)
+    error_reason = ERR_TRANSACTION_FAILED
+    if "Permit2612AmountMismatch" in error_msg:
+        error_reason = "permit2_2612_amount_mismatch"
+    elif "InvalidAmount" in error_msg:
+        error_reason = "invalid_permit2_amount"
+    elif "InvalidDestination" in error_msg:
+        error_reason = "invalid_permit2_destination"
+    elif "InvalidOwner" in error_msg:
+        error_reason = "invalid_permit2_owner"
+    elif "PaymentTooEarly" in error_msg:
+        error_reason = "permit2_payment_too_early"
+    elif "InvalidSignature" in error_msg or "SignatureExpired" in error_msg:
+        error_reason = ERR_PERMIT2_INVALID_SIGNATURE
+    elif "InvalidNonce" in error_msg:
+        error_reason = "permit2_invalid_nonce"
+    elif "erc20_approval_tx_failed" in error_msg:
+        error_reason = "erc20_approval_tx_failed"
+
+    return SettleResponse(
+        success=False,
+        error_reason=error_reason,
+        error_message=error_msg[:500],
+        network=network,
+        payer=payer,
+        transaction="",
+    )
+
+
+def _build_permit2_typed_data(
     permit2_authorization: ExactPermit2Authorization,
     chain_id: int,
-    signature: bytes,
-) -> bool:
-    """Verify a Permit2 EIP-712 signature.
+) -> tuple[dict[str, Any], dict[str, list[TypedDataField]], str, dict[str, Any]]:
+    """Build EIP-712 typed data components for Permit2 signature verification.
 
-    Uses eth_account directly with a domain dict (no version field) to avoid
-    TypedDataDomain protocol which requires version.
-
-    Args:
-        signer: Facilitator signer (unused for EOA verify, used for EIP-1271).
-        payer: Expected signer address.
-        permit2_authorization: The authorization that was signed.
-        chain_id: Chain ID.
-        signature: Signature bytes.
-
-    Returns:
-        True if signature is valid.
+    Returns (domain_dict, types, primary_type, message) suitable for both
+    client signing and facilitator verification.
     """
-    # Permit2 domain — no version field
     domain_dict: dict[str, Any] = {
         "name": "Permit2",
         "chainId": chain_id,
         "verifyingContract": PERMIT2_ADDRESS,
     }
 
-    # Build full typed data message
     message = {
         "permitted": {
             "token": permit2_authorization.permitted.token,
@@ -468,28 +680,48 @@ def _verify_permit2_signature(
         },
     }
 
-    # EIP712Domain without version
-    domain_types = [
-        {"name": "name", "type": "string"},
-        {"name": "chainId", "type": "uint256"},
-        {"name": "verifyingContract", "type": "address"},
-    ]
-
-    typed_data = {
-        "types": {
-            "EIP712Domain": domain_types,
-            **PERMIT2_WITNESS_TYPES,
-        },
-        "primaryType": "PermitWitnessTransferFrom",
-        "domain": domain_dict,
-        "message": message,
+    typed_fields: dict[str, list[TypedDataField]] = {
+        type_name: [TypedDataField(name=f["name"], type=f["type"]) for f in fields]
+        for type_name, fields in PERMIT2_WITNESS_TYPES.items()
     }
 
+    return domain_dict, typed_fields, "PermitWitnessTransferFrom", message
+
+
+def _verify_permit2_signature(
+    signer: FacilitatorEvmSigner,
+    payer: str,
+    permit2_authorization: ExactPermit2Authorization,
+    chain_id: int,
+    signature: bytes,
+) -> bool:
+    """Verify a Permit2 EIP-712 signature.
+
+    Delegates to signer.verify_typed_data which supports EOA, EIP-1271,
+    and ERC-6492 verification (matching TS/Go universal signature verification).
+
+    Args:
+        signer: Facilitator signer with verify_typed_data capability.
+        payer: Expected signer address.
+        permit2_authorization: The authorization that was signed.
+        chain_id: Chain ID.
+        signature: Signature bytes.
+
+    Returns:
+        True if signature is valid.
+    """
+    domain_dict, typed_fields, primary_type, message = _build_permit2_typed_data(
+        permit2_authorization, chain_id
+    )
+
     try:
-        recovered = Account.recover_message(
-            encode_typed_data(full_message=typed_data),
-            signature=signature,
+        return signer.verify_typed_data(
+            payer,
+            domain_dict,  # type: ignore[arg-type]
+            typed_fields,
+            primary_type,
+            message,
+            signature,
         )
-        return recovered.lower() == payer.lower()
     except Exception:
         return False
