@@ -1,0 +1,7 @@
+{
+  "name": "Stripe",
+  "description": "Stripe has integrated x402 to enable stablecoin payments for internet commerce, allowing businesses to accept USDC payments natively via the HTTP 402 standard.",
+  "logoUrl": "/logos/stripe.svg",
+  "websiteUrl": "https://stripe.com",
+  "category": "Infrastructure & Tooling"
+}
