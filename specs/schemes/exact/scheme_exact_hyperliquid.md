@@ -55,11 +55,19 @@ Standard x402 `PaymentRequirements` fields:
   "asset": "USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b",
   "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
   "maxTimeoutSeconds": 60,
-  "extra": {}
+  "extra": {
+    "destinationDex": "spot"
+  }
 }
 ```
 
-Note: No `extra` fields are required for Hyperliquid (unlike Solana which requires `feePayer`).
+The `extra` field supports the following optional fields:
+
+| Field            | Type   | Default  | Description                                                        |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------ |
+| `destinationDex` | string | `"spot"` | The DEX where the recipient receives funds. `"spot"` or `"perp"`.  |
+
+If `destinationDex` is omitted from `extra`, it defaults to `"spot"`.
 
 ## PaymentPayload `payload` Field
 
@@ -109,7 +117,9 @@ Full `PaymentPayload` object:
     "asset": "USDH:0x54e00a5988577cb0b0c9ab0cb6ef7f4b",
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
-    "extra": {}
+    "extra": {
+      "destinationDex": "spot"
+    }
   },
   "payload": {
     "action": {
@@ -211,16 +221,21 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 - The nonce MUST NOT be older than 1 hour (3600 seconds) from the current time.
 - Formula: `current_time_ms - action.nonce <= 3600000`
 
-### 9. Fixed Field Validation
+### 9. DEX Validation
 
-- `action.sourceDex` MUST equal `"spot"`.
-- `action.destinationDex` MUST equal `"spot"`.
+- `action.sourceDex` MUST be either `"spot"` or `"perp"`. The client chooses which balance to pay from.
+- `action.destinationDex` MUST equal the `PaymentRequirements.extra.destinationDex` value. If `extra.destinationDex` is not specified, it MUST equal `"spot"`.
+- If either `action.sourceDex` or `action.destinationDex` is `"perp"`, the `action.token` MUST be a USDC-equivalent token. Non-USDC tokens with a perp DEX MUST be rejected.
+
+### 10. Fixed Field Validation
+
 - `action.fromSubAccount` MUST be an empty string `""`.
 
-### 10. Balance Verification (SHOULD)
+### 11. Balance Verification (SHOULD)
 
 - The facilitator SHOULD verify that the payer has sufficient balance of the specified token to cover the transfer amount.
-- This can be checked by querying `POST /info` with `{"type": "spotClearinghouseState", "user": "<payer_address>"}` and inspecting the token balances.
+- For spot transfers (`sourceDex` is `"spot"`), query `POST /info` with `{"type": "spotClearinghouseState", "user": "<payer_address>"}` and inspect the token balances.
+- For perp transfers (`sourceDex` is `"perp"`), query `POST /info` with `{"type": "clearinghouseState", "user": "<payer_address>"}` and inspect the account balances.
 - Unlike EVM and SVM, the Hyperliquid API does not support transaction simulation, so an explicit balance check is the only way to catch insufficient funds before settlement.
 - Insufficient funds will be caught at settlement time regardless, but checking at verification allows the facilitator to fail fast and avoid unnecessary settlement attempts.
 
@@ -305,6 +320,7 @@ In addition to the shared x402 error codes defined in the [x402 v2 specification
 | `invalid_exact_hyperliquid_payload_nonce`               | Nonce is more than 1 hour old        | 400         |
 | `invalid_exact_hyperliquid_payload_signature_structure` | Signature is missing r, s, or v      | 400         |
 | `invalid_exact_hyperliquid_payload_signature`           | Signature verification failed        | 400         |
+| `invalid_exact_hyperliquid_payload_dex`                 | Invalid DEX value or token/DEX mismatch | 400      |
 
 ## API Constraints
 
@@ -362,7 +378,6 @@ Potential future enhancements to the Hyperliquid exact scheme:
 
 1. **Sub-Account Transfers**: Support transfers from user sub-accounts (`fromSubAccount` non-empty)
 2. **Batch Settlement**: Submit multiple actions in a single API call for efficiency
-3. **Cross-DEX Transfers**: Enable transfers between `spot` and `perp` DEXes
 
 ### API Endpoints
 
