@@ -160,7 +160,9 @@ class TestBazaarDynamicRoutes:
         ext = declare_discovery_extension(input={"query": "test"})
         declaration = self._prepare_declaration(ext)
 
-        context = HTTPRequestContext(method="GET", adapter=MockAdapter("/users"), path="/users", route_pattern="/users")
+        context = HTTPRequestContext(
+            method="GET", adapter=MockAdapter("/users"), path="/users", route_pattern="/users"
+        )
         enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
         assert "routeTemplate" not in enriched
@@ -171,7 +173,10 @@ class TestBazaarDynamicRoutes:
         declaration = self._prepare_declaration(ext)
 
         context = HTTPRequestContext(
-            method="GET", adapter=MockAdapter("/users/123"), path="/users/123", route_pattern="/users/[userId]"
+            method="GET",
+            adapter=MockAdapter("/users/123"),
+            path="/users/123",
+            route_pattern="/users/[userId]",
         )
         enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 
@@ -183,7 +188,10 @@ class TestBazaarDynamicRoutes:
         declaration = self._prepare_declaration(ext)
 
         context = HTTPRequestContext(
-            method="GET", adapter=MockAdapter("/users/123"), path="/users/123", route_pattern="/users/[userId]"
+            method="GET",
+            adapter=MockAdapter("/users/123"),
+            path="/users/123",
+            route_pattern="/users/[userId]",
         )
         enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
 

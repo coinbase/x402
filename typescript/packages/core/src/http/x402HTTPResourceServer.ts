@@ -472,7 +472,7 @@ export class x402HTTPResourceServer {
     }
 
     // createPaymentRequiredResponse already handles extension enrichment in the core layer
-    const transportContext: HTTPTransportContext = { request: context };
+    const transportContext: HTTPTransportContext = { request: enrichedContext };
     const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,

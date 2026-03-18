@@ -31,11 +31,11 @@ func (m *extTestHTTPAdapter) GetHeader(name string) string {
 	}
 	return m.headers[name]
 }
-func (m *extTestHTTPAdapter) GetMethod() string      { return m.method }
-func (m *extTestHTTPAdapter) GetPath() string        { return m.path }
-func (m *extTestHTTPAdapter) GetURL() string         { return m.url }
+func (m *extTestHTTPAdapter) GetMethod() string       { return m.method }
+func (m *extTestHTTPAdapter) GetPath() string         { return m.path }
+func (m *extTestHTTPAdapter) GetURL() string          { return m.url }
 func (m *extTestHTTPAdapter) GetAcceptHeader() string { return m.accept }
-func (m *extTestHTTPAdapter) GetUserAgent() string   { return m.agent }
+func (m *extTestHTTPAdapter) GetUserAgent() string    { return m.agent }
 
 // extTestSchemeServer is a minimal SchemeServer mock.
 type extTestSchemeServer struct{ scheme string }

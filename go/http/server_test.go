@@ -1201,4 +1201,3 @@ func TestOnProtectedRequest_UnmatchedRoute_HookNotCalled(t *testing.T) {
 		t.Error("Hook should not be called for unmatched routes")
 	}
 }
-

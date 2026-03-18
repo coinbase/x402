@@ -17,6 +17,8 @@ import type {
  * @param root0.input - Query parameters
  * @param root0.inputSchema - JSON schema for query parameters
  * @param root0.output - Output specification with example
+ * @param root0.pathParams - Concrete path parameter values extracted from the request
+ * @param root0.pathParamsSchema - JSON schema for path parameters
  * @returns QueryDiscoveryExtension with info and schema
  */
 export function createQueryDiscoveryExtension({
@@ -111,6 +113,8 @@ export function createQueryDiscoveryExtension({
  * @param root0.inputSchema - JSON schema for request body
  * @param root0.bodyType - Content type of body (json, form-data, text)
  * @param root0.output - Output specification with example
+ * @param root0.pathParams - Concrete path parameter values extracted from the request
+ * @param root0.pathParamsSchema - JSON schema for path parameters
  * @returns BodyDiscoveryExtension with info and schema
  */
 export function createBodyDiscoveryExtension({

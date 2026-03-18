@@ -255,9 +255,7 @@ def extract_discovery_info(
     parsed = urlparse(resource_url)
     # If a routeTemplate is present (dynamic route), use it as the canonical path
     if route_template:
-        normalized_url = urlunparse(
-            (parsed.scheme, parsed.netloc, route_template, "", "", "")
-        )
+        normalized_url = urlunparse((parsed.scheme, parsed.netloc, route_template, "", "", ""))
     else:
         normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 

@@ -1728,7 +1728,9 @@ describe("Bazaar Discovery Extension", () => {
       expect(discovered).not.toBeNull();
       expect(discovered!.resourceUrl).toBe("http://example.com/users/:userId");
       // Narrow to DiscoveredHTTPResource to access routeTemplate (HTTP-only field)
-      expect((discovered as import("./..").DiscoveredHTTPResource).routeTemplate).toBe("/users/:userId");
+      expect((discovered as import("./..").DiscoveredHTTPResource).routeTemplate).toBe(
+        "/users/:userId",
+      );
     });
 
     it("should return empty pathParams when URL path does not match pattern structure", () => {

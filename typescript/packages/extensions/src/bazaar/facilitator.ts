@@ -30,7 +30,6 @@ import { extractDiscoveryInfoV1 } from "./v1/facilitator";
  * @internal This function is exported for facilitator use but should not be relied upon
  * by external consumers for security decisions. It has a known incomplete check:
  * percent-encoded traversal sequences (%2e%2e) are not rejected. See coinbase/x402#issue.
- * @experimental
  */
 export function validateRouteTemplate(value: string | undefined): string | undefined {
   if (!value) return undefined;
