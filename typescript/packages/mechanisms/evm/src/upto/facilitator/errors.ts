@@ -42,3 +42,5 @@ export const ErrUptoInvalidScheme = "invalid_upto_evm_scheme";
 export const ErrUptoNetworkMismatch = "invalid_upto_evm_network_mismatch";
 export const ErrUptoSettlementExceedsAmount = "invalid_upto_evm_payload_settlement_exceeds_amount";
 export const ErrUptoAmountExceedsPermitted = "upto_amount_exceeds_permitted";
+export const ErrUptoUnauthorizedFacilitator = "upto_unauthorized_facilitator";
+export const ErrUptoFacilitatorMismatch = "upto_facilitator_mismatch";

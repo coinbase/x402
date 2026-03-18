@@ -26,20 +26,24 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
   constructor(private readonly signer: FacilitatorEvmSigner) {}
 
   /**
-   * Returns undefined — EVM upto has no mechanism-specific extra data.
+   * Returns extra metadata required by the upto scheme, including the facilitator address.
    *
    * @param _ - The network identifier (unused)
-   * @returns undefined
+   * @returns Object with facilitatorAddress, or undefined if no signer addresses are available
    */
   getExtra(_: string): Record<string, unknown> | undefined {
-    return undefined;
+    const addresses = this.signer.getAddresses();
+    if (addresses.length === 0) {
+      return undefined;
+    }
+    return { facilitatorAddress: addresses[0] };
   }
 
   /**
-   * Returns the facilitator signer addresses for the given network.
+   * Returns the list of facilitator signer addresses for the upto scheme.
    *
    * @param _ - The network identifier (unused)
-   * @returns Array of signer addresses
+   * @returns Array of facilitator signer addresses
    */
   getSigners(_: string): string[] {
     return [...this.signer.getAddresses()];
