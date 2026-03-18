@@ -348,9 +348,7 @@ class TestVerifyPermit2:
     def test_verify_rejects_missing_signature(self):
         facilitator = self._make_facilitator()
         auth = make_permit2_authorization()
-        payload_dict = ExactPermit2Payload(
-            permit2_authorization=auth, signature=None
-        ).to_dict()
+        payload_dict = ExactPermit2Payload(permit2_authorization=auth, signature=None).to_dict()
         payload = make_payment_payload(payload_dict=payload_dict)
         requirements = make_requirements()
         result = facilitator.verify(payload, requirements)

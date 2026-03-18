@@ -18,8 +18,7 @@ def declare_eip2612_gas_sponsoring_extension() -> dict[str, Any]:
         EIP2612_GAS_SPONSORING_KEY: {
             "info": {
                 "description": (
-                    "The facilitator accepts EIP-2612 gasless Permit "
-                    "to Permit2 canonical contract."
+                    "The facilitator accepts EIP-2612 gasless Permit to Permit2 canonical contract."
                 ),
                 "version": "1",
             },

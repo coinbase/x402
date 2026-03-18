@@ -122,7 +122,9 @@ class EthAccountSigner:
 
         logger.info(
             "EthAccountSigner.sign_typed_data: primaryType=%s domain_keys=%s type_names=%s",
-            primary_type, list(domain_dict.keys()), list(types_dict.keys()),
+            primary_type,
+            list(domain_dict.keys()),
+            list(types_dict.keys()),
         )
         logger.debug("EthAccountSigner.sign_typed_data: domain=%s message=%s", domain_dict, message)
 
@@ -373,9 +375,7 @@ class FacilitatorWeb3Signer:
             "verifyingContract": {"name": "verifyingContract", "type": "address"},
             "salt": {"name": "salt", "type": "bytes32"},
         }
-        eip712_domain_type = [
-            domain_field_map[k] for k in domain_dict if k in domain_field_map
-        ]
+        eip712_domain_type = [domain_field_map[k] for k in domain_dict if k in domain_field_map]
 
         full_types: dict[str, list[dict[str, str]]] = {
             "EIP712Domain": eip712_domain_type,
@@ -401,7 +401,9 @@ class FacilitatorWeb3Signer:
 
             logger.info(
                 "verify_typed_data: primaryType=%s domain_keys=%s type_names=%s",
-                primary_type, list(domain_dict.keys()), list(full_types.keys()),
+                primary_type,
+                list(domain_dict.keys()),
+                list(full_types.keys()),
             )
             logger.debug("verify_typed_data: full typed_data=%s", typed_data)
 
@@ -411,7 +413,9 @@ class FacilitatorWeb3Signer:
 
             logger.info(
                 "verify_typed_data: expected=%s recovered=%s match=%s",
-                address.lower(), recovered.lower(), recovered.lower() == address.lower(),
+                address.lower(),
+                recovered.lower(),
+                recovered.lower() == address.lower(),
             )
 
             if recovered.lower() == address.lower():

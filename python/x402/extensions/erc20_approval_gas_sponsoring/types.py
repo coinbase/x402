@@ -96,9 +96,7 @@ class Erc20ApprovalFacilitatorExtension:
         self._signer = signer
         self._signer_for_network = signer_for_network
 
-    def resolve_signer(
-        self, network: str
-    ) -> Erc20ApprovalGasSponsoringSigner | None:
+    def resolve_signer(self, network: str) -> Erc20ApprovalGasSponsoringSigner | None:
         """Resolve the signer for a given network."""
         if self._signer_for_network is not None:
             result = self._signer_for_network(network)

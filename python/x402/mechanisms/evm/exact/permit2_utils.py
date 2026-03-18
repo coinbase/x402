@@ -225,9 +225,7 @@ def verify_permit2(
 
     # 6. validAfter check
     if int(permit2_payload.permit2_authorization.witness.valid_after) > now:
-        return VerifyResponse(
-            is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer
-        )
+        return VerifyResponse(is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer)
 
     # 7. Amount check
     if int(permit2_payload.permit2_authorization.permitted.amount) != int(requirements.amount):
@@ -237,9 +235,7 @@ def verify_permit2(
 
     # 8. Token check
     try:
-        permitted_token = normalize_address(
-            permit2_payload.permit2_authorization.permitted.token
-        )
+        permitted_token = normalize_address(permit2_payload.permit2_authorization.permitted.token)
     except Exception:
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_TOKEN_MISMATCH, payer=payer
@@ -261,7 +257,9 @@ def verify_permit2(
         sig_bytes = hex_to_bytes(permit2_payload.signature)
         logger.info(
             "Permit2 verify: checking signature for payer=%s chain_id=%s sig_len=%d",
-            payer, chain_id, len(sig_bytes),
+            payer,
+            chain_id,
+            len(sig_bytes),
         )
         is_valid_sig = _verify_permit2_signature(
             signer,
@@ -368,9 +366,7 @@ def _verify_permit2_allowance(
         if isinstance(ext, Erc20ApprovalFacilitatorExtension):
             extension_signer = ext.resolve_signer(str(payload.accepted.network))
             if extension_signer is not None:
-                reason, _msg = validate_erc20_approval_for_payment(
-                    erc20_info, payer, token_address
-                )
+                reason, _msg = validate_erc20_approval_for_payment(erc20_info, payer, token_address)
                 if reason:
                     return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
                 return None  # Valid ERC-20 approval extension
@@ -593,15 +589,17 @@ def _settle_permit2_with_erc20_approval(
             permit2_payload
         )
 
-        tx_hashes = extension_signer.send_transactions([
-            erc20_info.signed_transaction,
-            {
-                "address": X402_EXACT_PERMIT2_PROXY_ADDRESS,
-                "abi": X402_EXACT_PERMIT2_PROXY_ABI,
-                "function": "settle",
-                "args": [permit_tuple, owner_addr, witness_tuple, sig_bytes],
-            },
-        ])
+        tx_hashes = extension_signer.send_transactions(
+            [
+                erc20_info.signed_transaction,
+                {
+                    "address": X402_EXACT_PERMIT2_PROXY_ADDRESS,
+                    "abi": X402_EXACT_PERMIT2_PROXY_ABI,
+                    "function": "settle",
+                    "args": [permit_tuple, owner_addr, witness_tuple, sig_bytes],
+                },
+            ]
+        )
 
         settle_tx_hash = tx_hashes[-1] if tx_hashes else ""
         receipt = extension_signer.wait_for_transaction_receipt(settle_tx_hash)

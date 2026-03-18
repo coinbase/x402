@@ -81,9 +81,7 @@ def validate_erc20_approval_for_payment(
 
     # Decode and validate the signed transaction
     try:
-        reason, msg = _validate_signed_approval_tx(
-            info.signed_transaction, payer, token_address
-        )
+        reason, msg = _validate_signed_approval_tx(info.signed_transaction, payer, token_address)
         if reason:
             return reason, msg
     except Exception as e:

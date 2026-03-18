@@ -49,9 +49,7 @@ def sign_erc20_approval_transaction(
         )
     except ImportError:
         calldata = (
-            "0x095ea7b3"
-            + PERMIT2_ADDRESS[2:].lower().zfill(64)
-            + hex(MAX_UINT256)[2:].zfill(64)
+            "0x095ea7b3" + PERMIT2_ADDRESS[2:].lower().zfill(64) + hex(MAX_UINT256)[2:].zfill(64)
         )
 
     nonce = signer.get_transaction_count(signer.address)
@@ -62,9 +60,7 @@ def sign_erc20_approval_transaction(
         try:
             fees = signer.estimate_fees_per_gas()
             max_fee = fees[0] if isinstance(fees, tuple) else fees["maxFeePerGas"]
-            max_priority_fee = (
-                fees[1] if isinstance(fees, tuple) else fees["maxPriorityFeePerGas"]
-            )
+            max_priority_fee = fees[1] if isinstance(fees, tuple) else fees["maxPriorityFeePerGas"]
         except Exception:
             pass
 

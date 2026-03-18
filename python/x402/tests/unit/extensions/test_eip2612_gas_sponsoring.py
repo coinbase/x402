@@ -140,6 +140,4 @@ class TestPaymentValidation:
 
     def test_expired_deadline(self):
         info = _make_info(deadline=str(int(time.time()) - 100))
-        assert "deadline_expired" in validate_eip2612_permit_for_payment(
-            info, PAYER, TOKEN_ADDRESS
-        )
+        assert "deadline_expired" in validate_eip2612_permit_for_payment(info, PAYER, TOKEN_ADDRESS)
