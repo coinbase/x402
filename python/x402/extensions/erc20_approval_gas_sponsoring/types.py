@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 ERC20_APPROVAL_GAS_SPONSORING_KEY = "erc20ApprovalGasSponsoring"
 
@@ -51,7 +51,7 @@ class WriteContractCall:
     args: list[Any] = field(default_factory=list)
 
 
-TransactionRequest = Union[str, WriteContractCall]
+TransactionRequest = str | WriteContractCall
 
 
 class Erc20ApprovalGasSponsoringSigner(Protocol):

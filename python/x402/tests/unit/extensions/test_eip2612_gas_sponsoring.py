@@ -5,8 +5,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import pytest
-
 from x402.extensions.eip2612_gas_sponsoring import (
     EIP2612_GAS_SPONSORING_KEY,
     Eip2612GasSponsoringInfo,

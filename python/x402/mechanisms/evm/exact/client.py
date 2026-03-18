@@ -120,10 +120,6 @@ class ExactEvmScheme:
         extensions: dict[str, Any],
     ) -> dict[str, Any] | None:
         """Try to sign gas sponsoring extensions for Permit2 flows."""
-        from ....extensions.eip2612_gas_sponsoring import EIP2612_GAS_SPONSORING_KEY
-        from ....extensions.erc20_approval_gas_sponsoring import (
-            ERC20_APPROVAL_GAS_SPONSORING_KEY,
-        )
 
         # Try EIP-2612 first
         eip2612_ext = self._try_sign_eip2612(requirements, result, extensions)

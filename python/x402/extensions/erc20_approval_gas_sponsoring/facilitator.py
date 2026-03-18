@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from ...mechanisms.evm.constants import PERMIT2_ADDRESS
 from ...schemas import PaymentPayload
@@ -105,7 +104,6 @@ def _validate_signed_approval_tx(
     """
     try:
         from eth_account import Account
-        from rlp import decode as rlp_decode
     except ImportError:
         return "", ""
 

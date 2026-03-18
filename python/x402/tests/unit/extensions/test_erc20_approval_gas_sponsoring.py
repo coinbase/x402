@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from x402.extensions.erc20_approval_gas_sponsoring import (
     ERC20_APPROVAL_GAS_SPONSORING_KEY,
     Erc20ApprovalGasSponsoringInfo,

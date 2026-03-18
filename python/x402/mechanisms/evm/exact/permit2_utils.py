@@ -15,9 +15,14 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
-from ....interfaces import FacilitatorContext
-from ....schemas import PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse
-from ..constants import (
+from ....interfaces import FacilitatorContext  # noqa: E402
+from ....schemas import (  # noqa: E402
+    PaymentPayload,
+    PaymentRequirements,
+    SettleResponse,
+    VerifyResponse,
+)
+from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
     ERC20_ALLOWANCE_ABI,
     ERR_INSUFFICIENT_BALANCE,
@@ -40,15 +45,15 @@ from ..constants import (
     X402_EXACT_PERMIT2_PROXY_ADDRESS,
     X402_EXACT_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
 )
-from ..signer import ClientEvmSigner, FacilitatorEvmSigner
-from ..types import (
+from ..signer import ClientEvmSigner, FacilitatorEvmSigner  # noqa: E402
+from ..types import (  # noqa: E402
     ExactPermit2Authorization,
     ExactPermit2Payload,
     ExactPermit2TokenPermissions,
     ExactPermit2Witness,
     TypedDataField,
 )
-from ..utils import (
+from ..utils import (  # noqa: E402
     create_permit2_nonce,
     get_evm_chain_id,
     hex_to_bytes,

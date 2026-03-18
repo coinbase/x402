@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Any
 
 from ...mechanisms.evm.constants import PERMIT2_ADDRESS, PERMIT2_DEADLINE_BUFFER
 from ...schemas import PaymentPayload

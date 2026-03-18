@@ -22,8 +22,8 @@ except ImportError as e:
         "EVM signers require eth_account and web3. Install with: pip install x402[evm]"
     ) from e
 
-from .constants import EIP1271_MAGIC_VALUE, IS_VALID_SIGNATURE_ABI, TX_STATUS_SUCCESS
-from .types import TransactionReceipt, TypedDataDomain, TypedDataField
+from .constants import EIP1271_MAGIC_VALUE, IS_VALID_SIGNATURE_ABI, TX_STATUS_SUCCESS  # noqa: E402
+from .types import TransactionReceipt, TypedDataDomain, TypedDataField  # noqa: E402
 
 # ERC20 ABI for balance checks
 _ERC20_BALANCE_ABI = [
