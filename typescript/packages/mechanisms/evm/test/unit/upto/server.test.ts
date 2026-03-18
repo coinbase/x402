@@ -226,9 +226,7 @@ describe("UptoEvmScheme (Server)", () => {
         [],
       );
 
-      expect(result.extra?.facilitatorAddress).toBe(
-        "0xFAC11174700123456789012345678901234aBCDe",
-      );
+      expect(result.extra?.facilitatorAddress).toBe("0xFAC11174700123456789012345678901234aBCDe");
     });
 
     it("should throw for invalid facilitatorAddress", () => {
