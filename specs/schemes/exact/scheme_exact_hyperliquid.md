@@ -151,9 +151,12 @@ Full `PaymentPayload` object:
 {
   "name": "HyperliquidSignTransaction",
   "version": "1",
+  "chainId": <signatureChainId>,
   "verifyingContract": "0x0000000000000000000000000000000000000000"
 }
 ```
+
+The `chainId` field is required by the Hyperliquid API for action deserialization but does not identify any specific chain. The client provides a `signatureChainId` in the action (as a hex string, e.g., `"0x66eee"`), and the same value MUST be used as the `chainId` in the EIP-712 domain when signing and recovering. The Hyperliquid SDK defaults to `"0x66eee"` (421614); any value is accepted by the API.
 
 ### Primary Type
 
