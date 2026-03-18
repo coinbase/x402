@@ -143,6 +143,11 @@ Supports Algorand Standard Assets (ASA):
 - USDC (primary)
 - Any ASA with proper opt-in
 
+### Testnet Faucets
+
+- **ALGO**: https://lora.algokit.io/testnet/fund
+- **USDC on Algorand**: https://faucet.circle.com/
+
 ## Transaction Structure
 
 The exact payment scheme uses atomic transaction groups with:
