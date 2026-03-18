@@ -178,10 +178,11 @@ See `NETWORKS` constant in `@x402/evm/v1`
 
 ## Asset Support
 
-Supports any ERC-3009 compatible token:
-- USDC (primary)
-- EURC
-- Any token implementing `transferWithAuthorization()`
+Supports two asset transfer methods:
+- **EIP-3009**: Tokens with native `transferWithAuthorization()` (e.g., USDC, EURC) — simplest, truly gasless
+- **Permit2**: Any ERC-20 token — universal fallback, requires one-time approval
+
+See [DEFAULT_ASSET.md](src/exact/server/DEFAULT_ASSET.md) for the current list of configured chains and how to add new ones.
 
 ## Development
 
