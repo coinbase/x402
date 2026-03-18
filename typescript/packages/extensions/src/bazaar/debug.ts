@@ -257,6 +257,173 @@ export function formatAnalysisResults(analysis: DiscoveryRefreshAnalysis): strin
 }
 
 /**
+ * Batch analysis results for multiple discovery resources.
+ */
+export interface DiscoveryBatchAnalysis {
+  /** Total number of resources analyzed */
+  totalResources: number;
+  /** Number of resources with no issues */
+  healthyResources: number;
+  /** Number of resources with warnings */
+  warningResources: number;
+  /** Number of resources with errors */
+  errorResources: number;
+  /** Individual analysis results */
+  analyses: Array<{
+    url: string;
+    result: DiscoveryRefreshAnalysis | null;
+    error?: string;
+  }>;
+}
+
+/**
+ * Analyzes multiple discovery resources for potential refresh issues.
+ * Useful for investigating discovery problems across an entire service or domain.
+ *
+ * @param client - The facilitator client to query discovery with
+ * @param resourceUrls - Array of resource URLs to analyze
+ * @param options - Analysis options
+ * @param options.concurrency - Maximum number of concurrent requests
+ * @param options.includeHealthyDetails - Include detailed analysis for healthy resources
+ * @param options.domainFilter - Optional domain to filter resources by
+ * @returns Batch analysis results
+ */
+export async function debugDiscoveryBatch(
+  client: HTTPFacilitatorClient,
+  resourceUrls: string[],
+  options: {
+    /** Maximum number of concurrent requests */
+    concurrency?: number;
+    /** Include detailed analysis for healthy resources */
+    includeHealthyDetails?: boolean;
+    /** Optional domain to filter resources by */
+    domainFilter?: string;
+  } = {},
+): Promise<DiscoveryBatchAnalysis> {
+  const { concurrency = 5, includeHealthyDetails = false, domainFilter } = options;
+
+  // Filter URLs by domain if specified
+  const filteredUrls = domainFilter
+    ? resourceUrls.filter(url => {
+        try {
+          return new URL(url).hostname.includes(domainFilter);
+        } catch {
+          return false;
+        }
+      })
+    : resourceUrls;
+
+  const results: DiscoveryBatchAnalysis["analyses"] = [];
+
+  // Process URLs in batches to respect concurrency limit
+  for (let i = 0; i < filteredUrls.length; i += concurrency) {
+    const batch = filteredUrls.slice(i, i + concurrency);
+    const batchPromises = batch.map(async url => {
+      try {
+        const result = await debugDiscoveryRefresh(client, url);
+        return {
+          url,
+          result: result.analysis || null,
+          error: result.error,
+        };
+      } catch (error) {
+        return {
+          url,
+          result: null,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+  }
+
+  // Calculate summary statistics
+  let healthyResources = 0;
+  let warningResources = 0;
+  let errorResources = 0;
+
+  for (const { result } of results) {
+    if (!result) {
+      errorResources++;
+    } else if (result.severity === "error") {
+      errorResources++;
+    } else if (result.severity === "warning") {
+      warningResources++;
+    } else {
+      healthyResources++;
+    }
+  }
+
+  return {
+    totalResources: results.length,
+    healthyResources,
+    warningResources,
+    errorResources,
+    analyses: includeHealthyDetails
+      ? results
+      : results.filter(r => !r.result || r.result.severity !== "none"),
+  };
+}
+
+/**
+ * Formats batch analysis results for console output.
+ *
+ * @param batchAnalysis - The batch analysis results to format
+ * @returns Formatted string ready for console output
+ */
+export function formatBatchAnalysisResults(batchAnalysis: DiscoveryBatchAnalysis): string {
+  const lines: string[] = [];
+
+  lines.push("=== Batch Discovery Analysis ===");
+  lines.push(`📊 Total Resources: ${batchAnalysis.totalResources}`);
+  lines.push(`✅ Healthy: ${batchAnalysis.healthyResources}`);
+  lines.push(`⚠️  Warnings: ${batchAnalysis.warningResources}`);
+  lines.push(`❌ Errors: ${batchAnalysis.errorResources}`);
+
+  if (batchAnalysis.analyses.length === 0) {
+    lines.push("");
+    lines.push("🎉 All resources are healthy!");
+    return lines.join("\n");
+  }
+
+  lines.push("");
+  lines.push("=== Issues Found ===");
+
+  for (const { url, result, error } of batchAnalysis.analyses) {
+    lines.push("");
+    lines.push(`🔗 ${url}`);
+
+    if (error) {
+      lines.push(`   ❌ ${error}`);
+      continue;
+    }
+
+    if (!result) {
+      lines.push("   ❌ No analysis result");
+      continue;
+    }
+
+    const icon = result.severity === "error" ? "❌" : "⚠️";
+    lines.push(`   ${icon} ${result.severity.toUpperCase()}: ${result.issues.length} issue(s)`);
+
+    for (const issue of result.issues) {
+      lines.push(`      • ${issue}`);
+    }
+
+    if (result.recommendations.length > 0) {
+      lines.push("   Recommendations:");
+      for (const rec of result.recommendations) {
+        lines.push(`      • ${rec}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * CLI-style helper for debugging discovery refresh issues.
  *
  * Usage in scripts:
@@ -295,5 +462,42 @@ export async function cliDebugDiscovery(
     }
   } catch (error) {
     console.error("❌ Failed to debug discovery:", error);
+  }
+}
+
+/**
+ * CLI-style helper for batch debugging of discovery refresh issues.
+ *
+ * @param facilitatorUrl - The x402 facilitator URL to query
+ * @param resourceUrls - Array of resource URLs to debug
+ * @param options - Analysis options
+ * @param options.concurrency - Maximum number of concurrent requests
+ * @param options.includeHealthyDetails - Include detailed analysis for healthy resources
+ * @param options.domainFilter - Optional domain to filter resources by
+ */
+export async function cliBatchDebugDiscovery(
+  facilitatorUrl: string,
+  resourceUrls: string[],
+  options: {
+    concurrency?: number;
+    includeHealthyDetails?: boolean;
+    domainFilter?: string;
+  } = {},
+): Promise<void> {
+  try {
+    const { HTTPFacilitatorClient } = await import("@x402/core/http");
+    const client = new HTTPFacilitatorClient({ url: facilitatorUrl });
+
+    console.log(`🔍 Batch debugging discovery refresh for ${resourceUrls.length} resources`);
+    console.log(`📡 Using facilitator: ${facilitatorUrl}`);
+    if (options.domainFilter) {
+      console.log(`🌐 Domain filter: ${options.domainFilter}`);
+    }
+    console.log("");
+
+    const batchResult = await debugDiscoveryBatch(client, resourceUrls, options);
+    console.log(formatBatchAnalysisResults(batchResult));
+  } catch (error) {
+    console.error("❌ Failed to batch debug discovery:", error);
   }
 }

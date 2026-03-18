@@ -8,7 +8,9 @@ import {
   resourceToDebugInfo,
   analyzeDiscoveryRefresh,
   formatAnalysisResults,
+  formatBatchAnalysisResults,
   type DiscoveryRefreshAnalysis,
+  type DiscoveryBatchAnalysis,
 } from "../src/bazaar/debug";
 import type { DiscoveryResource } from "../src/bazaar/facilitatorClient";
 
@@ -357,5 +359,176 @@ describe("Edge Cases", () => {
     const analysis = analyzeDiscoveryRefresh(resource);
     // Future timestamps shouldn't trigger stale warnings
     expect(analysis.severity).toBe("none");
+  });
+});
+
+describe("Batch Discovery Analysis", () => {
+  describe("formatBatchAnalysisResults", () => {
+    it("should format batch analysis with no issues", () => {
+      const batchAnalysis: DiscoveryBatchAnalysis = {
+        totalResources: 3,
+        healthyResources: 3,
+        warningResources: 0,
+        errorResources: 0,
+        analyses: [], // No analyses when all healthy and includeHealthyDetails=false
+      };
+
+      const formatted = formatBatchAnalysisResults(batchAnalysis);
+
+      expect(formatted).toContain("=== Batch Discovery Analysis ===");
+      expect(formatted).toContain("📊 Total Resources: 3");
+      expect(formatted).toContain("✅ Healthy: 3");
+      expect(formatted).toContain("⚠️  Warnings: 0");
+      expect(formatted).toContain("❌ Errors: 0");
+      expect(formatted).toContain("🎉 All resources are healthy!");
+    });
+
+    it("should format batch analysis with mixed issues", () => {
+      const mockAnalysis: DiscoveryRefreshAnalysis = {
+        resource: {
+          canonicalUrl: "https://api.example.com/endpoint1",
+          originalUrl: "https://api.example.com/endpoint1",
+          lastUpdated: new Date("2024-01-01T00:00:00.000Z"),
+          ageMs: 5000,
+          metadata: {},
+        },
+        issues: ["Resource metadata is empty"],
+        recommendations: ["Check discovery extensions"],
+        severity: "warning",
+      };
+
+      const batchAnalysis: DiscoveryBatchAnalysis = {
+        totalResources: 4,
+        healthyResources: 1,
+        warningResources: 2,
+        errorResources: 1,
+        analyses: [
+          {
+            url: "https://api.example.com/endpoint1",
+            result: mockAnalysis,
+          },
+          {
+            url: "https://api.example.com/endpoint2",
+            result: null,
+            error: "Not found in discovery",
+          },
+          {
+            url: "https://api.example.com/endpoint3",
+            result: {
+              ...mockAnalysis,
+              resource: {
+                ...mockAnalysis.resource,
+                canonicalUrl: "https://api.example.com/endpoint3",
+              },
+              issues: ["Canonical URL mismatch"],
+              severity: "error",
+            },
+          },
+        ],
+      };
+
+      const formatted = formatBatchAnalysisResults(batchAnalysis);
+
+      expect(formatted).toContain("=== Batch Discovery Analysis ===");
+      expect(formatted).toContain("📊 Total Resources: 4");
+      expect(formatted).toContain("✅ Healthy: 1");
+      expect(formatted).toContain("⚠️  Warnings: 2");
+      expect(formatted).toContain("❌ Errors: 1");
+      expect(formatted).toContain("=== Issues Found ===");
+      expect(formatted).toContain("🔗 https://api.example.com/endpoint1");
+      expect(formatted).toContain("⚠️ WARNING: 1 issue(s)");
+      expect(formatted).toContain("• Resource metadata is empty");
+      expect(formatted).toContain("🔗 https://api.example.com/endpoint2");
+      expect(formatted).toContain("❌ Not found in discovery");
+      expect(formatted).toContain("🔗 https://api.example.com/endpoint3");
+      expect(formatted).toContain("❌ ERROR: 1 issue(s)");
+      expect(formatted).toContain("• Canonical URL mismatch");
+    });
+
+    it("should handle analysis with no result but no error", () => {
+      const batchAnalysis: DiscoveryBatchAnalysis = {
+        totalResources: 1,
+        healthyResources: 0,
+        warningResources: 0,
+        errorResources: 1,
+        analyses: [
+          {
+            url: "https://api.example.com/endpoint",
+            result: null,
+          },
+        ],
+      };
+
+      const formatted = formatBatchAnalysisResults(batchAnalysis);
+
+      expect(formatted).toContain("🔗 https://api.example.com/endpoint");
+      expect(formatted).toContain("❌ No analysis result");
+    });
+
+    it("should include recommendations when available", () => {
+      const mockAnalysis: DiscoveryRefreshAnalysis = {
+        resource: {
+          canonicalUrl: "https://api.example.com/endpoint",
+          originalUrl: "https://api.example.com/endpoint",
+          lastUpdated: new Date("2024-01-01T00:00:00.000Z"),
+          ageMs: 5000,
+          metadata: {},
+        },
+        issues: ["Resource metadata is empty"],
+        recommendations: ["Check discovery extensions", "Verify seller configuration"],
+        severity: "warning",
+      };
+
+      const batchAnalysis: DiscoveryBatchAnalysis = {
+        totalResources: 1,
+        healthyResources: 0,
+        warningResources: 1,
+        errorResources: 0,
+        analyses: [
+          {
+            url: "https://api.example.com/endpoint",
+            result: mockAnalysis,
+          },
+        ],
+      };
+
+      const formatted = formatBatchAnalysisResults(batchAnalysis);
+
+      expect(formatted).toContain("Recommendations:");
+      expect(formatted).toContain("• Check discovery extensions");
+      expect(formatted).toContain("• Verify seller configuration");
+    });
+
+    it("should not show recommendations section when none available", () => {
+      const mockAnalysis: DiscoveryRefreshAnalysis = {
+        resource: {
+          canonicalUrl: "https://api.example.com/endpoint",
+          originalUrl: "https://api.example.com/endpoint",
+          lastUpdated: new Date("2024-01-01T00:00:00.000Z"),
+          ageMs: 5000,
+          metadata: {},
+        },
+        issues: ["Some issue"],
+        recommendations: [], // No recommendations
+        severity: "warning",
+      };
+
+      const batchAnalysis: DiscoveryBatchAnalysis = {
+        totalResources: 1,
+        healthyResources: 0,
+        warningResources: 1,
+        errorResources: 0,
+        analyses: [
+          {
+            url: "https://api.example.com/endpoint",
+            result: mockAnalysis,
+          },
+        ],
+      };
+
+      const formatted = formatBatchAnalysisResults(batchAnalysis);
+
+      expect(formatted).not.toContain("Recommendations:");
+    });
   });
 });
