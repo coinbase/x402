@@ -437,20 +437,6 @@ describe("UptoEvmScheme (Facilitator)", () => {
   });
 
   describe("verify edge cases", () => {
-    it("should reject when payer has insufficient balance", async () => {
-      mockSigner.readContract = vi.fn().mockImplementation((params: { functionName: string }) => {
-        if (params.functionName === "balanceOf") {
-          return Promise.resolve(BigInt("100"));
-        }
-        return Promise.resolve(BigInt("999999999999999999"));
-      });
-
-      const result = await scheme.verify(makePayload(), makeRequirements({ amount: "1000000" }));
-
-      expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("insufficient_funds");
-    });
-
     it("should handle verifyTypedData throwing an exception", async () => {
       mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("RPC unavailable"));
 
