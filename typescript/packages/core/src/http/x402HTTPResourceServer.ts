@@ -676,8 +676,8 @@ export class x402HTTPResourceServer {
       ? this.getRouteConfig(transportContext.request.path, transportContext.request.method)
       : undefined;
 
-    const customBody = routeConfig?.settlementFailedResponseBody
-      ? await routeConfig.settlementFailedResponseBody(transportContext!.request, failure)
+    const customBody = routeConfig?.config.settlementFailedResponseBody
+      ? await routeConfig.config.settlementFailedResponseBody(transportContext!.request, failure)
       : undefined;
 
     const contentType = customBody ? customBody.contentType : "application/json";
