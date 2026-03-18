@@ -1,0 +1,7 @@
+{
+  "name": "Agent Wallet SDK",
+  "description": "Non-custodial multi-chain wallet SDK with native x402 client for autonomous AI agent payments. Supports 17 chains including Base, Ethereum, Solana, Polygon, Arbitrum, and Optimism. One npm install gives any AI agent a wallet, identity, reputation, and x402-compatible payment intents.",
+  "logoUrl": "/logos/agent-wallet-sdk.png",
+  "websiteUrl": "https://www.npmjs.com/package/agent-wallet-sdk",
+  "category": "Infrastructure & Tooling"
+}
