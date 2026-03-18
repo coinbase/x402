@@ -40,6 +40,10 @@ export const categories: CategoryInfo[] = [
     name: "Client-Side Integrations",
   },
   {
+    id: "services-endpoints",
+    name: "Services/Endpoints",
+  },
+  {
     id: "ecosystem-infrastructure",
     name: "Infrastructure & Tooling",
   },
