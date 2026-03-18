@@ -505,3 +505,114 @@ class TestClientPermit2Routing:
         assert "permitted" in p2
         assert p2["permitted"]["token"] == "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
         assert p2["permitted"]["amount"] == AMOUNT
+
+
+# ============================================================================
+# Extension-aware verify tests
+# ============================================================================
+
+
+class TestVerifyPermit2WithExtensions:
+    """Tests for verify_permit2 with gas sponsoring extension fallbacks."""
+
+    def _make_facilitator(self, **kwargs) -> ExactEvmFacilitatorScheme:
+        signer = MockFacilitatorSigner(**kwargs)
+        return ExactEvmFacilitatorScheme(signer)
+
+    def test_verify_accepts_with_eip2612_extension_when_allowance_insufficient(self):
+        """When allowance is 0 but valid EIP-2612 extension is present, verify passes."""
+        from x402.extensions.eip2612_gas_sponsoring import EIP2612_GAS_SPONSORING_KEY
+        from x402.mechanisms.evm.constants import PERMIT2_ADDRESS
+
+        facilitator = self._make_facilitator(allowance=0, sig_valid=True)
+
+        now = int(time.time())
+        eip2612_info = {
+            "from": PAYER,
+            "asset": TOKEN_ADDRESS,
+            "spender": PERMIT2_ADDRESS,
+            "amount": str(2**256 - 1),
+            "nonce": "0",
+            "deadline": str(now + 3600),
+            "signature": "0x" + "aa" * 65,
+            "version": "1",
+        }
+
+        payload_dict = make_permit2_payload_dict()
+        payload = PaymentPayload(
+            x402_version=2,
+            resource=ResourceInfo(
+                url="http://example.com/test",
+                description="Test",
+                mime_type="application/json",
+            ),
+            accepted=PaymentRequirements(
+                scheme="exact",
+                network=NETWORK,
+                asset=TOKEN_ADDRESS,
+                amount=AMOUNT,
+                pay_to=RECIPIENT,
+                max_timeout_seconds=3600,
+                extra={"assetTransferMethod": "permit2"},
+            ),
+            payload=payload_dict,
+            extensions={EIP2612_GAS_SPONSORING_KEY: {"info": eip2612_info}},
+        )
+        requirements = make_requirements()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is True
+
+    def test_verify_rejects_with_invalid_eip2612_extension(self):
+        """When allowance is 0 and EIP-2612 extension has wrong spender, verify fails."""
+        from x402.extensions.eip2612_gas_sponsoring import EIP2612_GAS_SPONSORING_KEY
+
+        facilitator = self._make_facilitator(allowance=0, sig_valid=True)
+
+        now = int(time.time())
+        eip2612_info = {
+            "from": PAYER,
+            "asset": TOKEN_ADDRESS,
+            "spender": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "amount": str(2**256 - 1),
+            "nonce": "0",
+            "deadline": str(now + 3600),
+            "signature": "0x" + "aa" * 65,
+            "version": "1",
+        }
+
+        payload_dict = make_permit2_payload_dict()
+        payload = PaymentPayload(
+            x402_version=2,
+            resource=ResourceInfo(
+                url="http://example.com/test",
+                description="Test",
+                mime_type="application/json",
+            ),
+            accepted=PaymentRequirements(
+                scheme="exact",
+                network=NETWORK,
+                asset=TOKEN_ADDRESS,
+                amount=AMOUNT,
+                pay_to=RECIPIENT,
+                max_timeout_seconds=3600,
+                extra={"assetTransferMethod": "permit2"},
+            ),
+            payload=payload_dict,
+            extensions={EIP2612_GAS_SPONSORING_KEY: {"info": eip2612_info}},
+        )
+        requirements = make_requirements()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert "spender_not_permit2" in result.invalid_reason
