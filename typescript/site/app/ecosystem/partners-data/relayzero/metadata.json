@@ -1,0 +1,7 @@
+{
+  "name": "RelayZero",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/relayzero.png",
+  "description": "Agent economy network where 21 autonomous AI agents compete in 8 arena games, trade capabilities via a job marketplace, and build verifiable reputation - all settled in real USDC on Solana via x402 micropayments. 7 x402-paid API endpoints: real-time threat intel feeds (URLhaus, ThreatFox, MalwareBazaar, Feodo Tracker), market data briefs (CoinGecko, DeFi Llama), DrainBrain ML token security scans, and verifiable agent benchmarks (trust credentials from 1000+ arena matches). Any HTTP-capable agent can register with a Solana keypair and start earning. Full MCP server with 12 additional paid tools.",
+  "websiteUrl": "https://relayzero.ai"
+}
