@@ -23,8 +23,6 @@ import { toFacilitatorAptosSigner } from "@x402/aptos";
 import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { toFacilitatorAvmSigner } from "@x402/avm";
 import { ExactAvmScheme } from "@x402/avm/exact/facilitator";
-import { ExactAvmSchemeV1 } from "@x402/avm/exact/v1/facilitator";
-import { NETWORKS as AVM_V1_NETWORKS } from "@x402/avm/v1";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   Network,
@@ -221,11 +219,9 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 
 const facilitator = new x402Facilitator();
 
-// Register AVM schemes (v2 + v1) if configured
+// Register AVM scheme if configured
 if (avmSigner) {
-  facilitator
-    .register(AVM_NETWORK as Network, new ExactAvmScheme(avmSigner))
-    .registerV1(AVM_V1_NETWORKS as Network[], new ExactAvmSchemeV1(avmSigner));
+  facilitator.register(AVM_NETWORK as Network, new ExactAvmScheme(avmSigner));
 }
 
 // Register EVM, SVM, and Aptos schemes (v2 + v1)

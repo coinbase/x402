@@ -19,7 +19,6 @@ import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { toFacilitatorAvmSigner } from "@x402/avm";
 import { ExactAvmScheme } from "@x402/avm/exact/facilitator";
-import { ExactAvmSchemeV1 } from "@x402/avm/exact/v1/facilitator";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -117,8 +116,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
     .register(
       "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
       new ExactAvmScheme(avmSigner),
-    )
-    .registerV1("algorand-testnet" as Network, new ExactAvmSchemeV1(avmSigner));
+    );
 
   // Optionally register Aptos if configured
   if (process.env.FACILITATOR_APTOS_PRIVATE_KEY) {

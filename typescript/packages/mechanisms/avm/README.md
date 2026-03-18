@@ -33,82 +33,22 @@ This package provides three main components for handling x402 payments on Algora
 **Service:**
 - `ExactAvmServer` - V2 service for building payment requirements
 
-### V1 Package (`@x402/avm/v1`)
-
-**V1 Protocol Support** - Legacy x402 protocol with simple network names
-
-**Exports:**
-- `ExactAvmClientV1` - V1 client implementation
-- `ExactAvmFacilitatorV1` - V1 facilitator implementation
-- `NETWORKS` - Array of all supported V1 network names
-
-**Supported V1 Networks:**
-```typescript
-[
-  "algorand-mainnet",  // Mainnet
-  "algorand-testnet"   // Testnet
-]
-```
-
-## Version Differences
-
-### V2 (Main Package)
-- Network format: CAIP-2 (`algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k`)
-- Wildcard support: Yes (`algorand:*`)
-- Payload structure: Partial (core wraps with metadata)
-- Extensions: Full support
-- Transaction: Atomic group with optional fee payer
-
-### V1 (V1 Package)
-- Network format: Simple names (`algorand-testnet`)
-- Wildcard support: No (fixed list)
-- Payload structure: Complete
-- Extensions: Limited
-- Transaction: Atomic group with optional fee payer
-
-## Usage Patterns
-
-### 1. Direct Registration
+## Usage
 
 ```typescript
 import { x402Client } from "@x402/core/client";
 import { ExactAvmClient } from "@x402/avm";
-import { ExactAvmClientV1 } from "@x402/avm/v1";
 
 const client = new x402Client()
-  .register("algorand:*", new ExactAvmClient(signer))
-  .registerSchemeV1("algorand-testnet", new ExactAvmClientV1(signer))
-  .registerSchemeV1("algorand-mainnet", new ExactAvmClientV1(signer));
-```
-
-### 2. Using Config (Flexible)
-
-```typescript
-import { x402Client } from "@x402/core/client";
-import { ExactAvmClient } from "@x402/avm";
-
-const client = x402Client.fromConfig({
-  schemes: [
-    { network: "algorand:*", client: new ExactAvmClient(signer) },
-    {
-      network: "algorand-testnet",
-      client: new ExactAvmClientV1(signer),
-      x402Version: 1
-    }
-  ]
-});
+  .register("algorand:*", new ExactAvmClient(signer));
 ```
 
 ## Supported Networks
 
-**V2 Networks** (via CAIP-2):
+Networks are identified via CAIP-2:
 - `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k` - Mainnet
 - `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDe` - Testnet
 - `algorand:*` - Wildcard (matches all Algorand networks)
-
-**V1 Networks** (simple names):
-- `algorand-mainnet` - Mainnet
-- `algorand-testnet` - Testnet
 
 ## Signer Implementation
 
