@@ -15,7 +15,6 @@ import {
 } from "../../exact/extensions";
 import { getAddress, encodeFunctionData } from "viem";
 import {
-  eip3009ABI,
   PERMIT2_ADDRESS,
   uptoPermit2WitnessTypes,
   x402UptoPermit2ProxyABI,
@@ -31,8 +30,8 @@ import {
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload } from "../../types";
 import { getEvmChainId } from "../../utils";
+import { validateErc20ApprovalForPayment } from "../../exact/facilitator/erc20approval";
 import {
-  verifyPermit2Allowance,
   buildUptoPermit2SettleArgs,
   waitAndReturnSettleResponse,
   mapSettleError,
@@ -226,39 +225,7 @@ export async function verifyUptoPermit2(
     // Deployed smart contract: fall through to simulation
   }
 
-  // Check Permit2 allowance — if insufficient, try gas sponsoring extensions
-  const allowanceResult = await verifyPermit2Allowance(
-    signer,
-    payload,
-    requirements,
-    payer,
-    tokenAddress,
-    context,
-  );
-  if (allowanceResult) {
-    return allowanceResult;
-  }
-
-  try {
-    const balance = (await signer.readContract({
-      address: tokenAddress,
-      abi: eip3009ABI,
-      functionName: "balanceOf",
-      args: [payer],
-    })) as bigint;
-
-    if (balance < BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "insufficient_funds",
-        invalidMessage: `Insufficient funds to complete the payment. Required: ${requirements.amount} ${requirements.asset}, Available: ${balance.toString()} ${requirements.asset}. Please add funds to your wallet and try again.`,
-        payer,
-      };
-    }
-  } catch {
-    // If we can't check balance, continue
-  }
-
+  // If simulation is disabled, return early
   if (options?.simulate === false) {
     return { isValid: true, invalidReason: undefined, payer };
   }
@@ -306,6 +273,11 @@ export async function verifyUptoPermit2(
   if (erc20GasSponsorshipExtension) {
     const erc20Info = extractErc20ApprovalGasSponsoringInfo(payload);
     if (erc20Info) {
+      const fieldResult = await validateErc20ApprovalForPayment(erc20Info, payer, tokenAddress);
+      if (!fieldResult.isValid) {
+        return { isValid: false, invalidReason: fieldResult.invalidReason!, payer };
+      }
+
       const extensionSigner = resolveErc20ApprovalExtensionSigner(
         erc20GasSponsorshipExtension,
         requirements.network,

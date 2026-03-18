@@ -63,6 +63,8 @@ The `payload` field must contain:
 
 > **Requirement**: The `x402Permit2Proxy` contract will be deployed to the same address across all supported EVM chains using `CREATE2` to ensure consistent behavior and simpler integration.
 
+**Facilitator Address Discovery:** The facilitator announces its address via the `/supported` endpoint in the `extra` field of each supported scheme. The client MUST include this `facilitatorAddress` in the `permit2Authorization.witness.facilitator` field when constructing the payment signature. This binds the authorization to a specific facilitator, preventing unauthorized settlement by other parties.
+
 **Example PaymentRequired (402 Response):**
 
 ```json
@@ -84,7 +86,8 @@ The `payload` field must contain:
       "maxTimeoutSeconds": 300,
       "extra": {
         "name": "USDC",
-        "version": "2"
+        "version": "2",
+        "facilitatorAddress": "0xFacilitatorAddress1234567890123456789012"
       }
     }
   ]
@@ -215,7 +218,7 @@ The `upto` scheme uses the following `PaymentRequirements` schema:
 | `asset`             | `string` | Required | Token contract address                                                        |
 | `payTo`             | `string` | Required | Recipient wallet address                                                      |
 | `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                                   |
-| `extra`             | `object` | Optional | Scheme-specific additional information (must include `name` and `version`)    |
+| `extra`             | `object` | Optional | Scheme-specific additional information (must include `name`, `version`, and `facilitatorAddress`) |
 
 > **Note**: In the `upto` scheme, the `amount` field of `PaymentRequirements` is phase-dependent for server-to-facilitator communication:
 >
