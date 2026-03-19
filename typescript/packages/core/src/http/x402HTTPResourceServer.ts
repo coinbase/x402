@@ -840,9 +840,11 @@ export class x402HTTPResourceServer {
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
 
-    // Use callback result if provided, otherwise default to JSON with empty object
+    // Use callback result if provided, otherwise create agent-friendly default
     const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
-    const body = unpaidResponse ? unpaidResponse.body : {};
+    const body = unpaidResponse
+      ? unpaidResponse.body
+      : this.createDefaultResponseBody(paymentRequired);
 
     return {
       status,
@@ -868,6 +870,146 @@ export class x402HTTPResourceServer {
         "PAYMENT-REQUIRED": encodePaymentRequiredHeader(paymentRequired),
       },
     };
+  }
+
+  /**
+   * Create agent-friendly default response body for 402 responses
+   * Provides structured payment information and actionable guidance
+   *
+   * @param paymentRequired - Payment required object
+   * @returns Agent-friendly response body
+   */
+  private createDefaultResponseBody(paymentRequired: PaymentRequired): Record<string, unknown> {
+    // Find the first payment option to show primary payment info
+    const firstPayment = paymentRequired.accepts?.[0];
+
+    const baseResponse: Record<string, unknown> = {
+      status: 402,
+      version: x402Version,
+    };
+
+    // Add error information if present
+    if (paymentRequired.error) {
+      baseResponse.error = paymentRequired.error;
+      baseResponse.message = this.getErrorMessage(paymentRequired.error);
+      baseResponse.next_steps = this.getErrorNextSteps(paymentRequired.error);
+    } else if (firstPayment) {
+      // No error - this is initial payment requirement
+      baseResponse.message = "Payment required to access this resource";
+      baseResponse.payment_required = {
+        amount: firstPayment.price?.amount || "unknown",
+        currency: this.extractCurrency(firstPayment.price?.asset, firstPayment.network),
+        network: firstPayment.network,
+        recipient: firstPayment.payTo,
+        scheme: firstPayment.scheme,
+        description: paymentRequired.resource
+          ? `Access to ${paymentRequired.resource}`
+          : "API access",
+      };
+      baseResponse.next_steps = [
+        "Ensure wallet has sufficient balance",
+        "Include PAYMENT-SIGNATURE header with signed payment",
+        "Retry request with payment proof",
+      ];
+    }
+
+    // Always include the full payment requirements for programmatic access
+    baseResponse.accepts = paymentRequired.accepts;
+
+    return baseResponse;
+  }
+
+  /**
+   * Get human-readable error message for payment errors
+   *
+   * @param error - Error code
+   * @returns Human-readable error message
+   */
+  private getErrorMessage(error: string): string {
+    const errorMessages: Record<string, string> = {
+      insufficient_balance: "Wallet does not have enough balance to complete payment",
+      invalid_signature: "Payment signature is invalid or malformed",
+      payment_expired: "Payment authorization has expired",
+      network_mismatch: "Payment network does not match expected network",
+      permit2_allowance_required: "Permit2 allowance required - approve token spending first",
+      settlement_failed: "Payment settlement failed on blockchain",
+      rate_limit_exceeded: "Too many requests - please wait before retrying",
+    };
+
+    return errorMessages[error] || `Payment error: ${error}`;
+  }
+
+  /**
+   * Get actionable next steps for payment errors
+   *
+   * @param error - Error code
+   * @returns Array of actionable next steps
+   */
+  private getErrorNextSteps(error: string): string[] {
+    const nextStepsMap: Record<string, string[]> = {
+      insufficient_balance: [
+        "Add funds to your wallet",
+        "Ensure you have the required token on the correct network",
+        "Retry request after funding",
+      ],
+      invalid_signature: [
+        "Verify payment parameters match requirements",
+        "Generate new payment signature",
+        "Ensure wallet is properly connected",
+      ],
+      payment_expired: ["Generate fresh payment authorization", "Retry request with new signature"],
+      permit2_allowance_required: [
+        "Approve Permit2 to spend your tokens",
+        "Visit token contract and approve spending",
+        "Retry after approval transaction confirms",
+      ],
+      settlement_failed: [
+        "Check transaction status on block explorer",
+        "Ensure sufficient gas for transaction",
+        "Retry with higher gas if needed",
+      ],
+    };
+
+    return (
+      nextStepsMap[error] || [
+        "Check payment parameters",
+        "Ensure wallet has sufficient balance",
+        "Retry with valid payment signature",
+      ]
+    );
+  }
+
+  /**
+   * Extract currency symbol from asset address and network
+   *
+   * @param asset - Asset address or symbol
+   * @param _ - Network identifier (unused but kept for API consistency)
+   * @returns Currency symbol
+   */
+  private extractCurrency(asset: string | undefined, _: string): string {
+    if (!asset) return "UNKNOWN";
+
+    // Common USDC addresses across networks
+    const usdcAddresses = [
+      "0xa0b86a33e6ba8f59e6bb42ba6e8bb6bb8b3c8b0", // Base
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", // Polygon
+      "0xa0b86a33e6ba8f5afe9e6bb42ba6e8bb6bb8b3c8b0", // Ethereum
+    ];
+
+    if (typeof asset === "string") {
+      const lowerAsset = asset.toLowerCase();
+      if (lowerAsset.includes("usdc") || usdcAddresses.includes(lowerAsset)) {
+        return "USDC";
+      }
+      if (
+        lowerAsset.includes("eth") ||
+        lowerAsset === "0x0000000000000000000000000000000000000000"
+      ) {
+        return "ETH";
+      }
+    }
+
+    return asset || "UNKNOWN";
   }
 
   /**
