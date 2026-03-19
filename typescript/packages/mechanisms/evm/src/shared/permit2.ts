@@ -55,7 +55,7 @@ import {
 } from "../exact/facilitator/errors";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
 import { ExactPermit2Payload, Permit2Authorization, UptoPermit2Payload } from "../types";
-import { validateErc20ApprovalForPayment } from "../exact/facilitator/erc20approval";
+import { validateErc20ApprovalForPayment } from "./erc20approval";
 import {
   ErrUptoAmountExceedsPermitted,
   ErrUptoUnauthorizedFacilitator,

@@ -1,4 +1,4 @@
-export type { ExactEvmSchemeConfig as UptoEvmSchemeConfig } from "../../exact/client/rpc";
-export type { ExactEvmSchemeConfigByChainId as UptoEvmSchemeConfigByChainId } from "../../exact/client/rpc";
-export type { ExactEvmSchemeOptions as UptoEvmSchemeOptions } from "../../exact/client/rpc";
-export { resolveExtensionRpcCapabilities } from "../../exact/client/rpc";
+export type { EvmSchemeConfig as UptoEvmSchemeConfig } from "../../shared/rpc";
+export type { EvmSchemeConfigByChainId as UptoEvmSchemeConfigByChainId } from "../../shared/rpc";
+export type { EvmSchemeOptions as UptoEvmSchemeOptions } from "../../shared/rpc";
+export { resolveExtensionRpcCapabilities } from "../../shared/rpc";

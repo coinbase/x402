@@ -6,8 +6,9 @@ import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { x402UptoPermit2ProxyAddress } from "../../../src/constants";
 import {
   ErrPermit2AmountMismatch,
-  ErrUptoFacilitatorMismatch,
   ErrUptoAmountExceedsPermitted,
+  ErrUptoFacilitatorMismatch,
+  ErrUptoSettlementExceedsAmount,
   ErrUptoUnauthorizedFacilitator,
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
@@ -35,7 +36,7 @@ function makePermit2Payload(overrides?: Partial<UptoPermit2Payload>): UptoPermit
       from: "0x1234567890123456789012345678901234567890",
       permitted: {
         token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        amount: "2000000",
+        amount: "1000000",
       },
       spender: x402UptoPermit2ProxyAddress,
       nonce: "12345",
@@ -213,16 +214,25 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(result.invalidReason).toBe("invalid_permit2_recipient_mismatch");
     });
 
-    it("should PASS when permitted.amount > requirements.amount (upto feature)", async () => {
+    it("should PASS when permitted.amount equals requirements.amount", async () => {
       const result = await scheme.verify(makePayload(), makeRequirements());
 
       expect(result.isValid).toBe(true);
     });
 
-    it("should FAIL when permitted.amount < requirements.amount", async () => {
+    it("should FAIL when permitted.amount !== requirements.amount (too low)", async () => {
       const requirements = makeRequirements({ amount: "5000000" });
 
       const result = await scheme.verify(makePayload(), requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(ErrPermit2AmountMismatch);
+    });
+
+    it("should FAIL when permitted.amount !== requirements.amount (too high)", async () => {
+      const p2 = makePermit2Payload();
+      p2.permit2Authorization.permitted.amount = "2000000";
+      const result = await scheme.verify(makePayload(p2), makeRequirements());
 
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe(ErrPermit2AmountMismatch);
@@ -299,7 +309,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
     });
 
     it("should succeed when settlement amount < permitted amount (upto core feature)", async () => {
-      const result = await scheme.settle(makePayload(), makeRequirements());
+      const result = await scheme.settle(makePayload(), makeRequirements({ amount: "500000" }));
 
       expect(result.success).toBe(true);
       expect(result.transaction).toBe("0xtxhash1234");
@@ -307,9 +317,10 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
       const writeCall = (mockSigner.writeContract as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(writeCall.functionName).toBe("settle");
+      expect(writeCall.args[1]).toBe(BigInt("500000"));
     });
 
-    it("should fail when settlement exceeds permitted amount (caught by verify)", async () => {
+    it("should fail when settlement exceeds permitted amount", async () => {
       const p2 = makePermit2Payload();
       p2.permit2Authorization.permitted.amount = "1000000";
       const payload = makePayload(p2);
@@ -318,7 +329,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(payload, requirements);
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(ErrPermit2AmountMismatch);
+      expect(result.errorReason).toBe(ErrUptoSettlementExceedsAmount);
     });
 
     it("should reject non-Permit2 payload via scheme wrapper with unsupported_payload_type", async () => {
@@ -414,7 +425,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(mockSigner.writeContract).not.toHaveBeenCalled();
     });
 
-    it("settleUptoPermit2 rejects when settlement exceeds permitted (caught by verify)", async () => {
+    it("settleUptoPermit2 rejects when settlement exceeds permitted", async () => {
       const p2 = makePermit2Payload();
       p2.permit2Authorization.permitted.amount = "500000";
       const result = await settleUptoPermit2(
@@ -425,7 +436,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(ErrPermit2AmountMismatch);
+      expect(result.errorReason).toBe(ErrUptoSettlementExceedsAmount);
     });
   });
 

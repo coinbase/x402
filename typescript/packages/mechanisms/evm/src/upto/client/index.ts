@@ -1,6 +1,4 @@
 export { UptoEvmScheme } from "./scheme";
-export { registerUptoEvmScheme } from "./register";
-export type { UptoEvmClientConfig } from "./register";
 export type {
   UptoEvmSchemeConfig,
   UptoEvmSchemeConfigByChainId,
