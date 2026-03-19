@@ -22,6 +22,10 @@ from x402.extensions.bazaar import (
     declare_discovery_extension,
     OutputConfig,
 )
+from x402.extensions.eip2612_gas_sponsoring import declare_eip2612_gas_sponsoring_extension
+from x402.extensions.erc20_approval_gas_sponsoring import (
+    declare_erc20_approval_gas_sponsoring_extension,
+)
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +35,9 @@ EVM_ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
 SVM_ADDRESS = os.getenv("SVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
 FACILITATOR_URL = os.getenv("FACILITATOR_URL")
+EVM_PERMIT2_ASSET = os.getenv(
+    "EVM_PERMIT2_ASSET", "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+)
 
 if not EVM_ADDRESS:
     print("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
@@ -92,31 +99,6 @@ routes = {
             ),
         },
     },
-    "GET /protected-2": {
-        "accepts": {
-            "scheme": "exact",
-            "payTo": EVM_ADDRESS,
-            "price": "$0.001",  # 0.001 USDC
-            "network": EVM_NETWORK,
-        },
-        "extensions": {
-            **declare_discovery_extension(
-                output=OutputConfig(
-                    example={
-                        "message": "Access granted to protected resource #2",
-                        "timestamp": "2024-01-01T00:00:00Z",
-                    },
-                    schema={
-                        "properties": {
-                            "message": {"type": "string"},
-                            "timestamp": {"type": "string"},
-                        },
-                        "required": ["message", "timestamp"],
-                    },
-                )
-            ),
-        },
-    },
     "GET /protected-svm": {
         "accepts": {
             "scheme": "exact",
@@ -140,6 +122,57 @@ routes = {
                     },
                 )
             ),
+        },
+    },
+    "GET /protected-permit2": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "network": EVM_NETWORK,
+            "price": {
+                "amount": "1000",
+                "asset": EVM_PERMIT2_ASSET,
+                "extra": {
+                    "assetTransferMethod": "permit2",
+                    "name": "USDC",
+                    "version": "2",
+                },
+            },
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Permit2 endpoint accessed successfully",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "method": "permit2",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                            "method": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+            **declare_eip2612_gas_sponsoring_extension(),
+        },
+    },
+    "GET /protected-permit2-erc20": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": EVM_ADDRESS,
+            "network": EVM_NETWORK,
+            "price": {
+                "amount": "1000",
+                "asset": EVM_PERMIT2_ASSET,
+                "extra": {"assetTransferMethod": "permit2"},
+            },
+        },
+        "extensions": {
+            **declare_erc20_approval_gas_sponsoring_extension(),
         },
     },
 }
@@ -167,18 +200,6 @@ async def protected_endpoint() -> Dict[str, Any]:
     }
 
 
-@app.get("/protected-2")
-async def protected_endpoint_2() -> Dict[str, Any]:
-    """Protected endpoint that requires ERC20 payment."""
-    if shutdown_requested:
-        raise HTTPException(status_code=503, detail="Server shutting down")
-
-    return {
-        "message": "Access granted to protected resource #2",
-        "timestamp": "2024-01-01T00:00:00Z",
-    }
-
-
 @app.get("/protected-svm")
 async def protected_svm_endpoint() -> Dict[str, Any]:
     """Protected endpoint that requires SVM (Solana) payment."""
@@ -188,6 +209,32 @@ async def protected_svm_endpoint() -> Dict[str, Any]:
     return {
         "message": "Access granted to SVM protected resource",
         "timestamp": "2024-01-01T00:00:00Z",
+    }
+
+
+@app.get("/protected-permit2")
+async def protected_permit2_endpoint() -> Dict[str, Any]:
+    """Protected endpoint that requires Permit2 payment."""
+    if shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server shutting down")
+
+    return {
+        "message": "Permit2 endpoint accessed successfully",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "method": "permit2",
+    }
+
+
+@app.get("/protected-permit2-erc20")
+async def protected_permit2_erc20_endpoint() -> Dict[str, Any]:
+    """Protected endpoint that requires Permit2 payment with ERC-20 approval sponsoring."""
+    if shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server shutting down")
+
+    return {
+        "message": "Permit2+ERC20Approval endpoint accessed successfully",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "method": "permit2+erc20approval",
     }
 
 
