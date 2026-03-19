@@ -1,0 +1,7 @@
+{
+  "name": "SWORN Trust Protocol",
+  "description": "On-chain identity, reputation, and dispute resolution for AI agents on Solana. SWORN enables trust-gated pricing via x402 — agents with higher trust scores unlock lower fees, verified agent flags are embedded in PaymentPayload headers, and dispute resolution hooks allow automated refund arbitration for x402 transactions.",
+  "logoUrl": "/logos/sworn-trust-protocol.png",
+  "websiteUrl": "https://sworn.chitacloud.dev",
+  "category": "Infrastructure & Tooling"
+}
