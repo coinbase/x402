@@ -135,7 +135,7 @@ export default function EcosystemClient({
             <div className="mt-[107px] space-y-3">
               <p className="text-sm font-medium leading-5">Featured projects</p>
               <AnimatedGrid className="grid grid-cols-1 gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
-                {featured.slice(0, 4).map((partner) => (
+                {featured.slice(0, 8).map((partner) => (
                   <AnimatedCard
                     key={partner.slug ?? partner.name}
                     layoutId={`featured-${partner.slug ?? partner.name}`}
