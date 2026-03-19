@@ -30,7 +30,7 @@ import {
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload } from "../../types";
 import { getEvmChainId } from "../../utils";
-import { validateErc20ApprovalForPayment } from "../../exact/facilitator/erc20approval";
+import { validateErc20ApprovalForPayment } from "../../shared/erc20approval";
 import {
   buildUptoPermit2SettleArgs,
   waitAndReturnSettleResponse,
@@ -154,7 +154,9 @@ export async function verifyUptoPermit2(
     };
   }
 
-  if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
+  if (
+    BigInt(permit2Payload.permit2Authorization.permitted.amount) !== BigInt(requirements.amount)
+  ) {
     return {
       isValid: false,
       invalidReason: ErrPermit2AmountMismatch,
@@ -353,10 +355,24 @@ export async function settleUptoPermit2(
   config?: UptoPermit2FacilitatorConfig,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
+  const settlementAmount = BigInt(requirements.amount);
 
-  const valid = await verifyUptoPermit2(signer, payload, requirements, permit2Payload, context, {
-    simulate: config?.simulateInSettle ?? false,
-  });
+  // Verify using the authorized max amount (permitted.amount) so that strict
+  // equality holds.  The actual settlement amount may be lower and is checked
+  // separately below.
+  const verifyRequirements: PaymentRequirements = {
+    ...requirements,
+    amount: permit2Payload.permit2Authorization.permitted.amount,
+  };
+
+  const valid = await verifyUptoPermit2(
+    signer,
+    payload,
+    verifyRequirements,
+    permit2Payload,
+    context,
+    { simulate: config?.simulateInSettle ?? false },
+  );
   if (!valid.isValid) {
     return {
       success: false,
@@ -366,8 +382,6 @@ export async function settleUptoPermit2(
       payer,
     };
   }
-
-  const settlementAmount = BigInt(requirements.amount);
 
   // Zero settlement — no on-chain tx needed
   if (settlementAmount === 0n) {

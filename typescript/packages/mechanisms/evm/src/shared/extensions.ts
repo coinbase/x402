@@ -6,7 +6,7 @@ import { getEvmChainId } from "../utils";
 import { ClientEvmSigner } from "../signer";
 import { signEip2612Permit } from "../exact/client/eip2612";
 import { signErc20ApprovalTransaction } from "../exact/client/erc20approval";
-import { resolveExtensionRpcCapabilities, type ExactEvmSchemeOptions } from "../exact/client/rpc";
+import { resolveExtensionRpcCapabilities, type ExactEvmSchemeOptions } from "./rpc";
 
 /**
  * Attempts to sign an EIP-2612 permit for gasless Permit2 approval.
