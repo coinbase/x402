@@ -234,13 +234,12 @@ A facilitator verifying an `exact`-scheme Hyperliquid payment MUST enforce all o
 
 - `action.fromSubAccount` MUST be an empty string `""`.
 
-### 11. Balance Verification (SHOULD)
+### 11. Balance Verification
 
-- The facilitator SHOULD verify that the payer has sufficient balance of the specified token to cover the transfer amount.
+- The facilitator MUST verify that the payer has sufficient balance of the specified token to cover the transfer amount.
 - For spot transfers (`sourceDex` is `"spot"`), query `POST /info` with `{"type": "spotClearinghouseState", "user": "<payer_address>"}` and inspect the token balances.
 - For perp transfers (`sourceDex` is `"perp"`), query `POST /info` with `{"type": "clearinghouseState", "user": "<payer_address>"}` and inspect the account balances.
-- Unlike EVM and SVM, the Hyperliquid API does not support transaction simulation, so an explicit balance check is the only way to catch insufficient funds before settlement.
-- Insufficient funds will be caught at settlement time regardless, but checking at verification allows the facilitator to fail fast and avoid unnecessary settlement attempts.
+- Unlike EVM and SVM, the Hyperliquid API does not support transaction simulation, so an explicit balance check is the only way to catch insufficient funds before settlement. Since the resource handler executes between `/verify` and `/settle`, balance verification protects the server from doing unnecessary work for requests that will fail at settlement.
 
 These checks ensure that:
 
