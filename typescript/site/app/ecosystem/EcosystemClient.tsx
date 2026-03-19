@@ -139,6 +139,7 @@ export default function EcosystemClient({
                   <AnimatedCard
                     key={partner.slug ?? partner.name}
                     layoutId={`featured-${partner.slug ?? partner.name}`}
+                    className="h-full"
                   >
                     {partner.facilitator ? (
                       <FacilitatorCard partner={partner} variant="featured" />

@@ -16,7 +16,7 @@ export function EcosystemCard({ partner, variant = "standard" }: EcosystemCardPr
 
   return (
     <article
-      className={`group relative w-full flex flex-col border border-foreground bg-background cursor-pointer transition-all duration-200 hover:bg-gray-10 hover:border-accent-orange hover:shadow-lg ${
+      className={`group relative w-full h-full flex flex-col border border-foreground bg-background cursor-pointer transition-all duration-200 hover:bg-gray-10 hover:border-accent-orange hover:shadow-lg ${
         isFeatured ? "px-3 pt-4 pb-5" : "px-4 pt-5 pb-6"
       }`}
     >
@@ -63,7 +63,7 @@ export function EcosystemCard({ partner, variant = "standard" }: EcosystemCardPr
         </span>
       </div>
 
-      <div className="relative z-10 pointer-events-none space-y-2">
+      <div className="relative z-10 pointer-events-none flex-1 space-y-2">
         <h3
           className={`leading-snug ${
             isFeatured ? "text-sm font-semibold uppercase" : "text-base font-medium uppercase"
