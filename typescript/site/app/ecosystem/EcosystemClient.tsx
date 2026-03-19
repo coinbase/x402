@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -9,6 +9,93 @@ import { AnimatedGrid, AnimatedCard } from "@/lib/animations";
 import { EcosystemCard } from "../components/EcosystemCard";
 import FacilitatorCard from "./facilitator-card";
 import type { Partner, CategoryInfo } from "./data";
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function EcosystemSearch({ partners, onQueryChange, onSelect }: { partners: Partner[]; onQueryChange: (q: string) => void; onSelect: (name: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return partners.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [query, partners]);
+
+  return (
+    <div ref={ref} className="relative w-full max-w-md">
+      <div className="relative">
+        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-40" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onQueryChange(e.target.value);
+            onSelect("");
+            setIsOpen(true);
+          }}
+          onFocus={() => query.trim() && setIsOpen(true)}
+          placeholder="Search ecosystem..."
+          className="w-full border border-foreground bg-background pl-10 pr-4 py-2.5 text-sm font-mono placeholder:text-gray-40 focus:outline-none focus:border-accent-orange transition-colors"
+        />
+      </div>
+      {isOpen && results.length > 0 && (
+        <div className="absolute z-30 mt-1 w-full border border-foreground bg-background shadow-lg max-h-80 overflow-y-auto">
+          {results.map((partner) => (
+            <button
+              key={partner.slug ?? partner.name}
+              type="button"
+              className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-10 transition-colors border-b border-gray-10 last:border-b-0 cursor-pointer text-left"
+              onClick={() => {
+                setIsOpen(false);
+                setQuery(partner.name);
+                onQueryChange(partner.name);
+                onSelect(partner.name);
+              }}
+            >
+              {partner.logoUrl && (
+                <Image
+                  src={partner.logoUrl}
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 object-contain shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{partner.name}</p>
+                <p className="text-xs text-gray-40 truncate">{partner.category}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {isOpen && query.trim() && results.length === 0 && (
+        <div className="absolute z-30 mt-1 w-full border border-foreground bg-background shadow-lg px-4 py-3">
+          <p className="text-sm text-gray-40">No results found</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface EcosystemClientProps {
   initialPartners: Partner[];
@@ -79,6 +166,9 @@ export default function EcosystemClient({
   const router = useRouter();
 
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPartner, setSelectedPartner] = useState("");
 
   const activeFilter =
     (searchParams.get("filter") ?? initialSelectedCategory ?? "everything") || "everything";
@@ -100,10 +190,21 @@ export default function EcosystemClient({
     });
   };
 
-  const filteredPartners =
+  const basePartners =
     activeFilter === "everything"
       ? initialPartners.filter((partner) => !partner.top_section)
       : (byCategory[activeFilter] ?? []).filter((partner) => !partner.top_section);
+
+  const filteredPartners = useMemo(() => {
+    if (selectedPartner) {
+      return initialPartners.filter((p) => p.name === selectedPartner);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return initialPartners.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return basePartners;
+  }, [selectedPartner, searchQuery, basePartners, initialPartners]);
 
   return (
     <div className="mx-auto max-w-container px-6 py-16 sm:px-10">
@@ -131,10 +232,21 @@ export default function EcosystemClient({
             </p>
           </div>
 
-          {topSection.length > 0 && (
-            <div className="mt-[107px] space-y-3">
+          <div className="mt-12">
+            <EcosystemSearch
+              partners={initialPartners}
+              onQueryChange={(q) => {
+                setSearchQuery(q);
+                setIsSearching(q.trim().length > 0);
+              }}
+              onSelect={(name) => setSelectedPartner(name)}
+            />
+          </div>
+
+          {!isSearching && topSection.length > 0 && (
+            <div className="mt-12 space-y-3">
               <AnimatedGrid className="grid grid-cols-1 gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
-                {topSection.slice(0, 8).map((partner) => (
+                {topSection.map((partner) => (
                   <AnimatedCard
                     key={partner.slug ?? partner.name}
                     layoutId={`topSection-${partner.slug ?? partner.name}`}
@@ -202,7 +314,40 @@ export default function EcosystemClient({
 
         <div className="flex-1 space-y-16">
           <AnimatePresence mode="wait">
-            {activeFilter === "everything" ? (
+            {isSearching ? (
+              <motion.div
+                key="search-results"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <section className="scroll-mt-24 space-y-4">
+                  <h2 className="font-['Helvetica_Neue',sans-serif] text-lg font-medium">
+                    {selectedPartner ? selectedPartner : `Results for "${searchQuery}"`}
+                  </h2>
+                  {filteredPartners.length > 0 ? (
+                    <AnimatedGrid className="grid gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
+                      {filteredPartners.map((partner) => (
+                        <AnimatedCard
+                          key={partner.slug ?? partner.name}
+                          layoutId={`${partner.slug ?? partner.name}-search`}
+                          className="h-full"
+                        >
+                          {partner.facilitator ? (
+                            <FacilitatorCard partner={partner} />
+                          ) : (
+                            <EcosystemCard partner={partner} />
+                          )}
+                        </AnimatedCard>
+                      ))}
+                    </AnimatedGrid>
+                  ) : (
+                    <p className="text-sm text-gray-60">No results found.</p>
+                  )}
+                </section>
+              </motion.div>
+            ) : activeFilter === "everything" ? (
               <motion.div
                 key="everything"
                 initial={{ opacity: 0, y: 10 }}
@@ -233,6 +378,7 @@ export default function EcosystemClient({
                           <AnimatedCard
                             key={partner.slug ?? partner.name}
                             layoutId={`${partner.slug ?? partner.name}-${category.id}`}
+                            className="h-full"
                           >
                             {partner.facilitator ? (
                               <FacilitatorCard partner={partner} />
@@ -265,6 +411,7 @@ export default function EcosystemClient({
                         <AnimatedCard
                           key={partner.slug ?? partner.name}
                           layoutId={`${partner.slug ?? partner.name}-${activeFilter}`}
+                          className="h-full"
                         >
                           {partner.facilitator ? (
                             <FacilitatorCard partner={partner} />

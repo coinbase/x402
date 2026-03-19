@@ -37,7 +37,7 @@ export function EcosystemCard({ partner, variant = "standard" }: EcosystemCardPr
       >
         {partner.logoUrl ? (
           <div
-            className={`overflow-hidden border border-foreground ${
+            className={`overflow-hidden ${
               isFeatured ? "h-[60px] w-[60px]" : "h-[56px] w-[56px]"
             }`}
           >
@@ -51,7 +51,7 @@ export function EcosystemCard({ partner, variant = "standard" }: EcosystemCardPr
           </div>
         ) : (
           <div
-            className={`border border-foreground ${
+            className={`${
               isFeatured ? "h-[60px] w-[60px]" : "h-[56px] w-[56px]"
             }`}
             aria-hidden="true"

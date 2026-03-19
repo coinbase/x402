@@ -17,6 +17,7 @@ import { HTTPNativeSection } from "./components/HTTPNativeSection";
 import { HeroSection } from "./components/HeroSection";
 import { WhatsX402Section } from "./components/WhatsX402Section";
 import { AnimatedSectionHeader } from "./components/AnimatedSectionHeader";
+import { BrandScroller } from "./components/BrandScroller";
 
 function ArrowIcon() {
   return (
@@ -105,6 +106,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <NavBar animateLogo />
+
+      <BrandScroller />
 
       <HeroSection codeSnippet={heroCodeSnippet} />
 
