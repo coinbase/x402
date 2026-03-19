@@ -4,5 +4,5 @@
   "logoUrl": "/logos/world.png",
   "websiteUrl": "https://docs.world.org/agents/agent-kit/integrate",
   "category": "Infrastructure & Tooling",
-  "pinned": true
+  "top_section": true
 }

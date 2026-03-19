@@ -7,7 +7,7 @@ import type { Partner } from './data';
 
 interface FacilitatorCardProps {
   partner: Partner;
-  variant?: 'standard' | 'pinned';
+  variant?: 'standard' | 'top_section';
 }
 
 export default function FacilitatorCard({ partner, variant = 'standard' }: FacilitatorCardProps) {
@@ -18,7 +18,7 @@ export default function FacilitatorCard({ partner, variant = 'standard' }: Facil
   }
 
   const { facilitator } = partner;
-  const isFeatured = variant === 'pinned';
+  const isFeatured = variant === 'top_section';
   const tagLabel = partner.typeLabel ?? partner.category;
   const handleOpen = () => setIsModalOpen(true);
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
