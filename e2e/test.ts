@@ -373,14 +373,19 @@ async function runTest() {
   const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const serverAptosAddress = process.env.SERVER_APTOS_ADDRESS;
+  const serverHederaAddress = process.env.SERVER_HEDERA_ADDRESS;
   const serverStellarAddress = process.env.SERVER_STELLAR_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
   const clientAptosPrivateKey = process.env.CLIENT_APTOS_PRIVATE_KEY;
+  const clientHederaAccountId = process.env.CLIENT_HEDERA_ACCOUNT_ID;
+  const clientHederaPrivateKey = process.env.CLIENT_HEDERA_PRIVATE_KEY;
   const clientStellarPrivateKey = process.env.CLIENT_STELLAR_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
   const facilitatorAptosPrivateKey = process.env.FACILITATOR_APTOS_PRIVATE_KEY;
+  const facilitatorHederaAccountId = process.env.FACILITATOR_HEDERA_ACCOUNT_ID;
+  const facilitatorHederaPrivateKey = process.env.FACILITATOR_HEDERA_PRIVATE_KEY;
   const facilitatorStellarPrivateKey = process.env.FACILITATOR_STELLAR_PRIVATE_KEY;
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
@@ -458,6 +463,7 @@ async function runTest() {
   log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
   log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
   log(`   APTOS: ${networks.aptos.name} (${networks.aptos.caip2})`);
+  log(`   HEDERA: ${networks.hedera.name} (${networks.hedera.caip2})`);
   log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
 
   if (networkMode === 'mainnet') {
@@ -540,14 +546,18 @@ async function runTest() {
     'EVM_PRIVATE_KEY',
     'SVM_PRIVATE_KEY',
     'APTOS_PRIVATE_KEY',
+    'HEDERA_ACCOUNT_ID',
+    'HEDERA_PRIVATE_KEY',
     'STELLAR_PRIVATE_KEY',
     'EVM_NETWORK',
     'SVM_NETWORK',
     'APTOS_NETWORK',
+    'HEDERA_NETWORK',
     'STELLAR_NETWORK',
     'EVM_RPC_URL',
     'SVM_RPC_URL',
     'APTOS_RPC_URL',
+    'HEDERA_NODE_URL',
     'STELLAR_RPC_URL',
   ]);
 
@@ -704,11 +714,15 @@ async function runTest() {
       evmPrivateKey: clientEvmPrivateKey!,
       svmPrivateKey: clientSvmPrivateKey!,
       aptosPrivateKey: clientAptosPrivateKey || '',
+      hederaAccountId: clientHederaAccountId || '',
+      hederaPrivateKey: clientHederaPrivateKey || '',
       stellarPrivateKey: clientStellarPrivateKey || '',
       serverUrl: `http://localhost:${port}`,
       endpointPath: scenario.endpoint.path,
       evmNetwork: networks.evm.caip2,
       evmRpcUrl: networks.evm.rpcUrl,
+      hederaNetwork: networks.hedera.caip2,
+      hederaNodeUrl: networks.hedera.rpcUrl,
     };
 
     try {
@@ -786,6 +800,7 @@ async function runTest() {
 
     const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
     const facilitatorSupportsAptos = facilitatorConfig?.protocolFamilies?.includes('aptos') ?? false;
+    const facilitatorSupportsHedera = facilitatorConfig?.protocolFamilies?.includes('hedera') ?? false;
     const facilitatorSupportsStellar = facilitatorConfig?.protocolFamilies?.includes('stellar') ?? false;
 
     const serverConfig: ServerConfig = {
@@ -793,6 +808,12 @@ async function runTest() {
       evmPayTo: serverEvmAddress!,
       svmPayTo: serverSvmAddress!,
       aptosPayTo: facilitatorSupportsAptos ? (serverAptosAddress || '') : '',
+      hederaPayTo:
+        facilitatorSupportsHedera &&
+        facilitatorHederaAccountId &&
+        facilitatorHederaPrivateKey
+          ? (serverHederaAddress || '')
+          : '',
       stellarPayTo: facilitatorSupportsStellar ? (serverStellarAddress || '') : '',
       networks,
       facilitatorUrl,

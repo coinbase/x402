@@ -1,6 +1,6 @@
 import type { NetworkSet } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'hedera' | 'stellar';
 export type Transport = 'http' | 'mcp';
 export type TransferMethod = 'eip3009' | 'permit2';
 
@@ -16,11 +16,15 @@ export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
   aptosPrivateKey: string;
+  hederaAccountId: string;
+  hederaPrivateKey: string;
   stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
   evmNetwork: string;
   evmRpcUrl: string;
+  hederaNetwork: string;
+  hederaNodeUrl: string;
 }
 
 export interface ServerConfig {
@@ -28,6 +32,7 @@ export interface ServerConfig {
   evmPayTo: string;
   svmPayTo: string;
   aptosPayTo: string;
+  hederaPayTo: string;
   stellarPayTo: string;
   networks: NetworkSet;
   facilitatorUrl?: string;

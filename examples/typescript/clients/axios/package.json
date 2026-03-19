@@ -17,9 +17,7 @@
     "@solana/kit": "^6.1.0",
     "@x402/axios": "workspace:*",
     "@x402/evm": "workspace:*",
-    "@x402/hedera": "workspace:*",
     "@x402/svm": "workspace:*",
-    "@hiero-ledger/sdk": "2.80.0",
     "axios": "^1.13.2",
     "dotenv": "^16.4.7",
     "viem": "^2.39.0"

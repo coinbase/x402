@@ -38,12 +38,21 @@ import {
   EIP2612_GAS_SPONSORING,
   createErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
+import { toFacilitatorHederaSigner } from "@x402/hedera";
+import { ExactHederaScheme } from "@x402/hedera/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { NETWORKS as SVM_V1_NETWORKS } from "@x402/svm/v1";
 import { createEd25519Signer, type FacilitatorStellarSigner } from "@x402/stellar";
 import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
+import {
+  AccountId,
+  Client as HederaClient,
+  PrivateKey as HederaPrivateKey,
+  Transaction,
+  TransferTransaction,
+} from "@hiero-ledger/sdk";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -60,10 +69,12 @@ const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
 const SVM_NETWORK =
   process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const APTOS_NETWORK = process.env.APTOS_NETWORK || "aptos:2";
+const HEDERA_NETWORK = process.env.HEDERA_NETWORK || "hedera:testnet";
 const STELLAR_NETWORK = process.env.STELLAR_NETWORK || "stellar:testnet";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
 const APTOS_RPC_URL = process.env.APTOS_RPC_URL;
+const HEDERA_NODE_URL = process.env.HEDERA_NODE_URL;
 const STELLAR_RPC_URL = process.env.STELLAR_RPC_URL;
 
 // Map CAIP-2 network IDs to viem chains
@@ -80,10 +91,12 @@ function getEvmChain(network: string): Chain {
 console.log(`🌐 EVM Network: ${EVM_NETWORK}`);
 console.log(`🌐 SVM Network: ${SVM_NETWORK}`);
 console.log(`🌐 Aptos Network: ${APTOS_NETWORK}`);
+console.log(`🌐 Hedera Network: ${HEDERA_NETWORK}`);
 console.log(`🌐 Stellar Network: ${STELLAR_NETWORK}`);
 if (EVM_RPC_URL) console.log(`🌐 EVM RPC URL: ${EVM_RPC_URL}`);
 if (SVM_RPC_URL) console.log(`🌐 SVM RPC URL: ${SVM_RPC_URL}`);
 if (APTOS_RPC_URL) console.log(`🌐 Aptos RPC URL: ${APTOS_RPC_URL}`);
+if (HEDERA_NODE_URL) console.log(`🌐 Hedera Node URL: ${HEDERA_NODE_URL}`);
 if (STELLAR_RPC_URL) console.log(`🌐 Stellar RPC URL: ${STELLAR_RPC_URL}`);
 
 // Validate required environment variables
@@ -123,6 +136,40 @@ if (process.env.APTOS_PRIVATE_KEY) {
   );
 }
 
+// Initialize the Hedera signer from account + private key (optional)
+let hederaSigner: ReturnType<typeof toFacilitatorHederaSigner> | undefined;
+if (process.env.HEDERA_ACCOUNT_ID && process.env.HEDERA_PRIVATE_KEY) {
+  const hederaAccountId = process.env.HEDERA_ACCOUNT_ID;
+  const hederaKey = HederaPrivateKey.fromStringECDSA(process.env.HEDERA_PRIVATE_KEY);
+
+  hederaSigner = toFacilitatorHederaSigner({
+    getAddresses: () => [hederaAccountId],
+    signAndSubmitTransaction: async (transactionBase64: string, _, network: string) => {
+      const tx = Transaction.fromBytes(Buffer.from(transactionBase64, "base64"));
+      if (!(tx instanceof TransferTransaction)) {
+        throw new Error("expected TransferTransaction");
+      }
+      const signed = await tx.sign(hederaKey);
+      let client: HederaClient;
+      if (HEDERA_NODE_URL) {
+        client = HederaClient.forNetwork({
+          [HEDERA_NODE_URL]: AccountId.fromString("0.0.3"),
+        });
+      } else if (network === "hedera:mainnet") {
+        client = HederaClient.forMainnet();
+      } else if (network === "hedera:testnet") {
+        client = HederaClient.forTestnet();
+      } else {
+        throw new Error(`Unsupported Hedera network: ${network}`);
+      }
+      client.setOperator(AccountId.fromString(hederaAccountId), hederaKey);
+      const response = await signed.execute(client);
+      return { transactionId: response.transactionId.toString() };
+    },
+  });
+  console.info(`Hedera Facilitator account: ${hederaAccountId}`);
+}
+
 // Initialize the Stellar signer from private key (optional)
 let stellarSigner: FacilitatorStellarSigner | undefined;
 if (process.env.STELLAR_PRIVATE_KEY) {
@@ -138,7 +185,7 @@ const viemClient = createWalletClient({
   transport: http(EVM_RPC_URL),
 }).extend(publicActions);
 
-// Initialize the x402 Facilitator with EVM, SVM, and Aptos support
+// Initialize the x402 Facilitator with EVM, SVM, Aptos, and optional Hedera support
 
 const evmSigner = toFacilitatorEvmSigner({
   address: evmAccount.address,
@@ -190,9 +237,9 @@ const svmSigner = toFacilitatorSvmSigner(
 // Pass custom RPC URL if provided
 const aptosSigner = aptosAccount
   ? toFacilitatorAptosSigner(
-      aptosAccount,
-      APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined,
-    )
+    aptosAccount,
+    APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined,
+  )
   : undefined;
 
 const verifiedPayments = new Map<string, number>();
@@ -207,7 +254,7 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 
 const facilitator = new x402Facilitator();
 
-// Register EVM, SVM, and Aptos schemes (v2 + v1)
+// Register EVM, SVM, Aptos, and Hedera schemes (v2 + v1 where applicable)
 facilitator
   .register(EVM_NETWORK as Network, new ExactEvmScheme(evmSigner))
   .registerV1(EVM_V1_NETWORKS as Network[], new ExactEvmSchemeV1(evmSigner))
@@ -218,6 +265,9 @@ if (aptosSigner) {
     APTOS_NETWORK as Network,
     new ExactAptosScheme(aptosSigner),
   );
+}
+if (hederaSigner) {
+  facilitator.register(HEDERA_NETWORK as Network, new ExactHederaScheme(hederaSigner));
 }
 if (stellarSigner) {
   facilitator.register(STELLAR_NETWORK as Network, new ExactStellarScheme([stellarSigner]));
@@ -458,6 +508,7 @@ app.get("/health", (req, res) => {
     evmNetwork: EVM_NETWORK,
     svmNetwork: SVM_NETWORK,
     aptosNetwork: aptosAccount ? APTOS_NETWORK : "(not configured)",
+    hederaNetwork: hederaSigner ? HEDERA_NETWORK : "(not configured)",
     stellarNetwork: stellarSigner ? STELLAR_NETWORK : "(not configured)",
     facilitator: "typescript",
     version: "2.0.0",
@@ -490,8 +541,10 @@ app.listen(parseInt(PORT), () => {
 ║  EVM Network:  ${EVM_NETWORK}                          ║
 ║  SVM Network:  ${SVM_NETWORK}                          ║
 ║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  Hedera Network: ${HEDERA_NETWORK}                     ║
 ║  EVM Address:  ${evmAccount.address}                   ║
 ║  Aptos Address: ${aptosAccount ? aptosAccount.accountAddress.toStringLong().slice(0, 20) + "..." : "(not configured)"}
+║  Hedera Address: ${process.env.HEDERA_ACCOUNT_ID || "(not configured)"} ║
 ║  Stellar Address: ${stellarSigner ? stellarSigner.address : "(not configured)"} ║
 ║  Extensions:   bazaar                                  ║
 ║                                                        ║
