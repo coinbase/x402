@@ -1,7 +1,7 @@
 {
   "name": "Strale",
   "description": "Business data and compliance APIs for AI agents via x402. IBAN validation, VAT verification, sanctions screening, SSL checks, and paid API pre-flight verification. 225+ quality-scored capabilities across 27 countries. First compliance and regulatory data provider in the x402 ecosystem.",
-  "logoUrl": "/logos/strale.png",
+  "logoUrl": "/logos/strale.jpg",
   "websiteUrl": "https://strale.dev/docs",
   "category": "Services/Endpoints"
 }
