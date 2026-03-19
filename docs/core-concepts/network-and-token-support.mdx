@@ -73,7 +73,7 @@ x402 supports two asset transfer methods on EVM, selected automatically based on
 
 Both methods provide:
 
-* **Gasless transfers**: The facilitator sponsors gas fees
+* **Gasless transfers**: The facilitator sponsors gas for the payment itself. For Permit2, the one-time approval step can also be made gasless via optional [gas sponsoring extensions](/extensions/eip2612-gas-sponsoring)
 * **Signature-based authorization**: Users sign transfer authorizations off-chain
 * **Secure payments**: Transfers are authorized by cryptographic signatures
 
@@ -126,11 +126,9 @@ On Stellar, x402 supports all Soroban tokens implementing [SEP-41](https://githu
 
 On Aptos, x402 supports all fungible assets using Aptos's native fungible asset framework. Payments use the `primary_fungible_store::transfer` function for automatic store creation and management. The TypeScript SDK supports sponsored transactions where facilitators pay gas fees on behalf of clients.
 
-#### USDC - The Default Token
+#### Default Tokens
 
-* **Status**: Supported by default across all networks
-* **Why**: USDC implements EIP-3009 (simplest flow) and is widely available
-* **Networks**: Available on `eip155:8453` (Base), `eip155:84532` (Base Sepolia), and all supported networks
+Each network defines its own default token. When you use a price string (e.g., `"$0.01"`), the system uses the network's configured default. USDC is the default on most EVM networks because it implements EIP-3009 (simplest flow) and is widely available, but other networks may define different defaults.
 
 #### Why EIP-3009 + Permit2?
 
