@@ -65,7 +65,7 @@ function partitionPartners(partners: Partner[], categories: CategoryInfo[]): Par
     }
   }
 
-  const topSection = partners.filter((partner) => partner.topSection);
+  const topSection = partners.filter((partner) => partner.top_section);
 
   return { topSection, byCategory };
 }
@@ -102,8 +102,8 @@ export default function EcosystemClient({
 
   const filteredPartners =
     activeFilter === "everything"
-      ? initialPartners.filter((partner) => !partner.topSection)
-      : (byCategory[activeFilter] ?? []).filter((partner) => !partner.topSection);
+      ? initialPartners.filter((partner) => !partner.top_section)
+      : (byCategory[activeFilter] ?? []).filter((partner) => !partner.top_section);
 
   return (
     <div className="mx-auto max-w-container px-6 py-16 sm:px-10">
@@ -213,7 +213,7 @@ export default function EcosystemClient({
               >
                 {categories.map((category) => {
                   const partners = (byCategory[category.id] ?? []).filter(
-                    (partner) => !partner.topSection,
+                    (partner) => !partner.top_section,
                   );
                   if (!partners.length) return null;
 
