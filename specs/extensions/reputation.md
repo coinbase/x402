@@ -24,7 +24,7 @@ sequenceDiagram
     participant Ch as Chain
 
     C->>S: GET /resource
-    S-->>C: 402 {registrations, feedbackEndpoint}
+    S-->>C: 402 {registrations}
 
     Note over C,Ch: verify payTo against on-chain agentWallet
 
@@ -42,7 +42,7 @@ sequenceDiagram
 
 The `reputation` extension adds identity, signatures, and feedback to the standard x402 payment flow:
 
-1. **Server declares identity**: Includes `reputation` extension in 402 response with agent registrations and optional `feedbackEndpoint` URL ([§1](#1-server-extension))
+1. **Server declares identity**: Includes `reputation` extension in 402 response with agent registrations ([§1](#1-server-extension))
 2. **Client verifies payment address**: Resolves agent's registration file and confirms `payTo` matches declared wallet ([§2](#2-client-extension))
 3. **Payment settlement**: Client pays, facilitator settles (standard x402 flow)
 4. **Server signs response**: Computes interaction hash over request + response, signs with authorized key, includes in `PAYMENT-RESPONSE` header ([§1](#1-server-extension))
@@ -109,8 +109,7 @@ Single-chain agents include one `accepts` entry and one registration. The exampl
             "agentRegistry": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:satiRkxEiwZ51cv8PRu8UMzuaqeaNU9jABo6oAFMsLe",
             "agentId": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
           }
-        ],
-        "feedbackEndpoint": "https://facilitator.example/feedback"
+        ]
       },
       "schema": "...see Extension Schema below..."
     }
@@ -120,15 +119,14 @@ Single-chain agents include one `accepts` entry and one registration. The exampl
 
 ### ReputationInfo Structure
 
-#### Required Fields
+#### Fields
 
-| Field              | Type   | Required | Description                                           |
-| ------------------ | ------ | -------- | ----------------------------------------------------- |
-| `version`          | string | Yes      | Extension version (e.g., `"1.0.0"`)                   |
-| `registrations`    | array  | Yes      | Agent identity registrations (at least one)           |
-| `feedbackEndpoint` | string | No       | Facilitator endpoint for gas-free feedback submission |
+| Field           | Type   | Required | Description                                 |
+| --------------- | ------ | -------- | ------------------------------------------- |
+| `version`       | string | Yes      | Extension version (e.g., `"1.0.0"`)         |
+| `registrations` | array  | Yes      | Agent identity registrations (at least one) |
 
-> *Informative.* The facilitator's settlement chain (where it submits feedback on-chain) does not need to match the payment chain (payment and identity are decoupled). Agents declare identity registrations and configure a feedback endpoint; the facilitator settles on a chain it supports, provided the agent is registered on that chain. The facilitator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-facilitator-feedback-api)) so clients can see where settlement happened.
+> *Informative.* The facilitator's settlement chain (where it submits feedback on-chain) does not need to match the payment chain (payment and identity are decoupled). Agents declare identity registrations; the facilitator settles on a chain it supports, provided the agent is registered on that chain. The facilitator POST response includes `settlementRegistry` and `txRef` (see [§3](#3-facilitator-feedback-api)) so clients can see where settlement happened.
 
 #### AgentRegistration Object
 
@@ -164,10 +162,6 @@ Single-chain agents include one `accepts` entry and one registration. The exampl
         "required": ["agentRegistry", "agentId"]
       }
     },
-    "feedbackEndpoint": {
-      "type": "string",
-      "format": "uri"
-    }
   },
   "required": ["version", "registrations"]
 }
@@ -282,7 +276,7 @@ After successful payment settlement, agents MUST sign the interaction and includ
 | `agentSignerPublicKey`    | string | Yes      | Hex-encoded public key that produced the signature                                         |
 | `agentSignature`          | string | Yes      | Hex-encoded signature over `interactionHash`                                               |
 | `agentSignatureAlgorithm` | string | Yes      | `"ed25519"` or `"secp256k1"`                                                               |
-| `feedbackEndpoint`        | string | No       | Facilitator feedback URL (echoed from 402 response for self-containedness)                 |
+| `feedbackEndpoint`        | string | No       | Facilitator endpoint for feedback submission                                               |
 
 ---
 
@@ -499,10 +493,11 @@ reviewerMessage = keccak256(
 reviewerSignature = sign(reviewerMessage, reviewerPrivateKey)
 ```
 
+- **Signing format:** Same rules as agent signing (see [§1 Signature formats](#signing-responses-payment-response)) -- raw 32-byte hash, no EIP-191 prefix, no EIP-712 wrapping. For secp256k1, recover the address from the signature and compare against the address portion of the CAIP-10 `reviewerAddress`.
 - Null byte (`0x00`) separators prevent boundary ambiguity between variable-length string fields. CAIP identifiers are ASCII and never contain null bytes.
 - `dataHash` (32 raw bytes, decoded from hex, strip `0x` prefix before decoding) binds the reviewer's rating to the specific content received -- without it, a reviewer could rate without cryptographic commitment to what was actually delivered.
 - `tag1`/`tag2` are included so a facilitator cannot silently change feedback categorization. If no tags are provided, use empty strings.
-- `value` uses `int128_be` (16 bytes, signed big-endian) to match ERC-8004's on-chain `int128` type exactly. This covers negative values (e.g., yield loss), large magnitudes, and high-precision decimals. The reviewer's hash commitment must encode the same type as the on-chain parameter - any mismatch silently produces wrong hashes.
+- `value` uses `int128_be` (16 bytes, signed two's complement big-endian) to match ERC-8004's on-chain `int128` type exactly. This covers negative values (e.g., yield loss), large magnitudes, and high-precision decimals. The reviewer's hash commitment must encode the same type as the on-chain parameter - any mismatch silently produces wrong hashes.
 - `reasoning` is intentionally excluded -- it is free-form text with no semantic impact on the rating.
 
 #### feedbackHash Computation
@@ -651,7 +646,7 @@ This separation enables secure payment reception on multiple chains while allowi
 
 In the standard x402 flow, facilitators already abstract complex blockchain interactions away from servers and clients -- including subsidizing the USDC transfer fee during payment settlement. The same role extends naturally to reputation: the facilitator handles feedback submissions, subsidizing on-chain feedback so clients don't pay gas to leave reviews while agents still receive trustless, verifiable feedback.
 
-When a `feedbackEndpoint` URL is declared in the `reputation` extension, clients POST a lightweight payload containing the PAYMENT-RESPONSE interaction data, their review, and their signature. The facilitator handles the rest.
+When a `feedbackEndpoint` URL is included in the `PAYMENT-RESPONSE`, clients POST a lightweight payload containing the interaction data, their review, and their signature. The facilitator handles the rest.
 
 ### POST Interface
 
