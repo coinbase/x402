@@ -2,6 +2,6 @@
   "name": "World",
   "description": "World (formerly Worldcoin) integrates x402 to enable verified human identity in payment flows, combining World ID with the HTTP 402 payment protocol for secure, human-verified transactions.",
   "logoUrl": "/logos/world.png",
-  "websiteUrl": "https://world.org",
+  "websiteUrl": "https://docs.world.org/agents/agent-kit/integrate",
   "category": "Infrastructure & Tooling"
 }
