@@ -208,6 +208,8 @@ app.use(
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
+              name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+              version: "2",
             },
           },
         },
