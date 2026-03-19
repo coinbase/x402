@@ -59,6 +59,27 @@ Advertise support for this extension in your route configuration:
     // Include in your route's Extensions field
     ```
   </Tab>
+  <Tab title="Python">
+    ```python
+    from x402.extensions.erc20_approval_gas_sponsoring import (
+        declare_erc20_approval_gas_sponsoring_extension,
+    )
+
+    routes = {
+        "GET /api/data": {
+            "accepts": {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "price": "$0.01",
+                "payTo": "0xYourAddress",
+            },
+            "extensions": {
+                **declare_erc20_approval_gas_sponsoring_extension(),
+            },
+        },
+    }
+    ```
+  </Tab>
 </Tabs>
 
 ## Client Usage
@@ -94,6 +115,20 @@ The `ExactEvmScheme` handles ERC-20 approval gas sponsoring automatically as a f
     // as a fallback when EIP-2612 is not available
     ```
   </Tab>
+  <Tab title="Python">
+    ```python
+    from x402 import x402Client
+    from x402.mechanisms.evm import EthAccountSignerWithRPC
+    from x402.mechanisms.evm.exact import register_exact_evm_client
+
+    account = Account.from_key("0xYourPrivateKey")
+    signer = EthAccountSignerWithRPC(account, rpc_url="https://sepolia.base.org")
+
+    client = x402Client()
+    register_exact_evm_client(client, signer)
+    # Automatically signs ERC-20 approval transaction when needed
+    ```
+  </Tab>
 </Tabs>
 
 ## When to Use
@@ -112,4 +147,4 @@ This extension is typically advertised alongside [EIP-2612 gas sponsoring](/exte
 |-----|-----------|
 | TypeScript | ✅ |
 | Go | ✅ |
-| Python | ❌ |
+| Python | ✅ |

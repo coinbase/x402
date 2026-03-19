@@ -54,6 +54,25 @@ Advertise support for this extension in your route configuration:
     // Include in your route's Extensions field
     ```
   </Tab>
+  <Tab title="Python">
+    ```python
+    from x402.extensions.eip2612_gas_sponsoring import declare_eip2612_gas_sponsoring_extension
+
+    routes = {
+        "GET /api/data": {
+            "accepts": {
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "price": "$0.01",
+                "payTo": "0xYourAddress",
+            },
+            "extensions": {
+                **declare_eip2612_gas_sponsoring_extension(),
+            },
+        },
+    }
+    ```
+  </Tab>
 </Tabs>
 
 ## Client Usage
@@ -88,6 +107,20 @@ The `ExactEvmScheme` handles EIP-2612 gas sponsoring automatically. When the ser
     // when the server advertises the extension
     ```
   </Tab>
+  <Tab title="Python">
+    ```python
+    from x402 import x402Client
+    from x402.mechanisms.evm import EthAccountSignerWithRPC
+    from x402.mechanisms.evm.exact import register_exact_evm_client
+
+    account = Account.from_key("0xYourPrivateKey")
+    signer = EthAccountSignerWithRPC(account, rpc_url="https://sepolia.base.org")
+
+    client = x402Client()
+    register_exact_evm_client(client, signer)
+    # Automatically signs EIP-2612 permit when needed
+    ```
+  </Tab>
 </Tabs>
 
 ## When to Use
@@ -106,4 +139,4 @@ Common EIP-2612 tokens include USDC, DAI, and many modern ERC-20 tokens.
 |-----|-----------|
 | TypeScript | ✅ |
 | Go | ✅ |
-| Python | ❌ |
+| Python | ✅ |
