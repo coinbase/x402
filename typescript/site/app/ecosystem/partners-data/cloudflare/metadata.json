@@ -4,5 +4,5 @@
   "logoUrl": "/logos/cloudflare.png",
   "websiteUrl": "https://blog.cloudflare.com/x402/",
   "category": "Infrastructure & Tooling",
-  "highlighted": true
+  "pinned": true
 }

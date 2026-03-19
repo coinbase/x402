@@ -4,5 +4,5 @@
   "logoUrl": "/logos/vercel.png",
   "websiteUrl": "https://vercel.com/blog/introducing-x402-mcp-open-protocol-payments-for-mcp-tools",
   "category": "Infrastructure & Tooling",
-  "highlighted": true
+  "pinned": true
 }
