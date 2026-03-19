@@ -351,6 +351,7 @@ describe("paymentMiddleware", () => {
           method: "GET",
         }),
         responseBody: expect.any(Buffer),
+        responseHeaders: expect.any(Object),
       }),
     );
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");

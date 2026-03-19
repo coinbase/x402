@@ -293,7 +293,15 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
-            { request: context, responseBody },
+            {
+              request: context,
+              responseBody,
+              responseHeaders: Object.fromEntries(
+                Object.entries(res.getHeaders())
+                  .filter(([, v]) => typeof v === "string")
+                  .map(([k, v]) => [k.toLowerCase(), v as string]),
+              ),
+            },
           );
 
           // If settlement fails, return an error and do not send the buffered response

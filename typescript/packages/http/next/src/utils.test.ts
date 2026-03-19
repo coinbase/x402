@@ -305,6 +305,7 @@ describe("handleSettlement", () => {
       expect.objectContaining({
         request: undefined,
         responseBody: expect.any(Buffer),
+        responseHeaders: expect.any(Object),
       }),
     );
   });

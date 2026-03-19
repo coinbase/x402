@@ -24,4 +24,5 @@ export type {
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
   RouteValidationError,
+  BeforeSettleHook,
 } from "../http/x402HTTPResourceServer";
