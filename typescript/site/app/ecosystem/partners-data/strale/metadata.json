@@ -1,0 +1,43 @@
+{
+  "name": "Strale",
+  "description": "Business data and compliance APIs for AI agents via x402. IBAN validation, VAT verification, sanctions screening, SSL checks, and paid API pre-flight verification. 225+ quality-scored capabilities across 27 countries. First compliance and regulatory data provider in the x402 ecosystem.",
+  "logoUrl": "/logos/strale.png",
+  "websiteUrl": "https://strale.dev/docs",
+  "category": "Services/Endpoints"
+}
+```
+
+**Step 6:** Click **Commit changes** → commit directly to main → **Commit changes**
+
+**Step 7:** Now you need to add the logo. Navigate to `typescript/site/public/logos/` in your fork.
+
+**Step 8:** Click **Add file** → **Upload files**
+
+**Step 9:** Upload your Strale logo as `strale.png`. Use a square logo, ideally 200x200px or similar. If you don't have one handy as a PNG, let me know and we can sort that out.
+
+**Step 10:** Click **Commit changes**
+
+**Step 11:** Go back to your fork's main page. Click **Contribute** → **Open pull request**
+
+**Step 12:** On the PR form:
+- Title: `Add Strale to ecosystem — business data & compliance APIs`
+- Description:
+```
+Adds Strale as the first business data and compliance provider in the x402 ecosystem.
+
+**Category:** Services/Endpoints
+
+**What Strale provides:**
+- IBAN validation, VAT verification, sanctions screening, SSL checks, paid API pre-flight verification
+- 225+ quality-scored capabilities across 27 countries
+- Every capability independently tested with published quality scores
+- Available via x402 (USDC on Base), MCP server, and REST API
+
+**Live x402 endpoints:**
+- https://api.strale.io/x402/iban-validate
+- https://api.strale.io/x402/vat-format-validate
+- https://api.strale.io/x402/paid-api-preflight
+- https://api.strale.io/x402/ssl-check
+- https://api.strale.io/x402/sanctions-check
+
+Website: https://strale.dev
