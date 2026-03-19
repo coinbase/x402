@@ -17,7 +17,7 @@ interface EcosystemClientProps {
 }
 
 type PartitionResult = {
-  featured: Partner[];
+  highlighted: Partner[];
   byCategory: Record<string, Partner[]>;
 };
 
@@ -65,9 +65,9 @@ function partitionPartners(partners: Partner[], categories: CategoryInfo[]): Par
     }
   }
 
-  const featured = partners.filter((partner) => partner.featured);
+  const highlighted = partners.filter((partner) => partner.highlighted);
 
-  return { featured, byCategory };
+  return { highlighted, byCategory };
 }
 
 export default function EcosystemClient({
@@ -83,7 +83,7 @@ export default function EcosystemClient({
   const activeFilter =
     (searchParams.get("filter") ?? initialSelectedCategory ?? "everything") || "everything";
 
-  const { featured, byCategory } = useMemo(
+  const { highlighted, byCategory } = useMemo(
     () => partitionPartners(initialPartners, categories),
     [initialPartners, categories],
   );
@@ -102,8 +102,8 @@ export default function EcosystemClient({
 
   const filteredPartners =
     activeFilter === "everything"
-      ? initialPartners.filter((partner) => !partner.featured)
-      : (byCategory[activeFilter] ?? []).filter((partner) => !partner.featured);
+      ? initialPartners.filter((partner) => !partner.highlighted)
+      : (byCategory[activeFilter] ?? []).filter((partner) => !partner.highlighted);
 
   return (
     <div className="mx-auto max-w-container px-6 py-16 sm:px-10">
@@ -131,20 +131,19 @@ export default function EcosystemClient({
             </p>
           </div>
 
-          {featured.length > 0 && (
+          {highlighted.length > 0 && (
             <div className="mt-[107px] space-y-3">
-              <p className="text-sm font-medium leading-5">Featured projects</p>
               <AnimatedGrid className="grid grid-cols-1 gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
-                {featured.slice(0, 8).map((partner) => (
+                {highlighted.slice(0, 8).map((partner) => (
                   <AnimatedCard
                     key={partner.slug ?? partner.name}
-                    layoutId={`featured-${partner.slug ?? partner.name}`}
+                    layoutId={`highlighted-${partner.slug ?? partner.name}`}
                     className="h-full"
                   >
                     {partner.facilitator ? (
-                      <FacilitatorCard partner={partner} variant="featured" />
+                      <FacilitatorCard partner={partner} variant="highlighted" />
                     ) : (
-                      <EcosystemCard partner={partner} variant="featured" />
+                      <EcosystemCard partner={partner} variant="highlighted" />
                     )}
                   </AnimatedCard>
                 ))}
@@ -214,7 +213,7 @@ export default function EcosystemClient({
               >
                 {categories.map((category) => {
                   const partners = (byCategory[category.id] ?? []).filter(
-                    (partner) => !partner.featured,
+                    (partner) => !partner.highlighted,
                   );
                   if (!partners.length) return null;
 

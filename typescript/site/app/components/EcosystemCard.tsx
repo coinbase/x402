@@ -6,12 +6,12 @@ import type { Partner } from "../ecosystem/data";
 
 interface EcosystemCardProps {
   partner: Partner;
-  variant?: "featured" | "standard";
+  variant?: "highlighted" | "standard";
 }
 
 export function EcosystemCard({ partner, variant = "standard" }: EcosystemCardProps) {
   const isExternal = partner.websiteUrl.startsWith("http");
-  const isFeatured = variant === "featured";
+  const isFeatured = variant === "highlighted";
   const tagLabel = partner.typeLabel ?? partner.category;
 
   return (
