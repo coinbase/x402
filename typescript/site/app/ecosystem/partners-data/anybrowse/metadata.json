@@ -1,0 +1,15 @@
+{
+  "name": "anybrowse",
+  "description": "URL-to-Markdown scraping API with native x402 micropayment support. Works on Cloudflare-protected sites, paywalls, and JS-heavy pages.",
+  "url": "https://anybrowse.dev",
+  "logo": "/logos/anybrowse.png",
+  "categories": [
+    "tools"
+  ],
+  "tags": [
+    "scraping",
+    "mcp",
+    "markdown",
+    "api"
+  ]
+}
