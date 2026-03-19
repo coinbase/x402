@@ -1,0 +1,7 @@
+{
+  "name": "AgenticTotem Web Extractor",
+  "description": "Send URLs + a JSON Schema. Get clean, structured data back. Powered by AI, paid per use \u2014 no keys, no accounts. (Rest APIs + MCP)",
+  "logoUrl": "/logos/agentictotem.png",
+  "websiteUrl": "https://agentictotem.com/docs/web-extractor",
+  "category": "Services/Endpoints"
+}
