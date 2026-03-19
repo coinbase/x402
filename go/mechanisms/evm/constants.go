@@ -60,6 +60,9 @@ const (
 
 	// ERC20ApproveGasLimit is the gas limit for a standard ERC-20 approve() transaction.
 	ERC20ApproveGasLimit = 70000
+
+	// DefaultMaxFeePerGas is the fallback max fee per gas (1 gwei) for gas cost estimation.
+	DefaultMaxFeePerGas = 1_000_000_000
 )
 
 var (
@@ -77,8 +80,9 @@ var (
 	// - If the chain has officially endorsed a stablecoin, that asset should be used
 	// - If no official stance exists, the chain team should make the selection
 	//
-	// NOTE: Currently only EIP-3009 supporting stablecoins can be used.
-	// Generic ERC-20 support via EIP-2612/Permit2 is planned but not yet implemented.
+	// Both EIP-3009 (transferWithAuthorization) and Permit2 asset transfer methods are supported.
+	// EIP-3009 is the default. Set AssetTransferMethod to AssetTransferMethodPermit2 for tokens
+	// that don't support EIP-3009. See DEFAULT_ASSET.md for details.
 	NetworkConfigs = map[string]NetworkConfig{
 		// Base Mainnet
 		"eip155:8453": {
@@ -309,6 +313,30 @@ var (
 			],
 			"outputs": [],
 			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// X402ExactPermit2ProxyPermit2ABI for verifying proxy deployment
+	X402ExactPermit2ProxyPermit2ABI = []byte(`[
+		{
+			"inputs": [],
+			"name": "PERMIT2",
+			"outputs": [{"name": "", "type": "address"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
+	// Multicall3GetEthBalanceABI for querying native ETH balance via Multicall3.
+	Multicall3GetEthBalanceABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "addr", "type": "address"}
+			],
+			"name": "getEthBalance",
+			"outputs": [{"name": "balance", "type": "uint256"}],
+			"stateMutability": "view",
+			"type": "function"
 		}
 	]`)
 

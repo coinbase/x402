@@ -171,32 +171,32 @@ app.use(
       },
       ...(APTOS_PAYEE_ADDRESS
         ? {
-            "GET /protected-aptos": {
-              accepts: {
-                payTo: APTOS_PAYEE_ADDRESS,
-                scheme: "exact",
-                price: "$0.001",
-                network: APTOS_NETWORK,
-              },
-              extensions: {
-                ...declareDiscoveryExtension({
-                  output: {
-                    example: {
-                      message: "Protected endpoint accessed successfully",
-                      timestamp: "2024-01-01T00:00:00Z",
-                    },
-                    schema: {
-                      properties: {
-                        message: { type: "string" },
-                        timestamp: { type: "string" },
-                      },
-                      required: ["message", "timestamp"],
-                    },
-                  },
-                }),
-              },
+          "GET /protected-aptos": {
+            accepts: {
+              payTo: APTOS_PAYEE_ADDRESS,
+              scheme: "exact",
+              price: "$0.001",
+              network: APTOS_NETWORK,
             },
-          }
+            extensions: {
+              ...declareDiscoveryExtension({
+                output: {
+                  example: {
+                    message: "Protected endpoint accessed successfully",
+                    timestamp: "2024-01-01T00:00:00Z",
+                  },
+                  schema: {
+                    properties: {
+                      message: { type: "string" },
+                      timestamp: { type: "string" },
+                    },
+                    required: ["message", "timestamp"],
+                  },
+                },
+              }),
+            },
+          },
+        }
         : {}),
       "GET /protected-permit2": {
         accepts: {
@@ -208,6 +208,8 @@ app.use(
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
+              name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+              version: "2",
             },
           },
         },
@@ -218,6 +220,35 @@ app.use(
                 message: "Permit2 endpoint accessed successfully",
                 timestamp: "2024-01-01T00:00:00Z",
                 method: "permit2",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                  method: { type: "string" },
+                },
+                required: ["message", "timestamp", "method"],
+              },
+            },
+          }),
+        },
+      },
+      "GET /protected-permit2-eip2612": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "exact",
+          network: EVM_NETWORK,
+          price: "$0.001",
+          // Use pre-parsed price with assetTransferMethod to force Permit2
+          extra: { assetTransferMethod: "permit2" },
+        },
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Permit2 EIP-2612 endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+                method: "permit2-eip2612",
               },
               schema: {
                 properties: {
@@ -251,32 +282,32 @@ app.use(
       },
       ...(STELLAR_PAYEE_ADDRESS
         ? {
-            "GET /protected-stellar": {
-              accepts: {
-                payTo: STELLAR_PAYEE_ADDRESS!,
-                scheme: "exact",
-                price: "$0.001",
-                network: STELLAR_NETWORK,
-              },
-              extensions: {
-                ...declareDiscoveryExtension({
-                  output: {
-                    example: {
-                      message: "Protected Stellar endpoint accessed successfully",
-                      timestamp: "2024-01-01T00:00:00Z",
-                    },
-                    schema: {
-                      properties: {
-                        message: { type: "string" },
-                        timestamp: { type: "string" },
-                      },
-                      required: ["message", "timestamp"],
-                    },
-                  },
-                }),
-              },
+          "GET /protected-stellar": {
+            accepts: {
+              payTo: STELLAR_PAYEE_ADDRESS!,
+              scheme: "exact",
+              price: "$0.001",
+              network: STELLAR_NETWORK,
             },
-          }
+            extensions: {
+              ...declareDiscoveryExtension({
+                output: {
+                  example: {
+                    message: "Protected Stellar endpoint accessed successfully",
+                    timestamp: "2024-01-01T00:00:00Z",
+                  },
+                  schema: {
+                    properties: {
+                      message: { type: "string" },
+                      timestamp: { type: "string" },
+                    },
+                    required: ["message", "timestamp"],
+                  },
+                },
+              }),
+            },
+          },
+        }
         : {}),
     },
     x402Server, // Pass pre-configured server instance
@@ -324,7 +355,7 @@ app.get("/protected-aptos", c => {
 });
 
 /**
- * Protected Permit2 endpoint - requires Permit2 payment with EIP-2612 gas sponsoring
+ * Protected Permit2 endpoint - standard settle (no gas sponsoring)
  */
 app.get("/protected-permit2", c => {
   return c.json({
@@ -335,6 +366,16 @@ app.get("/protected-permit2", c => {
 });
 
 /**
+ * Protected Permit2 EIP-2612 endpoint - requires Permit2 with gas sponsoring
+ */
+app.get("/protected-permit2-eip2612", c => {
+  return c.json({
+    message: "Permit2 EIP-2612 endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "permit2-eip2612",
+  });
+});
+
 /**
  * Protected Permit2 ERC-20 endpoint - requires Permit2 payment with ERC-20 approval gas sponsoring
  */
@@ -414,7 +455,8 @@ console.log(`
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected               (EIP-3009 payment)        ║
-║  • GET  /protected-permit2       (Permit2 + EIP-2612)      ║
+║  • GET  /protected-permit2     (Permit2 - EVM)             ║
+║  • GET  /protected-permit2-eip2612 (Permit2 + EIP-2612)    ║
 ║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval)║
 ║  • GET  /protected-svm           (SVM payment)             ║
 ║  • GET  /protected-aptos         (Aptos payment)           ║

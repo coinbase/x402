@@ -1,0 +1,7 @@
+{
+  "name": "AWS",
+  "description": "Amazon Web Services supports x402 for machine-to-machine payments in the cloud, enabling AI agents and services to transact seamlessly using the HTTP 402 payment protocol.",
+  "logoUrl": "/logos/aws.svg",
+  "websiteUrl": "https://aws.amazon.com",
+  "category": "Infrastructure & Tooling"
+}

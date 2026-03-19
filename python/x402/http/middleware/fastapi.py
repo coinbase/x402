@@ -18,6 +18,7 @@ except ImportError as e:
         "FastAPI middleware requires fastapi and starlette. Install with: uv add x402[fastapi]"
     ) from e
 
+from ..facilitator_client_base import FacilitatorResponseError
 from ..types import (
     HTTPAdapter,
     HTTPRequestContext,
@@ -187,6 +188,14 @@ class FastAPIAdapter(HTTPAdapter):
 # ============================================================================
 
 
+def _facilitator_error_response(error: FacilitatorResponseError) -> JSONResponse:
+    """Map invalid facilitator responses to a stable HTTP error."""
+    return JSONResponse(
+        content={"error": str(error)},
+        status_code=502,
+    )
+
+
 def payment_middleware(
     routes: RoutesConfig,
     server: x402ResourceServer,
@@ -274,11 +283,17 @@ def payment_middleware(
 
         # Initialize on first protected request
         if sync_facilitator_on_start and not init_done:
-            http_server.initialize()
+            try:
+                http_server.initialize()
+            except FacilitatorResponseError as error:
+                return _facilitator_error_response(error)
             init_done = True
 
         # Process payment request
-        result = await http_server.process_http_request(context, paywall_config)
+        try:
+            result = await http_server.process_http_request(context, paywall_config)
+        except FacilitatorResponseError as error:
+            return _facilitator_error_response(error)
 
         if result.type == "no-payment-required":
             return await call_next(request)
@@ -360,6 +375,8 @@ def payment_middleware(
                     media_type=response.media_type,
                 )
 
+            except FacilitatorResponseError as error:
+                return _facilitator_error_response(error)
             except Exception:
                 return JSONResponse(content={}, status_code=402)
 
