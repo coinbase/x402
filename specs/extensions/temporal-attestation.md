@@ -1,42 +1,50 @@
-# Extension: `temporal-attestation`
+# Extension: `temporal-attestation` (Draft)
 
-## Summary
+## 1. Summary
+The `temporal-attestation` extension provides a standardized mechanism for providing cryptographically verifiable timestamps within x402 payment flows. It enables deterministic settlement ordering, prevents multi-resource replay attacks, and ensures protocol integrity in high-latency environments.
 
-The `temporal-attestation` extension provides cryptographically verifiable timestamps for x402 payment flows. By anchoring payment authorization to wall-clock time from multiple independent institutional sources, it provides a unified solution for replay protection, settlement ordering, and temporal auditability.
+## 2. Motivation
+The current x402 protocol lacks a canonical temporal anchor, leading to:
+- **Settlement Ambiguity (#1645)**: No deterministic way to order concurrent payments.
+- **Clock Skew Failures (#1062)**: 40% failure rates when local clocks drift.
+- **Replay Vulnerabilities (#1632)**: Payloads can be replayed within the `maxTimeoutSeconds` window.
 
-This single extension addresses 14 documented architectural gaps in the x402 ecosystem, transforming it from a transport layer into a secure, time-aware protocol.
+## 3. Specification
 
----
+### 3.1. PaymentRequired Signaling
+A Resource Server supporting this extension **MUST** include the `temporal-attestation` object in the `extensions` field of a 402 response.
 
-## The 14 Solved Issues (Integrity Mapping)
+```json
+{
+  "info": {
+    "required": true,
+    "minSources": 2,
+    "maxDriftMs": 5000
+  },
+  "schema": { ... }
+}
+```
 
-| Issue | Category | Problem | Solution |
-| :--- | :--- | :--- | :--- |
-| #1062 | Race | 40% failure in high-latency due to clock skew. | Unified time anchor via NIST/Cloudflare consensus. |
-| #1645 | Ordering | Settlement ordering ambiguity; MEV vulnerability. | Deterministic priority based on Median Timestamp. |
-| #1169 | Logic | Race window between verify and settle steps. | Cryptographic time-stamping of protocol phases. |
-| #1632 | Replay | Authorization replay across resources. | HMAC binding of timestamp, nonce, and resource URL. |
-| #1195 | Gov | Same-block flash loan governance attacks. | Cryptographic temporal anchor for duration-based governance (T_vote - T_acquire). |
-| #1201 | Audit | Missing regulatory-grade audit trails (MiCA/MiFID). | Immutable sources[] array for high-fidelity evidence. |
-| #1677 | Liveness | Recovery failure after response loss. | Idempotency-aware retries using temporal context. |
-| #1181 | Latency | Stale payment rejection during network spikes. | Adaptive MaxDriftMs for dynamic latency compensation. |
-| #1192 | Settle | Fee loss due to time-delta in settlement. | Accurate time-weighted fee estimation models. |
-| #1205 | Sec | MITM authorization header theft. | Tight binding of authorization to the specific resource. |
-| #1210 | Sync | Node-to-node state inconsistency in clusters. | Common temporal reference point for all nodes. |
-| #1215 | Agent | Infinite payment loops in autonomous commerce. | Sequence analysis to detect abnormal temporal patterns. |
-| #1220 | Fraud | Lack of behavior-based fraud detection. | Behavioral Time Signature profiling for anomaly detection. |
-| #1225 | Scale | Batch settlement ordering in high-volume L2s. | Millisecond-precision sorting for batched transactions. |
+### 3.2. PaymentPayload Requirements
+The Client **MUST** append the following fields to the `temporal-attestation` extension:
+- `timestampMs`: Integer. Unix epoch in milliseconds.
+- `nonce`: String. Cryptographically random hex (32+ chars).
+- `hmac`: String. HMAC-SHA256(Key, Binding_Data).
+- `sources`: Array of Strings. Identifiers of queried time sources.
 
----
+### 3.3. Key Derivation and Binding
+The HMAC key **MUST** be derived from the client's payment signing key using HKDF-SHA256:
+`HMAC_KEY = HKDF-Expand(HKDF-Extract(salt="x402-v1", IKM=signing_key), info="temporal-binding", L=32)`
 
-## Technical Mechanism: HMAC Binding
+The binding data **MUST** follow this format:
+`timestampMs || nonce || resource.url || network || amount`
 
-To prevent "timestamp transplantation" and "amount manipulation", the `timestampMs` and `nonce` are cryptographically bound to the resource details:
+## 4. Verification Logic
+The Facilitator **MUST** perform the following checks:
+1. **Drift Check**: `|Server_Time - timestampMs| <= maxDriftMs`. Fail with 400 Bad Request if exceeded.
+2. **Replay Check**: `(nonce, timestampMs)` tuple **MUST NOT** have been seen before. Fail with 409 Conflict if seen.
+3. **HMAC Validation**: Reconstruct binding data and verify HMAC. Fail with 401 Unauthorized if mismatch.
 
-### Payload Binding
-`hmac = HMAC-SHA256(HMAC_KEY, timestampMs || nonce || resource.url || network || amount)`
-
-## Reference Implementation
-- **npm**: [`openttt`](https://www.npmjs.com/package/openttt) (Black-box binary distribution)
-- **IETF Draft**: `draft-helmprotocol-tttps-00`
-- **GitHub**: [Helm-Protocol/OpenTTT](https://github.com/Helm-Protocol/OpenTTT)
+## 5. Reference Implementation
+- **NPM**: `openttt`
+- **Live Demo**: https://helm-protocol.github.io/x402-openttt/demo/
