@@ -196,6 +196,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
         paymentPayload: this.toJsonSafe(paymentPayload),
         paymentRequirements: this.toJsonSafe(paymentRequirements),
       }),
+      redirect: "follow",
     });
 
     if (!response.ok) {
@@ -247,6 +248,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
         paymentPayload: this.toJsonSafe(paymentPayload),
         paymentRequirements: this.toJsonSafe(paymentRequirements),
       }),
+      redirect: "follow",
     });
 
     if (!response.ok) {
@@ -291,6 +293,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       const response = await fetch(`${this.url}/supported`, {
         method: "GET",
         headers,
+        redirect: "follow",
       });
 
       if (response.ok) {
