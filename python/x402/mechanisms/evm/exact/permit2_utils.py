@@ -217,18 +217,28 @@ def verify_permit2(
 
     now = int(time.time())
 
+    # 5-7. Parse numeric fields from untrusted input before comparison
+    try:
+        deadline_val = int(permit2_payload.permit2_authorization.deadline)
+        valid_after_val = int(permit2_payload.permit2_authorization.witness.valid_after)
+        amount_val = int(permit2_payload.permit2_authorization.permitted.amount)
+    except (ValueError, TypeError):
+        return VerifyResponse(
+            is_valid=False, invalid_reason="invalid_permit2_payload_format", payer=payer
+        )
+
     # 5. Deadline check (6 second buffer)
-    if int(permit2_payload.permit2_authorization.deadline) < now + 6:
+    if deadline_val < now + 6:
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_DEADLINE_EXPIRED, payer=payer
         )
 
     # 6. validAfter check
-    if int(permit2_payload.permit2_authorization.witness.valid_after) > now:
+    if valid_after_val > now:
         return VerifyResponse(is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer)
 
     # 7. Amount check
-    if int(permit2_payload.permit2_authorization.permitted.amount) != int(requirements.amount):
+    if amount_val != int(requirements.amount):
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_AMOUNT_MISMATCH, payer=payer
         )
@@ -291,7 +301,7 @@ def verify_permit2(
         return allowance_result
     logger.info("Permit2 verify: allowance OK")
 
-    # 11. Balance check
+    # 11. Balance check (fail closed — RPC failure rejects rather than allowing underfunded payments)
     try:
         balance = signer.read_contract(token_address, BALANCE_OF_ABI, "balanceOf", payer)
         if int(balance) < int(requirements.amount):
@@ -300,6 +310,7 @@ def verify_permit2(
             )
     except Exception:
         logger.warning("Permit2 verify: balance check failed for payer=%s", payer, exc_info=True)
+        return VerifyResponse(is_valid=False, invalid_reason="balance_check_failed", payer=payer)
 
     return VerifyResponse(is_valid=True, payer=payer)
 
@@ -589,15 +600,17 @@ def _settle_permit2_with_erc20_approval(
             permit2_payload
         )
 
+        from ....extensions.erc20_approval_gas_sponsoring.types import WriteContractCall
+
         tx_hashes = extension_signer.send_transactions(
             [
                 erc20_info.signed_transaction,
-                {
-                    "address": X402_EXACT_PERMIT2_PROXY_ADDRESS,
-                    "abi": X402_EXACT_PERMIT2_PROXY_ABI,
-                    "function": "settle",
-                    "args": [permit_tuple, owner_addr, witness_tuple, sig_bytes],
-                },
+                WriteContractCall(
+                    address=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+                    abi=X402_EXACT_PERMIT2_PROXY_ABI,
+                    function="settle",
+                    args=[permit_tuple, owner_addr, witness_tuple, sig_bytes],
+                ),
             ]
         )
 
@@ -717,14 +730,11 @@ def _verify_permit2_signature(
         permit2_authorization, chain_id
     )
 
-    try:
-        return signer.verify_typed_data(
-            payer,
-            domain_dict,  # type: ignore[arg-type]
-            typed_fields,
-            primary_type,
-            message,
-            signature,
-        )
-    except Exception:
-        return False
+    return signer.verify_typed_data(
+        payer,
+        domain_dict,  # type: ignore[arg-type]
+        typed_fields,
+        primary_type,
+        message,
+        signature,
+    )

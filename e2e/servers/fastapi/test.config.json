@@ -19,14 +19,6 @@
       "transferMethod": "eip3009"
     },
     {
-      "path": "/protected-2",
-      "method": "GET",
-      "description": "Protected endpoint requiring ERC20 payment",
-      "requiresPayment": true,
-      "protocolFamily": "evm",
-      "transferMethod": "eip3009"
-    },
-    {
       "path": "/protected-svm",
       "method": "GET",
       "description": "Protected endpoint requiring SVM (Solana) payment",

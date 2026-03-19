@@ -99,31 +99,6 @@ routes = {
             ),
         },
     },
-    "GET /protected-2": {
-        "accepts": {
-            "scheme": "exact",
-            "payTo": EVM_ADDRESS,
-            "price": "$0.001",  # 0.001 USDC
-            "network": EVM_NETWORK,
-        },
-        "extensions": {
-            **declare_discovery_extension(
-                output=OutputConfig(
-                    example={
-                        "message": "Access granted to protected resource #2",
-                        "timestamp": "2024-01-01T00:00:00Z",
-                    },
-                    schema={
-                        "properties": {
-                            "message": {"type": "string"},
-                            "timestamp": {"type": "string"},
-                        },
-                        "required": ["message", "timestamp"],
-                    },
-                )
-            ),
-        },
-    },
     "GET /protected-svm": {
         "accepts": {
             "scheme": "exact",
@@ -221,18 +196,6 @@ async def protected_endpoint() -> Dict[str, Any]:
 
     return {
         "message": "Access granted to protected resource",
-        "timestamp": "2024-01-01T00:00:00Z",
-    }
-
-
-@app.get("/protected-2")
-async def protected_endpoint_2() -> Dict[str, Any]:
-    """Protected endpoint that requires ERC20 payment."""
-    if shutdown_requested:
-        raise HTTPException(status_code=503, detail="Server shutting down")
-
-    return {
-        "message": "Access granted to protected resource #2",
         "timestamp": "2024-01-01T00:00:00Z",
     }
 

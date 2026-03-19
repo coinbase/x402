@@ -6,13 +6,6 @@ import time
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-try:
-    pass  # imports below will guard themselves
-except ImportError:
-    pytest.skip("eth-abi not available", allow_module_level=True)
-
 from x402.mechanisms.evm.constants import (
     ERR_INSUFFICIENT_BALANCE,
     ERR_NETWORK_MISMATCH,

@@ -103,7 +103,7 @@ def _validate_signed_approval_tx(
     try:
         from eth_account import Account
     except ImportError:
-        return "", ""
+        return "erc20_approval_tx_validation_unavailable", "eth_account not installed"
 
     tx_bytes = bytes.fromhex(signed_tx_hex[2:] if signed_tx_hex.startswith("0x") else signed_tx_hex)
 
@@ -147,7 +147,7 @@ def _validate_signed_approval_tx(
             return "erc20_approval_tx_wrong_spender", "approve spender is not Permit2"
 
     except ImportError:
-        pass
+        return "erc20_approval_tx_validation_unavailable", "typed transaction parsing not available"
     except Exception as e:
         return "erc20_approval_tx_parse_failed", str(e)[:200]
 

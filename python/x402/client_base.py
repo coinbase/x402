@@ -5,6 +5,7 @@ Contains shared logic for client implementations.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable, Generator
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -305,11 +306,12 @@ class x402ClientBase:
 
             # 5. Create inner payload (pass extensions for enrichment if scheme supports it)
             server_extensions = payment_required.extensions
-            try:
+            sig = inspect.signature(client.create_payment_payload)
+            if "extensions" in sig.parameters:
                 inner_payload = client.create_payment_payload(
                     selected, extensions=server_extensions
                 )
-            except TypeError:
+            else:
                 inner_payload = client.create_payment_payload(selected)
 
             # 5b. Extract scheme-generated extensions (e.g. gas sponsoring)
