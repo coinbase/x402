@@ -46,6 +46,8 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |-----------|------------|-----|--------|
 | bazaar (server) | ✅ | ✅ | ✅ |
 | bazaar (facilitator client) | ✅ | ✅ | ✅ |
+| eip2612-gas-sponsoring | ✅ | ❌ | ✅ |
+| erc20-approval-gas-sponsoring | ✅ | ❌ | ✅ |
 | sign-in-with-x | ✅ | ❌ | ❌ |
 | payment-identifier | ✅ | ✅ | ✅ |
 | offer-receipt | ✅ | ❌ | ❌ |
