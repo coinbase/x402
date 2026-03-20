@@ -1,0 +1,18 @@
+{
+  "name": "Erudite Intelligence",
+  "description": "353 blockchain data endpoints for Base and Tron. Token intel, wallet risk, DEX trades, whale tracking, gas oracle, cross-chain bridge. x402 micropayments, ACP, AP2, UCP protocols.",
+  "website": "https://bridge.eruditepay.com",
+  "logo": "",
+  "category": "Services/Endpoints",
+  "chains": ["Base", "Tron"],
+  "protocols": ["x402", "ACP", "AP2", "UCP", "MCP"],
+  "facilitator_url": "https://bridge.eruditepay.com",
+  "discovery": {
+    "x402": "https://bridge.eruditepay.com/.well-known/x402",
+    "agent_card": "https://bridge.eruditepay.com/.well-known/agent-card.json",
+    "mcp": "https://bridge.eruditepay.com/.well-known/mcp.json",
+    "openapi": "https://bridge.eruditepay.com/openapi.json"
+  },
+  "operator": "Erudite Intelligence LLC",
+  "registration": "FinCEN MSB #31000283503553"
+}
