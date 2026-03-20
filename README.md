@@ -1,6 +1,23 @@
 # x402
 
+> **Note:** This is a fork of [coinbase/x402](https://github.com/coinbase/x402) with experimental Bitcoin Lightning Network support. This fork adds a Lightning mechanism module (`x402.mechanisms.lightning.exact`) implementing the X402 protocol for Bitcoin Lightning payments. For the upstream repository, please visit [coinbase/x402](https://github.com/coinbase/x402).
+
 x402 is an open standard for internet native payments. It aims to support all networks (both crypto & fiat) and forms of value (stablecoins, tokens, fiat).
+
+## ⚡ Bitcoin Lightning Network Support
+
+This fork extends x402 with experimental support for Bitcoin Lightning Network payments. The Lightning mechanism module enables X402-compatible payment flows using BOLT11 invoices, allowing resource servers to accept Lightning payments alongside existing stablecoin and token payments.
+
+**Key Features:**
+- Lightning mechanism module (`x402.mechanisms.lightning.exact`) implementing `SchemeNetworkClient`, `SchemeNetworkServer`, and `SchemeNetworkFacilitator` protocols
+- LND backend adapter for Lightning node integration
+- Mock Lightning backend for testing without infrastructure
+- BOLT11 invoice decoding and validation
+- Preimage-based proof-of-payment verification
+
+**Status:** Experimental - This is a proof-of-concept implementation for protocol validation and integration reference. Not production-ready.
+
+For more details on the Lightning integration, see the [Lightning mechanism documentation](python/x402/mechanisms/lightning/README.md).
 
 ```typescript
 app.use(
@@ -35,7 +52,14 @@ npm install @x402/core @x402/evm @x402/svm @x402/express
 ### Python
 
 ```shell
+# Standard installation
 pip install x402
+
+# With Lightning support (experimental)
+pip install x402[lightning]
+
+# With Lightning and LND backend support
+pip install x402[lightning,lightning-lnd]
 ```
 
 ### Go
@@ -130,6 +154,8 @@ Each payment scheme may have different operational functionality depending on wh
 For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article), while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
 
 See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains.
+
+**Lightning Network Support:** This fork includes experimental support for the `exact` scheme on the Lightning network (`scheme: exact, network: lightning`). Lightning payments use BOLT11 invoices and preimage-based proof-of-payment verification. See the [Lightning mechanism implementation](python/x402/mechanisms/lightning/) for details.
 
 ### Schemes vs Networks
 
