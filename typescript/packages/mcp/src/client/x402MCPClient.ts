@@ -20,7 +20,7 @@ import type {
 import {
   MCP_PAYMENT_REQUIRED_CODE,
   MCP_PAYMENT_META_KEY,
-  JSONRPC_PAYMENT_REQUIRED_CODE,
+  isPaymentRequiredError,
 } from "../types";
 import { extractPaymentResponseFromMeta } from "../utils";
 
@@ -750,45 +750,27 @@ export class x402MCPClient {
   /**
    * Extracts PaymentRequired from a thrown MCP error.
    *
-   * Handles McpError exceptions with payment-related error codes:
-   * - 402: Legacy x402 code with PaymentRequired directly in error.data
-   * - -32042: MCP UrlElicitationRequired (SEP-1036) with PaymentRequired in
-   *   error.data directly or namespaced under error.data.x402
+   * Uses isPaymentRequiredError() to validate the error structure (supports
+   * both 402 and -32042 codes), then extracts PaymentRequired from the
+   * correct location (error.data directly or error.data.x402 for namespaced
+   * -32042 errors).
    *
    * @param error - The caught error
    * @returns PaymentRequired if this is a payment error, null otherwise
    */
   private extractPaymentRequiredFromError(error: unknown): PaymentRequired | null {
-    if (typeof error !== "object" || error === null) {
+    if (!isPaymentRequiredError(error)) {
       return null;
     }
 
-    const err = error as Record<string, unknown>;
-
-    if (err.code !== MCP_PAYMENT_REQUIRED_CODE && err.code !== JSONRPC_PAYMENT_REQUIRED_CODE) {
-      return null;
+    // isPaymentRequiredError validated that PaymentRequired exists in error.data
+    // (directly or namespaced under .x402 for -32042 errors).
+    const data = error.data as unknown as Record<string, unknown>;
+    if ("x402Version" in data) {
+      return error.data;
     }
-
-    if (typeof err.data !== "object" || err.data === null) {
-      return null;
-    }
-
-    const data = err.data as Record<string, unknown>;
-
-    // Direct PaymentRequired in error.data
-    if (isPaymentRequired(data)) {
-      return data as PaymentRequired;
-    }
-
-    // Namespaced under error.data.x402 (for -32042 errors with mixed payment method data)
-    if (
-      err.code === JSONRPC_PAYMENT_REQUIRED_CODE &&
-      typeof data.x402 === "object" &&
-      data.x402 !== null
-    ) {
-      if (isPaymentRequired(data.x402)) {
-        return data.x402 as PaymentRequired;
-      }
+    if (typeof data.x402 === "object" && data.x402 !== null) {
+      return data.x402 as PaymentRequired;
     }
 
     return null;
