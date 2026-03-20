@@ -1,7 +1,19 @@
 {
   "name": "Flow EVM x402 Facilitator",
-  "description": "Self-hosted x402 facilitator for Flow EVM (eip155:747). Verifies and settles x402 payments on Flow's EVM-equivalent chain with extremely low gas costs (~16 Gwei). Supports the exact payment scheme with Permit2.",
+  "description": "x402 facilitator for Flow EVM. Fee-free USDC settlement on Flow's EVM-equivalent chain with extremely low gas costs.",
   "logoUrl": "/logos/flow-evm-facilitator.png",
-  "websiteUrl": "https://github.com/outblock/x402-flow-facilitator",
-  "category": "Facilitators"
+  "websiteUrl": "https://flow.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.flowindex.io",
+    "networks": ["flow-evm"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
 }
