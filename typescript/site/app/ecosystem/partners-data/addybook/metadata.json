@@ -1,0 +1,7 @@
+{
+  "name": "Addybook",
+  "description": "Addybook is a DeFi contract registry API with 4,300+ protocols and verified addresses across 88 chains. AI agents pay per-request with x402 to look up contract addresses, ABIs, events, and deployment metadata — no API keys needed.",
+  "logoUrl": "/logos/addybook.svg",
+  "websiteUrl": "https://addybook.xyz",
+  "category": "Services/Endpoints"
+}
