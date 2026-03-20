@@ -1,0 +1,7 @@
+{
+  "name": "Compintel",
+  "logoUrl": "/logos/compintel.png",
+  "description": "AI-to-AI service platform with 4 x402-native paid APIs: Polymarket data, revenue tracking, webhook forwarding, and premium analytics. All endpoints use x402 micropayments on Base with USDC ($0.01/request). Machine-readable catalog at compintel.co/catalog.json",
+  "websiteUrl": "https://compintel.co",
+  "category": "Services/Endpoints"
+}
