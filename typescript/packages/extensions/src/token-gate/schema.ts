@@ -12,11 +12,12 @@ export function buildTokenGateSchema(): object {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     type: "object",
     properties: {
-      address: { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" },
+      address: { type: "string" },
       domain: { type: "string" },
       issuedAt: { type: "string", format: "date-time" },
-      signature: { type: "string", pattern: "^0x" },
+      signature: { type: "string" },
+      signatureType: { type: "string", enum: ["eip191", "ed25519"] },
     },
-    required: ["address", "domain", "issuedAt", "signature"],
+    required: ["address", "domain", "issuedAt", "signature", "signatureType"],
   };
 }

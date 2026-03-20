@@ -1,7 +1,7 @@
 /**
  * Type definitions for the token-gate extension
  *
- * Enables ERC-20 and ERC-721 token holders to access x402-protected resources
+ * Enables ERC-20, ERC-721, and SPL token holders to access x402-protected resources
  * for free or at a discount by proving on-chain token ownership.
  */
 
@@ -24,9 +24,10 @@ export const DEFAULT_PROOF_MAX_AGE = 300;
 export const DEFAULT_OWNERSHIP_CACHE_TTL = 300;
 
 /**
- * A single ERC-20 or ERC-721 contract to check for ownership.
+ * EVM (ERC-20 or ERC-721) contract to check for ownership.
  */
-export interface TokenContract {
+export interface EvmTokenContract {
+  vm: "evm";
   /** Contract address on-chain */
   address: `0x${string}`;
   /** viem Chain object (e.g. base, mainnet) */
@@ -44,6 +45,24 @@ export interface TokenContract {
    */
   tokenId?: bigint;
 }
+
+/**
+ * Solana SPL token contract to check for ownership.
+ */
+export interface SvmTokenContract {
+  vm: "svm";
+  /** base58 SPL token mint address */
+  mint: string;
+  /** e.g. "solana:mainnet-beta", "solana:devnet" */
+  network: string;
+  /** Minimum token balance required (default: 1n) */
+  minBalance?: bigint;
+}
+
+/**
+ * A single ERC-20, ERC-721, or SPL token contract to check for ownership.
+ */
+export type TokenContract = EvmTokenContract | SvmTokenContract;
 
 /**
  * Configuration for the token-gate server hook and fetch wrapper.
@@ -75,17 +94,19 @@ export interface TokenGateConfig {
 
 /**
  * Proof payload sent in the `token-gate` request header.
- * Base64-encoded JSON, signed with EIP-191 personal_sign.
+ * Base64-encoded JSON. EVM proofs use EIP-191 personal_sign; Solana proofs use ed25519.
  */
 export interface TokenGateProof {
-  /** Wallet address of the requester (checksummed) */
-  address: `0x${string}`;
+  /** Wallet address — checksummed hex for EVM, base58 for Solana */
+  address: string;
   /** Domain of the server (e.g. "api.example.com") */
   domain: string;
   /** ISO 8601 timestamp when the proof was created */
   issuedAt: string;
-  /** EIP-191 personal_sign signature */
-  signature: `0x${string}`;
+  /** Signature — hex for EIP-191, base58 for ed25519 */
+  signature: string;
+  /** Signature scheme used */
+  signatureType: "eip191" | "ed25519";
 }
 
 /**
@@ -96,17 +117,32 @@ export const TokenGateProofSchema = z.object({
   domain: z.string(),
   issuedAt: z.string(),
   signature: z.string(),
+  signatureType: z.enum(["eip191", "ed25519"]),
 });
 
 /**
- * Serializable contract info included in 402 extension responses.
- * Uses chainId (number) instead of the full viem Chain object.
+ * Serializable EVM contract info included in 402 extension responses.
  */
-export interface TokenGateContractInfo {
+export interface EvmContractInfo {
+  vm: "evm";
   address: string;
   chainId: number;
   type: "ERC-20" | "ERC-721";
 }
+
+/**
+ * Serializable SVM contract info included in 402 extension responses.
+ */
+export interface SvmContractInfo {
+  vm: "svm";
+  mint: string;
+  network: string;
+}
+
+/**
+ * Serializable contract info included in 402 extension responses.
+ */
+export type TokenGateContractInfo = EvmContractInfo | SvmContractInfo;
 
 /**
  * Extension info advertised in 402 PaymentRequired responses.
@@ -146,3 +182,43 @@ export interface DeclareTokenGateOptions {
 export interface TokenGateDeclaration extends TokenGateExtension {
   _options: DeclareTokenGateOptions;
 }
+
+// ---------------------------------------------------------------------------
+// Signer types — defined here so sign.ts, hooks.ts, and index.ts all import
+// from one place without cross-module cycles.
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal EVM signer interface — compatible with viem WalletClient and PrivateKeyAccount.
+ */
+export interface TokenGateEvmSigner {
+  /** EVM wallet address */
+  address: `0x${string}`;
+  /** Sign a plain message with EIP-191 personal_sign */
+  signMessage: (args: { message: string }) => Promise<`0x${string}`>;
+}
+
+/**
+ * Wallet-adapter style Solana signer (Phantom, Solflare, @solana/wallet-adapter).
+ */
+export interface TokenGateWalletAdapterSigner {
+  signMessage: (message: Uint8Array) => Promise<Uint8Array>;
+  publicKey: string | { toBase58: () => string };
+}
+
+/**
+ * @solana/kit KeyPairSigner style.
+ */
+export interface TokenGateSolanaKitSigner {
+  address: string;
+  signMessages: (
+    messages: Array<{ content: Uint8Array; signatures: Record<string, unknown> }>,
+  ) => Promise<Array<Record<string, Uint8Array>>>;
+}
+
+export type TokenGateSolanaSigner = TokenGateWalletAdapterSigner | TokenGateSolanaKitSigner;
+
+/**
+ * Any signer accepted by createTokenGateProof — EVM or Solana.
+ */
+export type TokenGateSigner = TokenGateEvmSigner | TokenGateSolanaSigner;

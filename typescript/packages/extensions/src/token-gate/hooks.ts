@@ -4,9 +4,8 @@
  * Server-side request hook and client-side onPaymentRequired hook.
  */
 
-import type { TokenGateConfig, TokenGateExtension } from "./types";
+import type { TokenGateConfig, TokenGateExtension, TokenGateSigner } from "./types";
 import { TOKEN_GATE, DEFAULT_PROOF_MAX_AGE, DEFAULT_OWNERSHIP_CACHE_TTL } from "./types";
-import type { TokenGateSigner } from "./sign";
 import { createTokenGateProof } from "./sign";
 import { parseTokenGateHeader } from "./parse";
 import { verifyTokenGateProof } from "./verify";
@@ -28,7 +27,12 @@ export interface CreateTokenGateRequestHookOptions extends TokenGateConfig {
   /** Optional event callback for logging/debugging */
   onEvent?: (event: TokenGateHookEvent) => void;
   /** @internal Override checkOwnership for testing */
-  _checkOwnership?: typeof defaultCheckOwnership;
+  _checkOwnership?: (
+    address: string,
+    contracts: TokenGateConfig["contracts"],
+    matchMode?: "any" | "all",
+    cacheTtlSeconds?: number,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -47,7 +51,7 @@ export interface CreateTokenGateRequestHookOptions extends TokenGateConfig {
  *
  * const httpServer = new x402HTTPResourceServer(resourceServer, routes)
  *   .onProtectedRequest(createTokenGateRequestHook({
- *     contracts: [{ address: '0xNFT...', chain: base, type: 'ERC-721' }],
+ *     contracts: [{ vm: 'evm', address: '0xNFT...', chain: base, type: 'ERC-721' }],
  *     access: 'free',
  *   }));
  * ```
@@ -125,7 +129,7 @@ export function createTokenGateRequestHook(options: CreateTokenGateRequestHookOp
  * Options for the client-side onPaymentRequired hook.
  */
 export interface CreateTokenGateClientHookOptions {
-  /** EVM wallet signer */
+  /** EVM or Solana wallet signer */
   account: TokenGateSigner;
   /**
    * Server domain to bind the proof to.
@@ -139,6 +143,9 @@ export interface CreateTokenGateClientHookOptions {
  *
  * When the server advertises a `token-gate` extension in its 402 response,
  * this hook creates a signed proof and returns it as a header for the retry.
+ *
+ * For EVM signers, only responds when the 402 lists EVM contracts.
+ * For Solana signers, only responds when the 402 lists SVM contracts.
  *
  * @param options - Signer and optional domain override
  * @returns Hook function for x402HTTPClient.onPaymentRequired()
@@ -154,6 +161,18 @@ export interface CreateTokenGateClientHookOptions {
 export function createTokenGateClientHook(options: CreateTokenGateClientHookOptions) {
   const { account, domain: domainOverride } = options;
 
+  // Detect signer VM type — same logic as isSolanaSigner in sign.ts.
+  // Viem accounts have publicKey as "0x..." hex; Solana publicKey is base58 or an object.
+  const isSolana = (() => {
+    if ("signMessages" in account) return true;
+    if ("publicKey" in account) {
+      const pk = (account as { publicKey: unknown }).publicKey;
+      if (typeof pk === "object" && pk !== null) return true;
+      if (typeof pk === "string" && !pk.startsWith("0x")) return true;
+    }
+    return false;
+  })();
+
   return async (context: {
     paymentRequired: { extensions?: Record<string, unknown> };
   }): Promise<{ headers: Record<string, string> } | void> => {
@@ -161,6 +180,14 @@ export function createTokenGateClientHook(options: CreateTokenGateClientHookOpti
     const extension = extensions[TOKEN_GATE] as TokenGateExtension | undefined;
 
     if (!extension?.info) return;
+
+    // Filter contracts to matching VM type — skip if no compatible contracts
+    const contracts = extension.info.contracts ?? [];
+    const hasCompatible = isSolana
+      ? contracts.some(c => c.vm === "svm")
+      : contracts.some(c => c.vm === "evm");
+
+    if (!hasCompatible) return;
 
     const domain = domainOverride ?? extension.info.domain;
     if (!domain) return;

@@ -1,12 +1,13 @@
 /**
  * On-chain token ownership check with TTL cache
  *
- * Uses viem readContract to call balanceOf() or ownerOf() on ERC-20/ERC-721 contracts.
- * Results are cached per address+chain+contract to avoid RPC spam.
+ * EVM: uses viem readContract to call balanceOf() or ownerOf() on ERC-20/ERC-721 contracts.
+ * SVM: uses the Solana JSON RPC getTokenAccountsByOwner to sum SPL token balances.
+ * Results are cached per address+chain/network+contract to avoid RPC spam.
  */
 
 import { createPublicClient, http } from "viem";
-import type { TokenContract } from "./types";
+import type { TokenContract, EvmTokenContract, SvmTokenContract } from "./types";
 
 /** balanceOf(address) → uint256 — same ABI for ERC-20 and ERC-721 */
 const BALANCE_OF_ABI = [
@@ -35,13 +36,13 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-/** In-memory ownership cache, keyed by `address:chainId:contractAddress` */
+/** In-memory ownership cache, keyed by `address:chainId:contractAddress` or `svm:address:network:mint` */
 const ownershipCache = new Map<string, CacheEntry>();
 
 /** Per-chain public clients, keyed by chainId */
 const clientCache = new Map<number, ReturnType<typeof createPublicClient>>();
 
-function getPublicClient(chain: TokenContract["chain"]) {
+function getPublicClient(chain: EvmTokenContract["chain"]) {
   const existing = clientCache.get(chain.id);
   if (existing) return existing;
   const client = createPublicClient({ chain, transport: http() });
@@ -49,12 +50,29 @@ function getPublicClient(chain: TokenContract["chain"]) {
   return client;
 }
 
+function solanaNetworkToRpcUrl(network: string): string {
+  if (network === "solana:mainnet-beta" || network === "mainnet-beta") {
+    return "https://api.mainnet-beta.solana.com";
+  }
+  if (network === "solana:devnet" || network === "devnet") {
+    return "https://api.devnet.solana.com";
+  }
+  if (network === "solana:testnet" || network === "testnet") {
+    return "https://api.testnet.solana.com";
+  }
+  // Allow raw https URLs for custom RPC endpoints
+  if (network.startsWith("http")) {
+    return network;
+  }
+  return "https://api.mainnet-beta.solana.com";
+}
+
 /**
- * Check whether a single contract grants holder status to the address.
+ * Check whether a single EVM contract grants holder status to the address.
  */
-async function checkSingleContract(
+async function checkEvmContract(
   address: `0x${string}`,
-  contract: TokenContract,
+  contract: EvmTokenContract,
   cacheTtlMs: number,
 ): Promise<boolean> {
   const cacheKey = `${address.toLowerCase()}:${contract.chain.id}:${contract.address.toLowerCase()}${contract.tokenId !== undefined ? `:${contract.tokenId}` : ""}`;
@@ -98,16 +116,73 @@ async function checkSingleContract(
 }
 
 /**
+ * Check whether a Solana SPL token contract grants holder status to the address.
+ */
+async function checkSvmContract(
+  address: string,
+  contract: SvmTokenContract,
+  cacheTtlMs: number,
+): Promise<boolean> {
+  const cacheKey = `svm:${address}:${contract.network}:${contract.mint}`;
+
+  const cached = ownershipCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.isHolder;
+  }
+
+  const rpcUrl = solanaNetworkToRpcUrl(contract.network);
+
+  let isHolder = false;
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getTokenAccountsByOwner",
+        params: [address, { mint: contract.mint }, { encoding: "jsonParsed" }],
+      }),
+    });
+
+    const data = (await response.json()) as {
+      result?: { value?: Array<{ account?: { data?: { parsed?: { info?: { tokenAmount?: { amount?: string } } } } } }> };
+    };
+
+    const accounts = data.result?.value ?? [];
+    let totalBalance = 0n;
+    for (const account of accounts) {
+      const amount = account.account?.data?.parsed?.info?.tokenAmount?.amount;
+      if (amount) {
+        totalBalance += BigInt(amount);
+      }
+    }
+
+    const minBalance = contract.minBalance ?? 1n;
+    isHolder = totalBalance >= minBalance;
+  } catch {
+    // RPC error or invalid address — not a holder
+    isHolder = false;
+  }
+
+  ownershipCache.set(cacheKey, { isHolder, expiresAt: Date.now() + cacheTtlMs });
+  return isHolder;
+}
+
+/**
  * Check on-chain token ownership for the given address.
  *
- * @param address - Wallet address to check
+ * Routes EVM contracts through viem and SVM contracts through the Solana JSON RPC.
+ * Address format mismatch (e.g. EVM address against SVM contract) returns false.
+ *
+ * @param address - Wallet address to check (hex for EVM, base58 for Solana)
  * @param contracts - Token contracts to verify against
  * @param matchMode - "any" (default): holder if any contract passes; "all": all must pass
  * @param cacheTtlSeconds - How long to cache results (default: 300)
  * @returns true if the address qualifies as a token holder
  */
 export async function checkOwnership(
-  address: `0x${string}`,
+  address: string,
   contracts: TokenContract[],
   matchMode: "any" | "all" = "any",
   cacheTtlSeconds = 300,
@@ -115,16 +190,29 @@ export async function checkOwnership(
   if (contracts.length === 0) return false;
 
   const cacheTtlMs = cacheTtlSeconds * 1000;
+  const isEvmAddress = address.startsWith("0x");
+
+  async function checkContract(contract: TokenContract): Promise<boolean> {
+    if (contract.vm === "evm") {
+      // Skip EVM contracts for non-EVM addresses
+      if (!isEvmAddress) return false;
+      return checkEvmContract(address as `0x${string}`, contract, cacheTtlMs);
+    } else {
+      // Skip SVM contracts for EVM addresses
+      if (isEvmAddress) return false;
+      return checkSvmContract(address, contract, cacheTtlMs);
+    }
+  }
 
   if (matchMode === "all") {
     for (const contract of contracts) {
-      const isHolder = await checkSingleContract(address, contract, cacheTtlMs);
+      const isHolder = await checkContract(contract);
       if (!isHolder) return false;
     }
     return true;
   } else {
     for (const contract of contracts) {
-      const isHolder = await checkSingleContract(address, contract, cacheTtlMs);
+      const isHolder = await checkContract(contract);
       if (isHolder) return true;
     }
     return false;

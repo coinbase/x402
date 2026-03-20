@@ -6,7 +6,12 @@
  */
 
 import type { ResourceServerExtension, PaymentRequiredContext } from "@x402/core/types";
-import type { TokenGateExtension, TokenGateDeclaration, DeclareTokenGateOptions } from "./types";
+import type {
+  TokenGateExtension,
+  TokenGateDeclaration,
+  DeclareTokenGateOptions,
+  TokenGateContractInfo,
+} from "./types";
 import { TOKEN_GATE } from "./types";
 import { buildTokenGateSchema } from "./schema";
 
@@ -45,13 +50,17 @@ export function createTokenGateExtension(): ResourceServerExtension {
         }
       }
 
+      const contracts: TokenGateContractInfo[] = opts.contracts.map(c => {
+        if (c.vm === "evm") {
+          return { vm: "evm", address: c.address, chainId: c.chain.id, type: c.type };
+        } else {
+          return { vm: "svm", mint: c.mint, network: c.network };
+        }
+      });
+
       return {
         info: {
-          contracts: opts.contracts.map(c => ({
-            address: c.address,
-            chainId: c.chain.id,
-            type: c.type,
-          })),
+          contracts,
           domain,
           ...(opts.message && { message: opts.message }),
         },

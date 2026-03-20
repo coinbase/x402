@@ -1,21 +1,22 @@
 /**
  * Client-side proof signing for token-gate extension
  *
- * Creates EIP-191 personal_sign proofs that prove wallet ownership
+ * Creates EIP-191 (EVM) or ed25519 (Solana) proofs that prove wallet ownership
  * without requiring any on-chain transaction.
  */
 
-import type { TokenGateProof } from "./types";
+import { base58 } from "@scure/base";
+import type {
+  TokenGateProof,
+  TokenGateEvmSigner,
+  TokenGateSigner,
+  TokenGateSolanaSigner,
+  TokenGateWalletAdapterSigner,
+  TokenGateSolanaKitSigner,
+} from "./types";
 
-/**
- * Minimal EVM signer interface — compatible with viem WalletClient and PrivateKeyAccount.
- */
-export interface TokenGateSigner {
-  /** Wallet address */
-  address: `0x${string}`;
-  /** Sign a plain message with EIP-191 personal_sign */
-  signMessage: (args: { message: string }) => Promise<`0x${string}`>;
-}
+// Re-export for consumers that import TokenGateSigner from sign.ts (backward compat)
+export type { TokenGateEvmSigner, TokenGateSigner } from "./types";
 
 /**
  * Build the canonical message string for a token-gate proof.
@@ -28,20 +29,89 @@ export function buildProofMessage(domain: string, issuedAt: string): string {
   return `token-gate proof for ${domain} at ${issuedAt}`;
 }
 
+// ---------------------------------------------------------------------------
+// Signer detection helpers
+// ---------------------------------------------------------------------------
+
+function isSolanaSigner(signer: TokenGateSigner): signer is TokenGateSolanaSigner {
+  // SolanaKit: unique signMessages method
+  if ("signMessages" in signer) return true;
+  // WalletAdapter: has publicKey, but viem accounts also have publicKey as `0x...` hex.
+  // Solana publicKey is either a PublicKey object or a base58 string (no 0x prefix).
+  if ("publicKey" in signer) {
+    const pk = (signer as { publicKey: unknown }).publicKey;
+    if (typeof pk === "object" && pk !== null) return true; // PublicKey object
+    if (typeof pk === "string" && !pk.startsWith("0x")) return true; // base58 string
+  }
+  return false;
+}
+
+function isWalletAdapterSigner(
+  signer: TokenGateSolanaSigner,
+): signer is TokenGateWalletAdapterSigner {
+  return "publicKey" in signer;
+}
+
+function isKitSigner(signer: TokenGateSolanaSigner): signer is TokenGateSolanaKitSigner {
+  return "signMessages" in signer;
+}
+
+function getSolanaAddress(signer: TokenGateSolanaSigner): string {
+  if (isWalletAdapterSigner(signer)) {
+    const pk = signer.publicKey;
+    return typeof pk === "string" ? pk : pk.toBase58();
+  }
+  return signer.address;
+}
+
+async function signSolanaMessage(message: string, signer: TokenGateSolanaSigner): Promise<string> {
+  const msgBytes = new TextEncoder().encode(message);
+  let sigBytes: Uint8Array;
+
+  if (isKitSigner(signer)) {
+    // @solana/kit KeyPairSigner style
+    const address = getSolanaAddress(signer);
+    const results = await signer.signMessages([{ content: msgBytes, signatures: {} }]);
+    sigBytes = results[0][address];
+  } else {
+    // WalletAdapter style
+    sigBytes = await signer.signMessage(msgBytes);
+  }
+
+  return base58.encode(sigBytes);
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
  * Create a signed token-gate proof.
  *
- * @param signer - EVM signer (viem PrivateKeyAccount or WalletClient)
+ * Accepts both EVM signers (viem PrivateKeyAccount / WalletClient) and Solana
+ * signers (wallet-adapter or @solana/kit KeyPairSigner).
+ *
+ * @param signer - Signer to create the proof with
  * @param domain - Server domain to bind the proof to
  * @returns Signed TokenGateProof ready to encode into the request header
  *
- * @example
+ * @example EVM
  * ```typescript
  * import { privateKeyToAccount } from 'viem/accounts';
- * import { createTokenGateProof } from '@x402/extensions/token-gate';
- *
  * const account = privateKeyToAccount(privateKey);
  * const proof = await createTokenGateProof(account, 'api.example.com');
+ * ```
+ *
+ * @example Solana (nacl keypair)
+ * ```typescript
+ * import nacl from 'tweetnacl';
+ * import { base58 } from '@scure/base';
+ * const kp = nacl.sign.keyPair();
+ * const signer = {
+ *   address: base58.encode(kp.publicKey),
+ *   signMessages: async ([{ content }]) => [{ [base58.encode(kp.publicKey)]: nacl.sign.detached(content, kp.secretKey) }],
+ * };
+ * const proof = await createTokenGateProof(signer, 'api.example.com');
  * ```
  */
 export async function createTokenGateProof(
@@ -50,11 +120,21 @@ export async function createTokenGateProof(
 ): Promise<TokenGateProof> {
   const issuedAt = new Date().toISOString();
   const message = buildProofMessage(domain, issuedAt);
-  const signature = await signer.signMessage({ message });
+
+  if (isSolanaSigner(signer)) {
+    const address = getSolanaAddress(signer);
+    const signature = await signSolanaMessage(message, signer);
+    return { address, domain, issuedAt, signature, signatureType: "ed25519" };
+  }
+
+  // EVM path
+  const evmSigner = signer as TokenGateEvmSigner;
+  const signature = await evmSigner.signMessage({ message });
   return {
-    address: signer.address,
+    address: evmSigner.address,
     domain,
     issuedAt,
     signature,
+    signatureType: "eip191",
   };
 }

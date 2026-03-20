@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { base } from "viem/chains";
+import nacl from "tweetnacl";
+import { base58 } from "@scure/base";
 import {
   TOKEN_GATE,
   TokenGateProofSchema,
@@ -22,6 +24,9 @@ import {
   type TokenGateProof,
   type TokenGateExtension,
   type TokenGateHookEvent,
+  type EvmTokenContract,
+  type SvmTokenContract,
+  type TokenGateSolanaKitSigner,
 } from "../src/token-gate/index";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,19 @@ function makeAdapter(header: string | undefined, url = "https://api.example.com/
   };
 }
 
+/** Build a @solana/kit-style signer from a nacl keypair */
+function makeNaclKitSigner(kp: nacl.SignKeyPair): TokenGateSolanaKitSigner {
+  const address = base58.encode(kp.publicKey);
+  return {
+    address,
+    signMessages: async (messages) => {
+      return messages.map(({ content }) => ({
+        [address]: nacl.sign.detached(content, kp.secretKey),
+      }));
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 1. Constants
 // ---------------------------------------------------------------------------
@@ -63,8 +81,17 @@ describe("TOKEN_GATE constant", () => {
 // ---------------------------------------------------------------------------
 
 describe("encodeTokenGateHeader / parseTokenGateHeader", () => {
-  it("roundtrips a valid proof", async () => {
+  it("roundtrips a valid EVM proof", async () => {
     const { proof } = await makeSignedProof();
+    const encoded = encodeTokenGateHeader(proof);
+    const decoded = parseTokenGateHeader(encoded);
+    expect(decoded).toEqual(proof);
+  });
+
+  it("roundtrips a valid SVM proof", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
     const encoded = encodeTokenGateHeader(proof);
     const decoded = parseTokenGateHeader(encoded);
     expect(decoded).toEqual(proof);
@@ -86,8 +113,15 @@ describe("encodeTokenGateHeader / parseTokenGateHeader", () => {
 });
 
 describe("TokenGateProofSchema", () => {
-  it("accepts a valid proof", async () => {
+  it("accepts a valid EVM proof", async () => {
     const { proof } = await makeSignedProof();
+    expect(TokenGateProofSchema.safeParse(proof).success).toBe(true);
+  });
+
+  it("accepts a valid SVM proof", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
     expect(TokenGateProofSchema.safeParse(proof).success).toBe(true);
   });
 
@@ -96,19 +130,26 @@ describe("TokenGateProofSchema", () => {
     const { domain: _d, ...rest } = proof;
     expect(TokenGateProofSchema.safeParse(rest).success).toBe(false);
   });
+
+  it("rejects a proof missing signatureType", async () => {
+    const { proof } = await makeSignedProof();
+    const { signatureType: _s, ...rest } = proof;
+    expect(TokenGateProofSchema.safeParse(rest).success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// 3. Proof signing & verification
+// 3. EVM proof signing & verification
 // ---------------------------------------------------------------------------
 
-describe("createTokenGateProof / verifyTokenGateProof", () => {
+describe("createTokenGateProof / verifyTokenGateProof (EVM)", () => {
   it("creates a proof with correct fields", async () => {
     const { account, proof } = await makeSignedProof("test.com");
     expect(proof.address.toLowerCase()).toBe(account.address.toLowerCase());
     expect(proof.domain).toBe("test.com");
     expect(typeof proof.issuedAt).toBe("string");
     expect(proof.signature).toMatch(/^0x/);
+    expect(proof.signatureType).toBe("eip191");
   });
 
   it("buildProofMessage returns expected string", () => {
@@ -132,7 +173,7 @@ describe("createTokenGateProof / verifyTokenGateProof", () => {
 
   it("rejects tampered signature", async () => {
     const { proof } = await makeSignedProof("api.example.com");
-    const tampered: TokenGateProof = { ...proof, signature: "0x" + "ff".repeat(65) as `0x${string}` };
+    const tampered: TokenGateProof = { ...proof, signature: "0x" + "ff".repeat(65) };
     const result = await verifyTokenGateProof(tampered, "api.example.com");
     expect(result.valid).toBe(false);
   });
@@ -142,7 +183,13 @@ describe("createTokenGateProof / verifyTokenGateProof", () => {
     const issuedAt = new Date(Date.now() - 400_000).toISOString(); // 400s ago
     const message = buildProofMessage("api.example.com", issuedAt);
     const signature = await account.signMessage({ message });
-    const proof: TokenGateProof = { address: account.address, domain: "api.example.com", issuedAt, signature };
+    const proof: TokenGateProof = {
+      address: account.address,
+      domain: "api.example.com",
+      issuedAt,
+      signature,
+      signatureType: "eip191",
+    };
     const result = await verifyTokenGateProof(proof, "api.example.com", 300);
     expect(result.valid).toBe(false);
     expect(result.error).toMatch(/expired/i);
@@ -153,10 +200,88 @@ describe("createTokenGateProof / verifyTokenGateProof", () => {
     const issuedAt = new Date(Date.now() + 60_000).toISOString();
     const message = buildProofMessage("api.example.com", issuedAt);
     const signature = await account.signMessage({ message });
-    const proof: TokenGateProof = { address: account.address, domain: "api.example.com", issuedAt, signature };
+    const proof: TokenGateProof = {
+      address: account.address,
+      domain: "api.example.com",
+      issuedAt,
+      signature,
+      signatureType: "eip191",
+    };
     const result = await verifyTokenGateProof(proof, "api.example.com");
     expect(result.valid).toBe(false);
     expect(result.error).toMatch(/future/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. SVM proof signing & verification
+// ---------------------------------------------------------------------------
+
+describe("createTokenGateProof / verifyTokenGateProof (SVM)", () => {
+  it("creates a proof with correct fields for kit signer", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+
+    expect(proof.address).toBe(base58.encode(kp.publicKey));
+    expect(proof.domain).toBe("api.example.com");
+    expect(proof.signatureType).toBe("ed25519");
+    expect(() => base58.decode(proof.signature)).not.toThrow(); // valid base58
+  });
+
+  it("creates a proof with correct fields for wallet-adapter signer", async () => {
+    const kp = nacl.sign.keyPair();
+    const address = base58.encode(kp.publicKey);
+    const walletAdapterSigner = {
+      publicKey: address,
+      signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, kp.secretKey),
+    };
+    const proof = await createTokenGateProof(walletAdapterSigner, "api.example.com");
+
+    expect(proof.address).toBe(address);
+    expect(proof.signatureType).toBe("ed25519");
+  });
+
+  it("valid SVM proof verifies successfully", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+
+    const result = await verifyTokenGateProof(proof, "api.example.com");
+    expect(result.valid).toBe(true);
+    expect(result.address).toBe(base58.encode(kp.publicKey));
+  });
+
+  it("rejects tampered SVM signature", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+
+    // Replace signature with garbage base58
+    const badSig = base58.encode(new Uint8Array(64).fill(0xff));
+    const tampered: TokenGateProof = { ...proof, signature: badSig };
+    const result = await verifyTokenGateProof(tampered, "api.example.com");
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects SVM proof with wrong domain", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+
+    const result = await verifyTokenGateProof(proof, "other.example.com");
+    expect(result.valid).toBe(false);
+    expect(result.error).toMatch(/Domain mismatch/);
+  });
+
+  it("rejects SVM proof with invalid base58 signature", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+
+    const tampered: TokenGateProof = { ...proof, signature: "not-valid-base58-!!!" };
+    const result = await verifyTokenGateProof(tampered, "api.example.com");
+    expect(result.valid).toBe(false);
   });
 });
 
@@ -165,11 +290,16 @@ describe("createTokenGateProof / verifyTokenGateProof", () => {
 // ---------------------------------------------------------------------------
 
 describe("checkOwnership", () => {
-  it("returns true when holder (via hook injection)", async () => {
+  it("returns true when EVM holder (via hook injection)", async () => {
     const mockCheck = vi.fn().mockResolvedValue(true);
     const { proof } = await makeSignedProof("api.example.com");
     const header = encodeTokenGateHeader(proof);
-    const CONTRACT = { address: "0xToken" as `0x${string}`, chain: base, type: "ERC-20" as const };
+    const CONTRACT: EvmTokenContract = {
+      vm: "evm",
+      address: "0xToken" as `0x${string}`,
+      chain: base,
+      type: "ERC-20",
+    };
     const hook = createTokenGateRequestHook({
       contracts: [CONTRACT],
       access: "free",
@@ -184,7 +314,12 @@ describe("checkOwnership", () => {
     const mockCheck = vi.fn().mockResolvedValue(false);
     const { proof } = await makeSignedProof("api.example.com");
     const header = encodeTokenGateHeader(proof);
-    const CONTRACT = { address: "0xToken" as `0x${string}`, chain: base, type: "ERC-721" as const };
+    const CONTRACT: EvmTokenContract = {
+      vm: "evm",
+      address: "0xToken" as `0x${string}`,
+      chain: base,
+      type: "ERC-721",
+    };
     const hook = createTokenGateRequestHook({
       contracts: [CONTRACT],
       access: "free",
@@ -194,6 +329,27 @@ describe("checkOwnership", () => {
     expect(result).toBeUndefined();
     expect(mockCheck).toHaveBeenCalledOnce();
   });
+
+  it("returns true when SVM holder (via hook injection)", async () => {
+    const mockCheck = vi.fn().mockResolvedValue(true);
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const proof = await createTokenGateProof(signer, "api.example.com");
+    const header = encodeTokenGateHeader(proof);
+    const CONTRACT: SvmTokenContract = {
+      vm: "svm",
+      mint: "So11111111111111111111111111111111111111112",
+      network: "solana:mainnet-beta",
+    };
+    const hook = createTokenGateRequestHook({
+      contracts: [CONTRACT],
+      access: "free",
+      _checkOwnership: mockCheck,
+    });
+    const result = await hook({ adapter: makeAdapter(header), path: "/data" });
+    expect(result).toEqual({ grantAccess: true });
+    expect(mockCheck).toHaveBeenCalledOnce();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -201,7 +357,12 @@ describe("checkOwnership", () => {
 // ---------------------------------------------------------------------------
 
 describe("createTokenGateRequestHook", () => {
-  const CONTRACT = { address: "0xToken" as `0x${string}`, chain: base, type: "ERC-721" as const };
+  const CONTRACT: EvmTokenContract = {
+    vm: "evm",
+    address: "0xToken" as `0x${string}`,
+    chain: base,
+    type: "ERC-721",
+  };
 
   it("returns undefined when no header present", async () => {
     const hook = createTokenGateRequestHook({ contracts: [CONTRACT], access: "free" });
@@ -211,7 +372,15 @@ describe("createTokenGateRequestHook", () => {
 
   it("returns undefined for invalid proof", async () => {
     const hook = createTokenGateRequestHook({ contracts: [CONTRACT], access: "free" });
-    const fakeHeader = Buffer.from(JSON.stringify({ address: "0x1", domain: "x", issuedAt: "bad", signature: "0x0" })).toString("base64url");
+    const fakeHeader = Buffer.from(
+      JSON.stringify({
+        address: "0x1",
+        domain: "x",
+        issuedAt: "bad",
+        signature: "0x0",
+        signatureType: "eip191",
+      }),
+    ).toString("base64url");
     const result = await hook({ adapter: makeAdapter(fakeHeader), path: "/data" });
     expect(result).toBeUndefined();
   });
@@ -280,10 +449,10 @@ describe("createTokenGateRequestHook", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. Client hook
+// 6. Client hook (EVM)
 // ---------------------------------------------------------------------------
 
-describe("createTokenGateClientHook", () => {
+describe("createTokenGateClientHook (EVM)", () => {
   it("returns undefined when extension not present", async () => {
     const account = makeTestAccount();
     const hook = createTokenGateClientHook({ account });
@@ -291,13 +460,13 @@ describe("createTokenGateClientHook", () => {
     expect(result).toBeUndefined();
   });
 
-  it("returns headers when token-gate extension present", async () => {
+  it("returns headers when token-gate extension has EVM contracts", async () => {
     const account = makeTestAccount();
     const hook = createTokenGateClientHook({ account });
 
     const extension: TokenGateExtension = {
       info: {
-        contracts: [{ address: "0xToken", chainId: 8453, type: "ERC-721" }],
+        contracts: [{ vm: "evm", address: "0xToken", chainId: 8453, type: "ERC-721" }],
         domain: "api.example.com",
       },
       schema: {},
@@ -314,6 +483,25 @@ describe("createTokenGateClientHook", () => {
     const proof = parseTokenGateHeader(result!.headers[TOKEN_GATE]);
     expect(proof.address.toLowerCase()).toBe(account.address.toLowerCase());
     expect(proof.domain).toBe("api.example.com");
+    expect(proof.signatureType).toBe("eip191");
+  });
+
+  it("returns undefined when 402 only has SVM contracts (EVM signer)", async () => {
+    const account = makeTestAccount();
+    const hook = createTokenGateClientHook({ account });
+
+    const extension: TokenGateExtension = {
+      info: {
+        contracts: [{ vm: "svm", mint: "So111...", network: "solana:mainnet-beta" }],
+        domain: "api.example.com",
+      },
+      schema: {},
+    };
+
+    const result = await hook({
+      paymentRequired: { extensions: { [TOKEN_GATE]: extension } },
+    });
+    expect(result).toBeUndefined();
   });
 
   it("uses domain override when provided", async () => {
@@ -322,7 +510,7 @@ describe("createTokenGateClientHook", () => {
 
     const extension: TokenGateExtension = {
       info: {
-        contracts: [],
+        contracts: [{ vm: "evm", address: "0xToken", chainId: 8453, type: "ERC-721" }],
         domain: "original.example.com",
       },
       schema: {},
@@ -338,6 +526,54 @@ describe("createTokenGateClientHook", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 6b. Client hook (SVM)
+// ---------------------------------------------------------------------------
+
+describe("createTokenGateClientHook (SVM)", () => {
+  it("returns headers when 402 has SVM contracts (SVM signer)", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const hook = createTokenGateClientHook({ account: signer });
+
+    const extension: TokenGateExtension = {
+      info: {
+        contracts: [{ vm: "svm", mint: "So111...", network: "solana:mainnet-beta" }],
+        domain: "api.example.com",
+      },
+      schema: {},
+    };
+
+    const result = await hook({
+      paymentRequired: { extensions: { [TOKEN_GATE]: extension } },
+    });
+
+    expect(result).toBeDefined();
+    const proof = parseTokenGateHeader(result!.headers[TOKEN_GATE]);
+    expect(proof.address).toBe(base58.encode(kp.publicKey));
+    expect(proof.signatureType).toBe("ed25519");
+  });
+
+  it("returns undefined when 402 only has EVM contracts (SVM signer)", async () => {
+    const kp = nacl.sign.keyPair();
+    const signer = makeNaclKitSigner(kp);
+    const hook = createTokenGateClientHook({ account: signer });
+
+    const extension: TokenGateExtension = {
+      info: {
+        contracts: [{ vm: "evm", address: "0xToken", chainId: 8453, type: "ERC-721" }],
+        domain: "api.example.com",
+      },
+      schema: {},
+    };
+
+    const result = await hook({
+      paymentRequired: { extensions: { [TOKEN_GATE]: extension } },
+    });
+    expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 7. Resource server extension (server.ts)
 // ---------------------------------------------------------------------------
 
@@ -347,7 +583,7 @@ describe("createTokenGateExtension", () => {
     expect(ext.key).toBe(TOKEN_GATE);
   });
 
-  it("enrichPaymentRequiredResponse adds contracts and domain", async () => {
+  it("enrichPaymentRequiredResponse adds EVM contracts and domain", async () => {
     const ext = createTokenGateExtension();
     const context = {
       resourceInfo: { url: "https://api.example.com/data" },
@@ -357,7 +593,14 @@ describe("createTokenGateExtension", () => {
       info: { contracts: [], domain: "" },
       schema: {},
       _options: {
-        contracts: [{ address: "0xToken" as `0x${string}`, chain: base, type: "ERC-721" as const }],
+        contracts: [
+          {
+            vm: "evm" as const,
+            address: "0xToken" as `0x${string}`,
+            chain: base,
+            type: "ERC-721" as const,
+          },
+        ],
         message: "NFT holders get free access",
       },
     };
@@ -365,9 +608,44 @@ describe("createTokenGateExtension", () => {
     const result = await ext.enrichPaymentRequiredResponse!(declaration, context as any);
     const r = result as TokenGateExtension;
     expect(r.info.contracts).toHaveLength(1);
-    expect(r.info.contracts[0].chainId).toBe(base.id);
+    const c = r.info.contracts[0];
+    expect(c.vm).toBe("evm");
+    if (c.vm === "evm") {
+      expect(c.chainId).toBe(base.id);
+    }
     expect(r.info.domain).toBe("api.example.com");
     expect(r.info.message).toBe("NFT holders get free access");
+  });
+
+  it("enrichPaymentRequiredResponse adds SVM contracts", async () => {
+    const ext = createTokenGateExtension();
+    const context = {
+      resourceInfo: { url: "https://api.example.com/data" },
+      requirements: [],
+    };
+    const declaration = {
+      info: { contracts: [], domain: "" },
+      schema: {},
+      _options: {
+        contracts: [
+          {
+            vm: "svm" as const,
+            mint: "So11111111111111111111111111111111111111112",
+            network: "solana:mainnet-beta",
+          },
+        ],
+      },
+    };
+
+    const result = await ext.enrichPaymentRequiredResponse!(declaration, context as any);
+    const r = result as TokenGateExtension;
+    expect(r.info.contracts).toHaveLength(1);
+    const c = r.info.contracts[0];
+    expect(c.vm).toBe("svm");
+    if (c.vm === "svm") {
+      expect(c.mint).toBe("So11111111111111111111111111111111111111112");
+      expect(c.network).toBe("solana:mainnet-beta");
+    }
   });
 
   it("derives domain from URL when not provided", async () => {
@@ -394,21 +672,44 @@ describe("createTokenGateExtension", () => {
 // ---------------------------------------------------------------------------
 
 describe("declareTokenGateExtension", () => {
-  it("creates correct structure", () => {
+  it("creates correct structure for EVM contract", () => {
     const decl = declareTokenGateExtension({
-      contracts: [{ address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" }],
+      contracts: [
+        { vm: "evm", address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" },
+      ],
       message: "NFT holders get free access",
     });
 
     expect(decl[TOKEN_GATE]).toBeDefined();
     expect(decl[TOKEN_GATE].info.contracts).toHaveLength(1);
-    expect(decl[TOKEN_GATE].info.contracts[0].chainId).toBe(base.id);
+    const c = decl[TOKEN_GATE].info.contracts[0];
+    expect(c.vm).toBe("evm");
+    if (c.vm === "evm") {
+      expect(c.chainId).toBe(base.id);
+    }
     expect(decl[TOKEN_GATE].info.message).toBe("NFT holders get free access");
     expect(decl[TOKEN_GATE].schema).toBeDefined();
   });
 
+  it("creates correct structure for SVM contract", () => {
+    const decl = declareTokenGateExtension({
+      contracts: [{ vm: "svm", mint: "So111...", network: "solana:mainnet-beta" }],
+      message: "SPL token holders get free access",
+    });
+
+    expect(decl[TOKEN_GATE].info.contracts).toHaveLength(1);
+    const c = decl[TOKEN_GATE].info.contracts[0];
+    expect(c.vm).toBe("svm");
+    if (c.vm === "svm") {
+      expect(c.mint).toBe("So111...");
+      expect(c.network).toBe("solana:mainnet-beta");
+    }
+  });
+
   it("stores _options for enrichPaymentRequiredResponse", () => {
-    const contracts = [{ address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" as const }];
+    const contracts = [
+      { vm: "evm" as const, address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" as const },
+    ];
     const decl = declareTokenGateExtension({ contracts });
     expect(decl[TOKEN_GATE]._options.contracts).toBe(contracts);
   });
@@ -425,5 +726,6 @@ describe("buildTokenGateSchema", () => {
     expect(schema.required).toContain("domain");
     expect(schema.required).toContain("issuedAt");
     expect(schema.required).toContain("signature");
+    expect(schema.required).toContain("signatureType");
   });
 });

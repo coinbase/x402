@@ -1,17 +1,19 @@
 /**
  * Server-side proof verification for token-gate extension
  *
- * Verifies EIP-191 signatures and checks proof freshness.
+ * Verifies EIP-191 (EVM) or ed25519 (Solana) signatures and checks proof freshness.
  */
 
 import { verifyMessage } from "viem";
+import nacl from "tweetnacl";
+import { base58 } from "@scure/base";
 import type { TokenGateProof } from "./types";
 import { DEFAULT_PROOF_MAX_AGE } from "./types";
 import { buildProofMessage } from "./sign";
 
 export interface TokenGateVerifyResult {
   valid: boolean;
-  address?: `0x${string}`;
+  address?: string;
   error?: string;
 }
 
@@ -21,12 +23,12 @@ export interface TokenGateVerifyResult {
  * Checks:
  * 1. Proof is not expired (issuedAt within proofMaxAge seconds)
  * 2. issuedAt is not in the future
- * 3. EIP-191 signature is valid for the claimed address
+ * 3. Signature is valid for the claimed address (EIP-191 or ed25519)
  *
  * @param proof - The parsed TokenGateProof from the request header
  * @param expectedDomain - The server's domain (must match proof.domain)
  * @param proofMaxAgeSeconds - Maximum accepted age of the proof (default: 300)
- * @returns Verification result with recovered address on success
+ * @returns Verification result with recovered/confirmed address on success
  */
 export async function verifyTokenGateProof(
   proof: TokenGateProof,
@@ -60,14 +62,25 @@ export async function verifyTokenGateProof(
     };
   }
 
-  // Verify EIP-191 signature
   const message = buildProofMessage(proof.domain, proof.issuedAt);
 
+  if (proof.signatureType === "ed25519") {
+    return verifyEd25519Proof(proof, message);
+  }
+
+  // Default: EIP-191
+  return verifyEip191Proof(proof, message);
+}
+
+async function verifyEip191Proof(
+  proof: TokenGateProof,
+  message: string,
+): Promise<TokenGateVerifyResult> {
   try {
     const valid = await verifyMessage({
-      address: proof.address,
+      address: proof.address as `0x${string}`,
       message,
-      signature: proof.signature,
+      signature: proof.signature as `0x${string}`,
     });
 
     if (!valid) {
@@ -79,6 +92,29 @@ export async function verifyTokenGateProof(
     return {
       valid: false,
       error: err instanceof Error ? err.message : "Signature verification failed",
+    };
+  }
+}
+
+function verifyEd25519Proof(
+  proof: TokenGateProof,
+  message: string,
+): TokenGateVerifyResult {
+  try {
+    const sigBytes = base58.decode(proof.signature);
+    const pubkeyBytes = base58.decode(proof.address);
+    const msgBytes = new TextEncoder().encode(message);
+
+    const valid = nacl.sign.detached.verify(msgBytes, sigBytes, pubkeyBytes);
+    if (!valid) {
+      return { valid: false, error: "Signature verification failed" };
+    }
+
+    return { valid: true, address: proof.address };
+  } catch (err) {
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : "ed25519 verification failed",
     };
   }
 }

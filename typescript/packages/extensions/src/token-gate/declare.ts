@@ -9,6 +9,7 @@ import type {
   TokenGateDeclaration,
   TokenGateExtensionInfo,
   DeclareTokenGateOptions,
+  TokenGateContractInfo,
 } from "./types";
 import { TOKEN_GATE } from "./types";
 import { buildTokenGateSchema } from "./schema";
@@ -23,7 +24,7 @@ import { buildTokenGateSchema } from "./schema";
  * @param options - Declaration options including contracts to advertise
  * @returns Extension object ready for route config `extensions`
  *
- * @example
+ * @example EVM
  * ```typescript
  * import { declareTokenGateExtension } from '@x402/extensions/token-gate';
  * import { base } from 'viem/chains';
@@ -33,23 +34,37 @@ import { buildTokenGateSchema } from "./schema";
  *     accepts: [{ scheme: 'exact', price: '$0.005', network: 'eip155:8453', payTo: ADDRESS }],
  *     extensions: {
  *       ...declareTokenGateExtension({
- *         contracts: [{ address: '0xNFT...', chain: base, type: 'ERC-721' }],
+ *         contracts: [{ vm: 'evm', address: '0xNFT...', chain: base, type: 'ERC-721' }],
  *         message: 'NFT holders get free access',
  *       }),
  *     },
  *   },
  * };
  * ```
+ *
+ * @example Solana
+ * ```typescript
+ * extensions: {
+ *   ...declareTokenGateExtension({
+ *     contracts: [{ vm: 'svm', mint: 'So11111...', network: 'solana:mainnet-beta' }],
+ *     message: 'SPL token holders get free access',
+ *   }),
+ * }
+ * ```
  */
 export function declareTokenGateExtension(
   options: DeclareTokenGateOptions,
 ): Record<string, TokenGateDeclaration> {
+  const contracts: TokenGateContractInfo[] = options.contracts.map(c => {
+    if (c.vm === "evm") {
+      return { vm: "evm", address: c.address, chainId: c.chain.id, type: c.type };
+    } else {
+      return { vm: "svm", mint: c.mint, network: c.network };
+    }
+  });
+
   const info: TokenGateExtensionInfo = {
-    contracts: options.contracts.map(c => ({
-      address: c.address,
-      chainId: c.chain.id,
-      type: c.type,
-    })),
+    contracts,
     domain: options.domain ?? "",
     ...(options.message && { message: options.message }),
   };

@@ -1,7 +1,7 @@
 /**
  * Token-Gate Extension for x402
  *
- * Grants free or discounted access to ERC-20/ERC-721 token holders.
+ * Grants free or discounted access to ERC-20/ERC-721/SPL token holders.
  *
  * @module token-gate
  */
@@ -15,16 +15,24 @@ export {
 } from "./types";
 export type {
   TokenContract,
+  EvmTokenContract,
+  SvmTokenContract,
   TokenGateConfig,
   TokenGateProof,
   TokenGateContractInfo,
+  EvmContractInfo,
+  SvmContractInfo,
   TokenGateExtensionInfo,
   TokenGateExtension,
   DeclareTokenGateOptions,
+  TokenGateEvmSigner,
+  TokenGateWalletAdapterSigner,
+  TokenGateSolanaKitSigner,
+  TokenGateSolanaSigner,
+  TokenGateSigner,
 } from "./types";
 
 // Signing
-export type { TokenGateSigner } from "./sign";
 export { createTokenGateProof, buildProofMessage } from "./sign";
 
 // Verification
@@ -49,6 +57,9 @@ export { createTokenGateExtension } from "./server";
 export { createTokenGatePayload } from "./client";
 
 // Hooks
-export type { TokenGateHookEvent, CreateTokenGateRequestHookOptions, CreateTokenGateClientHookOptions } from "./hooks";
+export type {
+  TokenGateHookEvent,
+  CreateTokenGateRequestHookOptions,
+  CreateTokenGateClientHookOptions,
+} from "./hooks";
 export { createTokenGateRequestHook, createTokenGateClientHook } from "./hooks";
-
