@@ -274,12 +274,15 @@ func isValidRouteTemplate(s string) bool {
 	if !routeTemplateRegex.MatchString(s) {
 		return false
 	}
-	// TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
-	// Fix must be applied simultaneously across Go, TypeScript, and Python SDKs (use url.PathUnescape).
-	if strings.Contains(s, "..") {
+	// Decode percent-encoding before traversal checks so that %2e%2e is caught.
+	decoded, err := url.PathUnescape(s)
+	if err != nil {
 		return false
 	}
-	if strings.Contains(s, "://") {
+	if strings.Contains(decoded, "..") {
+		return false
+	}
+	if strings.Contains(decoded, "://") {
 		return false
 	}
 	return true

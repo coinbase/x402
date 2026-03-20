@@ -148,7 +148,10 @@ func createQueryDiscoveryExtension(
 					"enum": []string{string(method)},
 				},
 			},
-			"required":             []string{"type", "method"},
+			"required": []string{"type", "method"},
+			// pathParams and method are not declared here at schema build time —
+			// the server extension's EnrichDeclaration adds them to both info and schema
+			// atomically at request time, keeping data and schema consistent.
 			"additionalProperties": false,
 		},
 	}
@@ -267,7 +270,10 @@ func createBodyDiscoveryExtension(
 				},
 				"body": inputSchema,
 			},
-			"required":             []string{"type", "method", "bodyType", "body"},
+			"required": []string{"type", "method", "bodyType", "body"},
+			// pathParams and method are not declared here at schema build time —
+			// the server extension's EnrichDeclaration adds them to both info and schema
+			// atomically at request time, keeping data and schema consistent.
 			"additionalProperties": false,
 		},
 	}

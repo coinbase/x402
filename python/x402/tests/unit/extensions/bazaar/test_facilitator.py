@@ -50,11 +50,9 @@ class TestIsValidRouteTemplate:
     def test_dotdot_segment_prefix_is_rejected(self) -> None:
         assert _is_valid_route_template("/users/..hidden") is False
 
-    # NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-    # _is_valid_route_template checks for the literal string ".." only. If encoded-path
-    # handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
-    def test_url_encoded_traversal_not_rejected_known_limitation(self) -> None:
-        assert _is_valid_route_template("/users/%2e%2e/admin") is True
+    def test_rejects_percent_encoded_traversal_sequences(self) -> None:
+        assert _is_valid_route_template("/users/%2e%2e/admin") is False
+        assert _is_valid_route_template("/users/%2E%2E/admin") is False
 
 
 class TestValidateDiscoveryExtension:

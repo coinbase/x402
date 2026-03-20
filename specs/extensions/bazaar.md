@@ -420,21 +420,12 @@ All SDK implementations use the function `isValidRouteTemplate` (TypeScript, Go)
 | Must not contain `..` | Prevents path traversal (`/users/../admin`) |
 | Must not contain `://` | Prevents URL injection (`http://evil.com`) |
 
-A value that fails any rule is discarded; the facilitator falls back to the concrete URL path for cataloging.
+All implementations decode percent-encoding (e.g. `%2e%2e` -> `..`) before applying the traversal
+and scheme checks. A value that fails any rule is discarded; the facilitator falls back to the
+concrete URL path for cataloging.
 
-#### Known Limitation: Percent-Encoded Traversal
-
-The current implementations check for the **literal string** `..` only. A URL-encoded traversal
-sequence like `%2e%2e` bypasses this check. For example, `/users/%2e%2e/admin` passes validation
-but decodes to `/users/../admin`.
-
-**Mitigation:** Client-supplied `routeTemplate` values should already use `:param` syntax, not raw
-path segments, so this vector is low-risk in practice. However, the limitation is tracked and a
-future fix will apply `url.PathUnescape` / `urllib.parse.unquote` / `decodeURIComponent` before
-the `..` check, **simultaneously across all three SDKs**.
-
-> **SDK implementers:** If you add a fourth SDK, copy these validation rules exactly and include
-> the same percent-encoding caveat comment in your `validateRouteTemplate` implementation.
+> **SDK implementers:** If you add a fourth SDK, copy these validation rules exactly, including
+> the percent-decoding step before the `..` and `://` checks.
 
 ---
 

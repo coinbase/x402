@@ -48,9 +48,10 @@ func TestIsValidRouteTemplate(t *testing.T) {
 		assert.False(t, isValidRouteTemplate("/users/..hidden"))
 	})
 
-	// NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-	// isValidRouteTemplate checks for the literal string ".." only. If encoded-path
-	// handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
+	t.Run("rejects percent-encoded traversal sequences", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate("/users/%2e%2e/admin"))
+		assert.False(t, isValidRouteTemplate("/users/%2E%2E/admin"))
+	})
 }
 
 func TestExtractPathParams(t *testing.T) {

@@ -12,7 +12,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import unquote, urlparse, urlunparse
 
 from .types import (
     BAZAAR,
@@ -70,11 +70,11 @@ def _is_valid_route_template(value: str | None) -> bool:
         return False
     if not _ROUTE_TEMPLATE_RE.match(value):
         return False
-    # TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
-    # Fix must be applied simultaneously across Python, TypeScript, and Go SDKs (use urllib.parse.unquote).
-    if ".." in value:
+    # Decode percent-encoding before traversal checks so that %2e%2e is caught.
+    decoded = unquote(value)
+    if ".." in decoded:
         return False
-    if "://" in value:
+    if "://" in decoded:
         return False
     return True
 

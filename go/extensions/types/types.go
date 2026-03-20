@@ -10,6 +10,10 @@ import (
 // BAZAAR is the extension identifier for the Bazaar discovery extension.
 var BAZAAR = x402.NewFacilitatorExtension("bazaar")
 
+// ColonParamRegex matches :paramName route segments (Express style).
+// Shared across http/server.go and extensions/bazaar/server.go to avoid drift.
+var ColonParamRegex = regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
+
 // Extension identifier constant for the Payment Identifier extension
 const PAYMENT_IDENTIFIER = "payment-identifier"
 

@@ -1854,6 +1854,31 @@ describe("Bazaar Discovery Extension", () => {
       expect(enriched.routeTemplate).toBe("/api/:var1/:var2/posts/:var3");
     });
 
+    it("should handle mixed [param] and :param patterns", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/42/posts/7",
+        routePattern: "/users/[userId]/posts/:postId",
+        adapter: createMockAdapterWithPath("/users/42/posts/7"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/users/:userId/posts/:postId");
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      expect(input.pathParams).toEqual({ userId: "42", postId: "7" });
+    });
+
     it("should pass schema validation after enrichment with auto-injected pathParams", () => {
       const declared = declareDiscoveryExtension({
         input: {},
@@ -1948,11 +1973,9 @@ describe("Bazaar Discovery Extension", () => {
       expect(isValidRouteTemplate("/users/..hidden")).toBe(false);
     });
 
-    // NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-    // isValidRouteTemplate checks for the literal string ".." only. If encoded-path
-    // handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
-    it("does NOT reject URL-encoded traversal sequences (known limitation)", () => {
-      expect(isValidRouteTemplate("/users/%2e%2e/admin")).toBe(true);
+    it("rejects percent-encoded traversal sequences", () => {
+      expect(isValidRouteTemplate("/users/%2e%2e/admin")).toBe(false);
+      expect(isValidRouteTemplate("/users/%2E%2E/admin")).toBe(false);
     });
   });
 });

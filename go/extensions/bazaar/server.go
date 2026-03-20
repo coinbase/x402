@@ -4,18 +4,26 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/coinbase/x402/go/extensions/types"
 	"github.com/coinbase/x402/go/http"
 )
 
 // bracketParamRegex matches [paramName] route segments (Next.js style).
-// colonParamRegex matches :paramName route segments (Express style).
-// Compiled once at package init to avoid per-request allocation.
-var (
-	bracketParamRegex = regexp.MustCompile(`\[([^\]]+)\]`)
-	colonParamRegex   = regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
-)
+var bracketParamRegex = regexp.MustCompile(`\[([^\]]+)\]`)
+
+// colonParamRegex is a package-local alias for the shared regex in extensions/types.
+var colonParamRegex = types.ColonParamRegex
+
+// patternCache caches compiled capture regexes and param names per route pattern
+// to avoid recompilation on every request.
+type patternCacheEntry struct {
+	regex      *regexp.Regexp
+	paramNames []string
+}
+
+var patternCache sync.Map // map[string]*patternCacheEntry
 
 // normalizeWildcardPattern converts wildcard * segments to :var1, :var2, etc.
 func normalizeWildcardPattern(pattern string) string {
@@ -50,31 +58,34 @@ func extractDynamicRouteInfo(routePattern, urlPath string) (routeTemplate string
 	if !hasBracket && !hasColon {
 		return "", nil
 	}
+	// When both [param] and :param are present, normalize brackets to colons first
+	// so all params are extracted uniformly.
+	normalizedPattern := routePattern
 	if hasBracket {
-		routeTemplate = bracketParamRegex.ReplaceAllString(routePattern, ":$1")
-	} else {
-		routeTemplate = routePattern
+		normalizedPattern = bracketParamRegex.ReplaceAllString(routePattern, ":$1")
 	}
-	pathParams = extractPathParams(routePattern, urlPath, hasBracket)
+	routeTemplate = normalizedPattern
+	pathParams = extractPathParams(normalizedPattern, urlPath, false)
 	return
 }
 
-// extractPathParams extracts concrete path parameter values by matching a URL path
-// against a route pattern containing [paramName] or :paramName segments.
-func extractPathParams(routePattern, urlPath string, isBracket bool) map[string]string {
+// getOrCompilePattern returns a cached capture regex and param names for the given
+// route pattern, compiling and caching on first access.
+func getOrCompilePattern(routePattern string, isBracket bool) *patternCacheEntry {
+	if cached, ok := patternCache.Load(routePattern); ok {
+		return cached.(*patternCacheEntry)
+	}
+
 	paramRegex := colonParamRegex
 	if isBracket {
 		paramRegex = bracketParamRegex
 	}
 	matches := paramRegex.FindAllStringSubmatch(routePattern, -1)
-
 	paramNames := make([]string, 0, len(matches))
 	for _, m := range matches {
 		paramNames = append(paramNames, m[1])
 	}
 
-	// Split the pattern on param segments, escape each literal part,
-	// then join with capture groups to build the matching regex.
 	parts := paramRegex.Split(routePattern, -1)
 	regexParts := make([]string, 0, len(parts)+len(paramNames))
 	for i, part := range parts {
@@ -85,16 +96,29 @@ func extractPathParams(routePattern, urlPath string, isBracket bool) map[string]
 	}
 	captureRegex, err := regexp.Compile("^" + strings.Join(regexParts, "") + "$")
 	if err != nil {
+		return &patternCacheEntry{paramNames: paramNames}
+	}
+
+	entry := &patternCacheEntry{regex: captureRegex, paramNames: paramNames}
+	patternCache.Store(routePattern, entry)
+	return entry
+}
+
+// extractPathParams extracts concrete path parameter values by matching a URL path
+// against a route pattern containing [paramName] or :paramName segments.
+func extractPathParams(routePattern, urlPath string, isBracket bool) map[string]string {
+	entry := getOrCompilePattern(routePattern, isBracket)
+	if entry.regex == nil {
 		return map[string]string{}
 	}
 
-	submatches := captureRegex.FindStringSubmatch(urlPath)
+	submatches := entry.regex.FindStringSubmatch(urlPath)
 	if submatches == nil {
 		return map[string]string{}
 	}
 
-	result := make(map[string]string, len(paramNames))
-	for i, name := range paramNames {
+	result := make(map[string]string, len(entry.paramNames))
+	for i, name := range entry.paramNames {
 		if i+1 < len(submatches) {
 			result[name] = submatches[i+1]
 		}

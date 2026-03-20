@@ -42,20 +42,30 @@ const ROUTE_TEMPLATE_REGEX = /^\/[a-zA-Z0-9_/:.\-~%]+$/;
  * @param value - The raw routeTemplate string from the client payload
  * @returns true if the value is a valid routeTemplate, false otherwise
  *
- * @internal Exported for facilitator use. Has a known incomplete check:
- * percent-encoded traversal sequences (%2e%2e) are not rejected. See coinbase/x402#issue.
+ * @internal Exported for facilitator use.
  */
 export function isValidRouteTemplate(value: string | undefined): value is string {
   if (!value) return false;
   if (!ROUTE_TEMPLATE_REGEX.test(value)) return false;
-  // TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
-  // Fix must be applied simultaneously across TypeScript, Go, and Python SDKs (use decodeURIComponent).
-  if (value.includes("..")) return false;
-  if (value.includes("://")) return false;
+  // Decode percent-encoding before traversal checks so that %2e%2e is caught.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return false;
+  }
+  if (decoded.includes("..")) return false;
+  if (decoded.includes("://")) return false;
   return true;
 }
 
-/** @deprecated Use `isValidRouteTemplate` instead. */
+/**
+ * Validates a routeTemplate and returns it if valid, undefined otherwise.
+ *
+ * @param value - The raw routeTemplate string to validate
+ * @returns The validated value, or undefined if invalid
+ * @deprecated Use `isValidRouteTemplate` instead.
+ */
 export function validateRouteTemplate(value: string | undefined): string | undefined {
   return isValidRouteTemplate(value) ? value : undefined;
 }

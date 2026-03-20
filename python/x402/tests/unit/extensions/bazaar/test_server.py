@@ -270,6 +270,23 @@ class TestBazaarDynamicRoutes:
         path_params = enriched["info"]["input"].get("pathParams")
         assert path_params == {"userId": "42", "postId": "7"}
 
+    def test_mixed_bracket_and_colon_params(self) -> None:
+        """Mixed [param] and :param should normalize to :param and extract all values."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/users/42/posts/7"),
+            path="/users/42/posts/7",
+            route_pattern="/users/[userId]/posts/:postId",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/users/:userId/posts/:postId"
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {"userId": "42", "postId": "7"}
+
     def test_wildcard_auto_converts_to_var_params(self) -> None:
         """Wildcard * segments should auto-convert to :var1, :var2, etc."""
         ext = declare_discovery_extension(input={})

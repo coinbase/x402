@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
+	exttypes "github.com/coinbase/x402/go/extensions/types"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -20,7 +21,7 @@ import (
 var (
 	multiSlashRegex = regexp.MustCompile(`/+`)
 	paramRegex      = regexp.MustCompile(`\\\[([^\]]+)\\\]`)
-	colonParamRegex = regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
+	colonParamRegex = exttypes.ColonParamRegex
 )
 
 // ============================================================================

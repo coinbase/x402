@@ -66,11 +66,13 @@ function extractDynamicRouteInfo(
   if (!hasBracket && !hasColon) {
     return null;
   }
-  const routeTemplate = hasBracket
+  // When both [param] and :param are present, normalize brackets to colons first
+  // so all params are extracted uniformly.
+  const normalizedPattern = hasBracket
     ? routePattern.replace(BRACKET_PARAM_REGEX_ALL, ":$1")
     : routePattern;
-  const pathParams = extractPathParams(routePattern, urlPath, hasBracket);
-  return { routeTemplate, pathParams };
+  const pathParams = extractPathParams(normalizedPattern, urlPath, false);
+  return { routeTemplate: normalizedPattern, pathParams };
 }
 
 /**

@@ -15,6 +15,9 @@ from .types import BAZAAR
 _BRACKET_PARAM_RE = re.compile(r"\[([^\]]+)\]")  # [paramName] (Next.js style)
 _COLON_PARAM_RE = re.compile(r":([a-zA-Z_]\w*)")  # :paramName (Express style)
 
+# Cache compiled capture regexes per route pattern to avoid per-request recompilation.
+_pattern_cache: dict[str, tuple[re.Pattern[str], list[str]]] = {}
+
 
 def _normalize_wildcard_pattern(pattern: str) -> str:
     """Convert wildcard segments to :var1, :var2, etc. for discovery normalization."""
@@ -60,12 +63,34 @@ def _extract_dynamic_route_info(
     has_colon = bool(_COLON_PARAM_RE.search(route_pattern))
     if not has_bracket and not has_colon:
         return None
-    if has_bracket:
-        route_template = _BRACKET_PARAM_RE.sub(r":\1", route_pattern)
-    else:
-        route_template = route_pattern
-    path_params = _extract_path_params(route_pattern, url_path, is_bracket=has_bracket)
-    return route_template, path_params
+    # When both [param] and :param are present, normalize brackets to colons first
+    # so all params are extracted uniformly.
+    normalized = _BRACKET_PARAM_RE.sub(r":\1", route_pattern) if has_bracket else route_pattern
+    path_params = _extract_path_params(normalized, url_path, is_bracket=False)
+    return normalized, path_params
+
+
+def _get_or_compile_pattern(
+    route_pattern: str, *, is_bracket: bool
+) -> tuple[re.Pattern[str], list[str]]:
+    """Return a cached (regex, param_names) pair for the route pattern, compiling on first access."""
+    if route_pattern in _pattern_cache:
+        return _pattern_cache[route_pattern]
+
+    split_re = _BRACKET_PARAM_RE if is_bracket else _COLON_PARAM_RE
+    parts = split_re.split(route_pattern)
+    regex_parts: list[str] = []
+    param_names: list[str] = []
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            regex_parts.append(re.escape(part))
+        else:
+            param_names.append(part)
+            regex_parts.append("([^/]+)")
+
+    compiled = re.compile("^" + "".join(regex_parts) + "$")
+    _pattern_cache[route_pattern] = (compiled, param_names)
+    return compiled, param_names
 
 
 def _extract_path_params(route_pattern: str, url_path: str, *, is_bracket: bool) -> dict[str, str]:
@@ -79,20 +104,8 @@ def _extract_path_params(route_pattern: str, url_path: str, *, is_bracket: bool)
     Returns:
         Dict mapping param names to their concrete values.
     """
-    split_re = _BRACKET_PARAM_RE if is_bracket else _COLON_PARAM_RE
-    parts = split_re.split(route_pattern)
-    # parts alternates: literal, paramName, literal, paramName, ...
-    regex_parts: list[str] = []
-    param_names = []
-    for i, part in enumerate(parts):
-        if i % 2 == 0:
-            regex_parts.append(re.escape(part))
-        else:
-            param_names.append(part)
-            regex_parts.append("([^/]+)")
-
-    regex_str = "^" + "".join(regex_parts) + "$"
-    match = re.match(regex_str, url_path)
+    compiled, param_names = _get_or_compile_pattern(route_pattern, is_bracket=is_bracket)
+    match = compiled.match(url_path)
     if not match:
         return {}
 

@@ -2001,6 +2001,28 @@ func TestBazaarDynamicRoutes(t *testing.T) {
 		assert.Equal(t, "7", queryInput.PathParams["postId"])
 	})
 
+	t.Run("should handle mixed [param] and :param patterns", func(t *testing.T) {
+		extension := declareEmptyGETExtension(t)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method:       "GET",
+			Path:         "/users/42/posts/7",
+			RoutePattern: "/users/[userId]/posts/:postId",
+			Adapter:      &mockHTTPAdapterForBazaar{path: "/users/42/posts/7"},
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, "/users/:userId/posts/:postId", enrichedExt.RouteTemplate)
+
+		queryInput, ok := enrichedExt.Info.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, "42", queryInput.PathParams["userId"])
+		assert.Equal(t, "7", queryInput.PathParams["postId"])
+	})
+
 	t.Run("should auto-convert wildcard * to :varN for discovery", func(t *testing.T) {
 		extension := declareEmptyGETExtension(t)
 
