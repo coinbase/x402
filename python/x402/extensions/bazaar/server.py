@@ -68,9 +68,7 @@ def _extract_dynamic_route_info(
     return route_template, path_params
 
 
-def _extract_path_params(
-    route_pattern: str, url_path: str, *, is_bracket: bool
-) -> dict[str, str]:
+def _extract_path_params(route_pattern: str, url_path: str, *, is_bracket: bool) -> dict[str, str]:
     """Extract concrete path parameter values by matching a URL path against a route pattern.
 
     Args:
