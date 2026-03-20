@@ -7,7 +7,42 @@ Sellers can collect and aggregate these signed messages over time, choosing when
 Interactions with the escrow contract for the buyer (depositing, thawing and withdrawing funds) are all performed via signed authorizations to remove the need for gas and blockchain access. These authorizations are executed and translated into on-chain actions by the facilitator.
 This design enables efficient, asset-flexible micropayments without incurring prohibitive gas costs for every interaction.
 
-## `X-Payment` header payload
+
+## Protocol sequencing
+
+The deferred scheme follows the standard x402 flow with a key difference: payments are stored off-chain as signed vouchers during the main resource request flow but collected on-chain later in a deferred way.
+
+
+### Resource Request Flow
+
+1. **Client** sends an HTTP request to a **resource server**, optionally including a `PAYER-IDENTIFIER` header to identify themselves.
+
+2. **Resource server** responds with `402 Payment Required`. The response includes scheme-specific static information (e.g., EIP-712 domain info) and, if the buyer identified themselves via `PAYER-IDENTIFIER`, buyer state including escrow balance and voucher history.
+
+3. **Client** creates a signed `voucher` based on the `PaymentRequirements` and embeds it into the `PaymentPayload`. The voucher can be an aggregation on top of a previous one, or a new one if there is no pre-existing history. Optionally, the client can include a signed `depositAuthorization` for gasless escrow top-up.
+
+4. **Client** sends the HTTP request with the `PAYMENT-SIGNATURE` header containing the `PaymentPayload`.
+
+5. **Resource server** verifies the `PaymentPayload` is valid either via local verification or by POSTing the `PaymentPayload` and `PaymentRequirements` to the `/verify` endpoint of a `facilitator`.
+
+6. **Facilitator** verifies the payload and voucher are valid and returns a `VerifyResponse`.
+
+7. If valid, **resource server** performs the work to fulfill the request.
+
+8. **Resource server** settles the payment either locally or by POSTing the `PaymentPayload` and `PaymentRequirements` to the `/settle` endpoint of a `facilitator`. Note that the payment is not actually collected at this stage—the voucher is stored locally or at the facilitator for deferred on-chain collection. If the `PaymentPayload` included a `depositAuthorization`, it is executed on-chain at this point.
+
+9. **Resource server** returns `200 OK` with the resource and a `PAYMENT-RESPONSE` header.
+
+### On-Chain Settlement Flow
+
+On-chain settlement is decoupled from the request flow and triggered at the seller's or facilitator's discretion:
+
+1. **Resource server or Facilitator** decides to settle vouchers based on a threshold, schedule, or manual trigger.
+
+2. **Resource server or Facilitator** collects by interacting with the escrow contract on the blockchain. This transfers payment from the buyer's escrow balance to the seller.
+
+
+## `PAYMENT-SIGNATURE` header payload
 
 The `payload` field of the `X-PAYMENT` header must contain the following fields:
 

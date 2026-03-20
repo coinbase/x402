@@ -224,4 +224,4 @@ While each contract instance operates on a single chain, the design supports mul
 
 ### Reference Implementation
 
-A reference implementation for this contract is provided with this repository, it can be found at [DeferredPaymentEscrow](../../../solidity/deferred-escrow/README.md)
+A reference implementation for this contract is provided with this repository, it can be found at [DeferredPaymentEscrow]() [TODO: update this when the implementation is ready]

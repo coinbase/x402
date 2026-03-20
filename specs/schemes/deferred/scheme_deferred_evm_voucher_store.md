@@ -164,4 +164,4 @@ A collection record contains:
 
 ### Reference Implementation
 
-The `InMemoryVoucherStore` class in the X402 TypeScript package provides a reference implementation suitable for development and testing. Production implementations should follow the same interface while adding appropriate persistence, scaling, and security features.
+The `InMemoryVoucherStore` class in the x402 TypeScript package provides a reference implementation suitable for development and testing. Production implementations should follow the same interface while adding appropriate persistence, scaling, and security features.

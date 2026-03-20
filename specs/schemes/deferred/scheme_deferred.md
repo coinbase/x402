@@ -11,5 +11,3 @@
 - AI agents or automated clients.
 - Consuming an API requiring micro cent cost per request.
 - Any case where payments are smaller than on-chain settlement costs.
-
-## Appendix
