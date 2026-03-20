@@ -607,3 +607,58 @@ func TestSupportedCache(t *testing.T) {
 	}
 }
 */
+
+type mockExtension struct {
+	key string
+}
+
+func (m *mockExtension) Key() string { return m.key }
+func (m *mockExtension) EnrichDeclaration(declaration interface{}, transportContext interface{}) interface{} {
+	return declaration
+}
+
+func TestHealth_Empty(t *testing.T) {
+	server := Newx402ResourceServer()
+	health := server.Health()
+
+	if health.Status != "ok" {
+		t.Fatalf("expected status ok, got %s", health.Status)
+	}
+	if len(health.Schemes) != 0 {
+		t.Fatalf("expected 0 schemes, got %d", len(health.Schemes))
+	}
+	if len(health.Extensions) != 0 {
+		t.Fatalf("expected 0 extensions, got %d", len(health.Extensions))
+	}
+}
+
+func TestHealth_WithSchemesAndExtensions(t *testing.T) {
+	mock := &mockSchemeNetworkServer{scheme: "exact"}
+	mockExt := &mockExtension{key: "paymentidentifier"}
+
+	server := Newx402ResourceServer(
+		WithSchemeServer("eip155:8453", mock),
+	)
+	server.RegisterExtension(mockExt)
+
+	health := server.Health()
+
+	if health.Status != "ok" {
+		t.Fatalf("expected status ok, got %s", health.Status)
+	}
+	if len(health.Schemes) != 1 {
+		t.Fatalf("expected 1 scheme, got %d", len(health.Schemes))
+	}
+	if health.Schemes[0].Network != "eip155:8453" {
+		t.Fatalf("expected network eip155:8453, got %s", health.Schemes[0].Network)
+	}
+	if health.Schemes[0].Scheme != "exact" {
+		t.Fatalf("expected scheme exact, got %s", health.Schemes[0].Scheme)
+	}
+	if len(health.Extensions) != 1 {
+		t.Fatalf("expected 1 extension, got %d", len(health.Extensions))
+	}
+	if health.Extensions[0] != "paymentidentifier" {
+		t.Fatalf("expected extension paymentidentifier, got %s", health.Extensions[0])
+	}
+}
