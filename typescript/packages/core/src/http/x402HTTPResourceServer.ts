@@ -190,6 +190,21 @@ export type ProtectedRequestHook = (
 ) => Promise<void | { grantAccess: true } | { abort: true; reason: string }>;
 
 /**
+ * Hook that runs inside before payment settlement.
+ * Can modify the requirements object in place or abort the settlement process.
+ *
+ * @returns
+ * - `void` - Continue to settlement (default behavior)
+ * - `{ abort: true; reason: string; message?: string }` - Abort settlement
+ */
+export type BeforeSettleHook = (
+  paymentPayload: PaymentPayload,
+  requirements: PaymentRequirements,
+  declaredExtensions?: Record<string, unknown>,
+  transportContext?: HTTPTransportContext,
+) => Promise<void | { abort: true; reason: string; message?: string }>;
+
+/**
  * Compiled route for efficient matching
  */
 export interface CompiledRoute {
@@ -216,6 +231,8 @@ export interface HTTPTransportContext {
   request: HTTPRequestContext;
   /** The response body buffer */
   responseBody?: Buffer;
+  /** The response headers */
+  responseHeaders?: Record<string, string>;
 }
 
 /**
@@ -308,6 +325,7 @@ export class x402HTTPResourceServer {
   private routesConfig: RoutesConfig;
   private paywallProvider?: PaywallProvider;
   private protectedRequestHooks: ProtectedRequestHook[] = [];
+  private beforeSettleHooks: BeforeSettleHook[] = [];
 
   /**
    * Creates a new x402HTTPResourceServer instance.
@@ -400,6 +418,18 @@ export class x402HTTPResourceServer {
    */
   onProtectedRequest(hook: ProtectedRequestHook): this {
     this.protectedRequestHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook that runs before payment settlement.
+   * Hooks are executed in order of registration.
+   *
+   * @param hook - The beforeSettle hook function
+   * @returns The x402HTTPResourceServer instance for chaining
+   */
+  onBeforeSettle(hook: BeforeSettleHook): this {
+    this.beforeSettleHooks.push(hook);
     return this;
   }
 
@@ -576,6 +606,25 @@ export class x402HTTPResourceServer {
     transportContext?: HTTPTransportContext,
   ): Promise<ProcessSettleResultResponse> {
     try {
+      // Execute before settle hooks
+      for (const hook of this.beforeSettleHooks) {
+        const result = await hook(
+          paymentPayload,
+          requirements,
+          declaredExtensions,
+          transportContext,
+        );
+        if (result && "abort" in result && result.abort) {
+          throw new SettleError(400, {
+            success: false,
+            errorReason: result.reason,
+            errorMessage: result.message,
+            transaction: "",
+            network: requirements.network,
+          });
+        }
+      }
+
       const settleResponse = await this.ResourceServer.settlePayment(
         paymentPayload,
         requirements,

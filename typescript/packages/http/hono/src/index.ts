@@ -220,7 +220,11 @@ export function paymentMiddlewareFromHTTPServer(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
-            { request: context, responseBody },
+            {
+              request: context,
+              responseBody,
+              responseHeaders: Object.fromEntries(res.headers.entries()),
+            },
           );
 
           if (!settleResult.success) {

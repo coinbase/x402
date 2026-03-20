@@ -179,6 +179,9 @@ function createMockResponse(): Response & {
       return this;
     }),
     flushHeaders: vi.fn(),
+    getHeaders: vi.fn(function (this: typeof res) {
+      return { ...this._headers };
+    }),
   };
   return res as unknown as Response & typeof res;
 }
@@ -352,6 +355,7 @@ describe("paymentMiddleware", () => {
           method: "GET",
         }),
         responseBody: expect.any(Buffer),
+        responseHeaders: expect.any(Object),
       }),
     );
     expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settled");

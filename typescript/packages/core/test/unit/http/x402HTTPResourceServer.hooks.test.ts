@@ -5,6 +5,8 @@ import {
   HTTPAdapter,
   RouteConfig,
   ProtectedRequestHook,
+  BeforeSettleHook,
+  HTTPTransportContext,
 } from "../../../src/http/x402HTTPResourceServer";
 import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
@@ -951,6 +953,276 @@ describe("x402HTTPResourceServer Hooks", () => {
 
         expect(hook).not.toHaveBeenCalled();
         expect(result.type).toBe("no-payment-required");
+      });
+    });
+  });
+
+  describe("BeforeSettleHook", () => {
+    let ResourceServer: x402ResourceServer;
+    let mockFacilitator: MockFacilitatorClient;
+    let mockScheme: MockSchemeNetworkServer;
+
+    const testNetwork = "eip155:8453" as Network;
+    const testRoutes = {
+      "/api/test": {
+        accepts: {
+          scheme: "exact",
+          payTo: "0xabc",
+          price: "$1.00" as Price,
+          network: testNetwork,
+        },
+      },
+    };
+
+    beforeEach(async () => {
+      mockFacilitator = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: testNetwork }],
+        }),
+        buildVerifyResponse({ isValid: true }),
+      );
+
+      ResourceServer = new x402ResourceServer(mockFacilitator);
+
+      mockScheme = new MockSchemeNetworkServer("exact", {
+        amount: "1000000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        extra: {},
+      });
+
+      ResourceServer.register(testNetwork, mockScheme);
+      await ResourceServer.initialize();
+    });
+
+    describe("hook registration", () => {
+      it("should return this for chaining", () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        const hook: BeforeSettleHook = async () => {};
+
+        const result = httpServer.onBeforeSettle(hook);
+
+        expect(result).toBe(httpServer);
+      });
+    });
+
+    describe("hook receives correct context", () => {
+      it("should receive paymentPayload, requirements, and transportContext", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        let receivedPayload: unknown;
+        let receivedRequirements: unknown;
+        let receivedTransport: HTTPTransportContext | undefined;
+
+        const hook: BeforeSettleHook = async (
+          paymentPayload,
+          requirements,
+          _declaredExtensions,
+          transportContext,
+        ) => {
+          receivedPayload = paymentPayload;
+          receivedRequirements = requirements;
+          receivedTransport = transportContext;
+        };
+
+        httpServer.onBeforeSettle(hook);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+        });
+
+        mockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        const transportContext: HTTPTransportContext = {
+          request: { path: "/api/test", method: "GET" } as HTTPRequestContext,
+          responseBody: Buffer.from('{"data":"test"}'),
+          responseHeaders: { "content-type": "application/json", "upto-amount": "500000" },
+        };
+
+        await httpServer.processSettlement(payload, requirements, undefined, transportContext);
+
+        expect(receivedPayload).toBe(payload);
+        expect(receivedRequirements).toBe(requirements);
+        expect(receivedTransport).toBe(transportContext);
+        expect(receivedTransport?.responseHeaders?.["upto-amount"]).toBe("500000");
+      });
+    });
+
+    describe("hook can mutate requirements", () => {
+      it("should allow hook to mutate requirements.amount and flow to settlePayment", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+
+        const hook: BeforeSettleHook = async (
+          _paymentPayload,
+          requirements,
+          _declaredExtensions,
+          transportContext,
+        ) => {
+          const amount = transportContext?.responseHeaders?.["upto-amount"];
+          if (amount) {
+            requirements.amount = amount;
+          }
+        };
+
+        httpServer.onBeforeSettle(hook);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+          amount: "1000000",
+        });
+
+        mockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        const transportContext: HTTPTransportContext = {
+          request: { path: "/api/test", method: "GET" } as HTTPRequestContext,
+          responseBody: Buffer.from("{}"),
+          responseHeaders: { "upto-amount": "500000" },
+        };
+
+        await httpServer.processSettlement(payload, requirements, undefined, transportContext);
+
+        expect(requirements.amount).toBe("500000");
+      });
+    });
+
+    describe("hook returning void", () => {
+      it("should continue to settlement when hook returns void", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        const hook = vi.fn().mockResolvedValue(undefined);
+
+        httpServer.onBeforeSettle(hook);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+        });
+
+        mockFacilitator.setSettleResponse(
+          buildSettleResponse({ success: true, network: testNetwork }),
+        );
+
+        const result = await httpServer.processSettlement(payload, requirements);
+
+        expect(hook).toHaveBeenCalled();
+        expect(result.success).toBe(true);
+      });
+    });
+
+    describe("hook returning abort", () => {
+      it("should produce settlement failure when hook returns abort", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        const hook: BeforeSettleHook = async () => ({
+          abort: true,
+          reason: "Invalid amount",
+          message: "Amount exceeds maximum",
+        });
+
+        httpServer.onBeforeSettle(hook);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+        });
+
+        const result = await httpServer.processSettlement(payload, requirements);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.errorReason).toBe("Invalid amount");
+          expect(result.errorMessage).toContain("Amount exceeds maximum");
+        }
+      });
+    });
+
+    describe("multiple hooks", () => {
+      it("should execute hooks in registration order", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        const order: number[] = [];
+
+        httpServer.onBeforeSettle(async () => {
+          order.push(1);
+        });
+        httpServer.onBeforeSettle(async () => {
+          order.push(2);
+        });
+        httpServer.onBeforeSettle(async () => {
+          order.push(3);
+        });
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+        });
+
+        mockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        await httpServer.processSettlement(payload, requirements);
+
+        expect(order).toEqual([1, 2, 3]);
+      });
+
+      it("should stop execution at first hook to abort", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+        const hook1 = vi.fn().mockResolvedValue(undefined);
+        const hook2 = vi.fn().mockResolvedValue({ abort: true, reason: "Blocked" });
+        const hook3 = vi.fn().mockResolvedValue(undefined);
+
+        httpServer.onBeforeSettle(hook1);
+        httpServer.onBeforeSettle(hook2);
+        httpServer.onBeforeSettle(hook3);
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+        });
+
+        const result = await httpServer.processSettlement(payload, requirements);
+
+        expect(hook1).toHaveBeenCalled();
+        expect(hook2).toHaveBeenCalled();
+        expect(hook3).not.toHaveBeenCalled();
+        expect(result.success).toBe(false);
+      });
+    });
+
+    describe("hook can read responseHeaders for upto-amount", () => {
+      it("should read UPTO-AMOUNT header to determine settlement amount", async () => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, testRoutes);
+
+        httpServer.onBeforeSettle(
+          async (_paymentPayload, requirements, _declaredExtensions, transportContext) => {
+            if (!transportContext?.responseHeaders) return;
+            const amount = transportContext.responseHeaders["upto-amount"];
+            if (amount) {
+              requirements.amount = amount;
+            }
+          },
+        );
+
+        const payload = buildPaymentPayload();
+        const requirements = buildPaymentRequirements({
+          scheme: "exact",
+          network: testNetwork,
+          amount: "1000000",
+        });
+
+        mockFacilitator.setSettleResponse(buildSettleResponse({ success: true }));
+
+        const transportContext: HTTPTransportContext = {
+          request: { path: "/api/test", method: "GET" } as HTTPRequestContext,
+          responseBody: Buffer.from('{"weather":"sunny"}'),
+          responseHeaders: { "upto-amount": "350000", "content-type": "application/json" },
+        };
+
+        await httpServer.processSettlement(payload, requirements, undefined, transportContext);
+
+        expect(requirements.amount).toBe("350000");
       });
     });
   });

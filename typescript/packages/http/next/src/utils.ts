@@ -176,7 +176,11 @@ export async function handleSettlement(
       paymentPayload,
       paymentRequirements,
       declaredExtensions,
-      { request: httpContext, responseBody },
+      {
+        request: httpContext,
+        responseBody,
+        responseHeaders: Object.fromEntries(response.headers.entries()),
+      },
     );
 
     if (!result.success) {
