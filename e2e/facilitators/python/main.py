@@ -152,6 +152,7 @@ def _handle_after_verify(ctx: Any) -> None:
                 payment_requirements=ctx.requirements.model_dump(by_alias=True)
                 if hasattr(ctx.requirements, "model_dump")
                 else ctx.requirements,
+                route_template=getattr(discovered, "route_template", None),
             )
             print("   ✅ Added to bazaar catalog")
     except Exception as err:
