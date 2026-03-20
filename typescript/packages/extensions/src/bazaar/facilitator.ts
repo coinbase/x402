@@ -72,6 +72,92 @@ export function validateDiscoveryExtension(extension: DiscoveryExtension): Valid
   }
 }
 
+const VALID_QUERY_METHODS = new Set(["GET", "HEAD", "DELETE"]);
+const VALID_BODY_METHODS = new Set(["POST", "PUT", "PATCH"]);
+const VALID_METHODS = new Set([...VALID_QUERY_METHODS, ...VALID_BODY_METHODS]);
+const VALID_BODY_TYPES = new Set(["json", "form-data", "text"]);
+const VALID_MCP_TRANSPORTS = new Set(["streamable-http", "sse"]);
+
+/**
+ * Validates a discovery extension against the Bazaar protocol specification.
+ *
+ * Unlike `validateDiscoveryExtension` which checks internal consistency (info vs schema),
+ * this function enforces protocol-level invariants:
+ *   - `info.input.type` must be "http" or "mcp"
+ *   - HTTP: if `method` is present it must be GET/POST/PUT/PATCH/DELETE/HEAD
+ *   - HTTP body methods: `bodyType` must be "json" | "form-data" | "text"
+ *   - MCP: `toolName` (string) and `inputSchema` (object) are required
+ *   - MCP: if `transport` is present it must be "streamable-http" | "sse"
+ *
+ * Designed to be safe for pre-enrichment HTTP extensions where `method` may be absent.
+ *
+ * @param extension - The discovery extension to validate
+ * @returns Validation result with spec-level errors
+ */
+export function validateDiscoveryExtensionSpec(
+  extension: Record<string, unknown>,
+): ValidationResult {
+  const errors: string[] = [];
+
+  const info = extension.info;
+  if (!info || typeof info !== "object") {
+    return { valid: false, errors: ["Missing or invalid 'info' field"] };
+  }
+
+  const input = (info as Record<string, unknown>).input;
+  if (!input || typeof input !== "object") {
+    return { valid: false, errors: ["Missing or invalid 'info.input' field"] };
+  }
+
+  const inputObj = input as Record<string, unknown>;
+  const inputType = inputObj.type;
+
+  if (inputType !== "http" && inputType !== "mcp") {
+    errors.push(`info.input.type must be "http" or "mcp", got "${String(inputType)}"`);
+    return { valid: false, errors };
+  }
+
+  if (inputType === "http") {
+    const method = inputObj.method;
+    if (method !== undefined && !VALID_METHODS.has(method as string)) {
+      errors.push(
+        `info.input.method must be one of ${[...VALID_METHODS].join(", ")}, got "${String(method)}"`,
+      );
+    }
+
+    const bodyType = inputObj.bodyType;
+    if (bodyType !== undefined) {
+      if (!VALID_BODY_TYPES.has(bodyType as string)) {
+        errors.push(
+          `info.input.bodyType must be one of ${[...VALID_BODY_TYPES].join(", ")}, got "${String(bodyType)}"`,
+        );
+      }
+      if (method !== undefined && !VALID_BODY_METHODS.has(method as string)) {
+        errors.push(
+          `info.input.bodyType is set but method "${String(method)}" is not a body method (POST, PUT, PATCH)`,
+        );
+      }
+    }
+  }
+
+  if (inputType === "mcp") {
+    if (typeof inputObj.toolName !== "string" || inputObj.toolName.length === 0) {
+      errors.push("info.input.toolName is required and must be a non-empty string for MCP extensions");
+    }
+    if (!inputObj.inputSchema || typeof inputObj.inputSchema !== "object") {
+      errors.push("info.input.inputSchema is required and must be an object for MCP extensions");
+    }
+    const transport = inputObj.transport;
+    if (transport !== undefined && !VALID_MCP_TRANSPORTS.has(transport as string)) {
+      errors.push(
+        `info.input.transport must be one of ${[...VALID_MCP_TRANSPORTS].join(", ")}, got "${String(transport)}"`,
+      );
+    }
+  }
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
+}
+
 /**
  * Extracts the discovery info from payment payload and requirements
  *
