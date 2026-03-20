@@ -1,0 +1,7 @@
+{
+  "name": "Web3 Signals",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/web3-signals.png",
+  "description": "AI-powered crypto market intelligence API. Five specialized agents analyze whale activity, derivatives, technicals, narrative, and market data — fused into scored signals (0-100) for 20 assets. Pay $0.001/call with x402 on Base.",
+  "websiteUrl": "https://web3-signals-api-production.up.railway.app"
+}
