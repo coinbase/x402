@@ -83,7 +83,7 @@ Example `payload`:
   "action": {
     "type": "sendAsset",
     "hyperliquidChain": "Mainnet",
-    "signatureChainId": "0x66eee",
+    "signatureChainId": "0x3e7",
     "destination": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "sourceDex": "spot",
     "destinationDex": "spot",
@@ -125,7 +125,7 @@ Full `PaymentPayload` object:
     "action": {
       "type": "sendAsset",
       "hyperliquidChain": "Mainnet",
-      "signatureChainId": "0x66eee",
+      "signatureChainId": "0x3e7",
       "destination": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
       "sourceDex": "spot",
       "destinationDex": "spot",
@@ -151,12 +151,14 @@ Full `PaymentPayload` object:
 {
   "name": "HyperliquidSignTransaction",
   "version": "1",
-  "chainId": <signatureChainId>,
+  "chainId": 999,
   "verifyingContract": "0x0000000000000000000000000000000000000000"
 }
 ```
 
-The `chainId` field is required by the Hyperliquid API for action deserialization but does not identify any specific chain. The client provides a `signatureChainId` in the action (as a hex string, e.g., `"0x66eee"`), and the same value MUST be used as the `chainId` in the EIP-712 domain when signing and recovering. The Hyperliquid SDK defaults to `"0x66eee"` (421614); any value is accepted by the API.
+The `chainId` field is required by the Hyperliquid API for action deserialization but does not identify any specific blockchain. Hypercore is not an EVM chain, and the `signatureChainId` in the action cannot be replayed on other chains because the signed payload includes `hyperliquidChain` (Mainnet/Testnet). The value is therefore arbitrary and any integer is accepted by the API.
+
+Recommended values: `999` (HyperEVM mainnet) for `hyperliquid:mainnet`, `998` (HyperEVM testnet) for `hyperliquid:testnet`. These are used in the `action.signatureChainId` field as hex strings (`"0x3e7"` and `"0x3e6"` respectively) and as the `chainId` in the EIP-712 domain when signing and recovering.
 
 ### Primary Type
 
