@@ -3,7 +3,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { x402MCPClient, createx402MCPClient, wrapMCPClientWithPayment } from "../../src/client";
-import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_META_KEY, JSONRPC_PAYMENT_REQUIRED_CODE } from "../../src/types";
+import {
+  MCP_PAYMENT_REQUIRED_CODE,
+  MCP_PAYMENT_META_KEY,
+  JSONRPC_PAYMENT_REQUIRED_CODE,
+} from "../../src/types";
 import type { PaymentPayload, PaymentRequired, SettleResponse } from "@x402/core/types";
 
 // ============================================================================
@@ -722,9 +726,17 @@ describe("x402MCPClient onPaymentRequired hook", () => {
 
 /**
  * Creates a mock McpError(-32042) with PaymentRequired in error.data
+ *
+ * @param data - The error data payload
+ * @returns A mock McpError with code -32042
  */
-function createMcpError32042(data: Record<string, unknown>): Error & { code: number; data: Record<string, unknown> } {
-  const err = new Error("Payment Required") as Error & { code: number; data: Record<string, unknown> };
+function createMcpError32042(
+  data: Record<string, unknown>,
+): Error & { code: number; data: Record<string, unknown> } {
+  const err = new Error("Payment Required") as Error & {
+    code: number;
+    data: Record<string, unknown>;
+  };
   err.code = JSONRPC_PAYMENT_REQUIRED_CODE;
   err.data = data;
   return err;
@@ -747,7 +759,9 @@ describe("x402MCPClient McpError(-32042) handling", () => {
   describe("callTool with thrown -32042 errors", () => {
     it("should handle -32042 with direct PaymentRequired in error.data", async () => {
       mockMcpClient.callTool
-        .mockRejectedValueOnce(createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>))
+        .mockRejectedValueOnce(
+          createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>),
+        )
         .mockResolvedValueOnce({
           content: [{ type: "text", text: "paid result" }],
           _meta: { "x402/payment-response": mockSettleResponse },
@@ -768,7 +782,9 @@ describe("x402MCPClient McpError(-32042) handling", () => {
         x402: mockPaymentRequired,
       };
       mockMcpClient.callTool
-        .mockRejectedValueOnce(createMcpError32042(namespacedData as unknown as Record<string, unknown>))
+        .mockRejectedValueOnce(
+          createMcpError32042(namespacedData as unknown as Record<string, unknown>),
+        )
         .mockResolvedValueOnce({
           content: [{ type: "text", text: "paid result" }],
           _meta: { "x402/payment-response": mockSettleResponse },
@@ -796,7 +812,9 @@ describe("x402MCPClient McpError(-32042) handling", () => {
 
     it("should include payment in _meta on retry after -32042", async () => {
       mockMcpClient.callTool
-        .mockRejectedValueOnce(createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>))
+        .mockRejectedValueOnce(
+          createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>),
+        )
         .mockResolvedValueOnce({
           content: [{ type: "text", text: "result" }],
         });
@@ -840,7 +858,9 @@ describe("x402MCPClient McpError(-32042) handling", () => {
       );
 
       mockMcpClient.callTool
-        .mockRejectedValueOnce(createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>))
+        .mockRejectedValueOnce(
+          createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>),
+        )
         .mockResolvedValueOnce({ content: [{ type: "text", text: "result" }] });
 
       await client.callTool("paid_tool", { arg: "value" });
@@ -877,7 +897,9 @@ describe("x402MCPClient McpError(-32042) handling", () => {
       client.onPaymentRequired(() => ({ payment: customPayment }));
 
       mockMcpClient.callTool
-        .mockRejectedValueOnce(createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>))
+        .mockRejectedValueOnce(
+          createMcpError32042(mockPaymentRequired as unknown as Record<string, unknown>),
+        )
         .mockResolvedValueOnce({
           content: [{ type: "text", text: "result" }],
           _meta: { "x402/payment-response": mockSettleResponse },
@@ -914,7 +936,10 @@ describe("x402MCPClient McpError(-32042) handling", () => {
 
     it("should extract requirements from namespaced -32042 error", async () => {
       mockMcpClient.callTool.mockRejectedValueOnce(
-        createMcpError32042({ challenges: [], x402: mockPaymentRequired } as unknown as Record<string, unknown>),
+        createMcpError32042({ challenges: [], x402: mockPaymentRequired } as unknown as Record<
+          string,
+          unknown
+        >),
       );
 
       const result = await client.getToolPaymentRequirements("paid_tool");
