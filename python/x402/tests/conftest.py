@@ -12,6 +12,7 @@ def pytest_configure(config):
     # Try to load from python/x402/.env first, then root .env
     possible_paths = [
         Path(__file__).parent.parent / ".env",  # python/x402/.env
+        Path(__file__).parent.parent.parent.parent / "regtest" / "lightning" / ".env.lightning",
         Path(__file__).parent.parent.parent.parent / ".env",  # root .env
     ]
 

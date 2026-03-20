@@ -46,6 +46,14 @@ svm = [
     "solders>=0.27.0",
     "solana>=0.36.0",
 ]
+lightning = [
+    "bolt11>=2.0.0",
+]
+lightning-lnd = [
+    "bolt11>=2.0.0",
+    "grpcio>=1.60.0",
+    "protobuf>=4.25.0",
+]
 
 # MCP (Model Context Protocol) integration
 mcp = ["mcp>=1.0.0"]
@@ -56,8 +64,8 @@ extensions = ["jsonschema>=4.0.0"]
 # Convenience bundles
 clients = ["x402[httpx,requests]"]
 servers = ["x402[flask,fastapi]"]
-mechanisms = ["x402[evm,svm]"]
-all = ["x402[httpx,requests,flask,fastapi,evm,svm,mcp,extensions]"]
+mechanisms = ["x402[evm,svm,lightning]"]
+all = ["x402[httpx,requests,flask,fastapi,evm,svm,lightning,lightning-lnd,mcp,extensions]"]
 
 [dependency-groups]
 dev = [
@@ -82,6 +90,10 @@ dev = [
     # SVM dependencies
     "solders>=0.27.0",
     "solana>=0.36.0",
+    # Lightning
+    "bolt11>=2.0.0",
+    "grpcio>=1.60.0",
+    "protobuf>=4.25.0",
     # MCP dependencies
     "mcp>=1.26.0",
     "nest-asyncio>=1.6.0",
@@ -156,6 +168,9 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_lightning_regtest: Requires Polar / external Lightning regtest infra",
+]
 
 [tool.towncrier]
 package = "x402"
