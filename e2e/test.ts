@@ -501,18 +501,27 @@ async function runTest() {
     const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
     const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
 
+    const hasUpto = evmScenarios.some(s => s.endpoint.transferMethod === 'upto');
+    const hasUptoDirect = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && s.endpoint.permit2Direct === true);
+    const hasUptoEip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
+    const hasUptoErc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+
     log('🔍 EVM Branch Coverage Check:');
     log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
     log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
     log(`   Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
     log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
     log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto route:              ${hasUpto ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+direct settle:      ${hasUptoDirect ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+EIP2612 route:      ${hasUptoEip2612 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+ERC20 route:        ${hasUptoErc20 ? '✅' : '⚠️  not found'}`);
     log('');
   }
 
-  // Auto-detect Permit2 scenarios
+  // Auto-detect Permit2 scenarios (upto uses Permit2 under the hood)
   const hasPermit2Scenarios = filteredScenarios.some(
-    (s) => s.endpoint.transferMethod === 'permit2'
+    (s) => s.endpoint.transferMethod === 'permit2' || s.endpoint.transferMethod === 'upto'
   );
 
   if (hasPermit2Scenarios) {
@@ -820,7 +829,7 @@ async function runTest() {
         const tn = nextTestNumber();
         const isEvm = scenario.protocolFamily === 'evm';
 
-        if (scenario.endpoint.transferMethod === 'permit2') {
+        if (scenario.endpoint.transferMethod === 'permit2' || scenario.endpoint.transferMethod === 'upto') {
           if (scenario.endpoint.permit2Direct) {
             await approvePermit2Approval(USDC_BASE_SEPOLIA);
           } else {

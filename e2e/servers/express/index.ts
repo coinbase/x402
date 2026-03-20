@@ -2,6 +2,7 @@ import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { UptoEvmScheme } from "@x402/evm/upto/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
 import { ExactStellarScheme } from "@x402/stellar/exact/server";
@@ -60,6 +61,7 @@ const server = new x402ResourceServer(facilitatorClient);
 
 // Register server schemes
 server.register("eip155:*", new ExactEvmScheme());
+server.register("eip155:*", new UptoEvmScheme());
 server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
   server.register("aptos:*", new ExactAptosScheme());
@@ -277,6 +279,54 @@ app.use(
           ...declareEip2612GasSponsoringExtension(),
         },
       },
+      // Upto Permit2 standard/direct endpoint - no gas sponsoring, client must pre-approve Permit2
+      "GET /protected-upto-permit2": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "upto",
+          network: EVM_NETWORK,
+          price: {
+            amount: "1000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+              name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+              version: "2",
+            },
+          },
+        },
+      },
+      // Upto Permit2 endpoint with EIP-2612 gas sponsoring
+      "GET /protected-upto-permit2-eip2612": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "upto",
+          network: EVM_NETWORK,
+          price: "$0.001",
+          extra: { assetTransferMethod: "permit2" },
+        },
+        extensions: {
+          ...declareEip2612GasSponsoringExtension(),
+        },
+      },
+      // Upto Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
+      "GET /protected-upto-permit2-erc20": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "upto",
+          network: EVM_NETWORK,
+          price: {
+            amount: "1000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
+        },
+        extensions: {
+          ...declareErc20ApprovalGasSponsoringExtension(),
+        },
+      },
       ...(STELLAR_PAYEE_ADDRESS
         ? {
           "GET /protected-stellar": {
@@ -390,6 +440,30 @@ app.get("/protected-permit2-eip2612", (req, res) => {
     message: "Permit2 EIP-2612 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
     method: "permit2-eip2612",
+  });
+});
+
+app.get("/protected-upto-permit2", (req, res) => {
+  res.json({
+    message: "Upto Permit2 endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "upto-permit2",
+  });
+});
+
+app.get("/protected-upto-permit2-eip2612", (req, res) => {
+  res.json({
+    message: "Upto Permit2 EIP-2612 endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "upto-permit2-eip2612",
+  });
+});
+
+app.get("/protected-upto-permit2-erc20", (req, res) => {
+  res.json({
+    message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "upto-permit2-erc20-approval",
   });
 });
 
