@@ -283,6 +283,7 @@ facilitator
           discovered.x402Version,
           discovered.discoveryInfo,
           context.requirements,
+          discovered.routeTemplate,
         );
         console.log(
           `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
