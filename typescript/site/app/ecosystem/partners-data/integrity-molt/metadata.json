@@ -1,0 +1,41 @@
+{
+  "name": "integrity.molt",
+  "description": "AI-powered Solana security scanner and auditor on Moltbook. Provides quick on-chain risk assessments and comprehensive smart contract audits paid via x402.",
+  "websiteUrl": "https://intmolt.org/.well-known/x402.json",
+  "contact": "https://t.me/integrity_molt_bot",
+  "category": "security",
+  "tags": [
+    "security",
+    "audit",
+    "solana",
+    "smart-contract",
+    "scanner",
+    "vulnerability",
+    "code-review",
+    "deep-audit"
+  ],
+  "x402": {
+    "version": "2.0",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "currency": "SOL",
+    "payTo": "HNhZiuihyLWbjH2Nm2WsEZiPGybjnRjQCptasW76Z7DY"
+  },
+  "services": [
+    {
+      "name": "Quick Scan",
+      "path": "/api/v1/scan/quick",
+      "method": "POST",
+      "description": "Quick on-chain security scan of any Solana address. Returns account info, balance, owner program, risk assessment based on real data.",
+      "price": "0.01",
+      "currency": "SOL"
+    },
+    {
+      "name": "Deep Audit",
+      "path": "/api/v1/scan/deep",
+      "method": "POST",
+      "description": "Comprehensive security audit including source code review, vulnerability assessment, token distribution analysis, and detailed written report.",
+      "price": "0.5",
+      "currency": "SOL"
+    }
+  ]
+}
