@@ -39,8 +39,12 @@ describe("Amount Utilities", () => {
     });
 
     it("should throw on invalid dollar amounts", () => {
-      expect(() => dollarStringToAtomic("$abc", TOKEN_DECIMALS.USDC)).toThrow("Invalid dollar amount");
-      expect(() => dollarStringToAtomic("$-1.00", TOKEN_DECIMALS.USDC)).toThrow("Invalid dollar amount");
+      expect(() => dollarStringToAtomic("$abc", TOKEN_DECIMALS.USDC)).toThrow(
+        "Invalid dollar amount",
+      );
+      expect(() => dollarStringToAtomic("$-1.00", TOKEN_DECIMALS.USDC)).toThrow(
+        "Invalid dollar amount",
+      );
       expect(() => dollarStringToAtomic("", TOKEN_DECIMALS.USDC)).toThrow("Invalid dollar amount");
     });
 
@@ -77,7 +81,9 @@ describe("Amount Utilities", () => {
     });
 
     it("should throw on negative amounts", () => {
-      expect(() => atomicToDollarString("-100", TOKEN_DECIMALS.USDC)).toThrow("Invalid atomic amount");
+      expect(() => atomicToDollarString("-100", TOKEN_DECIMALS.USDC)).toThrow(
+        "Invalid atomic amount",
+      );
     });
 
     it("should throw on invalid token decimals", () => {
@@ -95,13 +101,13 @@ describe("Amount Utilities", () => {
   describe("Round-trip conversions", () => {
     it("should preserve amounts through round-trip conversion", () => {
       const testAmounts = ["$0.01", "$1.00", "$1.50", "$0.001", "$10.25"];
-      
+
       testAmounts.forEach(amount => {
         const atomic = dollarStringToAtomic(amount, TOKEN_DECIMALS.USDC);
         const backToDollar = atomicToDollarString(atomic, TOKEN_DECIMALS.USDC);
-        
+
         // Normalize the original amount for comparison (remove trailing zeros)
-        const normalizedOriginal = amount.replace(/\.?0+$/, '');
+        const normalizedOriginal = amount.replace(/\.?0+$/, "");
         expect(backToDollar).toBe(normalizedOriginal === "$" ? "$0" : normalizedOriginal);
       });
     });
