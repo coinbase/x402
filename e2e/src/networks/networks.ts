@@ -6,7 +6,7 @@
  */
 
 export type NetworkMode = 'testnet' | 'mainnet';
-export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'hedera' | 'stellar';
 
 export type NetworkConfig = {
   name: string;
@@ -19,6 +19,7 @@ export type NetworkSet = {
   evm: NetworkConfig;
   svm: NetworkConfig;
   aptos: NetworkConfig;
+  hedera: NetworkConfig;
   stellar: NetworkConfig;
 };
 
@@ -43,6 +44,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       caip2: 'aptos:2',
       rpcUrl: process.env.APTOS_TESTNET_RPC_URL || 'https://fullnode.testnet.aptoslabs.com/v1',
     },
+    hedera: {
+      name: 'Hedera Testnet',
+      caip2: 'hedera:testnet',
+      rpcUrl: process.env.HEDERA_TESTNET_NODE_URL || '',
+    },
     stellar: {
       name: 'Stellar Testnet',
       caip2: 'stellar:testnet',
@@ -66,6 +72,11 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
       caip2: 'aptos:1',
       rpcUrl: process.env.APTOS_RPC_URL || 'https://fullnode.mainnet.aptoslabs.com/v1',
     },
+    hedera: {
+      name: 'Hedera Mainnet',
+      caip2: 'hedera:mainnet',
+      rpcUrl: process.env.HEDERA_NODE_URL || '',
+    },
     stellar: {
       name: 'Stellar Pubnet',
       caip2: 'stellar:pubnet',
@@ -78,7 +89,7 @@ const NETWORK_SETS: Record<NetworkMode, NetworkSet> = {
  * Get the network set for a given mode
  * 
  * @param mode - 'testnet' or 'mainnet'
- * @returns NetworkSet containing EVM, SVM, and Aptos network configs
+ * @returns NetworkSet containing configured protocol network configs
  */
 export function getNetworkSet(mode: NetworkMode): NetworkSet {
   return NETWORK_SETS[mode];
@@ -88,7 +99,7 @@ export function getNetworkSet(mode: NetworkMode): NetworkSet {
  * Get network config for a protocol family in a given mode
  * 
  * @param mode - 'testnet' or 'mainnet'
- * @param protocolFamily - 'evm', 'svm', 'aptos', or 'stellar'
+ * @param protocolFamily - 'evm', 'svm', 'aptos', 'hedera', or 'stellar'
  * @returns NetworkConfig for the specified protocol
  */
 export function getNetworkForProtocol(
@@ -106,6 +117,6 @@ export function getNetworkForProtocol(
  */
 export function getNetworkModeDescription(mode: NetworkMode): string {
   const set = NETWORK_SETS[mode];
-  const networks = [set.evm.name, set.svm.name, set.aptos.name, set.stellar.name];
+  const networks = [set.evm.name, set.svm.name, set.aptos.name, set.hedera.name, set.stellar.name];
   return networks.join(' + ');
 }

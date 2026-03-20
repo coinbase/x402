@@ -12,17 +12,24 @@ import { config } from "dotenv";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactHederaScheme } from "@x402/hedera/exact/client";
+import { createClientHederaSigner } from "@x402/hedera";
 import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
+import { PrivateKey } from "@hiero-ledger/sdk";
 
 config();
 
 // Configuration - optional per network
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string | undefined;
+const hederaAccountId = process.env.HEDERA_ACCOUNT_ID;
+// Hedera private key should be an ECDSA key string (0x-prefixed or DER-encoded).
+const hederaPrivateKey = process.env.HEDERA_PRIVATE_KEY;
+const hederaNetwork = process.env.HEDERA_NETWORK || "hedera:testnet";
 const stellarPrivateKey = process.env.STELLAR_PRIVATE_KEY as string | undefined;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/weather";
@@ -34,9 +41,14 @@ const url = `${baseURL}${endpointPath}`;
  */
 async function main(): Promise<void> {
   // Validate at least one private key is provided
-  if (!evmPrivateKey && !svmPrivateKey && !stellarPrivateKey) {
+  if (
+    !evmPrivateKey &&
+    !svmPrivateKey &&
+    !(hederaAccountId && hederaPrivateKey) &&
+    !stellarPrivateKey
+  ) {
     console.error(
-      "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required",
+      "❌ At least one of EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, HEDERA_ACCOUNT_ID + HEDERA_PRIVATE_KEY, or STELLAR_PRIVATE_KEY is required",
     );
     process.exit(1);
   }
@@ -56,6 +68,15 @@ async function main(): Promise<void> {
     const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
     client.register("solana:*", new ExactSvmScheme(svmSigner));
     console.log(`Initialized SVM account: ${svmSigner.address}`);
+  }
+  if (hederaAccountId && hederaPrivateKey) {
+    const hederaSigner = createClientHederaSigner(
+      hederaAccountId,
+      PrivateKey.fromStringECDSA(hederaPrivateKey),
+      { network: hederaNetwork },
+    );
+    client.register("hedera:*", new ExactHederaScheme(hederaSigner));
+    console.log(`Initialized Hedera account: ${hederaAccountId} on ${hederaNetwork}`);
   }
 
   // Register Stellar scheme if private key is provided

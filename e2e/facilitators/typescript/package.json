@@ -19,8 +19,10 @@
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
     "@x402/extensions": "workspace:*",
+    "@x402/hedera": "workspace:*",
     "@x402/stellar": "workspace:*",
     "@x402/svm": "workspace:*",
+    "@hiero-ledger/sdk": "2.80.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "viem": "^2.21.54"
