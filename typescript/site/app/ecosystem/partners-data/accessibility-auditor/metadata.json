@@ -1,0 +1,7 @@
+{
+  "name": "Accessibility Auditor",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/accessibility-auditor.png",
+  "description": "WCAG 2.1 accessibility audit service for websites. AI agents and developers pay per audit via x402 (0.10 USDC on Base Sepolia). Built with Python/FastAPI and AgentKit action provider — any AgentKit agent can discover and pay for audits autonomously.",
+  "websiteUrl": "https://hexdrive.tech"
+}
