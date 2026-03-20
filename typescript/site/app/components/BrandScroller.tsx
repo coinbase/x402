@@ -35,10 +35,10 @@ export function BrandScroller() {
   return (
     <Link
       href="/ecosystem"
-      className="block cursor-pointer mt-6 sm:mt-8"
+      className="block cursor-pointer my-10 sm:my-14"
       aria-label="View ecosystem partners"
     >
-      <p className="text-center text-sm tracking-wide text-gray-40 uppercase pb-3">
+      <p className="text-sm tracking-wide text-gray-40 uppercase pb-6 px-4 sm:px-6 md:px-10 max-w-container mx-auto">
         Adopted by
       </p>
       <div className="w-full overflow-hidden pb-4 sm:pb-5 [--gap:2.5rem] sm:[--gap:3rem] md:[--gap:4rem] [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
