@@ -40,6 +40,15 @@
       "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
+      "path": "/protected-multi",
+      "method": "GET",
+      "description": "Multi-mechanism endpoint: USDC (EIP-3009), WETH (Permit2 + ERC-20 gas sponsoring), SVM, and USDC (Permit2 + EIP-2612 gas sponsoring)",
+      "requiresPayment": true,
+      "protocolFamily": ["evm", "svm"],
+      "transferMethod": ["eip3009", "permit2"],
+      "extensions": ["erc20ApprovalGasSponsoring", "eip2612GasSponsoring", "bazaar"]
+    },
+    {
       "path": "/protected-svm",
       "method": "GET",
       "description": "Protected endpoint requiring payment on SVM network",

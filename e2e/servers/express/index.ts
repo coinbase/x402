@@ -19,6 +19,11 @@ dotenv.config();
  *
  * This server demonstrates how to integrate x402 payment middleware
  * with an Express application for end-to-end testing.
+ *
+ * Includes a multi-mechanism /protected-multi endpoint that offers multiple
+ * payment options (EIP-3009 and Permit2) on a single route via an accepts array.
+ * This is the recommended pattern for production resource servers — clients
+ * select their preferred payment method from the available options.
  */
 
 const PORT = process.env.PORT || "4021";
@@ -211,6 +216,97 @@ app.use(
           ...declareErc20ApprovalGasSponsoringExtension(),
         },
       },
+      // Multi-mechanism endpoint: a single route offering multiple payment methods.
+      // The accepts array lets clients choose their preferred payment method from
+      // four options spanning two chains and three transfer mechanisms.
+      // Array order expresses server preference; the client makes the final choice.
+      //
+      // Gas sponsoring: both flavors are declared on this route.
+      // - erc20ApprovalGasSponsoring: for WETH (option 2), a plain ERC-20 needing
+      //   a separate approve() tx broadcast by the facilitator.
+      // - eip2612GasSponsoring: for USDC-via-Permit2 (option 4), enabling atomic
+      //   permit() + transfer in a single settleWithPermit() transaction.
+      // The client SDK handles per-option relevance — options that don't need
+      // gas sponsoring (EIP-3009, SVM) simply ignore the extension data.
+      "GET /protected-multi": {
+        accepts: [
+          // Option 1: USDC via EIP-3009 on Base Sepolia (most widely supported)
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            price: "$0.001",
+            network: EVM_NETWORK,
+          },
+          // Option 2: WETH via Permit2 on Base Sepolia (distinct asset, different mechanism)
+          // WETH is a plain ERC-20 (no EIP-3009, no EIP-2612), so Permit2 is required.
+          // The erc20ApprovalGasSponsoring extension covers the initial approve() gas.
+          // Using a different asset from option 1 ensures each option is independently
+          // reachable by default client behavior based on the client's token holdings —
+          // no custom PaymentPolicy needed to exercise this path.
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            network: EVM_NETWORK,
+            price: {
+              amount: "1000000000000", // 0.000001 WETH (18 decimals)
+              asset: "0x4200000000000000000000000000000000000006", // WETH on Base Sepolia (OP Stack predeploy)
+              extra: {
+                assetTransferMethod: "permit2",
+              },
+            },
+          },
+          // Option 3: USDC on Solana Devnet (cross-chain alternative)
+          {
+            payTo: SVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            price: "$0.001",
+            network: SVM_NETWORK,
+          },
+          // Option 4: USDC via Permit2 on Base Sepolia (EIP-2612 gas sponsoring demo)
+          // Same USDC as option 1, but forces Permit2 path via assetTransferMethod.
+          // Demonstrates the atomic settleWithPermit() flow where the facilitator
+          // calls permit() + permitWitnessTransferFrom() in a single transaction.
+          // NOT auto-reachable when option 1 exists (same asset) — requires a custom
+          // PaymentPolicy to exercise. Covered in the follow-up PR.
+          {
+            payTo: EVM_PAYEE_ADDRESS,
+            scheme: "exact",
+            network: EVM_NETWORK,
+            price: {
+              amount: "1000", // 0.001 USDC (6 decimals)
+              asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+              extra: {
+                assetTransferMethod: "permit2",
+                name: "USDC",
+                version: "2",
+              },
+            },
+          },
+        ],
+        extensions: {
+          // Gas sponsoring: both flavors declared for full mechanism coverage.
+          // - erc20ApprovalGasSponsoring: for WETH (option 2, plain ERC-20)
+          // - eip2612GasSponsoring: for USDC-via-Permit2 (option 4, has permit())
+          // Irrelevant for option 1 (EIP-3009 is gasless) and option 3 (SVM).
+          ...declareErc20ApprovalGasSponsoringExtension(),
+          ...declareEip2612GasSponsoringExtension(),
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                message: "Multi-mechanism endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
+      },
       // Permit2 standard/direct endpoint - no gas sponsoring, client must pre-approve Permit2
       "GET /protected-permit2": {
         accepts: {
@@ -352,6 +448,24 @@ app.get("/protected-aptos", (req, res) => {
 });
 
 /**
+ * Multi-mechanism endpoint - accepts multiple payment methods across chains
+ *
+ * This endpoint demonstrates the recommended production pattern: a single resource
+ * offering multiple payment methods via an accepts array. Clients select the
+ * method they support or prefer. The server's ordering expresses preference
+ * (EIP-3009 first), but the client makes the final choice.
+ *
+ * Accepts: USDC via EIP-3009 (EVM), WETH via Permit2 (EVM), USDC (SVM),
+ * and USDC via Permit2 with EIP-2612 gas sponsoring (EVM).
+ */
+app.get("/protected-multi", (req, res) => {
+  res.json({
+    message: "Multi-mechanism endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Protected Permit2 ERC-20 endpoint - requires payment via Permit2 flow with ERC-20 approval
  *
  * This endpoint demonstrates the ERC-20 approval gas sponsoring flow for tokens
@@ -456,6 +570,7 @@ app.listen(parseInt(PORT), () => {
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected             (EIP-3009 payment - EVM)    ║
+║  • GET  /protected-multi       (EIP-3009+Permit2+SVM+EIP2612) ║
 ║  • GET  /protected-svm         (SVM payment)               ║
 ║  • GET  /protected-aptos       (Aptos payment)             ║
 ║  • GET  /protected-permit2     (Permit2 direct - EVM)       ║
