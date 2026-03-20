@@ -1760,6 +1760,100 @@ describe("Bazaar Discovery Extension", () => {
       expect(input.pathParams).toEqual({});
     });
 
+    it("should produce routeTemplate for :param style routes", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/123",
+        routePattern: "/users/:userId",
+        adapter: createMockAdapterWithPath("/users/123"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/users/:userId");
+    });
+
+    it("should extract path params from :param style routes", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/42/posts/7",
+        routePattern: "/users/:userId/posts/:postId",
+        adapter: createMockAdapterWithPath("/users/42/posts/7"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/users/:userId/posts/:postId");
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      expect(input.pathParams).toEqual({ userId: "42", postId: "7" });
+    });
+
+    it("should auto-convert wildcard * to :varN for discovery", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/weather/san-francisco",
+        routePattern: "/weather/*",
+        adapter: createMockAdapterWithPath("/weather/san-francisco"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/weather/:var1");
+      const info = enriched.info as Record<string, unknown>;
+      const input = info.input as Record<string, unknown>;
+      expect(input.pathParams).toEqual({ var1: "san-francisco" });
+    });
+
+    it("should auto-convert multiple wildcards to :var1, :var2, etc.", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/api/users/42/posts/7",
+        routePattern: "/api/*/*/posts/*",
+        adapter: createMockAdapterWithPath("/api/users/42/posts/7"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as Record<string, unknown>;
+
+      expect(enriched.routeTemplate).toBe("/api/:var1/:var2/posts/:var3");
+    });
+
     it("should use concrete URL for static routes in facilitator", () => {
       const declared = declareDiscoveryExtension({
         input: { query: "test" },

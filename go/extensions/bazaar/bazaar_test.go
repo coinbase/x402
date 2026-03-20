@@ -1962,6 +1962,83 @@ func TestBazaarDynamicRoutes(t *testing.T) {
 		assert.Equal(t, "7", queryInput.PathParams["postId"])
 	})
 
+	t.Run("should produce routeTemplate for colon-style dynamic routes", func(t *testing.T) {
+		extension := declareEmptyGETExtension(t)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method:       "GET",
+			Path:         "/users/123",
+			RoutePattern: "/users/:userId",
+			Adapter:      &mockHTTPAdapterForBazaar{path: "/users/123"},
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok, "colon-param dynamic route should produce a DiscoveryExtension")
+		assert.Equal(t, "/users/:userId", enrichedExt.RouteTemplate)
+	})
+
+	t.Run("should extract path params from colon-style pattern", func(t *testing.T) {
+		extension := declareEmptyGETExtension(t)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method:       "GET",
+			Path:         "/users/42/posts/7",
+			RoutePattern: "/users/:userId/posts/:postId",
+			Adapter:      &mockHTTPAdapterForBazaar{path: "/users/42/posts/7"},
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, "/users/:userId/posts/:postId", enrichedExt.RouteTemplate)
+
+		queryInput, ok := enrichedExt.Info.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, "42", queryInput.PathParams["userId"])
+		assert.Equal(t, "7", queryInput.PathParams["postId"])
+	})
+
+	t.Run("should auto-convert wildcard * to :varN for discovery", func(t *testing.T) {
+		extension := declareEmptyGETExtension(t)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method:       "GET",
+			Path:         "/weather/san-francisco",
+			RoutePattern: "/weather/*",
+			Adapter:      &mockHTTPAdapterForBazaar{path: "/weather/san-francisco"},
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, "/weather/:var1", enrichedExt.RouteTemplate)
+
+		queryInput, ok := enrichedExt.Info.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, "san-francisco", queryInput.PathParams["var1"])
+	})
+
+	t.Run("should auto-convert multiple wildcards to :var1 :var2 etc", func(t *testing.T) {
+		extension := declareEmptyGETExtension(t)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method:       "GET",
+			Path:         "/api/users/42/posts/7",
+			RoutePattern: "/api/*/*/posts/*",
+			Adapter:      &mockHTTPAdapterForBazaar{path: "/api/users/42/posts/7"},
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, "/api/:var1/:var2/posts/:var3", enrichedExt.RouteTemplate)
+	})
+
 	t.Run("should use concrete URL for static routes", func(t *testing.T) {
 		extension, err := bazaar.DeclareDiscoveryExtension(
 			bazaar.MethodGET,

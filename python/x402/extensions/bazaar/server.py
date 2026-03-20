@@ -11,8 +11,22 @@ from typing import Any
 
 from .types import BAZAAR
 
-# Compiled once at module level; matches [paramName] route segments.
-_BRACKET_PARAM_RE = re.compile(r"\[([^\]]+)\]")
+# Compiled once at module level.
+_BRACKET_PARAM_RE = re.compile(r"\[([^\]]+)\]")  # [paramName] (Next.js style)
+_COLON_PARAM_RE = re.compile(r":([a-zA-Z_]\w*)")  # :paramName (Express style)
+
+
+def _normalize_wildcard_pattern(pattern: str) -> str:
+    """Convert wildcard segments to :var1, :var2, etc. for discovery normalization."""
+    if "*" not in pattern:
+        return pattern
+    counter = 0
+    segments = pattern.split("/")
+    for i, seg in enumerate(segments):
+        if seg == "*":
+            counter += 1
+            segments[i] = f":var{counter}"
+    return "/".join(segments)
 
 
 def _is_http_request_context(ctx: Any) -> bool:
@@ -30,33 +44,45 @@ def _is_http_request_context(ctx: Any) -> bool:
 def _extract_dynamic_route_info(
     route_pattern: str, url_path: str
 ) -> tuple[str, dict[str, str]] | None:
-    """Convert a [param]-style pattern to a :param template and extract concrete values.
+    """Convert a parameterized route pattern to a :param template and extract concrete values.
+
+    Supports both [param] (Next.js) and :param (Express) syntax. The output routeTemplate
+    always uses :param syntax regardless of input format.
 
     Args:
-        route_pattern: Route pattern with [paramName] segments (e.g. "/users/[userId]")
+        route_pattern: Route pattern (e.g. "/users/[userId]" or "/users/:userId")
         url_path: Concrete URL path (e.g. "/users/123")
 
     Returns:
-        (routeTemplate, pathParams) tuple, or None if route_pattern has no [param] segments.
+        (routeTemplate, pathParams) tuple, or None if route_pattern has no param segments.
     """
-    if not _BRACKET_PARAM_RE.search(route_pattern):
+    has_bracket = bool(_BRACKET_PARAM_RE.search(route_pattern))
+    has_colon = bool(_COLON_PARAM_RE.search(route_pattern))
+    if not has_bracket and not has_colon:
         return None
-    route_template = _BRACKET_PARAM_RE.sub(r":\1", route_pattern)
-    path_params = _extract_path_params(route_pattern, url_path)
+    if has_bracket:
+        route_template = _BRACKET_PARAM_RE.sub(r":\1", route_pattern)
+    else:
+        route_template = route_pattern
+    path_params = _extract_path_params(route_pattern, url_path, is_bracket=has_bracket)
     return route_template, path_params
 
 
-def _extract_path_params(route_pattern: str, url_path: str) -> dict[str, str]:
+def _extract_path_params(
+    route_pattern: str, url_path: str, *, is_bracket: bool
+) -> dict[str, str]:
     """Extract concrete path parameter values by matching a URL path against a route pattern.
 
     Args:
-        route_pattern: Route pattern with [paramName] segments (e.g. "/users/[userId]")
+        route_pattern: Route pattern with [paramName] or :paramName segments
         url_path: Concrete URL path (e.g. "/users/123")
+        is_bracket: True if pattern uses [param] syntax, False for :param
 
     Returns:
         Dict mapping param names to their concrete values.
     """
-    parts = _BRACKET_PARAM_RE.split(route_pattern)
+    split_re = _BRACKET_PARAM_RE if is_bracket else _COLON_PARAM_RE
+    parts = split_re.split(route_pattern)
     # parts alternates: literal, paramName, literal, paramName, ...
     regex_parts: list[str] = []
     param_names = []
@@ -159,8 +185,12 @@ class BazaarResourceServerExtension:
                 schema["properties"] = properties
             ext["schema"] = schema
 
-        # Check for dynamic route pattern
-        route_pattern = getattr(transport_context, "route_pattern", None)
+        # Check for dynamic route pattern.
+        # Wildcard * segments are auto-converted to :var1, :var2, etc. for catalog normalization.
+        raw_route_pattern = getattr(transport_context, "route_pattern", None)
+        route_pattern = (
+            _normalize_wildcard_pattern(raw_route_pattern) if raw_route_pattern else None
+        )
         dynamic = (
             _extract_dynamic_route_info(route_pattern, transport_context.adapter.get_path())
             if route_pattern

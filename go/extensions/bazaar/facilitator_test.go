@@ -51,21 +51,34 @@ func TestValidateRouteTemplate(t *testing.T) {
 }
 
 func TestExtractPathParams(t *testing.T) {
-	t.Run("returns empty map when URL path has fewer segments than pattern", func(t *testing.T) {
-		// Pattern expects /users/[userId] but path is /api/other — structurally mismatched.
-		// This can occur in production if middleware and extension patterns diverge.
-		result := extractPathParams("/users/[userId]", "/api/other")
+	t.Run("returns empty map when URL path has fewer segments than pattern (bracket)", func(t *testing.T) {
+		result := extractPathParams("/users/[userId]", "/api/other", true)
 		assert.Equal(t, map[string]string{}, result)
 	})
 
-	t.Run("extracts single param from matching path", func(t *testing.T) {
-		result := extractPathParams("/users/[userId]", "/users/123")
+	t.Run("extracts single param from matching path (bracket)", func(t *testing.T) {
+		result := extractPathParams("/users/[userId]", "/users/123", true)
 		assert.Equal(t, map[string]string{"userId": "123"}, result)
 	})
 
-	t.Run("extracts multiple params from matching path", func(t *testing.T) {
-		result := extractPathParams("/users/[userId]/posts/[postId]", "/users/42/posts/7")
+	t.Run("extracts multiple params from matching path (bracket)", func(t *testing.T) {
+		result := extractPathParams("/users/[userId]/posts/[postId]", "/users/42/posts/7", true)
 		assert.Equal(t, map[string]string{"userId": "42", "postId": "7"}, result)
+	})
+
+	t.Run("extracts single param from matching path (colon)", func(t *testing.T) {
+		result := extractPathParams("/users/:userId", "/users/123", false)
+		assert.Equal(t, map[string]string{"userId": "123"}, result)
+	})
+
+	t.Run("extracts multiple params from matching path (colon)", func(t *testing.T) {
+		result := extractPathParams("/users/:userId/posts/:postId", "/users/42/posts/7", false)
+		assert.Equal(t, map[string]string{"userId": "42", "postId": "7"}, result)
+	})
+
+	t.Run("returns empty map when URL path mismatches (colon)", func(t *testing.T) {
+		result := extractPathParams("/users/:userId", "/api/other", false)
+		assert.Equal(t, map[string]string{}, result)
 	})
 }
 

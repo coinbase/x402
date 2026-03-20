@@ -574,6 +574,27 @@ func TestParseRoutePattern(t *testing.T) {
 			testPath:    "/api/123",
 			shouldMatch: true,
 		},
+		{
+			pattern:     "GET /api/users/:userId",
+			expectVerb:  "GET",
+			expectPath:  "/api/users/:userId",
+			testPath:    "/api/users/456",
+			shouldMatch: true,
+		},
+		{
+			pattern:     "GET /api/users/:userId/posts/:postId",
+			expectVerb:  "GET",
+			expectPath:  "/api/users/:userId/posts/:postId",
+			testPath:    "/api/users/42/posts/7",
+			shouldMatch: true,
+		},
+		{
+			pattern:     "/api/:version/items",
+			expectVerb:  "*",
+			expectPath:  "/api/:version/items",
+			testPath:    "/api/v2/items",
+			shouldMatch: true,
+		},
 	}
 
 	for _, tt := range tests {

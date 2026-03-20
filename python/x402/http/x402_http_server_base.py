@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import html
+import logging
 import re
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, Protocol
@@ -52,6 +53,8 @@ from .utils import (
 
 if TYPE_CHECKING:
     from ..server import x402ResourceServer, x402ResourceServerSync
+
+logger = logging.getLogger("x402")
 
 # ============================================================================
 # Paywall Provider Protocol
@@ -581,7 +584,8 @@ class x402HTTPServerBase:
         Merges settlement headers (including PAYMENT-RESPONSE) into the response.
         """
         settlement_headers = failure.headers
-        route_config = self._get_route_config(context.path, context.method) if context else None
+        route_match = self._get_route_config(context.path, context.method) if context else None
+        route_config = route_match[0] if route_match else None
 
         custom_body = None
         if route_config and route_config.settlement_failed_response_body:
@@ -606,6 +610,21 @@ class x402HTTPServerBase:
 
         for route in self._compiled_routes:
             pattern = f"{route.verb} {route.regex.pattern}"
+
+            # Warn if wildcard routes are used with discovery extensions
+            if (
+                "*" in route.pattern
+                and route.config.extensions
+                and "bazaar" in route.config.extensions
+            ):
+                logger.warning(
+                    'Route "%s %s": Wildcard (*) patterns with bazaar discovery extensions '
+                    "will auto-generate parameter names (var1, var2, ...). "
+                    "Consider using named parameters instead (e.g. /weather/:city) "
+                    "for better discovery metadata.",
+                    route.verb,
+                    route.pattern,
+                )
 
             # Get options as list
             options = route.config.accepts
@@ -657,6 +676,7 @@ class x402HTTPServerBase:
         regex_pattern = "^" + re.escape(path)
         regex_pattern = regex_pattern.replace(r"\*", ".*?")  # Wildcards
         regex_pattern = re.sub(r"\\\[([^\]]+)\\\]", r"[^/]+", regex_pattern)  # [param]
+        regex_pattern = re.sub(r":([a-zA-Z_]\w*)", r"[^/]+", regex_pattern)  # :param
         regex_pattern += "$"
 
         return verb, path, re.compile(regex_pattern, re.IGNORECASE)

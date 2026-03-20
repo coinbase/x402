@@ -1,6 +1,7 @@
 package bazaar
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -8,9 +9,29 @@ import (
 	"github.com/coinbase/x402/go/http"
 )
 
-// bracketParamRegex matches [paramName] route segments.
+// bracketParamRegex matches [paramName] route segments (Next.js style).
+// colonParamRegex matches :paramName route segments (Express style).
 // Compiled once at package init to avoid per-request allocation.
-var bracketParamRegex = regexp.MustCompile(`\[([^\]]+)\]`)
+var (
+	bracketParamRegex = regexp.MustCompile(`\[([^\]]+)\]`)
+	colonParamRegex   = regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
+)
+
+// normalizeWildcardPattern converts wildcard * segments to :var1, :var2, etc.
+func normalizeWildcardPattern(pattern string) string {
+	if !strings.Contains(pattern, "*") {
+		return pattern
+	}
+	segments := strings.Split(pattern, "/")
+	counter := 0
+	for i, seg := range segments {
+		if seg == "*" {
+			counter++
+			segments[i] = fmt.Sprintf(":var%d", counter)
+		}
+	}
+	return strings.Join(segments, "/")
+}
 
 type bazaarResourceServerExtension struct{}
 
@@ -18,32 +39,43 @@ func (e *bazaarResourceServerExtension) Key() string {
 	return types.BAZAAR.Key()
 }
 
-// extractDynamicRouteInfo converts a [param]-style route pattern into a :param template
+// extractDynamicRouteInfo converts a parameterized route pattern into a :param template
 // and extracts concrete param values from the URL path in a single call.
-// Returns an empty routeTemplate and nil pathParams when routePattern contains no [param] segments.
+// Supports both [param] (Next.js) and :param (Express) syntax. The output routeTemplate
+// always uses :param syntax regardless of input format.
+// Returns an empty routeTemplate and nil pathParams when routePattern has no param segments.
 func extractDynamicRouteInfo(routePattern, urlPath string) (routeTemplate string, pathParams map[string]string) {
-	matches := bracketParamRegex.FindAllStringSubmatch(routePattern, -1)
-	if len(matches) == 0 {
+	hasBracket := bracketParamRegex.MatchString(routePattern)
+	hasColon := colonParamRegex.MatchString(routePattern)
+	if !hasBracket && !hasColon {
 		return "", nil
 	}
-	routeTemplate = bracketParamRegex.ReplaceAllString(routePattern, ":$1")
-	pathParams = extractPathParams(routePattern, urlPath)
+	if hasBracket {
+		routeTemplate = bracketParamRegex.ReplaceAllString(routePattern, ":$1")
+	} else {
+		routeTemplate = routePattern
+	}
+	pathParams = extractPathParams(routePattern, urlPath, hasBracket)
 	return
 }
 
 // extractPathParams extracts concrete path parameter values by matching a URL path
-// against a route pattern containing [paramName] segments.
-func extractPathParams(routePattern, urlPath string) map[string]string {
-	matches := bracketParamRegex.FindAllStringSubmatch(routePattern, -1)
+// against a route pattern containing [paramName] or :paramName segments.
+func extractPathParams(routePattern, urlPath string, isBracket bool) map[string]string {
+	paramRegex := colonParamRegex
+	if isBracket {
+		paramRegex = bracketParamRegex
+	}
+	matches := paramRegex.FindAllStringSubmatch(routePattern, -1)
 
 	paramNames := make([]string, 0, len(matches))
 	for _, m := range matches {
 		paramNames = append(paramNames, m[1])
 	}
 
-	// Split the pattern on [paramName] segments, escape each literal part,
+	// Split the pattern on param segments, escape each literal part,
 	// then join with capture groups to build the matching regex.
-	parts := bracketParamRegex.Split(routePattern, -1)
+	parts := paramRegex.Split(routePattern, -1)
 	regexParts := make([]string, 0, len(parts)+len(paramNames))
 	for i, part := range parts {
 		regexParts = append(regexParts, regexp.QuoteMeta(part))
@@ -111,13 +143,15 @@ func (e *bazaarResourceServerExtension) EnrichDeclaration(
 		}
 	}
 
-	// Dynamic routes: translate [param] → :param for the routeTemplate catalog key;
+	// Dynamic routes: translate [param]/:param → :param for the routeTemplate catalog key;
 	// pathParams carries runtime values (distinct from pathParamsSchema in the declaration).
+	// Wildcard * segments are auto-converted to :var1, :var2, etc. for catalog normalization.
 	var urlPath string
 	if httpContext.Adapter != nil {
 		urlPath = httpContext.Adapter.GetPath()
 	}
-	routeTemplate, pathParams := extractDynamicRouteInfo(httpContext.RoutePattern, urlPath)
+	normalizedPattern := normalizeWildcardPattern(httpContext.RoutePattern)
+	routeTemplate, pathParams := extractDynamicRouteInfo(normalizedPattern, urlPath)
 	if routeTemplate != "" {
 		// Widen map[string]string to map[string]interface{} for the wire-level PathParams field
 		pathParamsIface := make(map[string]interface{}, len(pathParams))

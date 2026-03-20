@@ -53,13 +53,25 @@ import (
 //	        Example: map[string]interface{}{"success": true, "id": "123"},
 //	    },
 //	)
+//
+// DeclareDiscoveryExtensionOpts holds optional parameters for DeclareDiscoveryExtension.
+type DeclareDiscoveryExtensionOpts struct {
+	PathParamsSchema types.JSONSchema
+}
+
 func DeclareDiscoveryExtension(
 	method interface{}, // QueryParamMethods or BodyMethods
 	input interface{},
 	inputSchema types.JSONSchema,
 	bodyType types.BodyType,
 	output *types.OutputConfig,
+	opts ...DeclareDiscoveryExtensionOpts,
 ) (types.DiscoveryExtension, error) {
+	var pathParamsSchema types.JSONSchema
+	if len(opts) > 0 {
+		pathParamsSchema = opts[0].PathParamsSchema
+	}
+
 	// Convert method to string
 	var methodStr string
 	switch m := method.(type) {
@@ -74,12 +86,12 @@ func DeclareDiscoveryExtension(
 	}
 
 	if types.IsQueryMethod(methodStr) {
-		return createQueryDiscoveryExtension(types.QueryParamMethods(methodStr), input, inputSchema, output)
+		return createQueryDiscoveryExtension(types.QueryParamMethods(methodStr), input, inputSchema, pathParamsSchema, output)
 	} else if types.IsBodyMethod(methodStr) {
 		if bodyType == "" {
 			bodyType = types.BodyTypeJSON
 		}
-		return createBodyDiscoveryExtension(types.BodyMethods(methodStr), input, inputSchema, bodyType, output)
+		return createBodyDiscoveryExtension(types.BodyMethods(methodStr), input, inputSchema, pathParamsSchema, bodyType, output)
 	}
 
 	return types.DiscoveryExtension{}, fmt.Errorf("unsupported HTTP method: %s", methodStr)
@@ -90,6 +102,7 @@ func createQueryDiscoveryExtension(
 	method types.QueryParamMethods,
 	input interface{},
 	inputSchema types.JSONSchema,
+	pathParamsSchema types.JSONSchema,
 	output *types.OutputConfig,
 ) (types.DiscoveryExtension, error) {
 	// Convert input to map if provided
@@ -153,6 +166,16 @@ func createQueryDiscoveryExtension(
 		}
 	}
 
+	if len(pathParamsSchema) > 0 {
+		inputProps := schemaProperties["input"].(map[string]interface{})
+		props := inputProps["properties"].(map[string]interface{})
+		pp := map[string]interface{}{"type": "object"}
+		for k, v := range pathParamsSchema {
+			pp[k] = v
+		}
+		props["pathParams"] = pp
+	}
+
 	// Add output schema if provided
 	if output != nil && output.Example != nil {
 		outputSchema := map[string]interface{}{
@@ -199,6 +222,7 @@ func createBodyDiscoveryExtension(
 	method types.BodyMethods,
 	input interface{},
 	inputSchema types.JSONSchema,
+	pathParamsSchema types.JSONSchema,
 	bodyType types.BodyType,
 	output *types.OutputConfig,
 ) (types.DiscoveryExtension, error) {
@@ -246,6 +270,16 @@ func createBodyDiscoveryExtension(
 			"required":             []string{"type", "method", "bodyType", "body"},
 			"additionalProperties": false,
 		},
+	}
+
+	if len(pathParamsSchema) > 0 {
+		inputProps := schemaProperties["input"].(map[string]interface{})
+		props := inputProps["properties"].(map[string]interface{})
+		pp := map[string]interface{}{"type": "object"}
+		for k, v := range pathParamsSchema {
+			pp[k] = v
+		}
+		props["pathParams"] = pp
 	}
 
 	// Add output schema if provided

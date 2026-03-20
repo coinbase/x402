@@ -10,6 +10,8 @@ const BRACKET_PARAM_REGEX = /\[([^\]]+)\]/;
 // target lib is ES2020 — keep this separate constant to avoid that constraint.)
 const BRACKET_PARAM_REGEX_ALL = /\[([^\]]+)\]/g;
 
+const COLON_PARAM_REGEX = /:([a-zA-Z_][a-zA-Z0-9_]*)/;
+
 /**
  * Type guard to check if context is an HTTP request context.
  *
@@ -21,38 +23,75 @@ function isHTTPRequestContext(ctx: unknown): ctx is HTTPRequestContext {
 }
 
 /**
- * Converts a [param]-style route pattern into a :param template and extracts concrete
+ * Converts wildcard segments in a route pattern to named :varN parameters
+ * so they can be treated as dynamic routes for discovery catalog normalization.
+ *
+ * @param pattern - Route pattern that may contain wildcard segments
+ * @returns The pattern with wildcard segments replaced by :var1, :var2, etc.
+ */
+function normalizeWildcardPattern(pattern: string): string {
+  if (!pattern.includes("*")) {
+    return pattern;
+  }
+  let counter = 0;
+  return pattern
+    .split("/")
+    .map(seg => {
+      if (seg === "*") {
+        counter++;
+        return `:var${counter}`;
+      }
+      return seg;
+    })
+    .join("/");
+}
+
+/**
+ * Converts a parameterized route pattern into a :param template and extracts concrete
  * param values from the URL path in a single call.
  *
- * @param routePattern - Route pattern with [paramName] segments (e.g. "/users/[userId]")
+ * Supports both [param] (Next.js) and :param (Express) syntax. The output routeTemplate
+ * always uses :param syntax regardless of input format.
+ *
+ * @param routePattern - Route pattern (e.g. "/users/[userId]" or "/users/:userId")
  * @param urlPath - Concrete URL path (e.g. "/users/123")
- * @returns Object with routeTemplate (empty string if no params) and pathParams, or null if no params
+ * @returns Object with routeTemplate and pathParams, or null if no params detected
  */
 function extractDynamicRouteInfo(
   routePattern: string,
   urlPath: string,
 ): { routeTemplate: string; pathParams: Record<string, string> } | null {
-  if (!BRACKET_PARAM_REGEX.test(routePattern)) {
+  const hasBracket = BRACKET_PARAM_REGEX.test(routePattern);
+  const hasColon = COLON_PARAM_REGEX.test(routePattern);
+  if (!hasBracket && !hasColon) {
     return null;
   }
-  const routeTemplate = routePattern.replace(BRACKET_PARAM_REGEX_ALL, ":$1");
-  const pathParams = extractPathParams(routePattern, urlPath);
+  const routeTemplate = hasBracket
+    ? routePattern.replace(BRACKET_PARAM_REGEX_ALL, ":$1")
+    : routePattern;
+  const pathParams = extractPathParams(routePattern, urlPath, hasBracket);
   return { routeTemplate, pathParams };
 }
 
 /**
  * Extracts concrete path parameter values by matching a URL path against a route pattern.
  *
- * @param routePattern - Route pattern with [paramName] segments (e.g. "/users/[userId]")
+ * @param routePattern - Route pattern with [paramName] or :paramName segments
  * @param urlPath - Concrete URL path (e.g. "/users/123")
+ * @param isBracket - True if pattern uses [param] syntax, false for :param
  * @returns Record mapping param names to their values
  */
-function extractPathParams(routePattern: string, urlPath: string): Record<string, string> {
+function extractPathParams(
+  routePattern: string,
+  urlPath: string,
+  isBracket: boolean,
+): Record<string, string> {
   const paramNames: string[] = [];
-  // Split on [param] markers first so literal segments can be regex-escaped independently.
+  const splitRegex = isBracket ? BRACKET_PARAM_REGEX : COLON_PARAM_REGEX;
+  // Split on param markers so literal segments can be regex-escaped independently.
   // Without escaping, a route like /api/v1.0/[id] would produce a regex where '.' matches
   // any character (e.g. /api/v1X0/123 would incorrectly match).
-  const parts = routePattern.split(BRACKET_PARAM_REGEX);
+  const parts = routePattern.split(splitRegex);
   const regexParts: string[] = [];
   parts.forEach((part, i) => {
     if (i % 2 === 0) {
@@ -155,9 +194,11 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
       },
     };
 
-    // Dynamic routes: translate [param] → :param for the routeTemplate catalog key;
+    // Dynamic routes: translate [param]/:param → :param for the routeTemplate catalog key;
     // pathParams carries runtime values (distinct from pathParamsSchema in the declaration).
-    const routePattern = (transportContext as HTTPRequestContext).routePattern;
+    // Wildcard * segments are auto-converted to :var1, :var2, etc. for catalog normalization.
+    const rawRoutePattern = (transportContext as HTTPRequestContext).routePattern;
+    const routePattern = rawRoutePattern ? normalizeWildcardPattern(rawRoutePattern) : undefined;
     const dynamicRoute = routePattern
       ? extractDynamicRouteInfo(routePattern, transportContext.adapter.getPath())
       : null;

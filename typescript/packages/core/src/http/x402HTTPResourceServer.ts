@@ -721,6 +721,21 @@ export class x402HTTPResourceServer {
         : [["*", this.routesConfig as RouteConfig] as [string, RouteConfig]];
 
     for (const [pattern, config] of normalizedRoutes) {
+      // Warn if wildcard routes are used with discovery extensions
+      const pathPart = pattern.includes(" ") ? pattern.split(/\s+/)[1] : pattern;
+      if (
+        pathPart &&
+        pathPart.includes("*") &&
+        config.extensions &&
+        "bazaar" in config.extensions
+      ) {
+        console.warn(
+          `[x402] Route "${pattern}": Wildcard (*) patterns with bazaar discovery extensions ` +
+            `will auto-generate parameter names (var1, var2, ...). ` +
+            `Consider using named parameters instead (e.g. /weather/:city) for better discovery metadata.`,
+        );
+      }
+
       const paymentOptions = this.normalizePaymentOptions(config);
 
       for (const option of paymentOptions) {

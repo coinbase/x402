@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"log"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 var (
 	multiSlashRegex = regexp.MustCompile(`/+`)
 	paramRegex      = regexp.MustCompile(`\\\[([^\]]+)\\\]`)
+	colonParamRegex = regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
 )
 
 // ============================================================================
@@ -308,6 +310,16 @@ func (s *x402HTTPResourceServer) validateRouteConfiguration() error {
 	var errors []RouteValidationError
 
 	for _, route := range s.compiledRoutes {
+		// Warn if wildcard routes are used with discovery extensions
+		if strings.Contains(route.Pattern, "*") && route.Config.Extensions != nil {
+			if _, hasBazaar := route.Config.Extensions["bazaar"]; hasBazaar {
+				log.Printf("[x402] Route %q %s: Wildcard (*) patterns with bazaar discovery extensions "+
+					"will auto-generate parameter names (var1, var2, ...). "+
+					"Consider using named parameters instead (e.g. /weather/:city) for better discovery metadata.",
+					route.Verb, route.Pattern)
+			}
+		}
+
 		for _, option := range route.Config.Accepts {
 			// Check 1: Is the scheme registered for this network?
 			if !s.HasRegisteredScheme(option.Network, option.Scheme) {
@@ -1050,8 +1062,9 @@ func parseRoutePattern(pattern string) (string, string, *regexp.Regexp) {
 	// Convert pattern to regex
 	regexPattern := "^" + regexp.QuoteMeta(path)
 	regexPattern = strings.ReplaceAll(regexPattern, `\*`, `.*?`)
-	// Handle parameters like [id]
+	// Handle parameters: [param] (Next.js style) and :param (Express style)
 	regexPattern = paramRegex.ReplaceAllString(regexPattern, `[^/]+`)
+	regexPattern = colonParamRegex.ReplaceAllString(regexPattern, `[^/]+`)
 	regexPattern += "$"
 
 	regex := regexp.MustCompile(regexPattern)

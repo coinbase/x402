@@ -237,3 +237,67 @@ class TestBazaarDynamicRoutes:
         assert enriched.get("routeTemplate") == "/users/:userId"
         path_params = enriched["info"]["input"].get("pathParams")
         assert path_params == {}
+
+    def test_colon_param_route_produces_route_template(self) -> None:
+        """Routes with :param syntax should produce routeTemplate."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/users/123"),
+            path="/users/123",
+            route_pattern="/users/:userId",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/users/:userId"
+
+    def test_colon_param_extracts_path_params(self) -> None:
+        """:param patterns should extract pathParams from the URL."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/users/42/posts/7"),
+            path="/users/42/posts/7",
+            route_pattern="/users/:userId/posts/:postId",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/users/:userId/posts/:postId"
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {"userId": "42", "postId": "7"}
+
+    def test_wildcard_auto_converts_to_var_params(self) -> None:
+        """Wildcard * segments should auto-convert to :var1, :var2, etc."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/weather/san-francisco"),
+            path="/weather/san-francisco",
+            route_pattern="/weather/*",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/weather/:var1"
+        path_params = enriched["info"]["input"].get("pathParams")
+        assert path_params == {"var1": "san-francisco"}
+
+    def test_multiple_wildcards_auto_convert(self) -> None:
+        """Multiple * segments should become :var1, :var2, :var3, etc."""
+        ext = declare_discovery_extension(input={})
+        declaration = self._prepare_declaration(ext)
+
+        context = HTTPRequestContext(
+            method="GET",
+            adapter=MockAdapter("/api/users/42/posts/7"),
+            path="/api/users/42/posts/7",
+            route_pattern="/api/*/*/posts/*",
+        )
+        enriched = bazaar_resource_server_extension.enrich_declaration(declaration, context)
+
+        assert enriched.get("routeTemplate") == "/api/:var1/:var2/posts/:var3"
