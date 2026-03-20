@@ -78,6 +78,15 @@ export const findFacilitatorBySchemeAndNetwork = <T>(
 
 export const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;
 
+// Export amount utility functions
+export {
+  dollarStringToAtomic,
+  atomicToDollarString,
+  isValidAtomicAmount,
+  compareAtomicAmounts,
+  TOKEN_DECIMALS,
+} from "./amounts";
+
 /**
  * Encodes a string to base64 format
  *
