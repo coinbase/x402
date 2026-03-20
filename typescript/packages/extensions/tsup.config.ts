@@ -7,6 +7,7 @@ const baseConfig = {
     "sign-in-with-x/index": "src/sign-in-with-x/index.ts",
     "offer-receipt/index": "src/offer-receipt/index.ts",
     "payment-identifier/index": "src/payment-identifier/index.ts",
+    "token-gate/index": "src/token-gate/index.ts",
   },
   dts: {
     resolve: true,

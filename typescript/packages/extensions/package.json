@@ -103,6 +103,16 @@
         "types": "./dist/cjs/payment-identifier/index.d.ts",
         "default": "./dist/cjs/payment-identifier/index.js"
       }
+    },
+    "./token-gate": {
+      "import": {
+        "types": "./dist/esm/token-gate/index.d.mts",
+        "default": "./dist/esm/token-gate/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/token-gate/index.d.ts",
+        "default": "./dist/cjs/token-gate/index.js"
+      }
     }
   },
   "files": [
