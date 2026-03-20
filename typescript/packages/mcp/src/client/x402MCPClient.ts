@@ -17,7 +17,11 @@ import type {
   PaymentRequiredHook,
   PaymentRequiredContext,
 } from "../types";
-import { MCP_PAYMENT_REQUIRED_CODE, MCP_PAYMENT_META_KEY } from "../types";
+import {
+  MCP_PAYMENT_REQUIRED_CODE,
+  MCP_PAYMENT_META_KEY,
+  JSONRPC_PAYMENT_REQUIRED_CODE,
+} from "../types";
 import { extractPaymentResponseFromMeta } from "../utils";
 
 // ============================================================================
@@ -463,15 +467,33 @@ export class x402MCPClient {
     options?: { timeout?: number; signal?: AbortSignal; resetTimeoutOnProgress?: boolean },
   ): Promise<x402MCPToolCallResult> {
     // First attempt without payment
-    const result = await this.mcpClient.callTool({ name, arguments: args }, undefined, options);
+    let result: MCPCallToolResult;
+    let paymentRequired: PaymentRequired | null = null;
 
-    // Validate result structure
-    if (!isMCPCallToolResult(result)) {
-      throw new Error("Invalid MCP tool result: missing content array");
+    try {
+      const rawResult = await this.mcpClient.callTool(
+        { name, arguments: args },
+        undefined,
+        options,
+      );
+
+      if (!isMCPCallToolResult(rawResult)) {
+        throw new Error("Invalid MCP tool result: missing content array");
+      }
+
+      result = rawResult;
+      paymentRequired = this.extractPaymentRequiredFromResult(result);
+    } catch (error: unknown) {
+      // Handle MCP UrlElicitationRequired (-32042) used for payment flows (SEP-1036).
+      // The MCP SDK throws McpError for -32042 with error.data preserved.
+      const extracted = this.extractPaymentRequiredFromError(error);
+      if (extracted) {
+        paymentRequired = extracted;
+        result = { content: [], isError: true };
+      } else {
+        throw error;
+      }
     }
-
-    // Check if this is a payment required response (isError with payment_required in content)
-    const paymentRequired = this.extractPaymentRequiredFromResult(result);
 
     if (!paymentRequired) {
       // Not a payment required response, forward original MCP response as-is
@@ -642,15 +664,18 @@ export class x402MCPClient {
   ): Promise<PaymentRequired | null> {
     // Note: This actually calls the tool to trigger 402 if paid.
     // If the tool is free, it will execute as a side effect.
-    const result = await this.mcpClient.callTool({ name, arguments: args });
+    try {
+      const result = await this.mcpClient.callTool({ name, arguments: args });
 
-    // Validate result structure
-    if (!isMCPCallToolResult(result)) {
-      return null;
+      if (!isMCPCallToolResult(result)) {
+        return null;
+      }
+
+      return this.extractPaymentRequiredFromResult(result);
+    } catch (error: unknown) {
+      // Handle McpError(-32042) payment challenges
+      return this.extractPaymentRequiredFromError(error);
     }
-
-    // Check if this is a payment required response
-    return this.extractPaymentRequiredFromResult(result);
   }
 
   // ============================================================================
@@ -717,6 +742,53 @@ export class x402MCPClient {
   private extractPaymentRequiredFromObject(obj: Record<string, unknown>): PaymentRequired | null {
     if (isPaymentRequired(obj)) {
       return obj as PaymentRequired;
+    }
+
+    return null;
+  }
+
+  /**
+   * Extracts PaymentRequired from a thrown MCP error.
+   *
+   * Handles McpError exceptions with payment-related error codes:
+   * - 402: Legacy x402 code with PaymentRequired directly in error.data
+   * - -32042: MCP UrlElicitationRequired (SEP-1036) with PaymentRequired in
+   *   error.data directly or namespaced under error.data.x402
+   *
+   * @param error - The caught error
+   * @returns PaymentRequired if this is a payment error, null otherwise
+   */
+  private extractPaymentRequiredFromError(error: unknown): PaymentRequired | null {
+    if (typeof error !== "object" || error === null) {
+      return null;
+    }
+
+    const err = error as Record<string, unknown>;
+
+    if (err.code !== MCP_PAYMENT_REQUIRED_CODE && err.code !== JSONRPC_PAYMENT_REQUIRED_CODE) {
+      return null;
+    }
+
+    if (typeof err.data !== "object" || err.data === null) {
+      return null;
+    }
+
+    const data = err.data as Record<string, unknown>;
+
+    // Direct PaymentRequired in error.data
+    if (isPaymentRequired(data)) {
+      return data as PaymentRequired;
+    }
+
+    // Namespaced under error.data.x402 (for -32042 errors with mixed payment method data)
+    if (
+      err.code === JSONRPC_PAYMENT_REQUIRED_CODE &&
+      typeof data.x402 === "object" &&
+      data.x402 !== null
+    ) {
+      if (isPaymentRequired(data.x402)) {
+        return data.x402 as PaymentRequired;
+      }
     }
 
     return null;
