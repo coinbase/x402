@@ -45,8 +45,8 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/esm/index.d.mts",
-        "default": "./dist/esm/index.mjs"
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
       },
       "require": {
         "types": "./dist/cjs/index.d.ts",
@@ -55,8 +55,8 @@
     },
     "./client": {
       "import": {
-        "types": "./dist/esm/client/index.d.mts",
-        "default": "./dist/esm/client/index.mjs"
+        "types": "./dist/esm/client/index.d.ts",
+        "default": "./dist/esm/client/index.js"
       },
       "require": {
         "types": "./dist/cjs/client/index.d.ts",
@@ -65,8 +65,8 @@
     },
     "./facilitator": {
       "import": {
-        "types": "./dist/esm/facilitator/index.d.mts",
-        "default": "./dist/esm/facilitator/index.mjs"
+        "types": "./dist/esm/facilitator/index.d.ts",
+        "default": "./dist/esm/facilitator/index.js"
       },
       "require": {
         "types": "./dist/cjs/facilitator/index.d.ts",
@@ -75,8 +75,8 @@
     },
     "./http": {
       "import": {
-        "types": "./dist/esm/http/index.d.mts",
-        "default": "./dist/esm/http/index.mjs"
+        "types": "./dist/esm/http/index.d.ts",
+        "default": "./dist/esm/http/index.js"
       },
       "require": {
         "types": "./dist/cjs/http/index.d.ts",
@@ -85,8 +85,8 @@
     },
     "./server": {
       "import": {
-        "types": "./dist/esm/server/index.d.mts",
-        "default": "./dist/esm/server/index.mjs"
+        "types": "./dist/esm/server/index.d.ts",
+        "default": "./dist/esm/server/index.js"
       },
       "require": {
         "types": "./dist/cjs/server/index.d.ts",
@@ -95,8 +95,8 @@
     },
     "./types": {
       "import": {
-        "types": "./dist/esm/types/index.d.mts",
-        "default": "./dist/esm/types/index.mjs"
+        "types": "./dist/esm/types/index.d.ts",
+        "default": "./dist/esm/types/index.js"
       },
       "require": {
         "types": "./dist/cjs/types/index.d.ts",
@@ -105,8 +105,8 @@
     },
     "./types/v1": {
       "import": {
-        "types": "./dist/esm/types/v1/index.d.mts",
-        "default": "./dist/esm/types/v1/index.mjs"
+        "types": "./dist/esm/types/v1/index.d.ts",
+        "default": "./dist/esm/types/v1/index.js"
       },
       "require": {
         "types": "./dist/cjs/types/v1/index.d.ts",
@@ -115,8 +115,8 @@
     },
     "./utils": {
       "import": {
-        "types": "./dist/esm/utils/index.d.mts",
-        "default": "./dist/esm/utils/index.mjs"
+        "types": "./dist/esm/utils/index.d.ts",
+        "default": "./dist/esm/utils/index.js"
       },
       "require": {
         "types": "./dist/cjs/utils/index.d.ts",
@@ -125,8 +125,8 @@
     },
     "./schemas": {
       "import": {
-        "types": "./dist/esm/schemas/index.d.mts",
-        "default": "./dist/esm/schemas/index.mjs"
+        "types": "./dist/esm/schemas/index.d.ts",
+        "default": "./dist/esm/schemas/index.js"
       },
       "require": {
         "types": "./dist/cjs/schemas/index.d.ts",
