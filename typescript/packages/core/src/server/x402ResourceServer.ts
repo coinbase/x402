@@ -5,7 +5,12 @@ import {
   SupportedResponse,
   SupportedKind,
 } from "../types/facilitator";
-import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
+import {
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequired,
+  ResourceInfo,
+} from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
 import { Price, Network, ResourceServerExtension, VerifyError } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
@@ -23,15 +28,6 @@ export interface ResourceConfig {
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>; // Scheme-specific additional data
-}
-
-/**
- * Resource information for PaymentRequired response
- */
-export interface ResourceInfo {
-  url: string;
-  description: string;
-  mimeType: string;
 }
 
 /**
@@ -303,6 +299,7 @@ export class x402ResourceServer {
     // Clear existing mappings
     this.supportedResponsesMap.clear();
     this.facilitatorClientsMap.clear();
+    let lastError: Error | undefined;
 
     // Fetch supported kinds from all facilitator clients
     // Process in order to give precedence to earlier facilitators
@@ -345,15 +342,23 @@ export class x402ResourceServer {
           }
         }
       } catch (error) {
+        lastError = error as Error;
         // Log error but continue with other facilitators
         console.warn(`Failed to fetch supported kinds from facilitator: ${error}`);
       }
     }
 
     if (this.supportedResponsesMap.size === 0) {
-      throw new Error(
-        "Failed to initialize: no supported payment kinds loaded from any facilitator.",
-      );
+      throw lastError
+        ? new Error(
+            "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+            {
+              cause: lastError,
+            },
+          )
+        : new Error(
+            "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+          );
     }
   }
 
