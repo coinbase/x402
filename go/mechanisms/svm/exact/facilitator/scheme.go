@@ -18,13 +18,23 @@ import (
 
 // ExactSvmScheme implements the SchemeNetworkFacilitator interface for SVM (Solana) exact payments (V2)
 type ExactSvmScheme struct {
-	signer svm.FacilitatorSvmSigner
+	signer          svm.FacilitatorSvmSigner
+	settlementCache *svm.SettlementCache
 }
 
-// NewExactSvmScheme creates a new ExactSvmScheme
-func NewExactSvmScheme(signer svm.FacilitatorSvmSigner) *ExactSvmScheme {
+// NewExactSvmScheme creates a new ExactSvmScheme.
+// An optional SettlementCache may be provided to share deduplication state
+// across V1 and V2 instances; if nil a new cache is created.
+func NewExactSvmScheme(signer svm.FacilitatorSvmSigner, cache ...*svm.SettlementCache) *ExactSvmScheme {
+	var c *svm.SettlementCache
+	if len(cache) > 0 && cache[0] != nil {
+		c = cache[0]
+	} else {
+		c = svm.NewSettlementCache()
+	}
 	return &ExactSvmScheme{
-		signer: signer,
+		signer:          signer,
+		settlementCache: c,
 	}
 }
 
@@ -68,6 +78,7 @@ func (f *ExactSvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	_ *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
 	network := x402.Network(requirements.Network)
 
@@ -222,11 +233,12 @@ func (f *ExactSvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(requirements.Network)
 
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, payload, requirements)
+	verifyResp, err := f.Verify(ctx, payload, requirements, fctx)
 	if err != nil {
 		// Convert VerifyError to SettleError
 		ve := &x402.VerifyError{}
@@ -240,6 +252,12 @@ func (f *ExactSvmScheme) Settle(
 	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
+	}
+
+	// Duplicate settlement check: reject if this transaction is already being settled.
+	txKey := solanaPayload.Transaction
+	if f.settlementCache.IsDuplicate(txKey) {
+		return nil, x402.NewSettleError(ErrDuplicateSettlement, verifyResp.Payer, network, "", "duplicate transaction")
 	}
 
 	// Decode transaction

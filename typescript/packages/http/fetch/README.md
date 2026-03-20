@@ -22,7 +22,7 @@ const account = privateKeyToAccount("0xYourPrivateKey");
 const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
     {
-      network: "eip155:8453", // Base Sepolia
+      network: "eip155:8453", // Base Mainnet
       client: new ExactEvmScheme(account),
     },
   ],

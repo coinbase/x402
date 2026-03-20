@@ -7,6 +7,7 @@ import type {
   FacilitatorClient,
 } from "@x402/core/server";
 import {
+  FacilitatorResponseError,
   x402ResourceServer,
   x402HTTPResourceServer as HTTPResourceServer,
 } from "@x402/core/server";
@@ -40,6 +41,27 @@ let mockRegisterPaywallProvider: ReturnType<typeof vi.fn>;
 let mockRequiresPayment: ReturnType<typeof vi.fn>;
 
 vi.mock("@x402/core/server", () => ({
+  FacilitatorResponseError: class FacilitatorResponseError extends Error {
+    /**
+     * Creates a mock facilitator response error.
+     *
+     * @param message - Error message.
+     */
+    constructor(message: string) {
+      super(message);
+      this.name = "FacilitatorResponseError";
+    }
+  },
+  getFacilitatorResponseError: (error: unknown) => {
+    let current = error;
+    while (current instanceof Error) {
+      if (current.name === "FacilitatorResponseError") {
+        return current;
+      }
+      current = (current as Error & { cause?: unknown }).cause;
+    }
+    return null;
+  },
   x402ResourceServer: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     registerExtension: vi.fn(),
@@ -71,7 +93,15 @@ function setupMockHttpServer(
   processResult: HTTPProcessResult,
   settlementResult:
     | { success: true; headers: Record<string, string> }
-    | { success: false; errorReason: string } = { success: true, headers: {} },
+    | {
+        success: false;
+        errorReason: string;
+        headers: Record<string, string>;
+        response: { status: number; headers: Record<string, string>; body?: unknown };
+      } = {
+    success: true,
+    headers: {},
+  },
 ): void {
   mockProcessHTTPRequest.mockResolvedValue(processResult);
   mockProcessSettlement.mockResolvedValue(settlementResult);
@@ -294,11 +324,14 @@ describe("paymentMiddleware", () => {
     );
     const context = createMockContext();
 
-    // Create a proper Response mock with headers
+    // Create a proper Response mock with headers and clone method
     const responseHeaders = new Headers();
     const mockResponse = {
       status: 200,
       headers: responseHeaders,
+      clone: () => ({
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }),
     } as unknown as Response;
 
     const next = vi.fn().mockImplementation(async () => {
@@ -312,6 +345,13 @@ describe("paymentMiddleware", () => {
       mockPaymentPayload,
       mockPaymentRequirements,
       undefined,
+      expect.objectContaining({
+        request: expect.objectContaining({
+          path: "/api/test",
+          method: "GET",
+        }),
+        responseBody: expect.any(Buffer),
+      }),
     );
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");
   });
@@ -367,18 +407,55 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
     await middleware(context, next);
 
-    expect(context.json).toHaveBeenCalledWith(
-      {
-        error: "Settlement failed",
-        details: "Settlement rejected",
-      },
-      402,
+    expect(context.json).toHaveBeenCalledWith({}, 402);
+  });
+
+  it("retries initialization after a facilitator init failure", async () => {
+    const initialize = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Failed to initialize: no supported payment kinds loaded from any facilitator.", {
+          cause: new FacilitatorResponseError(
+            "Facilitator supported returned invalid JSON: not-json",
+          ),
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    vi.mocked(HTTPResourceServer).mockImplementation(
+      (server, routes) =>
+        ({
+          initialize,
+          processHTTPRequest: mockProcessHTTPRequest,
+          processSettlement: mockProcessSettlement,
+          registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
+          routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
+        }) as unknown as x402HTTPResourceServer,
     );
+    mockProcessHTTPRequest.mockResolvedValue({ type: "no-payment-required" });
+
+    const middleware = paymentMiddleware(mockRoutes, {} as unknown as x402ResourceServer);
+    const next = vi.fn().mockResolvedValue(undefined);
+
+    await middleware(createMockContext(), next);
+    await middleware(createMockContext(), next);
+
+    expect(initialize).toHaveBeenCalledTimes(2);
+    expect(mockProcessHTTPRequest).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it("returns 402 when settlement returns success: false", async () => {
@@ -388,7 +465,19 @@ describe("paymentMiddleware", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { success: false, errorReason: "Insufficient funds" },
+      {
+        success: false,
+        errorReason: "Insufficient funds",
+        headers: { "PAYMENT-RESPONSE": "settlement-failed-encoded" },
+        response: {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            "PAYMENT-RESPONSE": "settlement-failed-encoded",
+          },
+          body: {},
+        },
+      },
     );
 
     const middleware = paymentMiddleware(
@@ -405,18 +494,18 @@ describe("paymentMiddleware", () => {
       context.res = {
         status: 200,
         headers: responseHeaders,
+        clone: () => ({
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }),
       } as unknown as Response;
     });
 
     await middleware(context, next);
 
-    expect(context.json).toHaveBeenCalledWith(
-      {
-        error: "Settlement failed",
-        details: "Insufficient funds",
-      },
-      402,
-    );
+    expect(context.res?.status).toBe(402);
+    expect(context.res?.headers.get("PAYMENT-RESPONSE")).toBe("settlement-failed-encoded");
+    const body = await context.res?.json();
+    expect(body).toEqual({});
   });
 
   it("passes paywallConfig to processHTTPRequest", async () => {

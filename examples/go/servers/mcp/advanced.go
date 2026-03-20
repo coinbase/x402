@@ -2,7 +2,7 @@ package main
 
 // MCP Server with x402 Paid Tools - Advanced Example with Hooks
 //
-// This example demonstrates using CreatePaymentWrapper with hooks for:
+// This example demonstrates using NewPaymentWrapper with hooks for:
 // - Logging and observability
 // - Rate limiting and access control
 // - Custom settlement handling
@@ -141,7 +141,7 @@ func runAdvanced() error {
 		OnAfterSettlement: &settlementHook,
 	}
 
-	paidWeather, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paymentWrapperWeather := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: weatherAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_weather",
@@ -150,11 +150,8 @@ func runAdvanced() error {
 		},
 		Hooks: sharedHooks,
 	})
-	if err != nil {
-		return fmt.Errorf("failed to create weather payment wrapper: %w", err)
-	}
 
-	paidForecast, err := mcp.CreatePaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
+	paymentWrapperForecast := mcp.NewPaymentWrapper(resourceServer, mcp.PaymentWrapperConfig{
 		Accepts: forecastAccepts,
 		Resource: &mcp.ResourceInfo{
 			URL:         "mcp://tool/get_forecast",
@@ -163,9 +160,6 @@ func runAdvanced() error {
 		},
 		Hooks: sharedHooks,
 	})
-	if err != nil {
-		return fmt.Errorf("failed to create forecast payment wrapper: %w", err)
-	}
 
 	// ========================================================================
 	// STEP 5: Register tools using REAL MCP SDK
@@ -194,65 +188,25 @@ func runAdvanced() error {
 				"city": map[string]interface{}{"type": "string", "description": "The city name"},
 			},
 		},
-	}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := make(map[string]interface{})
+	}, paymentWrapperWeather.Wrap(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		city := ""
 		if req.Params.Arguments != nil {
-			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-				args = make(map[string]interface{})
+			var args map[string]interface{}
+			if err := json.Unmarshal(req.Params.Arguments, &args); err == nil {
+				if c, ok := args["city"].(string); ok {
+					city = c
+				}
 			}
 		}
-		meta := make(map[string]interface{})
-		if req.Params.Meta != nil {
-			meta = req.Params.Meta.GetMeta()
-		}
-
-		toolContext := mcp.MCPToolContext{
-			ToolName:  req.Params.Name,
-			Arguments: args,
-			Meta:      meta,
-		}
-
-		city, _ := args["city"].(string)
 		if city == "" {
 			city = "San Francisco"
 		}
-
-		result, err := paidWeather(func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-			weatherData := getWeatherData(city)
-			weatherJSON, _ := json.MarshalIndent(weatherData, "", "  ")
-			return mcp.MCPToolResult{
-				Content: []mcp.MCPContentItem{
-					{Type: "text", Text: string(weatherJSON)},
-				},
-				IsError: false,
-			}, nil
-		})(ctx, args, toolContext)
-
-		if err != nil {
-			return &mcpsdk.CallToolResult{
-				IsError: true,
-				Content: []mcpsdk.Content{
-					&mcpsdk.TextContent{Text: err.Error()},
-				},
-			}, nil
-		}
-
-		content := make([]mcpsdk.Content, len(result.Content))
-		for i, item := range result.Content {
-			content[i] = &mcpsdk.TextContent{Text: item.Text}
-		}
-
-		callResult := &mcpsdk.CallToolResult{
-			Content: content,
-			IsError: result.IsError,
-		}
-
-		if result.Meta != nil {
-			callResult.Meta = mcpsdk.Meta(result.Meta)
-		}
-
-		return callResult, nil
-	})
+		weatherData := getWeatherData(city)
+		weatherJSON, _ := json.MarshalIndent(weatherData, "", "  ")
+		return &mcpsdk.CallToolResult{
+			Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: string(weatherJSON)}},
+		}, nil
+	}))
 
 	// Forecast tool - $0.005 with hooks
 	mcpServer.AddTool(&mcpsdk.Tool{
@@ -264,70 +218,30 @@ func runAdvanced() error {
 				"city": map[string]interface{}{"type": "string", "description": "The city name"},
 			},
 		},
-	}, func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := make(map[string]interface{})
+	}, paymentWrapperForecast.Wrap(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		city := ""
 		if req.Params.Arguments != nil {
-			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-				args = make(map[string]interface{})
+			var args map[string]interface{}
+			if err := json.Unmarshal(req.Params.Arguments, &args); err == nil {
+				if c, ok := args["city"].(string); ok {
+					city = c
+				}
 			}
 		}
-		meta := make(map[string]interface{})
-		if req.Params.Meta != nil {
-			meta = req.Params.Meta.GetMeta()
-		}
-
-		toolContext := mcp.MCPToolContext{
-			ToolName:  req.Params.Name,
-			Arguments: args,
-			Meta:      meta,
-		}
-
-		city, _ := args["city"].(string)
 		if city == "" {
 			city = "San Francisco"
 		}
-
-		result, err := paidForecast(func(ctx context.Context, args map[string]interface{}, toolContext mcp.MCPToolContext) (mcp.MCPToolResult, error) {
-			forecast := make([]map[string]interface{}, 7)
-			for i := 0; i < 7; i++ {
-				dayData := getWeatherData(city)
-				dayData["day"] = i + 1
-				forecast[i] = dayData
-			}
-			forecastJSON, _ := json.MarshalIndent(forecast, "", "  ")
-			return mcp.MCPToolResult{
-				Content: []mcp.MCPContentItem{
-					{Type: "text", Text: string(forecastJSON)},
-				},
-				IsError: false,
-			}, nil
-		})(ctx, args, toolContext)
-
-		if err != nil {
-			return &mcpsdk.CallToolResult{
-				IsError: true,
-				Content: []mcpsdk.Content{
-					&mcpsdk.TextContent{Text: err.Error()},
-				},
-			}, nil
+		forecast := make([]map[string]interface{}, 7)
+		for i := 0; i < 7; i++ {
+			dayData := getWeatherData(city)
+			dayData["day"] = i + 1
+			forecast[i] = dayData
 		}
-
-		content := make([]mcpsdk.Content, len(result.Content))
-		for i, item := range result.Content {
-			content[i] = &mcpsdk.TextContent{Text: item.Text}
-		}
-
-		callResult := &mcpsdk.CallToolResult{
-			Content: content,
-			IsError: result.IsError,
-		}
-
-		if result.Meta != nil {
-			callResult.Meta = mcpsdk.Meta(result.Meta)
-		}
-
-		return callResult, nil
-	})
+		forecastJSON, _ := json.MarshalIndent(forecast, "", "  ")
+		return &mcpsdk.CallToolResult{
+			Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: string(forecastJSON)}},
+		}, nil
+	}))
 
 	// Start HTTP server with SSE transport
 	return startHTTPServerAdvanced(mcpServer, port)
@@ -362,7 +276,7 @@ func startHTTPServerAdvanced(mcpServer *mcpsdk.Server, port string) error {
 	fmt.Println("   - OnBeforeExecution: Rate limiting, validation")
 	fmt.Println("   - OnAfterExecution: Logging, metrics")
 	fmt.Println("   - OnAfterSettlement: Receipts, notifications")
-	fmt.Println("\n💡 This example uses CreatePaymentWrapper() with hooks and REAL MCP SDK.\n")
+	fmt.Println("\n💡 This example uses NewPaymentWrapper() with hooks and REAL MCP SDK.\n")
 
 	server := &http.Server{
 		Addr:    ":" + port,

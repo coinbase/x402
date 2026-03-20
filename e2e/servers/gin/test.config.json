@@ -4,7 +4,9 @@
   "language": "go",
   "x402Version": 2,
   "extensions": [
-    "bazaar"
+    "bazaar",
+    "eip2612GasSponsoring",
+    "erc20ApprovalGasSponsoring"
   ],
   "description": "Go Gin server with x402 v2 payment middleware",
   "endpoints": [
@@ -13,15 +15,34 @@
       "method": "GET",
       "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
-      "protocolFamily": "evm"
+      "protocolFamily": "evm",
+      "transferMethod": "eip3009"
     },
     {
       "path": "/protected-permit2",
       "method": "GET",
-      "description": "Protected endpoint requiring Permit2 payment",
+      "description": "Protected endpoint requiring Permit2 payment (standard settle, no gas sponsoring)",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "permit2": true
+      "transferMethod": "permit2",
+      "permit2Direct": true
+    },
+    {
+      "path": "/protected-permit2-eip2612",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment with EIP-2612 gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2"
+    },
+    {
+      "path": "/protected-permit2-erc20",
+      "method": "GET",
+      "description": "Protected endpoint requiring Permit2 payment with ERC-20 approval gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2",
+      "extension": "erc20ApprovalGasSponsoring"
     },
     {
       "path": "/protected-svm",

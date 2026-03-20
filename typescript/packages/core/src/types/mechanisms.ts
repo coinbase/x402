@@ -2,6 +2,7 @@ import { SettleResponse, VerifyResponse } from "./facilitator";
 import { PaymentRequirements } from "./payments";
 import { PaymentPayload } from "./payments";
 import { Price, Network, AssetAmount } from ".";
+import { FacilitatorExtension } from "./extensions";
 
 /**
  * Money parser function that converts a numeric amount to an AssetAmount
@@ -17,9 +18,22 @@ export type MoneyParser = (amount: number, network: Network) => Promise<AssetAmo
 
 /**
  * Result of createPaymentPayload - the core payload fields.
- * Contains the x402 version and the scheme-specific payload data.
+ * Contains the x402 version, scheme-specific payload data, and optional extension data.
+ * Schemes may return extensions (e.g., EIP-2612 gas sponsoring) that get merged
+ * with server-declared extensions in the final PaymentPayload.
  */
-export type PaymentPayloadResult = Pick<PaymentPayload, "x402Version" | "payload">;
+export type PaymentPayloadResult = Pick<PaymentPayload, "x402Version" | "payload"> & {
+  extensions?: Record<string, unknown>;
+};
+
+/**
+ * Context passed to scheme's createPaymentPayload for extensions awareness.
+ * Contains the server-declared extensions from PaymentRequired so the scheme
+ * can check which extensions are advertised and respond accordingly.
+ */
+export interface PaymentPayloadContext {
+  extensions?: Record<string, unknown>;
+}
 
 export interface SchemeNetworkClient {
   readonly scheme: string;
@@ -27,7 +41,17 @@ export interface SchemeNetworkClient {
   createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
+    context?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult>;
+}
+
+/**
+ * Context passed to SchemeNetworkFacilitator.verify/settle, providing
+ * access to registered facilitator extensions. Mechanism implementations
+ * use this to retrieve extension-provided capabilities (e.g., a batch signer).
+ */
+export interface FacilitatorContext {
+  getExtension<T extends FacilitatorExtension = FacilitatorExtension>(key: string): T | undefined;
 }
 
 export interface SchemeNetworkFacilitator {
@@ -92,8 +116,16 @@ export interface SchemeNetworkFacilitator {
    */
   getSigners(network: string): string[];
 
-  verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse>;
-  settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
+  verify(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    context?: FacilitatorContext,
+  ): Promise<VerifyResponse>;
+  settle(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    context?: FacilitatorContext,
+  ): Promise<SettleResponse>;
 }
 
 export interface SchemeNetworkServer {

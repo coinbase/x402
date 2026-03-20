@@ -6,6 +6,8 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
+  FacilitatorResponseError,
+  getFacilitatorResponseError,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
@@ -42,6 +44,16 @@ export interface SchemeRegistration {
    * The scheme server implementation for this network
    */
   server: SchemeNetworkServer;
+}
+
+/**
+ * Sends a normalized 502 response for facilitator boundary failures.
+ *
+ * @param res - The Express response to write to
+ * @param error - The facilitator response error to surface
+ */
+function sendFacilitatorError(res: Response, error: FacilitatorResponseError): void {
+  res.status(502).json({ error: error.message });
 }
 
 /**
@@ -82,6 +94,28 @@ export function paymentMiddlewareFromHTTPServer(
   // Store initialization promise (not the result)
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
+
+  /**
+   * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+   */
+  async function initializeHttpServer(): Promise<void> {
+    if (!syncFacilitatorOnStart || isInitialized) {
+      return;
+    }
+
+    if (!initPromise) {
+      initPromise = httpServer.initialize();
+    }
+
+    try {
+      await initPromise;
+      isInitialized = true;
+    } catch (error) {
+      initPromise = null;
+      throw error;
+    }
+  }
 
   // Dynamically register bazaar extension if routes declare it and not already registered
   // Skip if pre-registered (e.g., in serverless environments where static imports are used)
@@ -112,9 +146,17 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Only initialize when processing a protected route
-    if (initPromise) {
-      await initPromise;
-      initPromise = null; // Clear after first await
+    if (syncFacilitatorOnStart && !isInitialized) {
+      try {
+        await initializeHttpServer();
+      } catch (error) {
+        const facilitatorError = getFacilitatorResponseError(error);
+        if (facilitatorError) {
+          sendFacilitatorError(res, facilitatorError);
+          return;
+        }
+        return next(error);
+      }
     }
 
     // Await bazaar extension loading if needed
@@ -124,7 +166,16 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     // Process payment requirement check
-    const result = await httpServer.processHTTPRequest(context, paywallConfig);
+    let result: Awaited<ReturnType<x402HTTPResourceServer["processHTTPRequest"]>>;
+    try {
+      result = await httpServer.processHTTPRequest(context, paywallConfig);
+    } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        sendFacilitatorError(res, error);
+        return;
+      }
+      return next(error);
+    }
 
     // Handle the different result types
     switch (result.type) {
@@ -231,19 +282,32 @@ export function paymentMiddlewareFromHTTPServer(
         }
 
         try {
+          // Build response body buffer from buffered write/end calls
+          const responseBody = Buffer.concat(
+            bufferedCalls.flatMap(([m, args]) =>
+              (m === "write" || m === "end") && args[0] ? [Buffer.from(args[0])] : [],
+            ),
+          );
+
           const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
             declaredExtensions,
+            { request: context, responseBody },
           );
 
           // If settlement fails, return an error and do not send the buffered response
           if (!settleResult.success) {
             bufferedCalls = [];
-            res.status(402).json({
-              error: "Settlement failed",
-              details: settleResult.errorReason,
+            const { response } = settleResult;
+            Object.entries(response.headers).forEach(([key, value]) => {
+              res.setHeader(key, value);
             });
+            if (response.isHtml) {
+              res.status(response.status).send(response.body);
+            } else {
+              res.status(response.status).json(response.body ?? {});
+            }
             return;
           }
 
@@ -252,13 +316,15 @@ export function paymentMiddlewareFromHTTPServer(
             res.setHeader(key, value);
           });
         } catch (error) {
+          if (error instanceof FacilitatorResponseError) {
+            bufferedCalls = [];
+            sendFacilitatorError(res, error);
+            return;
+          }
           console.error(error);
           // If settlement fails, don't send the buffered response
           bufferedCalls = [];
-          res.status(402).json({
-            error: "Settlement failed",
-            details: error instanceof Error ? error.message : "Unknown error",
-          });
+          res.status(402).json({});
           return;
         } finally {
           settled = true;

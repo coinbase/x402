@@ -181,7 +181,7 @@ describe("x402Facilitator", () => {
     it("should register extension", () => {
       const facilitator = new x402Facilitator();
 
-      const result = facilitator.registerExtension("bazaar");
+      const result = facilitator.registerExtension({ key: "bazaar" });
 
       expect(result).toBe(facilitator);
       expect(facilitator.getExtensions()).toEqual(["bazaar"]);
@@ -190,7 +190,7 @@ describe("x402Facilitator", () => {
     it("should register multiple extensions", () => {
       const facilitator = new x402Facilitator();
 
-      facilitator.registerExtension("bazaar").registerExtension("sign_in_with_x");
+      facilitator.registerExtension({ key: "bazaar" }).registerExtension({ key: "sign_in_with_x" });
 
       expect(facilitator.getExtensions()).toEqual(["bazaar", "sign_in_with_x"]);
     });
@@ -199,16 +199,16 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
 
       facilitator
-        .registerExtension("bazaar")
-        .registerExtension("bazaar")
-        .registerExtension("bazaar");
+        .registerExtension({ key: "bazaar" })
+        .registerExtension({ key: "bazaar" })
+        .registerExtension({ key: "bazaar" });
 
       expect(facilitator.getExtensions()).toEqual(["bazaar"]);
     });
 
     it("should return copy of extensions array", () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerExtension("bazaar");
+      facilitator.registerExtension({ key: "bazaar" });
 
       const extensions = facilitator.getExtensions();
       extensions.push("modified");

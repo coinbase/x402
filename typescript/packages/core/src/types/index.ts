@@ -5,7 +5,12 @@ export type {
   SettleResponse,
   SupportedResponse,
 } from "./facilitator";
-export { VerifyError, SettleError } from "./facilitator";
+export {
+  VerifyError,
+  SettleError,
+  FacilitatorResponseError,
+  getFacilitatorResponseError,
+} from "./facilitator";
 export type {
   PaymentRequirements,
   PaymentPayload,
@@ -18,9 +23,12 @@ export type {
   SchemeNetworkServer,
   MoneyParser,
   PaymentPayloadResult,
+  PaymentPayloadContext,
+  FacilitatorContext,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
 export type {
+  FacilitatorExtension,
   ResourceServerExtension,
   PaymentRequiredContext,
   SettleResultContext,

@@ -6,6 +6,8 @@ import {
   x402HTTPResourceServer,
   x402ResourceServer,
   RoutesConfig,
+  FacilitatorResponseError,
+  getFacilitatorResponseError as getCoreFacilitatorResponseError,
 } from "@x402/core/server";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -16,6 +18,21 @@ import { NextAdapter } from "./adapter";
 export interface HttpServerInstance {
   httpServer: x402HTTPResourceServer;
   init: () => Promise<void>;
+}
+
+export const getFacilitatorResponseError = getCoreFacilitatorResponseError;
+
+/**
+ * Builds a normalized 502 response for facilitator boundary failures.
+ *
+ * @param error - The facilitator response error to surface
+ * @returns A JSON 502 response
+ */
+export function createFacilitatorErrorResponse(error: FacilitatorResponseError): NextResponse {
+  return new NextResponse(JSON.stringify({ error: error.message }), {
+    status: 502,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 /**
@@ -39,14 +56,28 @@ export function prepareHttpServer(
   // Store initialization promise (not the result)
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
 
   return {
     httpServer,
+    /**
+     * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+     */
     async init() {
-      // Ensure initialization completes before processing
-      if (initPromise) {
+      if (!syncFacilitatorOnStart || isInitialized) {
+        return;
+      }
+
+      if (!initPromise) {
+        initPromise = httpServer.initialize();
+      }
+
+      try {
         await initPromise;
-        initPromise = null; // Clear after first await
+        isInitialized = true;
+      } catch (error) {
+        initPromise = null;
+        throw error;
       }
     },
   };
@@ -121,6 +152,7 @@ export function handlePaymentError(response: HTTPResponseInstructions): NextResp
  * @param paymentPayload - The payment payload from the client
  * @param paymentRequirements - The payment requirements for the route
  * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
+ * @param httpContext - Optional HTTP request context for extensions
  * @returns The response with settlement headers or an error response if settlement fails
  */
 export async function handleSettlement(
@@ -129,6 +161,7 @@ export async function handleSettlement(
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
   declaredExtensions?: Record<string, unknown>,
+  httpContext?: HTTPRequestContext,
 ): Promise<NextResponse> {
   // If the response from the protected route is >= 400, do not settle payment
   if (response.status >= 400) {
@@ -136,24 +169,24 @@ export async function handleSettlement(
   }
 
   try {
+    // Get response body for extensions
+    const responseBody = Buffer.from(await response.clone().arrayBuffer());
+
     const result = await httpServer.processSettlement(
       paymentPayload,
       paymentRequirements,
       declaredExtensions,
+      { request: httpContext, responseBody },
     );
 
     if (!result.success) {
       // Settlement failed - do not return the protected resource
-      return new NextResponse(
-        JSON.stringify({
-          error: "Settlement failed",
-          details: result.errorReason,
-        }),
-        {
-          status: 402,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      const { response } = result;
+      const body = response.isHtml ? response.body : JSON.stringify(response.body ?? {});
+      return new NextResponse(body, {
+        status: response.status,
+        headers: response.headers,
+      });
     }
 
     // Settlement succeeded - add headers and return original response
@@ -163,17 +196,14 @@ export async function handleSettlement(
 
     return response;
   } catch (error) {
+    if (error instanceof FacilitatorResponseError) {
+      return createFacilitatorErrorResponse(error);
+    }
     console.error("Settlement failed:", error);
     // If settlement fails, return an error response
-    return new NextResponse(
-      JSON.stringify({
-        error: "Settlement failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 402,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return new NextResponse(JSON.stringify({}), {
+      status: 402,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

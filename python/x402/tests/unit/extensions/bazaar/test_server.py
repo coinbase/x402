@@ -23,14 +23,14 @@ class TestBazaarResourceServerExtension:
 
     def test_extension_key(self) -> None:
         """Test extension key is correct."""
-        assert bazaar_resource_server_extension.key == BAZAAR
+        assert bazaar_resource_server_extension.key == BAZAAR.key
 
     def test_enrich_with_http_context(self) -> None:
         """Test enriching declaration with HTTP context."""
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         # Convert to dict if needed
         if hasattr(declaration, "model_dump"):
@@ -47,7 +47,7 @@ class TestBazaarResourceServerExtension:
             input={"data": "test"},
             body_type="json",
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
@@ -62,7 +62,7 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
@@ -78,7 +78,7 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
@@ -95,7 +95,7 @@ class TestBazaarResourceServerExtension:
         ext = declare_discovery_extension(
             input={"query": "test"},
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
@@ -119,7 +119,7 @@ class TestBazaarResourceServerExtension:
                 },
             },
         )
-        declaration = ext[BAZAAR]
+        declaration = ext[BAZAAR.key]
 
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	x402 "github.com/coinbase/x402/go"
 )
@@ -247,15 +250,12 @@ func TestHTTPFacilitatorClientVerifyInvalidResponse(t *testing.T) {
 		t.Fatal("Expected error for invalid verify response")
 	}
 
-	var verifyErr *x402.VerifyError
-	if !errors.As(err, &verifyErr) {
-		t.Fatalf("Expected VerifyError, got: %T (%v)", err, err)
+	var responseErr *FacilitatorResponseError
+	if !errors.As(err, &responseErr) {
+		t.Fatalf("Expected FacilitatorResponseError, got: %T (%v)", err, err)
 	}
-	if verifyErr.InvalidReason != x402.ErrInvalidResponse {
-		t.Errorf("Expected InvalidReason %q, got %q", x402.ErrInvalidResponse, verifyErr.InvalidReason)
-	}
-	if verifyErr.InvalidMessage == "" {
-		t.Error("Expected InvalidMessage to be set for invalid response")
+	if !strings.Contains(responseErr.Error(), "facilitator verify returned invalid JSON") {
+		t.Errorf("Expected invalid JSON message, got %q", responseErr.Error())
 	}
 }
 
@@ -315,6 +315,50 @@ func TestHTTPFacilitatorClientSettle(t *testing.T) {
 	}
 }
 
+func TestHTTPFacilitatorClientSettleInvalidResponse(t *testing.T) {
+	ctx := context.Background()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success": true}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{
+		URL: server.URL,
+	})
+
+	requirements := x402.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{"sig": "test"},
+	}
+
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	_, err := client.Settle(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for invalid settle response")
+	}
+
+	var responseErr *FacilitatorResponseError
+	if !errors.As(err, &responseErr) {
+		t.Fatalf("Expected FacilitatorResponseError, got: %T (%v)", err, err)
+	}
+	if !strings.Contains(responseErr.Error(), "facilitator settle returned invalid data") {
+		t.Errorf("Expected invalid data message, got %q", responseErr.Error())
+	}
+}
+
 func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 	ctx := context.Background()
 
@@ -368,6 +412,33 @@ func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 	}
 	if response.Extensions[0] != "bazaar" {
 		t.Errorf("Expected 'bazaar' extension, got %s", response.Extensions[0])
+	}
+}
+
+func TestHTTPFacilitatorClientGetSupportedInvalidResponse(t *testing.T) {
+	ctx := context.Background()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kinds":[{"scheme":"exact"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{
+		URL: server.URL,
+	})
+
+	_, err := client.GetSupported(ctx)
+	if err == nil {
+		t.Fatal("Expected error for invalid supported response")
+	}
+
+	var responseErr *FacilitatorResponseError
+	if !errors.As(err, &responseErr) {
+		t.Fatalf("Expected FacilitatorResponseError, got: %T (%v)", err, err)
+	}
+	if !strings.Contains(responseErr.Error(), "facilitator getSupported returned invalid data") {
+		t.Errorf("Expected invalid data message, got %q", responseErr.Error())
 	}
 }
 
@@ -723,6 +794,133 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	}
 	if len(supported.Extensions) != 2 {
 		t.Errorf("Expected 2 extensions, got %d", len(supported.Extensions))
+	}
+}
+
+// ============================================================================
+// GetSupported Retry Tests
+// ============================================================================
+
+func TestGetSupportedRetryOn429ThenSuccess(t *testing.T) {
+	var attempts atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempt := attempts.Add(1)
+		if attempt <= 2 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("rate limited"))
+			return
+		}
+		response := x402.SupportedResponse{
+			Kinds: []x402.SupportedKind{
+				{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{URL: server.URL})
+
+	result, err := client.GetSupported(context.Background())
+	if err != nil {
+		t.Fatalf("Expected success after retries, got error: %v", err)
+	}
+	if len(result.Kinds) != 1 {
+		t.Errorf("Expected 1 kind, got %d", len(result.Kinds))
+	}
+	if int(attempts.Load()) != 3 {
+		t.Errorf("Expected 3 attempts, got %d", attempts.Load())
+	}
+}
+
+func TestGetSupportedRetryExhausted(t *testing.T) {
+	var attempts atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte("rate limited"))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{URL: server.URL})
+
+	_, err := client.GetSupported(context.Background())
+	if err == nil {
+		t.Fatal("Expected error after exhausted retries")
+	}
+	if int(attempts.Load()) != getSupportedRetries {
+		t.Errorf("Expected %d attempts, got %d", getSupportedRetries, attempts.Load())
+	}
+}
+
+func TestGetSupportedNoRetryOnNon429Error(t *testing.T) {
+	var attempts atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("internal error"))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{URL: server.URL})
+
+	_, err := client.GetSupported(context.Background())
+	if err == nil {
+		t.Fatal("Expected error for 500 response")
+	}
+	if int(attempts.Load()) != 1 {
+		t.Errorf("Expected 1 attempt (no retry for 500), got %d", attempts.Load())
+	}
+}
+
+func TestGetSupportedRetryRespectsContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte("rate limited"))
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{URL: server.URL})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_, err := client.GetSupported(ctx)
+	if err == nil {
+		t.Fatal("Expected error when context is cancelled during retry backoff")
+	}
+}
+
+func TestGetSupportedSuccessOnFirstAttempt(t *testing.T) {
+	var attempts atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		response := x402.SupportedResponse{
+			Kinds: []x402.SupportedKind{
+				{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{URL: server.URL})
+
+	result, err := client.GetSupported(context.Background())
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(result.Kinds) != 1 {
+		t.Errorf("Expected 1 kind, got %d", len(result.Kinds))
+	}
+	if int(attempts.Load()) != 1 {
+		t.Errorf("Expected 1 attempt, got %d", attempts.Load())
 	}
 }
 

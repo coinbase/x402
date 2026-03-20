@@ -12,7 +12,32 @@ import {
   extractPaymentIdentifier,
   PAYMENT_IDENTIFIER,
 } from "@x402/extensions/payment-identifier";
+import { createHash } from "crypto";
+import type { PaymentPayload } from "@x402/core/types";
 config();
+
+/**
+ * Computes a deterministic hash of the full PaymentPayload. A proper retry
+ * resends the exact same signed payload, so the hash — including the
+ * cryptographic signature — will match. A genuinely different request
+ * (different signer, amount, etc.) produces a different hash → 409 Conflict.
+ *
+ * @param payload - the payment payload to fingerprint
+ * @returns SHA-256 hex digest of the canonicalized payload
+ */
+function payloadFingerprint(payload: PaymentPayload): string {
+  const canonical = JSON.stringify(payload, (_key, value) => {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+        sorted[k] = (value as Record<string, unknown>)[k];
+      }
+      return sorted;
+    }
+    return value;
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
 
 const address = process.env.ADDRESS as `0x${string}`;
 if (!address) {
@@ -29,6 +54,7 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/fac
  */
 interface CachedResponse {
   timestamp: number;
+  fingerprint: string;
   response: { report: { weather: string; temperature: number; cached: boolean } };
 }
 
@@ -73,13 +99,15 @@ const routes = {
 // Create the resource server with payment scheme support
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register("eip155:84532", new ExactEvmScheme())
-  // Hook after settlement to cache the response
+  // Hook after settlement to cache the response with its fingerprint
   .onAfterSettle(async ({ paymentPayload }) => {
     const paymentId = extractPaymentIdentifier(paymentPayload);
     if (paymentId) {
+      const fp = payloadFingerprint(paymentPayload);
       console.log(`[Idempotency] Caching response for payment ID: ${paymentId}`);
       idempotencyCache.set(paymentId, {
         timestamp: Date.now(),
+        fingerprint: fp,
         response: {
           report: {
             weather: "sunny",
@@ -114,15 +142,24 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes).onProtecte
         if (cached) {
           const age = Date.now() - cached.timestamp;
           if (age < CACHE_TTL_MS) {
+            // Compare fingerprints to detect payload mismatch
+            const fp = payloadFingerprint(paymentPayload);
+
+            // Access Express request through adapter's private req property
+            const adapter = context.adapter as unknown as {
+              req: express.Request & { paymentId?: string; paymentIdConflict?: boolean };
+            };
+
+            if (fp !== cached.fingerprint) {
+              console.log(`[Idempotency] CONFLICT - same ID, different payload`);
+              adapter.req.paymentIdConflict = true;
+              adapter.req.paymentId = paymentId;
+              return { grantAccess: true };
+            }
+
             console.log(
               `[Idempotency] Cache HIT - granting access (age: ${Math.round(age / 1000)}s)`,
             );
-            // Store payment ID in request for route handler access
-            // Access Express request through adapter's private req property
-            // Cast through unknown first to access private property
-            const adapter = context.adapter as unknown as {
-              req: express.Request & { paymentId?: string };
-            };
             adapter.req.paymentId = paymentId;
             // Grant access without payment processing - the cached response will be served
             return { grantAccess: true };
@@ -147,13 +184,21 @@ const app = express();
 app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 app.get("/weather", (req, res) => {
-  // Check if this is a cached response (grantAccess was true)
-  // Use type assertion to access paymentId property
-  const reqWithPaymentId = req as express.Request & { paymentId?: string };
-  if (reqWithPaymentId.paymentId) {
-    const cached = idempotencyCache.get(reqWithPaymentId.paymentId);
+  const reqExt = req as express.Request & { paymentId?: string; paymentIdConflict?: boolean };
+
+  // Same ID but different payload → 409 Conflict
+  if (reqExt.paymentIdConflict) {
+    res.status(409).json({
+      error: "payment identifier already used with different payload",
+      paymentId: reqExt.paymentId,
+    });
+    return;
+  }
+
+  // Same ID, same payload → return cached response
+  if (reqExt.paymentId) {
+    const cached = idempotencyCache.get(reqExt.paymentId);
     if (cached) {
-      // Return cached response with cached flag set to true
       res.json({
         report: {
           ...cached.response.report,
@@ -164,7 +209,7 @@ app.get("/weather", (req, res) => {
     }
   }
 
-  // Normal response (first request or cache miss)
+  // New request → normal response
   res.json({
     report: {
       weather: "sunny",

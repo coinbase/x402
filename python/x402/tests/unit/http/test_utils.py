@@ -17,7 +17,12 @@ from x402.http.utils import (
     safe_base64_decode,
     safe_base64_encode,
 )
-from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    SettleResponse,
+)
 from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
 
 
@@ -40,6 +45,41 @@ def make_v2_payload(signature: str = "0x123") -> PaymentPayload:
         payload={"signature": signature},
         accepted=make_payment_requirements(),
     )
+
+
+class TestCamelCaseSerialization:
+    """Tests that model_dump_json() produces camelCase by default (#1120)."""
+
+    def test_payment_payload_serializes_camel_case(self):
+        """model_dump_json() should produce camelCase without by_alias."""
+        payload = make_v2_payload()
+        data = json.loads(payload.model_dump_json())
+
+        assert "x402Version" in data
+        assert "x402_version" not in data
+
+    def test_payment_requirements_serializes_camel_case(self):
+        """PaymentRequirements fields should serialize as camelCase."""
+        req = make_payment_requirements()
+        data = json.loads(req.model_dump_json())
+
+        assert "payTo" in data
+        assert "pay_to" not in data
+        assert "maxTimeoutSeconds" in data
+        assert "max_timeout_seconds" not in data
+
+    def test_payment_required_serializes_camel_case(self):
+        """PaymentRequired should serialize as camelCase."""
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        data = json.loads(payment_required.model_dump_json())
+
+        assert "x402Version" in data
+        assert "x402_version" not in data
+        assert "payTo" in data["accepts"][0]
+        assert "maxTimeoutSeconds" in data["accepts"][0]
 
 
 class TestSafeBase64:
