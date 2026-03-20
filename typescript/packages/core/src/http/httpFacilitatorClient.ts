@@ -273,6 +273,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
   /**
    * Get supported payment kinds and extensions from the facilitator.
    * Retries with exponential backoff on 429 rate limit errors.
+   * Explicitly handles redirects and provides detailed error reporting.
    *
    * @returns Supported payment kinds and extensions
    */
@@ -291,6 +292,8 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       const response = await fetch(`${this.url}/supported`, {
         method: "GET",
         headers,
+        // Explicitly follow redirects (default behavior, but being explicit)
+        redirect: "follow",
       });
 
       if (response.ok) {
@@ -298,9 +301,14 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }
 
       const errorText = await response.text().catch(() => response.statusText);
-      lastError = new Error(
-        `Facilitator getSupported failed (${response.status}): ${responseExcerpt(errorText)}`,
-      );
+
+      // Enhanced error message with redirect information
+      let errorMessage = `Facilitator getSupported failed (${response.status}): ${responseExcerpt(errorText)}`;
+      if (response.redirected) {
+        errorMessage += ` [redirected from ${this.url}/supported to ${response.url}]`;
+      }
+
+      lastError = new FacilitatorResponseError(errorMessage);
 
       // Retry on 429 rate limit errors with exponential backoff
       if (response.status === 429 && attempt < GET_SUPPORTED_RETRIES - 1) {
@@ -309,10 +317,24 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
         continue;
       }
 
+      // For redirect errors (3xx), provide specific guidance
+      if (response.status >= 300 && response.status < 400) {
+        const redirectInfo = response.redirected
+          ? ` Redirect chain: ${this.url}/supported -> ${response.url}`
+          : ` Location header: ${response.headers.get("location") || "not provided"}`;
+
+        throw new FacilitatorResponseError(
+          `Facilitator endpoint returned redirect (${response.status}).${redirectInfo}. ` +
+            `Ensure the facilitator URL is correct and supports the /supported endpoint directly.`,
+        );
+      }
+
       throw lastError;
     }
 
-    throw lastError ?? new Error("Facilitator getSupported failed after retries");
+    throw (
+      lastError ?? new FacilitatorResponseError("Facilitator getSupported failed after retries")
+    );
   }
 
   /**
