@@ -46,43 +46,40 @@ const client = new x402Client()
 ## Supported Networks
 
 Networks are identified via CAIP-2:
-- `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k` - Mainnet
-- `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDe` - Testnet
+- `algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=` - Mainnet
+- `algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=` - Testnet
 - `algorand:*` - Wildcard (matches all Algorand networks)
 
 ## Signer Implementation
 
-This package exports `ClientAvmSigner` and `FacilitatorAvmSigner` as TypeScript interfaces. You implement them directly using `@algorandfoundation/algokit-utils`:
+Use the built-in helper functions to create signers from a Base64-encoded private key. These use `generateAddressWithSigners` from `@algorandfoundation/algokit-utils` internally for canonical Ed25519 signing.
 
 ### Client Signer
 
 ```typescript
-import { encodeAddress } from "@algorandfoundation/algokit-utils/common";
-import { ed25519Generator } from "@algorandfoundation/algokit-utils/crypto";
-import { decodeTransaction, bytesForSigning, encodeSignedTransaction } from "@algorandfoundation/algokit-utils/transact";
+import { toClientAvmSigner } from "@x402/avm";
 
-// Decode Base64 private key (64 bytes: 32-byte seed + 32-byte public key)
-const secretKey = Buffer.from(process.env.AVM_PRIVATE_KEY!, "base64");
-const seed = secretKey.slice(0, 32);
-const { ed25519Pubkey, rawEd25519Signer } = ed25519Generator(seed);
-const address = encodeAddress(ed25519Pubkey);
-
-const avmSigner: ClientAvmSigner = {
-  address,
-  signTransactions: async (txns: Uint8Array[], indexesToSign?: number[]) => {
-    return Promise.all(txns.map(async (txn, i) => {
-      if (indexesToSign && !indexesToSign.includes(i)) return null;
-      const decoded = decodeTransaction(txn);
-      const sig = await rawEd25519Signer(bytesForSigning.transaction(decoded));
-      return encodeSignedTransaction({ txn: decoded, sig });
-    }));
-  },
-};
+const signer = toClientAvmSigner(process.env.AVM_PRIVATE_KEY!);
+// signer.address — the Algorand address
+// signer.signTransactions(txns, indexesToSign) — signs transactions
 ```
 
 ### Facilitator Signer
 
-See [facilitator example](../../examples/typescript/facilitator/) for a full `FacilitatorAvmSigner` implementation.
+```typescript
+import { toFacilitatorAvmSigner } from "@x402/avm";
+
+// Default (uses AlgorandClient.testNet() / .mainNet() from algokit-utils):
+const signer = toFacilitatorAvmSigner(process.env.AVM_PRIVATE_KEY!);
+
+// With custom Algod URLs:
+const signer = toFacilitatorAvmSigner(process.env.AVM_PRIVATE_KEY!, {
+  testnetUrl: "https://my-testnet-node.example.com",
+  mainnetUrl: "https://my-mainnet-node.example.com",
+});
+```
+
+See [facilitator example](../../examples/typescript/facilitator/) for a full implementation.
 
 ## Environment Variables
 
@@ -93,8 +90,6 @@ Applications that make payments using an Algorand wallet.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AVM_PRIVATE_KEY` | Yes | Base64-encoded 64-byte Algorand private key (32-byte seed + 32-byte public key). Used to sign payment transactions. |
-| `ALGOD_TESTNET_URL` | No | Custom Algorand Testnet API endpoint. Defaults to `https://testnet-api.algonode.cloud`. |
-| `ALGOD_MAINNET_URL` | No | Custom Algorand Mainnet API endpoint. Defaults to `https://mainnet-api.algonode.cloud`. |
 
 ### Server (Resource Provider)
 
@@ -111,10 +106,6 @@ Payment processors that verify and settle transactions on-chain.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AVM_PRIVATE_KEY` | Yes | Base64-encoded 64-byte Algorand private key. Used to submit settlement transactions and pay fees. |
-| `ALGOD_SERVER` | No | Custom Algod HTTP server URL for direct node access. Defaults to AlgoNode testnet. |
-| `ALGOD_TOKEN` | No | Algod API authentication token. Not needed when using AlgoNode public endpoints. |
-| `ALGOD_TESTNET_URL` | No | Custom Algorand Testnet API endpoint. Defaults to `https://testnet-api.algonode.cloud`. |
-| `ALGOD_MAINNET_URL` | No | Custom Algorand Mainnet API endpoint. Defaults to `https://mainnet-api.algonode.cloud`. |
 
 ### Key Format
 
@@ -125,17 +116,14 @@ The `AVM_PRIVATE_KEY` is a Base64-encoded string containing a 64-byte Algorand p
 To derive the Algorand address from the private key:
 
 ```typescript
-import { encodeAddress } from "@algorandfoundation/algokit-utils/common";
-import { ed25519Generator } from "@algorandfoundation/algokit-utils/crypto";
-const secretKey = Buffer.from(process.env.AVM_PRIVATE_KEY!, "base64");
-const seed = secretKey.slice(0, 32);
-const { ed25519Pubkey } = ed25519Generator(seed);
-const address = encodeAddress(ed25519Pubkey);
+import { toClientAvmSigner } from "@x402/avm";
+const signer = toClientAvmSigner(process.env.AVM_PRIVATE_KEY!);
+console.log(signer.address); // Algorand address
 ```
 
-### Algod Node Defaults
+### Network Connectivity
 
-When `ALGOD_TESTNET_URL` and `ALGOD_MAINNET_URL` are not set, the SDK defaults to [AlgoNode](https://algonode.io/) public endpoints which are free, require no authentication, and support both Testnet and Mainnet.
+The SDK uses `AlgorandClient` from `@algorandfoundation/algokit-utils` for all network connectivity. By default it connects to [AlgoNode](https://algonode.io/) public endpoints (free, no authentication required). Custom endpoints can be configured via `FacilitatorAvmSignerConfig` or by passing an `AlgorandClient` instance via `ClientAvmConfig.algorandClient`.
 
 ## Asset Support
 

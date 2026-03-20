@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { WalletManager, WalletId, NetworkId } from "@txnlab/use-wallet";
-import { AlgodClient } from "@algorandfoundation/algokit-utils/algod-client";
+import { AlgorandClient } from "@algorandfoundation/algokit-utils/algorand-client";
 import { AvmPaywall } from "./AvmPaywall";
 import type {} from "../window";
 import { ALGORAND_NETWORK_REFS } from "../paywallUtils";
@@ -25,33 +25,27 @@ window.addEventListener("load", async () => {
   const network = paymentRequired.accepts[0].network;
   const isTestnet = network.includes(ALGORAND_NETWORK_REFS.TESTNET);
 
-  // Configure Algod client based on network
-  const algodConfig = isTestnet
-    ? {
-        token: "",
-        baseServer: "https://testnet-api.algonode.cloud",
-        port: "",
-      }
-    : {
-        token: "",
-        baseServer: "https://mainnet-api.algonode.cloud",
-        port: "",
-      };
-
-  // Create Algod client
-  const algodClient = new AlgodClient({
-    baseUrl: algodConfig.baseServer,
-    token: algodConfig.token || undefined,
-  });
+  // Create AlgorandClient using algokit-utils built-in network defaults
+  const algorandClient = isTestnet ? AlgorandClient.testNet() : AlgorandClient.mainNet();
 
   // Initialize WalletManager with Algorand wallets
+  // WalletManager v4 uses a networks record with algod config per network
+  const networkKey = isTestnet ? NetworkId.TESTNET : NetworkId.MAINNET;
+  const algodBaseServer = isTestnet
+    ? "https://testnet-api.algonode.cloud"
+    : "https://mainnet-api.algonode.cloud";
+
   const walletManager = new WalletManager({
     wallets: [WalletId.PERA, WalletId.DEFLY, WalletId.LUTE],
-    network: isTestnet ? NetworkId.TESTNET : NetworkId.MAINNET,
-    algod: {
-      token: algodConfig.token,
-      baseServer: algodConfig.baseServer,
-      port: algodConfig.port,
+    defaultNetwork: networkKey,
+    networks: {
+      [networkKey]: {
+        algod: {
+          baseServer: algodBaseServer,
+          token: "",
+          port: "",
+        },
+      },
     },
   });
 
@@ -60,7 +54,7 @@ window.addEventListener("load", async () => {
     <AvmPaywall
       paymentRequired={paymentRequired}
       walletManager={walletManager}
-      algodClient={algodClient}
+      algorandClient={algorandClient}
       onSuccessfulResponse={async (response: Response) => {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("text/html")) {

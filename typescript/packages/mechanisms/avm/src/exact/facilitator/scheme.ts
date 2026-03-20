@@ -24,8 +24,9 @@ import type {
 import type { FacilitatorAvmSigner } from '../../signer'
 import type { ExactAvmPayloadV2 } from '../../types'
 import { isExactAvmPayload } from '../../types'
+import { MAX_TRANSACTION_GROUP_SIZE } from '@algorandfoundation/algokit-utils/common'
 import { decodeTransaction, hasSignature } from '../../utils'
-import { MAX_ATOMIC_GROUP_SIZE, MAX_REASONABLE_FEE } from '../../constants'
+import { MAX_REASONABLE_FEE } from '../../constants'
 
 /**
  * Verification error reasons
@@ -128,7 +129,7 @@ export class ExactAvmScheme implements SchemeNetworkFacilitator {
 
     const { paymentGroup, paymentIndex } = rawPayload as ExactAvmPayloadV2
 
-    if (paymentGroup.length > MAX_ATOMIC_GROUP_SIZE) {
+    if (paymentGroup.length > MAX_TRANSACTION_GROUP_SIZE) {
       return { isValid: false, invalidReason: VerifyErrorReason.GROUP_SIZE_EXCEEDED }
     }
     if (paymentIndex < 0 || paymentIndex >= paymentGroup.length) {

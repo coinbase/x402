@@ -5,19 +5,12 @@
  * address validation, and network identification.
  */
 
-import { AlgodClient } from '@algorandfoundation/algokit-utils/algod-client'
 import {
   decodeTransaction as decodeUnsignedTxn,
   decodeSignedTransaction as decodeSignedTxn,
-  groupTransactions,
 } from '@algorandfoundation/algokit-utils/transact'
-import type { Transaction } from '@algorandfoundation/algokit-utils/transact'
 import { isValidAddress } from '@algorandfoundation/algokit-utils/common'
-import type { Network } from '@x402/core/types'
 import {
-  NETWORK_TO_ALGOD,
-  DEFAULT_ALGOD_TESTNET,
-  ALGORAND_ADDRESS_REGEX,
   ALGORAND_MAINNET_GENESIS_HASH,
   ALGORAND_TESTNET_GENESIS_HASH,
   ALGORAND_TESTNET_CAIP2,
@@ -26,28 +19,6 @@ import {
   V1_TO_CAIP2,
   CAIP2_TO_V1,
 } from './constants'
-
-/**
- * Creates an Algod client for a specific network
- *
- * @param network - Network identifier (CAIP-2 or V1 format)
- * @param customUrl - Optional custom Algod URL
- * @param token - Optional API token (default: empty string for public nodes)
- * @returns Algod client instance
- *
- * @example
- * ```typescript
- * const algod = createAlgodClient("algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=");
- * ```
- */
-export function createAlgodClient(
-  network: Network,
-  customUrl?: string,
-  token: string = '',
-): AlgodClient {
-  const url = customUrl ?? NETWORK_TO_ALGOD[network] ?? DEFAULT_ALGOD_TESTNET
-  return new AlgodClient({ baseUrl: url, token: token || undefined })
-}
 
 /**
  * Encodes transaction bytes to base64 string
@@ -94,16 +65,12 @@ export function decodeUnsignedTransaction(encoded: string) {
 /**
  * Validates an Algorand address
  *
+ * Uses isValidAddress from algokit-utils which performs full checksum validation.
+ *
  * @param address - The address to validate
  * @returns True if the address is valid
  */
 export function isValidAlgorandAddress(address: string): boolean {
-  // Check format first
-  if (!ALGORAND_ADDRESS_REGEX.test(address)) {
-    return false
-  }
-
-  // Use algokit-utils for full validation (includes checksum)
   return isValidAddress(address)
 }
 
@@ -284,19 +251,6 @@ export function validateGroupId(txns: Uint8Array[]): boolean {
 }
 
 /**
- * Computes and assigns group ID to a set of transactions
- *
- * @param txns - Array of transactions
- * @returns Transactions with assigned group ID
- */
-export function assignGroupId<T extends { group?: Uint8Array }>(txns: T[]): T[] {
-  if (txns.length <= 1) {
-    return txns
-  }
-  return groupTransactions(txns as unknown as Transaction[]) as unknown as T[]
-}
-
-/**
  * Extracts the transaction ID from signed transaction bytes
  *
  * @param signedTxnBytes - Signed transaction bytes
@@ -319,5 +273,4 @@ export function hasSignature(signedTxnBytes: Uint8Array): boolean {
 }
 
 // Re-export algokit-utils types that consumers may need
-export { AlgodClient } from '@algorandfoundation/algokit-utils/algod-client'
 export { Address, encodeAddress, decodeAddress } from '@algorandfoundation/algokit-utils/common'

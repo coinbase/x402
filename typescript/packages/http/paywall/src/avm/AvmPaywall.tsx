@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { WalletManager } from "@txnlab/use-wallet";
-import type { AlgodClient } from "@algorandfoundation/algokit-utils/algod-client";
+import type { AlgorandClient } from "@algorandfoundation/algokit-utils/algorand-client";
 
 import { ExactAvmScheme } from "@x402/avm/exact/client";
 import { x402Client } from "@x402/core/client";
@@ -8,11 +8,12 @@ import type { PaymentRequired } from "@x402/core/types";
 
 import { Spinner } from "./Spinner";
 import { getNetworkDisplayName, ALGORAND_NETWORK_REFS } from "../paywallUtils";
+import { getAlgodClient } from "./algorand/rpc";
 
 type AvmPaywallProps = {
   paymentRequired: PaymentRequired;
-  walletManager: WalletManager;
-  algodClient: AlgodClient;
+  walletManager?: WalletManager;
+  algorandClient?: AlgorandClient;
   onSuccessfulResponse: (response: Response) => Promise<void>;
 };
 
@@ -24,16 +25,28 @@ type AvmPaywallProps = {
  * @param props - Component props.
  * @param props.paymentRequired - Payment required response with accepts array.
  * @param props.walletManager - WalletManager instance from use-wallet.
- * @param props.algodClient - Algod client for balance queries.
  * @param props.onSuccessfulResponse - Callback invoked on successful 402 response.
  * @returns JSX element.
  */
 export function AvmPaywall({
   paymentRequired,
   walletManager,
-  algodClient,
+  algorandClient,
   onSuccessfulResponse,
 }: AvmPaywallProps) {
+  // WalletManager is required for AVM paywall — when used from the shared PaywallApp
+  // without AVM-specific initialization, show a setup message
+  if (!walletManager) {
+    return (
+      <div className="container">
+        <div className="header">
+          <h1 className="title">Payment Required</h1>
+          <p>Algorand wallet support requires the AVM-specific paywall entry point.</p>
+        </div>
+      </div>
+    );
+  }
+
   const [status, setStatus] = useState<string>("");
   const [isPaying, setIsPaying] = useState(false);
   const [hideBalance, setHideBalance] = useState(true);
@@ -85,7 +98,8 @@ export function AvmPaywall({
 
     setIsFetchingBalance(true);
     try {
-      const accountInfo = await algodClient.accountInformation(activeAccount.address);
+      const algod = getAlgodClient(network);
+      const accountInfo = await algod.accountInformation(activeAccount.address);
       const assets = accountInfo.assets || [];
       const usdcAsset = assets.find(
         (asset: { assetId: bigint }) => Number(asset.assetId) === usdcAsaId,
@@ -100,7 +114,7 @@ export function AvmPaywall({
     } finally {
       setIsFetchingBalance(false);
     }
-  }, [activeAccount?.address, algodClient, usdcAsaId]);
+  }, [activeAccount?.address, network, usdcAsaId]);
 
   // Refresh balance when account changes
   useEffect(() => {
@@ -183,7 +197,10 @@ export function AvmPaywall({
       };
 
       const client = new x402Client();
-      client.register("algorand:*", new ExactAvmScheme(walletSigner, { algodClient }));
+      client.register(
+        "algorand:*",
+        new ExactAvmScheme(walletSigner, algorandClient ? { algorandClient } : undefined),
+      );
 
       // Log payment requirements for debugging
       console.log("Creating payment payload with requirements:", {
@@ -274,7 +291,7 @@ export function AvmPaywall({
     usdcBalance,
     refreshBalance,
     chainName,
-    algodClient,
+    algorandClient,
     paymentRequired,
     onSuccessfulResponse,
   ]);

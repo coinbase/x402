@@ -22,7 +22,13 @@
 export { ExactAvmScheme } from './exact'
 
 // Signer helpers and interfaces
-export { isAvmSignerWallet, toClientAvmSigner, toFacilitatorAvmSigner } from './signer'
+export {
+  isAvmSignerWallet,
+  toClientAvmSigner,
+  toFacilitatorAvmSigner,
+  getAlgokitSigner,
+  ALGOKIT_SIGNER,
+} from './signer'
 export type {
   ClientAvmSigner,
   ClientAvmConfig,
@@ -30,14 +36,17 @@ export type {
   FacilitatorAvmSignerConfig,
 } from './signer'
 
+// Re-export algokit-utils signer types for consumers who want native interop
+export type {
+  AddressWithTransactionSigner,
+  AddressWithSigners,
+  TransactionSigner,
+} from '@algorandfoundation/algokit-utils/transact'
+
 // Types
 export type {
   ExactAvmPayloadV1,
   ExactAvmPayloadV2,
-  DecodedTransaction,
-  DecodedSignedTransaction,
-  TransactionVerificationResult,
-  PaymentGroupVerificationResult,
 } from './types'
 export { isExactAvmPayload } from './types'
 
@@ -61,22 +70,19 @@ export {
   USDC_TESTNET_ASA_ID,
   USDC_DECIMALS,
   USDC_CONFIG,
-  // Algod Endpoints
-  DEFAULT_ALGOD_MAINNET,
-  DEFAULT_ALGOD_TESTNET,
-  NETWORK_TO_ALGOD,
   // Transaction Limits
-  MAX_ATOMIC_GROUP_SIZE,
-  MIN_TXN_FEE,
   MAX_REASONABLE_FEE,
-  // Address Validation
-  ALGORAND_ADDRESS_REGEX,
-  ALGORAND_ADDRESS_LENGTH,
 } from './constants'
+
+// Re-export algokit-utils constants that consumers may need
+export {
+  MAX_TRANSACTION_GROUP_SIZE,
+  ALGORAND_ADDRESS_LENGTH,
+} from '@algorandfoundation/algokit-utils/common'
+export { ALGORAND_MIN_TX_FEE } from '@algorandfoundation/algokit-utils/amount'
 
 // Utilities
 export {
-  createAlgodClient,
   encodeTransaction,
   decodeTransaction,
   decodeSignedTransaction,
@@ -92,7 +98,6 @@ export {
   caip2ToV1,
   getGenesisHashFromTransaction,
   validateGroupId,
-  assignGroupId,
   getTransactionId,
   hasSignature,
 } from './utils'

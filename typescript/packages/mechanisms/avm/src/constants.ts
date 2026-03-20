@@ -126,73 +126,8 @@ export const USDC_CONFIG: Record<string, { asaId: string; name: string; decimals
 }
 
 // ============================================================================
-// Algod API Endpoints
-// ============================================================================
-
-/**
- * Fallback Algod API endpoint for Algorand Mainnet (AlgoNode)
- * Used when ALGOD_MAINNET_URL environment variable is not set.
- *
- * @see https://algonode.io/
- */
-export const FALLBACK_ALGOD_MAINNET = 'https://mainnet-api.algonode.cloud'
-
-/**
- * Fallback Algod API endpoint for Algorand Testnet (AlgoNode)
- * Used when ALGOD_TESTNET_URL environment variable is not set.
- *
- * @see https://algonode.io/
- */
-export const FALLBACK_ALGOD_TESTNET = 'https://testnet-api.algonode.cloud'
-
-/**
- * Get the Algod API endpoint for Algorand Mainnet.
- * Checks ALGOD_MAINNET_URL environment variable first, falls back to AlgoNode.
- *
- * Set the environment variable to use a custom endpoint:
- * ```
- * ALGOD_MAINNET_URL=https://your-node.example.com
- * ```
- */
-export const DEFAULT_ALGOD_MAINNET =
-  (typeof process !== 'undefined' && process.env?.ALGOD_MAINNET_URL) || FALLBACK_ALGOD_MAINNET
-
-/**
- * Get the Algod API endpoint for Algorand Testnet.
- * Checks ALGOD_TESTNET_URL environment variable first, falls back to AlgoNode.
- *
- * Set the environment variable to use a custom endpoint:
- * ```
- * ALGOD_TESTNET_URL=https://your-node.example.com
- * ```
- */
-export const DEFAULT_ALGOD_TESTNET =
-  (typeof process !== 'undefined' && process.env?.ALGOD_TESTNET_URL) || FALLBACK_ALGOD_TESTNET
-
-/**
- * Mapping from network identifiers to Algod endpoints.
- * Endpoints are determined by environment variables if set, otherwise uses fallback (AlgoNode).
- */
-export const NETWORK_TO_ALGOD: Record<string, string> = {
-  [ALGORAND_MAINNET_CAIP2]: DEFAULT_ALGOD_MAINNET,
-  [ALGORAND_TESTNET_CAIP2]: DEFAULT_ALGOD_TESTNET,
-  [V1_ALGORAND_MAINNET]: DEFAULT_ALGOD_MAINNET,
-  [V1_ALGORAND_TESTNET]: DEFAULT_ALGOD_TESTNET,
-}
-
-// ============================================================================
 // Transaction Limits
 // ============================================================================
-
-/**
- * Maximum number of transactions in an Algorand atomic group
- */
-export const MAX_ATOMIC_GROUP_SIZE = 16
-
-/**
- * Minimum transaction fee in microAlgos
- */
-export const MIN_TXN_FEE = 1000
 
 /**
  * Maximum reasonable fee for fee payer transactions (16000 microAlgos)
@@ -202,16 +137,5 @@ export const MIN_TXN_FEE = 1000
  */
 export const MAX_REASONABLE_FEE = 16000
 
-// ============================================================================
-// Address Validation
-// ============================================================================
-
-/**
- * Algorand address regex (58-character base32 string)
- */
-export const ALGORAND_ADDRESS_REGEX = /^[A-Z2-7]{58}$/
-
-/**
- * Algorand address length in characters
- */
-export const ALGORAND_ADDRESS_LENGTH = 58
+// Address validation: use isValidAddress() from @algorandfoundation/algokit-utils/common
+// Address length: use ALGORAND_ADDRESS_LENGTH from @algorandfoundation/algokit-utils/common

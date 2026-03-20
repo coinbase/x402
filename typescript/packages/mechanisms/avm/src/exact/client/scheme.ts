@@ -2,25 +2,27 @@
  * AVM Client Scheme for Exact Payment Protocol
  *
  * Creates atomic transaction groups for Algorand ASA transfers.
+ * Uses AlgorandClient and TransactionComposer from algokit-utils v10
+ * for transaction construction, fee pooling, and group management.
  */
 
+import { AlgorandClient } from '@algorandfoundation/algokit-utils/algorand-client'
 import {
-  Transaction,
-  TransactionType,
   encodeTransactionRaw,
-  groupTransactions,
+  makeEmptyTransactionSigner,
 } from '@algorandfoundation/algokit-utils/transact'
-import { Address } from '@algorandfoundation/algokit-utils/common'
+import { microAlgo, transactionFees } from '@algorandfoundation/algokit-utils/amount'
 import type {
   PaymentRequirements,
   SchemeNetworkClient,
   PaymentPayloadResult,
 } from '@x402/core/types'
 import type { ClientAvmSigner, ClientAvmConfig } from '../../signer'
+import { getAlgokitSigner } from '../../signer'
 import type { ExactAvmPayloadV2 } from '../../types'
-import { createAlgodClient, encodeTransaction } from '../../utils'
-import { USDC_CONFIG, DEFAULT_ALGOD_TESTNET } from '../../constants'
-import type { AlgodClient } from '@algorandfoundation/algokit-utils/algod-client'
+import { encodeTransaction } from '../../utils'
+import { USDC_CONFIG } from '../../constants'
+import { isTestnetNetwork } from '../../utils'
 
 /**
  * AVM client implementation for the Exact payment scheme.
@@ -43,11 +45,36 @@ export class ExactAvmScheme implements SchemeNetworkClient {
   ) {}
 
   /**
+   * Creates or retrieves an AlgorandClient for the given network.
+   *
+   * @param network - Network identifier (CAIP-2 or V1 format)
+   * @returns AlgorandClient instance
+   */
+  private getAlgorandClient(network: string): AlgorandClient {
+    if (this.config?.algorandClient) {
+      return this.config.algorandClient
+    }
+    if (this.config?.algodUrl) {
+      return AlgorandClient.fromConfig({
+        algodConfig: {
+          server: this.config.algodUrl,
+          token: this.config.algodToken ?? '',
+        },
+      })
+    }
+    // Auto-detect network
+    return isTestnetNetwork(network) ? AlgorandClient.testNet() : AlgorandClient.mainNet()
+  }
+
+  /**
    * Creates a payment payload for the Exact scheme.
    *
    * Constructs an atomic transaction group with:
    * - Optional fee payer transaction (if feePayer specified in requirements.extra)
    * - ASA transfer transaction to payTo address
+   *
+   * Uses TransactionComposer for automatic suggested params, group ID assignment,
+   * and fee pooling.
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
@@ -59,16 +86,7 @@ export class ExactAvmScheme implements SchemeNetworkClient {
   ): Promise<PaymentPayloadResult> {
     const { amount, asset, payTo, network, extra } = paymentRequirements
 
-    // Get Algod client
-    const algodClient = (this.config?.algodClient ??
-      createAlgodClient(
-        network,
-        this.config?.algodUrl ?? DEFAULT_ALGOD_TESTNET,
-        this.config?.algodToken,
-      )) as AlgodClient
-
-    // Get suggested params
-    const suggestedParams = await algodClient.suggestedParams()
+    const algorandClient = this.getAlgorandClient(network)
 
     // Get asset ID (from requirements or default USDC)
     const assetId = this.getAssetId(asset, network)
@@ -76,72 +94,50 @@ export class ExactAvmScheme implements SchemeNetworkClient {
     // Get fee payer address from extra if provided
     const feePayer = extra?.feePayer as string | undefined
 
-    const transactions: Transaction[] = []
+    // Calculate total transaction count for fee pooling
+    const totalTxnCount = feePayer ? 2 : 1
     let paymentIndex = 0
 
-    // Calculate total transaction count for fee pooling
-    // When fee payer exists: 1 fee payer txn + 1 ASA transfer txn = 2
-    const totalTxnCount = feePayer ? 2 : 1
-    const minFee = suggestedParams.minFee ?? BigInt(1000)
+    // Use an empty signer for building — we sign manually after
+    // (fee payer txns stay unsigned for the facilitator to sign)
+    const emptySigner = makeEmptyTransactionSigner()
 
-    // Build fee payer transaction if specified
-    // Fee payer pays for all transactions in the group (pooled fees)
+    // Build the transaction group using TransactionComposer
+    const composer = algorandClient.newGroup()
+
     if (feePayer) {
-      const feePayerTxn = new Transaction({
-        type: TransactionType.Payment,
-        sender: Address.fromString(feePayer),
-        fee: minFee * BigInt(totalTxnCount),
-        firstValid: suggestedParams.firstValid,
-        lastValid: suggestedParams.lastValid,
-        genesisHash: suggestedParams.genesisHash,
-        genesisId: suggestedParams.genesisId,
-        note: new Uint8Array(Buffer.from(`x402-fee-payer-${Date.now()}`)),
-        payment: {
-          receiver: Address.fromString(feePayer),
-          amount: BigInt(0),
-        },
+      composer.addPayment({
+        sender: feePayer,
+        receiver: feePayer,
+        amount: microAlgo(0),
+        staticFee: transactionFees(totalTxnCount),
+        note: `x402-fee-payer-${Date.now()}`,
+        signer: emptySigner,
       })
-      transactions.push(feePayerTxn)
-      paymentIndex = 1 // Payment will be second transaction
+      paymentIndex = 1
     }
 
-    // Build ASA transfer transaction
-    // When fee payer exists, set fee to 0 (fee payer covers all fees)
-    const assetTransferFee = feePayer ? BigInt(0) : (suggestedParams.fee ?? minFee)
-
-    const assetTransferTxn = new Transaction({
-      type: TransactionType.AssetTransfer,
-      sender: Address.fromString(this.signer.address),
-      fee: assetTransferFee,
-      firstValid: suggestedParams.firstValid,
-      lastValid: suggestedParams.lastValid,
-      genesisHash: suggestedParams.genesisHash,
-      genesisId: suggestedParams.genesisId,
-      note: new Uint8Array(Buffer.from(`x402-payment-v${x402Version}-${Date.now()}`)),
-      assetTransfer: {
-        receiver: Address.fromString(payTo),
-        amount: BigInt(amount),
-        assetId: BigInt(assetId),
-      },
+    composer.addAssetTransfer({
+      sender: this.signer.address,
+      receiver: payTo,
+      assetId: BigInt(assetId),
+      amount: BigInt(amount),
+      staticFee: feePayer ? microAlgo(0) : undefined, // 0 fee when fee payer covers
+      note: `x402-payment-v${x402Version}-${Date.now()}`,
+      signer: emptySigner,
     })
-    transactions.push(assetTransferTxn)
 
-    // Assign group ID if multiple transactions
-    let groupedTxns = transactions
-    if (transactions.length > 1) {
-      groupedTxns = groupTransactions(transactions)
-    }
+    // Build transactions with automatic grouping (assigns group ID, suggested params, etc.)
+    // Note: build() handles group ID assignment, unlike buildTransactions() which skips grouping
+    const built = await composer.build()
+    const transactions = built.transactions.map(tws => tws.txn)
 
-    // Encode transactions
-    const encodedTxns = groupedTxns.map(txn => encodeTransactionRaw(txn))
+    // Encode all transactions to raw bytes
+    const encodedTxns = transactions.map(txn => encodeTransactionRaw(txn))
 
     // Determine which transactions the client should sign
-    // Client signs all except fee payer transactions
-    const clientIndexes = groupedTxns
-      .map((txn, i) => {
-        const sender = txn.sender.toString()
-        return sender === this.signer.address ? i : -1
-      })
+    const clientIndexes = transactions
+      .map((txn, i) => (txn.sender.toString() === this.signer.address ? i : -1))
       .filter(i => i !== -1)
 
     // Log transaction details for debugging
@@ -149,10 +145,10 @@ export class ExactAvmScheme implements SchemeNetworkClient {
       sender: this.signer.address,
       receiver: payTo,
       amount: amount,
-      assetId: this.getAssetId(asset, network),
+      assetId,
       network,
       clientIndexes,
-      txnCount: groupedTxns.length,
+      txnCount: transactions.length,
       hasFeePayer: !!feePayer,
     })
 
