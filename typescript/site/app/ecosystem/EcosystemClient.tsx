@@ -233,7 +233,7 @@ export default function EcosystemClient({
           </div>
         </div>
 
-        <div className="relative z-20 mt-12">
+        <div className="relative z-30 mt-12">
           <EcosystemSearch
               partners={initialPartners}
               onQueryChange={(q) => {
