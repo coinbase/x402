@@ -40,7 +40,7 @@ function EcosystemSearch({ partners, onQueryChange, onSelect }: { partners: Part
   }, [query, partners]);
 
   return (
-    <div ref={ref} className="relative w-full max-w-md">
+    <div ref={ref} className="relative z-40 w-full max-w-md">
       <div className="relative">
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-40" />
         <input
@@ -231,13 +231,15 @@ export default function EcosystemClient({
               of partners and developers leveraging x402 technology.
             </p>
           </div>
+        </div>
 
-          <div className="mt-12">
-            <EcosystemSearch
+        <div className="relative z-20 mt-12">
+          <EcosystemSearch
               partners={initialPartners}
               onQueryChange={(q) => {
                 setSearchQuery(q);
                 setIsSearching(q.trim().length > 0);
+                if (!q.trim()) setSelectedPartner("");
               }}
               onSelect={(name) => setSelectedPartner(name)}
             />
@@ -262,7 +264,6 @@ export default function EcosystemClient({
               </AnimatedGrid>
             </div>
           )}
-        </div>
       </section>
 
       {/* Sidebar + main content */}
@@ -313,41 +314,34 @@ export default function EcosystemClient({
         </aside>
 
         <div className="flex-1 space-y-16">
+          {isSearching ? (
+            <div className="space-y-4">
+              <h2 className="font-['Helvetica_Neue',sans-serif] text-lg font-medium">
+                {selectedPartner ? selectedPartner : `Results for "${searchQuery}"`}
+              </h2>
+              {filteredPartners.length > 0 ? (
+                <AnimatedGrid className="grid gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
+                  {filteredPartners.map((partner) => (
+                    <AnimatedCard
+                      key={partner.slug ?? partner.name}
+                      layoutId={`${partner.slug ?? partner.name}-search`}
+                      className="h-full"
+                    >
+                      {partner.facilitator ? (
+                        <FacilitatorCard partner={partner} />
+                      ) : (
+                        <EcosystemCard partner={partner} />
+                      )}
+                    </AnimatedCard>
+                  ))}
+                </AnimatedGrid>
+              ) : (
+                <p className="text-sm text-gray-60">No results found.</p>
+              )}
+            </div>
+          ) : (
           <AnimatePresence mode="wait">
-            {isSearching ? (
-              <motion.div
-                key="search-results"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <section className="scroll-mt-24 space-y-4">
-                  <h2 className="font-['Helvetica_Neue',sans-serif] text-lg font-medium">
-                    {selectedPartner ? selectedPartner : `Results for "${searchQuery}"`}
-                  </h2>
-                  {filteredPartners.length > 0 ? (
-                    <AnimatedGrid className="grid gap-[10px] sm:grid-cols-2 lg:grid-cols-4">
-                      {filteredPartners.map((partner) => (
-                        <AnimatedCard
-                          key={partner.slug ?? partner.name}
-                          layoutId={`${partner.slug ?? partner.name}-search`}
-                          className="h-full"
-                        >
-                          {partner.facilitator ? (
-                            <FacilitatorCard partner={partner} />
-                          ) : (
-                            <EcosystemCard partner={partner} />
-                          )}
-                        </AnimatedCard>
-                      ))}
-                    </AnimatedGrid>
-                  ) : (
-                    <p className="text-sm text-gray-60">No results found.</p>
-                  )}
-                </section>
-              </motion.div>
-            ) : activeFilter === "everything" ? (
+            {activeFilter === "everything" ? (
               <motion.div
                 key="everything"
                 initial={{ opacity: 0, y: 10 }}
@@ -428,7 +422,7 @@ export default function EcosystemClient({
               </motion.div>
             )}
           </AnimatePresence>
-
+          )}
         </div>
       </section>
     </div>
