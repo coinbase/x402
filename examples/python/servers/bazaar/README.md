@@ -113,6 +113,20 @@ The facilitator uses `routeTemplate` as the canonical catalog key, so requests t
 |----------|---------|-------|
 | `GET /health` | No | - |
 | `GET /weather/:city` | Yes | $0.01 USDC |
+| `GET /weather/:country/:city` | Yes | $0.01 USDC |
+
+## Multiple Path Parameters
+
+Routes can have multiple `:param` segments. Param names are matched by **position in the URL**, not by the order they appear in `path_params_schema`:
+
+```
+GET /weather/:country/:city
+                 ^         ^
+                 |         └── second URL segment -> "city"
+                 └──────────── first URL segment  -> "country"
+```
+
+A request to `/weather/us/san-francisco` produces `pathParams: { country: "us", city: "san-francisco" }`. The property order in `path_params_schema` does not affect matching -- only the segment position in the URL matters.
 
 ## `declare_discovery_extension` API
 
@@ -123,5 +137,3 @@ The facilitator uses `routeTemplate` as the canonical catalog key, so requests t
 | `path_params_schema` | JSON Schema for URL path parameters (`:param` segments) |
 | `output` | `OutputConfig(example=...)` -- example response body |
 | `body_type` | For POST/PUT/PATCH: `"json"`, `"form-data"`, or `"text"` |
-
-For this example, only `path_params_schema` and `output` are used -- the `:city` param is the only input and it's in the URL path, not the query string.

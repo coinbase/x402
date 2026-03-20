@@ -9,6 +9,7 @@ Supports both v2 (extensions in PaymentRequired) and v1 (output_schema in Paymen
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse, urlunparse
@@ -38,31 +39,44 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _validate_route_template(value: str | None) -> str | None:
-    """Validate a routeTemplate value received from the client payment payload.
+# Valid routeTemplate pattern: must start with "/", contain only safe URL path characters
+# and :param identifiers. Expected format: "/users/:userId", "/weather/:country/:city".
+_ROUTE_TEMPLATE_RE = re.compile(r"^/[a-zA-Z0-9_/:.\-~%]+$")
+
+
+def _is_valid_route_template(value: str | None) -> bool:
+    """Check whether a routeTemplate value is structurally valid.
+
+    Expected format: ":param" segments using colon-prefixed identifiers
+    (e.g. "/users/:userId", "/weather/:country/:city").
 
     The facilitator is a trust boundary: clients control the payment payload and can
     modify routeTemplate before submission. A malicious value could cause the facilitator
     to catalog the payment under an arbitrary URL (catalog poisoning).
 
+    Enforces:
+    - Must be a non-empty string starting with "/"
+    - Must match the safe URL path character set (alphanumeric, _, :, /, ., -, ~, %)
+    - Must not contain ".." (path traversal)
+    - Must not contain "://" (URL injection)
+
     Args:
         value: The raw routeTemplate string from the client payload.
 
     Returns:
-        The validated value, or None if invalid.
+        True if the value is a valid routeTemplate, False otherwise.
     """
     if not value:
-        return None
-    if not value.startswith("/"):
-        return None
+        return False
+    if not _ROUTE_TEMPLATE_RE.match(value):
+        return False
     # TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
     # Fix must be applied simultaneously across Python, TypeScript, and Go SDKs (use urllib.parse.unquote).
-    # Issue filed; see CDPAI-424 review notes for details.
     if ".." in value:
-        return None
+        return False
     if "://" in value:
-        return None
-    return value
+        return False
+    return True
 
 
 @dataclass
@@ -218,7 +232,11 @@ def extract_discovery_info(
             bazaar_ext = extensions[BAZAAR.key]
 
             if bazaar_ext and isinstance(bazaar_ext, dict):
-                route_template = _validate_route_template(bazaar_ext.get("routeTemplate"))
+                # routeTemplate uses :param syntax (e.g. "/users/:userId", "/weather/:country/:city").
+                # Must start with "/", must not contain ".." or "://".
+                raw_template = bazaar_ext.get("routeTemplate")
+                if _is_valid_route_template(raw_template):
+                    route_template = raw_template
                 try:
                     extension = parse_discovery_extension(bazaar_ext)
 

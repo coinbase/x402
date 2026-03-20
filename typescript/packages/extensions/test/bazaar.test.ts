@@ -7,7 +7,7 @@ import {
   BAZAAR,
   declareDiscoveryExtension,
   validateDiscoveryExtension,
-  validateRouteTemplate,
+  isValidRouteTemplate,
   extractDiscoveryInfo,
   extractDiscoveryInfoFromExtension,
   extractDiscoveryInfoV1,
@@ -1905,51 +1905,54 @@ describe("Bazaar Discovery Extension", () => {
     });
   });
 
-  describe("validateRouteTemplate", () => {
-    it("returns undefined for empty string", () => {
-      expect(validateRouteTemplate("")).toBeUndefined();
+  describe("isValidRouteTemplate", () => {
+    it("returns false for empty string", () => {
+      expect(isValidRouteTemplate("")).toBe(false);
     });
 
-    it("returns undefined for undefined input", () => {
-      expect(validateRouteTemplate(undefined)).toBeUndefined();
+    it("returns false for undefined input", () => {
+      expect(isValidRouteTemplate(undefined)).toBe(false);
     });
 
-    it("returns undefined for paths not starting with /", () => {
-      expect(validateRouteTemplate("users/123")).toBeUndefined();
-      expect(validateRouteTemplate("relative/path")).toBeUndefined();
-      expect(validateRouteTemplate("no-slash")).toBeUndefined();
+    it("returns false for paths not starting with /", () => {
+      expect(isValidRouteTemplate("users/123")).toBe(false);
+      expect(isValidRouteTemplate("relative/path")).toBe(false);
+      expect(isValidRouteTemplate("no-slash")).toBe(false);
     });
 
-    it("returns undefined for paths containing ..", () => {
-      expect(validateRouteTemplate("/users/../admin")).toBeUndefined();
-      expect(validateRouteTemplate("/../etc/passwd")).toBeUndefined();
-      expect(validateRouteTemplate("/users/..")).toBeUndefined();
+    it("returns false for paths containing ..", () => {
+      expect(isValidRouteTemplate("/users/../admin")).toBe(false);
+      expect(isValidRouteTemplate("/../etc/passwd")).toBe(false);
+      expect(isValidRouteTemplate("/users/..")).toBe(false);
     });
 
-    it("returns undefined for paths containing ://", () => {
-      expect(validateRouteTemplate("http://evil.com/path")).toBeUndefined();
-      expect(validateRouteTemplate("/users/http://evil")).toBeUndefined();
-      expect(validateRouteTemplate("javascript://foo")).toBeUndefined();
+    it("returns false for paths containing ://", () => {
+      expect(isValidRouteTemplate("http://evil.com/path")).toBe(false);
+      expect(isValidRouteTemplate("/users/http://evil")).toBe(false);
+      expect(isValidRouteTemplate("javascript://foo")).toBe(false);
     });
 
-    it("returns valid paths unchanged", () => {
-      expect(validateRouteTemplate("/users/:userId")).toBe("/users/:userId");
-      expect(validateRouteTemplate("/api/v1/items")).toBe("/api/v1/items");
-      expect(validateRouteTemplate("/products/:productId/reviews/:reviewId")).toBe(
-        "/products/:productId/reviews/:reviewId",
-      );
+    it("returns true for valid paths", () => {
+      expect(isValidRouteTemplate("/users/:userId")).toBe(true);
+      expect(isValidRouteTemplate("/api/v1/items")).toBe(true);
+      expect(isValidRouteTemplate("/products/:productId/reviews/:reviewId")).toBe(true);
+      expect(isValidRouteTemplate("/weather/:country/:city")).toBe(true);
+    });
+
+    it("rejects paths with spaces or invalid characters", () => {
+      expect(isValidRouteTemplate("/users/ bad")).toBe(false);
+      expect(isValidRouteTemplate("/path with spaces")).toBe(false);
     });
 
     it("rejects /users/..hidden because it contains '..' as a substring", () => {
-      // The check is a simple substring match, so "..hidden" is caught too.
-      expect(validateRouteTemplate("/users/..hidden")).toBeUndefined();
+      expect(isValidRouteTemplate("/users/..hidden")).toBe(false);
     });
 
     // NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-    // validateRouteTemplate checks for the literal string ".." only. If encoded-path
+    // isValidRouteTemplate checks for the literal string ".." only. If encoded-path
     // handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
     it("does NOT reject URL-encoded traversal sequences (known limitation)", () => {
-      expect(validateRouteTemplate("/users/%2e%2e/admin")).toBe("/users/%2e%2e/admin");
+      expect(isValidRouteTemplate("/users/%2e%2e/admin")).toBe(true);
     });
   });
 });

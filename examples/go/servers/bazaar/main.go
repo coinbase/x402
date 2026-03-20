@@ -52,25 +52,21 @@ func main() {
 		URL: facilitatorURL,
 	})
 
-	weatherExtension, err := bazaar.DeclareDiscoveryExtension(
-		bazaar.MethodGET,
-		nil,
-		nil,
-		"",
+	paymentOptions := x402http.PaymentOptions{
+		{Scheme: "exact", Price: "$0.001", Network: "eip155:84532", PayTo: evmAddress},
+		{Scheme: "exact", Price: "$0.001", Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", PayTo: svmAddress},
+	}
+
+	// Single path param: /weather/:city
+	weatherByCityExt, err := bazaar.DeclareDiscoveryExtension(
+		bazaar.MethodGET, nil, nil, "",
 		&types.OutputConfig{
-			Example: map[string]interface{}{
-				"city":        "san-francisco",
-				"weather":     "foggy",
-				"temperature": 60,
-			},
+			Example: map[string]interface{}{"city": "san-francisco", "weather": "foggy", "temperature": 60},
 		},
 		bazaar.DeclareDiscoveryExtensionOpts{
 			PathParamsSchema: types.JSONSchema{
 				"properties": map[string]interface{}{
-					"city": map[string]interface{}{
-						"type":        "string",
-						"description": "City name slug",
-					},
+					"city": map[string]interface{}{"type": "string", "description": "City name slug"},
 				},
 				"required": []string{"city"},
 			},
@@ -81,27 +77,41 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Multiple path params: /weather/:country/:city
+	// Param names are matched by position in the URL, not by declaration order in the schema.
+	// /weather/us/san-francisco -> { country: "us", city: "san-francisco" }
+	weatherByCountryCityExt, err := bazaar.DeclareDiscoveryExtension(
+		bazaar.MethodGET, nil, nil, "",
+		&types.OutputConfig{
+			Example: map[string]interface{}{"country": "us", "city": "san-francisco", "weather": "foggy", "temperature": 60},
+		},
+		bazaar.DeclareDiscoveryExtensionOpts{
+			PathParamsSchema: types.JSONSchema{
+				"properties": map[string]interface{}{
+					"country": map[string]interface{}{"type": "string", "description": "Country code"},
+					"city":    map[string]interface{}{"type": "string", "description": "City name slug"},
+				},
+				"required": []string{"country", "city"},
+			},
+		},
+	)
+	if err != nil {
+		fmt.Printf("Error declaring discovery extension: %v\n", err)
+		os.Exit(1)
+	}
+
 	routes := x402http.RoutesConfig{
 		"GET /weather/:city": {
-			Accepts: x402http.PaymentOptions{
-				{
-					Scheme:  "exact",
-					Price:   "$0.001",
-					Network: "eip155:84532",
-					PayTo:   evmAddress,
-				},
-				{
-					Scheme:  "exact",
-					Price:   "$0.001",
-					Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-					PayTo:   svmAddress,
-				},
-			},
+			Accepts:     paymentOptions,
 			Description: "Weather data for a city",
 			MimeType:    "application/json",
-			Extensions: map[string]interface{}{
-				bazaar.BAZAAR.Key(): weatherExtension,
-			},
+			Extensions:  map[string]interface{}{bazaar.BAZAAR.Key(): weatherByCityExt},
+		},
+		"GET /weather/:country/:city": {
+			Accepts:     paymentOptions,
+			Description: "Weather data for a city in a specific country",
+			MimeType:    "application/json",
+			Extensions:  map[string]interface{}{bazaar.BAZAAR.Key(): weatherByCountryCityExt},
 		},
 	}
 
@@ -117,23 +127,36 @@ func main() {
 
 	r.GET("/weather/:city", func(c *ginfw.Context) {
 		city := c.Param("city")
-
 		weatherData := map[string]map[string]interface{}{
 			"san-francisco": {"weather": "foggy", "temperature": 60},
 			"new-york":      {"weather": "cloudy", "temperature": 55},
 			"tokyo":         {"weather": "rainy", "temperature": 65},
 		}
-
 		data, exists := weatherData[city]
 		if !exists {
 			data = map[string]interface{}{"weather": "sunny", "temperature": 70}
 		}
+		c.JSON(http.StatusOK, ginfw.H{"city": city, "weather": data["weather"], "temperature": data["temperature"]})
+	})
 
-		c.JSON(http.StatusOK, ginfw.H{
-			"city":        city,
-			"weather":     data["weather"],
-			"temperature": data["temperature"],
-		})
+	r.GET("/weather/:country/:city", func(c *ginfw.Context) {
+		country := c.Param("country")
+		city := c.Param("city")
+		weatherData := map[string]map[string]map[string]interface{}{
+			"us": {
+				"san-francisco": {"weather": "foggy", "temperature": 60},
+				"new-york":      {"weather": "cloudy", "temperature": 55},
+			},
+			"jp": {
+				"tokyo": {"weather": "rainy", "temperature": 65},
+				"osaka": {"weather": "clear", "temperature": 72},
+			},
+		}
+		data, exists := weatherData[country][city]
+		if !exists {
+			data = map[string]interface{}{"weather": "sunny", "temperature": 70}
+		}
+		c.JSON(http.StatusOK, ginfw.H{"country": country, "city": city, "weather": data["weather"], "temperature": data["temperature"]})
 	})
 
 	r.GET("/health", func(c *ginfw.Context) {

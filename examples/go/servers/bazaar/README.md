@@ -109,6 +109,20 @@ The facilitator uses `routeTemplate` as the canonical catalog key, so requests t
 |----------|---------|-------|
 | `GET /health` | No | - |
 | `GET /weather/:city` | Yes | $0.001 USDC |
+| `GET /weather/:country/:city` | Yes | $0.001 USDC |
+
+## Multiple Path Parameters
+
+Routes can have multiple `:param` segments. Param names are matched by **position in the URL**, not by the order they appear in `PathParamsSchema`:
+
+```
+GET /weather/:country/:city
+                 ^         ^
+                 |         └── second URL segment -> "city"
+                 └──────────── first URL segment  -> "country"
+```
+
+A request to `/weather/us/san-francisco` produces `pathParams: { country: "us", city: "san-francisco" }`. The property order in `PathParamsSchema` does not affect matching -- only the segment position in the URL matters.
 
 ## `DeclareDiscoveryExtension` API
 

@@ -110,6 +110,19 @@ When a client hits `GET /weather/san-francisco` without a payment, the 402 respo
 
 The facilitator uses `routeTemplate` as the canonical catalog key, so requests to `/weather/san-francisco`, `/weather/tokyo`, and `/weather/new-york` all map to a single discoverable endpoint: `/weather/:city`.
 
+## Multiple Path Parameters
+
+Routes can have multiple `:param` segments. Param names are matched by **position in the URL**, not by the order they appear in `pathParamsSchema`:
+
+```
+GET /weather/:country/:city
+                 ^         ^
+                 |         └── second URL segment -> "city"
+                 └──────────── first URL segment  -> "country"
+```
+
+A request to `/weather/us/san-francisco` produces `pathParams: { country: "us", city: "san-francisco" }`. The property order in `pathParamsSchema` does not affect matching -- only the segment position in the URL matters.
+
 ## `declareDiscoveryExtension` API
 
 The function accepts a config object describing your endpoint:
@@ -122,5 +135,3 @@ The function accepts a config object describing your endpoint:
 | `output.example` | Example response body (helps agents understand what they'll get) |
 | `output.schema` | JSON Schema for the response body |
 | `bodyType` | For POST/PUT/PATCH: `"json"`, `"form-data"`, or `"text"` |
-
-For this example, only `pathParamsSchema` and `output` are used — the `:city` param is the only input and it's in the URL path, not the query string.

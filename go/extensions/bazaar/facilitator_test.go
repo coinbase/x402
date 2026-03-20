@@ -9,45 +9,48 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateRouteTemplate(t *testing.T) {
-	t.Run("returns empty string for empty input", func(t *testing.T) {
-		assert.Equal(t, "", validateRouteTemplate(""))
+func TestIsValidRouteTemplate(t *testing.T) {
+	t.Run("returns false for empty input", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate(""))
 	})
 
-	t.Run("returns empty string for paths not starting with /", func(t *testing.T) {
-		assert.Equal(t, "", validateRouteTemplate("users/123"))
-		assert.Equal(t, "", validateRouteTemplate("relative/path"))
-		assert.Equal(t, "", validateRouteTemplate("no-slash"))
+	t.Run("returns false for paths not starting with /", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate("users/123"))
+		assert.False(t, isValidRouteTemplate("relative/path"))
+		assert.False(t, isValidRouteTemplate("no-slash"))
 	})
 
-	t.Run("returns empty string for paths containing ..", func(t *testing.T) {
-		assert.Equal(t, "", validateRouteTemplate("/users/../admin"))
-		assert.Equal(t, "", validateRouteTemplate("/../etc/passwd"))
-		assert.Equal(t, "", validateRouteTemplate("/users/.."))
+	t.Run("returns false for paths containing ..", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate("/users/../admin"))
+		assert.False(t, isValidRouteTemplate("/../etc/passwd"))
+		assert.False(t, isValidRouteTemplate("/users/.."))
 	})
 
-	t.Run("returns empty string for paths containing ://", func(t *testing.T) {
-		assert.Equal(t, "", validateRouteTemplate("http://evil.com/path"))
-		assert.Equal(t, "", validateRouteTemplate("/users/http://evil"))
-		assert.Equal(t, "", validateRouteTemplate("javascript://foo"))
+	t.Run("returns false for paths containing ://", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate("http://evil.com/path"))
+		assert.False(t, isValidRouteTemplate("/users/http://evil"))
+		assert.False(t, isValidRouteTemplate("javascript://foo"))
 	})
 
-	t.Run("returns valid paths unchanged", func(t *testing.T) {
-		assert.Equal(t, "/users/:userId", validateRouteTemplate("/users/:userId"))
-		assert.Equal(t, "/api/v1/items", validateRouteTemplate("/api/v1/items"))
-		assert.Equal(t, "/products/:productId/reviews/:reviewId", validateRouteTemplate("/products/:productId/reviews/:reviewId"))
+	t.Run("returns true for valid paths", func(t *testing.T) {
+		assert.True(t, isValidRouteTemplate("/users/:userId"))
+		assert.True(t, isValidRouteTemplate("/api/v1/items"))
+		assert.True(t, isValidRouteTemplate("/products/:productId/reviews/:reviewId"))
+		assert.True(t, isValidRouteTemplate("/weather/:country/:city"))
+	})
+
+	t.Run("returns false for paths with spaces or invalid characters", func(t *testing.T) {
+		assert.False(t, isValidRouteTemplate("/users/ bad"))
+		assert.False(t, isValidRouteTemplate("/path with spaces"))
 	})
 
 	t.Run("edge case: /users/..hidden is rejected (contains ..)", func(t *testing.T) {
-		// A segment like "..hidden" contains ".." as a substring, so it is rejected.
-		// This is intentionally conservative.
-		assert.Equal(t, "", validateRouteTemplate("/users/..hidden"))
+		assert.False(t, isValidRouteTemplate("/users/..hidden"))
 	})
 
 	// NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-	// validateRouteTemplate checks for the literal string ".." only. If encoded-path
-	// handling is ever added (e.g. decoding before matching), this function should be
-	// updated to also reject '%2e%2e', '%2E%2E', and similar variants.
+	// isValidRouteTemplate checks for the literal string ".." only. If encoded-path
+	// handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
 }
 
 func TestExtractPathParams(t *testing.T) {

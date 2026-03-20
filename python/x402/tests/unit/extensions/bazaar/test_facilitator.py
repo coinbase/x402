@@ -10,50 +10,51 @@ from x402.extensions.bazaar import (
     validate_and_extract,
     validate_discovery_extension,
 )
-from x402.extensions.bazaar.facilitator import _validate_route_template
+from x402.extensions.bazaar.facilitator import _is_valid_route_template
 
 
-class TestValidateRouteTemplate:
-    """Direct unit tests for the _validate_route_template helper."""
+class TestIsValidRouteTemplate:
+    """Direct unit tests for the _is_valid_route_template helper."""
 
-    def test_returns_none_for_none_input(self) -> None:
-        assert _validate_route_template(None) is None
+    def test_returns_false_for_none_input(self) -> None:
+        assert _is_valid_route_template(None) is False
 
-    def test_returns_none_for_empty_string(self) -> None:
-        assert _validate_route_template("") is None
+    def test_returns_false_for_empty_string(self) -> None:
+        assert _is_valid_route_template("") is False
 
-    def test_returns_none_for_paths_not_starting_with_slash(self) -> None:
-        assert _validate_route_template("users/123") is None
-        assert _validate_route_template("relative/path") is None
-        assert _validate_route_template("no-slash") is None
+    def test_returns_false_for_paths_not_starting_with_slash(self) -> None:
+        assert _is_valid_route_template("users/123") is False
+        assert _is_valid_route_template("relative/path") is False
+        assert _is_valid_route_template("no-slash") is False
 
-    def test_returns_none_for_paths_containing_dotdot(self) -> None:
-        assert _validate_route_template("/users/../admin") is None
-        assert _validate_route_template("/../etc/passwd") is None
-        assert _validate_route_template("/users/..") is None
+    def test_returns_false_for_paths_containing_dotdot(self) -> None:
+        assert _is_valid_route_template("/users/../admin") is False
+        assert _is_valid_route_template("/../etc/passwd") is False
+        assert _is_valid_route_template("/users/..") is False
 
-    def test_returns_none_for_paths_containing_scheme(self) -> None:
-        assert _validate_route_template("http://evil.com/path") is None
-        assert _validate_route_template("/users/http://evil") is None
-        assert _validate_route_template("javascript://foo") is None
+    def test_returns_false_for_paths_containing_scheme(self) -> None:
+        assert _is_valid_route_template("http://evil.com/path") is False
+        assert _is_valid_route_template("/users/http://evil") is False
+        assert _is_valid_route_template("javascript://foo") is False
 
-    def test_returns_valid_paths_unchanged(self) -> None:
-        assert _validate_route_template("/users/:userId") == "/users/:userId"
-        assert _validate_route_template("/api/v1/items") == "/api/v1/items"
-        assert (
-            _validate_route_template("/products/:productId/reviews/:reviewId")
-            == "/products/:productId/reviews/:reviewId"
-        )
+    def test_returns_true_for_valid_paths(self) -> None:
+        assert _is_valid_route_template("/users/:userId") is True
+        assert _is_valid_route_template("/api/v1/items") is True
+        assert _is_valid_route_template("/products/:productId/reviews/:reviewId") is True
+        assert _is_valid_route_template("/weather/:country/:city") is True
+
+    def test_returns_false_for_paths_with_spaces_or_invalid_chars(self) -> None:
+        assert _is_valid_route_template("/users/ bad") is False
+        assert _is_valid_route_template("/path with spaces") is False
 
     def test_dotdot_segment_prefix_is_rejected(self) -> None:
-        # "..hidden" contains ".." as a substring so it is rejected conservatively.
-        assert _validate_route_template("/users/..hidden") is None
+        assert _is_valid_route_template("/users/..hidden") is False
 
     # NOTE: URL-encoded traversal sequences like '%2e%2e' are NOT currently rejected.
-    # _validate_route_template checks for the literal string ".." only. If encoded-path
+    # _is_valid_route_template checks for the literal string ".." only. If encoded-path
     # handling is ever added, this function should also reject '%2e%2e', '%2E%2E', etc.
     def test_url_encoded_traversal_not_rejected_known_limitation(self) -> None:
-        assert _validate_route_template("/users/%2e%2e/admin") == "/users/%2e%2e/admin"
+        assert _is_valid_route_template("/users/%2e%2e/admin") is True
 
 
 class TestValidateDiscoveryExtension:

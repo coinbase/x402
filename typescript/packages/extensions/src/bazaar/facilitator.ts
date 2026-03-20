@@ -17,29 +17,47 @@ import { BAZAAR } from "./types";
 import { extractDiscoveryInfoV1 } from "./v1/facilitator";
 
 /**
- * Validates a routeTemplate value received from the client payment payload.
+ * Valid routeTemplate pattern: must start with "/", contain only safe URL path characters
+ * and :param identifiers, and not include traversal sequences or scheme markers.
+ *
+ * Allowed: /users/:userId, /weather/:country/:city, /api/v1/items
+ */
+const ROUTE_TEMPLATE_REGEX = /^\/[a-zA-Z0-9_/:.\-~%]+$/;
+
+/**
+ * Checks whether a routeTemplate value is structurally valid.
+ *
+ * Expected format: "/:param" segments using colon-prefixed identifiers
+ * (e.g. "/users/:userId", "/weather/:country/:city").
  *
  * The facilitator is a trust boundary: clients control the payment payload and
  * can modify routeTemplate before submission. A malicious value could cause the
  * facilitator to catalog the payment under an arbitrary URL (catalog poisoning).
- * This function enforces minimal structural requirements.
+ * This function enforces minimal structural requirements:
+ * - Must be a non-empty string starting with "/"
+ * - Must match the safe URL path character set (alphanumeric, _, :, /, ., -, ~, %)
+ * - Must not contain ".." (path traversal)
+ * - Must not contain "://" (URL injection)
  *
  * @param value - The raw routeTemplate string from the client payload
- * @returns The validated value, or undefined if invalid
+ * @returns true if the value is a valid routeTemplate, false otherwise
  *
- * @internal This function is exported for facilitator use but should not be relied upon
- * by external consumers for security decisions. It has a known incomplete check:
+ * @internal Exported for facilitator use. Has a known incomplete check:
  * percent-encoded traversal sequences (%2e%2e) are not rejected. See coinbase/x402#issue.
  */
-export function validateRouteTemplate(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (!value.startsWith("/")) return undefined;
+export function isValidRouteTemplate(value: string | undefined): value is string {
+  if (!value) return false;
+  if (!ROUTE_TEMPLATE_REGEX.test(value)) return false;
   // TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
   // Fix must be applied simultaneously across TypeScript, Go, and Python SDKs (use decodeURIComponent).
-  // Issue filed; see CDPAI-424 review notes for details.
-  if (value.includes("..")) return undefined;
-  if (value.includes("://")) return undefined;
-  return value;
+  if (value.includes("..")) return false;
+  if (value.includes("://")) return false;
+  return true;
+}
+
+/** @deprecated Use `isValidRouteTemplate` instead. */
+export function validateRouteTemplate(value: string | undefined): string | undefined {
+  return isValidRouteTemplate(value) ? value : undefined;
 }
 
 /**
@@ -160,14 +178,15 @@ export function extractDiscoveryInfo(
 
       if (bazaarExtension && typeof bazaarExtension === "object") {
         try {
-          // Extract routeTemplate from the raw object before type-narrowing to DiscoveryExtension.
-          // HTTP extensions (QueryDiscoveryExtension, BodyDiscoveryExtension) carry routeTemplate;
-          // MCP extensions do not, as MCP routes are not parameterized.
+          // routeTemplate uses :param syntax (e.g. "/users/:userId", "/weather/:country/:city").
+          // Must start with "/", must not contain ".." or "://".
           // Validate before use: the client controls this field in the payment payload.
           const rawExt = bazaarExtension as Record<string, unknown>;
-          routeTemplate = validateRouteTemplate(
-            typeof rawExt.routeTemplate === "string" ? rawExt.routeTemplate : undefined,
-          );
+          const rawTemplate =
+            typeof rawExt.routeTemplate === "string" ? rawExt.routeTemplate : undefined;
+          if (isValidRouteTemplate(rawTemplate)) {
+            routeTemplate = rawTemplate;
+          }
           const extension = bazaarExtension as DiscoveryExtension;
 
           if (validate) {

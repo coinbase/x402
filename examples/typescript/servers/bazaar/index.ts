@@ -23,24 +23,27 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const app = express();
 
+const paymentOptions = [
+  {
+    scheme: "exact" as const,
+    price: "$0.001",
+    network: "eip155:84532",
+    payTo: evmAddress,
+  },
+  {
+    scheme: "exact" as const,
+    price: "$0.001",
+    network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    payTo: svmAddress,
+  },
+];
+
 app.use(
   paymentMiddleware(
     {
+      // Single path param: /weather/:city
       "GET /weather/:city": {
-        accepts: [
-          {
-            scheme: "exact",
-            price: "$0.001",
-            network: "eip155:84532",
-            payTo: evmAddress,
-          },
-          {
-            scheme: "exact",
-            price: "$0.001",
-            network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-            payTo: svmAddress,
-          },
-        ],
+        accepts: paymentOptions,
         description: "Weather data for a city",
         mimeType: "application/json",
         extensions: {
@@ -55,6 +58,29 @@ app.use(
           }),
         },
       },
+
+      // Multiple path params: /weather/:country/:city
+      // Param names are matched by position in the URL, not by declaration order in the schema.
+      // /weather/us/san-francisco -> { country: "us", city: "san-francisco" }
+      "GET /weather/:country/:city": {
+        accepts: paymentOptions,
+        description: "Weather data for a city in a specific country",
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            pathParamsSchema: {
+              properties: {
+                country: { type: "string", description: "Country code" },
+                city: { type: "string", description: "City name slug" },
+              },
+              required: ["country", "city"],
+            },
+            output: {
+              example: { country: "us", city: "san-francisco", weather: "foggy", temperature: 60 },
+            },
+          }),
+        },
+      },
     },
     new x402ResourceServer(facilitatorClient)
       .register("eip155:84532", new ExactEvmScheme())
@@ -63,7 +89,7 @@ app.use(
 );
 
 app.get("/weather/:city", (req, res) => {
-  const city = req.params.city;
+  const { city } = req.params;
 
   const weatherData: Record<string, { weather: string; temperature: number }> = {
     "san-francisco": { weather: "foggy", temperature: 60 },
@@ -72,8 +98,25 @@ app.get("/weather/:city", (req, res) => {
   };
 
   const data = weatherData[city] || { weather: "sunny", temperature: 70 };
-
   res.send({ city, weather: data.weather, temperature: data.temperature });
+});
+
+app.get("/weather/:country/:city", (req, res) => {
+  const { country, city } = req.params;
+
+  const weatherData: Record<string, Record<string, { weather: string; temperature: number }>> = {
+    us: {
+      "san-francisco": { weather: "foggy", temperature: 60 },
+      "new-york": { weather: "cloudy", temperature: 55 },
+    },
+    jp: {
+      tokyo: { weather: "rainy", temperature: 65 },
+      osaka: { weather: "clear", temperature: 72 },
+    },
+  };
+
+  const data = weatherData[country]?.[city] || { weather: "sunny", temperature: 70 };
+  res.send({ country, city, weather: data.weather, temperature: data.temperature });
 });
 
 app.listen(4021, () => {

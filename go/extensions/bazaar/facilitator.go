@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
@@ -165,13 +166,17 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		// Extract discovery info from extensions
 		if payload.Extensions != nil {
 			if bazaarExt, ok := payload.Extensions[types.BAZAAR.Key()]; ok {
+				// routeTemplate uses :param syntax (e.g. "/users/:userId", "/weather/:country/:city").
+				// Must start with "/", must not contain ".." or "://".
 				var rawTemplate string
 				if m, ok := bazaarExt.(map[string]interface{}); ok {
 					if v, ok := m["routeTemplate"]; ok {
 						rawTemplate, _ = v.(string)
 					}
 				}
-				routeTemplate = validateRouteTemplate(rawTemplate)
+				if isValidRouteTemplate(rawTemplate) {
+					routeTemplate = rawTemplate
+				}
 
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
@@ -245,28 +250,39 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	}, nil
 }
 
-// validateRouteTemplate validates a routeTemplate value received from the client payment payload.
+// routeTemplateRegex validates the overall shape of a routeTemplate:
+// must start with "/" and contain only safe URL path characters and :param identifiers.
+// Expected format: "/users/:userId", "/weather/:country/:city", "/api/v1/items".
+var routeTemplateRegex = regexp.MustCompile(`^/[a-zA-Z0-9_/:.\-~%]+$`)
+
+// isValidRouteTemplate checks whether a routeTemplate value is structurally valid.
+//
+// Expected format: ":param" segments using colon-prefixed identifiers
+// (e.g. "/users/:userId", "/weather/:country/:city").
 //
 // The facilitator is a trust boundary: the client controls the payment payload and can modify
 // routeTemplate before submission. A malicious value could cause the facilitator to catalog the
-// payment under an arbitrary URL (catalog poisoning). This enforces minimal structural requirements.
-func validateRouteTemplate(s string) string {
+// payment under an arbitrary URL (catalog poisoning). This enforces minimal structural requirements:
+//   - Must be a non-empty string starting with "/"
+//   - Must match the safe URL path character set (alphanumeric, _, :, /, ., -, ~, %)
+//   - Must not contain ".." (path traversal)
+//   - Must not contain "://" (URL injection)
+func isValidRouteTemplate(s string) bool {
 	if s == "" {
-		return ""
+		return false
 	}
-	if !strings.HasPrefix(s, "/") {
-		return ""
+	if !routeTemplateRegex.MatchString(s) {
+		return false
 	}
 	// TODO(coinbase/x402#issue): decode percent-encoding before traversal check — '%2e%2e' bypasses this guard.
 	// Fix must be applied simultaneously across Go, TypeScript, and Python SDKs (use url.PathUnescape).
-	// Issue filed; see CDPAI-424 review notes for details.
 	if strings.Contains(s, "..") {
-		return ""
+		return false
 	}
 	if strings.Contains(s, "://") {
-		return ""
+		return false
 	}
-	return s
+	return true
 }
 
 // stripQueryParams removes query parameters and fragments from a URL for cataloging
@@ -365,13 +381,17 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		// First check PaymentRequired.extensions for bazaar extension
 		if paymentRequired.Extensions != nil {
 			if bazaarExt, ok := paymentRequired.Extensions[types.BAZAAR.Key()]; ok {
+				// routeTemplate uses :param syntax (e.g. "/users/:userId", "/weather/:country/:city").
+				// Must start with "/", must not contain ".." or "://".
 				var rawTemplate string
 				if m, ok := bazaarExt.(map[string]interface{}); ok {
 					if v, ok := m["routeTemplate"]; ok {
 						rawTemplate, _ = v.(string)
 					}
 				}
-				routeTemplate = validateRouteTemplate(rawTemplate)
+				if isValidRouteTemplate(rawTemplate) {
+					routeTemplate = rawTemplate
+				}
 
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {

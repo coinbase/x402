@@ -406,14 +406,17 @@ Example of an enriched extension for a dynamic route:
 
 ### `routeTemplate` Validation Rules
 
-The facilitator MUST validate `routeTemplate` before using it as a catalog key. The following rules
-apply identically across all SDK implementations (TypeScript, Go, Python). **All three copies must
-stay in sync.**
+The facilitator MUST validate `routeTemplate` before using it as a catalog key. The expected format
+uses colon-prefixed parameter identifiers (e.g. `/users/:userId`, `/weather/:country/:city`).
+All SDK implementations use the function `isValidRouteTemplate` (TypeScript, Go) or
+`_is_valid_route_template` (Python) which applies the following rules identically.
+**All three copies must stay in sync.**
 
 | Rule | Reason |
 |------|--------|
 | Must be a non-empty string | Empty/absent means "no template" |
 | Must start with `/` | Prevents relative paths and external URLs |
+| Must match `^/[a-zA-Z0-9_/:.\-~%]+$` | Only allows safe URL path characters and `:param` identifiers |
 | Must not contain `..` | Prevents path traversal (`/users/../admin`) |
 | Must not contain `://` | Prevents URL injection (`http://evil.com`) |
 
