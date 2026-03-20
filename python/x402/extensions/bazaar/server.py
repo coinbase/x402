@@ -207,6 +207,17 @@ class BazaarResourceServerExtension:
             ext["info"] = info
             ext["routeTemplate"] = route_template
 
+            # Ensure pathParams is allowed in the schema (additionalProperties: false would reject it)
+            schema = ext.get("schema", {})
+            if isinstance(schema, dict):
+                props = schema.get("properties", {})
+                if isinstance(props, dict):
+                    input_schema = props.get("input", {})
+                    if isinstance(input_schema, dict):
+                        input_props = input_schema.get("properties", {})
+                        if isinstance(input_props, dict) and "pathParams" not in input_props:
+                            input_props["pathParams"] = {"type": "object"}
+
         return ext
 
 

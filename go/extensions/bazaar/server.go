@@ -168,6 +168,17 @@ func (e *bazaarResourceServerExtension) EnrichDeclaration(
 			extension.Info.Input = bodyInput
 		}
 
+		// Ensure pathParams is allowed in the schema (additionalProperties: false would reject it)
+		if schemaProps, ok := extension.Schema["properties"].(map[string]interface{}); ok {
+			if inputSchema, ok := schemaProps["input"].(map[string]interface{}); ok {
+				if props, ok := inputSchema["properties"].(map[string]interface{}); ok {
+					if _, hasPathParams := props["pathParams"]; !hasPathParams {
+						props["pathParams"] = map[string]interface{}{"type": "object"}
+					}
+				}
+			}
+		}
+
 		extension.RouteTemplate = routeTemplate
 		return extension
 	}

@@ -203,6 +203,8 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
       ? extractDynamicRouteInfo(routePattern, transportContext.adapter.getPath())
       : null;
     if (dynamicRoute) {
+      const inputSchemaProps = enrichedResult.schema?.properties?.input?.properties || {};
+      const hasPathParamsInSchema = "pathParams" in inputSchemaProps;
       return {
         ...enrichedResult,
         routeTemplate: dynamicRoute.routeTemplate,
@@ -210,6 +212,23 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
           ...enrichedResult.info,
           input: { ...enrichedResult.info.input, pathParams: dynamicRoute.pathParams },
         },
+        ...(!hasPathParamsInSchema
+          ? {
+              schema: {
+                ...enrichedResult.schema,
+                properties: {
+                  ...enrichedResult.schema?.properties,
+                  input: {
+                    ...enrichedResult.schema?.properties?.input,
+                    properties: {
+                      ...inputSchemaProps,
+                      pathParams: { type: "object" },
+                    },
+                  },
+                },
+              },
+            }
+          : {}),
       };
     }
 

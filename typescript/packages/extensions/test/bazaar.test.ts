@@ -1854,6 +1854,29 @@ describe("Bazaar Discovery Extension", () => {
       expect(enriched.routeTemplate).toBe("/api/:var1/:var2/posts/:var3");
     });
 
+    it("should pass schema validation after enrichment with auto-injected pathParams", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+      const extension = declared.bazaar;
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/users/123",
+        routePattern: "/users/:userId",
+        adapter: createMockAdapterWithPath("/users/123"),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        extension,
+        httpContext,
+      ) as import("../src/bazaar/http/types").QueryDiscoveryExtension;
+
+      const result = validateDiscoveryExtension(enriched);
+      expect(result.valid).toBe(true);
+    });
+
     it("should use concrete URL for static routes in facilitator", () => {
       const declared = declareDiscoveryExtension({
         input: { query: "test" },
