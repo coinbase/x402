@@ -1,0 +1,19 @@
+{
+    "name": "x402-cfo",
+    "description": "Spend control plane for autonomous agent payments. Pre-payment anomaly detection (enforce/review/off), fleet policy inheritance, lastDecision(), proof metrics, default safety cap. 131 tests, zero dependencies.",
+    "category": "Infrastructure & Tooling",
+    "url": "https://github.com/Upn-130guthub/x402-cfo",
+    "npm": "https://www.npmjs.com/package/x402-cfo",
+    "landing": "https://upn-130guthub.github.io/x402-cfo/",
+    "logo": "/logos/x402-cfo-logo.png",
+    "features": [
+          "Pre-payment anomaly detection (enforce/review/off)",
+          "Fleet policy inheritance",
+          "lastDecision() structured caller feedback",
+          "Proof metrics (protectedSpend, anomalyBlocks)",
+          "Default $2.00 safety cap",
+          "Multi-agent budget pools",
+          "Cost-optimal payment routing",
+          "LangChain, CrewAI, MCP, Express integrations"
+    ]
+}
