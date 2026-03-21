@@ -16,10 +16,19 @@
     {
       "path": "/api/protected-permit2-proxy",
       "method": "GET",
-      "description": "Protected Permit2 endpoint using proxy middleware",
+      "description": "Protected Permit2 direct endpoint (standard settle, no gas sponsoring)",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "permit2": true
+      "transferMethod": "permit2",
+      "permit2Direct": true
+    },
+    {
+      "path": "/api/protected-permit2-eip2612-proxy",
+      "method": "GET",
+      "description": "Protected Permit2 EIP-2612 endpoint using proxy middleware",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "permit2"
     },
     {
       "path": "/api/protected-permit2-erc20-proxy",

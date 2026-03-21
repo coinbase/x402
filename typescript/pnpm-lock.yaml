@@ -81,6 +81,9 @@ importers:
 
   packages/extensions:
     dependencies:
+      '@noble/curves':
+        specifier: ^1.9.0
+        version: 1.9.7
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
@@ -90,6 +93,9 @@ importers:
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
       siwe:
         specifier: ^2.3.2
         version: 2.3.2(ethers@6.16.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
@@ -216,7 +222,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       viem:
         specifier: ^2.39.3
@@ -344,7 +350,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       zod:
         specifier: ^3.24.2
@@ -408,7 +414,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
       next:
         specifier: ^16.0.10
@@ -1158,9 +1164,6 @@ importers:
       '@x402/core':
         specifier: workspace:~
         version: link:../../core
-      '@x402/extensions':
-        specifier: workspace:~
-        version: link:../../extensions
       viem:
         specifier: ^2.39.3
         version: 2.40.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1217,8 +1220,8 @@ importers:
   packages/mechanisms/stellar:
     dependencies:
       '@stellar/stellar-sdk':
-        specifier: ^14.4.2
-        version: 14.5.0
+        specifier: ^14.6.1
+        version: 14.6.1
       '@x402/core':
         specifier: workspace:*
         version: link:../../core
@@ -4213,12 +4216,12 @@ packages:
   '@stellar/js-xdr@3.1.2':
     resolution: {integrity: sha512-VVolPL5goVEIsvuGqDc5uiKxV03lzfWdvYg1KikvwheDmTBO68CKDji3bAZ/kppZrx5iTA8z3Ld5yuytcvhvOQ==}
 
-  '@stellar/stellar-base@14.0.4':
-    resolution: {integrity: sha512-UbNW6zbdOBXJwLAV2mMak0bIC9nw3IZVlQXkv2w2dk1jgCbJjy3oRVC943zeGE5JAm0Z9PHxrIjmkpGhayY7kw==}
+  '@stellar/stellar-base@14.1.0':
+    resolution: {integrity: sha512-A8kFli6QGy22SRF45IjgPAJfUNGjnI+R7g4DF5NZYVsD1kGf7B4ITyc4OPclLV9tqNI4/lXxafGEw0JEUbHixw==}
     engines: {node: '>=20.0.0'}
 
-  '@stellar/stellar-sdk@14.5.0':
-    resolution: {integrity: sha512-Uzjq+An/hUA+Q5ERAYPtT0+MMiwWnYYWMwozmZMjxjdL2MmSjucBDF8Q04db6K/ekU4B5cHuOfsdlrfaxQYblw==}
+  '@stellar/stellar-sdk@14.6.1':
+    resolution: {integrity: sha512-A1rQWDLdUasXkMXnYSuhgep+3ZZzyuXJKdt5/KAIc0gkmSp906HTvUpbT4pu+bVr41tu0+J4Ugz9J4BQAGGytg==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -13067,7 +13070,7 @@ snapshots:
 
   '@stellar/js-xdr@3.1.2': {}
 
-  '@stellar/stellar-base@14.0.4':
+  '@stellar/stellar-base@14.1.0':
     dependencies:
       '@noble/curves': 1.9.7
       '@stellar/js-xdr': 3.1.2
@@ -13076,12 +13079,12 @@ snapshots:
       buffer: 6.0.3
       sha.js: 2.4.12
 
-  '@stellar/stellar-sdk@14.5.0':
+  '@stellar/stellar-sdk@14.6.1':
     dependencies:
-      '@stellar/stellar-base': 14.0.4
+      '@stellar/stellar-base': 14.1.0
       axios: 1.13.4
       bignumber.js: 9.3.1
-      commander: 14.0.2
+      commander: 14.0.3
       eventsource: 2.0.2
       feaxios: 0.0.23
       randombytes: 2.1.0
@@ -13452,7 +13455,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.42.0(typescript@5.9.2)
       '@typescript-eslint/types': 8.42.0
-      debug: 4.4.1
+      debug: 4.4.3
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
@@ -15524,7 +15527,7 @@ snapshots:
   eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.34.0(jiti@2.6.1)):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
-      debug: 4.4.1
+      debug: 4.4.3
       eslint: 9.34.0(jiti@2.6.1)
       get-tsconfig: 4.10.1
       is-bun-module: 2.0.0

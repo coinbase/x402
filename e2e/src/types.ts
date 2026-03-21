@@ -19,6 +19,8 @@ export interface ClientConfig {
   stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
+  evmNetwork: string;
+  evmRpcUrl: string;
 }
 
 export interface ServerConfig {
@@ -50,6 +52,9 @@ export interface TestEndpoint {
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
   transferMethod?: TransferMethod;
+  extensions?: string[];
+  /** True for Permit2 standard/direct settle - requires pre-approval (approve before test, not revoke) */
+  permit2Direct?: boolean;
   health?: boolean;
   close?: boolean;
 }

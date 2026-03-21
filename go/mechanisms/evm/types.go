@@ -189,32 +189,55 @@ func IsEIP3009Payload(data map[string]interface{}) bool {
 // Required for the ERC-20 approval gas sponsoring extension, where the client signs
 // (but does not broadcast) an approve(Permit2, MaxUint256) transaction.
 type ClientEvmSignerWithTxSigning interface {
+	ClientEvmSignerWithSignTransaction
+	ClientEvmSignerWithGetTransactionCount
+	ClientEvmSignerWithEstimateFeesPerGas
+}
+
+// ClientEvmSignerWithSignTransaction extends ClientEvmSigner with raw tx signing.
+type ClientEvmSignerWithSignTransaction interface {
 	ClientEvmSigner
 
 	// SignTransaction signs an EIP-1559 transaction and returns the RLP-encoded bytes.
 	SignTransaction(ctx context.Context, tx *goethtypes.Transaction) ([]byte, error)
+}
+
+// ClientEvmSignerWithGetTransactionCount extends ClientEvmSigner with nonce lookup.
+type ClientEvmSignerWithGetTransactionCount interface {
+	ClientEvmSigner
 
 	// GetTransactionCount returns the pending nonce for an address.
 	GetTransactionCount(ctx context.Context, address string) (uint64, error)
+}
+
+// ClientEvmSignerWithEstimateFeesPerGas extends ClientEvmSigner with fee estimation.
+type ClientEvmSignerWithEstimateFeesPerGas interface {
+	ClientEvmSigner
 
 	// EstimateFeesPerGas returns the EIP-1559 maxFeePerGas and maxPriorityFeePerGas.
 	EstimateFeesPerGas(ctx context.Context) (maxFeePerGas, maxPriorityFeePerGas *big.Int, err error)
 }
 
-// ClientEvmSigner defines the interface for client-side EVM signing operations.
+// ClientEvmSignerWithReadContract extends ClientEvmSigner with on-chain read capability.
+// Used by extension enrichment paths (EIP-2612 nonce lookup, allowance checks).
+type ClientEvmSignerWithReadContract interface {
+	ClientEvmSigner
+
+	// ReadContract reads data from a smart contract.
+	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
+}
+
+// ClientEvmSigner defines the minimal interface for client-side EVM signing operations.
 //
-// Typically created via NewClientSignerFromPrivateKeyWithClient which provides
-// both signing and on-chain read capability. The ReadContract method is required
-// for EIP-2612 gas sponsoring (querying nonces and checking allowances).
+// Base payment signing only requires address + typed-data signing.
+// Optional extension flows can use additional capability interfaces like
+// ClientEvmSignerWithReadContract and ClientEvmSignerWithTxSigning.
 type ClientEvmSigner interface {
 	// Address returns the signer's Ethereum address
 	Address() string
 
 	// SignTypedData signs EIP-712 typed data
 	SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error)
-
-	// ReadContract reads data from a smart contract
-	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 }
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations

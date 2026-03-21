@@ -246,6 +246,22 @@ func (s *x402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *x402Reso
 // Core Payment Methods (V2 Only)
 // ============================================================================
 
+func mergeExtraFields(parsedExtra map[string]interface{}, configExtra map[string]interface{}) map[string]interface{} {
+	if len(parsedExtra) == 0 && len(configExtra) == 0 {
+		return nil
+	}
+
+	merged := make(map[string]interface{}, len(parsedExtra)+len(configExtra))
+	for key, value := range parsedExtra {
+		merged[key] = value
+	}
+	for key, value := range configExtra {
+		merged[key] = value
+	}
+
+	return merged
+}
+
 // BuildPaymentRequirements creates payment requirements for a resource
 func (s *x402ResourceServer) BuildPaymentRequirements(
 	ctx context.Context,
@@ -288,7 +304,7 @@ func (s *x402ResourceServer) BuildPaymentRequirements(
 		Amount:            assetAmount.Amount,
 		PayTo:             config.PayTo,
 		MaxTimeoutSeconds: maxTimeout,
-		Extra:             assetAmount.Extra,
+		Extra:             mergeExtraFields(assetAmount.Extra, config.Extra),
 	}
 
 	// Enhance with scheme-specific details

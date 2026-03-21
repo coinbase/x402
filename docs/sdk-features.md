@@ -28,6 +28,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |---------|------------|-----|--------|
 | evm (EIP-155) | ✅ | ✅ | ✅ |
 | svm (Solana) | ✅ | ✅ | ✅ |
+| stellar | ✅ | ❌ | ❌ |
 | aptos | ✅ | ❌ | ❌ |
 
 ## Mechanisms
@@ -35,7 +36,9 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | Mechanism | TypeScript | Go | Python |
 |-----------|------------|-----|--------|
 | exact/evm (EIP-3009) | ✅ | ✅ | ✅ |
+| exact/evm (Permit2) | ✅ | ✅ | ✅ |
 | exact/svm (SPL) | ✅ | ✅ | ✅ |
+| exact/stellar (Soroban) | ✅ | ❌ | ❌ |
 | exact/aptos (Fungible Assets) | ✅ | ❌ | ❌ |
 
 ## Extensions
@@ -46,6 +49,9 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | bazaar (facilitator client) | ✅ | ✅ | ✅ |
 | sign-in-with-x | ✅ | ❌ | ❌ |
 | payment-identifier | ✅ | ✅ | ✅ |
+| offer-receipt | ✅ | ❌ | ❌ |
+| eip2612-gas-sponsoring | ✅ | ✅ | ✅ |
+| erc20-approval-gas-sponsoring | ✅ | ✅ | ✅ |
 
 ## Client Hooks
 
