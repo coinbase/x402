@@ -1,0 +1,7 @@
+{
+  "name": "x402search",
+  "description": "Search 14,000+ x402-enabled HTTP APIs by keyword. Agents pay $0.01 USDC per search on Base mainnet — no API keys required. The largest x402 API discovery index. Available as MCP server (npm + PyPI) and as ACP agent on Virtuals Protocol (ID 22531).",
+  "url": "https://x402search.xyz",
+  "category": "Services & Endpoints",
+  "tags": ["search", "discovery", "mcp", "apis", "defi", "base"]
+}
