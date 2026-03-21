@@ -191,6 +191,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
     const response = await fetch(`${this.url}/verify`, {
       method: "POST",
       headers,
+      redirect: "follow",
       body: JSON.stringify({
         x402Version: paymentPayload.x402Version,
         paymentPayload: this.toJsonSafe(paymentPayload),
@@ -242,6 +243,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
     const response = await fetch(`${this.url}/settle`, {
       method: "POST",
       headers,
+      redirect: "follow",
       body: JSON.stringify({
         x402Version: paymentPayload.x402Version,
         paymentPayload: this.toJsonSafe(paymentPayload),
@@ -291,6 +293,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       const response = await fetch(`${this.url}/supported`, {
         method: "GET",
         headers,
+        redirect: "follow",
       });
 
       if (response.ok) {
