@@ -3,7 +3,7 @@
  *
  * This facilitator provides HTTP endpoints for payment verification and settlement
  * using the x402 TypeScript SDK.
- * 
+ *
  * Features:
  * - Payment verification and settlement
  * - Bazaar discovery extension support
@@ -11,8 +11,16 @@
  * - Discovery resource cataloging
  */
 
+import {
+  Account,
+  Ed25519PrivateKey,
+  PrivateKey,
+  PrivateKeyVariants,
+} from "@aptos-labs/ts-sdk";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { toFacilitatorAptosSigner } from "@x402/aptos";
+import { ExactAptosScheme } from "@x402/aptos/exact/facilitator";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   Network,
@@ -22,10 +30,20 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
+import { NETWORKS as EVM_V1_NETWORKS } from "@x402/evm/v1";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
+import {
+  EIP2612_GAS_SPONSORING,
+  createErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
+import { NETWORKS as SVM_V1_NETWORKS } from "@x402/svm/v1";
+import { createEd25519Signer, type FacilitatorStellarSigner } from "@x402/stellar";
+import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -39,9 +57,14 @@ dotenv.config();
 // Configuration
 const PORT = process.env.PORT || "4022";
 const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
-const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const SVM_NETWORK =
+  process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const APTOS_NETWORK = process.env.APTOS_NETWORK || "aptos:2";
+const STELLAR_NETWORK = process.env.STELLAR_NETWORK || "stellar:testnet";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
+const APTOS_RPC_URL = process.env.APTOS_RPC_URL;
+const STELLAR_RPC_URL = process.env.STELLAR_RPC_URL;
 
 // Map CAIP-2 network IDs to viem chains
 function getEvmChain(network: string): Chain {
@@ -56,8 +79,12 @@ function getEvmChain(network: string): Chain {
 
 console.log(`🌐 EVM Network: ${EVM_NETWORK}`);
 console.log(`🌐 SVM Network: ${SVM_NETWORK}`);
+console.log(`🌐 Aptos Network: ${APTOS_NETWORK}`);
+console.log(`🌐 Stellar Network: ${STELLAR_NETWORK}`);
 if (EVM_RPC_URL) console.log(`🌐 EVM RPC URL: ${EVM_RPC_URL}`);
 if (SVM_RPC_URL) console.log(`🌐 SVM RPC URL: ${SVM_RPC_URL}`);
+if (APTOS_RPC_URL) console.log(`🌐 Aptos RPC URL: ${APTOS_RPC_URL}`);
+if (STELLAR_RPC_URL) console.log(`🌐 Stellar RPC URL: ${STELLAR_RPC_URL}`);
 
 // Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
@@ -71,13 +98,37 @@ if (!process.env.SVM_PRIVATE_KEY) {
 }
 
 // Initialize the EVM account from private key
-const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
+// Initialize the SVM account from private key
+const svmAccount = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
+console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
-// Initialize the EVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
-console.info(`EVM Facilitator account: ${evmAccount.address}`);
+// Initialize the Aptos account from private key (format to AIP-80 compliant format) if provided
+let aptosAccount: Account | undefined;
+if (process.env.APTOS_PRIVATE_KEY) {
+  const formattedAptosKey = PrivateKey.formatPrivateKey(
+    process.env.APTOS_PRIVATE_KEY as string,
+    PrivateKeyVariants.Ed25519,
+  );
+  const aptosPrivateKey = new Ed25519PrivateKey(formattedAptosKey);
+  aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
+  console.info(
+    `Aptos Facilitator account: ${aptosAccount.accountAddress.toStringLong()}`,
+  );
+}
+
+// Initialize the Stellar signer from private key (optional)
+let stellarSigner: FacilitatorStellarSigner | undefined;
+if (process.env.STELLAR_PRIVATE_KEY) {
+  stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY as string, STELLAR_NETWORK as Network);
+  console.info(`Stellar Facilitator account: ${stellarSigner.address}`);
+}
 
 // Create a Viem client with both wallet and public capabilities
 const evmChain = getEvmChain(EVM_NETWORK);
@@ -87,7 +138,7 @@ const viemClient = createWalletClient({
   transport: http(EVM_RPC_URL),
 }).extend(publicActions);
 
-// Initialize the x402 Facilitator with EVM and SVM support
+// Initialize the x402 Facilitator with EVM, SVM, and Aptos support
 
 const evmSigner = toFacilitatorEvmSigner({
   address: evmAccount.address,
@@ -114,10 +165,12 @@ const evmSigner = toFacilitatorEvmSigner({
     abi: readonly unknown[];
     functionName: string;
     args: readonly unknown[];
+    gas?: bigint;
   }) =>
     viemClient.writeContract({
       ...args,
       args: args.args || [],
+      gas: args.gas,
     }),
   sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
     viemClient.sendTransaction(args),
@@ -128,7 +181,19 @@ const evmSigner = toFacilitatorEvmSigner({
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
 // Pass custom RPC URL if provided
-const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
+const svmSigner = toFacilitatorSvmSigner(
+  svmAccount,
+  SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined,
+);
+
+// Facilitator can handle all Aptos networks with automatic RPC creation
+// Pass custom RPC URL if provided
+const aptosSigner = aptosAccount
+  ? toFacilitatorAptosSigner(
+      aptosAccount,
+      APTOS_RPC_URL ? { defaultRpcUrl: APTOS_RPC_URL } : undefined,
+    )
+  : undefined;
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -142,17 +207,63 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 
 const facilitator = new x402Facilitator();
 
-// Register EVM and SVM schemes using the new register helpers
-registerExactEvmScheme(facilitator, {
-  signer: evmSigner,
-  networks: EVM_NETWORK as Network,
-});
-registerExactSvmScheme(facilitator, {
-  signer: svmSigner,
-  networks: SVM_NETWORK as Network,
-});
+// Register EVM, SVM, and Aptos schemes (v2 + v1)
+facilitator
+  .register(EVM_NETWORK as Network, new ExactEvmScheme(evmSigner))
+  .registerV1(EVM_V1_NETWORKS as Network[], new ExactEvmSchemeV1(evmSigner))
+  .register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner))
+  .registerV1(SVM_V1_NETWORKS as Network[], new ExactSvmSchemeV1(svmSigner));
+if (aptosSigner) {
+  facilitator.register(
+    APTOS_NETWORK as Network,
+    new ExactAptosScheme(aptosSigner),
+  );
+}
+if (stellarSigner) {
+  facilitator.register(STELLAR_NETWORK as Network, new ExactStellarScheme([stellarSigner]));
+}
 
-facilitator.registerExtension(BAZAAR)
+const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+const erc20AllowanceAbi = [
+  {
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    name: "allowance",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+const erc20ApprovalSigner = {
+  ...evmSigner,
+  sendTransactions: async (
+    transactions: (`0x${string}` | { to: `0x${string}`; data: `0x${string}`; gas?: bigint })[],
+  ): Promise<`0x${string}`[]> => {
+    const hashes: `0x${string}`[] = [];
+    for (const tx of transactions) {
+      let hash: `0x${string}`;
+      if (typeof tx === "string") {
+        hash = await viemClient.sendRawTransaction({ serializedTransaction: tx });
+      } else {
+        hash = await viemClient.sendTransaction(tx);
+      }
+      const receipt = await viemClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        throw new Error(`transaction_failed: ${hash}`);
+      }
+      hashes.push(hash);
+    }
+    return hashes;
+  },
+};
+
+facilitator
+  .registerExtension(BAZAAR)
+  .registerExtension(EIP2612_GAS_SPONSORING)
+  .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner))
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation
@@ -161,8 +272,11 @@ facilitator.registerExtension(BAZAAR)
       verifiedPayments.set(paymentHash, Date.now());
 
       // Hook 2: Extract and catalog bazaar discovery info
-      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
-      if (discovered) {
+      const discovered = extractDiscoveryInfo(
+        context.paymentPayload,
+        context.requirements,
+      );
+      if (discovered && "method" in discovered && discovered.method) {
         bazaarCatalog.catalogResource(
           discovered.resourceUrl,
           discovered.method,
@@ -170,7 +284,9 @@ facilitator.registerExtension(BAZAAR)
           discovered.discoveryInfo,
           context.requirements,
         );
-        console.log(`📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`);
+        console.log(
+          `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
+        );
       }
     }
   })
@@ -220,12 +336,15 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
- * 
+ *
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -253,7 +372,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
@@ -280,7 +399,10 @@ app.post("/settle", async (req, res) => {
     console.error("Settle error:", error);
 
     // Check if this was an abort from hook
-    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Settlement aborted:")
+    ) {
       // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,
@@ -335,9 +457,11 @@ app.get("/health", (req, res) => {
     status: "ok",
     evmNetwork: EVM_NETWORK,
     svmNetwork: SVM_NETWORK,
+    aptosNetwork: aptosAccount ? APTOS_NETWORK : "(not configured)",
+    stellarNetwork: stellarSigner ? STELLAR_NETWORK : "(not configured)",
     facilitator: "typescript",
     version: "2.0.0",
-    extensions: [BAZAAR],
+    extensions: [BAZAAR.key],
     discoveredResources: bazaarCatalog.getCount(),
   });
 });
@@ -362,19 +486,22 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 TypeScript Facilitator                  ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                  ║
-║  EVM Network:    ${EVM_NETWORK}                        ║
-║  SVM Network:    ${SVM_NETWORK}                        ║
-║  Address:    ${evmAccount.address}                        ║
-║  Extensions: bazaar                                    ║
+║  Server:       http://localhost:${PORT}                ║
+║  EVM Network:  ${EVM_NETWORK}                          ║
+║  SVM Network:  ${SVM_NETWORK}                          ║
+║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  EVM Address:  ${evmAccount.address}                   ║
+║  Aptos Address: ${aptosAccount ? aptosAccount.accountAddress.toStringLong().slice(0, 20) + "..." : "(not configured)"}
+║  Stellar Address: ${stellarSigner ? stellarSigner.address : "(not configured)"} ║
+║  Extensions:   bazaar                                  ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • POST /verify              (verify payment)         ║
-║  • POST /settle              (settle payment)         ║
-║  • GET  /supported           (get supported kinds)    ║
-║  • GET  /discovery/resources (list discovered)        ║
-║  • GET  /health              (health check)           ║
-║  • POST /close               (shutdown server)        ║
+║  • POST /verify              (verify payment)          ║
+║  • POST /settle              (settle payment)          ║
+║  • GET  /supported           (get supported kinds)     ║
+║  • GET  /discovery/resources (list discovered)         ║
+║  • GET  /health              (health check)            ║
+║  • POST /close               (shutdown server)         ║
 ╚════════════════════════════════════════════════════════╝
   `);
 

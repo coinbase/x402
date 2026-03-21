@@ -166,7 +166,7 @@ class EvmPaywallHandler:
     window.x402 = {htmlsafe_json_dumps(x402_config)};
   </script>"""
 
-        return template.replace("</head>", f"{config_script}\n</head>")
+        return template.replace("</head>", f"{config_script}\n</head>", 1)
 
     def _fallback_html(
         self,
@@ -243,7 +243,7 @@ class SvmPaywallHandler:
     window.x402 = {htmlsafe_json_dumps(x402_config)};
   </script>"""
 
-        return template.replace("</head>", f"{config_script}\n</head>")
+        return template.replace("</head>", f"{config_script}\n</head>", 1)
 
     def _fallback_html(
         self,
@@ -385,7 +385,7 @@ class PaywallProvider:
             app_name=config.app_name if config and config.app_name else self.app_name,
             app_logo=config.app_logo if config and config.app_logo else self.app_logo,
             testnet=config.testnet if config else self.testnet,
-            current_url=config.current_url if config and config.current_url else self.current_url,
+            current_url=(config.current_url if config and config.current_url else self.current_url),
         )
 
         # Find first handler that supports the payment requirements

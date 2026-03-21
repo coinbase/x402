@@ -3,8 +3,9 @@ import { createPublicClient, formatUnits, http, publicActions, type Chain } from
 import * as allChains from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient, useConnect, useDisconnect } from "wagmi";
 
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { x402Client } from "@x402/core/client";
+import { encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentRequired } from "@x402/core/types";
 import { getUSDCBalance } from "./utils";
 
@@ -146,16 +147,15 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
       setStatus("Creating payment signature...");
 
-      // Create client and register EVM schemes (handles v1 and v2)
       const signer = wagmiToClientSigner(walletClient);
       const client = new x402Client();
-      registerExactEvmScheme(client, { signer });
+      client.register("eip155:*", new ExactEvmScheme(signer));
 
       // Create payment payload - client automatically handles version
       const paymentPayload = await client.createPaymentPayload(paymentRequired);
 
       // Encode as base64 JSON for v2 header
-      const paymentHeader = btoa(JSON.stringify(paymentPayload));
+      const paymentHeader = encodePaymentSignatureHeader(paymentPayload);
 
       setStatus("Requesting content with payment...");
       const response = await fetch(x402.currentUrl, {

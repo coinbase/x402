@@ -17,6 +17,7 @@ except ImportError as e:
         "Flask middleware requires the flask package. Install with: uv add x402[flask]"
     ) from e
 
+from ..facilitator_client_base import FacilitatorResponseError
 from ..types import (
     HTTPAdapter,
     HTTPRequestContext,
@@ -184,6 +185,19 @@ class FlaskAdapter(HTTPAdapter):
 # ============================================================================
 # Response Wrapper for Settlement
 # ============================================================================
+
+
+def _facilitator_error_wsgi_response(
+    start_response: Callable[..., Any],
+    error: FacilitatorResponseError,
+) -> list[bytes]:
+    """Map invalid facilitator responses to a stable HTTP error."""
+    body = json.dumps({"error": str(error)}).encode("utf-8")
+    start_response(
+        "502 Bad Gateway",
+        [("Content-Type", "application/json")],
+    )
+    return [body]
 
 
 class ResponseWrapper:
@@ -360,11 +374,17 @@ class PaymentMiddleware:
 
             # Initialize on first protected request
             if self._sync_on_start and not self._init_done:
-                self._http_server.initialize()
+                try:
+                    self._http_server.initialize()
+                except FacilitatorResponseError as error:
+                    return _facilitator_error_wsgi_response(start_response, error)
                 self._init_done = True
 
             # Process payment request synchronously (no asyncio overhead)
-            result = self._http_server.process_http_request(context, self._paywall_config)
+            try:
+                result = self._http_server.process_http_request(context, self._paywall_config)
+            except FacilitatorResponseError as error:
+                return _facilitator_error_wsgi_response(start_response, error)
 
             if result.type == "no-payment-required":
                 return self._original_wsgi(environ, start_response)
@@ -418,6 +438,7 @@ class PaymentMiddleware:
                         settle_result = self._http_server.process_settlement(
                             result.payment_payload,
                             result.payment_requirements,
+                            context=context,
                         )
 
                         if settle_result.success:
@@ -425,32 +446,37 @@ class PaymentMiddleware:
                             for key, value in settle_result.headers.items():
                                 response_wrapper.add_header(key, value)
                         else:
-                            # Settlement failed
-                            error_body = json.dumps(
-                                {
-                                    "error": "Settlement failed",
-                                    "details": settle_result.error_reason,
-                                }
-                            ).encode("utf-8")
-                            start_response(
-                                "402 Payment Required",
-                                [("Content-Type", "application/json")],
-                            )
-                            return [error_body]
+                            # Settlement failed - use response from process_settlement
+                            # (includes PAYMENT-RESPONSE header and empty body by default)
+                            response = settle_result.response
+                            if response is None:
+                                status = "402 Payment Required"
+                                headers = [("Content-Type", "application/json")]
+                                body = json.dumps({}).encode("utf-8")
+                            else:
+                                status = f"{response.status} Payment Required"
+                                headers = list(response.headers.items())
+                                if response.is_html:
+                                    body = (
+                                        response.body.encode("utf-8")
+                                        if isinstance(response.body, str)
+                                        else response.body
+                                    )
+                                else:
+                                    body = json.dumps(response.body or {}).encode("utf-8")
+                            start_response(status, headers)
+                            return [body]
 
-                    except Exception as e:
-                        # Settlement error
-                        error_body = json.dumps(
-                            {
-                                "error": "Settlement failed",
-                                "details": str(e),
-                            }
-                        ).encode("utf-8")
+                    except FacilitatorResponseError as error:
+                        return _facilitator_error_wsgi_response(start_response, error)
+
+                    except Exception:
+                        # Settlement error - return empty body with 402
                         start_response(
                             "402 Payment Required",
                             [("Content-Type", "application/json")],
                         )
-                        return [error_body]
+                        return [json.dumps({}).encode("utf-8")]
 
                 # Send buffered response
                 response_wrapper.send_response(body_chunks)

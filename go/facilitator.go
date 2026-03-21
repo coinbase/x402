@@ -25,7 +25,7 @@ type x402Facilitator struct {
 	// Arrays support multiple facilitators with same scheme name
 	schemesV1  []*schemeData
 	schemes    []*schemeData // V2 (default)
-	extensions []string
+	extensions map[string]FacilitatorExtension
 
 	// Lifecycle hooks
 	beforeVerifyHooks    []FacilitatorBeforeVerifyHook
@@ -40,7 +40,7 @@ func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
 		schemesV1:  []*schemeData{},
 		schemes:    []*schemeData{},
-		extensions: []string{},
+		extensions: make(map[string]FacilitatorExtension),
 	}
 }
 
@@ -88,20 +88,21 @@ func (f *x402Facilitator) Register(networks []Network, facilitator SchemeNetwork
 	return f
 }
 
-// RegisterExtension registers a protocol extension
-func (f *x402Facilitator) RegisterExtension(extension string) *x402Facilitator {
+// RegisterExtension registers a protocol extension.
+func (f *x402Facilitator) RegisterExtension(extension FacilitatorExtension) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// Check if already registered
-	for _, ext := range f.extensions {
-		if ext == extension {
-			return f
-		}
-	}
-
-	f.extensions = append(f.extensions, extension)
+	f.extensions[extension.Key()] = extension
 	return f
+}
+
+// GetExtension returns the extension registered under the given key, or nil.
+func (f *x402Facilitator) GetExtension(key string) FacilitatorExtension {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.extensions[key]
 }
 
 // ============================================================================
@@ -419,6 +420,7 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemesV1 {
@@ -429,11 +431,12 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Verify(ctx, payload, requirements)
+			return facilitator.Verify(ctx, payload, requirements, fctx)
 		}
 	}
 
-	return nil, NewVerifyError(ErrNoFacilitatorForNetwork, "", fmt.Sprintf("no facilitator for scheme %s on network %s", scheme, network))
+	registered := f.registeredV1Summary()
+	return nil, NewVerifyError(ErrNoFacilitatorForNetwork, "", fmt.Sprintf("no facilitator for scheme %q on network %q; registered: %s", scheme, network, registered))
 }
 
 // verifyV2 verifies a V2 payment (internal, typed)
@@ -443,6 +446,7 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemes {
@@ -453,11 +457,12 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Verify(ctx, payload, requirements)
+			return facilitator.Verify(ctx, payload, requirements, fctx)
 		}
 	}
 
-	return nil, NewVerifyError(ErrNoFacilitatorForNetwork, "", fmt.Sprintf("no facilitator for scheme %s on network %s", scheme, network))
+	registered := f.registeredV2Summary()
+	return nil, NewVerifyError(ErrNoFacilitatorForNetwork, "", fmt.Sprintf("no facilitator for scheme %q on network %q; registered: %s", scheme, network, registered))
 }
 
 // settleV1 settles a V1 payment (internal, typed)
@@ -467,6 +472,7 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemesV1 {
@@ -477,11 +483,12 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Settle(ctx, payload, requirements)
+			return facilitator.Settle(ctx, payload, requirements, fctx)
 		}
 	}
 
-	return nil, NewSettleError(ErrNoFacilitatorForNetwork, "", network, "", fmt.Sprintf("no facilitator for scheme %s on network %s", scheme, network))
+	registered := f.registeredV1Summary()
+	return nil, NewSettleError(ErrNoFacilitatorForNetwork, "", network, "", fmt.Sprintf("no facilitator for scheme %q on network %q; registered: %s", scheme, network, registered))
 }
 
 // settleV2 settles a V2 payment (internal, typed)
@@ -491,6 +498,7 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
+	fctx := NewFacilitatorContext(f.extensions)
 
 	// Find matching facilitator from array
 	for _, data := range f.schemes {
@@ -501,11 +509,42 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 
 		// Check if network matches (exact or pattern)
 		if matchesSchemeData(data, network) {
-			return facilitator.Settle(ctx, payload, requirements)
+			return facilitator.Settle(ctx, payload, requirements, fctx)
 		}
 	}
 
-	return nil, NewSettleError(ErrNoFacilitatorForNetwork, "", network, "", fmt.Sprintf("no facilitator for scheme %s on network %s", scheme, network))
+	registered := f.registeredV2Summary()
+	return nil, NewSettleError(ErrNoFacilitatorForNetwork, "", network, "", fmt.Sprintf("no facilitator for scheme %q on network %q; registered: %s", scheme, network, registered))
+}
+
+// registeredV1Summary returns a human-readable list of registered V1 scheme/network pairs.
+func (f *x402Facilitator) registeredV1Summary() string {
+	if len(f.schemesV1) == 0 {
+		return "(none)"
+	}
+	var parts []string
+	for _, data := range f.schemesV1 {
+		facilitator := data.facilitator.(SchemeNetworkFacilitatorV1)
+		for network := range data.networks {
+			parts = append(parts, fmt.Sprintf("%s@%s", facilitator.Scheme(), network))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// registeredV2Summary returns a human-readable list of registered V2 scheme/network pairs.
+func (f *x402Facilitator) registeredV2Summary() string {
+	if len(f.schemes) == 0 {
+		return "(none)"
+	}
+	var parts []string
+	for _, data := range f.schemes {
+		facilitator := data.facilitator.(SchemeNetworkFacilitator)
+		for network := range data.networks {
+			parts = append(parts, fmt.Sprintf("%s@%s", facilitator.Scheme(), network))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // GetSupported returns supported payment kinds
@@ -586,9 +625,14 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 		signers[family] = signerList
 	}
 
+	extensionKeys := make([]string, 0, len(f.extensions))
+	for key := range f.extensions {
+		extensionKeys = append(extensionKeys, key)
+	}
+
 	return SupportedResponse{
 		Kinds:      kinds,
-		Extensions: f.extensions,
+		Extensions: extensionKeys,
 		Signers:    signers,
 	}
 }

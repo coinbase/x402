@@ -184,6 +184,52 @@ const resources = {
 };
 ```
 
+#### Example: MCP Tool
+
+For MCP (Model Context Protocol) tools, use the `toolName` field instead of `bodyType`/`input`. The HTTP method is not relevant -- MCP tools are invoked by name.
+
+```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
+const resources = {
+  "POST /mcp": {
+    accepts: {
+      scheme: "exact",
+      price: "$0.01",
+      network: "eip155:84532",
+      payTo: "0xYourAddress"
+    },
+    extensions: {
+      ...declareDiscoveryExtension({
+        toolName: "financial_analysis",
+        description: "Analyze financial data for a given ticker",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string", description: "Stock ticker symbol" },
+            analysis_type: {
+              type: "string",
+              enum: ["fundamental", "technical", "sentiment"],
+            },
+          },
+          required: ["ticker"],
+        },
+        example: { ticker: "AAPL", analysis_type: "fundamental" },
+        output: {
+          example: {
+            pe_ratio: 28.5,
+            recommendation: "hold",
+            confidence: 0.85
+          }
+        },
+      }),
+    },
+  },
+};
+```
+
+You can optionally specify `transport` to indicate the MCP transport type (`"streamable-http"` or `"sse"`). When omitted, `streamable-http` is assumed per the MCP spec.
+
 #### Using with Next.js Middleware
 
 ```typescript
@@ -305,9 +351,9 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
 
 #### `declareDiscoveryExtension(config)`
 
-Creates a discovery extension object for resource servers.
+Creates a discovery extension object for resource servers. Accepts either an HTTP endpoint config or an MCP tool config.
 
-**Parameters:**
+**HTTP Parameters:**
 - `config.input` (optional): Example input values (query params for GET/HEAD/DELETE, body for POST/PUT/PATCH)
 - `config.inputSchema` (optional): JSON Schema for input validation
 - `config.bodyType` (required for body methods): For POST/PUT/PATCH, specify `"json"`, `"form-data"`, or `"text"`. This is how TypeScript discriminates between query methods (GET/HEAD/DELETE) and body methods.
@@ -317,11 +363,22 @@ Creates a discovery extension object for resource servers.
 
 > **Note:** The HTTP method is NOT passed to this function. It is automatically inferred from the route key (e.g., `"GET /weather"`) or enriched by `bazaarResourceServerExtension` at runtime.
 
+**MCP Parameters:**
+- `config.toolName` (required): MCP tool name — the presence of this field identifies the config as MCP
+- `config.description` (optional): Human-readable tool description
+- `config.inputSchema` (required): JSON Schema for tool arguments
+- `config.example` (optional): Example tool arguments
+- `config.transport` (optional): MCP transport type (`"streamable-http"` or `"sse"`). Defaults to `streamable-http` per the MCP spec when omitted.
+- `config.output` (optional): Output specification
+  - `output.example`: Example output data
+  - `output.schema`: JSON Schema for output validation
+
 **Returns:** An object with a `bazaar` key containing the discovery extension.
 
-**Example:**
+**Examples:**
 ```typescript
-const extension = declareDiscoveryExtension({
+// HTTP endpoint
+const httpExtension = declareDiscoveryExtension({
   input: { query: "search term" },
   inputSchema: {
     properties: { query: { type: "string" } },
@@ -331,7 +388,21 @@ const extension = declareDiscoveryExtension({
     example: { results: [] }
   }
 });
-// Returns: { bazaar: { info: {...}, schema: {...} } }
+
+// MCP tool
+const mcpExtension = declareDiscoveryExtension({
+  toolName: "search",
+  description: "Search for documents",
+  inputSchema: {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"]
+  },
+  output: {
+    example: { results: [] }
+  }
+});
+// Both return: { bazaar: { info: {...}, schema: {...} } }
 ```
 
 #### `extractDiscoveryInfo(paymentPayload, paymentRequirements, validate?)`
@@ -346,12 +417,21 @@ Extracts discovery information from a payment request (for facilitators).
 **Returns:** `DiscoveredResource` object or `null` if not found.
 
 ```typescript
-interface DiscoveredResource {
+interface DiscoveredHTTPResource {
   resourceUrl: string;
-  method: string;
+  method: string;        // e.g. "GET", "POST"
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
 }
+
+interface DiscoveredMCPResource {
+  resourceUrl: string;
+  toolName: string;      // MCP tool name
+  x402Version: number;
+  discoveryInfo: DiscoveryInfo;
+}
+
+type DiscoveredResource = DiscoveredHTTPResource | DiscoveredMCPResource;
 ```
 
 #### `validateDiscoveryExtension(extension)`
@@ -368,7 +448,7 @@ Validates and extracts discovery info in one step.
 
 #### `bazaarResourceServerExtension`
 
-A server extension that automatically enriches discovery extensions with HTTP method information from the request context.
+A server extension that automatically enriches HTTP discovery extensions with method information from the request context. MCP extensions are passed through unchanged.
 
 **Usage:**
 ```typescript
@@ -391,7 +471,7 @@ The Sign-In-With-X extension implements [CAIP-122](https://chainagnostic.org/CAI
 1. Server returns 402 with `sign-in-with-x` extension containing challenge parameters
 2. Client signs the CAIP-122 message with their wallet
 3. Client sends signed proof in `SIGN-IN-WITH-X` header
-4. Server verifies signature and grants access if wallet has previous payment
+4. Server verifies signature and grants access either because the route is auth-only or because the wallet has previously paid
 
 ### Server Usage
 
@@ -415,7 +495,7 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
   .registerExtension(siwxResourceServerExtension)  // Refreshes nonce/timestamps per request
   .onAfterSettle(createSIWxSettleHook({ storage }));  // Records payments
 
-// 2. Declare SIWX support in routes (network/domain/uri derived automatically)
+// 2. Declare SIWX support in routes
 const routes = {
   "GET /data": {
     accepts: [{scheme: "exact", price: "$0.01", network: "eip155:8453", payTo}],
@@ -423,11 +503,19 @@ const routes = {
       statement: 'Sign in to access your purchased content',
     }),
   },
+  "GET /profile": {
+    accepts: [],
+    extensions: declareSIWxExtension({
+      network: ["eip155:8453", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"],
+      statement: 'Sign in to view your profile',
+      expirationSeconds: 300,
+    }),
+  },
 };
 
 // 3. Verify incoming SIWX proofs
 const httpServer = new x402HTTPResourceServer(resourceServer, routes)
-  .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access if paid
+  .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access when SIWX auth is sufficient
 
 // Optional: Enable smart wallet support (EIP-1271/EIP-6492)
 import { createPublicClient, http } from 'viem';
@@ -444,7 +532,7 @@ const httpServerWithSmartWallets = new x402HTTPResourceServer(resourceServer, ro
 The hooks automatically:
 - **siwxResourceServerExtension**: Derives `network` from `accepts`, `domain`/`uri` from request URL, refreshes `nonce`/`issuedAt`/`expirationTime` per request
 - **createSIWxSettleHook**: Records payment when settlement succeeds
-- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access if wallet has paid
+- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access for auth-only routes or when the wallet has paid
 
 #### Manual Usage (Advanced)
 
@@ -454,18 +542,15 @@ import {
   parseSIWxHeader,
   validateSIWxMessage,
   verifySIWxSignature,
-  SIGN_IN_WITH_X,
 } from '@x402/extensions/sign-in-with-x';
 
 // 1. Declare in PaymentRequired response
-const extensions = {
-  [SIGN_IN_WITH_X]: declareSIWxExtension({
-    domain: 'api.example.com',
-    resourceUri: 'https://api.example.com/data',
-    network: 'eip155:8453',
-    statement: 'Sign in to access your purchased content',
-  }),
-};
+const extensions = declareSIWxExtension({
+  domain: 'api.example.com',
+  resourceUri: 'https://api.example.com/data',
+  network: 'eip155:8453',
+  statement: 'Sign in to access your purchased content',
+});
 
 // 2. Verify incoming proof
 async function handleRequest(request: Request) {
@@ -491,10 +576,8 @@ async function handleRequest(request: Request) {
   }
 
   // verification.address is the verified wallet
-  // Check if this wallet has paid before
-  const hasPaid = await checkPaymentHistory(verification.address);
-  if (hasPaid) {
-    // Grant access without payment
+  if (await isAuthOnlyRoute(request) || await checkPaymentHistory(verification.address)) {
+    // Grant access
   }
 }
 ```
@@ -532,15 +615,15 @@ import {
 // 1. Get extension and network from 402 response
 const paymentRequired = await response.json();
 const extension = paymentRequired.extensions['sign-in-with-x'];
-const paymentNetwork = paymentRequired.accepts[0].network; // e.g., "eip155:8453"
+const paymentNetwork = paymentRequired.accepts[0]?.network; // undefined for auth-only routes
 
 // 2. Find matching chain in supportedChains
-const matchingChain = extension.supportedChains.find(
-  chain => chain.chainId === paymentNetwork
-);
+const matchingChain = paymentNetwork
+  ? extension.supportedChains.find(chain => chain.chainId === paymentNetwork)
+  : extension.supportedChains[0];
 
 if (!matchingChain) {
-  // Payment network not supported for SIWX
+  // No chain supported by this signer / route combination
   throw new Error('Chain not supported');
 }
 
@@ -583,6 +666,8 @@ declareSIWxExtension({
 - `network` → from `accepts[].network` in route config
 - `resourceUri` → from request URL
 - `domain` → parsed from resourceUri
+
+For auth-only routes declared with `accepts: []`, `network` cannot be inferred from payment requirements and should be provided explicitly.
 
 **Multi-chain support:** When `network` is an array (or multiple networks in `accepts`), `supportedChains` will contain one entry per network.
 

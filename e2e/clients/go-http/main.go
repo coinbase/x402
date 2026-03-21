@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
@@ -49,7 +51,18 @@ func main() {
 		log.Fatal("❌ SVM_PRIVATE_KEY environment variable is required")
 	}
 
-	evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(evmPrivateKey)
+	// Connect to EVM RPC for on-chain reads (needed for EIP-2612 extension)
+	evmRpcURL := os.Getenv("EVM_RPC_URL")
+	if evmRpcURL == "" {
+		evmRpcURL = "https://sepolia.base.org"
+	}
+	ethClient, err := ethclient.Dial(evmRpcURL)
+	if err != nil {
+		outputError(fmt.Sprintf("Failed to connect to EVM RPC: %v", err))
+		return
+	}
+
+	evmSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(evmPrivateKey, ethClient)
 	if err != nil {
 		outputError(fmt.Sprintf("Failed to create EVM signer: %v", err))
 		return
@@ -61,9 +74,13 @@ func main() {
 		return
 	}
 
-	// Create x402 client with fluent API
+	var evmConfig *evm.ExactEvmSchemeConfig
+	if evmRpcURL != "" {
+		evmConfig = &evm.ExactEvmSchemeConfig{RPCURL: evmRpcURL}
+	}
+
 	x402Client := x402.Newx402Client().
-		Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
+		Register("eip155:*", evm.NewExactEvmScheme(evmSigner, evmConfig)).
 		Register("solana:*", svm.NewExactSvmScheme(svmSigner)).
 		RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
 		RegisterV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).

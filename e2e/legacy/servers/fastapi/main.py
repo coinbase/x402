@@ -2,11 +2,10 @@ import os
 import signal
 import sys
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 from x402.fastapi.middleware import require_payment
 from x402.types import EIP712Domain, TokenAmount, TokenAsset
 from x402.chains import (

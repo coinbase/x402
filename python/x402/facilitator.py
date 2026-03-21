@@ -56,7 +56,7 @@ class x402Facilitator(x402FacilitatorBase):
             ["eip155:8453", "eip155:84532"],
             ExactEvmFacilitatorScheme(wallet=facilitator_wallet),
         )
-        facilitator.register_extension("bazaar")
+        facilitator.register_extension(FacilitatorExtension(key="bazaar"))
 
         # Verify payment
         result = await facilitator.verify(payload, requirements)

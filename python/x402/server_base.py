@@ -142,7 +142,7 @@ class x402ResourceServerBase:
 
     def __init__(
         self,
-        facilitator_clients: _AnyFacilitatorClient | list[_AnyFacilitatorClient] | None = None,
+        facilitator_clients: (_AnyFacilitatorClient | list[_AnyFacilitatorClient] | None) = None,
     ) -> None:
         """Initialize base server."""
         # Normalize to list
@@ -325,7 +325,10 @@ class x402ResourceServerBase:
             amount=asset_amount.amount,
             pay_to=config.pay_to,
             max_timeout_seconds=config.max_timeout_seconds or 300,
-            extra=asset_amount.extra or {},
+            extra={
+                **(asset_amount.extra or {}),
+                **(config.extra or {}),
+            },
         )
 
         # Enhance with scheme-specific details

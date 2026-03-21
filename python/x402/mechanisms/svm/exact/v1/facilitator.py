@@ -1,5 +1,7 @@
 """SVM facilitator implementation for Exact payment scheme (V1 legacy)."""
 
+from __future__ import annotations
+
 import random
 from typing import Any
 
@@ -15,6 +17,7 @@ from .....schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
 from ...constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ERR_AMOUNT_INSUFFICIENT,
+    ERR_DUPLICATE_SETTLEMENT,
     ERR_FEE_PAYER_MISSING,
     ERR_FEE_PAYER_NOT_MANAGED,
     ERR_FEE_PAYER_TRANSFERRING,
@@ -39,9 +42,14 @@ from ...constants import (
     TOKEN_2022_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
 )
+from ...settlement_cache import SettlementCache
 from ...signer import FacilitatorSvmSigner
 from ...types import ExactSvmPayload
-from ...utils import decode_transaction_from_payload, derive_ata, get_token_payer_from_transaction
+from ...utils import (
+    decode_transaction_from_payload,
+    derive_ata,
+    get_token_payer_from_transaction,
+)
 
 
 class ExactSvmSchemeV1:
@@ -60,13 +68,19 @@ class ExactSvmSchemeV1:
     scheme = SCHEME_EXACT
     caip_family = "solana:*"
 
-    def __init__(self, signer: FacilitatorSvmSigner):
+    def __init__(
+        self,
+        signer: FacilitatorSvmSigner,
+        settlement_cache: SettlementCache | None = None,
+    ):
         """Create ExactSvmSchemeV1 facilitator.
 
         Args:
             signer: SVM signer for verification/settlement.
+            settlement_cache: Optional shared settlement cache (one is created if omitted).
         """
         self._signer = signer
+        self._settlement_cache = settlement_cache or SettlementCache()
 
     def get_extra(self, network: Network) -> dict[str, Any] | None:
         """Get mechanism-specific extra data.
@@ -98,6 +112,7 @@ class ExactSvmSchemeV1:
         self,
         payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context=None,
     ) -> VerifyResponse:
         """Verify SPL token payment payload (V1).
 
@@ -308,6 +323,7 @@ class ExactSvmSchemeV1:
         self,
         payload: PaymentPayloadV1,
         requirements: PaymentRequirementsV1,
+        context=None,
     ) -> SettleResponse:
         """Settle SPL token payment on-chain (V1).
 
@@ -324,13 +340,24 @@ class ExactSvmSchemeV1:
         network = payload.network
 
         # First verify
-        verify_result = self.verify(payload, requirements)
+        verify_result = self.verify(payload, requirements, context)
         if not verify_result.is_valid:
             return SettleResponse(
                 success=False,
                 error_reason=verify_result.invalid_reason,
                 network=network,
                 payer=verify_result.payer,
+                transaction="",
+            )
+
+        # Duplicate settlement check: reject if this transaction is already being settled.
+        tx_key = svm_payload.transaction
+        if self._settlement_cache.is_duplicate(tx_key):
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_DUPLICATE_SETTLEMENT,
+                network=network,
+                payer=verify_result.payer or "",
                 transaction="",
             )
 

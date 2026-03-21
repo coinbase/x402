@@ -82,6 +82,7 @@ export {
   x402HTTPResourceServer,
   HTTPAdapter,
   HTTPRequestContext,
+  HTTPTransportContext,
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,
@@ -93,7 +94,8 @@ export {
   DynamicPayTo,
   DynamicPrice,
   UnpaidResponseBody,
-  UnpaidResponseResult,
+  HTTPResponseBody,
+  SettlementFailedResponseBody,
   ProcessSettleResultResponse,
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
@@ -106,4 +108,5 @@ export {
   FacilitatorClient,
   FacilitatorConfig,
 } from "./httpFacilitatorClient";
+export { FacilitatorResponseError, getFacilitatorResponseError } from "../types";
 export { x402HTTPClient, PaymentRequiredContext, PaymentRequiredHook } from "./x402HTTPClient";

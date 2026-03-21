@@ -1,6 +1,8 @@
 import type { NetworkSet } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm';
+export type ProtocolFamily = 'evm' | 'svm' | 'aptos' | 'stellar';
+export type Transport = 'http' | 'mcp';
+export type TransferMethod = 'eip3009' | 'permit2';
 
 export interface ClientResult {
   success: boolean;
@@ -13,14 +15,20 @@ export interface ClientResult {
 export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
+  aptosPrivateKey: string;
+  stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
+  evmNetwork: string;
+  evmRpcUrl: string;
 }
 
 export interface ServerConfig {
   port: number;
   evmPayTo: string;
   svmPayTo: string;
+  aptosPayTo: string;
+  stellarPayTo: string;
   networks: NetworkSet;
   facilitatorUrl?: string;
 }
@@ -43,7 +51,10 @@ export interface TestEndpoint {
   description: string;
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
-  permit2?: boolean; // Endpoint requires Permit2 approval
+  transferMethod?: TransferMethod;
+  extensions?: string[];
+  /** True for Permit2 standard/direct settle - requires pre-approval (approve before test, not revoke) */
+  permit2Direct?: boolean;
   health?: boolean;
   close?: boolean;
 }
@@ -51,11 +62,15 @@ export interface TestEndpoint {
 export interface TestConfig {
   name: string;
   type: 'server' | 'client' | 'facilitator';
+  transport?: Transport;
   language: string;
   protocolFamilies?: ProtocolFamily[];
   x402Version?: number;
   x402Versions?: number[];
   extensions?: string[];
+  evm?: {
+    transferMethods: TransferMethod[];
+  };
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {
