@@ -93,8 +93,8 @@ export function addressToScriptPublicKey(address: string): { version: number; sc
     // P2PK: OP_DATA_32 (0x20) + xOnlyPubKey (32 bytes) + OP_CHECKSIG (0xac)
     return { version: 0, script: "20" + hex + "ac" };
   } else if (version === 1) {
-    // P2PK ECDSA: OP_DATA_33 (0x21) + compressedPubKey (33 bytes) + OP_CODESEPARATOR (0xab) + OP_CHECKSIGECDSA (0xaa)
-    return { version: 0, script: "21" + hex + "abaa" };
+    // P2PK ECDSA: OP_DATA_33 (0x21) + compressedPubKey (33 bytes) + OP_CHECKSIGECDSA (0xab)
+    return { version: 0, script: "21" + hex + "ab" };
   } else if (version === 8) {
     // P2SH: OP_BLAKE2B (0xaa) + OP_DATA_32 (0x20) + scriptHash (32 bytes) + OP_EQUAL (0x87)
     return { version: 0, script: "aa20" + hex + "87" };
@@ -138,7 +138,7 @@ export type SerializedTransaction = {
     /** Covenant binding (present for token outputs). */
     covenant?: { authorizingInput: number; covenantId: string };
   }[];
-  lock_time: number;
+  lockTime: number;
   gas: number;
   subnetworkId: string;
   payload: string;

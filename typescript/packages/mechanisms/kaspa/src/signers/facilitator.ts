@@ -70,7 +70,7 @@ function reconstructTransaction(txData: SerializedTransaction): Transaction {
     version: txData.version,
     inputs,
     outputs,
-    lockTime: BigInt(txData.lock_time),
+    lockTime: BigInt(txData.lockTime),
     subnetworkId: txData.subnetworkId,
     gas: BigInt(txData.gas),
     payload: txData.payload,
