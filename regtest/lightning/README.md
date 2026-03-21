@@ -1,33 +1,47 @@
-# Lightning regtest (Polar + LND)
+# Lightning regtest (Docker Compose + LND)
 
 Layer 3 tests run against real LND nodes on regtest.
 
 ## Prerequisites
 
-- Polar installed and running
-- A Polar network with:
-  - 1 `bitcoind`
-  - 2 LND nodes named `alice` (merchant) and `bob` (client)
-  - A funded channel between `alice` and `bob` (recommended: 1,000,000 sats)
-- `jq` installed
+- Docker (with `docker compose`)
+- Python environment for `x402/python/x402` tests (`uv` recommended)
 
-## Setup
+## One-command setup
 
 From the `x402` repo root:
 
 ```bash
-bash regtest/lightning/setup-polar.sh
+bash regtest/lightning/setup.sh
 ```
 
-This generates `regtest/lightning/.env.lightning` with the detected node paths and REST endpoints.
+This command:
 
-## Run Layer 3 tests
+- starts `bitcoind`, `alice`, and `bob` via `docker-compose`
+- funds `alice`
+- opens and confirms an `alice -> bob` channel
+- writes `regtest/lightning/.env.lightning` with REST hosts + TLS cert/macaroon paths
+
+## Run Layer 3 tests (includes setup)
 
 ```bash
-cd python/x402
-uv run pytest tests/integrations/test_lightning.py -v
+bash regtest/lightning/run-tests.sh
 ```
 
-## Manual env setup (optional)
+## Run Layer 3 tests (reuse existing stack)
 
-If auto-detection does not match your Polar layout, copy `regtest/lightning/.env.example` to `regtest/lightning/.env.lightning` and edit values.
+```bash
+bash regtest/lightning/run-tests.sh --skip-setup
+```
+
+## Teardown
+
+```bash
+bash regtest/lightning/teardown.sh
+```
+
+Remove all persisted data/volumes:
+
+```bash
+bash regtest/lightning/teardown.sh --purge
+```

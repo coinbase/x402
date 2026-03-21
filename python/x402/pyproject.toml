@@ -169,7 +169,7 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "requires_lightning_regtest: Requires Polar / external Lightning regtest infra",
+    "requires_lightning_regtest: Requires Dockerized Lightning regtest infra",
 ]
 
 [tool.towncrier]

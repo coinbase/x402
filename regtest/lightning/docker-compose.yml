@@ -1,0 +1,82 @@
+services:
+  bitcoind:
+    image: btcpayserver/bitcoin:30.2
+    restart: unless-stopped
+    environment:
+      BITCOIN_NETWORK: regtest
+      BITCOIN_WALLETDIR: "/data/wallets"
+      BITCOIN_EXTRA_ARGS: |-
+        rpcuser=x402
+        rpcpassword=x402pass
+        rpcport=43782
+        rpcbind=0.0.0.0:43782
+        rpcallowip=0.0.0.0/0
+        port=39388
+        whitelist=0.0.0.0/0
+        zmqpubrawblock=tcp://0.0.0.0:28332
+        zmqpubrawtx=tcp://0.0.0.0:28333
+        fallbackfee=0.0002
+        minrelaytxfee=0.00001000
+    ports:
+      - "43782:43782"
+      - "39388:39388"
+    volumes:
+      - ./data/bitcoin:/data
+
+  alice:
+    image: btcpayserver/lnd:v0.19.3-beta
+    restart: unless-stopped
+    environment:
+      LND_CHAIN: "btc"
+      LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://bitcoind:43782/"
+      LND_REST_LISTEN_HOST: https://localhost:8080
+      LND_EXTRA_ARGS: |-
+        restlisten=0.0.0.0:8080
+        rpclisten=127.0.0.1:10009
+        bitcoin.node=bitcoind
+        bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=x402
+        bitcoind.rpcpass=x402pass
+        bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+        bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+        externalip=alice:9735
+        bitcoin.defaultchanconfs=1
+        debuglevel=debug
+        trickledelay=1000
+    depends_on:
+      - bitcoind
+    ports:
+      - "18080:8080"
+      - "19735:9735"
+    volumes:
+      - ./data/alice:/data
+
+  bob:
+    image: btcpayserver/lnd:v0.19.3-beta
+    restart: unless-stopped
+    environment:
+      LND_CHAIN: "btc"
+      LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://bitcoind:43782/"
+      LND_REST_LISTEN_HOST: https://localhost:8080
+      LND_EXTRA_ARGS: |-
+        restlisten=0.0.0.0:8080
+        rpclisten=127.0.0.1:10009
+        bitcoin.node=bitcoind
+        bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=x402
+        bitcoind.rpcpass=x402pass
+        bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+        bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+        externalip=bob:9735
+        bitcoin.defaultchanconfs=1
+        debuglevel=debug
+        trickledelay=1000
+    depends_on:
+      - bitcoind
+    ports:
+      - "18081:8080"
+      - "29735:9735"
+    volumes:
+      - ./data/bob:/data
