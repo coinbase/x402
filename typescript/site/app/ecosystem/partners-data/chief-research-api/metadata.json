@@ -1,0 +1,7 @@
+{
+  "name": "Chief Research API",
+  "description": "AI-powered market research reports via x402 micropayments. Get instant analysis on tech trends, market opportunities, and competitive landscapes using LLM-generated insights.",
+  "logoUrl": "/logos/chief-research-api.png",
+  "websiteUrl": "https://github.com/erikparr/chief-x402-service",
+  "category": "Services/Endpoints"
+}
