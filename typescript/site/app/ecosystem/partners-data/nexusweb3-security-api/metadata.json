@@ -1,0 +1,8 @@
+{
+    "name": "NexusWeb3 Security API",
+    "description": "AI-powered Web3 security analysis — contract audits, DeFi attack surface mapping, exploit PoC
+  generation, fuzzing, vulnerability patterns, and risk scoring. Pay per call with USDC via x402.",
+    "logoUrl": "/logos/nexusweb3.png",
+    "websiteUrl": "https://nexusweb3dev.github.io/",
+    "category": "Services/Endpoints"
+  }
