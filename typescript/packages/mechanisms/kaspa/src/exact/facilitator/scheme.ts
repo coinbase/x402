@@ -22,7 +22,6 @@ import type {
   VerifyResponse,
   SettleResponse,
   SchemeNetworkFacilitator,
-  FacilitatorContext,
 } from "@x402/core/types";
 
 /**
@@ -30,9 +29,7 @@ import type {
  */
 const settlementCache = new Set<string>();
 
-/**
- *
- */
+/** Facilitator-side x402 scheme for Kaspa exact payments. */
 export class ExactKaspaScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = KASPA_CAIP_FAMILY;
@@ -40,8 +37,9 @@ export class ExactKaspaScheme implements SchemeNetworkFacilitator {
   private signer: FacilitatorKaspaSigner;
 
   /**
+   * Create a new ExactKaspaScheme.
    *
-   * @param signer
+   * @param signer - Facilitator signer for transaction verification and broadcast
    */
   constructor(signer: FacilitatorKaspaSigner) {
     this.signer = signer;
@@ -51,18 +49,20 @@ export class ExactKaspaScheme implements SchemeNetworkFacilitator {
    * Return extra data to include in PaymentRequirements.
    * For Kaspa, no extra data is needed (unlike SVM which needs feePayer).
    *
-   * @param _network
+   * @param _ - Network identifier (unused for Kaspa)
+   * @returns Undefined, as Kaspa requires no extra fields
    */
-  getExtra(_network: string): Record<string, unknown> | undefined {
+  getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
   }
 
   /**
    * Return all facilitator-managed signer addresses.
    *
-   * @param _network
+   * @param _ - Network identifier (unused, all networks share addresses)
+   * @returns Array of managed Kaspa addresses
    */
-  getSigners(_network: string): string[] {
+  getSigners(_: string): string[] {
     return [...this.signer.getAddresses()];
   }
 
@@ -74,16 +74,15 @@ export class ExactKaspaScheme implements SchemeNetworkFacilitator {
    * 2. Transaction has correct recipient and amount
    * 3. Transaction signatures are valid
    * 4. UTXOs referenced in the transaction exist and are unspent
-   * 5. Asset is native KAS
+   * 5. Asset is valid (native KAS or covenant token)
    *
-   * @param payload
-   * @param requirements
-   * @param _context
+   * @param payload - Payment payload containing the signed transaction
+   * @param requirements - Payment requirements to verify against
+   * @returns Verification result with validity status
    */
   async verify(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
-    _context?: FacilitatorContext,
   ): Promise<VerifyResponse> {
     try {
       const kaspaPayload = payload.payload as unknown as ExactKaspaPayloadV2;
@@ -155,14 +154,13 @@ export class ExactKaspaScheme implements SchemeNetworkFacilitator {
    * 4. Wait for confirmation
    * 5. Return transaction ID
    *
-   * @param payload
-   * @param requirements
-   * @param _context
+   * @param payload - Payment payload containing the signed transaction
+   * @param requirements - Payment requirements for re-verification
+   * @returns Settlement result with transaction ID
    */
   async settle(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
-    _context?: FacilitatorContext,
   ): Promise<SettleResponse> {
     const kaspaPayload = payload.payload as unknown as ExactKaspaPayloadV2;
 
@@ -240,9 +238,10 @@ export class ExactKaspaScheme implements SchemeNetworkFacilitator {
  * - The output amount >= required amount
  * - Extracts payer address from inputs
  *
- * @param transaction
- * @param requirements
- * @param signer
+ * @param transaction - Serialized signed transaction
+ * @param requirements - Payment requirements to validate against
+ * @param signer - Facilitator signer for transaction parsing
+ * @returns Validation result with payer address on success
  */
 async function validateTransaction(
   transaction: string,

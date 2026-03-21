@@ -36,7 +36,8 @@ export const COVENANT_ID_REGEX = /^[0-9a-f]{64}$/;
  * Check whether an asset identifier refers to a covenant token.
  * Returns false for "native" (KAS) and true for valid 64-char hex covenant IDs.
  *
- * @param asset
+ * @param asset - The asset identifier to check
+ * @returns True if the asset is a valid covenant token ID
  */
 export function isCovenantAsset(asset: string): boolean {
   return COVENANT_ID_REGEX.test(asset);
@@ -46,7 +47,7 @@ export function isCovenantAsset(asset: string): boolean {
  * Validate that an asset identifier is either "native" or a valid covenant ID.
  * Throws on invalid values (e.g., "USDC", short hex, uppercase hex).
  *
- * @param asset
+ * @param asset - The asset identifier to validate
  */
 export function validateAsset(asset: string): void {
   if (asset !== KAS_NATIVE_ASSET && !COVENANT_ID_REGEX.test(asset)) {

@@ -37,7 +37,8 @@ export interface KaspaFacilitatorSignerOptions {
 /**
  * Reconstruct a kaspa-wasm Transaction from the serialized JSON format.
  *
- * @param txData
+ * @param txData - Serialized transaction data
+ * @returns Reconstructed kaspa-wasm Transaction instance
  */
 function reconstructTransaction(txData: SerializedTransaction): Transaction {
   const inputs = txData.inputs.map(
@@ -80,9 +81,10 @@ function reconstructTransaction(txData: SerializedTransaction): Transaction {
  * Reverse a P2PK script ("20" + pubkeyHex + "ac") to a Kaspa address.
  * Returns the hex-encoded script as-is if not a recognized format.
  *
- * @param scriptPublicKey
- * @param scriptPublicKey.version
- * @param scriptPublicKey.script
+ * @param scriptPublicKey - Script public key with version and hex script
+ * @param scriptPublicKey.version - Script version number
+ * @param scriptPublicKey.script - Hex-encoded script bytes
+ * @returns Address hint as script hex
  */
 function scriptToAddressHint(scriptPublicKey: { version: number; script: string }): string {
   // For now, return the script hex as an address hint.
@@ -96,7 +98,6 @@ function scriptToAddressHint(scriptPublicKey: { version: number; script: string 
 /**
  * Create a FacilitatorKaspaSigner backed by kaspa-wasm RpcClient.
  *
- * @param opts
  * @example
  * ```ts
  * const signer = await createKaspaFacilitatorSigner({
@@ -105,6 +106,9 @@ function scriptToAddressHint(scriptPublicKey: { version: number; script: string 
  *   addresses: ["kaspa:qr0lr4ml..."],
  * });
  * ```
+ *
+ * @param opts - Facilitator signer configuration options
+ * @returns Configured FacilitatorKaspaSigner instance
  */
 export async function createKaspaFacilitatorSigner(
   opts: KaspaFacilitatorSignerOptions,

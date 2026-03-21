@@ -12,10 +12,11 @@ const CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 /**
  * Convert between bit widths (BIP173 convertbits).
  *
- * @param data
- * @param fromBits
- * @param toBits
- * @param pad
+ * @param data - Array of values to convert
+ * @param fromBits - Source bit width
+ * @param toBits - Target bit width
+ * @param pad - Whether to pad the output
+ * @returns Converted values, or null if padding is invalid
  */
 function convertBits(
   data: number[],
@@ -109,8 +110,9 @@ export function addressToScriptPublicKey(address: string): { version: number; sc
  * WARNING: Loses precision for values > Number.MAX_SAFE_INTEGER (2^53 - 1).
  * For Kaspa sompi, this supports up to ~90 million KAS (9e15 sompi).
  *
- * @param _key
- * @param value
+ * @param _key - JSON key (unused, required by JSON.stringify replacer signature)
+ * @param value - JSON value to potentially convert
+ * @returns The original value, or Number conversion if BigInt
  */
 export function bigIntToNumberReplacer(_key: string, value: unknown): unknown {
   return typeof value === "bigint" ? Number(value) : value;

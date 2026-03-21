@@ -1,5 +1,5 @@
 /**
- * @x402/kaspa — x402 payment protocol support for Kaspa.
+ * x402/kaspa — x402 payment protocol support for Kaspa.
  *
  * Kaspa is a UTXO-based blockchain with Schnorr signatures and
  * 10 BPS (blocks per second) throughput. This package implements

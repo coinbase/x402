@@ -5,8 +5,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-
-// Import from source
 import { isCovenantAsset, validateAsset } from "../../src/constants";
 import { selectUtxos } from "../../src/exact/client/scheme";
 import { ExactKaspaScheme as ClientScheme } from "../../src/exact/client/scheme";

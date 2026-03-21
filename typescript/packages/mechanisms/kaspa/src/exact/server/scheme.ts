@@ -16,13 +16,10 @@ import type {
   PaymentRequirements,
   SchemeNetworkServer,
   Price,
-  Network,
   AssetAmount,
 } from "@x402/core/types";
 
-/**
- *
- */
+/** Server-side x402 scheme for Kaspa exact payments. */
 export class ExactKaspaScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
 
@@ -34,10 +31,10 @@ export class ExactKaspaScheme implements SchemeNetworkServer {
    * - string: interpreted as KAS (e.g., "1.5" = 1.5 KAS)
    * - AssetAmount with asset "native": amount is treated as sompi
    *
-   * @param price
-   * @param _network
+   * @param price - Price as KAS number/string or AssetAmount
+   * @returns Resolved asset and amount in sompi
    */
-  async parsePrice(price: Price, _network: Network): Promise<AssetAmount> {
+  async parsePrice(price: Price): Promise<AssetAmount> {
     let amountSompi: bigint;
 
     if (typeof price === "object" && "asset" in price) {
@@ -76,23 +73,11 @@ export class ExactKaspaScheme implements SchemeNetworkServer {
    * For Kaspa, no additional fields are needed beyond the base requirements.
    * (Unlike SVM, which adds feePayer.)
    *
-   * @param paymentRequirements
-   * @param _supportedKind
-   * @param _supportedKind.x402Version
-   * @param _supportedKind.scheme
-   * @param _supportedKind.network
-   * @param _supportedKind.extra
-   * @param _facilitatorExtensions
+   * @param paymentRequirements - Base payment requirements to enhance
+   * @returns Enhanced payment requirements (unchanged for Kaspa)
    */
   async enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
-    _supportedKind: {
-      x402Version: number;
-      scheme: string;
-      network: Network;
-      extra?: Record<string, unknown>;
-    },
-    _facilitatorExtensions: string[],
   ): Promise<PaymentRequirements> {
     return paymentRequirements;
   }

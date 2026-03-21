@@ -43,7 +43,6 @@ export interface KaspaClientSignerOptions {
  * depends on UtxoProcessor (active RPC). For production use, integrate
  * with kaspa-wasm's wallet APIs (UtxoProcessor + createTransaction).
  *
- * @param opts
  * @example
  * ```ts
  * const signer = await createKaspaClientSigner({
@@ -52,6 +51,9 @@ export interface KaspaClientSignerOptions {
  *   networkId: "mainnet",
  * });
  * ```
+ *
+ * @param opts - Client signer configuration options
+ * @returns Configured ClientKaspaSigner instance
  */
 export async function createKaspaClientSigner(
   opts: KaspaClientSignerOptions,

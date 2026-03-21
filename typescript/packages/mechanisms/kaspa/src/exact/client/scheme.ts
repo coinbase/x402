@@ -6,32 +6,25 @@
  * is included in the x402 payment payload.
  */
 
-import {
-  MIN_FEE_SOMPI,
-  KAS_NATIVE_ASSET,
-  isCovenantAsset,
-  validateAsset,
-} from "../../constants.js";
+import { MIN_FEE_SOMPI, isCovenantAsset, validateAsset } from "../../constants.js";
 import type { ClientKaspaSigner } from "../../signer.js";
 import type { ExactKaspaPayloadV2, UtxoEntry, TransactionOutput } from "../../types.js";
 import type {
   PaymentRequirements,
   PaymentPayloadResult,
   SchemeNetworkClient,
-  PaymentPayloadContext,
 } from "@x402/core/types";
 
-/**
- *
- */
+/** Client-side x402 scheme for Kaspa exact payments. */
 export class ExactKaspaScheme implements SchemeNetworkClient {
   readonly scheme = "exact";
 
   private signer: ClientKaspaSigner;
 
   /**
+   * Create a new ExactKaspaScheme.
    *
-   * @param signer
+   * @param signer - Client signer for transaction construction and signing
    */
   constructor(signer: ClientKaspaSigner) {
     this.signer = signer;
@@ -48,14 +41,13 @@ export class ExactKaspaScheme implements SchemeNetworkClient {
    * 5. Sign the transaction via signer
    * 6. Return the signed transaction as the payload
    *
-   * @param x402Version
-   * @param paymentRequirements
-   * @param _context
+   * @param x402Version - Protocol version number
+   * @param paymentRequirements - Payment requirements from the server
+   * @returns Signed payment payload
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-    _context?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult> {
     const { payTo, amount, asset } = paymentRequirements;
 
@@ -168,8 +160,9 @@ export class ExactKaspaScheme implements SchemeNetworkClient {
  * Simple UTXO selection: largest-first.
  * Selects UTXOs until the total covers the required amount.
  *
- * @param utxos
- * @param requiredAmount
+ * @param utxos - Available UTXOs to select from
+ * @param requiredAmount - Minimum total amount needed in sompi
+ * @returns Selected UTXOs and their total value
  */
 export function selectUtxos(
   utxos: UtxoEntry[],
