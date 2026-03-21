@@ -1,0 +1,7 @@
+{
+    "name": "Azeth",
+    "description": "Trust infrastructure for the machine economy. Non-custodial ERC-4337 smart accounts with guardian-enforced guardrails, x402 payment middleware for Hono, on-chain reputation via ERC-8004 trust registry, and 32-tool MCP server for AI agents. SDK, provider, and CLI available on npm.",
+    "logoUrl": "/logos/azeth.svg",
+    "websiteUrl": "https://azeth.ai",
+    "category": "Infrastructure & Tooling"
+}
