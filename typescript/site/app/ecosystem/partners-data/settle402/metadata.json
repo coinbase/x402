@@ -1,0 +1,14 @@
+{
+  "name": "settle402",
+  "logoUrl": "/logos/settle402.svg",
+  "description": "Batch settlement for x402 micro-payments via Multicall3. Batches up to 1,000 EIP-3009 authorizations into a single on-chain transaction, reducing per-payment gas costs by 1000x. Built for high-volume MCP servers where individual settlement is uneconomical.",
+  "websiteUrl": "https://settle402.dev",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://api.settle402.dev",
+    "networks": ["base"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009"],
+    "supports": { "verify": false, "settle": true, "supported": true, "list": false }
+  }
+}
