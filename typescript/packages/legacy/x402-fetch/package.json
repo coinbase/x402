@@ -1,6 +1,7 @@
 {
   "name": "x402-fetch",
   "version": "1.2.0",
+  "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",

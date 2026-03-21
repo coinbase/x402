@@ -1,6 +1,7 @@
 {
   "name": "@x402/extensions",
   "version": "2.7.0",
+  "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -56,8 +57,8 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/esm/index.d.mts",
-        "default": "./dist/esm/index.mjs"
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
       },
       "require": {
         "types": "./dist/cjs/index.d.ts",
@@ -66,8 +67,8 @@
     },
     "./bazaar": {
       "import": {
-        "types": "./dist/esm/bazaar/index.d.mts",
-        "default": "./dist/esm/bazaar/index.mjs"
+        "types": "./dist/esm/bazaar/index.d.ts",
+        "default": "./dist/esm/bazaar/index.js"
       },
       "require": {
         "types": "./dist/cjs/bazaar/index.d.ts",
@@ -76,8 +77,8 @@
     },
     "./sign-in-with-x": {
       "import": {
-        "types": "./dist/esm/sign-in-with-x/index.d.mts",
-        "default": "./dist/esm/sign-in-with-x/index.mjs"
+        "types": "./dist/esm/sign-in-with-x/index.d.ts",
+        "default": "./dist/esm/sign-in-with-x/index.js"
       },
       "require": {
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
@@ -86,8 +87,8 @@
     },
     "./offer-receipt": {
       "import": {
-        "types": "./dist/esm/offer-receipt/index.d.mts",
-        "default": "./dist/esm/offer-receipt/index.mjs"
+        "types": "./dist/esm/offer-receipt/index.d.ts",
+        "default": "./dist/esm/offer-receipt/index.js"
       },
       "require": {
         "types": "./dist/cjs/offer-receipt/index.d.ts",
@@ -96,8 +97,8 @@
     },
     "./payment-identifier": {
       "import": {
-        "types": "./dist/esm/payment-identifier/index.d.mts",
-        "default": "./dist/esm/payment-identifier/index.mjs"
+        "types": "./dist/esm/payment-identifier/index.d.ts",
+        "default": "./dist/esm/payment-identifier/index.js"
       },
       "require": {
         "types": "./dist/cjs/payment-identifier/index.d.ts",
