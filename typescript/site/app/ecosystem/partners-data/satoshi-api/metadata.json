@@ -1,6 +1,6 @@
 {
   "name": "Satoshi API",
-  "description": "Open-source Bitcoin data API with 120+ endpoints. Pay per request with USDC via x402 for premium features like AI analysis and transaction broadcast.",
+  "description": "Bitcoin data API with free endpoints and x402 micropayments for paid features including AI analysis and transaction broadcast.",
   "logoUrl": "/logos/satoshi-api.png",
   "websiteUrl": "https://bitcoinsapi.com",
   "category": "Services/Endpoints"
