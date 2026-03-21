@@ -1,0 +1,7 @@
+{
+  "name": "Buzz BD Agent",
+  "description": "Autonomous exchange listing agent by SolCex. Buzz uses x402 to monetize real-time token intelligence — hot token pipeline, per-token scoring, and 20-agent MiroFish listing simulations — all payable in USDC on Base.",
+  "logoUrl": "/logos/buzz-bd-logo.png",
+  "websiteUrl": "https://api.buzzbd.ai/.well-known/x402.json",
+  "category": "Services/Endpoints"
+}
