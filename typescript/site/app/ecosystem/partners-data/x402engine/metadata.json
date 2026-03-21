@@ -1,0 +1,7 @@
+{
+  "name": "x402engine",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402engine.png",
+  "description": "Pay-per-call API gateway with 74 endpoints for AI agents. 44 LLMs, image/video generation, crypto data, wallet analytics, web search, code execution, TTS, IPFS, and travel. Supports USDC on Base/Solana and USDm on MegaETH.",
+  "websiteUrl": "https://x402engine.app"
+}
