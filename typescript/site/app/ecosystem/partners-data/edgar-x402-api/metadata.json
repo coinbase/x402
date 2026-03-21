@@ -1,0 +1,7 @@
+{
+  "name": "SEC EDGAR Regulatory API",
+  "description": "Pay-per-use access to SEC EDGAR filings, company lookups, XBRL financial data, and full-text search. Designed for AI agents and developers needing normalized regulatory data without subscriptions or API keys.",
+  "logoUrl": "/logos/edgar-x402-api.png",
+  "websiteUrl": "https://edgar-x402-api.fly.dev",
+  "category": "Services/Endpoints"
+}

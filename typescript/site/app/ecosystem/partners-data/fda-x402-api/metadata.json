@@ -1,0 +1,7 @@
+{
+  "name": "FDA Regulatory API",
+  "description": "Pay-per-use access to FDA drug approvals (NDA/BLA), drug labels, adverse events (FAERS), and recall data. Designed for AI agents in pharma, biotech, and clinical research. $0.005 USDC per request.",
+  "logoUrl": "/logos/fda-x402-api.png",
+  "websiteUrl": "https://fda-x402-api.fly.dev",
+  "category": "Services/Endpoints"
+}
