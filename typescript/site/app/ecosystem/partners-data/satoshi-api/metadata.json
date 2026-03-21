@@ -1,0 +1,7 @@
+{
+  "name": "Satoshi API",
+  "description": "Bitcoin data API with free endpoints and x402 micropayments for paid features including AI analysis and transaction broadcast.",
+  "logoUrl": "/logos/satoshi-api.png",
+  "websiteUrl": "https://bitcoinsapi.com",
+  "category": "Services/Endpoints"
+}
