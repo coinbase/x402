@@ -1,0 +1,7 @@
+{
+    "name": "brandontan.app APIs",
+    "description": "Six pay-per-call APIs on Base mainnet via x402: weather forecast (Open-Meteo), currency exchange rates (ECB), timezone conversion, IP geolocation, real-time crypto prices (CoinGecko), and heartfelt message generation. $0.001–$0.02 USDC per call. No signup, no API keys — just pay per use.",
+    "logoUrl": "/logos/brandontan-app.png",
+    "websiteUrl": "https://brandontan.app/agentic-services",
+    "category": "Services/Endpoints"
+}
