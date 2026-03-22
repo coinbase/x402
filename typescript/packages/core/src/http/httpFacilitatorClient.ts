@@ -274,7 +274,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
 
   /**
    * Get supported payment kinds and extensions from the facilitator.
-   * Retries with exponential backoff on 429 rate limit errors.
+   * Retries with exponential backoff on 429 rate limit errors and network failures.
    *
    * @returns Supported payment kinds and extensions
    */
@@ -290,32 +290,61 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < GET_SUPPORTED_RETRIES; attempt++) {
-      const response = await fetch(`${this.url}/supported`, {
-        method: "GET",
-        headers,
-        redirect: "follow",
-      });
+      try {
+        const response = await fetch(`${this.url}/supported`, {
+          method: "GET",
+          headers,
+          redirect: "follow",
+        });
 
-      if (response.ok) {
-        return parseSuccessResponse(response, supportedResponseSchema, "supported");
+        if (response.ok) {
+          return parseSuccessResponse(response, supportedResponseSchema, "supported");
+        }
+
+        const errorText = await response.text().catch(() => response.statusText);
+        lastError = new FacilitatorResponseError(
+          `Facilitator getSupported failed (${response.status}): ${responseExcerpt(errorText)}`,
+        );
+
+        // Retry on 429 rate limit errors with exponential backoff
+        if (response.status === 429 && attempt < GET_SUPPORTED_RETRIES - 1) {
+          const delay = GET_SUPPORTED_RETRY_DELAY_MS * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw lastError;
+      } catch (fetchError: unknown) {
+        // Handle network errors, redirect failures, etc.
+        if (fetchError instanceof FacilitatorResponseError) {
+          // Re-throw facilitator response errors (non-network errors)
+          throw fetchError;
+        }
+
+        if (fetchError instanceof Error) {
+          lastError = new FacilitatorResponseError(
+            `Facilitator getSupported network error: ${fetchError.message}`,
+          );
+        } else {
+          lastError = new FacilitatorResponseError(
+            `Facilitator getSupported unknown error: ${String(fetchError)}`,
+          );
+        }
+
+        // Retry on network errors if not the last attempt
+        if (attempt < GET_SUPPORTED_RETRIES - 1) {
+          const delay = GET_SUPPORTED_RETRY_DELAY_MS * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw lastError;
       }
-
-      const errorText = await response.text().catch(() => response.statusText);
-      lastError = new Error(
-        `Facilitator getSupported failed (${response.status}): ${responseExcerpt(errorText)}`,
-      );
-
-      // Retry on 429 rate limit errors with exponential backoff
-      if (response.status === 429 && attempt < GET_SUPPORTED_RETRIES - 1) {
-        const delay = GET_SUPPORTED_RETRY_DELAY_MS * Math.pow(2, attempt);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-
-      throw lastError;
     }
 
-    throw lastError ?? new Error("Facilitator getSupported failed after retries");
+    throw (
+      lastError ?? new FacilitatorResponseError("Facilitator getSupported failed after retries")
+    );
   }
 
   /**

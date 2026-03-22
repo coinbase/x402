@@ -2,8 +2,10 @@
 "@x402/core": patch
 ---
 
-Fix HTTPFacilitatorClient redirect handling for x402.org facilitator
+Fix HTTPFacilitatorClient redirect handling and improve error resilience
 
-The HTTPFacilitatorClient now properly follows HTTP redirects when making requests to facilitator endpoints. This fixes an issue where the middleware would silently pass through requests (returning 200 instead of 402) when the facilitator URL returned a 308 redirect, causing the middleware to fail to fetch supported payment kinds and render the payment protection non-functional.
-
-Addresses issue #1692 by adding `redirect: "follow"` option to all fetch calls in HTTPFacilitatorClient.
+- Enhanced error handling in HTTPFacilitatorClient.getSupported() to properly handle network failures and redirects
+- Added retry logic for network errors in addition to existing 429 rate limit retries  
+- Improved error messages to distinguish between HTTP errors and network failures
+- Added comprehensive test coverage for redirect handling and error scenarios
+- This fixes issue #1692 where middleware would silently pass through requests when facilitator redirect handling failed
