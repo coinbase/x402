@@ -1,5 +1,6 @@
 {
   "name": "x402",
+  "type": "module",
   "version": "1.2.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
