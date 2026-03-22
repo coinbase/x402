@@ -123,7 +123,7 @@ Settlement for Lightning Network payments is fundamentally different from blockc
 1. **Payment is already settled**: Lightning payments are settled instantly off-chain when the client pays the invoice (before submitting the `PAYMENT-SIGNATURE` header).
 2. **Server verification only**: The resource server only needs to verify that the payment was received by querying their Lightning wallet API or node.
 3. **No facilitator required**: Unlike blockchain schemes where a facilitator broadcasts transactions, Lightning payments go directly from payer to payee through the Lightning Network.
-4. **Instant finality**: Lightning payments are final once received, with no risk of reorgs or pending states.
+4. **Near-instant finality**: Lightning payments achieve near-instant finality under normal conditions. While payments may briefly remain in-flight, once received they are final with no risk of reorgs.
 
 The verification response includes the payment hash as the transaction identifier, which can be used to look up payment details in the Lightning node.
 
