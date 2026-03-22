@@ -15,6 +15,7 @@ Extensions are optional features that can be added to x402 payment flows. They f
 This package includes:
 - **Bazaar Discovery**: Automatic cataloging and indexing of x402-enabled resources
 - **Sign-In-With-X (SIWx)**: CAIP-122 wallet authentication for accessing previously purchased resources
+- **Token-Gate**: ERC-20/ERC-721 token-gated access — free or discounted entry for token holders
 
 ## Bazaar Discovery Extension
 
@@ -782,6 +783,50 @@ Extension identifier constant (`"sign-in-with-x"`).
 - Verify `expirationTime` hasn't passed
 - Ensure `domain` matches the server's domain
 - Confirm `uri` matches the resource URI
+
+## Token-Gate Extension
+
+The Token-Gate extension grants free or discounted access to ERC-20/ERC-721 token holders. Clients prove wallet ownership with a lightweight EIP-191 signed proof — no on-chain transaction required.
+
+**Example use cases:**
+- NFT holders get free API calls (e.g. hold a membership NFT → zero-cost access)
+- DAO token holders get discounted data feeds (e.g. hold 1000 GOV → 50% off)
+- Early-adopter ERC-20 holders bypass paywalls on premium endpoints
+- Protocol-native access tiers: hold more tokens, pay less per request
+- Agent-native token gating: AI agents that hold a specific token unlock mint or airdrop API endpoints
+
+### How It Works
+
+1. Client signs a proof with their wallet (`personal_sign`) and sends it in the `token-gate` header
+2. Server verifies the signature and checks freshness (default: 5 minute window)
+3. Server checks on-chain balance via `balanceOf()` or `ownerOf()` (results cached for 5 minutes by default)
+4. Token holders receive free access (or a discount) without going through the payment flow
+
+### Server Setup
+
+```typescript
+import { createTokenGateRequestHook } from '@x402/extensions/token-gate';
+import { base } from 'viem/chains';
+
+const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+  .onProtectedRequest(createTokenGateRequestHook({
+    contracts: [{ address: '0xYourNFT', chain: base, type: 'ERC-721' }],
+    access: 'free',
+  }));
+```
+
+### Client Setup
+
+```typescript
+import { createTokenGateClientHook } from '@x402/extensions/token-gate';
+
+const httpClient = new x402HTTPClient(client)
+  .onPaymentRequired(createTokenGateClientHook({ account }));
+```
+
+When the server returns a 402 with the `token-gate` extension, the client hook signs a proof of wallet ownership (EIP-191) and retries the request with the proof header. The server then verifies the signature and checks on-chain ownership.
+
+See [`src/token-gate/README.md`](src/token-gate/README.md) for full documentation including discount mode and per-route 402 advertisement.
 
 ## Related Resources
 

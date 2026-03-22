@@ -20,3 +20,6 @@ export * from "./eip2612-gas-sponsoring";
 
 // ERC-20 Approval Gas Sponsoring extension
 export * from "./erc20-approval-gas-sponsoring";
+
+// Token-gate extension
+export * from "./token-gate";
