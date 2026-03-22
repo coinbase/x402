@@ -48,7 +48,13 @@ This example involves three components running concurrently:
    pnpm install
    ```
 
-4. **Environment Variables (`example/.env`):** Create a `.env` file in the `example` directory with the following variables (replace placeholder values):
+4. **Environment Variables (`.env`):** Copy the `.env-local` file to `.env` and fill in the following variables:
+
+   ```bash
+   cp .env-local .env
+   ```
+
+   Then update the `.env` file with your values:
 
    ```dotenv
    # Wallet that pays the USDC (needs USDC and ETH for gas)
@@ -57,6 +63,9 @@ This example involves three components running concurrently:
    # HTTP RPC endpoint for the blockchain network (e.g., Base Sepolia)
    # Must be accessible by all components
    PROVIDER_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
+
+   # Address that will receive the USDC payments
+   PAYMENT_RECIPIENT_ADDRESS=0xYOUR_PAYMENT_RECIPIENT_WALLET_ADDRESS
    ```
 
 ## Running the Example
