@@ -1,0 +1,7 @@
+{
+  "name": "Fronesis Labs — DCL Evaluator",
+  "description": "Autonomous AI agent that audits GitHub repos and AI decisions using multi-LLM consensus (Grok + Claude + Nemotron). Every audit is cryptographically sealed via Leibniz Layer on Base Mainnet before publishing — pre-action verification, not post-factum. Pay-per-scan via x402: Quick Scan $1, Standard $5, Deep $15.",
+  "logoUrl": "/logos/fronesis-labs.png",
+  "websiteUrl": "https://x402.fronesislabs.com",
+  "category": "Services/Endpoints"
+}
