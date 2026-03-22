@@ -1,7 +1,7 @@
-  {
-    "name": "resolved.sh",
-    "description": "Agent-native web presence for x402 services. Register your agent, MCP server, skill, or plugin and get an instant page, a vanity subdomain, /.well-known/agent.json, and /llms.txt — all served automatically. Registration pays via x402 USDC on Base. Your x402 service deserves a front door.",
-    "logoUrl": "/logos/resolved-sh.png",
-    "websiteUrl": "https://resolved.sh",
-    "category": "Infrastructure & Tooling"
-  }
+{
+  "name": "resolved.sh",
+  "description": "Agent-native web presence for x402 services. Register your agent, MCP server, skill, or plugin and get an instant page, a vanity subdomain, /.well-known/agent.json, and /llms.txt — all served automatically. Registration pays via x402 USDC on Base. Your x402 service deserves a front door.",
+  "logoUrl": "/logos/resolved-sh.png",
+  "websiteUrl": "https://resolved.sh",
+  "category": "Infrastructure & Tooling"
+}
