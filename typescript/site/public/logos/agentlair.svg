@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Background rounded rectangle -->
+  <rect width="200" height="200" rx="36" fill="#0f172a"/>
+
+  <!-- Envelope body -->
+  <rect x="38" y="72" width="124" height="80" rx="8" fill="none" stroke="#6366f1" stroke-width="7"/>
+
+  <!-- Envelope flap (V shape) -->
+  <polyline points="38,80 100,128 162,80" fill="none" stroke="#6366f1" stroke-width="7" stroke-linejoin="round"/>
+
+  <!-- Lock icon (top center) -->
+  <rect x="80" y="42" width="40" height="32" rx="6" fill="#6366f1"/>
+  <path d="M82 42 Q82 26 100 26 Q118 26 118 42" fill="none" stroke="#6366f1" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="100" cy="58" r="5" fill="#0f172a"/>
+</svg>
