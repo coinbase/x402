@@ -1,0 +1,7 @@
+{
+  "name": "Hodler DeFi Intelligence",
+  "description": "Real-time DeFi data for AI agents: stablecoin monitoring (120+ USD stablecoins), redeem arbitrage opportunities with spread% and APR, and cross-chain pair discovery across 10 EVM chains. 6 endpoints at $0.01 USDC on Base via x402.",
+  "logoUrl": "/logos/hodler-defi-intelligence.svg",
+  "websiteUrl": "https://x402.hodle.com.br/.well-known/agent-catalog.json",
+  "category": "Services/Endpoints"
+}
