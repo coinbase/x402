@@ -59,7 +59,7 @@ describe("x402ResourceServer", () => {
 
       // Should not throw - uses default client
       await expect(server.initialize()).resolves.not.toThrow();
-    });
+    }, 10000); // 10 second timeout for network requests
   });
 
   describe("register", () => {

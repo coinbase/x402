@@ -138,7 +138,26 @@ describe("Core Integration Tests", () => {
       expect(initial402Response.headers).toBeDefined();
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
       expect(initial402Response.isHtml).toBeFalsy();
-      expect(initial402Response.body).toEqual({});
+
+      // Verify agent-friendly structured response body
+      const responseBody = initial402Response.body as any;
+      expect(responseBody).toMatchObject({
+        status: 402,
+        payment_required: {
+          scheme: "cash",
+          currency: "USD",
+          network: "x402:cash",
+          recipient: "merchant@example.com",
+        },
+        resource: {
+          url: "https://example.com/api/protected",
+          description: "Access to protected API",
+        },
+        error: "Payment required",
+        next_steps: expect.arrayContaining([
+          expect.stringContaining("Check error message for specific guidance"),
+        ]),
+      });
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(

@@ -893,4 +893,204 @@ describe("x402HTTPResourceServer", () => {
       }
     });
   });
+
+  describe("Agent-friendly response bodies", () => {
+    it("should provide structured response body for unpaid requests", async () => {
+      const routes = {
+        "/api/test": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0x1234567890123456789012345678901234567890",
+            price: "$0.001" as Price,
+            network: "eip155:8453" as Network,
+          },
+          description: "Test endpoint for weather data",
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      adapter.getAcceptHeader = () => "application/json";
+      adapter.getUserAgent = () => "AIAgent/1.0";
+
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/test",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("payment-error");
+      if (result.type === "payment-error") {
+        const body = result.response.body as any;
+
+        // Check structured response format
+        expect(body).toMatchObject({
+          status: 402,
+          payment_required: {
+            amount: "1.000", // MockSchemeNetworkServer returns 1000000 = 1.000 USDC
+            currency: "USDC",
+            network: "Base",
+            recipient: "0x1234567890123456789012345678901234567890",
+            description: "Test endpoint for weather data",
+            scheme: "exact",
+          },
+          resource: {
+            url: "https://example.com/api/test",
+            description: "Test endpoint for weather data",
+          },
+          error: "Payment required", // This is the actual error message in PaymentRequired
+          next_steps: expect.arrayContaining([
+            expect.stringContaining("Check error message for specific guidance"),
+            expect.stringContaining("Verify USDC balance and network connectivity"),
+          ]),
+          header_format: "Include PAYMENT-SIGNATURE header with signed payment payload",
+        });
+
+        // Ensure it's not an empty object
+        expect(Object.keys(body).length).toBeGreaterThan(3);
+      }
+    });
+
+    it("should provide structured response body for settlement failures", async () => {
+      // Override mock to simulate settlement failure
+      mockFacilitator.settle = async () => ({
+        success: false,
+        errorReason: "insufficient_balance",
+        errorMessage: "Insufficient balance for payment",
+        payer: "0xpayer123",
+        transaction: "0xtx456",
+        network: "eip155:8453" as Network,
+      });
+
+      const routes = {
+        "/api/test": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$0.001" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+      });
+
+      const result = await httpServer.processSettlement(payload, requirements);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        // The response body should be structured
+        const responseBody = result.response.body as any;
+
+        expect(responseBody).toMatchObject({
+          status: 402,
+          error: "insufficient_balance",
+          message: "Wallet does not have sufficient balance for payment",
+          payer: "0xpayer123",
+          network: "eip155:8453",
+          transaction: "0xtx456",
+          next_steps: expect.arrayContaining([
+            expect.stringContaining("Fund wallet with USDC"),
+            expect.stringContaining("Verify wallet has enough balance"),
+            expect.stringContaining("Retry request after funding"),
+          ]),
+          details: {
+            settlement_attempted: true,
+            error_reason: "insufficient_balance",
+            error_message: "Insufficient balance for payment",
+            facilitator_network: "eip155:8453",
+          },
+        });
+
+        // Ensure it's not an empty object
+        expect(Object.keys(responseBody).length).toBeGreaterThan(3);
+      }
+    });
+
+    it("should preserve custom response body callbacks", async () => {
+      const customResponseBody = {
+        contentType: "application/json",
+        body: { custom: "response", preview: "data available" },
+      };
+
+      const routes = {
+        "/api/test": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$0.001" as Price,
+            network: "eip155:8453" as Network,
+          },
+          unpaidResponseBody: async () => customResponseBody,
+        },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/test",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("payment-error");
+      if (result.type === "payment-error") {
+        // Should use custom response body instead of agent-friendly default
+        expect(result.response.body).toEqual(customResponseBody.body);
+        expect(result.response.headers["Content-Type"]).toBe("application/json");
+      }
+    });
+
+    it("should detect various currencies correctly", async () => {
+      // Test with ETH payment option on Base (same network as registered)
+      const routes = {
+        "/api/test": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$0.001" as Price,
+            network: "eip155:8453" as Network, // Base network (already registered)
+          },
+        },
+      };
+
+      // Mock the scheme to return ETH asset
+      mockScheme.parsePrice = async () => ({
+        amount: "1000000000000000", // 0.001 ETH in wei
+        asset: "0x0000000000000000000000000000000000000000", // ETH
+        extra: {},
+      });
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+      const adapter = new MockHTTPAdapter();
+      const context: HTTPRequestContext = {
+        adapter,
+        path: "/api/test",
+        method: "GET",
+      };
+
+      const result = await httpServer.processHTTPRequest(context);
+
+      expect(result.type).toBe("payment-error");
+      if (result.type === "payment-error") {
+        const body = result.response.body as any;
+        expect(body.payment_required.currency).toBe("ETH");
+        expect(body.payment_required.network).toBe("Base");
+        expect(body.payment_required.amount).toBe("0.001000"); // 1000000000000000 wei formatted as ETH
+      }
+    });
+  });
 });
