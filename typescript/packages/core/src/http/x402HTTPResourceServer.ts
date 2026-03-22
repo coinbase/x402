@@ -657,7 +657,7 @@ export class x402HTTPResourceServer {
 
   /**
    * Build HTTPResponseInstructions for settlement failure.
-   * Uses settlementFailedResponseBody hook if configured, otherwise defaults to empty body.
+   * Uses settlementFailedResponseBody hook if configured, otherwise provides agent-friendly default.
    *
    * @param failure - Settlement failure result with headers
    * @param transportContext - Optional HTTP transport context for the request
@@ -677,7 +677,7 @@ export class x402HTTPResourceServer {
       : undefined;
 
     const contentType = customBody ? customBody.contentType : "application/json";
-    const body = customBody ? customBody.body : {};
+    const body = customBody ? customBody.body : this.createSettlementFailureResponseBody(failure);
 
     return {
       status: 402,
@@ -840,9 +840,11 @@ export class x402HTTPResourceServer {
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
 
-    // Use callback result if provided, otherwise default to JSON with empty object
+    // Use callback result if provided, otherwise provide agent-friendly default
     const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
-    const body = unpaidResponse ? unpaidResponse.body : {};
+    const body = unpaidResponse
+      ? unpaidResponse.body
+      : this.createAgentFriendlyResponseBody(paymentRequired);
 
     return {
       status,
@@ -1018,5 +1020,309 @@ export class x402HTTPResourceServer {
       }
     }
     return 0;
+  }
+
+  /**
+   * Create agent-friendly response body for unpaid requests.
+   * Includes structured payment information and actionable next steps for autonomous agents.
+   *
+   * @param paymentRequired - Payment required object with payment options
+   * @returns Structured response body with payment instructions and next steps
+   */
+  private createAgentFriendlyResponseBody(paymentRequired: PaymentRequired): unknown {
+    const primaryOption = paymentRequired.accepts[0];
+    if (!primaryOption) {
+      return {
+        status: 402,
+        error: "payment_required",
+        message: "Payment required to access this endpoint",
+        next_steps: ["Include x402 payment header in request"],
+      };
+    }
+
+    // Detect currency from asset address/identifier
+    const currency = this.detectCurrency(primaryOption.asset, primaryOption.network);
+
+    // Convert amount to human-readable format
+    const amount = this.formatAmount(primaryOption.amount, currency);
+
+    // Get network display name
+    const network = this.getNetworkDisplayName(primaryOption.network);
+
+    return {
+      status: 402,
+      payment_required: {
+        amount,
+        currency,
+        network,
+        recipient: primaryOption.payTo,
+        description:
+          paymentRequired.resource?.description || "Pay-per-request access to this endpoint",
+        scheme: primaryOption.scheme,
+        timeout_seconds: primaryOption.maxTimeoutSeconds,
+      },
+      resource: {
+        url: paymentRequired.resource?.url,
+        description: paymentRequired.resource?.description,
+        mime_type: paymentRequired.resource?.mimeType,
+      },
+      error: paymentRequired.error || "payment_required",
+      next_steps: this.getNextSteps(paymentRequired.error || "payment_required", currency, network),
+      // Keep v2 header format as authoritative source
+      header_format: "Include PAYMENT-SIGNATURE header with signed payment payload",
+      multiple_options:
+        paymentRequired.accepts.length > 1
+          ? paymentRequired.accepts.map(opt => ({
+              scheme: opt.scheme,
+              network: this.getNetworkDisplayName(opt.network),
+              currency: this.detectCurrency(opt.asset, opt.network),
+              amount: this.formatAmount(opt.amount, this.detectCurrency(opt.asset, opt.network)),
+            }))
+          : undefined,
+    };
+  }
+
+  /**
+   * Create agent-friendly response body for settlement failures.
+   * Includes specific error context and recovery guidance.
+   *
+   * @param failure - Settlement failure result
+   * @param paymentRequired - Original payment required object for context
+   * @returns Structured response body with error details and recovery steps
+   */
+  private createSettlementFailureResponseBody(
+    failure: Omit<ProcessSettleFailureResponse, "response">,
+    paymentRequired?: PaymentRequired,
+  ): unknown {
+    const errorMessages: Record<string, string> = {
+      insufficient_balance: "Wallet does not have sufficient balance for payment",
+      invalid_signature: "Payment signature is invalid or malformed",
+      transaction_failed: "Payment transaction failed on blockchain",
+      timeout_exceeded: "Payment processing exceeded maximum timeout",
+      network_error: "Network error occurred during payment processing",
+      facilitator_error: "Facilitator service error during settlement",
+      duplicate_payment: "Payment has already been processed",
+    };
+
+    const errorReason = failure.errorReason || "unknown_error";
+    const humanMessage = errorMessages[errorReason] || failure.errorMessage || "Settlement failed";
+
+    // Get currency and network info if available
+    let currency = "USDC";
+    let network = "unknown";
+    if (paymentRequired && paymentRequired.accepts.length > 0) {
+      const primaryOption = paymentRequired.accepts[0];
+      currency = this.detectCurrency(primaryOption.asset, primaryOption.network);
+      network = this.getNetworkDisplayName(primaryOption.network);
+    }
+
+    return {
+      status: 402,
+      error: errorReason,
+      message: humanMessage,
+      payer: failure.payer,
+      network: failure.network,
+      transaction: failure.transaction,
+      next_steps: this.getNextSteps(errorReason, currency, network),
+      // Technical details for debugging
+      details: {
+        settlement_attempted: true,
+        error_reason: failure.errorReason,
+        error_message: failure.errorMessage,
+        facilitator_network: failure.network,
+      },
+    };
+  }
+
+  /**
+   * Detect currency from asset identifier and network.
+   *
+   * @param asset - Asset identifier (address or symbol)
+   * @param network - Network identifier
+   * @returns Human-readable currency name
+   */
+  private detectCurrency(asset: string, network: Network): string {
+    // USDC contract addresses on various networks
+    const usdcAddresses = new Set([
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // Base
+      "0xa0b86a33e6ad3047e6bc6cd8b0fd0b5db6f55e84", // Base Sepolia
+      "0xa0b86a33e6ad3047e6bc6cd8b0fd0b5db6f55e84", // Base Goerli
+      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum
+      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum One
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", // Polygon
+      "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Polygon (new)
+      "0xa0b86a33e6ad3047e6bc6cd8b0fd0b5db6f55e84", // Ethereum
+      "0xA0b86a33E6Ad3047e6BC6cD8b0fD0b5DB6F55e84", // Ethereum mainnet
+    ]);
+
+    const lowerAsset = asset.toLowerCase();
+
+    if (usdcAddresses.has(lowerAsset) || asset.toUpperCase() === "USDC") {
+      return "USDC";
+    }
+
+    // ETH/WETH detection
+    if (
+      lowerAsset === "0x0000000000000000000000000000000000000000" ||
+      lowerAsset.includes("weth") ||
+      asset.toUpperCase() === "ETH" ||
+      asset.toUpperCase() === "WETH"
+    ) {
+      return "ETH";
+    }
+
+    // Solana tokens
+    if (network.toString().includes("solana")) {
+      if (asset === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") {
+        return "USDC";
+      }
+      if (asset === "So11111111111111111111111111111111111111112") {
+        return "SOL";
+      }
+    }
+
+    // Fallback to asset symbol or truncated address
+    if (asset.length > 10) {
+      return `${asset.slice(0, 6)}...${asset.slice(-4)}`;
+    }
+
+    return asset.toUpperCase();
+  }
+
+  /**
+   * Format amount for human readability based on currency.
+   *
+   * @param amount - Raw amount string
+   * @param currency - Currency identifier
+   * @returns Formatted amount string
+   */
+  private formatAmount(amount: string, currency: string): string {
+    try {
+      const amountNum = parseFloat(amount);
+
+      // USDC and most stablecoins use 6 decimals
+      if (currency === "USDC") {
+        return (amountNum / 1_000_000).toFixed(3);
+      }
+
+      // ETH and most native tokens use 18 decimals
+      if (currency === "ETH" || currency === "SOL") {
+        return (amountNum / 1_000_000_000_000_000_000).toFixed(6);
+      }
+
+      // Fallback: assume 6 decimal places for most tokens
+      return (amountNum / 1_000_000).toFixed(6);
+    } catch {
+      return amount; // Return raw amount if parsing fails
+    }
+  }
+
+  /**
+   * Get display name for network identifier.
+   *
+   * @param network - Network identifier (e.g., "eip155:8453")
+   * @returns Human-readable network name
+   */
+  private getNetworkDisplayName(network: Network): string {
+    const networkStr = network.toString();
+
+    // EVM networks
+    if (networkStr.includes("eip155:")) {
+      const chainId = networkStr.split(":")[1];
+      const chainNames: Record<string, string> = {
+        "1": "Ethereum",
+        "8453": "Base",
+        "137": "Polygon",
+        "42161": "Arbitrum",
+        "10": "Optimism",
+        "84532": "Base Sepolia",
+        "11155111": "Ethereum Sepolia",
+      };
+      return chainNames[chainId] || `Chain ${chainId}`;
+    }
+
+    // Solana networks
+    if (networkStr.includes("solana:")) {
+      if (
+        networkStr.includes("mainnet") ||
+        networkStr === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      ) {
+        return "Solana";
+      }
+      if (networkStr.includes("devnet")) {
+        return "Solana Devnet";
+      }
+      if (networkStr.includes("testnet")) {
+        return "Solana Testnet";
+      }
+    }
+
+    return networkStr;
+  }
+
+  /**
+   * Get actionable next steps based on error type.
+   *
+   * @param error - Error type or reason
+   * @param currency - Currency for context
+   * @param network - Network for context
+   * @returns Array of actionable next steps
+   */
+  private getNextSteps(error: string | undefined, currency: string, network: string): string[] {
+    if (!error || error === "payment_required") {
+      return [
+        `Ensure wallet has sufficient ${currency} balance on ${network}`,
+        "Generate and include x402 payment signature in PAYMENT-SIGNATURE header",
+        "Retry request with proper payment header",
+      ];
+    }
+
+    const errorSteps: Record<string, string[]> = {
+      insufficient_balance: [
+        `Fund wallet with ${currency} on ${network} network`,
+        "Verify wallet has enough balance to cover payment amount plus gas fees",
+        "Retry request after funding wallet",
+      ],
+      invalid_signature: [
+        "Verify wallet private key is correct",
+        "Regenerate payment signature with correct payment requirements",
+        "Ensure signature format matches x402 specification",
+        "Retry with new signature",
+      ],
+      transaction_failed: [
+        "Check network status and gas prices",
+        `Ensure sufficient ${currency} balance plus gas fees`,
+        "Wait a moment and retry the request",
+        "Consider increasing gas limit if on EVM networks",
+      ],
+      timeout_exceeded: [
+        "Retry request immediately - payment may have succeeded",
+        "Check transaction status on blockchain explorer",
+        "If transaction is pending, wait for confirmation before retrying",
+      ],
+      network_error: [
+        "Check network connectivity and try again",
+        "Verify the blockchain network is operational",
+        "Wait a moment and retry the request",
+      ],
+      facilitator_error: [
+        "Retry request after a brief delay",
+        "Check facilitator service status",
+        "Contact service provider if error persists",
+      ],
+      duplicate_payment: [
+        "Payment already processed successfully",
+        "Check if you received access to the requested resource",
+        "Do not retry unless you need to make a new payment",
+      ],
+    };
+
+    return (
+      errorSteps[error] || [
+        "Check error message for specific guidance",
+        `Verify ${currency} balance and network connectivity`,
+        "Retry request after addressing the error",
+      ]
+    );
   }
 }
