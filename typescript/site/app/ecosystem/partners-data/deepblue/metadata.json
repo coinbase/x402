@@ -1,0 +1,7 @@
+{
+  "name": "DeepBlue Trading API",
+  "description": "AI-powered DeFi research & autonomous trading signals. 10 paid endpoints covering live crypto signals, token analysis, wallet scanning, prediction market analytics, and sentiment composite. Pay-per-call with USDC on Base via x402.",
+  "logoUrl": "/logos/deepblue.png",
+  "websiteUrl": "https://api.deepbluebase.xyz/docs",
+  "category": "Services/Endpoints"
+}
