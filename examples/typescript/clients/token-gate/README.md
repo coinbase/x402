@@ -1,9 +1,9 @@
 # Token-Gate Client Example
 
 Client demonstrating token-gated access with x402:
-- Automatically checks on-chain token ownership when a server returns a `token-gate` 402
-- Sends a signed EIP-191 proof on retry if the wallet holds the required token
-- Falls back to normal x402 payment if the wallet is not a holder
+- Sends a signed EIP-191 proof of wallet ownership when a server returns a `token-gate` 402
+- Proof is included alongside the payment header — server decides free or paid
+- Falls back to normal x402 payment if the server determines the wallet is not a holder
 
 ```typescript
 import { x402Client, x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
@@ -30,11 +30,9 @@ const weather = await fetchWithPayment("http://localhost:4022/weather");
 
 1. **Client requests** a protected resource
 2. **Server returns 402** with `token-gate` extension (contract address, chainId, domain)
-3. **Hook reads the 402**, calls `balanceOf` (or `ownerOf`) on-chain to check ownership
-4. **If holder** — hook signs an EIP-191 proof and retries with the `token-gate` header → free access
-5. **If not holder** — hook returns `undefined`, normal x402 payment proceeds
-
-On-chain ownership results are cached for 5 minutes to avoid repeated RPC calls.
+3. **Hook reads the 402**, signs a proof of wallet ownership (EIP-191), adds it to the retry
+4. **Retry is sent** with the proof header alongside the payment header
+5. **Server verifies** the proof and checks on-chain ownership → grants free access (or a discount) or falls through to payment
 
 ## Prerequisites
 

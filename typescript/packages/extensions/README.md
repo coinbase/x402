@@ -799,7 +799,7 @@ The Token-Gate extension grants free or discounted access to ERC-20/ERC-721 toke
 
 1. Client signs a proof with their wallet (`personal_sign`) and sends it in the `token-gate` header
 2. Server verifies the signature and checks freshness (default: 5 minute window)
-3. Server checks on-chain balance via `balanceOf()` or `ownerOf()` (results cached for 60 seconds)
+3. Server checks on-chain balance via `balanceOf()` or `ownerOf()` (results cached for 5 minutes by default)
 4. Token holders receive free access (or a discount) without going through the payment flow
 
 ### Server Setup
@@ -824,7 +824,7 @@ const httpClient = new x402HTTPClient(client)
   .onPaymentRequired(createTokenGateClientHook({ account }));
 ```
 
-When the server returns a 402 with the `token-gate` extension, the client hook reads the contract info, checks on-chain ownership, and retries the request with a signed proof header.
+When the server returns a 402 with the `token-gate` extension, the client hook signs a proof of wallet ownership (EIP-191) and retries the request with the proof header. The server then verifies the signature and checks on-chain ownership.
 
 See [`src/token-gate/README.md`](src/token-gate/README.md) for full documentation including discount mode and per-route 402 advertisement.
 

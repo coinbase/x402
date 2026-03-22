@@ -13,7 +13,7 @@ x402 extension that grants free or discounted access to ERC-20/ERC-721 token hol
 
 1. Client sends a signed proof in the `token-gate` header (EIP-191 `personal_sign`)
 2. Server verifies the signature, checks freshness, then reads the on-chain token balance
-3. If the wallet holds the required tokens, access is granted without payment
+3. If the wallet holds the required tokens, free access (or a discount) is granted — non-holders fall through to normal payment
 
 Proof header value: base64-encoded JSON `{ address, domain, issuedAt, signature }`.
 
@@ -50,7 +50,7 @@ const routes = {
 
 ## Client setup
 
-When the server returns a 402 with the `token-gate` extension, the client hook checks ownership and attaches a signed proof for the retry:
+When the server returns a 402 with the `token-gate` extension, the client hook signs a proof of wallet ownership (EIP-191) and attaches it to the retry — the server then verifies the proof and checks on-chain ownership:
 
 ```typescript
 import { createTokenGateClientHook } from '@x402/extensions/token-gate';

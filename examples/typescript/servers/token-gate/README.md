@@ -31,13 +31,13 @@ app.use(paymentMiddlewareFromHTTPServer(httpServer));
 
 ## How It Works
 
-1. **Client requests** a protected route without a token-gate proof
+1. **Client requests** a protected route
 2. **Server returns 402** with `token-gate` extension listing the required contract and domain
-3. **Client reads the 402**, checks on-chain whether its wallet holds the token
-4. **If holder** — client signs an EIP-191 proof and retries with the `token-gate` header
-5. **Server verifies** the proof and checks on-chain ownership → grants free access
+3. **Client signs** a proof of wallet ownership (EIP-191) and retries with both the proof and payment headers
+4. **Server verifies** the proof signature and checks on-chain ownership (`balanceOf` / `ownerOf`)
+5. **Token holders** get free access (or a discount) — non-holders fall through to normal x402 payment
 
-Non-holders follow the normal x402 payment flow and pay the full price.
+On-chain ownership results are cached for 5 minutes (configurable via `ownershipCacheTtl`).
 
 ## Prerequisites
 
