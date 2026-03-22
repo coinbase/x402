@@ -33,6 +33,12 @@ export function buildProofMessage(domain: string, issuedAt: string): string {
 // Signer detection helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Returns true if the signer is a Solana signer (wallet-adapter or @solana/kit style).
+ *
+ * @param signer - Signer to detect
+ * @returns True if the signer is a Solana signer
+ */
 function isSolanaSigner(signer: TokenGateSigner): signer is TokenGateSolanaSigner {
   // SolanaKit: unique signMessages method
   if ("signMessages" in signer) return true;
@@ -46,16 +52,34 @@ function isSolanaSigner(signer: TokenGateSigner): signer is TokenGateSolanaSigne
   return false;
 }
 
+/**
+ * Returns true if the Solana signer is a wallet-adapter style signer.
+ *
+ * @param signer - Solana signer to detect
+ * @returns True if the signer is a WalletAdapter signer
+ */
 function isWalletAdapterSigner(
   signer: TokenGateSolanaSigner,
 ): signer is TokenGateWalletAdapterSigner {
   return "publicKey" in signer;
 }
 
+/**
+ * Returns true if the Solana signer is a @solana/kit KeyPairSigner style.
+ *
+ * @param signer - Solana signer to detect
+ * @returns True if the signer is a @solana/kit signer
+ */
 function isKitSigner(signer: TokenGateSolanaSigner): signer is TokenGateSolanaKitSigner {
   return "signMessages" in signer;
 }
 
+/**
+ * Extracts the base58 address string from a Solana signer.
+ *
+ * @param signer - Solana signer to extract address from
+ * @returns Base58-encoded public key string
+ */
 function getSolanaAddress(signer: TokenGateSolanaSigner): string {
   if (isWalletAdapterSigner(signer)) {
     const pk = signer.publicKey;
@@ -64,6 +88,13 @@ function getSolanaAddress(signer: TokenGateSolanaSigner): string {
   return signer.address;
 }
 
+/**
+ * Signs a message with a Solana signer and returns the base58-encoded signature.
+ *
+ * @param message - Message string to sign
+ * @param signer - Solana signer (wallet-adapter or @solana/kit style)
+ * @returns Base58-encoded signature string
+ */
 async function signSolanaMessage(message: string, signer: TokenGateSolanaSigner): Promise<string> {
   const msgBytes = new TextEncoder().encode(message);
   let sigBytes: Uint8Array;

@@ -2,11 +2,12 @@
  * Tests for token-gate extension
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { base } from "viem/chains";
 import nacl from "tweetnacl";
 import { base58 } from "@scure/base";
+import type { PaymentRequiredContext } from "@x402/core/types";
 import {
   TOKEN_GATE,
   TokenGateProofSchema,
@@ -20,7 +21,6 @@ import {
   createTokenGateExtension,
   createTokenGateRequestHook,
   createTokenGateClientHook,
-  clearOwnershipCache,
   type TokenGateProof,
   type TokenGateExtension,
   type TokenGateHookEvent,
@@ -33,16 +33,34 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Creates a random viem test account.
+ *
+ * @returns A viem PrivateKeyAccount
+ */
 function makeTestAccount() {
   return privateKeyToAccount(generatePrivateKey());
 }
 
+/**
+ * Creates a signed token-gate proof using a fresh random account.
+ *
+ * @param domain - Domain to bind the proof to
+ * @returns The test account and its signed proof
+ */
 async function makeSignedProof(domain = "api.example.com") {
   const account = makeTestAccount();
   const proof = await createTokenGateProof(account, domain);
   return { account, proof };
 }
 
+/**
+ * Creates a minimal request adapter for testing hook logic.
+ *
+ * @param header - Value for the token-gate header (undefined if absent)
+ * @param url - Request URL
+ * @returns Adapter object with getHeader and getUrl methods
+ */
 function makeAdapter(header: string | undefined, url = "https://api.example.com/data") {
   return {
     getHeader: (name: string) => {
@@ -53,12 +71,17 @@ function makeAdapter(header: string | undefined, url = "https://api.example.com/
   };
 }
 
-/** Build a @solana/kit-style signer from a nacl keypair */
+/**
+ * Builds a `@solana/kit`-style signer from a nacl keypair.
+ *
+ * @param kp - nacl sign keypair
+ * @returns TokenGateSolanaKitSigner backed by the keypair
+ */
 function makeNaclKitSigner(kp: nacl.SignKeyPair): TokenGateSolanaKitSigner {
   const address = base58.encode(kp.publicKey);
   return {
     address,
-    signMessages: async (messages) => {
+    signMessages: async messages => {
       return messages.map(({ content }) => ({
         [address]: nacl.sign.detached(content, kp.secretKey),
       }));
@@ -127,13 +150,15 @@ describe("TokenGateProofSchema", () => {
 
   it("rejects a proof missing domain", async () => {
     const { proof } = await makeSignedProof();
-    const { domain: _d, ...rest } = proof;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { domain: _domain, ...rest } = proof;
     expect(TokenGateProofSchema.safeParse(rest).success).toBe(false);
   });
 
   it("rejects a proof missing signatureType", async () => {
     const { proof } = await makeSignedProof();
-    const { signatureType: _s, ...rest } = proof;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { signatureType: _signatureType, ...rest } = proof;
     expect(TokenGateProofSchema.safeParse(rest).success).toBe(false);
   });
 });
@@ -605,7 +630,10 @@ describe("createTokenGateExtension", () => {
       },
     };
 
-    const result = await ext.enrichPaymentRequiredResponse!(declaration, context as any);
+    const result = await ext.enrichPaymentRequiredResponse!(
+      declaration,
+      context as PaymentRequiredContext,
+    );
     const r = result as TokenGateExtension;
     expect(r.info.contracts).toHaveLength(1);
     const c = r.info.contracts[0];
@@ -637,7 +665,10 @@ describe("createTokenGateExtension", () => {
       },
     };
 
-    const result = await ext.enrichPaymentRequiredResponse!(declaration, context as any);
+    const result = await ext.enrichPaymentRequiredResponse!(
+      declaration,
+      context as PaymentRequiredContext,
+    );
     const r = result as TokenGateExtension;
     expect(r.info.contracts).toHaveLength(1);
     const c = r.info.contracts[0];
@@ -662,7 +693,10 @@ describe("createTokenGateExtension", () => {
       },
     };
 
-    const result = await ext.enrichPaymentRequiredResponse!(declaration, context as any);
+    const result = await ext.enrichPaymentRequiredResponse!(
+      declaration,
+      context as PaymentRequiredContext,
+    );
     expect((result as TokenGateExtension).info.domain).toBe("myapi.io");
   });
 });
@@ -674,9 +708,7 @@ describe("createTokenGateExtension", () => {
 describe("declareTokenGateExtension", () => {
   it("creates correct structure for EVM contract", () => {
     const decl = declareTokenGateExtension({
-      contracts: [
-        { vm: "evm", address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" },
-      ],
+      contracts: [{ vm: "evm", address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" }],
       message: "NFT holders get free access",
     });
 
@@ -708,7 +740,12 @@ describe("declareTokenGateExtension", () => {
 
   it("stores _options for enrichPaymentRequiredResponse", () => {
     const contracts = [
-      { vm: "evm" as const, address: "0xNFT" as `0x${string}`, chain: base, type: "ERC-721" as const },
+      {
+        vm: "evm" as const,
+        address: "0xNFT" as `0x${string}`,
+        chain: base,
+        type: "ERC-721" as const,
+      },
     ];
     const decl = declareTokenGateExtension({ contracts });
     expect(decl[TOKEN_GATE]._options.contracts).toBe(contracts);
@@ -721,7 +758,7 @@ describe("declareTokenGateExtension", () => {
 
 describe("buildTokenGateSchema", () => {
   it("includes required fields", () => {
-    const schema = buildTokenGateSchema() as any;
+    const schema = buildTokenGateSchema() as { required: string[] };
     expect(schema.required).toContain("address");
     expect(schema.required).toContain("domain");
     expect(schema.required).toContain("issuedAt");

@@ -207,7 +207,7 @@ export interface TokenGateWalletAdapterSigner {
 }
 
 /**
- * @solana/kit KeyPairSigner style.
+ * Signer interface compatible with the `@solana/kit` KeyPairSigner style.
  */
 export interface TokenGateSolanaKitSigner {
   address: string;

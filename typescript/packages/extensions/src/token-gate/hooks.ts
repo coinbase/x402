@@ -76,8 +76,7 @@ export function createTokenGateRequestHook(options: CreateTokenGateRequestHookOp
   }): Promise<void | { grantAccess: true }> => {
     // Try both casing variants (HTTP headers are case-insensitive)
     const header =
-      context.adapter.getHeader(TOKEN_GATE) ||
-      context.adapter.getHeader(TOKEN_GATE.toLowerCase());
+      context.adapter.getHeader(TOKEN_GATE) || context.adapter.getHeader(TOKEN_GATE.toLowerCase());
 
     if (!header) return;
 

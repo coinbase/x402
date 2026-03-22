@@ -72,6 +72,13 @@ export async function verifyTokenGateProof(
   return verifyEip191Proof(proof, message);
 }
 
+/**
+ * Verifies an EIP-191 (personal_sign) token-gate proof.
+ *
+ * @param proof - Token-gate proof to verify
+ * @param message - Canonical message that was signed
+ * @returns Verification result with address if valid
+ */
 async function verifyEip191Proof(
   proof: TokenGateProof,
   message: string,
@@ -96,10 +103,14 @@ async function verifyEip191Proof(
   }
 }
 
-function verifyEd25519Proof(
-  proof: TokenGateProof,
-  message: string,
-): TokenGateVerifyResult {
+/**
+ * Verifies an ed25519 token-gate proof (Solana).
+ *
+ * @param proof - Token-gate proof to verify
+ * @param message - Canonical message that was signed
+ * @returns Verification result with address if valid
+ */
+function verifyEd25519Proof(proof: TokenGateProof, message: string): TokenGateVerifyResult {
   try {
     const sigBytes = base58.decode(proof.signature);
     const pubkeyBytes = base58.decode(proof.address);

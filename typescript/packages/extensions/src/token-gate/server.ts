@@ -21,6 +21,8 @@ import { buildTokenGateSchema } from "./schema";
  * Register this on your resource server to advertise token-gating
  * in 402 responses for routes that use `declareTokenGateExtension`.
  *
+ * @returns ResourceServerExtension for token-gate
+ *
  * @example
  * ```typescript
  * import { createTokenGateExtension } from '@x402/extensions/token-gate';

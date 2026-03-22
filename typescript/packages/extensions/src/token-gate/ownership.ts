@@ -42,6 +42,12 @@ const ownershipCache = new Map<string, CacheEntry>();
 /** Per-chain public clients, keyed by chainId */
 const clientCache = new Map<number, ReturnType<typeof createPublicClient>>();
 
+/**
+ * Returns a cached viem public client for the given EVM chain.
+ *
+ * @param chain - viem chain object
+ * @returns Public client for the chain
+ */
 function getPublicClient(chain: EvmTokenContract["chain"]) {
   const existing = clientCache.get(chain.id);
   if (existing) return existing;
@@ -50,6 +56,12 @@ function getPublicClient(chain: EvmTokenContract["chain"]) {
   return client;
 }
 
+/**
+ * Maps a Solana network identifier to its JSON RPC URL.
+ *
+ * @param network - CAIP-2 network string or raw https URL
+ * @returns RPC endpoint URL
+ */
 function solanaNetworkToRpcUrl(network: string): string {
   if (network === "solana:mainnet-beta" || network === "mainnet-beta") {
     return "https://api.mainnet-beta.solana.com";
@@ -69,6 +81,11 @@ function solanaNetworkToRpcUrl(network: string): string {
 
 /**
  * Check whether a single EVM contract grants holder status to the address.
+ *
+ * @param address - EVM wallet address to check
+ * @param contract - EVM token contract definition
+ * @param cacheTtlMs - Cache TTL in milliseconds
+ * @returns True if the address holds the required tokens
  */
 async function checkEvmContract(
   address: `0x${string}`,
@@ -117,6 +134,11 @@ async function checkEvmContract(
 
 /**
  * Check whether a Solana SPL token contract grants holder status to the address.
+ *
+ * @param address - Solana wallet address (base58)
+ * @param contract - SVM token contract definition
+ * @param cacheTtlMs - Cache TTL in milliseconds
+ * @returns True if the address holds the required tokens
  */
 async function checkSvmContract(
   address: string,
@@ -146,7 +168,11 @@ async function checkSvmContract(
     });
 
     const data = (await response.json()) as {
-      result?: { value?: Array<{ account?: { data?: { parsed?: { info?: { tokenAmount?: { amount?: string } } } } } }> };
+      result?: {
+        value?: Array<{
+          account?: { data?: { parsed?: { info?: { tokenAmount?: { amount?: string } } } } };
+        }>;
+      };
     };
 
     const accounts = data.result?.value ?? [];
@@ -192,6 +218,12 @@ export async function checkOwnership(
   const cacheTtlMs = cacheTtlSeconds * 1000;
   const isEvmAddress = address.startsWith("0x");
 
+  /**
+   * Routes a single contract to the appropriate EVM or SVM checker.
+   *
+   * @param contract - Token contract to check
+   * @returns True if the address qualifies as a holder for this contract
+   */
   async function checkContract(contract: TokenContract): Promise<boolean> {
     if (contract.vm === "evm") {
       // Skip EVM contracts for non-EVM addresses
