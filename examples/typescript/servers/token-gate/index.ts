@@ -56,7 +56,9 @@ function onEvent(event: TokenGateHookEvent) {
 
 const routes = {
   "GET /weather": {
-    accepts: [{ scheme: "exact" as const, price: "$0.001", network: EVM_NETWORK, payTo: evmAddress }],
+    accepts: [
+      { scheme: "exact" as const, price: "$0.001", network: EVM_NETWORK, payTo: evmAddress },
+    ],
     description: "Weather data — free for NFT holders",
     mimeType: "application/json",
     extensions: {
@@ -67,7 +69,9 @@ const routes = {
     },
   },
   "GET /joke": {
-    accepts: [{ scheme: "exact" as const, price: "$0.001", network: EVM_NETWORK, payTo: evmAddress }],
+    accepts: [
+      { scheme: "exact" as const, price: "$0.001", network: EVM_NETWORK, payTo: evmAddress },
+    ],
     description: "Joke content — free for NFT holders",
     mimeType: "application/json",
     extensions: {
