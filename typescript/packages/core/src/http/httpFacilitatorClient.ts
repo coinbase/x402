@@ -64,9 +64,18 @@ const GET_SUPPORTED_RETRY_DELAY_MS = 1000;
 
 const verifyResponseSchema: z.ZodType<VerifyResponse, z.ZodTypeDef, unknown> = z.object({
   isValid: z.boolean(),
-  invalidReason: z.string().optional(),
-  invalidMessage: z.string().optional(),
-  payer: z.string().optional(),
+  invalidReason: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
+  invalidMessage: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
+  payer: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
   extensions: z
     .record(z.string(), z.unknown())
     .nullish()
@@ -75,9 +84,18 @@ const verifyResponseSchema: z.ZodType<VerifyResponse, z.ZodTypeDef, unknown> = z
 
 const settleResponseSchema: z.ZodType<SettleResponse, z.ZodTypeDef, unknown> = z.object({
   success: z.boolean(),
-  errorReason: z.string().optional(),
-  errorMessage: z.string().optional(),
-  payer: z.string().optional(),
+  errorReason: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
+  errorMessage: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
+  payer: z
+    .string()
+    .nullish()
+    .transform(v => v ?? undefined),
   transaction: z.string(),
   network: z.custom<SettleResponse["network"]>(value => typeof value === "string"),
   extensions: z
