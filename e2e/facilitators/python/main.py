@@ -152,6 +152,7 @@ def _handle_after_verify(ctx: Any) -> None:
                 payment_requirements=ctx.requirements.model_dump(by_alias=True)
                 if hasattr(ctx.requirements, "model_dump")
                 else ctx.requirements,
+                route_template=getattr(discovered, "route_template", None),
             )
             print("   ✅ Added to bazaar catalog")
     except Exception as err:
@@ -243,11 +244,7 @@ async def verify(request: VerifyRequest):
         if not response.is_valid:
             print(f"  ❌ Verify rejected: {response.invalid_reason} (payer={response.payer})")
 
-        return {
-            "isValid": response.is_valid,
-            "payer": response.payer,
-            "invalidReason": response.invalid_reason,
-        }
+        return response.model_dump(by_alias=True, exclude_none=True)
     except Exception as e:
         import traceback
         print(f"Verify error: {e}")
@@ -282,28 +279,23 @@ async def settle(request: SettleRequest):
         # - Clean up tracking (on_after_settle / on_settle_failure)
         response = await facilitator.settle(payload, requirements)
 
-        return {
-            "success": response.success,
-            "transaction": response.transaction,
-            "network": response.network,
-            "payer": response.payer,
-            "errorReason": response.error_reason,
-        }
+        return response.model_dump(by_alias=True, exclude_none=True)
     except Exception as e:
         print(f"Settle error: {e}")
 
         # Check if this was an abort from hook
         if "aborted" in str(e).lower() or "Settlement aborted" in str(e):
-            # Return a proper SettleResponse instead of 500 error
-            return {
-                "success": False,
-                "errorReason": str(e).replace("Settlement aborted: ", ""),
-                "network": request.paymentPayload.get("accepted", {}).get(
+            from x402.schemas import SettleResponse
+
+            abort = SettleResponse(
+                success=False,
+                error_reason=str(e).replace("Settlement aborted: ", ""),
+                network=request.paymentPayload.get("accepted", {}).get(
                     "network", "unknown"
                 ),
-                "transaction": "",
-                "payer": None,
-            }
+                transaction="",
+            )
+            return abort.model_dump(by_alias=True, exclude_none=True)
 
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -319,15 +311,7 @@ async def supported():
         response = facilitator.get_supported()
 
         return {
-            "kinds": [
-                {
-                    "x402Version": k.x402_version,
-                    "scheme": k.scheme,
-                    "network": k.network,
-                    "extra": k.extra,
-                }
-                for k in response.kinds
-            ],
+            "kinds": [k.model_dump(by_alias=True, exclude_none=True) for k in response.kinds],
             "extensions": response.extensions,
             "signers": response.signers,
         }
