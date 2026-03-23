@@ -54,6 +54,8 @@ export interface FacilitatorConfig {
   evmPrivateKey?: string;
   svmPrivateKey?: string;
   aptosPrivateKey?: string;
+  hederaAccountId?: string;
+  hederaPrivateKey?: string;
   stellarPrivateKey?: string;
   networks: NetworkSet;
 }
@@ -115,6 +117,8 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
       EVM_PRIVATE_KEY: config.evmPrivateKey || '',
       SVM_PRIVATE_KEY: config.svmPrivateKey || '',
       APTOS_PRIVATE_KEY: config.aptosPrivateKey || '',
+      HEDERA_ACCOUNT_ID: config.hederaAccountId || '',
+      HEDERA_PRIVATE_KEY: config.hederaPrivateKey || '',
       STELLAR_PRIVATE_KEY: config.stellarPrivateKey || '',
 
       // Network configs from NetworkSet
@@ -124,6 +128,8 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
       SVM_RPC_URL: config.networks.svm.rpcUrl,
       APTOS_NETWORK: config.networks.aptos.caip2,
       APTOS_RPC_URL: config.networks.aptos.rpcUrl,
+      HEDERA_NETWORK: config.networks.hedera.caip2,
+      HEDERA_NODE_URL: config.networks.hedera.rpcUrl,
       STELLAR_NETWORK: config.networks.stellar.caip2,
       STELLAR_RPC_URL: config.networks.stellar.rpcUrl,
     };

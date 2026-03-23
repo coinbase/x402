@@ -4,12 +4,19 @@ Example client demonstrating how to use `@x402/axios` to make HTTP requests to e
 
 ```typescript
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
 import axios from "axios";
 
 const client = new x402Client();
-registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.EVM_PRIVATE_KEY) });
+client.register("eip155:*", new ExactEvmScheme(privateKeyToAccount(process.env.EVM_PRIVATE_KEY)));
+client.register(
+  "solana:*",
+  new ExactSvmScheme(await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY))),
+);
 
 const api = wrapAxiosWithPayment(axios.create(), client);
 

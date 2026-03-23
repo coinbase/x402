@@ -4,6 +4,7 @@ import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { ExactAptosScheme } from "@x402/aptos/exact/server";
+import { ExactHederaScheme } from "@x402/hedera/exact/server";
 import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import {
@@ -26,12 +27,16 @@ const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${
 const SVM_NETWORK = (process.env.SVM_NETWORK ||
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const APTOS_NETWORK = (process.env.APTOS_NETWORK || "aptos:2") as `${string}:${string}`;
+const HEDERA_NETWORK = (process.env.HEDERA_NETWORK || "hedera:testnet") as `${string}:${string}`;
 const STELLAR_NETWORK = (process.env.STELLAR_NETWORK || "stellar:testnet") as `${string}:${string}`;
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const EVM_PERMIT2_ASSET = process.env.EVM_PERMIT2_ASSET as `0x${string}`;
 const APTOS_PAYEE_ADDRESS = process.env.APTOS_PAYEE_ADDRESS as string;
+const HEDERA_PAYEE_ADDRESS = process.env.HEDERA_PAYEE_ADDRESS as string | undefined;
 const STELLAR_PAYEE_ADDRESS = process.env.STELLAR_PAYEE_ADDRESS as string | undefined;
+const HEDERA_HBAR_ASSET = "0.0.0";
+const HEDERA_WEATHER_PRICE_TINYBARS = "100000"; // 0.001 HBAR
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!EVM_PAYEE_ADDRESS) {
@@ -64,6 +69,9 @@ server.register("solana:*", new ExactSvmScheme());
 if (APTOS_PAYEE_ADDRESS) {
   server.register("aptos:*", new ExactAptosScheme());
 }
+if (HEDERA_PAYEE_ADDRESS) {
+  server.register("hedera:*", new ExactHederaScheme());
+}
 if (STELLAR_PAYEE_ADDRESS) {
   server.register("stellar:*", new ExactStellarScheme());
 }
@@ -85,6 +93,20 @@ app.get("/protected-aptos", (req, res, next) => {
     return res.status(501).json({
       error: "Aptos payments not configured",
       message: "APTOS_PAYEE_ADDRESS environment variable is not set",
+    });
+  }
+  next();
+});
+
+/**
+ * Pre-middleware guard for optional Hedera endpoint
+ * Returns 501 Not Implemented if Hedera is not configured
+ */
+app.get("/protected-hedera", (req, res, next) => {
+  if (!HEDERA_PAYEE_ADDRESS) {
+    return res.status(501).json({
+      error: "Hedera payments not configured",
+      message: "HEDERA_PAYEE_ADDRESS environment variable is not set",
     });
   }
   next();
@@ -166,32 +188,64 @@ app.use(
       },
       ...(APTOS_PAYEE_ADDRESS
         ? {
-          "GET /protected-aptos": {
-            accepts: {
-              payTo: APTOS_PAYEE_ADDRESS,
-              scheme: "exact",
-              price: "$0.001",
-              network: APTOS_NETWORK,
-            },
-            extensions: {
-              ...declareDiscoveryExtension({
-                output: {
-                  example: {
-                    message: "Protected endpoint accessed successfully",
-                    timestamp: "2024-01-01T00:00:00Z",
-                  },
-                  schema: {
-                    properties: {
-                      message: { type: "string" },
-                      timestamp: { type: "string" },
+            "GET /protected-aptos": {
+              accepts: {
+                payTo: APTOS_PAYEE_ADDRESS,
+                scheme: "exact",
+                price: "$0.001",
+                network: APTOS_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
                     },
-                    required: ["message", "timestamp"],
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
                   },
-                },
-              }),
+                }),
+              },
             },
-          },
-        }
+          }
+        : {}),
+      ...(HEDERA_PAYEE_ADDRESS
+        ? {
+            "GET /protected-hedera": {
+              accepts: {
+                payTo: HEDERA_PAYEE_ADDRESS,
+                scheme: "exact",
+                price: {
+                  amount: HEDERA_WEATHER_PRICE_TINYBARS,
+                  asset: HEDERA_HBAR_ASSET,
+                },
+                network: HEDERA_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected Hedera endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
+                    },
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
+                  },
+                }),
+              },
+            },
+          }
         : {}),
       // Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
       "GET /protected-permit2-erc20": {
@@ -279,32 +333,32 @@ app.use(
       },
       ...(STELLAR_PAYEE_ADDRESS
         ? {
-          "GET /protected-stellar": {
-            accepts: {
-              payTo: STELLAR_PAYEE_ADDRESS!,
-              scheme: "exact",
-              price: "$0.001",
-              network: STELLAR_NETWORK,
-            },
-            extensions: {
-              ...declareDiscoveryExtension({
-                output: {
-                  example: {
-                    message: "Protected Stellar endpoint accessed successfully",
-                    timestamp: "2024-01-01T00:00:00Z",
-                  },
-                  schema: {
-                    properties: {
-                      message: { type: "string" },
-                      timestamp: { type: "string" },
+            "GET /protected-stellar": {
+              accepts: {
+                payTo: STELLAR_PAYEE_ADDRESS!,
+                scheme: "exact",
+                price: "$0.001",
+                network: STELLAR_NETWORK,
+              },
+              extensions: {
+                ...declareDiscoveryExtension({
+                  output: {
+                    example: {
+                      message: "Protected Stellar endpoint accessed successfully",
+                      timestamp: "2024-01-01T00:00:00Z",
                     },
-                    required: ["message", "timestamp"],
+                    schema: {
+                      properties: {
+                        message: { type: "string" },
+                        timestamp: { type: "string" },
+                      },
+                      required: ["message", "timestamp"],
+                    },
                   },
-                },
-              }),
+                }),
+              },
             },
-          },
-        }
+          }
         : {}),
     },
     server, // Pass pre-configured server instance
@@ -347,6 +401,20 @@ app.get("/protected-svm", (req, res) => {
 app.get("/protected-aptos", (req, res) => {
   res.json({
     message: "Protected endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Protected Hedera endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for Hedera.
+ * Clients must provide a valid payment signature to access this endpoint.
+ * Note: 501 check is handled by pre-middleware guard above.
+ */
+app.get("/protected-hedera", (req, res) => {
+  res.json({
+    message: "Protected Hedera endpoint accessed successfully",
     timestamp: new Date().toISOString(),
   });
 });
@@ -448,16 +516,19 @@ app.listen(parseInt(PORT), () => {
 ║  EVM Network:  ${EVM_NETWORK}                          ║
 ║  SVM Network:  ${SVM_NETWORK}                          ║
 ║  Aptos Network: ${APTOS_NETWORK}                       ║
+║  Hedera Network: ${HEDERA_NETWORK}                     ║
 ║  Stellar Network: ${STELLAR_NETWORK}║
 ║  EVM Payee:    ${EVM_PAYEE_ADDRESS}                    ║
 ║  SVM Payee:    ${SVM_PAYEE_ADDRESS}                    ║
 ║  Aptos Payee:  ${APTOS_PAYEE_ADDRESS || "(not configured)"}
+║  Hedera Payee: ${HEDERA_PAYEE_ADDRESS || "(not configured)"}
 ║  Stellar Payee: ${STELLAR_PAYEE_ADDRESS || "(not configured)"}
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected             (EIP-3009 payment - EVM)    ║
 ║  • GET  /protected-svm         (SVM payment)               ║
 ║  • GET  /protected-aptos       (Aptos payment)             ║
+║  • GET  /protected-hedera      (Hedera payment)            ║
 ║  • GET  /protected-permit2     (Permit2 direct - EVM)       ║
 ║  • GET  /protected-permit2-eip2612 (Permit2 + EIP-2612)    ║
 ║  • GET  /protected-permit2-erc20 (Permit2 + ERC-20 approval) ║
