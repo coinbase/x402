@@ -5,6 +5,7 @@ packages:
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*
+  - packages/create-x402-wallet
   - examples/facilitator
   - examples/**/*
   - site

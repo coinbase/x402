@@ -1,0 +1,72 @@
+{
+  "name": "create-x402-wallet",
+  "version": "0.1.0",
+  "description": "Zero-config CLI tool for creating x402 agent wallets",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "create-x402-wallet": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsc --watch",
+    "format": "prettier -c ../../.prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
+    "format:check": "prettier -c ../../.prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
+    "lint": "eslint . --ext .ts --fix",
+    "lint:check": "eslint . --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "x402",
+    "wallet",
+    "cli",
+    "crypto",
+    "micropayments",
+    "base",
+    "usdc",
+    "agent"
+  ],
+  "author": "x402 Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@noble/secp256k1": "^2.1.0",
+    "@noble/hashes": "^1.4.0",
+    "commander": "^12.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@types/node": "^22.13.4",
+    "@types/prompts": "^2.4.9",
+    "@typescript-eslint/eslint-plugin": "^8.29.1",
+    "@typescript-eslint/parser": "^8.29.1",
+    "eslint": "^9.24.0",
+    "eslint-plugin-prettier": "^5.2.6",
+    "prettier": "3.5.2",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coinbase/x402.git",
+    "directory": "typescript/packages/create-x402-wallet"
+  }
+}
