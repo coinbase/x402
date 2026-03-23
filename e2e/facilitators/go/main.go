@@ -844,6 +844,7 @@ func main() {
 								version,
 								discovered.DiscoveryInfo,
 								requirements,
+								discovered.RouteTemplate,
 							)
 						}
 					} else if version == 1 {
@@ -865,6 +866,7 @@ func main() {
 								version,
 								discovered.DiscoveryInfo,
 								requirements,
+								discovered.RouteTemplate,
 							)
 						}
 					}
