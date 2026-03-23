@@ -46,7 +46,9 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 }
 ```
 
-- `asset`: Empty string `""` for native CCD, or the token name (e.g., `"EURR"`) for PLT/CIS-2 tokens.
+- `asset`: Identifies the payment asset for this transaction.
+  - `""` (empty string): Native CCD. This is the default.
+  - Token name (e.g., `"EURR"`): PLT/CIS-2 token identified by its registered symbol.
 - `extra.sponsorAddress`: The account address of the facilitator that will sponsor the transaction fees.
 
 ### Network Identifiers
@@ -85,7 +87,7 @@ The `payload` field of the `PaymentPayload` contains:
 }
 ```
 
-- `signedTransaction`: The JSON-serialized `Transaction.SignableV1` object, containing the sender's signature but with an empty sponsor signature slot.
+- `signedTransaction`: The JSON-serialized V1 sponsored transaction object, containing the sender's signature but with an empty sponsor signature slot.
 - `sender`: The sender's Concordium account address (base58).
 
 The `signedTransaction` is a V1 transaction with:
@@ -202,7 +204,7 @@ A facilitator verifying an `exact`-scheme Concordium payment MUST enforce all of
 1. Transaction version
 
 - The transaction MUST be version `1` (V1 sponsored transaction format).
-- The transaction MUST deserialize successfully via `Transaction.signableFromJSON()`.
+- The transaction MUST deserialize successfully from JSON into a valid V1 sponsored transaction.
 
 2. Sender identity
 
@@ -219,12 +221,14 @@ A facilitator verifying an `exact`-scheme Concordium payment MUST enforce all of
 - For native CCD (`asset` is `""`): the `toAddress` in the simple transfer payload MUST equal `PaymentRequirements.payTo`.
 - For PLT tokens: the `recipient` in the token update operations MUST equal `PaymentRequirements.payTo`.
 
-5. Amount
+5. Amount (exact match)
 
-- For native CCD: the transfer `amount` MUST be ≥ `PaymentRequirements.amount` (in microCCD).
-- For PLT tokens: the transfer `amount` MUST be ≥ `PaymentRequirements.amount` (in smallest token units).
+- For native CCD: the transfer `amount` MUST equal `PaymentRequirements.amount` (in microCCD).
+- For PLT tokens: the transfer `amount` MUST equal `PaymentRequirements.amount` (in smallest token units).
 
-6. Asset
+The exact scheme requires a strict equality check. Transactions with amounts greater than or less than the required amount MUST be rejected.
+
+6. Asset type
 
 - For native CCD: the transaction MUST be a `SimpleTransfer` or `SimpleTransferWithMemo` type.
 - For PLT tokens: the transaction MUST be a `TokenUpdate` type, and the `tokenId` MUST correspond to `PaymentRequirements.asset`.
@@ -237,11 +241,11 @@ A facilitator verifying an `exact`-scheme Concordium payment MUST enforce all of
 8. Sender signature
 
 - `transaction.signatures.sender` MUST contain at least one credential signature.
-- The sender signature SHOULD be verified cryptographically against the sender's on-chain account credentials using `Transaction.Signable.verifySignature()`.
+  The sender's credential signature(s) MUST be verified cryptographically against the sender's on-chain account credentials. The facilitator MUST fetch the sender's account information from the Concordium network and validate that the signature was produced by a key authorized for the sender account.
 
 9. Transaction payload safety
 
 - The transaction MUST contain exactly one transfer operation (no bundled or unexpected operations).
 - The facilitator's sponsor address MUST NOT appear as the sender, recipient, or authority of the transfer.
 
-These checks are security-critical to ensure the sponsor cannot be tricked into paying gas for unintended transactions. Implementations MAY introduce stricter limits (e.g., shorter expiry caps, mandatory cryptographic signature verification) but MUST NOT relax the above constraints.
+These checks are security-critical to ensure the sponsor cannot be tricked into paying gas for unintended transactions. Implementations MAY introduce stricter limits (e.g., shorter expiry caps) but MUST NOT relax the above constraints.
