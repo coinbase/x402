@@ -4,7 +4,7 @@
 
 This document specifies the `exact` payment scheme for the x402 protocol on Cardano. This scheme facilitates payments of Cardano Native Tokens.
 
-It offers different flavors to do x402 interactions:
+It offers different assetTransferMethods to do x402 interactions:
 
 1. Doing **Address-To-Address** Payments, similar to the regular x402 specifications on other chains.
 
@@ -110,7 +110,7 @@ When the Resource Server responds with a `402 Payment Required`, the body of the
     {
       "scheme": "exact",
       "network": "cardano:mainnet", // cardano:preprod or cardano:preview for public testnets
-      "maxAmountRequired": "10000", // 1 USDM = 1000000000
+      "amount": "10000", // 1 USDM = 1000000000
       "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
       "payTo": "addr1...",
       "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
@@ -122,7 +122,7 @@ When the Resource Server responds with a `402 Payment Required`, the body of the
 }
 ```
 
-#### Masumi Flavor Schema
+#### Masumi assetTransferMethod Schema
 
 When the Resource Server requires payment via the Masumi Smart Protocol, the `extra` field in the `PaymentRequirementsResponse` contains additional fields required for Masumi interactions.
 
@@ -139,15 +139,14 @@ When the Resource Server requires payment via the Masumi Smart Protocol, the `ex
     {
       "scheme": "exact",
       "network": "cardano:mainnet", // cardano:preprod or cardano:preview for public testnets
-      "maxAmountRequired": "10000", // 1 USDM = 1000000000
+      "amount": "10000", // 1 USDM = 1000000000
       "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
       "payTo": "addr1...",
       "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
       "extra": {
-        "flavor": "masumi", // optional, can be "default" | "masumi" | "script"
-        // If the masumi flavor is used, make sure to include all masumi related fields
+        "assetTransferMethod": "masumi", // optional, can be "default" | "masumi" | "script"
+        // If the masumi assetTransferMethod is used, make sure to include all masumi related fields
         "identifierFromPurchaser": "aabbaabb11221122aabb",
-        "network": "Mainnet | Preprod",
         "sellerVkey": "sdasdqweqwewewewqe",
         "paymentType": "Web3CardanoV1",
         "blockchainIdentifier": "blockchain_identifier",
@@ -157,14 +156,14 @@ When the Resource Server requires payment via the Masumi Smart Protocol, the `ex
         "externalDisputeUnlockTime": "1713636260",
         "agentIdentifier": "agent_identifier",
         "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-        // Additional fields for masumi or script flavors can be added here
+        // Additional fields for masumi or script assetTransferMethods can be added here
       }
     }
   ]
 }
 ```
 
-#### Script Flavor Schema
+#### Script assetTransferMethod Schema
 
 When the Resource Server requires payment to a script, the `extra` field in the `PaymentRequirementsResponse` contains additional fields required for script interactions.
 
@@ -181,13 +180,13 @@ When the Resource Server requires payment to a script, the `extra` field in the 
     {
       "scheme": "exact",
       "network": "cardano:mainnet", // cardano:preprod or cardano:preview for public testnets
-      "maxAmountRequired": "10000", // 1 USDM = 1000000000
+      "amount": "10000", // 1 USDM = 1000000000
       "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
       "payTo": "addr1...", // In case of script payments, this is the script address (the address should match the script provided in extra after applying parameters. In case of additional parameters provided, the client needs to pass the additional parameters to the server in the PAYMENT-SIGNATURE header, so that the server can reconstruct the script address and verify the payment)
       "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
       "extra": {
-        "flavor": "script", // optional, can be "default" | "masumi" | "script"
-        // If the script flavor is used, make sure to include all script related fields
+        "assetTransferMethod": "script", // optional, can be "default" | "masumi" | "script"
+        // If the script assetTransferMethod is used, make sure to include all script related fields
         "scriptHash": "script_hash_here", // If the script is already on-chain, provide its hash and the client can resolve the full script
         "script": {
           // Optional full script object if not on-chain yet
@@ -199,7 +198,7 @@ When the Resource Server requires payment to a script, the `extra` field in the 
           "param2": {"value": 42, "type": "bigint"}
           // Script-specific parameters required for transaction building
         }
-        // Additional fields for script flavors can be added here
+        // Additional fields for script assetTransferMethods can be added here
       }
     }
   ]
@@ -244,14 +243,14 @@ Full PAYMENT-SIGNATURE header:
   },
   "payload": {
     "transaction": "AAAIAQDi1HwjSnS6M+WGvD73iEyUY2FRKNj0MlRp7+3SHZM3xCvMdB0AAAAAIFRgPKOstGBLCnbcyGoOXugUYAWwVzNrpMjPCzXK4KQWAQCMoE29VLGwftex8rhIlOuFLFNfxLIJlHqGXoXA8hx6l+LMdB0AAAAAIHbPucTRIEWgO6lzqukswPZ6i72IHEKK5LyM1l9HJNZNAQBthSeHDVK8Xr5/zp3JMZPLtG5uAoVgedTA4pEnp+h8qUlUzRwAAAAAIACH0swYW/QfGCFczGnjAVPHPqZrQE5vfvJr36i6KVEFAQAC7W4K5vCwB+nprjxcNlLiOQ7SIIfyCZjmj2qSis2iTsCuzBwAAAAAIAkSUkXOoeq52GNdhwpbs+jZqqrqPdmiN3oPw5EzDIanAQAIyFNGWD6OxiFIyXSxrNEcFG0npm+nImk6InUssXb1EZgx1hwAAAAAILhsjmMKyM0n75Cd7z6ufH2LNhOMibFOGhNlLgV5RFuEAQC+Mh4kGkLwrw/11729oUQnt3xOmOreE6PcnuN6M68ZBcCuzBwAAAAAIO2PQhSSqSAawCbRr005lfjBgFOqIHo4zb2GcQ/WCxAlAAgA+QKVAAAAAAAgjiAHD0X4HNSdVPpJtf2E6W2uRc8kbvCHYkgEQ1B+w1MDAwEAAAUBAQABAgABAwABBAABBQACAQAAAQEGAAEBAgEAAQcAHrfFfj8r0Pxsudz/0UPqlX5NmPgFw1hzP3be4GZ/4LEB5XXrONxGw0qOUsq3yNKeUhOCOgCIwaa4pswKaer66EKqPGwdAAAAACBrOIN4poutFUmHfB6FbFJu8GgXoPPTGQWREqFpPfvO1B63xX4/K9D8bLnc/9FD6pV+TZj4BcNYcz923uBmf+Cx7gIAAAAAAABg4xYAAAAAAAA="
-    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480"
+    "nonce": "662cbf645fcd8914eb89115b83970a950493dd2fbaf39dea3b96e8cbdc132939#0"
   }
 }
 ```
 
-Expanded Schema based on flavors:
+Expanded Schema based on assetTransferMethods:
 
-#### Masumi Flavor
+#### Masumi assetTransferMethod
 
 ```js
 {
@@ -269,9 +268,8 @@ Expanded Schema based on flavors:
     "payTo": "addr1...",
     "maxTimeoutSeconds": 600,
       "extra": {
-        "flavor": "masumi",
+        "assetTransferMethod": "masumi",
         "identifierFromPurchaser": "aabbaabb11221122aabb",
-        "network": "Mainnet | Preprod",
         "sellerVkey": "sdasdqweqwewewewqe",
         "paymentType": "Web3CardanoV1",
         "blockchainIdentifier": "blockchain_identifier",
@@ -285,12 +283,12 @@ Expanded Schema based on flavors:
   },
   "payload": {
     "transaction": "AAAIAQDi1HwjSnS6M+WGvD73iEyUY2FRKNj0MlRp7+3SHZM3xCvMdB0AAAAAIFRgPKOstGBLCnbcyGoOXugUYAWwVzNrpMjPCzXK4KQWAQCMoE29VLGwftex8rhIlOuFLFNfxLIJlHqGXoXA8hx6l+LMdB0AAAAAIHbPucTRIEWgO6lzqukswPZ6i72IHEKK5LyM1l9HJNZNAQBthSeHDVK8Xr5/zp3JMZPLtG5uAoVgedTA4pEnp+h8qUlUzRwAAAAAIACH0swYW/QfGCFczGnjAVPHPqZrQE5vfvJr36i6KVEFAQAC7W4K5vCwB+nprjxcNlLiOQ7SIIfyCZjmj2qSis2iTsCuzBwAAAAAIAkSUkXOoeq52GNdhwpbs+jZqqrqPdmiN3oPw5EzDIanAQAIyFNGWD6OxiFIyXSxrNEcFG0npm+nImk6InUssXb1EZgx1hwAAAAAILhsjmMKyM0n75Cd7z6ufH2LNhOMibFOGhNlLgV5RFuEAQC+Mh4kGkLwrw/11729oUQnt3xOmOreE6PcnuN6M68ZBcCuzBwAAAAAIO2PQhSSqSAawCbRr005lfjBgFOqIHo4zb2GcQ/WCxAlAAgA+QKVAAAAAAAgjiAHD0X4HNSdVPpJtf2E6W2uRc8kbvCHYkgEQ1B+w1MDAwEAAAUBAQABAgABAwABBAABBQACAQAAAQEGAAEBAgEAAQcAHrfFfj8r0Pxsudz/0UPqlX5NmPgFw1hzP3be4GZ/4LEB5XXrONxGw0qOUsq3yNKeUhOCOgCIwaa4pswKaer66EKqPGwdAAAAACBrOIN4poutFUmHfB6FbFJu8GgXoPPTGQWREqFpPfvO1B63xX4/K9D8bLnc/9FD6pV+TZj4BcNYcz923uBmf+Cx7gIAAAAAAABg4xYAAAAAAAA="
-    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480"
+    "nonce": "662cbf645fcd8914eb89115b83970a950493dd2fbaf39dea3b96e8cbdc132939#0"
   }
 }
 ```
 
-#### Script Flavor
+#### Script assetTransferMethod
 
 ```js
 {
@@ -308,7 +306,7 @@ Expanded Schema based on flavors:
     "payTo": "addr1...", // script address
     "maxTimeoutSeconds": 600,
       "extra": {
-        "flavor": "script",
+        "assetTransferMethod": "script",
         "scriptHash": "script_hash_here",
         "script": {
           "type": "plutusV3",
@@ -322,10 +320,16 @@ Expanded Schema based on flavors:
   },
   "payload": {
     "transaction": "AAAIAQDi1HwjSnS6M+WGvD73iEyUY2FRKNj0MlRp7+3SHZM3xCvMdB0AAAAAIFRgPKOstGBLCnbcyGoOXugUYAWwVzNrpMjPCzXK4KQWAQCMoE29VLGwftex8rhIlOuFLFNfxLIJlHqGXoXA8hx6l+LMdB0AAAAAIHbPucTRIEWgO6lzqukswPZ6i72IHEKK5LyM1l9HJNZNAQBthSeHDVK8Xr5/zp3JMZPLtG5uAoVgedTA4pEnp+h8qUlUzRwAAAAAIACH0swYW/QfGCFczGnjAVPHPqZrQE5vfvJr36i6KVEFAQAC7W4K5vCwB+nprjxcNlLiOQ7SIIfyCZjmj2qSis2iTsCuzBwAAAAAIAkSUkXOoeq52GNdhwpbs+jZqqrqPdmiN3oPw5EzDIanAQAIyFNGWD6OxiFIyXSxrNEcFG0npm+nImk6InUssXb1EZgx1hwAAAAAILhsjmMKyM0n75Cd7z6ufH2LNhOMibFOGhNlLgV5RFuEAQC+Mh4kGkLwrw/11729oUQnt3xOmOreE6PcnuN6M68ZBcCuzBwAAAAAIO2PQhSSqSAawCbRr005lfjBgFOqIHo4zb2GcQ/WCxAlAAgA+QKVAAAAAAAgjiAHD0X4HNSdVPpJtf2E6W2uRc8kbvCHYkgEQ1B+w1MDAwEAAAUBAQABAgABAwABBAABBQACAQAAAQEGAAEBAgEAAQcAHrfFfj8r0Pxsudz/0UPqlX5NmPgFw1hzP3be4GZ/4LEB5XXrONxGw0qOUsq3yNKeUhOCOgCIwaa4pswKaer66EKqPGwdAAAAACBrOIN4poutFUmHfB6FbFJu8GgXoPPTGQWREqFpPfvO1B63xX4/K9D8bLnc/9FD6pV+TZj4BcNYcz923uBmf+Cx7gIAAAAAAABg4xYAAAAAAAA="
-    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480"
+    "nonce": "662cbf645fcd8914eb89115b83970a950493dd2fbaf39dea3b96e8cbdc132939#0"
   }
 }
 ```
+
+### Facilitator Verification Steps
+
+1. Nonce Verification: The nonce needs to be a UTXO that is included in the transaction and the facilitator needs to verify that this UTXO exists in the current UTXO set of the blockchain and is not spent. This ensures the transaction is unique and prevents replay attacks.
+2. Network Validation: Confirm the transaction is on the correct network 
+3. Amount Verification: Check that the provided Amount (assets) exactly matches the required amount
 
 ### `PAYMENT-RESPONSE` Header Payload
 
@@ -337,7 +341,7 @@ Schema:
 
 ```js
 {
-  "success": "true", // "true" or "false"
+  "success": true, // true or false
   "network": "cardano:mainnet",
   "transaction": "2f9a7b3c..." // Transaction hash of the payment if successful
   "extensions": {
@@ -347,48 +351,3 @@ Schema:
   "errorReason": "Utxo not found in utxo set" // Example error reason
 }
 ```
-
-### `X-SESSION-TOKEN` Header Payload
-
-In case of a successful payment, the Resource Server *may* return an *optional* `X-SESSION-TOKEN` header to allow the Client to access the resource without making additional payments until the session expires.
-
-The session token should be implemented as a **JSON Web Token (JWT)** to manage the session after initial payment authentication. This approach provides a smoother user experience by eliminating the need for wallet signatures on every subsequent request.
-
-#### JWT Structure
-
-The `X-SESSION-TOKEN` is a standard JWT (RFC 7519) with the following structure:
-
-**Header:**
-```js
-{
-  "alg": "HS256",
-  "typ": "JWT"
-}
-```
-
-**Payload (Claims):**
-```js
-{
-  "iss": "api.example.com",
-  "sub": "addr1qxclient...",
-  "exp": 1731866400,
-  "iat": 1731862800,
-  "jti": "7f234e8b-1c4a-49b7-8a5f-d321e567890a",
-  "transaction": "2f9a7b3c4d5e6f789a0bc...",
-  "scope": "/api/premium/*,/api/data/*",
-  "network": "cardano:mainnet"
-}
-```
-
-**Claims Description:**
-- `iss` (issuer): The domain of the Resource Server
-- `sub` (subject): The Cardano address of the client who made the payment
-- `exp` (expiration): Unix timestamp when the session expires
-- `iat` (issued at): Unix timestamp when the session was created
-- `jti` (JWT ID): Unique session identifier
-- `txHash`: Transaction hash of the payment that created this session
-- `scope`: Comma-separated list of resource paths accessible with this token
-- `network`: Cardano network where the payment was made
-
-**Signature:**
-The JWT is signed using the server's secret key (HS256) or RSA private key (RS256). The signature ensures the token cannot be tampered with.
