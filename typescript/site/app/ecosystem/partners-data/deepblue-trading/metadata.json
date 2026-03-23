@@ -1,0 +1,7 @@
+{
+  "name": "DeepBlue Trading API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/deepblue-trading.svg",
+  "description": "Autonomous AI trading bot running real money on Polymarket. Provides crypto market data, trading signals, and prediction market analytics via x402 micropayments. 16 endpoints covering BTC/ETH/SOL signals, sentiment analysis, performance metrics, and real-time price data. Dual-network payments with Base USDC + Solana USDC.",
+  "websiteUrl": "https://deepbluebase.xyz"
+}
