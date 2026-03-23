@@ -38,7 +38,7 @@ def require_payment(
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     input_schema: Optional[HTTPInputSchema] = None,
-    output_schema: Optional[Any] = None,
+    request_structure: Optional[Any] = None,
     discoverable: Optional[bool] = True,
     facilitator_config: Optional[FacilitatorConfig] = None,
     network: str = "base-sepolia",
@@ -58,7 +58,7 @@ def require_payment(
         mime_type (str, optional): MIME type of the resource. Defaults to "".
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
         input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
-        output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
+        request_structure (Optional[Any], optional): Schema describing the request/response structure. Defaults to None.
         discoverable (bool, optional): Whether the route is discoverable. Defaults to True.
         facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
@@ -108,8 +108,7 @@ def require_payment(
                 mime_type=mime_type,
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,
-                # TODO: Rename output_schema to request_structure
-                output_schema={
+                request_structure={
                     "input": {
                         "type": "http",
                         "method": request.method.upper(),
@@ -122,7 +121,7 @@ def require_payment(
                             else {}
                         ),
                     },
-                    "output": output_schema,
+                    "output": request_structure,
                 },
                 extra=eip712_domain,
             )

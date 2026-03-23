@@ -34,7 +34,7 @@ def payment_requirements():
         description="test",
         max_timeout_seconds=1000,
         mime_type="text/plain",
-        output_schema=None,
+        request_structure=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -165,7 +165,7 @@ def test_payment_requirements_sorting(client):
         description="test",
         max_timeout_seconds=1000,
         mime_type="text/plain",
-        output_schema=None,
+        request_structure=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -182,7 +182,7 @@ def test_payment_requirements_sorting(client):
         description="test",
         max_timeout_seconds=1000,
         mime_type="text/plain",
-        output_schema=None,
+        request_structure=None,
         extra={
             "name": "USD Coin",
             "version": "2",

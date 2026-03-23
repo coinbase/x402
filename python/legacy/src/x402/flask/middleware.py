@@ -86,7 +86,7 @@ class PaymentMiddleware:
         mime_type: str = "",
         max_deadline_seconds: int = 60,
         input_schema: Optional[HTTPInputSchema] = None,
-        output_schema: Optional[Any] = None,
+        request_structure: Optional[Any] = None,
         discoverable: Optional[bool] = True,
         facilitator_config: Optional[FacilitatorConfig] = None,
         network: str = "base-sepolia",
@@ -105,7 +105,7 @@ class PaymentMiddleware:
             mime_type (str, optional): MIME type of the resource
             max_deadline_seconds (int, optional): Max time for payment
             input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
-            output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
+            request_structure (Optional[Any], optional): Schema describing the request/response structure. Defaults to None.
             discoverable (bool, optional): Whether the route is discoverable. Defaults to True.
             facilitator_config (dict, optional): Facilitator config
             network (str, optional): Network ID
@@ -121,7 +121,7 @@ class PaymentMiddleware:
             "mime_type": mime_type,
             "max_deadline_seconds": max_deadline_seconds,
             "input_schema": input_schema,
-            "output_schema": output_schema,
+            "request_structure": request_structure,
             "discoverable": discoverable,
             "facilitator_config": facilitator_config,
             "network": network,
@@ -192,8 +192,7 @@ class PaymentMiddleware:
                         mime_type=config["mime_type"],
                         pay_to=config["pay_to_address"],
                         max_timeout_seconds=config["max_deadline_seconds"],
-                        # TODO: Rename output_schema to request_structure
-                        output_schema={
+                        request_structure={
                             "input": {
                                 "type": "http",
                                 "method": request.method.upper(),
@@ -204,7 +203,7 @@ class PaymentMiddleware:
                                     else {}
                                 ),
                             },
-                            "output": config["output_schema"],
+                            "output": config["request_structure"],
                         },
                         extra=eip712_domain,
                     )

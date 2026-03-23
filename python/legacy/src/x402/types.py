@@ -100,7 +100,7 @@ class PaymentRequirements(BaseModel):
     resource: str
     description: str
     mime_type: str
-    output_schema: Optional[Any] = None
+    request_structure: Optional[Any] = None
     pay_to: str
     max_timeout_seconds: int
     asset: str
