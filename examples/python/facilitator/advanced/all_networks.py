@@ -208,15 +208,7 @@ async def supported():
         response = facilitator.get_supported()
 
         return {
-            "kinds": [
-                {
-                    "x402Version": k.x402_version,
-                    "scheme": k.scheme,
-                    "network": k.network,
-                    "extra": k.extra,
-                }
-                for k in response.kinds
-            ],
+            "kinds": [k.model_dump(by_alias=True, exclude_none=True) for k in response.kinds],
             "extensions": response.extensions,
             "signers": response.signers,
         }

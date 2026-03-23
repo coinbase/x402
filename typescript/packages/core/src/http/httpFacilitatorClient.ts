@@ -67,7 +67,10 @@ const verifyResponseSchema: z.ZodType<VerifyResponse, z.ZodTypeDef, unknown> = z
   invalidReason: z.string().optional(),
   invalidMessage: z.string().optional(),
   payer: z.string().optional(),
-  extensions: z.record(z.string(), z.unknown()).optional(),
+  extensions: z
+    .record(z.string(), z.unknown())
+    .nullish()
+    .transform(v => v ?? undefined),
 });
 
 const settleResponseSchema: z.ZodType<SettleResponse, z.ZodTypeDef, unknown> = z.object({
@@ -77,7 +80,10 @@ const settleResponseSchema: z.ZodType<SettleResponse, z.ZodTypeDef, unknown> = z
   payer: z.string().optional(),
   transaction: z.string(),
   network: z.custom<SettleResponse["network"]>(value => typeof value === "string"),
-  extensions: z.record(z.string(), z.unknown()).optional(),
+  extensions: z
+    .record(z.string(), z.unknown())
+    .nullish()
+    .transform(v => v ?? undefined),
 });
 
 const supportedKindSchema: z.ZodType<SupportedResponse["kinds"][number], z.ZodTypeDef, unknown> =
@@ -87,7 +93,10 @@ const supportedKindSchema: z.ZodType<SupportedResponse["kinds"][number], z.ZodTy
     network: z.custom<SupportedResponse["kinds"][number]["network"]>(
       value => typeof value === "string",
     ),
-    extra: z.record(z.string(), z.unknown()).optional(),
+    extra: z
+      .record(z.string(), z.unknown())
+      .nullish()
+      .transform(v => v ?? undefined),
   });
 
 const supportedResponseSchema: z.ZodType<SupportedResponse, z.ZodTypeDef, unknown> = z.object({
