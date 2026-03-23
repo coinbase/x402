@@ -84,7 +84,7 @@ The protocol flow for `exact` on Cardano is client-driven.
 
 7.  **Resource Server** receives the transaction hash and status:
     - If submitted via the **Facilitator**, it receives a settlement response containing the `txHash` and `status`.
-    - If the **Facilitator** supports mempool monitoring, it may notify the **Resource Server** upon mempool inclusion, reducing end-to-end latency but with higher risk of accepting unconfirmed transactions.
+    - Cardano uses Ouroboros Praos, which has probabilistic finality. A transaction that appears in the mempool or even in a recent block can be rolled back. Granting access upon mempool inclusion (`status: "mempool"`) is therefore **strongly discouraged** and SHOULD NOT be used for any resource with real economic value. Servers that choose to accept mempool status MUST document this risk and accept full liability for rolled-back transactions.
 
 8.  **Resource Server** grants the **Client** access to the requested resource, returning an HTTP 200 OK response with an `PAYMENT-RESPONSE` header containing:
     - `txHash`: The Cardano transaction hash
@@ -325,11 +325,21 @@ Expanded Schema based on assetTransferMethods:
 }
 ```
 
-### Facilitator Verification Steps
+### Facilitator Verification Rules
 
-1. Nonce Verification: The nonce needs to be a UTXO that is included in the transaction and the facilitator needs to verify that this UTXO exists in the current UTXO set of the blockchain and is not spent. This ensures the transaction is unique and prevents replay attacks.
-2. Network Validation: Confirm the transaction is on the correct network 
-3. Amount Verification: Check that the provided Amount (assets) exactly matches the required amount
+A facilitator MUST enforce all of the following rules before accepting a payment as valid. Any failure MUST result in a rejection.
+
+1. **Network Validation**: The transaction MUST be destined for the correct Cardano network (mainnet, preprod, or preview) as declared in `PaymentRequirements.network`. The facilitator MUST reject transactions built for a different network.
+
+2. **Recipient Verification**: At least one transaction output MUST send funds to the address specified in `PaymentRequirements.payTo`. The facilitator MUST NOT accept transactions where the recipient address differs from `payTo`.
+
+3. **Amount Verification**: The output sent to `payTo` MUST contain a value greater than or equal to the amount declared in `PaymentRequirements.amount` for the asset identified by `PaymentRequirements.asset`. The facilitator MUST verify both the policy ID and the asset name match exactly.
+
+4. **Asset Verification**: The asset unit in the transaction MUST exactly match `PaymentRequirements.asset` (format: `${policyId}.${assetNameHex}`). The facilitator MUST NOT accept a different asset, even one of equal market value.
+
+5. **Nonce / Replay Prevention**: The `payload.nonce` MUST be a valid UTXO reference (`txHash#index`) that is included as an input in the transaction. The facilitator MUST verify that this UTXO exists in the current on-chain UTXO set and has not been spent. This ensures uniqueness and prevents replay attacks.
+
+6. **TTL / Expiry Check**: The transaction's TTL (time-to-live slot) MUST not have already passed at the time of verification. The facilitator MUST reject transactions whose TTL is in the past. The TTL SHOULD be consistent with `PaymentRequirements.maxTimeoutSeconds`.
 
 ### `PAYMENT-RESPONSE` Header Payload
 
@@ -345,7 +355,7 @@ Schema:
   "network": "cardano:mainnet",
   "transaction": "2f9a7b3c..." // Transaction hash of the payment if successful
   "extensions": {
-    "status": "confirmed", // "confirmed" or "mempool"
+    "status": "confirmed", // "confirmed" is the recommended value; "mempool" is permitted but strongly discouraged — see settlement warning above
   }
   // Optional error field in case of failure
   "errorReason": "Utxo not found in utxo set" // Example error reason
