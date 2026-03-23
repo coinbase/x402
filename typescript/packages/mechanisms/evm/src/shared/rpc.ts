@@ -24,13 +24,23 @@ type ExtensionRpcCapabilities = Pick<
 
 const rpcClientCache = new Map<string, ReturnType<typeof createPublicClient>>();
 
-function isConfigByChainId(
-  options: EvmSchemeOptions,
-): options is EvmSchemeConfigByChainId {
+/**
+ * Check if options is a per-chain-id configuration map.
+ *
+ * @param options - The EVM scheme options to check
+ * @returns True if the options are keyed by chain ID
+ */
+function isConfigByChainId(options: EvmSchemeOptions): options is EvmSchemeConfigByChainId {
   const keys = Object.keys(options);
   return keys.length > 0 && keys.every(key => /^\d+$/.test(key));
 }
 
+/**
+ * Get or create a cached viem public client for the given RPC URL.
+ *
+ * @param rpcUrl - The JSON-RPC endpoint URL
+ * @returns A viem PublicClient instance
+ */
 function getRpcClient(rpcUrl: string): ReturnType<typeof createPublicClient> {
   const existing = rpcClientCache.get(rpcUrl);
   if (existing) {
@@ -44,10 +54,14 @@ function getRpcClient(rpcUrl: string): ReturnType<typeof createPublicClient> {
   return client;
 }
 
-export function resolveRpcUrl(
-  network: string,
-  options?: EvmSchemeOptions,
-): string | undefined {
+/**
+ * Resolve an RPC URL from scheme options for the given network.
+ *
+ * @param network - The CAIP-2 network identifier
+ * @param options - Optional EVM scheme options (flat or per-chain-id)
+ * @returns The resolved RPC URL, or undefined if not configured
+ */
+export function resolveRpcUrl(network: string, options?: EvmSchemeOptions): string | undefined {
   if (!options) {
     return undefined;
   }
@@ -61,6 +75,14 @@ export function resolveRpcUrl(
   return (options as EvmSchemeConfig).rpcUrl;
 }
 
+/**
+ * Resolve RPC capabilities for extensions, backfilling from a public RPC client when the signer lacks them.
+ *
+ * @param network - The CAIP-2 network identifier
+ * @param signer - The client EVM signer
+ * @param options - Optional EVM scheme options for RPC URL resolution
+ * @returns Extension RPC capabilities (readContract, signTransaction, etc.)
+ */
 export function resolveExtensionRpcCapabilities(
   network: string,
   signer: ClientEvmSigner,

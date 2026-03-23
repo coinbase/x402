@@ -820,6 +820,145 @@ describe("x402ResourceServer", () => {
       expect(result.success).toBe(true);
       expect(mockClient.settleCalls.length).toBe(1);
     });
+
+    it("should use original amount when no overrides provided", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await server.settlePayment(payload, requirements);
+
+      expect(mockClient.settleCalls[0].requirements.amount).toBe("1000000");
+    });
+
+    it("should override amount when settlementOverrides.amount is provided", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await server.settlePayment(payload, requirements, undefined, undefined, { amount: "500000" });
+
+      // Facilitator should receive the overridden amount
+      expect(mockClient.settleCalls[0].requirements.amount).toBe("500000");
+    });
+
+    it("should not mutate original requirements when overrides applied", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await server.settlePayment(payload, requirements, undefined, undefined, { amount: "250000" });
+
+      // Original requirements must not be mutated
+      expect(requirements.amount).toBe("1000000");
+    });
+
+    it("should use original amount when overrides has undefined amount", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await server.settlePayment(payload, requirements, undefined, undefined, {});
+
+      expect(mockClient.settleCalls[0].requirements.amount).toBe("1000000");
+    });
+
+    it("should allow settling for zero amount", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await server.settlePayment(payload, requirements, undefined, undefined, { amount: "0" });
+
+      expect(mockClient.settleCalls[0].requirements.amount).toBe("0");
+    });
+
+    it("should pass overridden requirements to beforeSettle hooks", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse(),
+        buildVerifyResponse({ isValid: true }),
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+
+      let hookAmount: string | undefined;
+      server.onBeforeSettle(async context => {
+        hookAmount = context.requirements.amount;
+      });
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({ amount: "1000000" });
+
+      await server.settlePayment(payload, requirements, undefined, undefined, { amount: "300000" });
+
+      expect(hookAmount).toBe("300000");
+    });
   });
 
   describe("findMatchingRequirements", () => {

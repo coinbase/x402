@@ -1,5 +1,5 @@
 import express from "express";
-import { paymentMiddleware } from "@x402/express";
+import { paymentMiddleware, setSettlementOverrides } from "@x402/express";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
@@ -327,6 +327,19 @@ app.use(
           ...declareErc20ApprovalGasSponsoringExtension(),
         },
       },
+      // Upto partial settlement endpoint - settles only 500 of 1000 authorized
+      "GET /protected-upto-partial": {
+        accepts: {
+          payTo: EVM_PAYEE_ADDRESS,
+          scheme: "upto",
+          network: EVM_NETWORK,
+          price: "$0.001",
+          extra: { assetTransferMethod: "permit2" },
+        },
+        extensions: {
+          ...declareEip2612GasSponsoringExtension(),
+        },
+      },
       ...(STELLAR_PAYEE_ADDRESS
         ? {
           "GET /exact/stellar": {
@@ -464,6 +477,19 @@ app.get("/protected-upto-permit2-erc20", (req, res) => {
     message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",
     timestamp: new Date().toISOString(),
     method: "upto-permit2-erc20-approval",
+  });
+});
+
+/**
+ * Upto partial settlement endpoint - demonstrates partial settlement via overrides.
+ * Authorizes up to $0.001 but settles only 500 atomic units (half).
+ */
+app.get("/protected-upto-partial", (req, res) => {
+  setSettlementOverrides(res, { amount: "500" });
+  res.json({
+    message: "Upto partial settlement endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+    method: "upto-partial",
   });
 });
 

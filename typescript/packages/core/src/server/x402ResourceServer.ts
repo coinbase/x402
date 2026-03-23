@@ -94,6 +94,15 @@ export type OnSettleFailureHook = (
 ) => Promise<void | { recovered: true; result: SettleResponse }>;
 
 /**
+ * Optional overrides for settlement parameters.
+ * Used to support partial settlement (e.g., upto scheme billing by actual usage).
+ */
+export interface SettlementOverrides {
+  /** Actual amount to settle in atomic token units. Must be <= authorized max. */
+  amount?: string;
+}
+
+/**
  * Core x402 protocol server for resource protection
  * Transport-agnostic implementation of the x402 payment protocol
  */
@@ -705,6 +714,7 @@ export class x402ResourceServer {
    * @param requirements - The payment requirements
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @param transportContext - Optional transport-specific context (e.g., HTTP request/response, MCP tool context)
+   * @param settlementOverrides - Optional overrides for settlement parameters (e.g., partial settlement amount)
    * @returns Settlement response
    */
   async settlePayment(
@@ -712,10 +722,17 @@ export class x402ResourceServer {
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
     transportContext?: unknown,
+    settlementOverrides?: SettlementOverrides,
   ): Promise<SettleResponse> {
+    // Apply settlement overrides (e.g., partial settlement for upto scheme)
+    let effectiveRequirements = requirements;
+    if (settlementOverrides?.amount !== undefined) {
+      effectiveRequirements = { ...requirements, amount: settlementOverrides.amount };
+    }
+
     const context: SettleContext = {
       paymentPayload,
-      requirements,
+      requirements: effectiveRequirements,
     };
 
     // Execute beforeSettle hooks
@@ -749,8 +766,8 @@ export class x402ResourceServer {
       // Find the facilitator that supports this payment type
       const facilitatorClient = this.getFacilitatorClient(
         paymentPayload.x402Version,
-        requirements.network,
-        requirements.scheme,
+        effectiveRequirements.network,
+        effectiveRequirements.scheme,
       );
 
       let settleResult: SettleResponse;
@@ -761,7 +778,7 @@ export class x402ResourceServer {
 
         for (const client of this.facilitatorClients) {
           try {
-            settleResult = await client.settle(paymentPayload, requirements);
+            settleResult = await client.settle(paymentPayload, effectiveRequirements);
             break;
           } catch (error) {
             lastError = error as Error;
@@ -772,13 +789,13 @@ export class x402ResourceServer {
           throw (
             lastError ||
             new Error(
-              `No facilitator supports ${requirements.scheme} on ${requirements.network} for v${paymentPayload.x402Version}`,
+              `No facilitator supports ${effectiveRequirements.scheme} on ${effectiveRequirements.network} for v${paymentPayload.x402Version}`,
             )
           );
         }
       } else {
         // Use the specific facilitator that supports this payment
-        settleResult = await facilitatorClient.settle(paymentPayload, requirements);
+        settleResult = await facilitatorClient.settle(paymentPayload, effectiveRequirements);
       }
 
       // Execute afterSettle hooks
