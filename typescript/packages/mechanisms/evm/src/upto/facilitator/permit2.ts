@@ -357,9 +357,13 @@ export async function settleUptoPermit2(
   const payer = permit2Payload.permit2Authorization.from;
   const settlementAmount = BigInt(requirements.amount);
 
-  // Verify using the authorized max amount (permitted.amount) so that strict
-  // equality holds.  The actual settlement amount may be lower and is checked
-  // separately below.
+  // Re-verify the signature before settling. We override `requirements.amount`
+  // with the *authorized maximum* (`permitted.amount`) — NOT the actual
+  // settlement amount — because `verifyUptoPermit2` performs strict equality
+  // (`permitted.amount === requirements.amount`) to confirm the payload matches
+  // what the client signed.  The actual settlement amount, which may be lower
+  // than the authorized maximum, is validated separately in the guard below
+  // (`settlementAmount > permitted.amount`).
   const verifyRequirements: PaymentRequirements = {
     ...requirements,
     amount: permit2Payload.permit2Authorization.permitted.amount,
@@ -371,7 +375,7 @@ export async function settleUptoPermit2(
     verifyRequirements,
     permit2Payload,
     context,
-    { simulate: config?.simulateInSettle ?? false },
+    { simulate: config?.simulateInSettle ?? true },
   );
   if (!valid.isValid) {
     return {

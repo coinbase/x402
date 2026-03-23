@@ -44,6 +44,13 @@ export async function createUptoPermit2Payload(
   const validAfter = (now - 600).toString();
   const deadline = (now + paymentRequirements.maxTimeoutSeconds).toString();
 
+  if (BigInt(deadline) <= BigInt(validAfter)) {
+    throw new Error(
+      `Invalid time window: deadline (${deadline}) must be after validAfter (${validAfter}). ` +
+        `Check that maxTimeoutSeconds (${paymentRequirements.maxTimeoutSeconds}) is positive.`,
+    );
+  }
+
   const permit2Authorization: UptoPermit2Authorization & { from: `0x${string}` } = {
     from: signer.address,
     permitted: {
