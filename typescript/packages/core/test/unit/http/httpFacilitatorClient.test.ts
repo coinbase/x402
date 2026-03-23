@@ -109,4 +109,58 @@ describe("HTTPFacilitatorClient", () => {
 
     await expect(client.settle(paymentPayload, paymentRequirements)).rejects.toThrow(SettleError);
   });
+
+  it("parses verify 200 when optional string fields are JSON null", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            isValid: true,
+            invalidReason: null,
+            invalidMessage: null,
+            payer: null,
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+    const result = await client.verify(paymentPayload, paymentRequirements);
+
+    expect(result.isValid).toBe(true);
+    expect(result.invalidReason).toBeUndefined();
+    expect(result.invalidMessage).toBeUndefined();
+    expect(result.payer).toBeUndefined();
+  });
+
+  it("parses settle 200 when optional string fields are JSON null", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            transaction: "0xabc",
+            network: "eip155:8453",
+            errorReason: null,
+            errorMessage: null,
+            payer: null,
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+    const result = await client.settle(paymentPayload, paymentRequirements);
+
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBe("0xabc");
+    expect(result.network).toBe("eip155:8453");
+    expect(result.errorReason).toBeUndefined();
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.payer).toBeUndefined();
+  });
 });
