@@ -1,0 +1,82 @@
+{
+  "name": "@x402/signer-ows",
+  "version": "0.1.0",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
+    "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
+    "lint": "eslint . --ext .ts --fix",
+    "lint:check": "eslint . --ext .ts"
+  },
+  "keywords": [
+    "x402",
+    "payment",
+    "protocol",
+    "ows",
+    "open-wallet-standard",
+    "wallet"
+  ],
+  "license": "Apache-2.0",
+  "author": "Coinbase Inc.",
+  "repository": "https://github.com/coinbase/x402",
+  "description": "Open Wallet Standard signer adapter for x402 Payment Protocol",
+  "dependencies": {
+    "@open-wallet-standard/core": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@solana/kit": ">=5.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@solana/kit": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@solana/kit": ">=5.1.0",
+    "@types/node": "^22.13.4",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.6",
+    "vitest": "^3.0.5"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.mts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./evm": {
+      "import": {
+        "types": "./dist/esm/evm.d.mts",
+        "default": "./dist/esm/evm.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/evm.d.ts",
+        "default": "./dist/cjs/evm.js"
+      }
+    },
+    "./svm": {
+      "import": {
+        "types": "./dist/esm/svm.d.mts",
+        "default": "./dist/esm/svm.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/svm.d.ts",
+        "default": "./dist/cjs/svm.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

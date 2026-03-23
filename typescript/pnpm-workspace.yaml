@@ -2,6 +2,7 @@ packages:
   - packages/core
   - packages/extensions
   - packages/mcp
+  - packages/signer-ows
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*

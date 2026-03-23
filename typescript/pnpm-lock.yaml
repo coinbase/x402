@@ -1339,6 +1339,31 @@ importers:
         specifier: ^3.0.5
         version: 3.2.4(@types/debug@4.1.12)(@types/node@22.18.0)(jiti@2.6.1)(jsdom@27.4.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
 
+  packages/signer-ows:
+    dependencies:
+      '@open-wallet-standard/core':
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      '@solana/kit':
+        specifier: '>=5.1.0'
+        version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
+      '@types/node':
+        specifier: ^22.13.4
+        version: 22.18.0
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.8.1)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.2
+      vite:
+        specifier: ^6.2.6
+        version: 6.3.5(@types/node@22.18.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@22.18.0)(jiti@2.6.1)(jsdom@27.4.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
+
   site:
     dependencies:
       '@aptos-labs/ts-sdk':
@@ -2893,6 +2918,30 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@open-wallet-standard/core-darwin-arm64@1.0.0':
+    resolution: {integrity: sha512-2mr22VTm+IQ0w1RKyMCY4BHX3+eb+kAOSYbIQrGm30n1ZLIYhcoAo1HiZfa2raSyPVlIpsEsnHs/w1VrA3Fuxw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@open-wallet-standard/core-darwin-x64@1.0.0':
+    resolution: {integrity: sha512-s4Dvu3HxYSTEubUAYsYUNyP2WDzqbEE0C0v/NhP3c48wPq5UKe3JG83aQpZU7Hdxn1rcCNf0TPkuirik74xGtg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@open-wallet-standard/core-linux-arm64-gnu@1.0.0':
+    resolution: {integrity: sha512-cdFXgSigycW+lh0orfo12cXZIkiZZ3R2XUVaXrJOn8m6wgaa1bk7kyEIHVQCToRPHqFUm76XxX7CLLmji2kflA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@open-wallet-standard/core-linux-x64-gnu@1.0.0':
+    resolution: {integrity: sha512-8bSkyiIlFSm1SVcbEN1YiSQLvSQMGldJqbCxBlWrMW7esSwXksshIdZ6Jstd3lzrdSSwvU+qFqtzP3Cfa7PZ3g==}
+    cpu: [x64]
+    os: [linux]
+
+  '@open-wallet-standard/core@1.0.0':
+    resolution: {integrity: sha512-fgA/2QOko9d4wMjRl6d/+bC/qYeP8e4YIJzzLPECAP5bjLbST3co50HHU61jI+JshzXe9KvvixC93i9lmRobMw==}
+    hasBin: true
 
   '@paulmillr/qr@0.2.1':
     resolution: {integrity: sha512-IHnV6A+zxU7XwmKFinmYjUcwlyK9+xkG3/s9KcQhI9BjQKycrJ1JRO+FbNYPwZiPKW3je/DR0k7w8/gLa5eaxQ==}
@@ -6861,9 +6910,6 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  magic-string@0.30.18:
-    resolution: {integrity: sha512-yi8swmWbO17qHhwIBNeeZxTceJMeBvWJaId6dyvTSOwTipqeHhMhOrz6513r1sOKnpvQ7zkhlG8tPrpilwTxHQ==}
-
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -8222,9 +8268,6 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
   undici-types@7.22.0:
     resolution: {integrity: sha512-RKZvifiL60xdsIuC80UY0dq8Z7DbJUV8/l2hOVbyZAxBzEeQU4Z58+4ZzJ6WN2Lidi9KzT5EbiGX+PI/UGYuRw==}
@@ -10060,7 +10103,7 @@ snapshots:
   '@eslint/config-array@0.21.0':
     dependencies:
       '@eslint/object-schema': 2.1.6
-      debug: 4.4.1
+      debug: 4.4.3
       minimatch: 3.1.2
     transitivePeerDependencies:
       - supports-color
@@ -10722,6 +10765,25 @@ snapshots:
       fastq: 1.19.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@open-wallet-standard/core-darwin-arm64@1.0.0':
+    optional: true
+
+  '@open-wallet-standard/core-darwin-x64@1.0.0':
+    optional: true
+
+  '@open-wallet-standard/core-linux-arm64-gnu@1.0.0':
+    optional: true
+
+  '@open-wallet-standard/core-linux-x64-gnu@1.0.0':
+    optional: true
+
+  '@open-wallet-standard/core@1.0.0':
+    optionalDependencies:
+      '@open-wallet-standard/core-darwin-arm64': 1.0.0
+      '@open-wallet-standard/core-darwin-x64': 1.0.0
+      '@open-wallet-standard/core-linux-arm64-gnu': 1.0.0
+      '@open-wallet-standard/core-linux-x64-gnu': 1.0.0
 
   '@paulmillr/qr@0.2.1': {}
 
@@ -11690,7 +11752,7 @@ snapshots:
   '@solana/errors@2.3.0(typescript@5.9.2)':
     dependencies:
       chalk: 5.6.2
-      commander: 14.0.2
+      commander: 14.0.3
       typescript: 5.9.2
 
   '@solana/errors@5.0.0(typescript@5.9.2)':
@@ -12534,7 +12596,7 @@ snapshots:
       '@solana/rpc-spec': 2.3.0(typescript@5.9.2)
       '@solana/rpc-spec-types': 2.3.0(typescript@5.9.2)
       typescript: 5.9.2
-      undici-types: 7.16.0
+      undici-types: 7.22.0
 
   '@solana/rpc-transport-http@5.0.0(typescript@5.9.2)':
     dependencies:
@@ -12542,7 +12604,7 @@ snapshots:
       '@solana/rpc-spec': 5.0.0(typescript@5.9.2)
       '@solana/rpc-spec-types': 5.0.0(typescript@5.9.2)
       typescript: 5.9.2
-      undici-types: 7.16.0
+      undici-types: 7.22.0
 
   '@solana/rpc-transport-http@5.1.0(typescript@5.9.2)':
     dependencies:
@@ -12550,7 +12612,7 @@ snapshots:
       '@solana/rpc-spec': 5.1.0(typescript@5.9.2)
       '@solana/rpc-spec-types': 5.1.0(typescript@5.9.2)
       typescript: 5.9.2
-      undici-types: 7.16.0
+      undici-types: 7.22.0
 
   '@solana/rpc-transport-http@6.1.0(typescript@5.9.2)':
     dependencies:
@@ -13658,7 +13720,7 @@ snapshots:
     dependencies:
       '@vitest/spy': 3.2.4
       estree-walker: 3.0.3
-      magic-string: 0.30.18
+      magic-string: 0.30.21
     optionalDependencies:
       vite: 6.3.5(@types/node@22.18.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
 
@@ -13675,7 +13737,7 @@ snapshots:
   '@vitest/snapshot@3.2.4':
     dependencies:
       '@vitest/pretty-format': 3.2.4
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       pathe: 2.0.3
 
   '@vitest/spy@3.2.4':
@@ -16009,7 +16071,7 @@ snapshots:
 
   fix-dts-default-cjs-exports@1.0.1:
     dependencies:
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       mlly: 1.8.0
       rollup: 4.50.0
 
@@ -16785,10 +16847,6 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
-
-  magic-string@0.30.18:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
 
   magic-string@0.30.21:
     dependencies:
@@ -17616,7 +17674,7 @@ snapshots:
       buffer: 6.0.3
       eventemitter3: 5.0.1
       uuid: 8.3.2
-      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      ws: 8.19.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
       bufferutil: 4.0.9
       utf-8-validate: 5.0.10
@@ -18302,8 +18360,6 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.16.0: {}
-
   undici-types@7.22.0: {}
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
@@ -18517,7 +18573,7 @@ snapshots:
   vite-node@3.2.4(@types/node@22.18.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.1
+      debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 2.0.3
       vite: 6.3.5(@types/node@22.18.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
@@ -18553,7 +18609,7 @@ snapshots:
       picomatch: 4.0.3
       postcss: 8.5.6
       rollup: 4.50.0
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
     optionalDependencies:
       '@types/node': 22.18.0
       fsevents: 2.3.3
@@ -18573,15 +18629,15 @@ snapshots:
       '@vitest/spy': 3.2.4
       '@vitest/utils': 3.2.4
       chai: 5.3.3
-      debug: 4.4.1
+      debug: 4.4.3
       expect-type: 1.2.2
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       pathe: 2.0.3
       picomatch: 4.0.3
       std-env: 3.9.0
       tinybench: 2.9.0
       tinyexec: 0.3.2
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
       vite: 6.3.5(@types/node@22.18.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
