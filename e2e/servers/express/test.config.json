@@ -42,7 +42,7 @@
     {
       "path": "/protected-upto-permit2",
       "method": "GET",
-      "description": "Protected endpoint requiring Upto Permit2 payment (standard settle, no gas sponsoring)",
+      "description": "Protected endpoint requiring Upto Permit2 payment (standard settle, no gas sponsoring). Upto uses Permit2 under the hood; transferMethod 'upto' is treated like 'permit2' by the e2e orchestrator.",
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "upto",

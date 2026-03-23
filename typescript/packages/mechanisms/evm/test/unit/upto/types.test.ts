@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { isUptoPermit2Payload } from "../../../src/types";
+import { buildUptoPermit2SettleArgs } from "../../../src/shared/permit2";
+import type { UptoPermit2Payload } from "../../../src/types";
+import { getAddress } from "viem";
 
 const VALID_PAYLOAD = {
   signature: "0xmocksig" as `0x${string}`,
@@ -139,6 +142,18 @@ describe("isUptoPermit2Payload", () => {
     expect(isUptoPermit2Payload(payload)).toBe(false);
   });
 
+  it("should return false when witness.validAfter is missing", () => {
+    const payload = structuredClone(VALID_PAYLOAD);
+    delete (payload.permit2Authorization.witness as Record<string, unknown>).validAfter;
+    expect(isUptoPermit2Payload(payload)).toBe(false);
+  });
+
+  it("should return false when witness.validAfter is not a string", () => {
+    const payload = structuredClone(VALID_PAYLOAD);
+    (payload.permit2Authorization.witness as Record<string, unknown>).validAfter = 1699999400;
+    expect(isUptoPermit2Payload(payload)).toBe(false);
+  });
+
   it("should return false for an empty object", () => {
     expect(isUptoPermit2Payload({})).toBe(false);
   });
@@ -156,5 +171,67 @@ describe("isUptoPermit2Payload", () => {
       },
     };
     expect(isUptoPermit2Payload(exactPayload as Record<string, unknown>)).toBe(false);
+  });
+});
+
+describe("buildUptoPermit2SettleArgs", () => {
+  const FACILITATOR = "0xFAC11174700123456789012345678901234aBCDe" as `0x${string}`;
+  const payload: UptoPermit2Payload = {
+    signature: "0xdeadbeef" as `0x${string}`,
+    permit2Authorization: {
+      from: "0x1234567890123456789012345678901234567890",
+      permitted: {
+        token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        amount: "5000000",
+      },
+      spender: "0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002",
+      nonce: "99",
+      deadline: "1700000000",
+      witness: {
+        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        facilitator: FACILITATOR,
+        validAfter: "1699999400",
+      },
+    },
+  };
+
+  it("should return a 5-element tuple with correct types", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 1000000n, FACILITATOR);
+    expect(args).toHaveLength(5);
+  });
+
+  it("should place the settlement amount as the second element", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 750000n, FACILITATOR);
+    expect(args[1]).toBe(750000n);
+  });
+
+  it("should convert permitted.amount to BigInt", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 1000000n, FACILITATOR);
+    expect(args[0].permitted.amount).toBe(5000000n);
+  });
+
+  it("should checksum all addresses", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 1000000n, FACILITATOR);
+    const checksummedToken = getAddress(payload.permit2Authorization.permitted.token);
+    const checksummedTo = getAddress(payload.permit2Authorization.witness.to);
+    const checksummedFacilitator = getAddress(FACILITATOR);
+    const checksummedFrom = getAddress(payload.permit2Authorization.from);
+
+    expect(args[0].permitted.token).toBe(checksummedToken);
+    expect(args[2]).toBe(checksummedFrom);
+    expect(args[3].to).toBe(checksummedTo);
+    expect(args[3].facilitator).toBe(checksummedFacilitator);
+  });
+
+  it("should convert nonce, deadline, and validAfter to BigInt", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 1000000n, FACILITATOR);
+    expect(args[0].nonce).toBe(99n);
+    expect(args[0].deadline).toBe(1700000000n);
+    expect(args[3].validAfter).toBe(1699999400n);
+  });
+
+  it("should pass through the signature unchanged", () => {
+    const args = buildUptoPermit2SettleArgs(payload, 1000000n, FACILITATOR);
+    expect(args[4]).toBe("0xdeadbeef");
   });
 });

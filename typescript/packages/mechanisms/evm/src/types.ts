@@ -141,5 +141,9 @@ export function isUptoPermit2Payload(
   const witness = a.witness;
   if (typeof witness !== "object" || witness === null) return false;
   const w = witness as Record<string, unknown>;
-  return typeof w.facilitator === "string" && typeof w.to === "string";
+  return (
+    typeof w.facilitator === "string" &&
+    typeof w.to === "string" &&
+    typeof w.validAfter === "string"
+  );
 }
