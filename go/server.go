@@ -464,6 +464,26 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	return settleResult, nil
 }
 
+// EnrichExtensions enriches declared extensions using registered extension hooks.
+func (s *x402ResourceServer) EnrichExtensions(
+	declaredExtensions map[string]interface{},
+	transportContext interface{},
+) map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	enriched := make(map[string]interface{})
+	for key, declaration := range declaredExtensions {
+		ext, ok := s.registeredExtensions[key]
+		if ok {
+			enriched[key] = ext.EnrichDeclaration(declaration, transportContext)
+		} else {
+			enriched[key] = declaration
+		}
+	}
+	return enriched
+}
+
 // CreatePaymentRequiredResponse creates a V2 PaymentRequired response
 func (s *x402ResourceServer) CreatePaymentRequiredResponse(
 	requirements []types.PaymentRequirements,
