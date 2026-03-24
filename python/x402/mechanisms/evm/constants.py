@@ -335,6 +335,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             },
         },
     },
+    # Stable Testnet
+    "eip155:2201": {
+        "chain_id": 2201,
+        "default_asset": {
+            "address": "0x78Cf24370174180738C5B8E352B6D14c83a6c9A9",
+            "name": "USDT0",
+            "version": "1",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDT0": {
+                "address": "0x78Cf24370174180738C5B8E352B6D14c83a6c9A9",
+                "name": "USDT0",
+                "version": "1",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
 # V1 legacy constants are in x402.mechanisms.evm.v1.constants
