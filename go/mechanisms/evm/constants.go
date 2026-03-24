@@ -72,6 +72,7 @@ var (
 	ChainIDMegaETH     = big.NewInt(4326)
 	ChainIDMonad       = big.NewInt(143)
 	ChainIDMezoTestnet = big.NewInt(31611)
+	ChainIDStable      = big.NewInt(988)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -137,6 +138,16 @@ var (
 				Decimals:            18,
 				AssetTransferMethod: AssetTransferMethodPermit2,
 				SupportsEip2612:     true,
+			},
+		},
+		// Stable Mainnet
+		"eip155:988": {
+			ChainID: ChainIDStable,
+			DefaultAsset: AssetInfo{
+				Address:  "0x779Ded0c9e1022225f8E0630b35a9b54bE713736", // USDT0 on Stable
+				Name:     "USDT0",
+				Version:  "1",
+				Decimals: DefaultDecimals,
 			},
 		},
 	}
