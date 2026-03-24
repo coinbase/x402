@@ -27,9 +27,6 @@ export async function runInteractiveMode(
   preselectedNetworkMode?: NetworkMode
 ): Promise<InteractiveSelections | null> {
 
-  log('\n🎯 Interactive Mode');
-  log('==================\n');
-
   // Question 1: Select facilitators (multi-select)
   // Sort facilitators: regular ones first, external ones at the bottom
   const regularFacilitators = allFacilitators.filter(f => !f.isExternal);
@@ -283,7 +280,24 @@ export async function runInteractiveMode(
     selectedFamilies = availableFamilies;
   }
 
-  // Question 8: Select network mode (testnet/mainnet) - LAST question
+  // Question 8: Endpoint filter (optional free-text, comma-separated regex patterns)
+  const endpointsResponse = await prompts({
+    type: 'text',
+    name: 'endpoints',
+    message: 'Filter endpoints (comma-separated patterns, blank = all)',
+    initial: '',
+    hint: 'e.g. /protected, permit2.* — supports regex',
+  });
+
+  // null means Ctrl-C; empty string means "all"
+  if (endpointsResponse.endpoints === undefined) {
+    return null;
+  }
+  const selectedEndpoints: string[] | undefined = endpointsResponse.endpoints
+    ? (endpointsResponse.endpoints as string).split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
+    : undefined;
+
+  // Question 9: Select network mode (testnet/mainnet) - LAST question
   // Skip if preselected via CLI flag
   let networkMode: NetworkMode;
 
@@ -332,6 +346,7 @@ export async function runInteractiveMode(
     extensions: selectedExtensions,
     versions: selectedVersions,
     protocolFamilies: selectedFamilies,
+    endpoints: selectedEndpoints,
     networkMode,
   };
 }
