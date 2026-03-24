@@ -288,7 +288,7 @@ def payment_middleware(
             async with init_lock:
                 if not init_done:
                     try:
-                        http_server.initialize()
+                        await asyncio.to_thread(http_server.initialize)
                     except FacilitatorResponseError as error:
                         return _facilitator_error_response(error)
                     init_done = True

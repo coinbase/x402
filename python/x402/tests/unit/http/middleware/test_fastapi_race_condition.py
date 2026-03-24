@@ -71,7 +71,7 @@ class TestLazyInitRaceCondition:
     The fix uses asyncio.Lock with double-checked locking:
       async with init_lock:
           if not init_done:
-              http_server.initialize()  # sync call, not awaited
+              await asyncio.to_thread(http_server.initialize)
               init_done = True
     """
 
