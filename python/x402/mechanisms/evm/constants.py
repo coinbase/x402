@@ -317,6 +317,24 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "supports_eip2612": True,
         },
     },
+    # Stable Mainnet
+    "eip155:988": {
+        "chain_id": 988,
+        "default_asset": {
+            "address": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+            "name": "USDT0",
+            "version": "1",
+            "decimals": 6,
+        },
+        "supported_assets": {
+            "USDT0": {
+                "address": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+                "name": "USDT0",
+                "version": "1",
+                "decimals": 6,
+            },
+        },
+    },
 }
 
 # V1 legacy constants are in x402.mechanisms.evm.v1.constants

@@ -245,6 +245,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         assetTransferMethod: "permit2",
         supportsEip2612: true,
       }, // Mezo Testnet mUSD (no EIP-3009, supports EIP-2612)
+      "eip155:988": {
+        address: "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+        name: "USDT0",
+        version: "1",
+        decimals: 6,
+      }, // Stable mainnet USDT0
     };
 
     const assetInfo = stablecoins[network];
