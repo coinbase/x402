@@ -81,7 +81,7 @@ func (f *ExactEvmScheme) Verify(
 		if err != nil {
 			return nil, x402.NewVerifyError(ErrInvalidPayload, "", fmt.Sprintf("failed to parse Permit2 payload: %s", err.Error()))
 		}
-		return VerifyPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
+		return VerifyPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, nil)
 	}
 
 	return f.verifyEIP3009(ctx, payload, requirements, true)
@@ -103,7 +103,9 @@ func (f *ExactEvmScheme) Settle(
 			network := x402.Network(payload.Accepted.Network)
 			return nil, x402.NewSettleError(ErrInvalidPayload, "", network, "", fmt.Sprintf("failed to parse Permit2 payload: %s", err.Error()))
 		}
-		return SettlePermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx)
+		return SettlePermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, &Permit2FacilitatorConfig{
+			SimulateInSettle: f.config.SimulateInSettle,
+		})
 	}
 
 	return f.settleEIP3009(ctx, payload, requirements)

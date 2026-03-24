@@ -298,6 +298,18 @@ Add the bazaar extension to your route configuration to make your API or MCP too
 - **HTTP Endpoints** - Standard REST APIs (GET, POST, PUT, PATCH, DELETE, HEAD)
 - **MCP Tools** - Model Context Protocol tools for AI agent integration
 
+#### Dynamic Routes
+
+The Bazaar extension supports parameterized routes (e.g., `/users/[userId]`, `/weather/[country]/[city]`). When you use route parameters:
+
+- The extension automatically extracts concrete parameter values into `pathParams` (e.g., `{ "userId": "123" }`)
+- A `routeTemplate` field is added using `:param` syntax (e.g., `/users/:userId`)
+- Facilitators use `routeTemplate` as the catalog key, consolidating all requests to the same route pattern into a single discovery entry
+
+This means `/users/123`, `/users/456`, and `/users/789` all map to the same catalog entry: `/users/:userId`.
+
+**Note:** Wildcard segments (`*`) are automatically converted to named parameters (`:var1`, `:var2`, etc.) for catalog normalization.
+
 #### Adding Metadata
 
 To enhance your listing with descriptions and schemas, include them when setting up your x402 middleware. **You should include descriptions for each parameter to make it clear for agents to call your endpoints**:
