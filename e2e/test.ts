@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { spawn, execSync } from 'child_process';
-import { writeFileSync } from 'fs';
+import { writeFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 import { createWalletClient, createPublicClient, http, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
@@ -192,7 +193,9 @@ async function fundClientForRevoke(): Promise<boolean> {
     verboseLog(`  ✅ Funded client (tx: ${hash})`);
     return true;
   } catch (err) {
-    errorLog(`  ❌ Failed to fund client for revoke: ${err instanceof Error ? err.message : err}`);
+    const errLines = (err instanceof Error ? err.message : String(err)).split('\n');
+    errorLog(`  ❌ Failed to fund client for revoke: ${errLines[0].trim()}`);
+    if (errLines.length > 1) verboseLog(errLines.slice(1).join('\n'));
     return false;
   }
 }
@@ -235,7 +238,9 @@ async function drainClientETH(): Promise<boolean> {
     verboseLog(`  ✅ Drained client ETH (tx: ${hash}, remaining: ${formatEther(remaining)} ETH)`);
     return true;
   } catch (err) {
-    errorLog(`  ❌ Failed to drain client ETH: ${err instanceof Error ? err.message : err}`);
+    const errLines = (err instanceof Error ? err.message : String(err)).split('\n');
+    errorLog(`  ❌ Failed to drain client ETH: ${errLines[0].trim()}`);
+    if (errLines.length > 1) verboseLog(errLines.slice(1).join('\n'));
     return false;
   }
 }
@@ -363,7 +368,13 @@ async function runTest() {
     return;
   }
 
-  // Initialize logger
+  // Initialize logger — ensure parent directory exists for log file
+  if (parsedArgs.logFile) {
+    const logDir = dirname(parsedArgs.logFile);
+    if (logDir && logDir !== '.') {
+      mkdirSync(logDir, { recursive: true });
+    }
+  }
   loggerConfig({ logFile: parsedArgs.logFile, verbose: parsedArgs.verbose });
 
   log('🚀 Starting X402 E2E Test Suite');
@@ -429,41 +440,15 @@ async function runTest() {
     selectedExtensions = selections.extensions;
     networkMode = selections.networkMode;
   } else {
-    log('\n🤖 Programmatic Mode');
-    log('===================\n');
-
     filters = parsedArgs.filters;
     selectedExtensions = parsedArgs.filters.extensions;
 
     // In programmatic mode, network mode defaults to testnet if not specified
     networkMode = parsedArgs.networkMode || 'testnet';
-
-    // Print active filters
-    const filterEntries = Object.entries(filters).filter(([_, v]) => v && (Array.isArray(v) ? v.length > 0 : true));
-    if (filterEntries.length > 0) {
-      log('Active filters:');
-      filterEntries.forEach(([key, value]) => {
-        if (Array.isArray(value) && value.length > 0) {
-          log(`  - ${key}: ${value.join(', ')}`);
-        }
-      });
-      log('');
-    }
   }
 
   // Get network configuration based on selected mode
   const networks = getNetworkSet(networkMode);
-
-  log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
-  log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
-  log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
-  log(`   APTOS: ${networks.aptos.name} (${networks.aptos.caip2})`);
-  log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
-
-  if (networkMode === 'mainnet') {
-    log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
-  }
-  log('');
 
   // Apply filters to scenarios
   let filteredScenarios = filterScenarios(allScenarios, filters);
@@ -483,41 +468,24 @@ async function runTest() {
       log('💡 This should not happen - coverage tracking may have an issue\n');
       return;
     }
-  } else {
-    log(`\n✅ ${filteredScenarios.length} scenarios selected`);
   }
 
+  // Show only the networks used by filtered scenarios
+  const activeProtocolFamilies = new Set(filteredScenarios.map(s => s.protocolFamily));
+  log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
+  if (activeProtocolFamilies.has('evm'))     log(`   EVM:     ${networks.evm.name} (${networks.evm.caip2})`);
+  if (activeProtocolFamilies.has('svm'))     log(`   SVM:     ${networks.svm.name} (${networks.svm.caip2})`);
+  if (activeProtocolFamilies.has('aptos'))   log(`   APTOS:   ${networks.aptos.name} (${networks.aptos.caip2})`);
+  if (activeProtocolFamilies.has('stellar')) log(`   STELLAR: ${networks.stellar.name} (${networks.stellar.caip2})`);
+  if (networkMode === 'mainnet') {
+    log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
+  }
+
+  log(`\n✅ ${filteredScenarios.length} scenarios selected`);
   if (selectedExtensions && selectedExtensions.length > 0) {
     log(`🎁 Extensions enabled: ${selectedExtensions.join(', ')}`);
   }
   log('');
-
-  // Branch coverage assertions for EVM scenarios
-  const evmScenarios = filteredScenarios.filter(s => s.protocolFamily === 'evm');
-  if (evmScenarios.length > 0) {
-    const hasEip3009 = evmScenarios.some(s => (s.endpoint.transferMethod || 'eip3009') === 'eip3009');
-    const hasPermit2 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2');
-    const hasPermit2Direct = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.permit2Direct === true);
-    const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
-    const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
-
-    log('🔍 EVM Branch Coverage Check:');
-    log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
-    log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
-    log(`   Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
-    log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
-    log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
-    log('');
-  }
-
-  // Auto-detect Permit2 scenarios
-  const hasPermit2Scenarios = filteredScenarios.some(
-    (s) => s.endpoint.transferMethod === 'permit2'
-  );
-
-  if (hasPermit2Scenarios) {
-    log('🔐 Permit2 scenarios detected — revoke before gas-sponsored tests, approve before permit2-direct tests');
-  }
 
   // Collect unique facilitators and servers
   const uniqueFacilitators = new Map<string, any>();
@@ -680,7 +648,8 @@ async function runTest() {
 
   log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
   serverFacilitatorCombos.forEach(combo => {
-    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s)`);
+    const uniqueClients = [...new Set(combo.scenarios.map(s => s.client.name))];
+    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s) [clients: ${uniqueClients.join(', ')}]`);
   });
   if (parsedArgs.parallel) {
     log(`\n⚡ Parallel mode enabled (concurrency: ${parsedArgs.concurrency})`);
@@ -733,8 +702,8 @@ async function runTest() {
       } else {
         cLog.log(`  ❌ Test failed: ${result.error}`);
         if (result.verboseLogs && result.verboseLogs.length > 0) {
-          cLog.log(`  🔍 Verbose logs:`);
-          result.verboseLogs.forEach(logLine => cLog.log(logLine));
+          cLog.verboseLog(`  🔍 Verbose logs:`);
+          result.verboseLogs.forEach(logLine => cLog.verboseLog(logLine));
         }
         cLog.verboseLog(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
       }
