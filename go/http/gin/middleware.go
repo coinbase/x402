@@ -467,3 +467,34 @@ func (w *responseCapture) Write(data []byte) (int, error) {
 func (w *responseCapture) WriteString(s string) (int, error) {
 	return w.Write([]byte(s))
 }
+
+// Flush is a no-op to prevent premature flushing to the wire before settlement.
+// Gin's default Flush calls WriteHeaderNow then flushes the TCP connection,
+// which would commit HTTP headers before settlement can add PAYMENT-RESPONSE.
+func (w *responseCapture) Flush() {}
+
+// WriteHeaderNow is a no-op to prevent premature header commit before settlement.
+// Gin's default WriteHeaderNow writes the status line + headers to the underlying
+// http.ResponseWriter, which cannot be undone.
+func (w *responseCapture) WriteHeaderNow() {}
+
+// Status returns the captured status code instead of the embedded writer's.
+func (w *responseCapture) Status() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.statusCode
+}
+
+// Size returns the captured body length instead of the embedded writer's.
+func (w *responseCapture) Size() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.body.Len()
+}
+
+// Written returns whether any write has been captured.
+func (w *responseCapture) Written() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.written
+}
