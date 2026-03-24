@@ -243,6 +243,51 @@ func (s *x402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *x402Reso
 }
 
 // ============================================================================
+// Health / Diagnostics
+// ============================================================================
+
+// HealthScheme describes a registered scheme for a given network.
+type HealthScheme struct {
+	Network string `json:"network"`
+	Scheme  string `json:"scheme"`
+}
+
+// HealthResponse contains diagnostic information about the resource server's
+// current configuration, including registered schemes and extensions.
+type HealthResponse struct {
+	Status     string         `json:"status"`
+	Schemes    []HealthScheme `json:"schemes"`
+	Extensions []string       `json:"extensions"`
+}
+
+// Health returns diagnostic information about the server's configuration.
+func (s *x402ResourceServer) Health() HealthResponse {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	schemes := make([]HealthScheme, 0)
+	for network, schemeMap := range s.schemes {
+		for schemeName := range schemeMap {
+			schemes = append(schemes, HealthScheme{
+				Network: string(network),
+				Scheme:  schemeName,
+			})
+		}
+	}
+
+	extensions := make([]string, 0, len(s.registeredExtensions))
+	for key := range s.registeredExtensions {
+		extensions = append(extensions, key)
+	}
+
+	return HealthResponse{
+		Status:     "ok",
+		Schemes:    schemes,
+		Extensions: extensions,
+	}
+}
+
+// ============================================================================
 // Core Payment Methods (V2 Only)
 // ============================================================================
 
