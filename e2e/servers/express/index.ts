@@ -280,13 +280,14 @@ app.use(
         },
       },
       // Upto Permit2 standard/direct endpoint - no gas sponsoring, client must pre-approve Permit2
+      // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
       "GET /protected-upto-permit2": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
           network: EVM_NETWORK,
           price: {
-            amount: "1000",
+            amount: "2000",
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
@@ -297,26 +298,33 @@ app.use(
         },
       },
       // Upto Permit2 endpoint with EIP-2612 gas sponsoring
+      // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
       "GET /protected-upto-permit2-eip2612": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
           network: EVM_NETWORK,
-          price: "$0.001",
-          extra: { assetTransferMethod: "permit2" },
+          price: {
+            amount: "2000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
         },
         extensions: {
           ...declareEip2612GasSponsoringExtension(),
         },
       },
       // Upto Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
+      // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
       "GET /protected-upto-permit2-erc20": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
           network: EVM_NETWORK,
           price: {
-            amount: "1000",
+            amount: "2000",
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
@@ -325,19 +333,6 @@ app.use(
         },
         extensions: {
           ...declareErc20ApprovalGasSponsoringExtension(),
-        },
-      },
-      // Upto partial settlement endpoint - settles only 500 of 1000 authorized
-      "GET /protected-upto-partial": {
-        accepts: {
-          payTo: EVM_PAYEE_ADDRESS,
-          scheme: "upto",
-          network: EVM_NETWORK,
-          price: "$0.001",
-          extra: { assetTransferMethod: "permit2" },
-        },
-        extensions: {
-          ...declareEip2612GasSponsoringExtension(),
         },
       },
       ...(STELLAR_PAYEE_ADDRESS
@@ -457,6 +452,7 @@ app.get("/exact/evm/permit2-eip2612GasSponsoring", (req, res) => {
 });
 
 app.get("/protected-upto-permit2", (req, res) => {
+  setSettlementOverrides(res, { amount: "1000" });
   res.json({
     message: "Upto Permit2 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -465,6 +461,7 @@ app.get("/protected-upto-permit2", (req, res) => {
 });
 
 app.get("/protected-upto-permit2-eip2612", (req, res) => {
+  setSettlementOverrides(res, { amount: "1000" });
   res.json({
     message: "Upto Permit2 EIP-2612 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -473,23 +470,11 @@ app.get("/protected-upto-permit2-eip2612", (req, res) => {
 });
 
 app.get("/protected-upto-permit2-erc20", (req, res) => {
+  setSettlementOverrides(res, { amount: "1000" });
   res.json({
     message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",
     timestamp: new Date().toISOString(),
     method: "upto-permit2-erc20-approval",
-  });
-});
-
-/**
- * Upto partial settlement endpoint - demonstrates partial settlement via overrides.
- * Authorizes up to $0.001 but settles only 500 atomic units (half).
- */
-app.get("/protected-upto-partial", (req, res) => {
-  setSettlementOverrides(res, { amount: "500" });
-  res.json({
-    message: "Upto partial settlement endpoint accessed successfully",
-    timestamp: new Date().toISOString(),
-    method: "upto-partial",
   });
 });
 

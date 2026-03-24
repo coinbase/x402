@@ -245,8 +245,13 @@ export const proxy = paymentProxy(
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "upto",
         network: EVM_NETWORK,
-        price: "$0.001",
-        extra: { assetTransferMethod: "permit2" },
+        price: {
+          amount: "2000",
+          asset: EVM_PERMIT2_ASSET,
+          extra: {
+            assetTransferMethod: "permit2",
+          },
+        },
       },
       extensions: {
         ...declareEip2612GasSponsoringExtension(),
@@ -258,7 +263,7 @@ export const proxy = paymentProxy(
         scheme: "upto",
         network: EVM_NETWORK,
         price: {
-          amount: "1000",
+          amount: "2000",
           asset: EVM_PERMIT2_ASSET,
           extra: {
             assetTransferMethod: "permit2",

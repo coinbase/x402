@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { paymentMiddleware } from "@x402/hono";
+import { paymentMiddleware, setSettlementOverrides } from "@x402/hono";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
@@ -283,26 +283,33 @@ app.use(
         },
       },
       // Upto Permit2 endpoint with EIP-2612 gas sponsoring
+      // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
       "GET /protected-upto-permit2-eip2612": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
           network: EVM_NETWORK,
-          price: "$0.001",
-          extra: { assetTransferMethod: "permit2" },
+          price: {
+            amount: "2000",
+            asset: EVM_PERMIT2_ASSET,
+            extra: {
+              assetTransferMethod: "permit2",
+            },
+          },
         },
         extensions: {
           ...declareEip2612GasSponsoringExtension(),
         },
       },
       // Upto Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
+      // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
       "GET /protected-upto-permit2-erc20": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
           network: EVM_NETWORK,
           price: {
-            amount: "1000",
+            amount: "2000",
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
@@ -422,8 +429,10 @@ app.get("/exact/evm/permit2-erc20ApprovalGasSponsoring", c => {
 
 /**
  * Upto Permit2 EIP-2612 endpoint - upto scheme with gas sponsoring
+ * Authorizes 2000, settles 1000 (partial settlement)
  */
 app.get("/protected-upto-permit2-eip2612", c => {
+  setSettlementOverrides(c, { amount: "1000" });
   return c.json({
     message: "Upto Permit2 EIP-2612 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -433,8 +442,10 @@ app.get("/protected-upto-permit2-eip2612", c => {
 
 /**
  * Upto Permit2 ERC-20 endpoint - upto scheme with ERC-20 approval gas sponsoring
+ * Authorizes 2000, settles 1000 (partial settlement)
  */
 app.get("/protected-upto-permit2-erc20", c => {
+  setSettlementOverrides(c, { amount: "1000" });
   return c.json({
     message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",
     timestamp: new Date().toISOString(),
