@@ -305,6 +305,18 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "decimals": 6,
         },
     },
+    # Mezo Testnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
+    "eip155:31611": {
+        "chain_id": 31611,
+        "default_asset": {
+            "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+            "name": "Mezo USD",
+            "version": "1",
+            "decimals": 18,
+            "asset_transfer_method": "permit2",
+            "supports_eip2612": True,
+        },
+    },
 }
 
 # V1 legacy constants are in x402.mechanisms.evm.v1.constants
