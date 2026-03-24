@@ -67,11 +67,11 @@ const (
 
 var (
 	// Network chain IDs
-	ChainIDBase        = big.NewInt(8453)
-	ChainIDBaseSepolia = big.NewInt(84532)
-	ChainIDMegaETH     = big.NewInt(4326)
-	ChainIDMonad       = big.NewInt(143)
-	ChainIDMezoTestnet = big.NewInt(31611)
+	ChainIDBase          = big.NewInt(8453)
+	ChainIDBaseSepolia   = big.NewInt(84532)
+	ChainIDMegaETH       = big.NewInt(4326)
+	ChainIDMonad         = big.NewInt(143)
+	ChainIDMezoTestnet   = big.NewInt(31611)
 	ChainIDStable        = big.NewInt(988)
 	ChainIDStableTestnet = big.NewInt(2201)
 
