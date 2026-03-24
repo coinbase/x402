@@ -131,8 +131,7 @@ export function paymentMiddleware(
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(asset.address),
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
+        requestStructure: {
           input: {
             type: "http",
             method: req.method.toUpperCase(),
@@ -174,8 +173,7 @@ export function paymentMiddleware(
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: asset.address,
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
+        requestStructure: {
           input: {
             type: "http",
             method: req.method.toUpperCase(),
