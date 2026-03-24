@@ -84,6 +84,7 @@ function createMockApp(): { app: FastifyInstance; hooks: CapturedHooks } {
       if (name === "onRequest") hooks.onRequest.push(handler);
       if (name === "onSend") hooks.onSend.push(handler);
     }),
+    decorateRequest: vi.fn(),
   } as unknown as FastifyInstance;
 
   return { app, hooks };
@@ -162,6 +163,12 @@ function createMockReply(): FastifyReply & {
     _body: undefined as unknown,
     _type: undefined as string | undefined,
     statusCode: 200,
+    raw: {
+      write: vi.fn(),
+      end: vi.fn(),
+      writeHead: vi.fn(),
+      flushHeaders: vi.fn(),
+    },
     header: vi.fn(function (this: typeof reply, key: string, value: string) {
       this._headers[key] = value;
       return this;
@@ -349,9 +356,8 @@ describe("paymentMiddleware", () => {
     await hooks.onRequest[0](request, reply);
 
     expect(reply.send).not.toHaveBeenCalled();
-    // Payment context should be stashed on the request via symbol
-    const symbols = Object.getOwnPropertySymbols(request);
-    expect(symbols.length).toBe(1);
+    expect(request.x402Context).toBeDefined();
+    expect(request.x402RawGuard).toBeDefined();
   });
 
   it("settles payment and adds headers in onSend for verified payments", async () => {
