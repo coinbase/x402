@@ -627,9 +627,7 @@ def _make_extra(payload, tool_name="test"):
     """Helper to build extra dict for wrapped handler."""
     return {
         "_meta": {
-            "x402/payment": (
-                payload.model_dump() if hasattr(payload, "model_dump") else payload
-            )
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
         },
         "toolName": tool_name,
     }
