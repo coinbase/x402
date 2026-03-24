@@ -1,0 +1,7 @@
+{
+  "name": "Yantrix",
+  "category": "Services/Endpoints", 
+  "logoUrl": "/logos/yantrix-ai.svg",
+  "description": "AI API marketplace with 25 pay-per-call APIs for autonomous agents, all gated with x402/USDC on Base mainnet. No account needed — just pay and call. Includes fact verification, code review, document intelligence, meeting summaries, crypto data, financial markets, and more. MCP server integration with 51 tools available via @yantrixai/mcp.",
+  "websiteUrl": "https://yantrix.ai"
+}
