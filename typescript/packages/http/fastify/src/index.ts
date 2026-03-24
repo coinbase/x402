@@ -7,6 +7,8 @@ import {
   x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
+  FacilitatorResponseError,
+  getFacilitatorResponseError,
 } from "@x402/core/server";
 import {
   SchemeNetworkServer,
@@ -132,6 +134,9 @@ function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
  *
  * The guard is deactivated at the start of onSend so that Fastify's own
  * internal reply.raw usage (which happens after onSend) is unaffected.
+ *
+ * @param reply - Fastify reply whose raw ServerResponse is wrapped for buffering.
+ * @returns Guard state and buffer used to replay raw writes after settlement.
  */
 function guardReplyRaw(reply: FastifyReply): RawGuard {
   const raw = reply.raw;
@@ -200,6 +205,16 @@ function guardReplyRaw(reply: FastifyReply): RawGuard {
 }
 
 /**
+ * Sends a normalized 502 response for facilitator boundary failures.
+ *
+ * @param reply - The Fastify reply to write to
+ * @param error - The facilitator response error to surface
+ */
+function sendFacilitatorError(reply: FastifyReply, error: FacilitatorResponseError): void {
+  reply.status(502).send({ error: error.message });
+}
+
+/**
  * Configuration for registering a payment scheme with a specific network.
  */
 export interface SchemeRegistration {
@@ -253,6 +268,28 @@ export function paymentMiddlewareFromHTTPServer(
   app.decorateRequest("x402RawGuard", undefined);
 
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  let isInitialized = false;
+
+  /**
+   * Ensures facilitator initialization succeeds once, while allowing retries after failures.
+   */
+  async function initializeHttpServer(): Promise<void> {
+    if (!syncFacilitatorOnStart || isInitialized) {
+      return;
+    }
+
+    if (!initPromise) {
+      initPromise = httpServer.initialize();
+    }
+
+    try {
+      await initPromise;
+      isInitialized = true;
+    } catch (error) {
+      initPromise = null;
+      throw error;
+    }
+  }
 
   let bazaarPromise: Promise<void> | null = null;
   if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
@@ -281,9 +318,16 @@ export function paymentMiddlewareFromHTTPServer(
       return;
     }
 
-    if (initPromise) {
-      await initPromise;
-      initPromise = null;
+    if (syncFacilitatorOnStart && !isInitialized) {
+      try {
+        await initializeHttpServer();
+      } catch (error) {
+        const facilitatorError = getFacilitatorResponseError(error);
+        if (facilitatorError) {
+          return sendFacilitatorError(reply, facilitatorError);
+        }
+        throw error;
+      }
     }
 
     if (bazaarPromise) {
@@ -291,7 +335,15 @@ export function paymentMiddlewareFromHTTPServer(
       bazaarPromise = null;
     }
 
-    const result = await httpServer.processHTTPRequest(context, paywallConfig);
+    let result: Awaited<ReturnType<x402HTTPResourceServer["processHTTPRequest"]>>;
+    try {
+      result = await httpServer.processHTTPRequest(context, paywallConfig);
+    } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        return sendFacilitatorError(reply, error);
+      }
+      throw error;
+    }
 
     switch (result.type) {
       case "no-payment-required":
@@ -392,6 +444,11 @@ export function paymentMiddlewareFromHTTPServer(
       }
       return effectivePayload;
     } catch (error) {
+      if (error instanceof FacilitatorResponseError) {
+        reply.status(502);
+        reply.type("application/json");
+        return JSON.stringify({ error: error.message });
+      }
       console.error(error);
       reply.status(402);
       reply.type("application/json");
