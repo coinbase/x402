@@ -36,7 +36,7 @@ export function parseArgs(): ParsedArgs {
   }
 
   // Check if any filter args present -> programmatic mode
-  const hasFilterArgs = args.some(arg => 
+  const hasFilterArgs = args.some(arg =>
     arg.startsWith('--transport=') ||
     arg.startsWith('--facilitators=') ||
     arg.startsWith('--servers=') ||
@@ -60,7 +60,7 @@ export function parseArgs(): ParsedArgs {
     if (logArg.includes('=')) {
       logFile = logArg.split('=').slice(1).join('=');
     } else {
-      const ts = new Date().toISOString().replace(/[:.]/g, '-').replace('T', 'T').slice(0, 19);
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       logFile = `logs/e2e-run-${ts}.log`;
     }
   } else if (legacyLogArg) {

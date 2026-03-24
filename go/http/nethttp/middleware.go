@@ -301,19 +301,23 @@ func handlePaymentVerified(w http.ResponseWriter, r *http.Request, next http.Han
 	)
 
 	if !settleResult.Success {
-		errorReason := settleResult.ErrorReason
-		if errorReason == "" {
-			errorReason = "Settlement failed"
+		// Always set PAYMENT-RESPONSE header on settlement failure
+		for key, value := range settleResult.Headers {
+			w.Header().Set(key, value)
 		}
-		if config.ErrorHandler != nil {
+		switch {
+		case config.ErrorHandler != nil:
+			errorReason := settleResult.ErrorReason
+			if errorReason == "" {
+				errorReason = "Settlement failed"
+			}
 			config.ErrorHandler(w, r, fmt.Errorf("settlement failed: %s", errorReason))
-		} else {
+		case settleResult.Response != nil:
+			handlePaymentError(w, settleResult.Response)
+		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPaymentRequired)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"error":   "Settlement failed",
-				"details": errorReason,
-			})
+			_ = json.NewEncoder(w).Encode(map[string]any{})
 		}
 		return
 	}

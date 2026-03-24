@@ -31,9 +31,9 @@ export async function runInteractiveMode(
   // Sort facilitators: regular ones first, external ones at the bottom
   const regularFacilitators = allFacilitators.filter(f => !f.isExternal);
   const externalFacilitators = allFacilitators.filter(f => f.isExternal);
-  
+
   const facilitatorChoices: any[] = [];
-  
+
   // Add regular facilitators
   regularFacilitators.forEach(f => {
     facilitatorChoices.push({
@@ -42,7 +42,7 @@ export async function runInteractiveMode(
       selected: minimize // With --min: all selected. Without --min: none selected
     });
   });
-  
+
   // Add external facilitators section if any exist
   if (externalFacilitators.length > 0) {
     // Add separator/header for external facilitators
@@ -51,7 +51,7 @@ export async function runInteractiveMode(
       value: '__external_separator__',
       disabled: true
     });
-    
+
     externalFacilitators.forEach(f => {
       facilitatorChoices.push({
         title: `${f.name} (${formatVersions(f.config.x402Versions)}) [${f.config.protocolFamilies?.join(', ') || ''}]${f.config.extensions ? ' {' + f.config.extensions.join(', ') + '}' : ''}`,
