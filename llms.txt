@@ -1,0 +1,166 @@
+> x402
+
+# x402 — HTTP Payments Protocol
+
+A payments protocol for the internet, built on HTTP. Enables machine-to-machine payments via HTTP 402 responses. Multi-language SDK (TypeScript, Python, Go, Java) with shared protocol specifications. Apache-2.0 license.
+
+## Supported Chains
+
+Base, Solana, Polygon, Avalanche, Stellar, Aptos, SKALE, Sei, plus testnets.
+
+## Transports
+
+- **HTTP 402** — Primary; servers return `402 Payment Required` with payment headers
+- **MCP** — Model Context Protocol transport for AI agents
+- **A2A** — Agent-to-Agent transport
+
+## Payment Schemes
+
+- **exact** — Stable; fixed price per request
+- **upto** — In-progress; maximum budget with actual usage billing
+
+## Directory Structure
+
+```
+x402/
+├── typescript/          # TypeScript SDK (reference implementation)
+│   ├── packages/
+│   │   ├── core/        # @x402/core — protocol primitives, facilitator
+│   │   ├── extensions/  # @x402/extensions — protocol extensions
+│   │   ├── http/        # @x402/http — HTTP 402 transport
+│   │   ├── legacy/      # Legacy compatibility layer
+│   │   ├── mcp/         # @x402/mcp — MCP transport
+│   │   └── mechanisms/  # @x402/mechanisms — chain-specific payment logic
+│   ├── site/            # Documentation site
+│   └── turbo.json       # Turborepo pipeline config
+├── python/              # Python SDK
+│   ├── x402/            # Main package (client.py, server.py, facilitator.py)
+│   └── legacy/          # Legacy compatibility
+├── go/                  # Go SDK (module: github.com/coinbase/x402/go)
+│   ├── client.go, server.go, facilitator.go       # Core interfaces
+│   ├── client_hooks.go, server_hooks.go, facilitator_hooks.go  # Lifecycle hooks
+│   ├── http/            # HTTP transport (gin/, nethttp/)
+│   ├── mcp/             # MCP transport
+│   ├── mechanisms/      # Payment mechanisms (evm/, svm/)
+│   ├── extensions/      # Protocol extensions
+│   └── signers/         # Cryptographic signer implementations
+├── java/                # Java SDK (Maven)
+├── specs/               # Protocol specifications (authoritative)
+│   ├── x402-specification-v1.md
+│   ├── x402-specification-v2.md
+│   ├── schemes/         # exact, upto
+│   ├── transports-v1/
+│   ├── transports-v2/   # http.md, mcp.md, a2a.md
+│   └── extensions/      # Extension specs
+├── examples/            # Example implementations (typescript/, python/, go/)
+├── e2e/                 # End-to-end tests
+├── contracts/           # EVM contracts (Foundry)
+├── docs/                # Mintlify documentation site (MDX)
+│   └── AGENTS.md        # Docs-specific agent instructions
+├── static/              # Static assets (diagrams/images)
+├── CONTRIBUTING.md      # Contribution guide
+├── PROJECT-IDEAS.md     # Grant/project ideas
+├── ROADMAP.md           # Roadmap
+└── SECURITY.md          # Security policy
+```
+
+## Key Specification Files
+
+- `specs/x402-specification-v2.md` — Current protocol specification
+- `specs/transports-v2/http.md` — HTTP transport spec
+- `specs/transports-v2/mcp.md` — MCP transport spec
+- `specs/transports-v2/a2a.md` — A2A transport spec
+- `specs/schemes/exact/` — Exact payment scheme
+- `specs/schemes/upto/` — Upto payment scheme (in-progress)
+- `specs/extensions/` — All extension specifications
+
+## Build, Test, and Lint Commands
+
+### TypeScript (reference SDK)
+
+Requires pnpm@10.7.0 and Node.js.
+
+```bash
+cd typescript
+pnpm install              # Install all workspace dependencies
+pnpm build                # Build all packages (via Turborepo)
+pnpm test                 # Run all tests (vitest)
+pnpm lint                 # Lint all packages (eslint)
+pnpm format:check         # Check formatting (prettier)
+pnpm format               # Auto-format code
+```
+
+Individual packages: `cd packages/core && pnpm test`, etc.
+
+### Python
+
+Requires `uv` for dependency management.
+
+```bash
+cd python
+uv sync                   # Install dependencies
+uv run pytest             # Run tests
+```
+
+### Go
+
+Requires Go 1.24+.
+
+```bash
+cd go
+go build ./...            # Build all packages
+go test ./...             # Run all tests
+golangci-lint run         # Lint
+```
+
+### Java
+
+Requires Maven and JDK.
+
+```bash
+cd java
+mvn clean install         # Build, lint (checkstyle + spotbugs), and test
+```
+
+### EVM Contracts
+
+Requires Foundry (forge).
+
+```bash
+cd contracts/evm
+forge build               # Compile contracts
+forge test                # Run tests
+```
+
+### End-to-End Tests
+
+```bash
+cd e2e
+pnpm install && pnpm test
+```
+
+## Code Style Conventions
+
+- **TypeScript**: eslint + prettier enforced in CI. Configs in each package. Changeset-based versioning — run `pnpm changeset` when changing public APIs.
+- **Python**: Follow standard Python conventions. `uv` for dependency management.
+- **Go**: golangci-lint enforced in CI. Changelog entries via `changie`. Follow standard Go formatting (`gofmt`).
+- **Java**: checkstyle + spotbugs enforced via Maven. No stable release yet (SNAPSHOT only).
+- All SDKs: tests required for new functionality. Documentation updates required alongside code changes.
+
+## Contribution Workflow
+
+1. Fork and create a branch: `feature/your-feature-name`
+2. Implement changes with tests and documentation
+3. For TypeScript: run `pnpm changeset` if changing public APIs
+4. For Go: use `changie new` to add a changelog entry
+5. Ensure all linting and tests pass locally
+6. Open a PR against `main` — PRs are reviewed before merge; never commit directly to main
+
+## Multi-Language Notes
+
+- **TypeScript is the reference implementation** — protocol changes land here first, then are ported to Python, Go, and Java.
+- Protocol specifications in `specs/` are authoritative. All SDKs must conform to them.
+- Each SDK has a `legacy/` package for backward compatibility — do not modify these.
+- The `docs/AGENTS.md` file contains instructions scoped to the Mintlify documentation site only.
+- CI runs checks for all SDKs independently — a failure in one does not block others.
+- Each SDK manages its own versioning (TypeScript: changesets, Go: changie, Python/Java: respective tooling).
