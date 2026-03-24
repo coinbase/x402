@@ -11,7 +11,7 @@
   "description": "Python FastAPI server with x402 v2 payment middleware",
   "endpoints": [
     {
-      "path": "/exact-evm-eip3009",
+      "path": "/exact/evm/eip3009",
       "method": "GET",
       "description": "Protected endpoint requiring EIP-3009 payment",
       "requiresPayment": true,
@@ -19,14 +19,14 @@
       "transferMethod": "eip3009"
     },
     {
-      "path": "/exact-svm",
+      "path": "/exact/svm",
       "method": "GET",
       "description": "Protected endpoint requiring SVM (Solana) payment",
       "requiresPayment": true,
       "protocolFamily": "svm"
     },
     {
-      "path": "/exact-evm-permit2-eip2612GasSponsoring",
+      "path": "/exact/evm/permit2-eip2612GasSponsoring",
       "method": "GET",
       "description": "Protected endpoint requiring Permit2 payment with EIP-2612 gas sponsoring",
       "requiresPayment": true,
@@ -35,7 +35,7 @@
       "extensions": ["eip2612GasSponsoring"]
     },
     {
-      "path": "/exact-evm-permit2-erc20ApprovalGasSponsoring",
+      "path": "/exact/evm/permit2-erc20ApprovalGasSponsoring",
       "method": "GET",
       "description": "Protected endpoint requiring Permit2 payment with ERC-20 approval gas sponsoring",
       "requiresPayment": true,

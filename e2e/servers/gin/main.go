@@ -122,7 +122,7 @@ func main() {
 	}
 
 	routes := x402http.RoutesConfig{
-		"GET /exact-evm-eip3009": {
+		"GET /exact/evm/eip3009": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -135,7 +135,7 @@ func main() {
 			types.BAZAAR.Key(): discoveryExtension,
 		},
 	},
-	"GET /exact-svm": {
+	"GET /exact/svm": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -149,7 +149,7 @@ func main() {
 		},
 	},
 	// Permit2 direct endpoint - standard settle, no gas sponsoring (client must pre-approve Permit2)
-	"GET /exact-evm-permit2": {
+	"GET /exact/evm/permit2": {
 		Accepts: x402http.PaymentOptions{
 			{
 				Scheme:  "exact",
@@ -169,7 +169,7 @@ func main() {
 		},
 	},
 	// Permit2 endpoint - explicitly requires Permit2 flow instead of EIP-3009
-		"GET /exact-evm-permit2-eip2612GasSponsoring": {
+		"GET /exact/evm/permit2-eip2612GasSponsoring": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",
@@ -204,7 +204,7 @@ func main() {
 			}(),
 		},
 	// Permit2 ERC-20 approval endpoint - requires Permit2 flow with a generic ERC-20 token (no EIP-2612)
-	"GET /exact-evm-permit2-erc20ApprovalGasSponsoring": {
+	"GET /exact/evm/permit2-erc20ApprovalGasSponsoring": {
 		Accepts: x402http.PaymentOptions{
 			{
 				Scheme:  "exact",
@@ -271,7 +271,7 @@ func main() {
 	 * This endpoint demonstrates a resource protected by x402 payment middleware.
 	 * Clients must provide a valid payment signature to access this endpoint.
 	 */
-	r.GET("/exact-evm-eip3009", func(c *ginfw.Context) {
+	r.GET("/exact/evm/eip3009", func(c *ginfw.Context) {
 		if shutdownRequested {
 			c.JSON(http.StatusServiceUnavailable, ginfw.H{
 				"error": "Server shutting down",
@@ -292,7 +292,7 @@ func main() {
 	 * This endpoint demonstrates a Solana payment protected resource.
 	 * Clients must provide a valid payment signature to access this endpoint.
 	 */
-	r.GET("/exact-svm", func(c *ginfw.Context) {
+	r.GET("/exact/svm", func(c *ginfw.Context) {
 		if shutdownRequested {
 			c.JSON(http.StatusServiceUnavailable, ginfw.H{
 				"error": "Server shutting down",
@@ -310,7 +310,7 @@ func main() {
 	/**
 	 * Protected Permit2 direct endpoint - standard settle (no gas sponsoring)
 	 */
-	r.GET("/exact-evm-permit2", func(c *ginfw.Context) {
+	r.GET("/exact/evm/permit2", func(c *ginfw.Context) {
 		if shutdownRequested {
 			c.JSON(http.StatusServiceUnavailable, ginfw.H{
 				"error": "Server shutting down",
@@ -329,7 +329,7 @@ func main() {
 	 * Protected Permit2 EIP-2612 endpoint - requires payment via Permit2 with gas sponsoring.
 	 * Uses EIP-2612 permit atomically in settleWithPermit. No pre-approval needed.
 	 */
-	r.GET("/exact-evm-permit2-eip2612GasSponsoring", func(c *ginfw.Context) {
+	r.GET("/exact/evm/permit2-eip2612GasSponsoring", func(c *ginfw.Context) {
 		if shutdownRequested {
 			c.JSON(http.StatusServiceUnavailable, ginfw.H{
 				"error": "Server shutting down",
@@ -349,7 +349,7 @@ func main() {
 	 * using a generic ERC-20 token that does NOT support EIP-2612.
 	 * The facilitator sponsors the approve(Permit2, MaxUint256) transaction.
 	 */
-	r.GET("/exact-evm-permit2-erc20ApprovalGasSponsoring", func(c *ginfw.Context) {
+	r.GET("/exact/evm/permit2-erc20ApprovalGasSponsoring", func(c *ginfw.Context) {
 		if shutdownRequested {
 			c.JSON(http.StatusServiceUnavailable, ginfw.H{
 				"error": "Server shutting down",
@@ -422,11 +422,11 @@ func main() {
 ║  SVM Payee:   %-40s ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /exact-evm-eip3009                    (EVM EIP-3009)  ║
-║  • GET  /exact-evm-permit2                    (Permit2)       ║
-║  • GET  /exact-evm-permit2-eip2612GasSponsoring               ║
-║  • GET  /exact-evm-permit2-erc20ApprovalGasSponsoring         ║
-║  • GET  /exact-svm                            (SVM)           ║
+║  • GET  /exact/evm/eip3009                    (EVM EIP-3009)  ║
+║  • GET  /exact/evm/permit2                    (Permit2)       ║
+║  • GET  /exact/evm/permit2-eip2612GasSponsoring               ║
+║  • GET  /exact/evm/permit2-erc20ApprovalGasSponsoring         ║
+║  • GET  /exact/svm                            (SVM)           ║
 ║  • GET  /health                 (no payment required)  ║
 ║  • POST /close                  (shutdown server)      ║
 ╚════════════════════════════════════════════════════════╝
