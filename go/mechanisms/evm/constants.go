@@ -73,6 +73,7 @@ var (
 	ChainIDMonad       = big.NewInt(143)
 	ChainIDMezoTestnet = big.NewInt(31611)
 	ChainIDStable      = big.NewInt(988)
+	ChainIDPolygon     = big.NewInt(137)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -147,6 +148,16 @@ var (
 				Address:  "0x779Ded0c9e1022225f8E0630b35a9b54bE713736", // USDT0 on Stable
 				Name:     "USDT0",
 				Version:  "1",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// Polygon Mainnet
+		"eip155:137": {
+			ChainID: ChainIDPolygon,
+			DefaultAsset: AssetInfo{
+				Address:  "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // USDC on Polygon
+				Name:     "USD Coin",
+				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
 		},

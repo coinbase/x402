@@ -251,6 +251,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         version: "1",
         decimals: 6,
       }, // Stable mainnet USDT0
+      "eip155:137": {
+        address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Polygon mainnet USDC
     };
 
     const assetInfo = stablecoins[network];
