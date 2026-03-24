@@ -306,6 +306,63 @@ Integrate the payment middleware into your application. You will need to provide
     serve({ fetch: app.fetch, port: 4021 });
     ```
   </Tab>
+  <Tab title="Fastify">
+    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/fastify).
+
+    ```typescript
+    import Fastify from "fastify";
+    import { paymentMiddleware, x402ResourceServer } from "@x402/fastify";
+    import { ExactEvmScheme } from "@x402/evm/exact/server";
+    import { ExactSvmScheme } from "@x402/svm/exact/server";
+    import { HTTPFacilitatorClient } from "@x402/core/server";
+
+    const app = Fastify();
+    const evmAddress = "0xYourEvmAddress";
+    const svmAddress = "YourSolanaAddress";
+
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://x402.org/facilitator"
+    });
+
+    paymentMiddleware(
+      app,
+      {
+        "GET /weather": {
+          accepts: [
+            {
+              scheme: "exact",
+              price: "$0.001",
+              network: "eip155:84532", // Base Sepolia
+              payTo: evmAddress,
+            },
+            {
+              scheme: "exact",
+              price: "$0.001",
+              network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
+              payTo: svmAddress,
+            },
+          ],
+          description: "Weather data",
+          mimeType: "application/json",
+        },
+      },
+      new x402ResourceServer(facilitatorClient)
+        .register("eip155:84532", new ExactEvmScheme())
+        .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
+    );
+
+    app.get("/weather", async () => {
+      return {
+        report: {
+          weather: "sunny",
+          temperature: 70,
+        },
+      };
+    });
+
+    app.listen({ port: 4021 });
+    ```
+  </Tab>
   <Tab title="Go (Gin)">
     Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/go/servers/gin).
 
