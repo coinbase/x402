@@ -54,11 +54,15 @@ if (!facilitatorUrl) {
 // Initialize Hono app
 const app = new Hono();
 
-// Create HTTP facilitator client
-const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+// Create facilitator clients (mock facilitator as fallback for startup validation)
+const facilitatorClients = [new HTTPFacilitatorClient({ url: facilitatorUrl })];
+const mockFacilitatorUrl = process.env.MOCK_FACILITATOR_URL;
+if (mockFacilitatorUrl) {
+  facilitatorClients.push(new HTTPFacilitatorClient({ url: mockFacilitatorUrl }));
+}
 
 // Create x402 resource server with builder pattern (cleaner!)
-const x402Server = new x402ResourceServer(facilitatorClient);
+const x402Server = new x402ResourceServer(facilitatorClients);
 
 // Register server schemes
 x402Server.register("eip155:*", new ExactEvmScheme());
@@ -284,7 +288,7 @@ app.use(
       },
       // Upto Permit2 endpoint with EIP-2612 gas sponsoring
       // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
-      "GET /protected-upto-permit2-eip2612": {
+      "GET /upto/evm/permit2-eip2612GasSponsoring": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
@@ -294,6 +298,8 @@ app.use(
             asset: EVM_PERMIT2_ASSET,
             extra: {
               assetTransferMethod: "permit2",
+              name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+              version: "2",
             },
           },
         },
@@ -303,7 +309,7 @@ app.use(
       },
       // Upto Permit2 endpoint for ERC-20 approval gas sponsoring (no EIP-2612)
       // Authorizes up to 2000 atomic units, settles 1000 (partial settlement)
-      "GET /protected-upto-permit2-erc20": {
+      "GET /upto/evm/permit2-erc20ApprovalGasSponsoring": {
         accepts: {
           payTo: EVM_PAYEE_ADDRESS,
           scheme: "upto",
@@ -431,7 +437,7 @@ app.get("/exact/evm/permit2-erc20ApprovalGasSponsoring", c => {
  * Upto Permit2 EIP-2612 endpoint - upto scheme with gas sponsoring
  * Authorizes 2000, settles 1000 (partial settlement)
  */
-app.get("/protected-upto-permit2-eip2612", c => {
+app.get("/upto/evm/permit2-eip2612GasSponsoring", c => {
   setSettlementOverrides(c, { amount: "1000" });
   return c.json({
     message: "Upto Permit2 EIP-2612 endpoint accessed successfully",
@@ -444,7 +450,7 @@ app.get("/protected-upto-permit2-eip2612", c => {
  * Upto Permit2 ERC-20 endpoint - upto scheme with ERC-20 approval gas sponsoring
  * Authorizes 2000, settles 1000 (partial settlement)
  */
-app.get("/protected-upto-permit2-erc20", c => {
+app.get("/upto/evm/permit2-erc20ApprovalGasSponsoring", c => {
   setSettlementOverrides(c, { amount: "1000" });
   return c.json({
     message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",

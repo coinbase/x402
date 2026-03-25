@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
+import {
+  x402ResourceServer,
+  resolveSettlementOverrideAmount,
+} from "../../../src/server/x402ResourceServer";
 import {
   MockFacilitatorClient,
   MockSchemeNetworkServer,
@@ -1183,6 +1186,73 @@ describe("x402ResourceServer", () => {
       const extensions = server.getFacilitatorExtensions(2, "eip155:8453" as Network, "exact");
 
       expect(extensions).toEqual([]);
+    });
+  });
+});
+
+describe("resolveSettlementOverrideAmount", () => {
+  const baseRequirements = buildPaymentRequirements({ amount: "2000" });
+
+  describe("raw atomic units", () => {
+    it("passes through a plain numeric string unchanged", () => {
+      expect(resolveSettlementOverrideAmount("1000", baseRequirements)).toBe("1000");
+    });
+
+    it("passes through '0'", () => {
+      expect(resolveSettlementOverrideAmount("0", baseRequirements)).toBe("0");
+    });
+  });
+
+  describe("percent format", () => {
+    it("resolves '50%' to half of requirements.amount", () => {
+      expect(resolveSettlementOverrideAmount("50%", baseRequirements)).toBe("1000");
+    });
+
+    it("resolves '100%' to the full requirements.amount", () => {
+      expect(resolveSettlementOverrideAmount("100%", baseRequirements)).toBe("2000");
+    });
+
+    it("resolves '0%' to 0", () => {
+      expect(resolveSettlementOverrideAmount("0%", baseRequirements)).toBe("0");
+    });
+
+    it("resolves '25%' correctly", () => {
+      expect(resolveSettlementOverrideAmount("25%", baseRequirements)).toBe("500");
+    });
+
+    it("resolves '33.33%' and floors to nearest atomic unit", () => {
+      const reqs = buildPaymentRequirements({ amount: "3000" });
+      // 3000 * 3333 / 10000 = 999.9 → floored to 999
+      expect(resolveSettlementOverrideAmount("33.33%", reqs)).toBe("999");
+    });
+
+    it("resolves '10.5%' correctly", () => {
+      const reqs = buildPaymentRequirements({ amount: "1000" });
+      // 1000 * 1050 / 10000 = 105
+      expect(resolveSettlementOverrideAmount("10.5%", reqs)).toBe("105");
+    });
+  });
+
+  describe("dollar price format", () => {
+    it("converts '$1.00' using default 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$1.00", baseRequirements)).toBe("1000000");
+    });
+
+    it("converts '$0.05' using default 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$0.05", baseRequirements)).toBe("50000");
+    });
+
+    it("converts '$0.05' using extra.decimals = 8 when provided", () => {
+      const reqs = buildPaymentRequirements({ amount: "2000", extra: { decimals: 8 } });
+      expect(resolveSettlementOverrideAmount("$0.05", reqs)).toBe("5000000");
+    });
+
+    it("converts '$0.001' using default 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$0.001", baseRequirements)).toBe("1000");
+    });
+
+    it("converts '$0' to '0'", () => {
+      expect(resolveSettlementOverrideAmount("$0", baseRequirements)).toBe("0");
     });
   });
 });

@@ -29,11 +29,15 @@ if (!facilitatorUrl) {
   process.exit(1);
 }
 
-// Create HTTP facilitator client
-const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+// Create facilitator clients (mock facilitator as fallback for startup validation)
+const facilitatorClients = [new HTTPFacilitatorClient({ url: facilitatorUrl })];
+const mockFacilitatorUrl = process.env.MOCK_FACILITATOR_URL;
+if (mockFacilitatorUrl) {
+  facilitatorClients.push(new HTTPFacilitatorClient({ url: mockFacilitatorUrl }));
+}
 
 // Create x402 resource server with builder pattern (cleaner!)
-export const server = new x402ResourceServer(facilitatorClient);
+export const server = new x402ResourceServer(facilitatorClients);
 
 // Register server schemes
 server.register("eip155:*", new ExactEvmScheme());
@@ -240,7 +244,7 @@ export const proxy = paymentProxy(
         ...declareErc20ApprovalGasSponsoringExtension(),
       },
     },
-    "/api/protected-upto-permit2-eip2612-proxy": {
+    "/api/upto/evm/permit2-eip2612GasSponsoring": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "upto",
@@ -250,6 +254,8 @@ export const proxy = paymentProxy(
           asset: EVM_PERMIT2_ASSET,
           extra: {
             assetTransferMethod: "permit2",
+            name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+            version: "2",
           },
         },
       },
@@ -257,7 +263,7 @@ export const proxy = paymentProxy(
         ...declareEip2612GasSponsoringExtension(),
       },
     },
-    "/api/protected-upto-permit2-erc20-proxy": {
+    "/api/upto/evm/permit2-erc20ApprovalGasSponsoring": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "upto",
@@ -287,7 +293,7 @@ export const config = {
     "/api/protected-permit2-proxy",
     "/api/protected-permit2-eip2612-proxy",
     "/api/protected-permit2-erc20-proxy",
-    "/api/protected-upto-permit2-eip2612-proxy",
-    "/api/protected-upto-permit2-erc20-proxy",
+    "/api/upto/evm/permit2-eip2612GasSponsoring",
+    "/api/upto/evm/permit2-erc20ApprovalGasSponsoring",
   ],
 };

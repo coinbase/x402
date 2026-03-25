@@ -96,10 +96,66 @@ export type OnSettleFailureHook = (
 /**
  * Optional overrides for settlement parameters.
  * Used to support partial settlement (e.g., upto scheme billing by actual usage).
+ *
+ * @warning Overriding the amount to a value different from the agreed-upon
+ * `PaymentRequirements.amount` is only valid in schemes that explicitly support
+ * partial settlement, such as the `upto` scheme. Using this with standard
+ * x402 schemes (e.g., `exact`) will likely cause settlement verification to fail.
  */
 export interface SettlementOverrides {
-  /** Actual amount to settle in atomic token units. Must be <= authorized max. */
+  /**
+   * Amount to settle. Supports three formats:
+   *
+   * - **Raw atomic units** — e.g., `"1000"` settles exactly 1000 atomic units.
+   * - **Percent** — e.g., `"50%"` settles 50% of `PaymentRequirements.amount`.
+   *   Supports up to two decimal places (e.g., `"33.33%"`). The result is floored
+   *   to the nearest atomic unit.
+   * - **Dollar price** — e.g., `"$0.05"` converts a USD-denominated price to
+   *   atomic units. Uses `PaymentRequirements.extra.decimals` if set; otherwise
+   *   defaults to 6 (standard for USDC stablecoins). The result is rounded to
+   *   the nearest atomic unit.
+   *
+   * The resolved amount must be <= the authorized maximum in `PaymentRequirements`.
+   *
+   * @warning Setting this to an amount other than `PaymentRequirements.amount` is
+   * only valid in schemes that support partial settlement, such as `upto`.
+   */
   amount?: string;
+}
+
+/**
+ * Resolves a settlement override amount string to a final atomic-unit string.
+ *
+ * Supports three input formats (see {@link SettlementOverrides.amount}):
+ * - Raw atomic units: `"1000"`
+ * - Percent of `PaymentRequirements.amount`: `"50%"`
+ * - Dollar price: `"$0.05"` (uses `requirements.extra.decimals` or defaults to 6)
+ */
+export function resolveSettlementOverrideAmount(
+  rawAmount: string,
+  requirements: PaymentRequirements,
+): string {
+  // Percent format: "50%" or "33.33%"
+  const percentMatch = rawAmount.match(/^(\d+(?:\.\d{0,2})?)%$/);
+  if (percentMatch) {
+    const [intPart, decPart = ""] = percentMatch[1].split(".");
+    const scaledPercent =
+      BigInt(intPart) * 100n + BigInt(decPart.padEnd(2, "0").slice(0, 2));
+    const base = BigInt(requirements.amount);
+    return ((base * scaledPercent) / 10000n).toString();
+  }
+
+  // Dollar price format: "$0.05"
+  const dollarMatch = rawAmount.match(/^\$(\d+(?:\.\d+)?)$/);
+  if (dollarMatch) {
+    const decimals =
+      typeof requirements.extra?.decimals === "number" ? requirements.extra.decimals : 6;
+    const dollars = parseFloat(dollarMatch[1]);
+    return Math.round(dollars * 10 ** decimals).toString();
+  }
+
+  // Raw atomic units (existing behavior)
+  return rawAmount;
 }
 
 /**
@@ -727,7 +783,10 @@ export class x402ResourceServer {
     // Apply settlement overrides (e.g., partial settlement for upto scheme)
     let effectiveRequirements = requirements;
     if (settlementOverrides?.amount !== undefined) {
-      effectiveRequirements = { ...requirements, amount: settlementOverrides.amount };
+      effectiveRequirements = {
+        ...requirements,
+        amount: resolveSettlementOverrideAmount(settlementOverrides.amount, requirements),
+      };
     }
 
     const context: SettleContext = {

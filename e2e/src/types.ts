@@ -31,6 +31,7 @@ export interface ServerConfig {
   stellarPayTo: string;
   networks: NetworkSet;
   facilitatorUrl?: string;
+  mockFacilitatorUrl?: string;
 }
 
 export interface ServerProxy {

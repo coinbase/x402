@@ -4,6 +4,7 @@
   "language": "typescript",
   "x402Version": 2,
   "extensions": ["bazaar", "eip2612GasSponsoring", "erc20ApprovalGasSponsoring"],
+
   "endpoints": [
     {
       "path": "/api/protected-proxy",
@@ -40,17 +41,17 @@
       "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
-      "path": "/api/protected-upto-permit2-eip2612-proxy",
+      "path": "/api/upto/evm/permit2-eip2612GasSponsoring",
       "method": "GET",
-      "description": "Protected Upto Permit2 endpoint with EIP-2612 gas sponsoring using proxy middleware",
+      "description": "Protected Upto Permit2 endpoint with EIP-2612 gas sponsoring",
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "upto"
     },
     {
-      "path": "/api/protected-upto-permit2-erc20-proxy",
+      "path": "/api/upto/evm/permit2-erc20ApprovalGasSponsoring",
       "method": "GET",
-      "description": "Protected Upto Permit2 endpoint with ERC-20 approval gas sponsoring using proxy middleware",
+      "description": "Protected Upto Permit2 endpoint with ERC-20 approval gas sponsoring",
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "upto",
