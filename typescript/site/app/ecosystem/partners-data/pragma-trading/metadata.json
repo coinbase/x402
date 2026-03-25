@@ -1,0 +1,7 @@
+{
+  "name": "Pragma Trading",
+  "description": "AI trading signal engine with x402-gated API endpoints. Multi-engine scoring (V1 strategy + V2 flow analysis + V3 combined gate) for BTC and crypto derivatives. $0.25/request via USDC on Base.",
+  "logoUrl": "/logos/pragma-trading.png",
+  "websiteUrl": "https://pragma.trading",
+  "category": "Services/Endpoints"
+}
