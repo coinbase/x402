@@ -1,5 +1,20 @@
 export { x402ResourceServer } from "./x402ResourceServer";
-export type { ResourceConfig, SettleResultContext } from "./x402ResourceServer";
+export type {
+  ResourceConfig,
+  PaymentRequiredContext,
+  VerifyContext,
+  VerifyResultContext,
+  VerifyFailureContext,
+  SettleContext,
+  SettleResultContext,
+  SettleFailureContext,
+  BeforeVerifyHook,
+  AfterVerifyHook,
+  OnVerifyFailureHook,
+  BeforeSettleHook,
+  AfterSettleHook,
+  OnSettleFailureHook,
+} from "./x402ResourceServer";
 
 export { HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 export type { FacilitatorClient, FacilitatorConfig } from "../http/httpFacilitatorClient";
@@ -24,4 +39,5 @@ export type {
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
   RouteValidationError,
+  ProtectedRequestHook,
 } from "../http/x402HTTPResourceServer";
