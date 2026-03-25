@@ -1,6 +1,10 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, setSettlementOverrides, x402ResourceServer } from "@x402/express";
+import {
+  paymentMiddleware,
+  setSettlementOverrides,
+  x402ResourceServer,
+} from "@x402/express";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";

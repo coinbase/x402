@@ -97,7 +97,7 @@ export type OnSettleFailureHook = (
  * Optional overrides for settlement parameters.
  * Used to support partial settlement (e.g., upto scheme billing by actual usage).
  *
- * @warning Overriding the amount to a value different from the agreed-upon
+ * Note: Overriding the amount to a value different from the agreed-upon
  * `PaymentRequirements.amount` is only valid in schemes that explicitly support
  * partial settlement, such as the `upto` scheme. Using this with standard
  * x402 schemes (e.g., `exact`) will likely cause settlement verification to fail.
@@ -117,7 +117,7 @@ export interface SettlementOverrides {
    *
    * The resolved amount must be <= the authorized maximum in `PaymentRequirements`.
    *
-   * @warning Setting this to an amount other than `PaymentRequirements.amount` is
+   * Note: Setting this to an amount other than `PaymentRequirements.amount` is
    * only valid in schemes that support partial settlement, such as `upto`.
    */
   amount?: string;
@@ -130,6 +130,10 @@ export interface SettlementOverrides {
  * - Raw atomic units: `"1000"`
  * - Percent of `PaymentRequirements.amount`: `"50%"`
  * - Dollar price: `"$0.05"` (uses `requirements.extra.decimals` or defaults to 6)
+ *
+ * @param rawAmount - The override amount string (e.g., `"1000"`, `"50%"`, `"$0.05"`)
+ * @param requirements - The payment requirements containing the base amount and token decimals
+ * @returns The resolved amount as an atomic-unit string
  */
 export function resolveSettlementOverrideAmount(
   rawAmount: string,
@@ -139,8 +143,7 @@ export function resolveSettlementOverrideAmount(
   const percentMatch = rawAmount.match(/^(\d+(?:\.\d{0,2})?)%$/);
   if (percentMatch) {
     const [intPart, decPart = ""] = percentMatch[1].split(".");
-    const scaledPercent =
-      BigInt(intPart) * 100n + BigInt(decPart.padEnd(2, "0").slice(0, 2));
+    const scaledPercent = BigInt(intPart) * 100n + BigInt(decPart.padEnd(2, "0").slice(0, 2));
     const base = BigInt(requirements.amount);
     return ((base * scaledPercent) / 10000n).toString();
   }
