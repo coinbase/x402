@@ -227,7 +227,10 @@ class TestHTTPIntegration:
         assert result.response.status == 402
         assert "PAYMENT-REQUIRED" in result.response.headers
         assert result.response.is_html is False
-        assert result.response.body == {}
+        assert "x402Version" in result.response.body
+        assert result.response.body["error"] == "Payment required"
+        assert "accepts" in result.response.body
+        assert "resource" in result.response.body
 
         # Client parses 402 and creates payment
         payment_required = components.http_client.get_payment_required_response(
@@ -639,7 +642,7 @@ class TestSettlementFailureWithContext:
         response = components.http_server._build_settlement_failure_response(failure, context)
 
         assert response.status == 402
-        assert response.body == {}
+        assert response.body["error"] == "test failure"
         assert "PAYMENT-RESPONSE" in response.headers
 
 

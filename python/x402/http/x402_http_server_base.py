@@ -546,13 +546,34 @@ class x402HTTPServerBase:
                 is_html=True,
             )
 
-        # API response
+        # API response — populate body with payment info so agents and programmatic
+        # clients can act on 402 responses without decoding headers
         content_type = "application/json"
-        body: Any = {}
 
         if unpaid_response:
             content_type = unpaid_response.content_type
-            body = unpaid_response.body
+            body: Any = unpaid_response.body
+        else:
+            body = {
+                "x402Version": payment_required.x402_version,
+                "error": "Payment required",
+                "accepts": [
+                    {
+                        "scheme": req.scheme,
+                        "network": req.network,
+                        "asset": req.asset,
+                        "amount": req.amount,
+                        "payTo": req.pay_to,
+                        "maxTimeoutSeconds": req.max_timeout_seconds,
+                    }
+                    for req in payment_required.accepts
+                ],
+                "resource": {
+                    "url": payment_required.resource.url,
+                    "description": payment_required.resource.description or "",
+                    "mimeType": payment_required.resource.mime_type or "",
+                },
+            }
 
         return HTTPResponseInstructions(
             status=402,
@@ -592,7 +613,10 @@ class x402HTTPServerBase:
             custom_body = route_config.settlement_failed_response_body(context, failure)
 
         content_type = custom_body.content_type if custom_body else "application/json"
-        body = custom_body.body if custom_body else {}
+        if custom_body:
+            body = custom_body.body
+        else:
+            body = {"error": failure.error_reason or "Settlement failed"}
 
         return HTTPResponseInstructions(
             status=402,
