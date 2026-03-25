@@ -7,14 +7,21 @@ Supports:
 - EVM networks (Base Sepolia) via web3.py
 - SVM networks (Solana Devnet) via solders
 - Bazaar discovery extension for resource cataloging
+- EIP-2612 gas sponsoring extension (gasless Permit2 approval via permit)
+- ERC-20 approval gas sponsoring extension (gasless Permit2 via signed tx relay)
 - V1 and V2 protocol versions
 
 Run with: uv run uvicorn main:app --port 4022
 """
 
+import logging
 import os
 import sys
 from typing import Any
+
+logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
+logging.getLogger("x402.permit2").setLevel(logging.DEBUG)
+logging.getLogger("x402.signers").setLevel(logging.DEBUG)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -23,8 +30,15 @@ from solders.keypair import Keypair
 
 from x402 import x402Facilitator
 from x402.extensions.bazaar import extract_discovery_info
+from x402.extensions.eip2612_gas_sponsoring import EIP2612_GAS_SPONSORING
+from x402.extensions.erc20_approval_gas_sponsoring import (
+    Erc20ApprovalFacilitatorExtension,
+    WriteContractCall,
+)
 from x402.mechanisms.evm import FacilitatorWeb3Signer
+from x402.mechanisms.evm.constants import TX_STATUS_SUCCESS
 from x402.mechanisms.evm.exact import register_exact_evm_facilitator
+from x402.mechanisms.evm.types import TransactionReceipt
 from x402.mechanisms.svm import FacilitatorKeypairSigner
 from x402.mechanisms.svm.exact import register_exact_svm_facilitator
 
@@ -62,6 +76,47 @@ svm_signer = FacilitatorKeypairSigner(svm_keypair)
 print(f"SVM Facilitator account: {svm_signer.get_addresses()[0]}")
 
 
+class Erc20ApprovalSigner:
+    """Wraps FacilitatorWeb3Signer with send_transactions for ERC-20 approval sponsoring.
+
+    Broadcasts pre-signed approval txs and settles via the proxy contract,
+    matching the Go/TS facilitator pattern.
+    """
+
+    def __init__(self, base_signer: FacilitatorWeb3Signer):
+        self._signer = base_signer
+
+    def send_transactions(self, transactions: list) -> list[str]:
+        hashes: list[str] = []
+        for tx in transactions:
+            if isinstance(tx, str):
+                tx_hash = self._signer._w3.eth.send_raw_transaction(
+                    bytes.fromhex(tx[2:] if tx.startswith("0x") else tx)
+                ).hex()
+            elif isinstance(tx, dict) or isinstance(tx, WriteContractCall):
+                if isinstance(tx, dict):
+                    call = WriteContractCall(**tx)
+                else:
+                    call = tx
+                tx_hash = self._signer.write_contract(
+                    call.address, call.abi, call.function, *call.args
+                )
+            else:
+                raise ValueError(f"Unsupported transaction type: {type(tx)}")
+
+            receipt = self._signer.wait_for_transaction_receipt(tx_hash)
+            if receipt.status != TX_STATUS_SUCCESS:
+                raise RuntimeError(f"transaction_failed: {tx_hash}")
+            hashes.append(tx_hash)
+        return hashes
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        return self._signer.wait_for_transaction_receipt(tx_hash)
+
+
+erc20_approval_signer = Erc20ApprovalSigner(evm_signer)
+
+
 def _handle_after_verify(ctx: Any) -> None:
     """Handle after verify hook - extract discovery info and catalog."""
     print("✅ Payment verified")
@@ -97,6 +152,7 @@ def _handle_after_verify(ctx: Any) -> None:
                 payment_requirements=ctx.requirements.model_dump(by_alias=True)
                 if hasattr(ctx.requirements, "model_dump")
                 else ctx.requirements,
+                route_template=getattr(discovered, "route_template", None),
             )
             print("   ✅ Added to bazaar catalog")
     except Exception as err:
@@ -127,6 +183,12 @@ register_exact_svm_facilitator(
     facilitator,
     svm_signer,
     networks="solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",  # Devnet
+)
+
+# Register gas sponsoring extensions
+facilitator.register_extension(EIP2612_GAS_SPONSORING)
+facilitator.register_extension(
+    Erc20ApprovalFacilitatorExtension(signer=erc20_approval_signer)
 )
 
 
@@ -179,13 +241,14 @@ async def verify(request: VerifyRequest):
         # - Extract and catalog discovery info (on_after_verify)
         response = await facilitator.verify(payload, requirements)
 
-        return {
-            "isValid": response.is_valid,
-            "payer": response.payer,
-            "invalidReason": response.invalid_reason,
-        }
+        if not response.is_valid:
+            print(f"  ❌ Verify rejected: {response.invalid_reason} (payer={response.payer})")
+
+        return response.model_dump(by_alias=True, exclude_none=True)
     except Exception as e:
+        import traceback
         print(f"Verify error: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -216,28 +279,23 @@ async def settle(request: SettleRequest):
         # - Clean up tracking (on_after_settle / on_settle_failure)
         response = await facilitator.settle(payload, requirements)
 
-        return {
-            "success": response.success,
-            "transaction": response.transaction,
-            "network": response.network,
-            "payer": response.payer,
-            "errorReason": response.error_reason,
-        }
+        return response.model_dump(by_alias=True, exclude_none=True)
     except Exception as e:
         print(f"Settle error: {e}")
 
         # Check if this was an abort from hook
         if "aborted" in str(e).lower() or "Settlement aborted" in str(e):
-            # Return a proper SettleResponse instead of 500 error
-            return {
-                "success": False,
-                "errorReason": str(e).replace("Settlement aborted: ", ""),
-                "network": request.paymentPayload.get("accepted", {}).get(
+            from x402.schemas import SettleResponse
+
+            abort = SettleResponse(
+                success=False,
+                error_reason=str(e).replace("Settlement aborted: ", ""),
+                network=request.paymentPayload.get("accepted", {}).get(
                     "network", "unknown"
                 ),
-                "transaction": "",
-                "payer": None,
-            }
+                transaction="",
+            )
+            return abort.model_dump(by_alias=True, exclude_none=True)
 
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -253,15 +311,7 @@ async def supported():
         response = facilitator.get_supported()
 
         return {
-            "kinds": [
-                {
-                    "x402Version": k.x402_version,
-                    "scheme": k.scheme,
-                    "network": k.network,
-                    "extra": k.extra,
-                }
-                for k in response.kinds
-            ],
+            "kinds": [k.model_dump(by_alias=True, exclude_none=True) for k in response.kinds],
             "extensions": response.extensions,
             "signers": response.signers,
         }
@@ -292,7 +342,7 @@ async def health():
         "network": "eip155:84532",
         "facilitator": "python",
         "version": "2.0.0",
-        "extensions": ["bazaar"],
+        "extensions": facilitator.get_extensions(),
         "discoveredResources": bazaar_catalog.get_count(),
     }
 
@@ -322,7 +372,7 @@ if __name__ == "__main__":
 ║  Server:     http://localhost:{PORT}                       ║
 ║  Network:    eip155:84532                              ║
 ║  Address:    {evm_signer.get_addresses()[0]}  ║
-║  Extensions: bazaar                                    ║
+║  Extensions: bazaar, eip2612, erc20approval             ║
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • POST /verify              (verify payment)          ║

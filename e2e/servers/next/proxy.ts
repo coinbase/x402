@@ -51,7 +51,7 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 export const proxy = paymentProxy(
   {
-    "/api/protected-proxy": {
+    "/api/exact/evm/eip3009/proxy": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -76,7 +76,7 @@ export const proxy = paymentProxy(
         }),
       },
     },
-    "/api/protected-svm-proxy": {
+    "/api/exact/svm/proxy": {
       accepts: {
         payTo: SVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -103,7 +103,7 @@ export const proxy = paymentProxy(
     },
     ...(APTOS_PAYEE_ADDRESS
       ? {
-          "/api/protected-aptos-proxy": {
+          "/api/exact/aptos/proxy": {
             accepts: {
               payTo: APTOS_PAYEE_ADDRESS,
               scheme: "exact",
@@ -132,7 +132,7 @@ export const proxy = paymentProxy(
       : {}),
     ...(STELLAR_PAYEE_ADDRESS
       ? {
-          "/api/protected-stellar-proxy": {
+          "/api/exact/stellar/proxy": {
             accepts: {
               payTo: STELLAR_PAYEE_ADDRESS,
               scheme: "exact",
@@ -159,7 +159,7 @@ export const proxy = paymentProxy(
           },
         }
       : {}),
-    "/api/protected-permit2-proxy": {
+    "/api/exact/evm/permit2/proxy": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -169,6 +169,8 @@ export const proxy = paymentProxy(
           asset: EVM_PERMIT2_ASSET,
           extra: {
             assetTransferMethod: "permit2",
+            name: EVM_NETWORK == "eip155:84532" ? "USDC" : "USD Coin",
+            version: "2",
           },
         },
       },
@@ -190,10 +192,38 @@ export const proxy = paymentProxy(
             },
           },
         }),
+      },
+    },
+    "/api/exact/evm/permit2-eip2612GasSponsoring/proxy": {
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        network: EVM_NETWORK,
+        price: "$0.001",
+        extra: { assetTransferMethod: "permit2" },
+      },
+      extensions: {
+        ...declareDiscoveryExtension({
+          output: {
+            example: {
+              message: "Permit2 EIP-2612 endpoint accessed successfully",
+              timestamp: "2024-01-01T00:00:00Z",
+              method: "permit2-eip2612",
+            },
+            schema: {
+              properties: {
+                message: { type: "string" },
+                timestamp: { type: "string" },
+                method: { type: "string" },
+              },
+              required: ["message", "timestamp", "method"],
+            },
+          },
+        }),
         ...declareEip2612GasSponsoringExtension(),
       },
     },
-    "/api/protected-permit2-erc20-proxy": {
+    "/api/exact/evm/permit2-erc20ApprovalGasSponsoring/proxy": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -216,11 +246,12 @@ export const proxy = paymentProxy(
 
 export const config = {
   matcher: [
-    "/api/protected-proxy",
-    "/api/protected-svm-proxy",
-    "/api/protected-aptos-proxy",
-    "/api/protected-stellar-proxy",
-    "/api/protected-permit2-proxy",
-    "/api/protected-permit2-erc20-proxy",
+    "/api/exact/evm/eip3009/proxy",
+    "/api/exact/svm/proxy",
+    "/api/exact/aptos/proxy",
+    "/api/exact/stellar/proxy",
+    "/api/exact/evm/permit2/proxy",
+    "/api/exact/evm/permit2-eip2612GasSponsoring/proxy",
+    "/api/exact/evm/permit2-erc20ApprovalGasSponsoring/proxy",
   ],
 };

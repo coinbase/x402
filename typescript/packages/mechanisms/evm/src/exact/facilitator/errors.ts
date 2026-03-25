@@ -33,6 +33,9 @@ export const ErrPermit2AmountMismatch = "permit2_amount_mismatch";
 export const ErrPermit2TokenMismatch = "permit2_token_mismatch";
 export const ErrPermit2InvalidSignature = "invalid_permit2_signature";
 export const ErrPermit2AllowanceRequired = "permit2_allowance_required";
+export const ErrPermit2SimulationFailed = "permit2_simulation_failed";
+export const ErrPermit2InsufficientBalance = "permit2_insufficient_balance";
+export const ErrPermit2ProxyNotDeployed = "permit2_proxy_not_deployed";
 
 // Permit2 settle errors (from contract reverts)
 export const ErrPermit2InvalidAmount = "permit2_invalid_amount";
@@ -43,6 +46,7 @@ export const ErrPermit2InvalidNonce = "permit2_invalid_nonce";
 export const ErrPermit2612AmountMismatch = "permit2_2612_amount_mismatch";
 
 // ERC-20 approval gas sponsoring verify errors
+export const ErrErc20ApprovalInsufficientEthForGas = "erc20_approval_insufficient_eth_for_gas";
 export const ErrErc20ApprovalInvalidFormat = "invalid_erc20_approval_extension_format";
 export const ErrErc20ApprovalFromMismatch = "erc20_approval_from_mismatch";
 export const ErrErc20ApprovalAssetMismatch = "erc20_approval_asset_mismatch";
@@ -54,3 +58,15 @@ export const ErrErc20ApprovalTxInvalidCalldata = "erc20_approval_tx_invalid_call
 export const ErrErc20ApprovalTxSignerMismatch = "erc20_approval_tx_signer_mismatch";
 export const ErrErc20ApprovalTxInvalidSignature = "erc20_approval_tx_invalid_signature";
 export const ErrErc20ApprovalTxParseFailed = "erc20_approval_tx_parse_failed";
+export const ErrErc20ApprovalTxFailed = "erc20_approval_tx_failed";
+
+// EIP-2612 gas sponsoring verify errors
+export const ErrInvalidEip2612ExtensionFormat = "invalid_eip2612_extension_format";
+export const ErrEip2612FromMismatch = "eip2612_from_mismatch";
+export const ErrEip2612AssetMismatch = "eip2612_asset_mismatch";
+export const ErrEip2612SpenderNotPermit2 = "eip2612_spender_not_permit2";
+export const ErrEip2612DeadlineExpired = "eip2612_deadline_expired";
+
+// Shared settle errors
+export const ErrUnsupportedPayloadType = "unsupported_payload_type";
+export const ErrInvalidTransactionState = "invalid_transaction_state";
