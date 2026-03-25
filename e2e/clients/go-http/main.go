@@ -14,6 +14,7 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
+	uptoclient "github.com/coinbase/x402/go/mechanisms/evm/upto/client"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
 	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
@@ -79,8 +80,14 @@ func main() {
 		evmConfig = &evm.ExactEvmSchemeConfig{RPCURL: evmRpcURL}
 	}
 
+	var uptoConfig *uptoclient.UptoEvmSchemeConfig
+	if evmRpcURL != "" {
+		uptoConfig = &uptoclient.UptoEvmSchemeConfig{RPCURL: evmRpcURL}
+	}
+
 	x402Client := x402.Newx402Client().
 		Register("eip155:*", evm.NewExactEvmScheme(evmSigner, evmConfig)).
+		Register("eip155:*", uptoclient.NewUptoEvmScheme(evmSigner, uptoConfig)).
 		Register("solana:*", svm.NewExactSvmScheme(svmSigner)).
 		RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
 		RegisterV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).

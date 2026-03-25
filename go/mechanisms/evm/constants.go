@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	// Scheme identifier
+	// Scheme identifiers
 	SchemeExact = "exact"
+	SchemeUpto  = "upto"
 
 	// Default token decimals for USDC
 	DefaultDecimals = 6
@@ -364,6 +365,109 @@ var (
 		}
 	]`)
 
+	// X402UptoPermit2ProxySettleABI for calling settle on x402UptoPermit2Proxy.
+	// Differs from exact: takes an additional `amount` param and witness includes `facilitator`.
+	X402UptoPermit2ProxySettleABI = []byte(`[
+		{
+			"type": "function",
+			"name": "settle",
+			"inputs": [
+				{
+					"name": "permit",
+					"type": "tuple",
+					"components": [
+						{
+							"name": "permitted",
+							"type": "tuple",
+							"components": [
+								{"name": "token", "type": "address"},
+								{"name": "amount", "type": "uint256"}
+							]
+						},
+						{"name": "nonce", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"}
+					]
+				},
+				{"name": "amount", "type": "uint256"},
+				{"name": "owner", "type": "address"},
+				{
+					"name": "witness",
+					"type": "tuple",
+					"components": [
+						{"name": "to", "type": "address"},
+						{"name": "facilitator", "type": "address"},
+						{"name": "validAfter", "type": "uint256"}
+					]
+				},
+				{"name": "signature", "type": "bytes"}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// X402UptoPermit2ProxySettleWithPermitABI for calling settleWithPermit on x402UptoPermit2Proxy (EIP-2612 extension).
+	X402UptoPermit2ProxySettleWithPermitABI = []byte(`[
+		{
+			"type": "function",
+			"name": "settleWithPermit",
+			"inputs": [
+				{
+					"name": "permit2612",
+					"type": "tuple",
+					"components": [
+						{"name": "value", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"},
+						{"name": "r", "type": "bytes32"},
+						{"name": "s", "type": "bytes32"},
+						{"name": "v", "type": "uint8"}
+					]
+				},
+				{
+					"name": "permit",
+					"type": "tuple",
+					"components": [
+						{
+							"name": "permitted",
+							"type": "tuple",
+							"components": [
+								{"name": "token", "type": "address"},
+								{"name": "amount", "type": "uint256"}
+							]
+						},
+						{"name": "nonce", "type": "uint256"},
+						{"name": "deadline", "type": "uint256"}
+					]
+				},
+				{"name": "amount", "type": "uint256"},
+				{"name": "owner", "type": "address"},
+				{
+					"name": "witness",
+					"type": "tuple",
+					"components": [
+						{"name": "to", "type": "address"},
+						{"name": "facilitator", "type": "address"},
+						{"name": "validAfter", "type": "uint256"}
+					]
+				},
+				{"name": "signature", "type": "bytes"}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
+		}
+	]`)
+
+	// X402UptoPermit2ProxyPermit2ABI for verifying upto proxy deployment
+	X402UptoPermit2ProxyPermit2ABI = []byte(`[
+		{
+			"inputs": [],
+			"name": "PERMIT2",
+			"outputs": [{"name": "", "type": "address"}],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]`)
+
 	// EIP2612NoncesABI for querying EIP-2612 nonces
 	EIP2612NoncesABI = []byte(`[
 		{
@@ -495,6 +599,40 @@ func GetEIP2612EIP712Types() map[string][]TypedDataField {
 	return map[string][]TypedDataField{
 		"EIP712Domain": EIP712DomainTypesWithVersion,
 		"Permit":       EIP2612PermitTypes["Permit"],
+	}
+}
+
+// UptoPermit2WitnessTypes defines the EIP-712 types for the upto Permit2 witness.
+// The upto witness includes a `facilitator` field absent from the exact witness.
+// Only the address matching witness.facilitator can call settle() on-chain.
+// Field order MUST match the on-chain x402UptoPermit2Proxy contract and TypeScript implementation.
+var UptoPermit2WitnessTypes = map[string][]TypedDataField{
+	"PermitWitnessTransferFrom": {
+		{Name: "permitted", Type: "TokenPermissions"},
+		{Name: "spender", Type: "address"},
+		{Name: "nonce", Type: "uint256"},
+		{Name: "deadline", Type: "uint256"},
+		{Name: "witness", Type: "Witness"},
+	},
+	"TokenPermissions": {
+		{Name: "token", Type: "address"},
+		{Name: "amount", Type: "uint256"},
+	},
+	"Witness": {
+		{Name: "to", Type: "address"},
+		{Name: "facilitator", Type: "address"},
+		{Name: "validAfter", Type: "uint256"},
+	},
+}
+
+// GetUptoPermit2EIP712Types returns the complete EIP-712 types map for upto Permit2 signing.
+// This combines the EIP712Domain with the upto-specific Permit2 types (including facilitator in witness).
+func GetUptoPermit2EIP712Types() map[string][]TypedDataField {
+	return map[string][]TypedDataField{
+		"EIP712Domain":              EIP712DomainTypes,
+		"PermitWitnessTransferFrom": UptoPermit2WitnessTypes["PermitWitnessTransferFrom"],
+		"TokenPermissions":          UptoPermit2WitnessTypes["TokenPermissions"],
+		"Witness":                   UptoPermit2WitnessTypes["Witness"],
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -203,6 +204,34 @@ func main() {
 				return ext
 			}(),
 		},
+	// Upto Permit2 endpoint - authorizes up to a maximum, settles actual usage
+	"GET /upto/evm/permit2": {
+		Accepts: x402http.PaymentOptions{
+			{
+				Scheme:  "upto",
+				PayTo:   evmPayeeAddress,
+				Network: evmNetwork,
+				Price: map[string]interface{}{
+					"amount": "1000",
+					"asset":  evmPermit2Asset,
+					"extra": map[string]interface{}{
+						"assetTransferMethod": "permit2",
+						"name":                "USDC",
+						"version":             "2",
+					},
+				},
+			},
+		},
+		Extensions: func() map[string]interface{} {
+			ext := map[string]interface{}{
+				types.BAZAAR.Key(): discoveryExtension,
+			}
+			for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+				ext[k] = v
+			}
+			return ext
+		}(),
+	},
 	// Permit2 ERC-20 approval endpoint - requires Permit2 flow with a generic ERC-20 token (no EIP-2612)
 	"GET /exact/evm/permit2-erc20ApprovalGasSponsoring": {
 		Accepts: x402http.PaymentOptions{
@@ -238,6 +267,7 @@ func main() {
 		Facilitator: facilitatorClient,
 		Schemes: []ginmw.SchemeConfig{
 			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
+			{Network: evmNetwork, Server: uptoserver.NewUptoEvmScheme()},
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
 		SyncFacilitatorOnStart: true,
@@ -361,6 +391,29 @@ func main() {
 			"message":   "Permit2 ERC-20 approval endpoint accessed successfully",
 			"timestamp": time.Now().Format(time.RFC3339),
 			"method":    "permit2-erc20-approval",
+		})
+	})
+
+	/**
+	 * Upto Permit2 endpoint - settles with partial amount
+	 */
+	r.GET("/upto/evm/permit2", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		// Settle with full authorized amount (for e2e tests)
+		ginmw.SetSettlementOverrides(c, &x402.SettlementOverrides{
+			Amount: "1000",
+		})
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Upto Permit2 endpoint accessed successfully",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"method":    "upto-permit2",
 		})
 	})
 

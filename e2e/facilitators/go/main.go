@@ -24,6 +24,7 @@ import (
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
 	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
+	uptofacilitator "github.com/coinbase/x402/go/mechanisms/evm/upto/facilitator"
 	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
 	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
@@ -223,9 +224,13 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("failed to pack method call: %w", err)
 	}
 
-	// Make the call
+	// Make the call, setting From to the facilitator's own address.
+	// This mirrors TypeScript's viem WalletClient.readContract() which always sets
+	// from=account.address. Required for contracts that check msg.sender (e.g. the
+	// upto proxy's settle(), which enforces msg.sender == witness.facilitator).
 	to := common.HexToAddress(contractAddress)
 	msg := ethereum.CallMsg{
+		From: s.address,
 		To:   &to,
 		Data: data,
 	}
@@ -844,6 +849,10 @@ func main() {
 	}
 	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner, evmConfig)
 	facilitator.Register([]x402.Network{x402.Network(evmNetwork)}, evmFacilitatorScheme)
+
+	// Register upto EVM scheme
+	uptoEvmFacilitatorScheme := uptofacilitator.NewUptoEvmScheme(evmSigner, nil)
+	facilitator.Register([]x402.Network{x402.Network(evmNetwork)}, uptoEvmFacilitatorScheme)
 
 	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
 		DeployERC4337WithEIP6492: true,

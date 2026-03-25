@@ -17,6 +17,7 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	nethttpmw "github.com/coinbase/x402/go/http/nethttp"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 	"github.com/joho/godotenv"
 )
@@ -195,6 +196,33 @@ func main() {
 				return ext
 			}(),
 		},
+		"GET /upto/evm/permit2": {
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "upto",
+					PayTo:   evmPayeeAddress,
+					Network: evmNetwork,
+					Price: map[string]interface{}{
+						"amount": "1000",
+						"asset":  evmPermit2Asset,
+						"extra": map[string]interface{}{
+							"assetTransferMethod": "permit2",
+							"name":                "USDC",
+							"version":             "2",
+						},
+					},
+				},
+			},
+			Extensions: func() map[string]interface{} {
+				ext := map[string]interface{}{
+					types.BAZAAR.Key(): discoveryExtension,
+				}
+				for k, v := range eip2612gassponsor.DeclareEip2612GasSponsoringExtension() {
+					ext[k] = v
+				}
+				return ext
+			}(),
+		},
 		"GET /exact/evm/permit2-erc20ApprovalGasSponsoring": {
 			Accepts: x402http.PaymentOptions{
 				{
@@ -315,6 +343,21 @@ func main() {
 		})
 	})
 
+	mux.HandleFunc("GET /upto/evm/permit2", func(w http.ResponseWriter, r *http.Request) {
+		if shutdownRequested {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"message":   "Upto Permit2 endpoint accessed successfully",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"method":    "upto-permit2",
+		})
+	})
+
 	/**
 	 * Health check endpoint - no payment required
 	 */
@@ -353,6 +396,7 @@ func main() {
 		Facilitator: facilitatorClient,
 		Schemes: []nethttpmw.SchemeConfig{
 			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
+			{Network: evmNetwork, Server: uptoserver.NewUptoEvmScheme()},
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
 		SyncFacilitatorOnStart: true,

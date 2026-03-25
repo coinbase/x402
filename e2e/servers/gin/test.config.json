@@ -47,6 +47,15 @@
       "coldstart": true
     },
     {
+      "path": "/upto/evm/permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment (usage-based settlement)",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto",
+      "permit2Direct": true
+    },
+    {
       "path": "/exact/svm",
       "method": "GET",
       "description": "Protected endpoint requiring payment (SVM)",

@@ -96,6 +96,7 @@ type SettleResponse struct {
 	Payer        string  `json:"payer,omitempty"`
 	Transaction  string  `json:"transaction"`
 	Network      Network `json:"network"`
+	Amount       string  `json:"amount,omitempty"`
 }
 
 // SettlementOverrides allows overriding settlement parameters.
