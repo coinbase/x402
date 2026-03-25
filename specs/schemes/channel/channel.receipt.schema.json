@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://x402.specs/schemas/channel.receipt.schema.json",
+  "title": "ChannelReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "channelId",
+    "epoch",
+    "subChannelId",
+    "accumulatedAmount",
+    "nonce",
+    "payeeId",
+    "payerSignature"
+  ],
+  "properties": {
+    "version": {
+      "description": "Receipt transport/canonical version (binding-defined)",
+      "type": ["integer", "string"],
+      "minimum": 0
+    },
+    "channelId": {
+      "description": "Channel identifier; asset is implicitly bound to channelId",
+      "type": "string",
+      "minLength": 1
+    },
+    "epoch": {
+      "description": "Channel epoch",
+      "type": ["integer", "string"],
+      "pattern": "^\\d+$"
+    },
+    "subChannelId": {
+      "description": "Logical stream identifier (e.g., DID VM fragment without #)",
+      "type": "string",
+      "minLength": 1
+    },
+    "accumulatedAmount": {
+      "description": "Monotonic total for this sub-channel, decimal string for big integers",
+      "type": "string",
+      "pattern": "^\\d+$"
+    },
+    "nonce": {
+      "description": "Monotonic per sub-channel within the same epoch",
+      "type": ["integer", "string"],
+      "pattern": "^\\d+$"
+    },
+    "payeeId": {
+      "description": "Payee identifier (binding-defined)",
+      "type": "string",
+      "minLength": 1
+    },
+    "chainId": {
+      "description": "Network/chain identifier; required for bindings with in-band domain separation",
+      "type": ["integer", "string"],
+      "pattern": "^\\d+$"
+    },
+    "payerSignature": {
+      "description": "Signature over the canonical receipt, binding-defined encoding",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
+
+
