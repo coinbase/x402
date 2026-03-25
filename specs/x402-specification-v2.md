@@ -607,7 +607,18 @@ The x402 protocol implements multiple layers of protection against replay attack
 - **Time Constraints**: Authorizations have explicit valid time windows to limit their lifetime
 - **Signature Verification**: All authorizations are cryptographically signed by the payer
 
-**10.2 Authentication Integration**
+**10.2 Concurrent Payment Handling**
+
+When multiple concurrent requests are made to a resource server, each request should be treated as a separate billable event unless explicitly operating under a session-based or authentication-based flow (such as Sign-In-With-X):
+
+- **Unique Settlement Proof Requirement**: Each payment authorization should result in a unique settlement proof (transaction hash) when settled
+- **No Settlement Proof Reuse**: Resource servers MUST NOT reuse the same settlement proof across multiple concurrent requests for ordinary paid-content flows
+- **Concurrent Request Independence**: Each concurrent request should have its own payment authorization with unique nonce and should result in independent blockchain transactions
+- **Settlement Proof Binding**: Settlement proofs should be bound to the specific request that triggered the payment to prevent confusion about which request was paid for
+
+**Exception for Session-Based Flows**: Session-based access patterns (such as Sign-In-With-X) may explicitly allow reuse of a single payment authorization across multiple requests within the session scope. However, this should be clearly documented and distinguished from ordinary per-request payment flows.
+
+**10.3 Authentication Integration**
 
 The protocol supports integration with authentication systems (e.g., Sign-In with Ethereum - SIWE) to enable authenticated pricing models where verified users receive discounted rates or special access terms.
 
