@@ -1,0 +1,7 @@
+{
+  "name": "MoltsPay",
+  "description": "Payment SDK for AI agents with x402/USDC support across Base, Polygon, and Solana. Gasless payments, spending limits, and agent-to-agent commerce.",
+  "logoUrl": "/logos/moltspay.png",
+  "websiteUrl": "https://moltspay.com",
+  "category": "Client-Side Integrations"
+}
