@@ -37,6 +37,18 @@ export type TransactionRequest =
   | { to: `0x${string}`; data: `0x${string}`; gas?: bigint };
 
 export type Erc20ApprovalGasSponsoringSigner = FacilitatorEvmSigner & {
+  /**
+   * Execute an ordered list of transactions, returning their hashes.
+   *
+   * Implementations MUST:
+   * 1. Wait for each transaction's receipt before sending the next one.
+   *    The ordering guarantee is critical — an approve tx must be confirmed
+   *    on-chain before the settle tx that depends on it is broadcast.
+   * 2. For raw (serialized) transactions from external addresses (the payer),
+   *    check whether the sender has sufficient ETH for gas. If not, send an
+   *    ETH transfer from the facilitator account to fund the deficit before
+   *    broadcasting the raw transaction.
+   */
   sendTransactions(transactions: TransactionRequest[]): Promise<`0x${string}`[]>;
   simulateTransactions?(transactions: TransactionRequest[]): Promise<boolean>;
 };

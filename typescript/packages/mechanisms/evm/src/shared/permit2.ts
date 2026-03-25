@@ -20,15 +20,11 @@ import {
   PERMIT2_ADDRESS,
   eip3009ABI,
   erc20AllowanceAbi,
-  ERC20_APPROVE_GAS_LIMIT,
-  DEFAULT_MAX_FEE_PER_GAS,
   permit2WitnessTypes,
 } from "../constants";
 import {
   multicall,
   ContractCall,
-  MULTICALL3_ADDRESS,
-  multicall3GetEthBalanceAbi,
 } from "../multicall";
 import { createPermit2Nonce, getEvmChainId } from "../utils";
 import {
@@ -50,7 +46,6 @@ import {
   ErrEip2612AssetMismatch,
   ErrEip2612SpenderNotPermit2,
   ErrEip2612DeadlineExpired,
-  ErrErc20ApprovalInsufficientEthForGas,
   ErrErc20ApprovalTxFailed,
 } from "../exact/facilitator/errors";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
@@ -506,18 +501,12 @@ export async function checkPermit2Prerequisites(
       functionName: "balanceOf",
       args: [payer],
     },
-    {
-      address: MULTICALL3_ADDRESS,
-      abi: multicall3GetEthBalanceAbi,
-      functionName: "getEthBalance",
-      args: [payer],
-    },
   ];
 
   try {
     const results = await multicall(signer.readContract.bind(signer), diagnosticCalls);
 
-    const [proxyResult, balanceResult, ethBalanceResult] = results;
+    const [proxyResult, balanceResult] = results;
 
     if (proxyResult.status === "failure") {
       return { isValid: false, invalidReason: ErrPermit2ProxyNotDeployed, payer };
@@ -527,18 +516,6 @@ export async function checkPermit2Prerequisites(
       const balance = balanceResult.result as bigint;
       if (balance < BigInt(amountRequired)) {
         return { isValid: false, invalidReason: ErrPermit2InsufficientBalance, payer };
-      }
-    }
-
-    if (ethBalanceResult.status === "success") {
-      const minEthForApprovalGas = ERC20_APPROVE_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS;
-      const ethBalance = ethBalanceResult.result as bigint;
-      if (ethBalance < minEthForApprovalGas) {
-        return {
-          isValid: false,
-          invalidReason: ErrErc20ApprovalInsufficientEthForGas,
-          payer,
-        };
       }
     }
   } catch {

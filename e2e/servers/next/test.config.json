@@ -29,7 +29,8 @@
       "description": "Protected Permit2 EIP-2612 endpoint using proxy middleware",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "transferMethod": "permit2"
+      "transferMethod": "permit2",
+      "coldstart": true
     },
     {
       "path": "/api/protected-permit2-erc20-proxy",
@@ -38,7 +39,8 @@
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "permit2",
-      "extensions": ["erc20ApprovalGasSponsoring"]
+      "extensions": ["erc20ApprovalGasSponsoring"],
+      "coldstart": true
     },
     {
       "path": "/api/upto/evm/permit2-eip2612GasSponsoring",

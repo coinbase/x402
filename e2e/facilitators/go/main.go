@@ -432,6 +432,66 @@ func (s *realFacilitatorEvmSigner) SendTransactions(ctx context.Context, transac
 		var hash string
 		var err error
 		if tx.Serialized != "" {
+			// Decode the serialized tx to check if the payer needs gas funding
+			txBytes, decErr := hexutil.Decode(tx.Serialized)
+			if decErr != nil {
+				return hashes, fmt.Errorf("transaction_failed: failed to decode tx: %w", decErr)
+			}
+			decodedTx := new(types.Transaction)
+			if umErr := decodedTx.UnmarshalBinary(txBytes); umErr != nil {
+				return hashes, fmt.Errorf("transaction_failed: failed to unmarshal tx: %w", umErr)
+			}
+
+			// Recover the sender (payer) address from the signed tx
+			senderSigner := types.LatestSignerForChainID(s.chainID)
+			payerAddr, recErr := types.Sender(senderSigner, decodedTx)
+			if recErr != nil {
+				return hashes, fmt.Errorf("transaction_failed: failed to recover sender: %w", recErr)
+			}
+
+			// Calculate gas cost and check payer balance
+			gas := decodedTx.Gas()
+			gasFeeCap := decodedTx.GasFeeCap()
+			if gasFeeCap == nil {
+				gasFeeCap = decodedTx.GasPrice()
+			}
+			gasCost := new(big.Int).Mul(new(big.Int).SetUint64(gas), gasFeeCap)
+
+			payerBalance, balErr := s.client.BalanceAt(ctx, payerAddr, nil)
+			if balErr != nil {
+				return hashes, fmt.Errorf("transaction_failed: failed to get payer balance: %w", balErr)
+			}
+
+			if payerBalance.Cmp(gasCost) < 0 {
+				deficit := new(big.Int).Sub(gasCost, payerBalance)
+				log.Printf("⛽ Funding payer %s with %s wei for gas", payerAddr.Hex(), deficit.String())
+
+				// Send ETH from facilitator to payer
+				fundNonce, nErr := s.client.PendingNonceAt(ctx, s.address)
+				if nErr != nil {
+					return hashes, fmt.Errorf("transaction_failed: failed to get funding nonce: %w", nErr)
+				}
+				fundGasPrice, gpErr := s.client.SuggestGasPrice(ctx)
+				if gpErr != nil {
+					return hashes, fmt.Errorf("transaction_failed: failed to get gas price: %w", gpErr)
+				}
+
+				fundTx := types.NewTransaction(fundNonce, payerAddr, deficit, 21000, fundGasPrice, nil)
+				signedFundTx, signErr := types.SignTx(fundTx, types.LatestSignerForChainID(s.chainID), s.privateKey)
+				if signErr != nil {
+					return hashes, fmt.Errorf("transaction_failed: failed to sign funding tx: %w", signErr)
+				}
+				if sendErr := s.client.SendTransaction(ctx, signedFundTx); sendErr != nil {
+					return hashes, fmt.Errorf("transaction_failed: failed to send funding tx: %w", sendErr)
+				}
+
+				fundReceipt, waitErr := s.WaitForTransactionReceipt(ctx, signedFundTx.Hash().Hex())
+				if waitErr != nil || fundReceipt.Status != evmmech.TxStatusSuccess {
+					return hashes, fmt.Errorf("transaction_failed: gas funding failed: %s", signedFundTx.Hash().Hex())
+				}
+				log.Printf("⛽ Gas funding confirmed: %s", signedFundTx.Hash().Hex())
+			}
+
 			hash, err = s.sendRawTransaction(ctx, tx.Serialized)
 		} else if tx.Call != nil {
 			hash, err = s.WriteContract(ctx, tx.Call.Address, tx.Call.ABI, tx.Call.Function, tx.Call.Args...)
