@@ -1,0 +1,7 @@
+{
+  "name": "Semagram",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/semagram.png",
+  "description": "Semantic search across Telegram communities for AI agents. Discover relevant channels, groups, and bots via a simple REST API with x402 micropayments — no API keys or subscriptions needed.",
+  "websiteUrl": "https://semagram.io"
+}
