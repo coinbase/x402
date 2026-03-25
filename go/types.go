@@ -90,12 +90,13 @@ type VerifyResponse struct {
 // SettleResponse contains the settlement result
 // If settlement fails, an error (typically *SettleError) is returned and this will be nil
 type SettleResponse struct {
-	Success      bool    `json:"success"`
-	ErrorReason  string  `json:"errorReason,omitempty"`
-	ErrorMessage string  `json:"errorMessage,omitempty"`
-	Payer        string  `json:"payer,omitempty"`
-	Transaction  string  `json:"transaction"`
-	Network      Network `json:"network"`
+	Success      bool                   `json:"success"`
+	ErrorReason  string                 `json:"errorReason,omitempty"`
+	ErrorMessage string                 `json:"errorMessage,omitempty"`
+	Payer        string                 `json:"payer,omitempty"`
+	Transaction  string                 `json:"transaction"`
+	Network      Network                `json:"network"`
+	Extensions   map[string]interface{} `json:"extensions,omitempty"`
 }
 
 // ResourceConfig defines payment configuration for a protected resource
