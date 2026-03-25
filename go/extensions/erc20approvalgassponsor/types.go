@@ -73,15 +73,6 @@ type TransactionRequest struct {
 // Erc20ApprovalGasSponsoringSigner extends FacilitatorEvmSigner with multi-transaction execution.
 // The signer owns the execution strategy (sequential, batched, or atomic bundling via
 // Flashbots, multicall, or smart account batching).
-//
-// SendTransactions implementations MUST:
-//  1. Wait for each transaction's receipt before sending the next one.
-//     The ordering guarantee is critical — an approve tx must be confirmed
-//     on-chain before the settle tx that depends on it is broadcast.
-//  2. For raw (serialized) transactions from external addresses (the payer),
-//     check whether the sender has sufficient ETH for gas. If not, send an
-//     ETH transfer from the facilitator account to fund the deficit before
-//     broadcasting the raw transaction.
 type Erc20ApprovalGasSponsoringSigner interface {
 	evm.FacilitatorEvmSigner
 	SendTransactions(ctx context.Context, transactions []TransactionRequest) ([]string, error)
