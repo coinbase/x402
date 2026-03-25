@@ -1,0 +1,7 @@
+{
+  "name": "TokenSafe",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/tokensafe.svg",
+  "description": "Solana token safety scanner. Deterministic on-chain analysis behind x402 micropayments. Checks mint/freeze authority, holder concentration, liquidity, honeypot risk, metadata mutability, token age, and Token-2022 extensions. Risk score 0-100. Free lite check, $0.008 USDC for full report.",
+  "websiteUrl": "https://github.com/ampactor-labs/tokensafe"
+}
