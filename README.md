@@ -136,3 +136,49 @@ See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/sc
 Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different from the way you need to implement `exact` on Solana).
 
 Clients and facilitators must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
+
+## Security Best Practices
+
+When building applications that make x402 payments, especially autonomous agents, consider implementing these security measures to protect against fraud, sanctions violations, and other risks:
+
+### Counterparty Risk Assessment
+
+**Always assess counterparty risk before sending payments.** A compromised or malicious service could accept payment and return garbage data, or you could inadvertently send funds to a sanctioned entity.
+
+**Recommended checks:**
+- **Domain reputation:** Verify the service domain's reputation and age
+- **IP geolocation:** Check if the service is hosted in sanctioned or high-risk jurisdictions  
+- **Wallet screening:** Screen the payment recipient wallet against OFAC and other sanctions lists
+- **SSL certificate validation:** Ensure the service uses valid, trusted SSL certificates
+- **Service history:** Look for established track records, reviews, or ecosystem participation
+
+**Available tools:**
+- Several projects in the [x402 ecosystem](https://x402.org/ecosystem) provide risk-scoring services
+- Consider using clients like `SafeX402Client` that integrate automatic pre-payment risk checks
+- Implement your own screening against publicly available sanctions databases
+
+### Payment Amount Controls
+
+- **Set spending limits:** Implement per-transaction, hourly, and daily spending caps
+- **Multi-signature approval:** Require multiple approvals for payments above certain thresholds
+- **Allowlist/blocklist:** Maintain lists of trusted and untrusted payment recipients
+
+### Network Security
+
+- **Use HTTPS only:** Never send payment signatures over unencrypted connections
+- **Verify facilitator identity:** Ensure you're communicating with legitimate facilitators
+- **Monitor facilitator health:** Check facilitator uptime and reputation before use
+
+### Error Handling
+
+- **Handle 402 errors gracefully:** Implement proper retry logic with exponential backoff
+- **Log payment attempts:** Maintain audit trails of all payment requests and outcomes
+- **Validate responses:** Verify that paid services return expected data formats and content
+
+### Development Best Practices
+
+- **Test in sandbox environments:** Use testnets for development and testing
+- **Implement circuit breakers:** Stop automated payments if error rates exceed thresholds
+- **Regular security audits:** Periodically review your payment flows and dependencies
+
+Remember: x402 enables powerful autonomous payments, but with great power comes great responsibility. Always prioritize security and compliance in your payment flows.
