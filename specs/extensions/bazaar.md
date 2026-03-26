@@ -362,6 +362,43 @@ When a facilitator receives a `PaymentPayload` containing the `bazaar` extension
 
 How a facilitator stores, indexes, and exposes discovered resources is an implementation detail. Facilitators may choose to catalog resources in a database, expose them via a discovery API, or process them in any manner they see fit.
 
+### Settlement Response Header
+
+After processing a `PaymentPayload`, a facilitator **MAY** append a `BAZAAR-RESPONSE` HTTP header to the settlement response to communicate the cataloging outcome to the client.
+
+**Header name:** `BAZAAR-RESPONSE`
+
+**Header value:** A base64-encoded JSON object with the following structure:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | string | Yes | One of `"success"`, `"processing"`, or `"rejected"` |
+| `rejectedReason` | string | No | Human-readable explanation. Only present when `status` is `"rejected"` |
+
+**Status values:**
+
+| Value | Meaning |
+|-------|---------|
+| `"success"` | The discovery info was validated and successfully cataloged |
+| `"processing"` | The discovery info was accepted and is being cataloged asynchronously |
+| `"rejected"` | The discovery info was rejected (e.g., failed schema validation). See `rejectedReason` for details |
+
+**Example (success):**
+
+```
+BAZAAR-RESPONSE: eyJzdGF0dXMiOiJzdWNjZXNzIn0=
+```
+*(base64 of `{"status":"success"}`)*
+
+**Example (rejected):**
+
+```
+BAZAAR-RESPONSE: eyJzdGF0dXMiOiJyZWplY3RlZCIsInJlamVjdGVkUmVhc29uIjoiaW5mbyBmYWlsZWQgc2NoZW1hIHZhbGlkYXRpb24ifQ==
+```
+*(base64 of `{"status":"rejected","rejectedReason":"info failed schema validation"}`)*
+
+Clients that understand the `bazaar` extension SHOULD read this header to confirm cataloging succeeded and surface any rejection reason for debugging.
+
 ---
 
 ## Client Behavior
