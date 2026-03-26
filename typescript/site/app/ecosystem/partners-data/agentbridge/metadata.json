@@ -1,0 +1,8 @@
+{
+  "name": "AgentBridge",
+  "description": "Pay-per-fetch gateway for Chinese web content (Xiaohongshu, Zhihu, etc.). Returns clean markdown, settled in USDC on Base via x402.",
+  "logoUrl": "/logos/agentbridge.png",
+  "websiteUrl": "https://github.com/tianzizhiming-svg/agentbridge",
+  "category": "Infrastructure & Tooling",
+  "featured": false
+}
