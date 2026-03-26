@@ -270,10 +270,7 @@ export function createPaymentWrapper(
         // Return full result (preserving structuredContent, etc.) with payment response in _meta
         return {
           ...result,
-          _meta: {
-            ...result._meta,
-            [MCP_PAYMENT_RESPONSE_META_KEY]: settleResult,
-          },
+          _meta: { [MCP_PAYMENT_RESPONSE_META_KEY]: settleResult },
         };
       } catch (settleError) {
         // Settlement failed after execution - return 402 error
