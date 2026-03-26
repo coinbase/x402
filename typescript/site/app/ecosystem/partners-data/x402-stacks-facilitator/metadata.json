@@ -7,9 +7,9 @@
   "githubUrl": "https://github.com/x402Stacks/x402-stacks-facilitator",
   "facilitator": {
     "baseUrl": "https://facilitator.stacksx402.com",
-    "networks": ["stacks-mainnet", "stacks-testnet"],
+    "networks": ["stacks:1", "stacks:2147483648"],
     "schemes": ["exact"],
-    "assets": ["STX", "sBTC", "USDCx"],
+    "assets": ["slip44:5757", "sip010:SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.sbtc-token", "sip010:SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx.usdcx-token"],
     "supports": { "verify": true, "settle": true, "supported": true, "list": false }
   }
 }

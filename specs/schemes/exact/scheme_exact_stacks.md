@@ -2,7 +2,7 @@
 
 This document specifies the `exact` payment scheme for the x402 protocol on the Stacks blockchain.
 
-This scheme facilitates payments of a specific amount of STX (native token) or SIP-010 fungible tokens (sBTC, USDCx, etc.) on Stacks.
+This scheme facilitates payments of a specific amount of STX (native token) or [SIP-010](https://github.com/stacksgov/sips/blob/main/sips/sip-010/sip-010-fungible-token-standard.md) fungible tokens (sBTC, USDCx, etc.) on Stacks. Assets are identified using [CAIP-19](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip19.md) notation.
 
 ## Scheme Name
 
@@ -37,7 +37,7 @@ The `exact` scheme on Stacks uses the following `PaymentRequirements` structure:
   "scheme": "exact",
   "network": "stacks:1",
   "amount": "1000000",
-  "asset": "STX",
+  "asset": "slip44:5757",
   "payTo": "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
   "maxTimeoutSeconds": 300,
   "extra": {
@@ -50,9 +50,9 @@ The `exact` scheme on Stacks uses the following `PaymentRequirements` structure:
 
 ### Field Descriptions
 
-- `network`: Network identifier. Use `stacks:1` for mainnet, `stacks:2147483648` for testnet (following CAIP-2 convention with Stacks chain IDs).
+- `network`: Network identifier. Use `stacks:1` for mainnet, `stacks:2147483648` for testnet (following [CAIP-2](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip2.md) convention with Stacks chain IDs).
 - `amount`: Amount in base units (microSTX for STX, satoshis for sBTC, smallest unit for other tokens).
-- `asset`: For STX, use `"STX"`. For SIP-010 tokens, use the contract identifier (e.g., `"SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.runes-dog::runes-dog"`).
+- `asset`: [CAIP-19](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip19.md) asset identifier. For native STX, use `"slip44:5757"`. For [SIP-010](https://github.com/stacksgov/sips/blob/main/sips/sip-010/sip-010-fungible-token-standard.md) tokens, use `"sip010:{address}.{contract}.{token}"` (e.g., `"sip010:SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.sbtc-token"`).
 - `payTo`: The Stacks address to receive the payment.
 - `extra.nonce`: Unique identifier for this payment request, included in transaction memo for correlation.
 - `extra.expiresAt`: ISO 8601 timestamp when this payment request expires.
@@ -66,7 +66,7 @@ The `exact` scheme on Stacks uses the following `PaymentRequirements` structure:
   "scheme": "exact",
   "network": "stacks:1",
   "amount": "100000",
-  "asset": "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token",
+  "asset": "sip010:SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.sbtc-token",
   "payTo": "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
   "maxTimeoutSeconds": 300,
   "extra": {
@@ -107,7 +107,7 @@ The `payload` field of the `PaymentPayload` contains the fully-signed transactio
     "scheme": "exact",
     "network": "stacks:1",
     "amount": "1000000",
-    "asset": "STX",
+    "asset": "slip44:5757",
     "payTo": "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
     "maxTimeoutSeconds": 300,
     "extra": {
@@ -240,25 +240,32 @@ Stacks transactions are anchored in Bitcoin blocks. Facilitators should wait for
 
 ## Supported Assets
 
-| Token | Type | Amount Unit |
-|-------|------|-------------|
-| STX | Native | microSTX (1 STX = 1,000,000 microSTX) |
-| sBTC | SIP-010 | satoshis (1 sBTC = 100,000,000 sats) |
-| USDCx | SIP-010 | micro-USDCx (1 USDCx = 1,000,000 micro-USDCx) |
+| Token | CAIP-19 Asset ID | Amount Unit |
+|-------|------------------|-------------|
+| STX | `slip44:5757` | microSTX (1 STX = 1,000,000 microSTX) |
+| sBTC | `sip010:SM3VDX...sbtc-token.sbtc-token` | satoshis (1 sBTC = 100,000,000 sats) |
+| USDCx | `sip010:SP120S...usdcx.usdcx-token` | micro-USDCx (1 USDCx = 1,000,000 micro-USDCx) |
+
+SIP-010 is the [Stacks fungible token standard](https://github.com/stacksgov/sips/blob/main/sips/sip-010/sip-010-fungible-token-standard.md), analogous to ERC-20 on EVM chains.
 
 ### Token Contract Addresses
 
-| Token | Network | Contract Identifier |
-|-------|---------|---------------------|
-| STX | mainnet/testnet | Native (no contract) |
-| sBTC | mainnet | `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token` |
-| sBTC | testnet | `ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token::sbtc-token` |
-| USDCx | mainnet | `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx::usdcx-token` |
-| USDCx | testnet | Not yet deployed (aeUSDC from Allbridge available as alternative) |
+| Token | Network | CAIP-19 Asset ID | Clarity Contract Identifier |
+|-------|---------|------------------|----------------------------|
+| STX | mainnet/testnet | `slip44:5757` | Native (no contract) |
+| sBTC | mainnet | `sip010:SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.sbtc-token` | `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token` |
+| sBTC | testnet | `sip010:ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token.sbtc-token` | `ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token::sbtc-token` |
+| USDCx | mainnet | `sip010:SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx.usdcx-token` | `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx::usdcx-token` |
+| USDCx | testnet | Not yet deployed | (aeUSDC from Allbridge available as alternative) |
+
+> **Note:** CAIP-19 uses `.` separators while Clarity uses `::` between contract name and token name. See [CAIP-19 Stacks namespace](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip19.md) for the full specification.
 
 ## Reference Implementation
 
-- Client/Server SDK: [x402Stacks](https://github.com/tony1908/x402Stacks) (x402-stacks on npm)
+- TypeScript SDK: [x402-stacks](https://github.com/x402Stacks/x402-stacks-sdk) (x402-stacks on npm)
+- Python SDK: [x402-stacks-python](https://github.com/x402Stacks/x402-stacks-python)
+- Go SDK: [x402-stacks-go](https://github.com/x402Stacks/x402-stacks-go)
+- Facilitator: [x402-stacks-facilitator](https://github.com/x402Stacks/x402-stacks-facilitator)
 - Registry: [x402StacksScan](https://scan.stacksx402.com)
 
 ---
@@ -558,5 +565,7 @@ Post-conditions protect against unexpected token transfers. Facilitators SHOULD 
 ### References
 
 - [SIP-005: Blocks and Transactions](https://github.com/stacksgov/sips/blob/main/sips/sip-005/sip-005-blocks-and-transactions.md)
+- [SIP-010: Fungible Token Standard](https://github.com/stacksgov/sips/blob/main/sips/sip-010/sip-010-fungible-token-standard.md)
 - [Stacks.js Transaction Serialization](https://stacks.js.org/functions/_stacks_transactions.serializeTransaction)
-- [CAIP-2: Stacks Namespace](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip2.md)
+- [CAIP-2: Stacks Chain Identifiers](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip2.md)
+- [CAIP-19: Stacks Asset Identifiers](https://github.com/ChainAgnostic/namespaces/blob/main/stacks/caip19.md)
