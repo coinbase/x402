@@ -115,8 +115,6 @@ func (s *UptoEvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) {
 	}
 }
 
-// defaultMoneyConversion converts decimal amount to AssetAmount using the default asset.
-// Upto always includes name, version, and assetTransferMethod: "permit2".
 func (s *UptoEvmScheme) defaultMoneyConversion(amount float64, network x402.Network) (x402.AssetAmount, error) {
 	networkStr := string(network)
 
@@ -161,8 +159,7 @@ func (s *UptoEvmScheme) defaultMoneyConversion(amount float64, network x402.Netw
 	}, nil
 }
 
-// EnhancePaymentRequirements adds upto-specific enhancements to V2 payment requirements.
-// Always sets assetTransferMethod to "permit2" and copies facilitatorAddress from supportedKind.Extra.
+// EnhancePaymentRequirements adds upto payment requirements.
 func (s *UptoEvmScheme) EnhancePaymentRequirements(
 	ctx context.Context,
 	requirements types.PaymentRequirements,

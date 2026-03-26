@@ -131,11 +131,8 @@ func VerifyUptoPermit2(
 		return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 	}
 
-	// Simulate with requirements.amount (the worst-case charge at verify time).
-	// ReadContract implementations must set From=facilitatorAddress in the underlying
-	// eth_call, matching TypeScript's viem WalletClient which always sets from=account.address.
-	// The upto proxy enforces msg.sender == witness.facilitator, so without From set the
-	// simulation would revert with UnauthorizedFacilitator.
+	// Simulate against requirements.amount (worst-case charge). From must equal the
+	// facilitator address: the upto proxy enforces msg.sender == witness.facilitator.
 	eip2612Info, _ := eip2612gassponsor.ExtractEip2612GasSponsoringInfo(payload.Extensions)
 	if eip2612Info != nil {
 		if validErr := validateEip2612PermitForPayment(eip2612Info, payer, tokenAddress); validErr != "" {

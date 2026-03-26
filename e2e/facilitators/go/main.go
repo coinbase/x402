@@ -22,9 +22,9 @@ import (
 	"github.com/coinbase/x402/go/extensions/erc20approvalgassponsor"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
-	uptofacilitator "github.com/coinbase/x402/go/mechanisms/evm/upto/facilitator"
+	exactevm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	exactevmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
+	uptoevm "github.com/coinbase/x402/go/mechanisms/evm/upto/facilitator"
 	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
 	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
@@ -219,10 +219,8 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("failed to pack method call: %w", err)
 	}
 
-	// Make the call, setting From to the facilitator's own address.
-	// This mirrors TypeScript's viem WalletClient.readContract() which always sets
-	// from=account.address. Required for contracts that check msg.sender (e.g. the
-	// upto proxy's settle(), which enforces msg.sender == witness.facilitator).
+	// Set From to the facilitator address — required by the upto proxy which enforces
+	// msg.sender == witness.facilitator in settle().
 	to := common.HexToAddress(contractAddress)
 	msg := ethereum.CallMsg{
 		From: s.address,
@@ -839,20 +837,20 @@ func main() {
 
 	// Register EVM schemes with dynamic network
 	// Enable smart wallet deployment via EIP-6492
-	evmConfig := &evm.ExactEvmSchemeConfig{
+	evmConfig := &exactevm.ExactEvmSchemeConfig{
 		DeployERC4337WithEIP6492: true,
 	}
-	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner, evmConfig)
+	evmFacilitatorScheme := exactevm.NewExactEvmScheme(evmSigner, evmConfig)
 	facilitator.Register([]x402.Network{x402.Network(evmNetwork)}, evmFacilitatorScheme)
 
 	// Register upto EVM scheme
-	uptoEvmFacilitatorScheme := uptofacilitator.NewUptoEvmScheme(evmSigner, nil)
+	uptoEvmFacilitatorScheme := uptoevm.NewUptoEvmScheme(evmSigner, nil)
 	facilitator.Register([]x402.Network{x402.Network(evmNetwork)}, uptoEvmFacilitatorScheme)
 
-	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
+	evmV1Config := &exactevmv1.ExactEvmSchemeV1Config{
 		DeployERC4337WithEIP6492: true,
 	}
-	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config)
+	evmFacilitatorV1Scheme := exactevmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config)
 	facilitator.RegisterV1([]x402.Network{x402.Network(getV1EvmNetwork(evmNetwork))}, evmFacilitatorV1Scheme)
 
 	// Register SVM schemes with dynamic network

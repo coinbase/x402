@@ -10,7 +10,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
-	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
+	uptoevm "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -45,9 +45,7 @@ func main() {
 		URL: facilitatorURL,
 	})
 
-	// The "upto" scheme authorizes up to a maximum amount but settles only what you specify.
-	// This enables usage-based billing: authorize a ceiling, then charge actual usage.
-	maxPrice := "$0.10" // Maximum the client authorizes (10 cents)
+	maxPrice := "$0.10" // Maximum the client authorizes
 
 	routes := x402http.RoutesConfig{
 		"GET /api/generate": {
@@ -68,7 +66,7 @@ func main() {
 		Routes:      routes,
 		Facilitator: facilitatorClient,
 		Schemes: []ginmw.SchemeConfig{
-			{Network: evmNetwork, Server: uptoserver.NewUptoEvmScheme()},
+			{Network: evmNetwork, Server: uptoevm.NewUptoEvmScheme()},
 		},
 		Timeout: 30 * time.Second,
 	}))

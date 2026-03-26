@@ -24,12 +24,12 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
-	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	uptoclient "github.com/coinbase/x402/go/mechanisms/evm/upto/client"
-	uptofacilitator "github.com/coinbase/x402/go/mechanisms/evm/upto/facilitator"
-	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
+	exactevmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+	exactevmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	exactevmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	uptoevmclient "github.com/coinbase/x402/go/mechanisms/evm/upto/client"
+	uptoevmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/upto/facilitator"
+	uptoevmserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -416,7 +416,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
+		evmClient := exactevmclient.NewExactEvmScheme(clientSigner, nil)
 		// Register for Base Sepolia
 		client.Register("eip155:84532", evmClient)
 
@@ -429,10 +429,10 @@ func TestEVMIntegrationV2(t *testing.T) {
 		// Setup facilitator with EVM v2 scheme
 		facilitator := x402.Newx402Facilitator()
 		// Enable smart wallet deployment via EIP-6492
-		evmConfig := &evmfacilitator.ExactEvmSchemeConfig{
+		evmConfig := &exactevmfacilitator.ExactEvmSchemeConfig{
 			DeployERC4337WithEIP6492: true,
 		}
-		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner, evmConfig)
+		evmFacilitator := exactevmfacilitator.NewExactEvmScheme(facilitatorSigner, evmConfig)
 		// Register for Base Sepolia
 		facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitator)
 
@@ -440,7 +440,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		// Setup resource server with EVM v2
-		evmServer := evmserver.NewExactEvmScheme()
+		evmServer := exactevmserver.NewExactEvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -600,7 +600,7 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evmclient.NewExactEvmScheme(clientSigner, nil)
+		evmClient := exactevmclient.NewExactEvmScheme(clientSigner, nil)
 		client.Register("eip155:84532", evmClient)
 
 		// Create facilitator signer with Permit2 support
@@ -611,17 +611,17 @@ func TestEVMIntegrationV2Permit2(t *testing.T) {
 
 		// Setup facilitator with EVM v2 scheme
 		facilitator := x402.Newx402Facilitator()
-		evmConfig := &evmfacilitator.ExactEvmSchemeConfig{
+		evmConfig := &exactevmfacilitator.ExactEvmSchemeConfig{
 			DeployERC4337WithEIP6492: true,
 		}
-		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner, evmConfig)
+		evmFacilitator := exactevmfacilitator.NewExactEvmScheme(facilitatorSigner, evmConfig)
 		facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitator)
 
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		// Setup resource server with EVM v2
-		evmServer := evmserver.NewExactEvmScheme()
+		evmServer := exactevmserver.NewExactEvmScheme()
 		evmServer.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 			if string(network) != "eip155:84532" {
 				return nil, nil
@@ -1520,7 +1520,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 
 		// Setup resource server with EVM v1
 		// V1 doesn't have separate server, uses V2 server
-		evmServerV1 := evmserver.NewExactEvmScheme()
+		evmServerV1 := exactevmserver.NewExactEvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -1682,7 +1682,7 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		client := x402.Newx402Client()
-		uptoClient := uptoclient.NewUptoEvmScheme(clientSigner, nil)
+		uptoClient := uptoevmclient.NewUptoEvmScheme(clientSigner, nil)
 		client.Register("eip155:84532", uptoClient)
 
 		facilitatorSigner, err := newPermit2FacilitatorEvmSigner(ctx, facilitatorPrivateKey, rpcURL)
@@ -1691,12 +1691,12 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		facilitator := x402.Newx402Facilitator()
-		uptoFacilitator := uptofacilitator.NewUptoEvmScheme(facilitatorSigner, nil)
+		uptoFacilitator := uptoevmfacilitator.NewUptoEvmScheme(facilitatorSigner, nil)
 		facilitator.Register([]x402.Network{"eip155:84532"}, uptoFacilitator)
 
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
-		uptoServer := uptoserver.NewUptoEvmScheme()
+		uptoServer := uptoevmserver.NewUptoEvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -1813,7 +1813,7 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		client := x402.Newx402Client()
-		client.Register("eip155:84532", uptoclient.NewUptoEvmScheme(clientSigner, nil))
+		client.Register("eip155:84532", uptoevmclient.NewUptoEvmScheme(clientSigner, nil))
 
 		facilitatorSigner, err := newPermit2FacilitatorEvmSigner(ctx, facilitatorPrivateKey, rpcURL)
 		if err != nil {
@@ -1821,12 +1821,12 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		facilitator := x402.Newx402Facilitator()
-		facilitator.Register([]x402.Network{"eip155:84532"}, uptofacilitator.NewUptoEvmScheme(facilitatorSigner, nil))
+		facilitator.Register([]x402.Network{"eip155:84532"}, uptoevmfacilitator.NewUptoEvmScheme(facilitatorSigner, nil))
 
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		server := x402.Newx402ResourceServer(x402.WithFacilitatorClient(facilitatorClient))
-		server.Register("eip155:84532", uptoserver.NewUptoEvmScheme())
+		server.Register("eip155:84532", uptoevmserver.NewUptoEvmScheme())
 
 		err = server.Initialize(ctx)
 		if err != nil {
@@ -1911,7 +1911,7 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		client := x402.Newx402Client()
-		client.Register("eip155:84532", uptoclient.NewUptoEvmScheme(clientSigner, nil))
+		client.Register("eip155:84532", uptoevmclient.NewUptoEvmScheme(clientSigner, nil))
 
 		facilitatorSigner, err := newPermit2FacilitatorEvmSigner(ctx, facilitatorPrivateKey, rpcURL)
 		if err != nil {
@@ -1919,12 +1919,12 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 		}
 
 		facilitator := x402.Newx402Facilitator()
-		facilitator.Register([]x402.Network{"eip155:84532"}, uptofacilitator.NewUptoEvmScheme(facilitatorSigner, nil))
+		facilitator.Register([]x402.Network{"eip155:84532"}, uptoevmfacilitator.NewUptoEvmScheme(facilitatorSigner, nil))
 
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		server := x402.Newx402ResourceServer(x402.WithFacilitatorClient(facilitatorClient))
-		server.Register("eip155:84532", uptoserver.NewUptoEvmScheme())
+		server.Register("eip155:84532", uptoevmserver.NewUptoEvmScheme())
 
 		err = server.Initialize(ctx)
 		if err != nil {

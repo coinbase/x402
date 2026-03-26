@@ -41,9 +41,7 @@ func (c *UptoEvmScheme) CreatePaymentPayload(
 	return CreateUptoPermit2Payload(ctx, c.signer, requirements)
 }
 
-// CreatePaymentPayloadWithExtensions creates a payment payload with extension awareness.
-// For upto, always uses Permit2. If the server advertises gas sponsoring extensions
-// and the signer supports the required capabilities, enriches the payload accordingly.
+// CreatePaymentPayloadWithExtensions creates a payment payload with extension support.
 func (c *UptoEvmScheme) CreatePaymentPayloadWithExtensions(
 	ctx context.Context,
 	requirements types.PaymentRequirements,

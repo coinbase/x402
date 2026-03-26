@@ -16,8 +16,8 @@ import (
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	nethttpmw "github.com/coinbase/x402/go/http/nethttp"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
+	exactevm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	uptoevm "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 	"github.com/joho/godotenv"
 )
@@ -380,8 +380,8 @@ func main() {
 		Routes:      routes,
 		Facilitator: facilitatorClient,
 		Schemes: []nethttpmw.SchemeConfig{
-			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
-			{Network: evmNetwork, Server: uptoserver.NewUptoEvmScheme()},
+			{Network: evmNetwork, Server: exactevm.NewExactEvmScheme()},
+			{Network: evmNetwork, Server: uptoevm.NewUptoEvmScheme()},
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
 		SyncFacilitatorOnStart: true,

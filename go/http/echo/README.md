@@ -212,7 +212,7 @@ e.Use(echomw.PaymentMiddlewareFromConfig(routes,
 
 ### Settlement Overrides (Upto Scheme)
 
-For the upto scheme, route handlers specify the actual settlement amount via `SetSettlementOverrides`. The middleware passes this through the transport context to the shared server, which reads it before settlement:
+For the upto scheme, route handlers specify the actual settlement amount via `SetSettlementOverrides`:
 
 ```go
 e.GET("/api/metered", func(c echo.Context) error {

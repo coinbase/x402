@@ -201,7 +201,7 @@ r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 
 ### Settlement Overrides (Upto Scheme)
 
-For the upto scheme, route handlers specify the actual settlement amount via `SetSettlementOverrides`. The middleware passes this through the transport context to the shared server, which reads it before settlement:
+For the upto scheme, route handlers specify the actual settlement amount via `SetSettlementOverrides`:
 
 ```go
 r.GET("/api/metered", func(c *gin.Context) {

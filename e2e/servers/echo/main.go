@@ -15,8 +15,8 @@ import (
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
 	echomw "github.com/coinbase/x402/go/http/echo"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	uptoserver "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
+	exactevm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	uptoevm "github.com/coinbase/x402/go/mechanisms/evm/upto/server"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -90,9 +90,6 @@ func main() {
 	})
 
 	// Configure x402 payment middleware
-	//
-	// This middleware protects /exact/* payment routes with USDC payment requirements
-	// on the Base Sepolia testnet with bazaar discovery extension.
 
 	// Declare bazaar discovery extension for GET endpoints
 	discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
@@ -257,8 +254,8 @@ func main() {
 		Routes:      routes,
 		Facilitator: facilitatorClient,
 		Schemes: []echomw.SchemeConfig{
-			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
-			{Network: evmNetwork, Server: uptoserver.NewUptoEvmScheme()},
+			{Network: evmNetwork, Server: exactevm.NewExactEvmScheme()},
+			{Network: evmNetwork, Server: uptoevm.NewUptoEvmScheme()},
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
 		SyncFacilitatorOnStart: true,
@@ -433,6 +430,7 @@ func main() {
 ║  • GET  /exact/evm/permit2-eip2612GasSponsoring               ║
 ║  • GET  /exact/evm/permit2-erc20ApprovalGasSponsoring         ║
 ║  • GET  /exact/svm                            (SVM)           ║
+║  • GET  /upto/evm/permit2                     (Upto Permit2)  ║
 ║  • GET  /health                 (no payment required)  ║
 ║  • POST /close                  (shutdown server)      ║
 ╚════════════════════════════════════════════════════════╝
