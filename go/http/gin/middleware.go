@@ -318,7 +318,7 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 
 		case x402http.ResultPaymentVerified:
 			// Payment verified, continue with settlement handling
-			handlePaymentVerified(c, server, ctx, result, config)
+			handlePaymentVerified(c, server, ctx, reqCtx, result, config)
 		}
 	}
 }
@@ -345,7 +345,7 @@ func handlePaymentError(c *gin.Context, response *x402http.HTTPResponseInstructi
 }
 
 // handlePaymentVerified handles verified payments with settlement
-func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx context.Context, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
+func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx context.Context, reqCtx x402http.HTTPRequestContext, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
 	// Capture response for settlement
 	writer := &responseCapture{
 		ResponseWriter: c.Writer,
@@ -386,7 +386,11 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
 		nil,
-		writer.Header(),
+		&x402http.HTTPTransportContext{
+			Request:         &reqCtx,
+			ResponseBody:    writer.body.Bytes(),
+			ResponseHeaders: writer.Header(),
+		},
 	)
 
 	// Check settlement success

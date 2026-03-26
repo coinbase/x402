@@ -4,11 +4,72 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/coinbase/x402/go/types"
 )
+
+var (
+	percentRegex = regexp.MustCompile(`^(\d+(?:\.\d{0,2})?)%$`)
+	dollarRegex  = regexp.MustCompile(`^\$(\d+(?:\.\d+)?)$`)
+)
+
+// ResolveSettlementOverrideAmount resolves a settlement override amount string
+// to a final atomic-unit string. Supports three formats:
+//   - Raw atomic units: "1000"
+//   - Percent of requirements.Amount: "50%"  (up to 2 decimal places, floored)
+//   - Dollar price: "$0.05" (uses requirements.Extra["decimals"] or defaults to 6)
+func ResolveSettlementOverrideAmount(rawAmount string, requirements types.PaymentRequirements) (string, error) {
+	if m := percentRegex.FindStringSubmatch(rawAmount); m != nil {
+		parts := strings.SplitN(m[1], ".", 2)
+		intPart, _ := strconv.ParseInt(parts[0], 10, 64)
+		decPart := int64(0)
+		if len(parts) == 2 {
+			padded := (parts[1] + "00")[:2]
+			decPart, _ = strconv.ParseInt(padded, 10, 64)
+		}
+		scaledPercent := big.NewInt(intPart*100 + decPart)
+		base, ok := new(big.Int).SetString(requirements.Amount, 10)
+		if !ok {
+			return "", fmt.Errorf("invalid requirements amount: %s", requirements.Amount)
+		}
+		result := new(big.Int).Mul(base, scaledPercent)
+		result.Div(result, big.NewInt(10000))
+		return result.String(), nil
+	}
+
+	if m := dollarRegex.FindStringSubmatch(rawAmount); m != nil {
+		decimals := 6
+		if requirements.Extra != nil {
+			if d, ok := requirements.Extra["decimals"]; ok {
+				switch v := d.(type) {
+				case float64:
+					decimals = int(v)
+				case int:
+					decimals = v
+				case json.Number:
+					if n, err := v.Int64(); err == nil {
+						decimals = int(n)
+					}
+				}
+			}
+		}
+		dollars, err := strconv.ParseFloat(m[1], 64)
+		if err != nil {
+			return "", fmt.Errorf("invalid dollar amount: %s", rawAmount)
+		}
+		atomic := math.Round(dollars * math.Pow(10, float64(decimals)))
+		return strconv.FormatInt(int64(atomic), 10), nil
+	}
+
+	return rawAmount, nil
+}
 
 // x402ResourceServer manages payment requirements and verification for protected resources
 // V2 ONLY - This server only produces and accepts V2 payments
@@ -401,10 +462,13 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 // If overrides is non-nil and overrides.Amount is set, the effective requirements amount
 // is replaced before settlement (partial settlement for upto scheme).
 func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *SettlementOverrides) (*SettleResponse, error) {
-	// Apply settlement overrides (e.g., partial settlement for upto scheme)
 	effectiveRequirements := requirements
 	if overrides != nil && overrides.Amount != "" {
-		effectiveRequirements.Amount = overrides.Amount
+		resolved, err := ResolveSettlementOverrideAmount(overrides.Amount, requirements)
+		if err != nil {
+			return nil, NewSettleError("invalid_settlement_override", "", Network(requirements.Network), "", err.Error())
+		}
+		effectiveRequirements.Amount = resolved
 	}
 
 	// Marshal to bytes early for hooks (escape hatch for extensions)

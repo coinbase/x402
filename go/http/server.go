@@ -157,6 +157,14 @@ type HTTPRequestContext struct {
 	RoutePattern  string
 }
 
+// HTTPTransportContext carries request and response data through settlement processing.
+// Mirrors the TypeScript HTTPTransportContext interface.
+type HTTPTransportContext struct {
+	Request         *HTTPRequestContext
+	ResponseBody    []byte
+	ResponseHeaders map[string][]string // http.Header
+}
+
 // HTTPResponseInstructions tells the framework how to respond
 type HTTPResponseInstructions struct {
 	Status  int               `json:"status"`
@@ -645,18 +653,18 @@ const SettlementOverridesHeader = "settlement-overrides"
 
 // ProcessSettlement handles settlement after successful response.
 // If overrides is non-nil, it takes precedence. Otherwise, falls back to reading
-// the settlement-overrides header from responseHeaders (set by the route handler
-// via SetSettlementOverrides). The header is deleted from responseHeaders to prevent
-// it from being sent to the client.
-func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *x402.SettlementOverrides, responseHeaders ...map[string][]string) *ProcessSettleResult {
+// the settlement-overrides header from the transport context's ResponseHeaders
+// (set by the route handler via SetSettlementOverrides). The header is deleted
+// from ResponseHeaders to prevent it from being sent to the client.
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *x402.SettlementOverrides, transportContext *HTTPTransportContext) *ProcessSettleResult {
 	resolved := overrides
-	if resolved == nil && len(responseHeaders) > 0 && responseHeaders[0] != nil {
-		if vals, ok := responseHeaders[0][SettlementOverridesHeader]; ok && len(vals) > 0 {
+	if resolved == nil && transportContext != nil && transportContext.ResponseHeaders != nil {
+		if vals, ok := transportContext.ResponseHeaders[SettlementOverridesHeader]; ok && len(vals) > 0 {
 			var parsed x402.SettlementOverrides
 			if err := json.Unmarshal([]byte(vals[0]), &parsed); err == nil {
 				resolved = &parsed
 			}
-			delete(responseHeaders[0], SettlementOverridesHeader)
+			delete(transportContext.ResponseHeaders, SettlementOverridesHeader)
 		}
 	}
 

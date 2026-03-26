@@ -250,7 +250,7 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 				handlePaymentError(w, result.Response)
 
 			case x402http.ResultPaymentVerified:
-				handlePaymentVerified(w, r, next, server, ctx, result, config)
+				handlePaymentVerified(w, r, next, server, ctx, reqCtx, result, config)
 			}
 		})
 	}
@@ -274,7 +274,7 @@ func handlePaymentError(w http.ResponseWriter, response *x402http.HTTPResponseIn
 }
 
 // handlePaymentVerified handles verified payments with response capture and settlement.
-func handlePaymentVerified(w http.ResponseWriter, r *http.Request, next http.Handler, server *x402http.HTTPServer, ctx context.Context, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
+func handlePaymentVerified(w http.ResponseWriter, r *http.Request, next http.Handler, server *x402http.HTTPServer, ctx context.Context, reqCtx x402http.HTTPRequestContext, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
 	// Capture downstream handler response
 	capture := &responseCapture{
 		ResponseWriter: w,
@@ -305,7 +305,11 @@ func handlePaymentVerified(w http.ResponseWriter, r *http.Request, next http.Han
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
 		nil,
-		capture.Header(),
+		&x402http.HTTPTransportContext{
+			Request:         &reqCtx,
+			ResponseBody:    capture.body.Bytes(),
+			ResponseHeaders: capture.Header(),
+		},
 	)
 
 	if !settleResult.Success {
