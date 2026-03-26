@@ -1,0 +1,7 @@
+{
+    "name": "PolyLiberty",
+    "description": "Polymarket trading terminal with AI-powered prediction generation, 8-dimensional wallet activity analysis, composite trading signals, and machine-payable quota system. Agents can purchase fresh AI predictions ($0.05), run wallet activity scoring ($0.10), and buy quota packs ($0.25-$1.75) - all via x402 on Base with USDC, WETH, or USDT. Includes hybrid RAG context (Tavily news + Twitter sentiment), real-time orderbook access, and Polymarket CLOB order routing with builder attribution.",
+    "logoUrl": "/logos/polyliberty.png",
+    "websiteUrl": "https://polyliberty.xyz/discover",
+    "category": "Services/Endpoints"
+}
