@@ -267,11 +267,11 @@ export function createPaymentWrapper(
           await config.hooks.onAfterSettlement(settlementContext);
         }
 
-        // Return result with payment response in _meta
+        // Return full result (preserving structuredContent, etc.) with payment response in _meta
         return {
-          content: result.content,
-          isError: result.isError,
+          ...result,
           _meta: {
+            ...result._meta,
             [MCP_PAYMENT_RESPONSE_META_KEY]: settleResult,
           },
         };
