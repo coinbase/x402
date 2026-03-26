@@ -1,0 +1,7 @@
+{
+  "name": "Satoshidata.ai",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/satoshidata.png",
+  "description": "Bitcoin wallet intelligence API with native x402 USDC micropayments. Query wallet summaries, detailed analytics, and transaction verification — pay per call, no signup required.",
+  "websiteUrl": "https://satoshidata.ai"
+}
