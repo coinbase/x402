@@ -364,16 +364,16 @@ How a facilitator stores, indexes, and exposes discovered resources is an implem
 
 ### Settlement Response Header
 
-After processing a `PaymentPayload`, a facilitator **MAY** append a `BAZAAR-RESPONSE` HTTP header to the settlement response to communicate the cataloging outcome to the client.
+After processing a `PaymentPayload`, a facilitator **MAY** append an `EXTENSION-RESPONSES` HTTP header to the settlement response to communicate extension-specific outcomes to the client.
 
-**Header name:** `BAZAAR-RESPONSE`
+**Header name:** `EXTENSION-RESPONSES`
 
-**Header value:** A base64-encoded JSON object with the following structure:
+**Header value:** A base64-encoded JSON object keyed by extension name. The `bazaar` key contains the bazaar extension's response:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `status` | string | Yes | One of `"success"`, `"processing"`, or `"rejected"` |
-| `rejectedReason` | string | No | Human-readable explanation. Only present when `status` is `"rejected"` |
+| `bazaar.status` | string | Yes | One of `"success"`, `"processing"`, or `"rejected"` |
+| `bazaar.rejectedReason` | string | No | Human-readable explanation. Only present when `status` is `"rejected"` |
 
 **Status values:**
 
@@ -386,18 +386,18 @@ After processing a `PaymentPayload`, a facilitator **MAY** append a `BAZAAR-RESP
 **Example (success):**
 
 ```
-BAZAAR-RESPONSE: eyJzdGF0dXMiOiJzdWNjZXNzIn0=
+EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoic3VjY2VzcyJ9fQ==
 ```
-*(base64 of `{"status":"success"}`)*
+*(base64 of `{"bazaar":{"status":"success"}}`)*
 
 **Example (rejected):**
 
 ```
-BAZAAR-RESPONSE: eyJzdGF0dXMiOiJyZWplY3RlZCIsInJlamVjdGVkUmVhc29uIjoiaW5mbyBmYWlsZWQgc2NoZW1hIHZhbGlkYXRpb24ifQ==
+EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoicmVqZWN0ZWQiLCJyZWplY3RlZFJlYXNvbiI6ImluZm8gZmFpbGVkIHNjaGVtYSB2YWxpZGF0aW9uIn19
 ```
-*(base64 of `{"status":"rejected","rejectedReason":"info failed schema validation"}`)*
+*(base64 of `{"bazaar":{"status":"rejected","rejectedReason":"info failed schema validation"}}`)*
 
-Clients that understand the `bazaar` extension SHOULD read this header to confirm cataloging succeeded and surface any rejection reason for debugging.
+Clients that understand the `bazaar` extension SHOULD read the `bazaar` key of this header to confirm cataloging succeeded and surface any rejection reason for debugging.
 
 ---
 
