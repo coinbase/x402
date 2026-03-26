@@ -62,7 +62,7 @@ type QueryDiscoveryInfo struct {
 // QueryInput represents input information for query parameter methods
 type QueryInput struct {
 	Type        string                 `json:"type"` // "http"
-	Method      QueryParamMethods      `json:"method,omitempty"`
+	Method      QueryParamMethods      `json:"method"`
 	QueryParams map[string]interface{} `json:"queryParams,omitempty"`
 	PathParams  map[string]interface{} `json:"pathParams,omitempty"`
 	Headers     map[string]string      `json:"headers,omitempty"`
@@ -77,7 +77,7 @@ type BodyDiscoveryInfo struct {
 // BodyInput represents input information for body methods
 type BodyInput struct {
 	Type        string                 `json:"type"` // "http"
-	Method      BodyMethods            `json:"method,omitempty"`
+	Method      BodyMethods            `json:"method"`
 	BodyType    BodyType               `json:"bodyType"`
 	Body        interface{}            `json:"body"`
 	QueryParams map[string]interface{} `json:"queryParams,omitempty"`

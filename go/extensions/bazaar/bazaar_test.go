@@ -278,42 +278,6 @@ func TestValidateDiscoveryExtension(t *testing.T) {
 		result := bazaar.ValidateDiscoveryExtension(extension)
 		assert.True(t, result.Valid)
 	})
-
-	t.Run("should not produce method enum violation when method is absent in optional schema", func(t *testing.T) {
-		// Reproduce issue: when external JSON omits info.input.method, Go zero-initializes
-		// Method to "" and re-marshaling produces "method":"", which fails an enum constraint
-		// even when method is not required. Adding omitempty to Method fields fixes this.
-		extensionJSON := `{
-			"info": {
-				"input": {
-					"type": "http",
-					"queryParams": {}
-				}
-			},
-			"schema": {
-				"$schema": "https://json-schema.org/draft/2020-12/schema",
-				"type": "object",
-				"properties": {
-					"input": {
-						"type": "object",
-						"properties": {
-							"type": {"type": "string", "const": "http"},
-							"method": {"type": "string", "enum": ["GET", "HEAD", "DELETE"]},
-							"queryParams": {"type": "object"}
-						},
-						"required": ["type"]
-					}
-				},
-				"required": ["input"]
-			}
-		}`
-
-		var extension bazaar.DiscoveryExtension
-		require.NoError(t, json.Unmarshal([]byte(extensionJSON), &extension))
-
-		result := bazaar.ValidateDiscoveryExtension(extension)
-		assert.True(t, result.Valid, "expected valid but got errors: %v", result.Errors)
-	})
 }
 
 func TestExtractDiscoveryInfoFromExtension(t *testing.T) {
