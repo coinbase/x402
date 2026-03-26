@@ -2,246 +2,225 @@
 
 ## Summary
 
-The `deferred-voucher-store` extension enables voucher storage and retrieval for the `deferred` payment scheme. It provides a pluggable interface that allows servers to choose where vouchers are stored - locally or delegated to a facilitator.
+The `deferred-voucher-store` extension enables facilitators to store vouchers on behalf of resource servers. This simplifies server implementation by removing the need for voucher storage infrastructure while allowing servers to retain full control over when to initiate on-chain collection.
 
-This is a **Server ↔ Client** extension with optional **Facilitator** involvement for storage.
-
-**Key Design Principle:** The extension defines WHAT operations are needed (store/retrieve vouchers). The server chooses WHERE storage happens by selecting an appropriate backend implementation. This addresses facilitator portability concerns - servers can store vouchers locally and switch facilitators without losing voucher state.
+This extension is only applicable to the `deferred` payment scheme.
 
 ---
 
-## PaymentRequired
+## Facilitator Advertisement
 
-Server advertises support and current voucher state:
+Facilitators advertise this capability in their `/supported` response:
 
 ```json
 {
-  "extensions": {
-    "deferred-voucher-store": {
-      "info": {
-        "type": "aggregation",
-        "voucher": {
-          "id": "0x...",
-          "nonce": 5,
-          "valueAggregate": "5000000",
-          "buyer": "0x...",
-          "seller": "0x...",
-          "asset": "0x...",
-          "escrow": "0x...",
-          "timestamp": 1703123456,
-          "chainId": 84532
-        },
-        "signature": "0x...",
-        "account": {
-          "balance": "10000000",
-          "assetAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
-          "assetPermitNonce": "0"
-        }
-      },
-      "schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "voucher": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "nonce": { "type": "integer" },
-              "valueAggregate": { "type": "string" },
-              "buyer": { "type": "string" },
-              "seller": { "type": "string" },
-              "asset": { "type": "string" },
-              "escrow": { "type": "string" },
-              "timestamp": { "type": "integer" },
-              "chainId": { "type": "integer" }
-            },
-            "required": ["id", "nonce", "valueAggregate", "buyer", "seller", "asset", "escrow", "timestamp", "chainId"]
-          },
-          "signature": { "type": "string" }
-        },
-        "required": ["voucher", "signature"]
-      }
-    }
-  }
-}
-```
-
----
-
-## `info` Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | string | Yes | Response type: `"aggregation"` (existing voucher) or `"initial"` (no prior voucher) |
-| `voucher` | object | No | Current voucher state (omitted when `type: "initial"`) |
-| `signature` | string | No | Signature for current voucher (omitted when `type: "initial"`) |
-| `account` | object | Yes | Buyer's escrow account information |
-
-### `type` Values
-
-- **`initial`**: No existing voucher for this buyer-seller-asset combination. Client creates a new voucher with `nonce: 0`.
-- **`aggregation`**: Existing voucher found. Client increments `nonce` and adds payment amount to `valueAggregate`.
-
-### `voucher` Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier for this buyer-seller pair (bytes32 hex) |
-| `nonce` | integer | Current nonce (client increments by 1) |
-| `valueAggregate` | string | Total accumulated value (client adds payment amount) |
-| `buyer` | string | Buyer address |
-| `seller` | string | Seller/payTo address |
-| `asset` | string | ERC-20 token contract address |
-| `escrow` | string | Escrow contract address |
-| `timestamp` | integer | Unix timestamp of last aggregation |
-| `chainId` | integer | Network chain ID |
-
-### `account` Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `balance` | string | Buyer's current escrow balance |
-| `assetAllowance` | string | Token allowance for escrow contract |
-| `assetPermitNonce` | string | Current EIP-2612 permit nonce |
-
----
-
-## PaymentPayload
-
-Client echoes the extension with updated voucher:
-
-```json
-{
-  "extensions": {
-    "deferred-voucher-store": {
-      "voucher": {
-        "id": "0x...",
-        "nonce": 6,
-        "valueAggregate": "6000000",
-        "buyer": "0x...",
-        "seller": "0x...",
-        "asset": "0x...",
-        "escrow": "0x...",
-        "timestamp": 1703123500,
-        "chainId": 84532
-      },
-      "signature": "0x..."
-    }
-  }
-}
-```
-
-The client:
-1. Increments `nonce` by 1
-2. Adds payment amount to `valueAggregate`
-3. Updates `timestamp` to current time
-4. Signs the voucher using EIP-712
-
----
-
-## Server Behavior
-
-### On PaymentRequired
-
-1. Read buyer address from `payer-identifier` header (if available)
-2. Query voucher store for existing voucher
-3. Return `type: "initial"` or `type: "aggregation"` with current state
-4. Include account balance information for client validation
-
-### On Payment Verification
-
-1. Validate voucher fields match expected values
-2. Verify `nonce == previousNonce + 1`
-3. Verify `valueAggregate >= previousValueAggregate + paymentAmount`
-4. Forward to facilitator for signature verification and escrow balance check
-
-### On Settlement Success
-
-1. Store the new voucher and signature in the voucher store
-2. This voucher becomes the baseline for the next aggregation
-
----
-
-## Facilitator Support
-
-Facilitators MAY advertise voucher storage capability:
-
-```json
-// GET /supported
-{
-  "kinds": [...],
+  "kinds": [
+    { "scheme": "deferred", "network": "eip155:84532" }
+  ],
   "extensions": ["deferred-voucher-store"]
 }
 ```
 
-When a facilitator supports this extension, servers MAY delegate storage operations to the facilitator instead of storing vouchers locally.
-
 ---
 
-## VoucherStore Interface
+## Voucher Management
 
-Implementations MUST provide these operations:
+Servers opt into facilitator-managed voucher storage by setting `voucherStorage: facilitator` in `PaymentRequirements.extra`. Servers should check that the facilitator supports this extension before configuring it.
 
-```typescript
-interface VoucherStore {
-  // Store a new/aggregated voucher after successful settlement
-  storeVoucher(voucher: Voucher, signature: string): Promise<void>;
-
-  // Get latest voucher for aggregation (by buyer-seller-asset)
-  getLatestVoucher(
-    buyer: string,
-    seller: string,
-    asset: string
-  ): Promise<{ voucher: Voucher; signature: string } | null>;
-
-  // Get account balance information
-  getAccountInfo(
-    buyer: string,
-    seller: string,
-    asset: string,
-    escrow: string,
-    chainId: number
-  ): Promise<AccountInfo>;
+```json
+{
+  "extra": {
+    "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+    "name": "USDC",
+    "version": "2",
+    "voucherStorage": "facilitator"
+  }
 }
 ```
 
-### Implementation Options
+The extension modifies behavior for some of the standard endpoints and adds additional ones to facilitate voucher management.
 
-**Option A: Server stores locally (portable)**
+### Modified Endpoint Behavior
 
-```typescript
-const extension = createDeferredVoucherStoreExtension({
-  store: new ServerVoucherStore(database)
-});
+When this extension is active, the following standard endpoints behave differently:
+
+#### GET /deferred/buyers/:buyer
+
+Returns stored voucher data in addition to on-chain account data:
+
+**Response (with stored voucher):**
+```json
+{
+  "balance": "10000000",
+  "assetAllowance": "5000000",
+  "assetPermitNonce": "0",
+  "voucher": {
+    "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+    "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+    "valueAggregate": "5000000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "timestamp": 1740673000,
+    "nonce": 2,
+    "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+    "chainId": 84532
+  },
+  "signature": "0x3a2f7e3b..."
+}
 ```
 
-**Option B: Server delegates to facilitator**
+Without this extension, `voucher` and `signature` fields would be absent from the response.
 
-```typescript
-const extension = createDeferredVoucherStoreExtension({
-  store: new FacilitatorVoucherStore(facilitatorClient)
-});
+#### POST /settle
+
+When `PaymentRequirements.extra.voucherStorage === "facilitator"`, the facilitator stores the voucher as part of settlement.
+
+### Additional Endpoints
+
+The extension provides endpoints for servers to query and retrieve stored vouchers.
+
+#### GET /deferred/vouchers
+
+Query vouchers with filters.
+
+**Query Parameters:**
+- `buyer` (optional): Filter by buyer address
+- `seller` (optional): Filter by seller address
+- `asset` (optional): Filter by asset address
+- `chainId` (optional): Filter by chain ID
+- `escrow` (optional): Filter by escrow contract address
+
+**Example Request:**
+```
+GET /deferred/vouchers?seller=0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D&chainId=84532
 ```
 
-The server chooses the backend. The extension interface remains the same.
+**Response (200 OK):**
+```json
+{
+  "vouchers": [
+    {
+      "voucher": {
+        "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+        "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+        "valueAggregate": "5000000",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "timestamp": 1740673000,
+        "nonce": 5,
+        "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+        "chainId": 84532
+      },
+      "signature": "0x3a2f7e3b..."
+    }
+  ]
+}
+```
 
----
+#### GET /deferred/vouchers/:id
 
-## Security Considerations
+Get all vouchers in a series by voucher ID.
 
-- **Voucher Signatures**: Vouchers are EIP-712 signed by the buyer. The facilitator verifies signatures before approving payments.
-- **Nonce Ordering**: Strict `nonce == previousNonce + 1` prevents replay and ensures ordering.
-- **Escrow Balance**: The facilitator checks that escrow balance covers `valueAggregate` before verification succeeds.
-- **Storage Integrity**: If using local storage, servers MUST ensure voucher data is not corrupted or lost. Lost vouchers cannot be reconstructed.
-- **Facilitator Portability**: Servers storing vouchers locally can switch facilitators without losing state. Servers delegating storage to a facilitator are dependent on that facilitator's availability.
+**Path Parameters:**
+- `id`: Voucher ID (bytes32)
 
----
+**Query Parameters:**
+- `chainId` (required): Chain ID
+- `escrow` (required): Escrow contract address
 
-## Parallel Request Limitations
+**Example Request:**
+```
+GET /deferred/vouchers/0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc?chainId=84532&escrow=0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27
+```
 
-The current nonce-based design does not support parallel requests well. Each payment must wait for the previous voucher to be stored before the next nonce can be used.
+**Response (200 OK):**
+```json
+{
+  "vouchers": [
+    {
+      "voucher": {
+        "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+        "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+        "valueAggregate": "1000000",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "timestamp": 1740670000,
+        "nonce": 1,
+        "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+        "chainId": 84532
+      },
+      "signature": "0x1a2b3c4d..."
+    },
+    {
+      "voucher": {
+        "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+        "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+        "valueAggregate": "3000000",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "timestamp": 1740672000,
+        "nonce": 2,
+        "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+        "chainId": 84532
+      },
+      "signature": "0x2b3c4d5e..."
+    },
+    {
+      "voucher": {
+        "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+        "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+        "valueAggregate": "5000000",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "timestamp": 1740673000,
+        "nonce": 3,
+        "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+        "chainId": 84532
+      },
+      "signature": "0x3a2f7e3b..."
+    }
+  ]
+}
+```
 
-Future versions may address this with:
-- Nonce ranges (client reserves a range of nonces)
-- Multiple voucher IDs per buyer-seller pair
+#### GET /deferred/vouchers/:id/:nonce
 
+Get a specific voucher by ID and nonce.
+
+**Path Parameters:**
+- `id`: Voucher ID (bytes32)
+- `nonce`: Voucher nonce (uint256)
+
+**Query Parameters:**
+- `chainId` (required): Chain ID
+- `escrow` (required): Escrow contract address
+
+**Example Request:**
+```
+GET /deferred/vouchers/0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc/3?chainId=84532&escrow=0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27
+```
+
+**Response (200 OK):**
+```json
+{
+  "voucher": {
+    "id": "0x9f8d3e4a2c7b9d04dcd11c9f4c2b22b0a6f87671e7b8c3a2ea95b5dbdf4040bc",
+    "buyer": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "seller": "0xA1c7Bf3d421e8A54D39FbBE13f9f826E5B2C8e3D",
+    "valueAggregate": "5000000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "timestamp": 1740673000,
+    "nonce": 3,
+    "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
+    "chainId": 84532
+  },
+  "signature": "0x3a2f7e3b..."
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "error": "Voucher not found"
+}
+```
