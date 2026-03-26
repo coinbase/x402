@@ -385,14 +385,46 @@ The facilitator calls the `collect` function on the escrow contract with the vou
 
 Multiple vouchers can be collected in a single transaction using the `collectMany` function, reducing gas costs.
 
+## Funds Recovery
+
+Buyers can recover unused funds from their escrow accounts through the **flush** mechanism. This enables gasless fund recovery by signing an authorization that the facilitator executes on their behalf.
+
+### How It Works
+
+1. **Buyer signs** a `FlushAuthorization` (EIP-712)
+2. **Buyer submits** to facilitator's custom endpoint
+3. **Facilitator executes** `flushWithAuthorization` on the escrow contract
+4. **Contract performs** two operations:
+   - Withdraws any funds that have already completed thawing
+   - Starts thawing any remaining balance
+
+To fully recover funds, the buyer will need to flush at least twice. First time the thawing will be initiated, next one will withdraw the funds.
+
 ## Appendix
 
-### Facilitator specification
+### A. Escrow Contract Specification
 
-Facilitators supporting the `deferred` scheme should implement a voucher store for sellers and new APIs. Specification for these can be found here:
-- [Voucher Store specification](./voucher_store.md)
-- [Deferred Facilitator specification](./scheme_deferred_evm_facilitator.md)
+The `deferred` scheme requires an on-chain escrow contract that:
+- Holds buyer deposits earmarked for specific sellers
+- Processes voucher collection
+- Enforces thawing period for withdrawals
+- Supports gasless operations via signed authorizations
 
-### Escrow contract specification
+Full specification: [DeferredPaymentEscrow specification](./scheme_deferred_evm_escrow_contract.md)
 
-The full specification for the deferred escrow contract can be found here: [DeferredPaymentEscrow specification](./scheme_deferred_evm_escrow_contract.md)
+### B. Facilitator Custom Endpoints
+
+The `deferred` scheme requires facilitator endpoints beyond the standard x402 `/verify` and `/settle`:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/deferred/buyers/:buyer` | GET | Query on-chain account data and voucher state |
+| `/deferred/buyers/:buyer/flush` | POST | Execute gasless fund recovery for buyer |
+| `/deferred/vouchers/collect` | POST | Submit vouchers for on-chain settlement |
+
+Full specification: [Deferred Facilitator specification](./scheme_deferred_evm_facilitator.md)
+
+### C. `deferred-voucher-store` (Facilitator Extension)
+
+Optional extension indicating the facilitator can store vouchers on behalf of servers. 
+Full specification: [`deferred-voucher-store` extension](../../extensions/deferred-voucher-store.md)

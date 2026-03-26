@@ -287,6 +287,16 @@ The `deferred-voucher-store` extension is a **FacilitatorExtension** that facili
 - `GET /deferred/buyers/:buyer` returns stored vouchers
 - `POST /settle` stores vouchers when `voucherStorage === "facilitator"`
 
+**Additional endpoints provided by this extension:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/deferred/vouchers` | GET | Query vouchers (filter by buyer, seller, asset) |
+| `/deferred/vouchers/:id` | GET | Get voucher series by ID |
+| `/deferred/vouchers/:id/:nonce` | GET | Get specific voucher by ID and nonce |
+
+Servers retrieve vouchers via these endpoints, then use the standard `/deferred/vouchers/collect` to settle.
+
 Servers check this capability before configuring `voucherStorage: "facilitator"` in their payment requirements.
 
 ---
