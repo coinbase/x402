@@ -159,6 +159,9 @@ function createMockResponse(): Response & {
       this._headers[key] = value;
       return this;
     }),
+    getHeaders: vi.fn(function (this: typeof res) {
+      return this._headers;
+    }),
     getHeader: vi.fn(function (this: typeof res, key: string) {
       return this._headers[key] ?? undefined;
     }),

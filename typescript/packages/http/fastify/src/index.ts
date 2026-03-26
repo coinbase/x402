@@ -432,15 +432,11 @@ export function paymentMiddlewareFromHTTPServer(
     try {
       const responseBody = getResponseBodyBuffer(effectivePayload);
 
-      const allReplyHeaders = reply.getHeaders();
       const responseHeaders: Record<string, string> = {};
-      for (const [key, value] of Object.entries(allReplyHeaders)) {
+      for (const [key, value] of Object.entries(reply.getHeaders())) {
         if (value != null) {
           responseHeaders[key] = String(value);
         }
-      }
-      if (SETTLEMENT_OVERRIDES_HEADER in allReplyHeaders) {
-        reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
       }
 
       const settleResult = await httpServer.processSettlement(
