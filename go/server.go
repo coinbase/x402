@@ -397,24 +397,32 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	return verifyResult, nil
 }
 
-// SettlePayment settles a V2 payment
-func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
+// SettlePayment settles a V2 payment.
+// If overrides is non-nil and overrides.Amount is set, the effective requirements amount
+// is replaced before settlement (partial settlement for upto scheme).
+func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *SettlementOverrides) (*SettleResponse, error) {
+	// Apply settlement overrides (e.g., partial settlement for upto scheme)
+	effectiveRequirements := requirements
+	if overrides != nil && overrides.Amount != "" {
+		effectiveRequirements.Amount = overrides.Amount
+	}
+
 	// Marshal to bytes early for hooks (escape hatch for extensions)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, NewSettleError("failed_to_marshal_payload", "", Network(requirements.Network), "", err.Error())
+		return nil, NewSettleError("failed_to_marshal_payload", "", Network(effectiveRequirements.Network), "", err.Error())
 	}
 
-	requirementsBytes, err := json.Marshal(requirements)
+	requirementsBytes, err := json.Marshal(effectiveRequirements)
 	if err != nil {
-		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(requirements.Network), "", err.Error())
+		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(effectiveRequirements.Network), "", err.Error())
 	}
 
 	// Execute beforeSettle hooks
 	hookCtx := SettleContext{
 		Ctx:               ctx,
 		Payload:           payload,
-		Requirements:      requirements,
+		Requirements:      effectiveRequirements,
 		PayloadBytes:      payloadBytes,
 		RequirementsBytes: requirementsBytes,
 	}
@@ -425,13 +433,13 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 			return nil, err
 		}
 		if result != nil && result.Abort {
-			return nil, NewSettleError(result.Reason, "", Network(requirements.Network), "", "")
+			return nil, NewSettleError(result.Reason, "", Network(effectiveRequirements.Network), "", "")
 		}
 	}
 
 	s.mu.RLock()
-	scheme := requirements.Scheme
-	network := Network(requirements.Network)
+	scheme := effectiveRequirements.Scheme
+	network := Network(effectiveRequirements.Network)
 
 	facilitator := s.facilitatorClients[network][scheme]
 	s.mu.RUnlock()
@@ -462,6 +470,26 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	}
 
 	return settleResult, nil
+}
+
+// EnrichExtensions enriches declared extensions using registered extension hooks.
+func (s *x402ResourceServer) EnrichExtensions(
+	declaredExtensions map[string]interface{},
+	transportContext interface{},
+) map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	enriched := make(map[string]interface{})
+	for key, declaration := range declaredExtensions {
+		ext, ok := s.registeredExtensions[key]
+		if ok {
+			enriched[key] = ext.EnrichDeclaration(declaration, transportContext)
+		} else {
+			enriched[key] = declaration
+		}
+	}
+	return enriched
 }
 
 // CreatePaymentRequiredResponse creates a V2 PaymentRequired response

@@ -370,6 +370,65 @@ Clients are expected to echo the `bazaar` extension from `PaymentRequired` into 
 
 ---
 
+## Dynamic Routes and `routeTemplate`
+
+HTTP endpoints can use parameterized route patterns (e.g. `/users/[userId]`). When a route has
+parameter segments, the server extension enriches the extension with two additional fields:
+
+- **`info.input.pathParams`** — concrete parameter values for this specific request (e.g. `{ "userId": "123" }`)
+- **`routeTemplate`** — the canonical template with `:param` syntax (e.g. `/users/:userId`)
+
+The `routeTemplate` field at the **top level** of the extension object is the catalog key contract between
+server and facilitator. Facilitators use it to map all concrete requests (e.g. `/users/123`, `/users/456`)
+to a single canonical catalog entry.
+
+### `routeTemplate` Wire Format
+
+- The server writes patterns using `[paramName]` syntax internally (matches the route framework convention).
+- The extension delivers `routeTemplate` externally using `:paramName` syntax, consistent with REST conventions.
+- The field is **absent** for static routes; facilitators MUST treat an absent `routeTemplate` as "use the concrete URL path".
+
+Example of an enriched extension for a dynamic route:
+
+```json
+{
+  "info": {
+    "input": {
+      "type": "http",
+      "method": "GET",
+      "pathParams": { "userId": "123" }
+    }
+  },
+  "schema": { ... },
+  "routeTemplate": "/users/:userId"
+}
+```
+
+### `routeTemplate` Validation Rules
+
+The facilitator MUST validate `routeTemplate` before using it as a catalog key. The expected format
+uses colon-prefixed parameter identifiers (e.g. `/users/:userId`, `/weather/:country/:city`).
+All SDK implementations use the function `isValidRouteTemplate` (TypeScript, Go) or
+`_is_valid_route_template` (Python) which applies the following rules identically.
+**All three copies must stay in sync.**
+
+| Rule | Reason |
+|------|--------|
+| Must be a non-empty string | Empty/absent means "no template" |
+| Must start with `/` | Prevents relative paths and external URLs |
+| Must match `^/[a-zA-Z0-9_/:.\-~%]+$` | Only allows safe URL path characters and `:param` identifiers |
+| Must not contain `..` | Prevents path traversal (`/users/../admin`) |
+| Must not contain `://` | Prevents URL injection (`http://evil.com`) |
+
+All implementations decode percent-encoding (e.g. `%2e%2e` -> `..`) before applying the traversal
+and scheme checks. A value that fails any rule is discarded; the facilitator falls back to the
+concrete URL path for cataloging.
+
+> **SDK implementers:** If you add a fourth SDK, copy these validation rules exactly, including
+> the percent-decoding step before the `..` and `://` checks.
+
+---
+
 ## Backwards Compatibility
 
 The `bazaar` extension was formalized in x402 v2. Discovery functionality unofficially existed in x402 v1 through the `outputSchema` field.

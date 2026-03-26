@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
-import { spawn, execSync } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { writeFileSync } from 'fs';
+import { join } from 'path';
 import { createWalletClient, createPublicClient, http, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
@@ -501,18 +502,27 @@ async function runTest() {
     const hasPermit2Eip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
     const hasPermit2Erc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'permit2' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
 
+    const hasUpto = evmScenarios.some(s => s.endpoint.transferMethod === 'upto');
+    const hasUptoDirect = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && s.endpoint.permit2Direct === true);
+    const hasUptoEip2612 = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') && !s.endpoint.permit2Direct);
+    const hasUptoErc20 = evmScenarios.some(s => s.endpoint.transferMethod === 'upto' && s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'));
+
     log('🔍 EVM Branch Coverage Check:');
     log(`   EIP-3009 route:          ${hasEip3009 ? '✅' : '❌ MISSING'}`);
     log(`   Permit2 route:           ${hasPermit2 ? '✅' : '❌ MISSING'}`);
     log(`   Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
     log(`   Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
     log(`   Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto route:              ${hasUpto ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+direct settle:      ${hasUptoDirect ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+EIP2612 route:      ${hasUptoEip2612 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto+ERC20 route:        ${hasUptoErc20 ? '✅' : '⚠️  not found'}`);
     log('');
   }
 
-  // Auto-detect Permit2 scenarios
+  // Auto-detect Permit2 scenarios (upto uses Permit2 under the hood)
   const hasPermit2Scenarios = filteredScenarios.some(
-    (s) => s.endpoint.transferMethod === 'permit2'
+    (s) => s.endpoint.transferMethod === 'permit2' || s.endpoint.transferMethod === 'upto'
   );
 
   if (hasPermit2Scenarios) {
@@ -676,6 +686,51 @@ async function runTest() {
     log(`  ✅ Facilitator ${facilitatorName} ready at ${url}`);
   }
 
+  // Start mock facilitator (claims to support everything, used as fallback so
+  // servers with routes unsupported by the real facilitator can still start)
+  const mockFacilitatorPort = currentPort++;
+  log(`\n🎭 Starting mock facilitator on port ${mockFacilitatorPort}...`);
+  const mockFacilitatorProcess: ChildProcess = spawn(
+    'npx', ['tsx', 'index.ts'],
+    {
+      cwd: join(process.cwd(), 'mock-facilitator'),
+      env: {
+        ...process.env,
+        PORT: mockFacilitatorPort.toString(),
+        EVM_NETWORK: networks.evm.caip2,
+        SVM_NETWORK: networks.svm.caip2,
+        APTOS_NETWORK: networks.aptos.caip2,
+        STELLAR_NETWORK: networks.stellar.caip2,
+      },
+      stdio: 'pipe',
+    },
+  );
+  mockFacilitatorProcess.stderr?.on('data', (data: Buffer) => {
+    verboseLog(`[mock-facilitator] stderr: ${data.toString().trim()}`);
+  });
+  mockFacilitatorProcess.stdout?.on('data', (data: Buffer) => {
+    verboseLog(`[mock-facilitator] stdout: ${data.toString().trim()}`);
+  });
+
+  const mockFacilitatorUrl = `http://localhost:${mockFacilitatorPort}`;
+  const mockHealthy = await waitForHealth(
+    async () => {
+      try {
+        const res = await fetch(`${mockFacilitatorUrl}/health`);
+        return { success: res.ok };
+      } catch {
+        return { success: false };
+      }
+    },
+    { label: 'Mock facilitator' },
+  );
+  if (!mockHealthy) {
+    log('❌ Failed to start mock facilitator');
+    mockFacilitatorProcess.kill();
+    process.exit(1);
+  }
+  log(`  ✅ Mock facilitator ready at ${mockFacilitatorUrl}`);
+
   log('\n✅ All facilitators are ready! Servers will be started/restarted as needed per test scenario.\n');
 
   log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
@@ -796,6 +851,7 @@ async function runTest() {
       stellarPayTo: facilitatorSupportsStellar ? (serverStellarAddress || '') : '',
       networks,
       facilitatorUrl,
+      mockFacilitatorUrl,
     };
 
     const started = await startServer(serverProxy, serverConfig);
@@ -820,7 +876,7 @@ async function runTest() {
         const tn = nextTestNumber();
         const isEvm = scenario.protocolFamily === 'evm';
 
-        if (scenario.endpoint.transferMethod === 'permit2') {
+        if (scenario.endpoint.transferMethod === 'permit2' || scenario.endpoint.transferMethod === 'upto') {
           if (scenario.endpoint.permit2Direct) {
             await approvePermit2Approval(USDC_BASE_SEPOLIA);
           } else {
@@ -914,6 +970,8 @@ async function runTest() {
     log(`  🛑 Stopping facilitator: ${facilitatorName}`);
     facilitatorStopPromises.push(manager.stop());
   }
+  log('  🛑 Stopping mock facilitator');
+  mockFacilitatorProcess.kill();
   await Promise.all(facilitatorStopPromises);
 
   // Calculate totals
