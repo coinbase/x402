@@ -1292,6 +1292,57 @@ describe("Bazaar Discovery Extension", () => {
       expect(required).toContain("method");
     });
 
+    it("should produce a valid extension after enrichment (GET)", () => {
+      const declared = declareDiscoveryExtension({
+        input: { query: "test" },
+        inputSchema: { properties: { query: { type: "string" } } },
+      });
+
+      // Pre-enrichment: method not set, validation should fail
+      const preResult = validateDiscoveryExtension(declared.bazaar);
+      expect(preResult.valid).toBe(false);
+
+      const httpContext: HTTPRequestContext = {
+        method: "GET",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        declared.bazaar,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      // Post-enrichment: validation should pass
+      const postResult = validateDiscoveryExtension(enriched);
+      expect(postResult.valid).toBe(true);
+    });
+
+    it("should produce a valid extension after enrichment (POST)", () => {
+      const declared = declareDiscoveryExtension({
+        input: { data: "test" },
+        inputSchema: { properties: { data: { type: "string" } } },
+        bodyType: "json",
+      });
+
+      const preResult = validateDiscoveryExtension(declared.bazaar);
+      expect(preResult.valid).toBe(false);
+
+      const httpContext: HTTPRequestContext = {
+        method: "POST",
+        path: "/test",
+        adapter: createMockAdapter(),
+      };
+
+      const enriched = bazaarResourceServerExtension.enrichDeclaration!(
+        declared.bazaar,
+        httpContext,
+      ) as DiscoveryExtension;
+
+      const postResult = validateDiscoveryExtension(enriched);
+      expect(postResult.valid).toBe(true);
+    });
+
     it("should return unchanged declaration for non-HTTP context", () => {
       const declared = declareDiscoveryExtension({
         input: { data: "test" },
