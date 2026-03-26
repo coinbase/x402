@@ -81,13 +81,13 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    * Build payment requirements for this scheme/network combination
    *
    * @param paymentRequirements - The base payment requirements
-   * @param supportedKind - The supported kind from facilitator (unused)
+   * @param supportedKind - The supported kind from facilitator
    * @param supportedKind.x402Version - The x402 version
    * @param supportedKind.scheme - The logical payment scheme
    * @param supportedKind.network - The network identifier in CAIP-2 format
-   * @param supportedKind.extra - Optional extra metadata regarding scheme/network implementation details
+   * @param supportedKind.extra - Optional extra metadata including facilitator addresses
    * @param extensionKeys - Extension keys supported by the facilitator (unused)
-   * @returns Payment requirements ready to be sent to clients
+   * @returns Payment requirements ready to be sent to clients, including facilitator addresses for ERC-7710
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -100,9 +100,17 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     extensionKeys: string[],
   ): Promise<PaymentRequirements> {
     // Mark unused parameters to satisfy linter
-    void supportedKind;
     void extensionKeys;
-    return Promise.resolve(paymentRequirements);
+
+    // Add facilitators from supportedKind.extra to payment requirements
+    // These are the addresses authorized to redeem ERC-7710 delegations
+    return Promise.resolve({
+      ...paymentRequirements,
+      extra: {
+        ...paymentRequirements.extra,
+        facilitators: supportedKind.extra?.facilitators,
+      },
+    });
   }
 
   /**

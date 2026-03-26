@@ -1,6 +1,7 @@
 import { x402Client, SelectPaymentRequirements, PaymentPolicy } from "@x402/core/client";
 import { Network } from "@x402/core/types";
 import { ClientEvmSigner } from "../../signer";
+import { ERC7710PaymentProvider } from "../../types";
 import { ExactEvmScheme } from "./scheme";
 import { ExactEvmSchemeV1 } from "../v1/client/scheme";
 import { NETWORKS } from "../../v1";
@@ -10,9 +11,16 @@ import { NETWORKS } from "../../v1";
  */
 export interface EvmClientConfig {
   /**
-   * The EVM signer to use for creating payment payloads
+   * The EVM signer to use for creating EIP-3009 payment payloads.
+   * Required unless erc7710Provider is provided.
    */
-  signer: ClientEvmSigner;
+  signer?: ClientEvmSigner;
+
+  /**
+   * ERC-7710 payment provider for delegation-based payments.
+   * When provided, 7710 payments are preferred over EIP-3009.
+   */
+  erc7710Provider?: ERC7710PaymentProvider;
 
   /**
    * Optional payment requirements selector function
@@ -55,21 +63,36 @@ export interface EvmClientConfig {
  * ```
  */
 export function registerExactEvmScheme(client: x402Client, config: EvmClientConfig): x402Client {
+  // Validate configuration
+  if (!config.signer && !config.erc7710Provider) {
+    throw new Error(
+      "EvmClientConfig requires either a signer (for EIP-3009) or an ERC7710PaymentProvider",
+    );
+  }
+
+  // Create scheme config
+  const schemeConfig = {
+    signer: config.signer,
+    erc7710Provider: config.erc7710Provider,
+  };
+
   // Register V2 scheme
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      client.register(network, new ExactEvmScheme(config.signer));
+      client.register(network, new ExactEvmScheme(schemeConfig));
     });
   } else {
     // Register wildcard for all EVM chains
-    client.register("eip155:*", new ExactEvmScheme(config.signer));
+    client.register("eip155:*", new ExactEvmScheme(schemeConfig));
   }
 
-  // Register all V1 networks
-  NETWORKS.forEach(network => {
-    client.registerV1(network as Network, new ExactEvmSchemeV1(config.signer));
-  });
+  // Register all V1 networks (V1 only supports EIP-3009, requires signer)
+  if (config.signer) {
+    NETWORKS.forEach(network => {
+      client.registerV1(network as Network, new ExactEvmSchemeV1(config.signer!));
+    });
+  }
 
   // Apply policies if provided
   if (config.policies) {

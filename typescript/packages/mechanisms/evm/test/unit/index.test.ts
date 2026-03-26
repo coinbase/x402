@@ -11,8 +11,8 @@ describe("@x402/evm", () => {
   });
 
   it("should create client instance", () => {
-    const mockSigner = { address: () => "0x123", signTypedData: async () => new Uint8Array(65) };
-    const client = new ClientExactEvmScheme(mockSigner as any);
+    const mockSigner = { address: "0x1234567890123456789012345678901234567890", signTypedData: async () => "0x" };
+    const client = new ClientExactEvmScheme({ signer: mockSigner as any });
     expect(client.scheme).toBe("exact");
   });
 

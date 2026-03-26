@@ -1,14 +1,34 @@
 import {
+  Network,
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
-import { authorizationTypes, eip3009ABI } from "../../constants";
+import {
+  encodeFunctionData,
+  getAddress,
+  Hex,
+  isAddressEqual,
+  parseErc6492Signature,
+  parseSignature,
+} from "viem";
+import {
+  authorizationTypes,
+  delegationManagerABI,
+  eip3009ABI,
+  erc20TransferABI,
+  ERC7579_SINGLE_CALL_MODE,
+} from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
-import { ExactEvmPayloadV2 } from "../../types";
+import {
+  ExactEIP3009Payload,
+  ExactERC7710Payload,
+  ExactEvmPayloadV2,
+  isEIP3009Payload,
+  isERC7710Payload,
+} from "../../types";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -45,13 +65,17 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For EVM, no extra data is needed.
+   * For EVM, includes facilitator addresses for ERC-7710 delegation support.
    *
-   * @param _ - The network identifier (unused for EVM)
-   * @returns undefined (EVM has no extra data)
+   * @param _ - The network identifier (unused for EVM, addresses are network-agnostic)
+   * @returns Extra data including facilitator addresses
    */
   getExtra(_: string): Record<string, unknown> | undefined {
-    return undefined;
+    // Include facilitator addresses so clients can create ERC-7710 delegations
+    // that authorize these addresses to redeem payments
+    return {
+      facilitators: [...this.signer.getAddresses()],
+    };
   }
 
   /**
@@ -80,13 +104,49 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
 
     // Verify scheme matches
     if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
+      const payer = isERC7710Payload(exactEvmPayload)
+        ? exactEvmPayload.delegator
+        : (exactEvmPayload as ExactEIP3009Payload).authorization.from;
       return {
         isValid: false,
         invalidReason: "unsupported_scheme",
-        payer: exactEvmPayload.authorization.from,
+        payer,
       };
     }
 
+    // Verify network matches
+    if (payload.accepted.network !== requirements.network) {
+      const payer = isERC7710Payload(exactEvmPayload)
+        ? exactEvmPayload.delegator
+        : (exactEvmPayload as ExactEIP3009Payload).authorization.from;
+      return {
+        isValid: false,
+        invalidReason: "network_mismatch",
+        payer,
+      };
+    }
+
+    // Route to appropriate verification handler based on payload type
+    if (isERC7710Payload(exactEvmPayload)) {
+      return this.verifyERC7710(exactEvmPayload, requirements);
+    } else if (isEIP3009Payload(exactEvmPayload)) {
+      return this.verifyEIP3009(exactEvmPayload, requirements);
+    }
+
+    return {
+      isValid: false,
+      invalidReason: "unsupported_payload_type",
+      payer: "unknown",
+    };
+  }
+
+  /**
+   * Verifies an EIP-3009 payment payload.
+   */
+  private async verifyEIP3009(
+    exactEvmPayload: ExactEIP3009Payload,
+    requirements: PaymentRequirements,
+  ): Promise<VerifyResponse> {
     // Get chain configuration
     if (!requirements.extra?.name || !requirements.extra?.version) {
       return {
@@ -98,15 +158,6 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
 
     const { name, version } = requirements.extra;
     const erc20Address = getAddress(requirements.asset);
-
-    // Verify network matches
-    if (payload.accepted.network !== requirements.network) {
-      return {
-        isValid: false,
-        invalidReason: "network_mismatch",
-        payer: exactEvmPayload.authorization.from,
-      };
-    }
 
     // Build typed data for signature verification
     const permitTypedData = {
@@ -224,7 +275,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     // Check balance
     try {
       const balance = (await this.signer.readContract({
-        address: erc20Address,
+        address: getAddress(requirements.asset),
         abi: eip3009ABI,
         functionName: "balanceOf",
         args: [exactEvmPayload.authorization.from],
@@ -258,6 +309,102 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
+   * Verifies an ERC-7710 delegation payment payload via simulation.
+   *
+   * Unlike EIP-3009, ERC-7710 verification is performed entirely through simulation.
+   * The permissionContext is opaque to the facilitator but verifiable by simulating
+   * the intended redeemDelegations call.
+   */
+  private async verifyERC7710(
+    payload: ExactERC7710Payload,
+    requirements: PaymentRequirements,
+  ): Promise<VerifyResponse> {
+    const delegator = getAddress(payload.delegator);
+    const delegationManager = getAddress(payload.delegationManager);
+    const erc20Address = getAddress(requirements.asset);
+    const payTo = getAddress(requirements.payTo);
+    const amount = BigInt(requirements.amount);
+
+    // Check delegator balance first
+    try {
+      const balance = (await this.signer.readContract({
+        address: erc20Address,
+        abi: eip3009ABI,
+        functionName: "balanceOf",
+        args: [delegator],
+      })) as bigint;
+
+      if (balance < amount) {
+        return {
+          isValid: false,
+          invalidReason: "insufficient_funds",
+          payer: delegator,
+        };
+      }
+    } catch {
+      // If we can't check balance, continue with simulation
+    }
+
+    // Build the execution call data for ERC-20 transfer
+    const executionCallData = this.buildERC7710ExecutionCallData(erc20Address, payTo, amount);
+
+    // Simulate the redeemDelegations call
+    try {
+      await this.signer.simulateContract({
+        address: delegationManager,
+        abi: delegationManagerABI,
+        functionName: "redeemDelegations",
+        args: [
+          [payload.permissionContext], // bytes[] - permission contexts
+          [ERC7579_SINGLE_CALL_MODE], // bytes32[] - execution modes
+          [executionCallData], // bytes[] - execution call datas
+        ],
+      });
+
+      // Simulation succeeded - delegation is valid
+      return {
+        isValid: true,
+        invalidReason: undefined,
+        payer: delegator,
+      };
+    } catch (error) {
+      console.error("ERC-7710 simulation failed:", error);
+      return {
+        isValid: false,
+        invalidReason: "erc7710_simulation_failed",
+        payer: delegator,
+      };
+    }
+  }
+
+  /**
+   * Builds the execution call data for ERC-7710 redeemDelegations.
+   *
+   * The executionCallData encodes the target (ERC-20 contract), value (0 for token transfer),
+   * and calldata (transfer function call) according to ERC-7579 single execution format.
+   */
+  private buildERC7710ExecutionCallData(
+    tokenAddress: Hex,
+    recipient: Hex,
+    amount: bigint,
+  ): Hex {
+    // Encode the ERC-20 transfer call
+    const transferCallData = encodeFunctionData({
+      abi: erc20TransferABI,
+      functionName: "transfer",
+      args: [recipient, amount],
+    });
+
+    // ERC-7579 single execution format: target (20 bytes) + value (32 bytes) + calldata
+    // Pack as: abi.encodePacked(target, value, calldata)
+    const targetPadded = tokenAddress.toLowerCase().slice(2); // 20 bytes (40 hex chars)
+    const valuePadded = BigInt(0).toString(16).padStart(64, "0"); // 32 bytes for value (0 ETH)
+    const calldataHex = transferCallData.slice(2); // remove 0x prefix
+
+    return `0x${targetPadded}${valuePadded}${calldataHex}` as Hex;
+  }
+
+  /**
    * Settles a payment by executing the transfer.
    *
    * @param payload - The payment payload to settle
@@ -273,15 +420,42 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     // Re-verify before settling
     const valid = await this.verify(payload, requirements);
     if (!valid.isValid) {
+      const payer = isERC7710Payload(exactEvmPayload)
+        ? exactEvmPayload.delegator
+        : (exactEvmPayload as ExactEIP3009Payload).authorization.from;
       return {
         success: false,
         network: payload.accepted.network,
         transaction: "",
         errorReason: valid.invalidReason ?? "invalid_scheme",
-        payer: exactEvmPayload.authorization.from,
+        payer,
       };
     }
 
+    // Route to appropriate settlement handler based on payload type
+    if (isERC7710Payload(exactEvmPayload)) {
+      return this.settleERC7710(exactEvmPayload, requirements, payload.accepted.network);
+    } else if (isEIP3009Payload(exactEvmPayload)) {
+      return this.settleEIP3009(exactEvmPayload, requirements, payload.accepted.network);
+    }
+
+    return {
+      success: false,
+      errorReason: "unsupported_payload_type",
+      transaction: "",
+      network: payload.accepted.network,
+      payer: "unknown",
+    };
+  }
+
+  /**
+   * Settles an EIP-3009 payment by executing transferWithAuthorization.
+   */
+  private async settleEIP3009(
+    exactEvmPayload: ExactEIP3009Payload,
+    requirements: PaymentRequirements,
+    network: Network,
+  ): Promise<SettleResponse> {
     try {
       // Parse ERC-6492 signature if applicable
       const parseResult = parseErc6492Signature(exactEvmPayload.signature!);
@@ -376,7 +550,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
           success: false,
           errorReason: "invalid_transaction_state",
           transaction: tx,
-          network: payload.accepted.network,
+          network,
           payer: exactEvmPayload.authorization.from,
         };
       }
@@ -384,17 +558,78 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
       return {
         success: true,
         transaction: tx,
-        network: payload.accepted.network,
+        network,
         payer: exactEvmPayload.authorization.from,
       };
     } catch (error) {
-      console.error("Failed to settle transaction:", error);
+      console.error("Failed to settle EIP-3009 transaction:", error);
       return {
         success: false,
         errorReason: "transaction_failed",
         transaction: "",
-        network: payload.accepted.network,
+        network,
         payer: exactEvmPayload.authorization.from,
+      };
+    }
+  }
+
+  /**
+   * Settles an ERC-7710 delegation payment by calling redeemDelegations.
+   */
+  private async settleERC7710(
+    payload: ExactERC7710Payload,
+    requirements: PaymentRequirements,
+    network: Network,
+  ): Promise<SettleResponse> {
+    const delegator = getAddress(payload.delegator);
+    const delegationManager = getAddress(payload.delegationManager);
+    const erc20Address = getAddress(requirements.asset);
+    const payTo = getAddress(requirements.payTo);
+    const amount = BigInt(requirements.amount);
+
+    // Build the execution call data for ERC-20 transfer
+    const executionCallData = this.buildERC7710ExecutionCallData(erc20Address, payTo, amount);
+
+    try {
+      // Execute redeemDelegations
+      const tx = await this.signer.writeContract({
+        address: delegationManager,
+        abi: delegationManagerABI,
+        functionName: "redeemDelegations",
+        args: [
+          [payload.permissionContext], // bytes[] - permission contexts
+          [ERC7579_SINGLE_CALL_MODE], // bytes32[] - execution modes
+          [executionCallData], // bytes[] - execution call datas
+        ],
+      });
+
+      // Wait for transaction confirmation
+      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
+
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          errorReason: "invalid_transaction_state",
+          transaction: tx,
+          network,
+          payer: delegator,
+        };
+      }
+
+      return {
+        success: true,
+        transaction: tx,
+        network,
+        payer: delegator,
+      };
+    } catch (error) {
+      console.error("Failed to settle ERC-7710 transaction:", error);
+      return {
+        success: false,
+        errorReason: "transaction_failed",
+        transaction: "",
+        network,
+        payer: delegator,
       };
     }
   }

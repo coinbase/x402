@@ -59,3 +59,46 @@ export const eip3009ABI = [
     type: "function",
   },
 ] as const;
+
+// ERC-20 transfer function ABI (used for encoding executionCallData in ERC-7710)
+export const erc20TransferABI = [
+  {
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "transfer",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+/**
+ * ERC-7710 DelegationManager ABI
+ * Used for redeeming delegations from smart contract accounts.
+ *
+ * @see https://eips.ethereum.org/EIPS/eip-7710
+ */
+export const delegationManagerABI = [
+  {
+    inputs: [
+      { name: "permissionContexts", type: "bytes[]" },
+      { name: "modes", type: "bytes32[]" },
+      { name: "executionCallDatas", type: "bytes[]" },
+    ],
+    name: "redeemDelegations",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+/**
+ * ERC-7579 execution mode for single call.
+ * Format: 0x00 (callType) + 0x00 (execType) + unused (4 bytes) + modeSelector (4 bytes) + modePayload (22 bytes)
+ *
+ * @see https://eips.ethereum.org/EIPS/eip-7579
+ */
+export const ERC7579_SINGLE_CALL_MODE =
+  "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
