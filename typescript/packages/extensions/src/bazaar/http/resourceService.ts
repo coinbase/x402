@@ -176,7 +176,12 @@ export function createBodyDiscoveryExtension({
                 }
               : {}),
           },
-          required: ["type", "method", "bodyType", "body"] as ("type" | "method" | "bodyType" | "body")[],
+          required: ["type", "method", "bodyType", "body"] as (
+            | "type"
+            | "method"
+            | "bodyType"
+            | "body"
+          )[],
           // pathParams are not declared here at schema build time --
           // the server extension's enrichDeclaration adds them to both info and schema
           // atomically at request time, keeping data and schema consistent.
