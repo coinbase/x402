@@ -400,6 +400,14 @@ Buyers can recover unused funds from their escrow accounts through the **flush**
 
 To fully recover funds, the buyer will need to flush at least twice. First time the thawing will be initiated, next one will withdraw the funds.
 
+## Limitations
+
+### Sequential Request Requirement
+
+The nonce-based voucher aggregation design requires sequential requests. Each new voucher must have `nonce = previous_nonce + 1`, meaning clients cannot issue multiple concurrent requests for the same buyer-seller-asset tuple.
+
+**Workaround:** Clients needing parallelism can use multiple voucher IDs (different `id` values) to maintain separate voucher series.
+
 ## Appendix
 
 ### A. Escrow Contract Specification
