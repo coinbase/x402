@@ -60,21 +60,21 @@
       "extensions": ["erc20ApprovalGasSponsoring"]
     },
     {
-      "path": "/api/exact/svm/proxy",
+      "path": "/api/exact/svm",
       "method": "GET",
       "description": "SVM endpoint using proxy middleware",
       "requiresPayment": true,
       "protocolFamily": "svm"
     },
     {
-      "path": "/api/exact/aptos/proxy",
+      "path": "/api/exact/aptos",
       "method": "GET",
       "description": "Aptos endpoint using proxy middleware",
       "requiresPayment": true,
       "protocolFamily": "aptos"
     },
     {
-      "path": "/api/exact/stellar/proxy",
+      "path": "/api/exact/stellar",
       "method": "GET",
       "description": "Stellar endpoint using proxy middleware",
       "requiresPayment": true,

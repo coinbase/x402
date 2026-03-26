@@ -82,7 +82,7 @@ export const proxy = paymentProxy(
         }),
       },
     },
-    "/api/exact/svm/proxy": {
+    "/api/exact/svm": {
       accepts: {
         payTo: SVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -109,7 +109,7 @@ export const proxy = paymentProxy(
     },
     ...(APTOS_PAYEE_ADDRESS
       ? {
-          "/api/exact/aptos/proxy": {
+          "/api/exact/aptos": {
             accepts: {
               payTo: APTOS_PAYEE_ADDRESS,
               scheme: "exact",
@@ -138,7 +138,7 @@ export const proxy = paymentProxy(
       : {}),
     ...(STELLAR_PAYEE_ADDRESS
       ? {
-          "/api/exact/stellar/proxy": {
+          "/api/exact/stellar": {
             accepts: {
               payTo: STELLAR_PAYEE_ADDRESS,
               scheme: "exact",
@@ -287,9 +287,9 @@ export const proxy = paymentProxy(
 export const config = {
   matcher: [
     "/api/exact/evm/eip3009/proxy",
-    "/api/exact/svm/proxy",
-    "/api/exact/aptos/proxy",
-    "/api/exact/stellar/proxy",
+    "/api/exact/svm",
+    "/api/exact/aptos",
+    "/api/exact/stellar",
     "/api/exact/evm/permit2/proxy",
     "/api/exact/evm/permit2-eip2612GasSponsoring/proxy",
     "/api/exact/evm/permit2-erc20ApprovalGasSponsoring/proxy",
