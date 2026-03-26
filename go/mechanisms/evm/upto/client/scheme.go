@@ -22,7 +22,6 @@ type UptoEvmScheme struct {
 	config *UptoEvmSchemeConfig
 }
 
-// NewUptoEvmScheme creates a new UptoEvmScheme.
 func NewUptoEvmScheme(signer evm.ClientEvmSigner, config *UptoEvmSchemeConfig) *UptoEvmScheme {
 	return &UptoEvmScheme{
 		signer: signer,
@@ -30,7 +29,6 @@ func NewUptoEvmScheme(signer evm.ClientEvmSigner, config *UptoEvmSchemeConfig) *
 	}
 }
 
-// Scheme returns the scheme identifier
 func (c *UptoEvmScheme) Scheme() string {
 	return evm.SchemeUpto
 }

@@ -14,6 +14,13 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 )
 
+// SetSettlementOverrides sets settlement overrides on the response for partial settlement.
+// The middleware extracts these before settlement and strips the header from the client response.
+func SetSettlementOverrides(w http.ResponseWriter, overrides *x402.SettlementOverrides) {
+	data, _ := json.Marshal(overrides)
+	w.Header().Set(x402http.SettlementOverridesHeader, string(data))
+}
+
 // ============================================================================
 // Middleware Configuration
 // ============================================================================
@@ -293,12 +300,12 @@ func handlePaymentVerified(w http.ResponseWriter, r *http.Request, next http.Han
 		return
 	}
 
-	// Process settlement
 	settleResult := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
 		nil,
+		capture.Header(),
 	)
 
 	if !settleResult.Success {

@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { paymentMiddleware } from "@x402/fastify";
+import { paymentMiddleware, setSettlementOverrides } from "@x402/fastify";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
@@ -439,7 +439,8 @@ app.get("/exact/evm/permit2-erc20ApprovalGasSponsoring", async () => {
 /**
  * Upto Permit2 direct endpoint - upto scheme, client must pre-approve Permit2
  */
-app.get("/upto/evm/permit2", async () => {
+app.get("/upto/evm/permit2", async (_request, reply) => {
+  setSettlementOverrides(reply, { amount: "1000" });
   return {
     message: "Upto Permit2 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -450,7 +451,8 @@ app.get("/upto/evm/permit2", async () => {
 /**
  * Upto Permit2 EIP-2612 endpoint - upto scheme with gas sponsoring
  */
-app.get("/upto/evm/permit2-eip2612GasSponsoring", async () => {
+app.get("/upto/evm/permit2-eip2612GasSponsoring", async (_request, reply) => {
+  setSettlementOverrides(reply, { amount: "1000" });
   return {
     message: "Upto Permit2 EIP-2612 endpoint accessed successfully",
     timestamp: new Date().toISOString(),
@@ -461,7 +463,8 @@ app.get("/upto/evm/permit2-eip2612GasSponsoring", async () => {
 /**
  * Upto Permit2 ERC-20 approval endpoint - upto scheme with ERC-20 gas sponsoring
  */
-app.get("/upto/evm/permit2-erc20ApprovalGasSponsoring", async () => {
+app.get("/upto/evm/permit2-erc20ApprovalGasSponsoring", async (_request, reply) => {
+  setSettlementOverrides(reply, { amount: "1000" });
   return {
     message: "Upto Permit2 ERC-20 approval endpoint accessed successfully",
     timestamp: new Date().toISOString(),

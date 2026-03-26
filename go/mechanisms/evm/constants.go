@@ -19,7 +19,8 @@ const (
 	FunctionTryAggregate              = "tryAggregate"
 
 	// Permit2 function names
-	FunctionSettle = "settle"
+	FunctionSettle           = "settle"
+	FunctionSettleWithPermit = "settleWithPermit"
 
 	// Transaction status
 	TxStatusSuccess = 1
@@ -530,9 +531,6 @@ var (
 		}
 	]`)
 
-	// FunctionSettleWithPermit is the function name for EIP-2612 settlement
-	FunctionSettleWithPermit = "settleWithPermit"
-
 	// EIP712DomainTypes defines the standard EIP-712 domain type for Permit2.
 	// Permit2 uses name + chainId + verifyingContract (no version field).
 	EIP712DomainTypes = []TypedDataField{
@@ -635,5 +633,3 @@ func GetUptoPermit2EIP712Types() map[string][]TypedDataField {
 		"Witness":                   UptoPermit2WitnessTypes["Witness"],
 	}
 }
-
-// Note: MaxUint256() is defined in utils.go

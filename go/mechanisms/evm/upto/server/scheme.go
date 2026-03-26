@@ -19,25 +19,21 @@ type UptoEvmScheme struct {
 	moneyParsers []x402.MoneyParser
 }
 
-// NewUptoEvmScheme creates a new UptoEvmScheme
 func NewUptoEvmScheme() *UptoEvmScheme {
 	return &UptoEvmScheme{
 		moneyParsers: []x402.MoneyParser{},
 	}
 }
 
-// Scheme returns the scheme identifier
 func (s *UptoEvmScheme) Scheme() string {
 	return evm.SchemeUpto
 }
 
-// RegisterMoneyParser registers a custom money parser in the parser chain.
 func (s *UptoEvmScheme) RegisterMoneyParser(parser x402.MoneyParser) *UptoEvmScheme {
 	s.moneyParsers = append(s.moneyParsers, parser)
 	return s
 }
 
-// ParsePrice parses a price and converts it to an asset amount.
 func (s *UptoEvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	if priceMap, ok := price.(map[string]interface{}); ok {
 		if amountVal, hasAmount := priceMap["amount"]; hasAmount {

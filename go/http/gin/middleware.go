@@ -381,22 +381,12 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 		return
 	}
 
-	// Extract settlement overrides from response header (set by route handler)
-	var settlementOverrides *x402.SettlementOverrides
-	if overridesHeader := writer.Header().Get(x402http.SettlementOverridesHeader); overridesHeader != "" {
-		var overrides x402.SettlementOverrides
-		if err := json.Unmarshal([]byte(overridesHeader), &overrides); err == nil {
-			settlementOverrides = &overrides
-		}
-		writer.Header().Del(x402http.SettlementOverridesHeader)
-	}
-
-	// Process settlement
 	settleResult := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
-		settlementOverrides,
+		nil,
+		writer.Header(),
 	)
 
 	// Check settlement success

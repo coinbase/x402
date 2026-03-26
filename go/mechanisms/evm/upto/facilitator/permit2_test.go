@@ -164,10 +164,6 @@ func buildValidRequirements() types.PaymentRequirements {
 	}
 }
 
-func acceptedRequirements() types.PaymentRequirements {
-	return buildValidRequirements()
-}
-
 // ─── VerifyUptoPermit2 — input validation tests ──────────────────────────────
 
 func TestVerifyUptoPermit2_SchemeMismatch_Payload(t *testing.T) {
@@ -331,18 +327,8 @@ func TestVerifyUptoPermit2_SimulationSucceeds(t *testing.T) {
 	}
 }
 
-func TestVerifyUptoPermit2_ViabilityFails_InsufficientBalance(t *testing.T) {
-	// Multicall returns results: proxy OK, balance too low, allowance OK.
-	// ValidateUptoPermit2Viability should detect insufficient balance.
-	// We simulate this by making the mock return zero balance via readContractResult.
-	// Since Multicall uses ReadContract internally (via tryAggregate), we need to
-	// inject a specific balance. In this unit test, we verify the path triggers an
-	// error when Multicall fails outright (e.g. the multicall infrastructure fails).
+func TestVerifyUptoPermit2_ViabilityCheck_FailOpenOnMulticallError(t *testing.T) {
 	signer := newMockSigner()
-	// Force the Multicall infrastructure call to fail entirely — triggers fail-open path,
-	// which returns valid (fail-open for prerequisites). So we can't easily force a
-	// balance failure through the mock alone without a richer mock.
-	// Instead, verify the happy path in the unit test (Multicall succeeds → valid).
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
 	if err != nil {
@@ -860,7 +846,7 @@ func TestUptoEvmScheme_Verify_UnsupportedPayload(t *testing.T) {
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Payload:     map[string]interface{}{"authorization": map[string]interface{}{"from": testPayerAddr}},
-		Accepted:    acceptedRequirements(),
+		Accepted:    buildValidRequirements(),
 	}
 	if _, err := s.Verify(context.Background(), payload, buildValidRequirements(), nil); err == nil {
 		t.Fatal("expected error for EIP-3009 payload passed to upto scheme")
@@ -872,7 +858,7 @@ func TestUptoEvmScheme_Settle_UnsupportedPayload(t *testing.T) {
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Payload:     map[string]interface{}{"authorization": map[string]interface{}{}},
-		Accepted:    acceptedRequirements(),
+		Accepted:    buildValidRequirements(),
 	}
 	if _, err := s.Settle(context.Background(), payload, buildValidRequirements(), nil); err == nil {
 		t.Fatal("expected error for unsupported payload in settle")
@@ -887,7 +873,7 @@ func TestUptoEvmScheme_Verify_Valid(t *testing.T) {
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Payload:     p.ToMap(),
-		Accepted:    acceptedRequirements(),
+		Accepted:    buildValidRequirements(),
 	}
 
 	resp, err := s.Verify(context.Background(), payload, buildValidRequirements(), nil)
@@ -907,7 +893,7 @@ func TestUptoEvmScheme_Settle_Valid(t *testing.T) {
 	payload := types.PaymentPayload{
 		X402Version: 2,
 		Payload:     p.ToMap(),
-		Accepted:    acceptedRequirements(),
+		Accepted:    buildValidRequirements(),
 	}
 
 	resp, err := s.Settle(context.Background(), payload, buildValidRequirements(), nil)

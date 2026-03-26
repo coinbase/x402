@@ -3,6 +3,7 @@ package echo
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -13,6 +14,13 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/labstack/echo/v4"
 )
+
+// SetSettlementOverrides sets settlement overrides on the Echo response for partial settlement.
+// The middleware extracts these before settlement and strips the header from the client response.
+func SetSettlementOverrides(c echo.Context, overrides *x402.SettlementOverrides) {
+	data, _ := json.Marshal(overrides)
+	c.Response().Header().Set(x402http.SettlementOverridesHeader, string(data))
+}
 
 // ============================================================================
 // Echo Adapter Implementation
@@ -373,12 +381,12 @@ func handlePaymentVerified(c echo.Context, next echo.HandlerFunc, server *x402ht
 		return nil
 	}
 
-	// Process settlement
 	settleResult := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
 		nil,
+		capture.Header(),
 	)
 
 	// Check settlement success

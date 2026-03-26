@@ -59,12 +59,10 @@ func VerifyUptoPermit2(
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
-	// Verify spender is x402UptoPermit2Proxy
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Spender, evm.X402UptoPermit2ProxyAddress) {
 		return nil, x402.NewVerifyError(ErrPermit2InvalidSpender, payer, "invalid spender")
 	}
 
-	// Verify witness.to matches payTo
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Witness.To, requirements.PayTo) {
 		return nil, x402.NewVerifyError(ErrPermit2RecipientMismatch, payer, "recipient mismatch")
 	}
@@ -83,7 +81,6 @@ func VerifyUptoPermit2(
 		return nil, x402.NewVerifyError(ErrUptoFacilitatorMismatch, payer, "facilitator mismatch")
 	}
 
-	// Parse and verify deadline not expired
 	now := time.Now().Unix()
 	deadline, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Deadline, 10)
 	if !ok {
@@ -93,7 +90,6 @@ func VerifyUptoPermit2(
 		return nil, x402.NewVerifyError(ErrPermit2DeadlineExpired, payer, "deadline expired")
 	}
 
-	// Parse and verify validAfter is not in the future
 	validAfter, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Witness.ValidAfter, 10)
 	if !ok {
 		return nil, x402.NewVerifyError(ErrUptoInvalidPayload, payer, "invalid validAfter format")
@@ -102,7 +98,6 @@ func VerifyUptoPermit2(
 		return nil, x402.NewVerifyError(ErrPermit2NotYetValid, payer, "not yet valid")
 	}
 
-	// Parse and verify amount matches
 	authAmount, ok := new(big.Int).SetString(permit2Payload.Permit2Authorization.Permitted.Amount, 10)
 	if !ok {
 		return nil, x402.NewVerifyError(ErrUptoInvalidPayload, payer, "invalid permitted amount format")
@@ -115,12 +110,10 @@ func VerifyUptoPermit2(
 		return nil, x402.NewVerifyError(ErrPermit2AmountMismatch, payer, "amount mismatch")
 	}
 
-	// Verify token matches
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Permitted.Token, requirements.Asset) {
 		return nil, x402.NewVerifyError(ErrPermit2TokenMismatch, payer, "token mismatch")
 	}
 
-	// Verify signature using upto-specific Permit2 EIP-712 types
 	signatureBytes, err := evm.HexToBytes(permit2Payload.Signature)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrInvalidSignatureFormat, payer, err.Error())
@@ -157,7 +150,6 @@ func VerifyUptoPermit2(
 		return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 	}
 
-	// ERC-20 approval gas sponsoring
 	erc20Info, _ := erc20approvalgassponsor.ExtractInfo(payload.Extensions)
 	if erc20Info != nil && facilCtx != nil {
 		ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension)
@@ -199,7 +191,6 @@ func VerifyUptoPermit2(
 		}
 	}
 
-	// Standard settle simulation
 	simOk, simErr := SimulateUptoPermit2Settle(ctx, signer, permit2Payload, requiredAmount)
 	if simErr != nil || !simOk {
 		resp := DiagnoseUptoPermit2SimulationFailure(ctx, signer, tokenAddress, permit2Payload, requirements.Amount)
@@ -294,13 +285,7 @@ func SettleUptoPermit2(
 			return nil, x402.NewSettleError(ErrUptoInvalidPayload, payer, network, "", "invalid eip2612 deadline")
 		}
 
-		permit2612Struct := struct {
-			Value    *big.Int
-			Deadline *big.Int
-			R        [32]byte
-			S        [32]byte
-			V        uint8
-		}{
+		permit2612Struct := EIP2612PermitData{
 			Value:    eip2612Value,
 			Deadline: eip2612Deadline,
 			R:        r,
@@ -376,7 +361,6 @@ func SettleUptoPermit2(
 		return nil, x402.NewSettleError(errorReason, payer, network, "", err.Error())
 	}
 
-	// Wait for transaction confirmation
 	receiptWaitSigner := signer
 	if erc20Info != nil && facilCtx != nil {
 		if ext, ok := facilCtx.GetExtension(erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key()).(*erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension); ok && ext != nil {

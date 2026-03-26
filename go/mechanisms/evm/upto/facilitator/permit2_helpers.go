@@ -10,6 +10,15 @@ import (
 	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
+// EIP2612PermitData holds the parsed EIP-2612 permit fields for settleWithPermit() calls.
+type EIP2612PermitData struct {
+	Value    *big.Int
+	Deadline *big.Int
+	R        [32]byte
+	S        [32]byte
+	V        uint8
+}
+
 // UptoPermit2SettleArgs holds the parsed and typed arguments for upto settle()/settleWithPermit().
 // Differs from exact: witness includes Facilitator, and settle takes a separate Amount.
 type UptoPermit2SettleArgs struct {
@@ -157,13 +166,7 @@ func SimulateUptoPermit2SettleWithPermit(
 		return false, errParse("eip2612 deadline")
 	}
 
-	permit2612Struct := struct {
-		Value    *big.Int
-		Deadline *big.Int
-		R        [32]byte
-		S        [32]byte
-		V        uint8
-	}{
+	permit2612Struct := EIP2612PermitData{
 		Value:    eip2612Value,
 		Deadline: eip2612Deadline,
 		R:        r,

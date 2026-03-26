@@ -9,7 +9,6 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// UptoEvmSchemeConfig holds configuration for the UptoEvmScheme facilitator
 type UptoEvmSchemeConfig struct {
 	SimulateInSettle bool
 }
@@ -21,7 +20,6 @@ type UptoEvmScheme struct {
 	config UptoEvmSchemeConfig
 }
 
-// NewUptoEvmScheme creates a new UptoEvmScheme
 func NewUptoEvmScheme(signer evm.FacilitatorEvmSigner, config *UptoEvmSchemeConfig) *UptoEvmScheme {
 	cfg := UptoEvmSchemeConfig{}
 	if config != nil {
@@ -33,7 +31,6 @@ func NewUptoEvmScheme(signer evm.FacilitatorEvmSigner, config *UptoEvmSchemeConf
 	}
 }
 
-// Scheme returns the scheme identifier
 func (f *UptoEvmScheme) Scheme() string {
 	return evm.SchemeUpto
 }
