@@ -68,7 +68,7 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
     Pick<PaymentPayload, "x402Version" | "payload"> & { scheme: string; network: Network }
   > {
     const selectedV1 = paymentRequirements as unknown as PaymentRequirementsV1;
-    const rpc = createRpcClient(selectedV1.network, this.config?.rpcUrl);
+    const rpc = this.config?.rpc ?? createRpcClient(selectedV1.network, this.config?.rpcUrl);
 
     const tokenMint = await fetchMint(rpc, selectedV1.asset as Address);
     const tokenProgramAddress = tokenMint.programAddress;

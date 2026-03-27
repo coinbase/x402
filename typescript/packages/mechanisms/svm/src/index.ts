@@ -11,6 +11,7 @@ export { ExactSvmScheme } from "./exact";
 export { toClientSvmSigner, toFacilitatorSvmSigner } from "./signer";
 export type {
   ClientSvmSigner,
+  ClientRpcClient,
   FacilitatorSvmSigner,
   FacilitatorRpcClient,
   FacilitatorRpcConfig,
