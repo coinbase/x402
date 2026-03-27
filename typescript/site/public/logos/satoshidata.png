@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>satoshidata.ai — Bitcoin Wallet Intelligence API</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=2">
+    <link rel="stylesheet" href="/static/styles.css?v=42">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <svg class="brand-logo" viewBox="0 0 200 200" width="28" height="28"><defs><linearGradient id="gl" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2563EB"/><stop offset="100%" stop-color="#4D94FF"/></linearGradient><filter id="ls"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/></filter></defs><rect x="18" y="28" width="72" height="72" rx="16" fill="#B8C4D0" opacity="0.6"/><rect x="110" y="100" width="72" height="72" rx="16" fill="#B8C4D0" opacity="0.6"/><rect x="48" y="48" width="104" height="104" rx="22" fill="url(#gl)" filter="url(#ls)"/><rect x="62" y="50" width="76" height="2.5" rx="1.2" fill="#fff" opacity="0.15"/><text x="100" y="122" font-family="DM Sans,-apple-system,sans-serif" font-size="62" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing="-1">AI</text></svg>
+        <span class="brandmark">satoshidata<span class="brand-dot">.</span>ai</span>
+        <span class="brand-sep"></span>
+        <span class="brand-live"><span class="live-dot"></span>Live</span>
+      </div>
+      <nav class="tab-nav" id="tab-nav">
+        <button class="tab active" data-tab="live">Live</button>
+        <button class="tab" data-tab="api">API</button>
+        <button class="tab" data-tab="docs">Docs</button>
+      </nav>
+      <span class="topbar-updated" id="topbar-updated">—</span>
+    </header>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi"><span class="kpi-label">BTC</span><span class="kpi-value" id="kpi-btc">—</span></div>
+      <div class="kpi"><span class="kpi-label">Block</span><span class="kpi-value" id="kpi-block">—</span></div>
+      <div class="kpi"><span class="kpi-label">Mempool</span><span class="kpi-value" id="kpi-mempool">—</span></div>
+      <div class="kpi"><span class="kpi-label">Fee</span><span class="kpi-value" id="kpi-fee">—</span></div>
+      <div class="kpi"><span class="kpi-label">Hashrate</span><span class="kpi-value" id="kpi-hashrate">—</span></div>
+      <div class="kpi"><span class="kpi-label">Difficulty</span><span class="kpi-value" id="kpi-difficulty">—</span></div>
+    </div>
+
+    <main>
+
+      <!-- ═══════════ TAB 1: LIVE ═══════════ -->
+      <div class="tab-panel active" data-panel="live">
+
+        <section class="section hero-section" id="hero">
+          <h1 class="hero-title">Bitcoin Wallet Intelligence API</h1>
+          <p class="hero-sub">Identify any Bitcoin address. Verify transactions. Anchor timestamps to the blockchain. Machine-readable JSON with confidence scoring. 10 free endpoints — no signup, no API key.</p>
+        </section>
+
+        <!-- Charts grid -->
+        <section class="section charts-section">
+          <div class="charts-grid">
+            <div class="chart-card chart-card-wide">
+              <div class="chart-header">
+                <span class="chart-title">BTC Price</span>
+                <span class="chart-sub">1 year</span>
+<span class="chart-badge" id="btc-change">—</span>
+              </div>
+              <div class="chart-wrap" id="chart-price"></div>
+              <div class="chart-legend" id="legend-price"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <span class="chart-title">Fee Rate <span class="chart-sub">24h blocks</span></span>
+              </div>
+              <div class="chart-wrap" id="chart-fees"></div>
+              <div class="chart-legend" id="legend-fees"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <span class="chart-title">Hashrate <span class="chart-sub">7d</span></span>
+              </div>
+              <div class="chart-wrap" id="chart-hashrate"></div>
+              <div class="chart-legend" id="legend-hashrate"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Coverage -->
+        <section class="section" id="coverage">
+          <h2 class="section-title">Coverage</h2>
+          <p class="section-sub">Millions of labeled addresses across the Bitcoin ecosystem — crowdsourced, scored, and continuously updated.</p>
+          <div class="coverage-grid">
+            <div class="coverage-card"><span class="coverage-icon">&#9678;</span><span class="coverage-cat">Exchanges</span><span class="coverage-count">209 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#9874;</span><span class="coverage-cat">Mining</span><span class="coverage-count">125 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#9888;</span><span class="coverage-cat">Scams</span><span class="coverage-count">198 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#9830;</span><span class="coverage-cat">Gambling</span><span class="coverage-count">227 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#9733;</span><span class="coverage-cat">Darknet</span><span class="coverage-count">99 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#8644;</span><span class="coverage-cat">Mixers</span><span class="coverage-count">26 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#9881;</span><span class="coverage-cat">Services</span><span class="coverage-count">46 entities</span></div>
+            <div class="coverage-card"><span class="coverage-icon">&#127970;</span><span class="coverage-cat">Government</span><span class="coverage-count">Seizures</span></div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ═══════════ TAB 2: API ═══════════ -->
+      <div class="tab-panel" data-panel="api">
+
+        <section class="section">
+          <h2 class="section-title">Capabilities</h2>
+          <p class="section-sub">Three capabilities, one API. Every response includes confidence scoring, evidence tiers, and structured caveats.</p>
+          <div class="capabilities">
+            <div class="cap-card">
+              <div class="cap-name">Wallet Intelligence</div>
+              <div class="cap-desc">Identify any address — entity, category, confidence, evidence tier. Batch up to 100 at once.</div>
+            </div>
+            <div class="cap-card">
+              <div class="cap-name">Transaction Verification</div>
+              <div class="cap-desc">Confirm payments hit the right address and amount. Look up any txid for inputs, outputs, and fees.</div>
+            </div>
+            <div class="cap-card">
+              <div class="cap-name">Timestamping</div>
+              <div class="cap-desc">Anchor any hash to the Bitcoin blockchain. Download cryptographic proofs. Verify existing timestamps.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="endpoints">
+          <h2 class="section-title">Endpoints</h2>
+          <p class="section-sub">10 free, 9 premium. All return JSON with consistent structure.</p>
+          <div class="endpoints-columns">
+            <div class="endpoints-col">
+              <h3 class="endpoints-col-title"><span class="badge-free">FREE</span> No API key required</h3>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/wallets/{addr}/trust-safety</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/price</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/onchain</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/fees/recommended</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/mempool/stats</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/tx/{txid}/status</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/capabilities</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/timestamp/{hash}</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/timestamp/quote</code></div>
+              <div class="endpoint-item"><span class="ep-method">POST</span><code>/v1/timestamp/verify</code></div>
+            </div>
+            <div class="endpoints-col">
+              <h3 class="endpoints-col-title"><span class="badge-paid">21 sats</span> API key, Lightning (L402), or x402 USDC</h3>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/wallets/{addr}/summary</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/wallets/{addr}/detail</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/wallets/{addr}/contributors</code></div>
+              <div class="endpoint-item"><span class="ep-method">POST</span><code>/v1/batch/trust-safety</code></div>
+              <div class="endpoint-item"><span class="ep-method">POST</span><code>/v1/batch/summary</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/tx/{txid}</code></div>
+              <div class="endpoint-item"><span class="ep-method">POST</span><code>/v1/tx/verify</code></div>
+              <div class="endpoint-item"><span class="ep-method">POST</span><code>/v1/timestamp</code></div>
+              <div class="endpoint-item"><span class="ep-method">GET</span><code>/v1/timestamp/{hash}/proof</code></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="examples">
+          <h2 class="section-title">Quick start</h2>
+          <div class="code-examples">
+            <div class="code-example">
+              <div class="code-label">Free: check any address</div>
+              <div class="code-pair">
+                <pre class="code-request"><code>curl https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/trust-safety</code></pre>
+                <pre class="code-response"><code>{
+  "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+  "label": { "category": "mining_pool", "value": "Satoshi" },
+  "confidence": "high",
+  "evidence_tier": "strong",
+  "assessment": {
+    "state": "labeled",
+    "headline": "Likely Satoshi (mining_pool)"
+  }
+}</code></pre>
+              </div>
+            </div>
+            <div class="code-example">
+              <div class="code-label">Paid: full wallet summary (21 sats)</div>
+              <div class="code-pair">
+                <pre class="code-request"><code>curl -H "X-WR-API-Key: YOUR_KEY" \
+  https://satoshidata.ai/v1/wallets/1BoatSLRHtKNngkdXEeobR76b53LETtpyT/summary</code></pre>
+                <pre class="code-response"><code>{
+  "likely_entity": "Binance",
+  "likely_category": "exchange",
+  "confidence": "verified",
+  "label_count": 12,
+  "unique_contributors": 5,
+  "short_explanation": "Verified Binance cold wallet"
+}</code></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="pricing">
+          <div class="pricing-row">
+            <div class="pricing-card">
+              <div class="pricing-name">Agent API Bridge Pass</div>
+              <div class="pricing-price"><span class="pricing-amount">4.99</span><span class="pricing-currency">USD/mo</span></div>
+              <div class="pricing-detail">Lightning first · BTC on-chain fallback</div>
+              <ul class="pricing-includes">
+                <li>All 9 premium endpoints</li>
+                <li>600 calls/hour rate limit</li>
+                <li>31-day API key</li>
+              </ul>
+              <button class="pricing-btn" id="api-buy-btn" type="button">Get API Key</button>
+              <div class="wallet-promo-toggle" style="margin-top:10px"><button class="wallet-promo-link" id="api-test-code-toggle" type="button">Have a test code?</button></div>
+              <div class="wallet-promo-row" id="api-test-code-row" style="display:none;margin-top:10px">
+                <input type="text" class="wallet-promo-input" id="api-test-code-input" placeholder="Enter test code" maxlength="40" spellcheck="false" autocomplete="off">
+                <button class="wallet-promo-btn" id="api-test-code-btn" type="button">Redeem</button>
+              </div>
+              <div class="api-buy-status" id="api-buy-status"></div>
+              <p class="pricing-note">3 endpoints also accept per-call Lightning (L402) at 21 sats or x402 USDC at $0.01 — no key needed.</p>
+            </div>
+            <div class="pricing-info">
+              <h3>Built for agents and developers</h3>
+              <div class="pricing-features">
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>Machine-readable</strong> — consistent JSON with confidence and evidence on every response</span></div>
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>MCP compatible</strong> — listed on Smithery, discoverable via agent-card and OpenAPI</span></div>
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>No account needed</strong> — pay per call with Lightning, or get a monthly API key</span></div>
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>10 free endpoints</strong> — trust-safety, price, fees, mempool, on-chain, tx status, timestamps, capabilities</span></div>
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>Native L402</strong> — 3 endpoints accept per-call Lightning payments, no key needed</span></div>
+                <div class="pf"><span class="pf-check">&#10003;</span><span><strong>x402 USDC on Base</strong> — live on 3 endpoints (wallet summary, wallet detail, tx verify) at $0.01/call</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ═══════════ TAB 3: DOCS ═══════════ -->
+      <div class="tab-panel" data-panel="docs">
+
+        <section class="section" id="docs">
+          <h2 class="section-title">Documentation</h2>
+
+          <div class="getting-started">
+            <h3 class="gs-heading">Getting started — 3 steps, no signup</h3>
+            <div class="gs-steps">
+              <div class="gs-step">
+                <span class="gs-num">1</span>
+                <div class="gs-body">
+                  <h4>Try a free endpoint</h4>
+                  <p>No key, no account. Copy this and run it now:</p>
+                  <pre class="docs-code" data-copy="curl -s https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/trust-safety | python3 -m json.tool"><code>curl -s https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/trust-safety \
+  | python3 -m json.tool</code><button class="copy-btn" title="Copy">Copy</button></pre>
+                </div>
+              </div>
+              <div class="gs-step">
+                <span class="gs-num">2</span>
+                <div class="gs-body">
+                  <h4>See what premium adds</h4>
+                  <p>Free gives you a trust score. Premium gives you full balance, transaction history, and funding sources.</p>
+                  <pre class="docs-code" data-copy="curl -s https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/summary"><code>curl -s https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/summary
+# → 402 Payment Required (see payment options in response)</code><button class="copy-btn" title="Copy">Copy</button></pre>
+                </div>
+              </div>
+              <div class="gs-step">
+                <span class="gs-num">3</span>
+                <div class="gs-body">
+                  <h4>Pay and get access</h4>
+                  <p>Lightning, x402 USDC, or API key bridge. No account needed — pay per call or get a day pass.</p>
+                  <pre class="docs-code" data-copy="curl -s https://satoshidata.ai/v1/billing/catalog | python3 -m json.tool"><code>curl -s https://satoshidata.ai/v1/billing/catalog | python3 -m json.tool
+# See plans → POST /v1/billing/checkout to pay</code><button class="copy-btn" title="Copy">Copy</button></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="section-sub" style="margin-top:28px">Reference</p>
+          <div class="docs-row">
+            <div class="docs-card-sm">
+              <h3>Discovery</h3>
+              <div class="docs-links">
+                <a href="https://github.com/wrbtc/satoshidata-examples" target="_blank" rel="noopener">Examples (GitHub)</a>
+                <a href="/openapi.json">OpenAPI spec</a>
+                <a href="/.well-known/agent-card.json">Agent card</a>
+                <a href="/v1/billing/catalog">Billing catalog</a>
+                <a href="/v1/capabilities">Capabilities</a>
+                <a href="/mcp/">MCP endpoint</a>
+                <a href="/api/health">Health check</a>
+              </div>
+            </div>
+            <div class="docs-card-sm">
+              <h3>Authentication</h3>
+              <p>Free endpoints need no key. Premium endpoints accept <code>X-WR-API-Key</code> header, native Lightning L402, or x402 USDC on Base — no account needed.</p>
+              <pre class="docs-code" data-copy="curl -H &quot;X-WR-API-Key: YOUR_KEY&quot; https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/summary"><code>curl -H "X-WR-API-Key: YOUR_KEY" \
+  https://satoshidata.ai/v1/wallets/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa/summary</code><button class="copy-btn" title="Copy">Copy</button></pre>
+            </div>
+            <div class="docs-card-sm">
+              <h3>Python</h3>
+              <pre class="docs-code" data-copy="import requests&#10;&#10;r = requests.get(&#10;  &quot;https://satoshidata.ai/v1/wallets/&quot;&#10;  &quot;1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa&quot;&#10;  &quot;/trust-safety&quot;&#10;)&#10;data = r.json()&#10;print(data[&quot;assessment&quot;][&quot;headline&quot;])"><code>import requests
+
+r = requests.get(
+  "https://satoshidata.ai/v1/wallets/"
+  "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+  "/trust-safety"
+)
+data = r.json()
+print(data["assessment"]["headline"])</code><button class="copy-btn" title="Copy">Copy</button></pre>
+            </div>
+            <div class="docs-card-sm">
+              <h3>MCP Config</h3>
+              <pre class="docs-code" data-copy="{&#10;  &quot;mcpServers&quot;: {&#10;    &quot;satoshidata&quot;: {&#10;      &quot;url&quot;: &quot;https://smithery.ai/servers/satoshidata/wallet-intelligence&quot;&#10;    }&#10;  }&#10;}"><code>{
+  "mcpServers": {
+    "satoshidata": {
+      "url": "https://smithery.ai/servers/satoshidata/wallet-intelligence"
+    }
+  }
+}</code><button class="copy-btn" title="Copy">Copy</button></pre>
+              <a href="https://smithery.ai/servers/satoshidata/wallet-intelligence" class="docs-ext" target="_blank" rel="noopener">View on Smithery</a>
+            </div>
+            <div class="docs-card-sm">
+              <h3>Response format</h3>
+              <p>Every response includes confidence scoring and evidence tiers:</p>
+              <pre class="docs-code" data-copy="{&#10;  &quot;address&quot;: &quot;1BoatSLRHtKNngkdXEeobR76b53LETtpyT&quot;,&#10;  &quot;likely_entity&quot;: &quot;Binance&quot;,&#10;  &quot;likely_category&quot;: &quot;exchange&quot;,&#10;  &quot;evidence_tier&quot;: &quot;strong&quot;,&#10;  &quot;confidence&quot;: 0.94,&#10;  &quot;caveats&quot;: [&quot;multiple_entities&quot;]&#10;}"><code>{
+  "address": "1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+  "likely_entity": "Binance",
+  "likely_category": "exchange",
+  "evidence_tier": "strong",
+  "confidence": 0.94,
+  "caveats": ["multiple_entities"]
+}</code><button class="copy-btn" title="Copy">Copy</button></pre>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="payment-modal" style="display:none">
+      <div class="modal-card">
+        <button class="modal-close" id="modal-close">&times;</button>
+        <div class="modal-icon">&#x20BF;</div>
+        <div class="modal-title" id="modal-title">Agent API Bridge Pass</div>
+        <div class="modal-subtitle" id="modal-subtitle">31-day API key · all premium endpoints · Lightning payment</div>
+        <div class="modal-qr" id="modal-qr"></div>
+        <div class="modal-details" id="modal-details"></div>
+        <div class="modal-status" id="modal-status"></div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span>satoshidata.ai · Bitcoin wallet intelligence</span>
+      <span class="footer-links">
+        <a href="https://satoshis.watch" target="_blank" rel="noopener">satoshis.watch</a>
+        <a href="https://satoshiai.substack.com" target="_blank" rel="noopener">Blog</a>
+        <a href="https://github.com/wrbtc/satoshidata-examples" target="_blank" rel="noopener">GitHub</a>
+      </span>
+      <span id="footer-updated"></span>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/static/app.js?v=64"></script>
+  </body>
+</html>
