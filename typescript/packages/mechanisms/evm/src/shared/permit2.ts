@@ -16,16 +16,8 @@ import {
   type Erc20ApprovalGasSponsoringSigner,
 } from "../exact/extensions";
 import { getAddress, encodeFunctionData } from "viem";
-import {
-  PERMIT2_ADDRESS,
-  eip3009ABI,
-  erc20AllowanceAbi,
-  permit2WitnessTypes,
-} from "../constants";
-import {
-  multicall,
-  ContractCall,
-} from "../multicall";
+import { PERMIT2_ADDRESS, eip3009ABI, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
+import { multicall, ContractCall } from "../multicall";
 import { createPermit2Nonce, getEvmChainId } from "../utils";
 import {
   ErrPermit2612AmountMismatch,

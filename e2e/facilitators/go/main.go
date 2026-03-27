@@ -408,22 +408,73 @@ func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) 
 	return code, nil
 }
 
-func (s *realFacilitatorEvmSigner) sendRawTransaction(ctx context.Context, signedTx string) (string, error) {
-	txBytes, err := hexutil.Decode(signedTx)
+func (s *realFacilitatorEvmSigner) decodeRawTransaction(serialized string) (*types.Transaction, error) {
+	txBytes, err := hexutil.Decode(serialized)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode signed transaction: %w", err)
+		return nil, fmt.Errorf("failed to decode signed transaction: %w", err)
 	}
-
 	tx := new(types.Transaction)
 	if err := tx.UnmarshalBinary(txBytes); err != nil {
-		return "", fmt.Errorf("failed to unmarshal transaction: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
 	}
+	return tx, nil
+}
 
+func (s *realFacilitatorEvmSigner) sendRawTransaction(ctx context.Context, tx *types.Transaction) (string, error) {
 	if err := s.client.SendTransaction(ctx, tx); err != nil {
 		return "", fmt.Errorf("failed to send raw transaction: %w", err)
 	}
-
 	return tx.Hash().Hex(), nil
+}
+
+func (s *realFacilitatorEvmSigner) fundPayerGasIfNeeded(ctx context.Context, decodedTx *types.Transaction) error {
+	chainSigner := types.LatestSignerForChainID(s.chainID)
+	payerAddr, err := types.Sender(chainSigner, decodedTx)
+	if err != nil {
+		return fmt.Errorf("failed to recover sender: %w", err)
+	}
+
+	gasFeeCap := decodedTx.GasFeeCap()
+	if gasFeeCap == nil {
+		gasFeeCap = decodedTx.GasPrice()
+	}
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(decodedTx.Gas()), gasFeeCap)
+
+	payerBalance, err := s.client.BalanceAt(ctx, payerAddr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get payer balance: %w", err)
+	}
+	if payerBalance.Cmp(gasCost) >= 0 {
+		return nil
+	}
+
+	deficit := new(big.Int).Sub(gasCost, payerBalance)
+	log.Printf("⛽ Funding payer %s with %s wei for gas", payerAddr.Hex(), deficit.String())
+
+	fundNonce, err := s.client.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return fmt.Errorf("failed to get funding nonce: %w", err)
+	}
+	fundGasPrice, err := s.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	fundTx := types.NewTransaction(fundNonce, payerAddr, deficit, 21000, fundGasPrice, nil)
+	signedFundTx, err := types.SignTx(fundTx, chainSigner, s.privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to sign funding tx: %w", err)
+	}
+	if err := s.client.SendTransaction(ctx, signedFundTx); err != nil {
+		return fmt.Errorf("failed to send funding tx: %w", err)
+	}
+
+	fundReceipt, err := s.WaitForTransactionReceipt(ctx, signedFundTx.Hash().Hex())
+	if err != nil || fundReceipt.Status != evmmech.TxStatusSuccess {
+		return fmt.Errorf("gas funding failed: %s", signedFundTx.Hash().Hex())
+	}
+	log.Printf("⛽ Gas funding confirmed: %s", signedFundTx.Hash().Hex())
+	return nil
 }
 
 func (s *realFacilitatorEvmSigner) SendTransactions(ctx context.Context, transactions []erc20approvalgassponsor.TransactionRequest) ([]string, error) {
@@ -432,67 +483,14 @@ func (s *realFacilitatorEvmSigner) SendTransactions(ctx context.Context, transac
 		var hash string
 		var err error
 		if tx.Serialized != "" {
-			// Decode the serialized tx to check if the payer needs gas funding
-			txBytes, decErr := hexutil.Decode(tx.Serialized)
+			decodedTx, decErr := s.decodeRawTransaction(tx.Serialized)
 			if decErr != nil {
-				return hashes, fmt.Errorf("transaction_failed: failed to decode tx: %w", decErr)
+				return hashes, fmt.Errorf("transaction_failed: %w", decErr)
 			}
-			decodedTx := new(types.Transaction)
-			if umErr := decodedTx.UnmarshalBinary(txBytes); umErr != nil {
-				return hashes, fmt.Errorf("transaction_failed: failed to unmarshal tx: %w", umErr)
+			if fundErr := s.fundPayerGasIfNeeded(ctx, decodedTx); fundErr != nil {
+				return hashes, fmt.Errorf("transaction_failed: %w", fundErr)
 			}
-
-			// Recover the sender (payer) address from the signed tx
-			senderSigner := types.LatestSignerForChainID(s.chainID)
-			payerAddr, recErr := types.Sender(senderSigner, decodedTx)
-			if recErr != nil {
-				return hashes, fmt.Errorf("transaction_failed: failed to recover sender: %w", recErr)
-			}
-
-			// Calculate gas cost and check payer balance
-			gas := decodedTx.Gas()
-			gasFeeCap := decodedTx.GasFeeCap()
-			if gasFeeCap == nil {
-				gasFeeCap = decodedTx.GasPrice()
-			}
-			gasCost := new(big.Int).Mul(new(big.Int).SetUint64(gas), gasFeeCap)
-
-			payerBalance, balErr := s.client.BalanceAt(ctx, payerAddr, nil)
-			if balErr != nil {
-				return hashes, fmt.Errorf("transaction_failed: failed to get payer balance: %w", balErr)
-			}
-
-			if payerBalance.Cmp(gasCost) < 0 {
-				deficit := new(big.Int).Sub(gasCost, payerBalance)
-				log.Printf("⛽ Funding payer %s with %s wei for gas", payerAddr.Hex(), deficit.String())
-
-				// Send ETH from facilitator to payer
-				fundNonce, nErr := s.client.PendingNonceAt(ctx, s.address)
-				if nErr != nil {
-					return hashes, fmt.Errorf("transaction_failed: failed to get funding nonce: %w", nErr)
-				}
-				fundGasPrice, gpErr := s.client.SuggestGasPrice(ctx)
-				if gpErr != nil {
-					return hashes, fmt.Errorf("transaction_failed: failed to get gas price: %w", gpErr)
-				}
-
-				fundTx := types.NewTransaction(fundNonce, payerAddr, deficit, 21000, fundGasPrice, nil)
-				signedFundTx, signErr := types.SignTx(fundTx, types.LatestSignerForChainID(s.chainID), s.privateKey)
-				if signErr != nil {
-					return hashes, fmt.Errorf("transaction_failed: failed to sign funding tx: %w", signErr)
-				}
-				if sendErr := s.client.SendTransaction(ctx, signedFundTx); sendErr != nil {
-					return hashes, fmt.Errorf("transaction_failed: failed to send funding tx: %w", sendErr)
-				}
-
-				fundReceipt, waitErr := s.WaitForTransactionReceipt(ctx, signedFundTx.Hash().Hex())
-				if waitErr != nil || fundReceipt.Status != evmmech.TxStatusSuccess {
-					return hashes, fmt.Errorf("transaction_failed: gas funding failed: %s", signedFundTx.Hash().Hex())
-				}
-				log.Printf("⛽ Gas funding confirmed: %s", signedFundTx.Hash().Hex())
-			}
-
-			hash, err = s.sendRawTransaction(ctx, tx.Serialized)
+			hash, err = s.sendRawTransaction(ctx, decodedTx)
 		} else if tx.Call != nil {
 			hash, err = s.WriteContract(ctx, tx.Call.Address, tx.Call.ABI, tx.Call.Function, tx.Call.Args...)
 		} else {

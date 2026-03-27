@@ -216,8 +216,6 @@ func DiagnosePermit2SimulationFailure(
 }
 
 // CheckPermit2Prerequisites checks proxy deployment and payer token balance.
-// Note: ETH balance for gas is NOT checked here — the facilitator signer is
-// responsible for funding the payer's gas at settle time via SendTransactions.
 func CheckPermit2Prerequisites(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,

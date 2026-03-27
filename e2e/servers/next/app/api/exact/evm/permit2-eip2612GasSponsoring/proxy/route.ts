@@ -7,8 +7,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   return NextResponse.json({
-    message: "Permit2 EIP-2612 endpoint accessed successfully",
+    message: "Protected endpoint accessed successfully",
     timestamp: new Date().toISOString(),
-    method: "permit2-eip2612",
   });
 }

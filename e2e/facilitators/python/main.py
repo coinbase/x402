@@ -90,18 +90,13 @@ class Erc20ApprovalSigner:
         hashes: list[str] = []
         for tx in transactions:
             if isinstance(tx, str):
-                # Decode the raw tx to check if the payer needs gas funding
                 raw_bytes = bytes.fromhex(tx[2:] if tx.startswith("0x") else tx)
                 w3 = self._signer._w3
 
-                # Recover the sender and gas params from the signed transaction
-                decoded = w3.eth.account.decode_transaction(raw_bytes)
-                payer_address = decoded.get("from") or w3.eth.account.recover_transaction(tx)
-                gas = decoded.get("gas", 70_000)
-                max_fee = decoded.get("maxFeePerGas") or decoded.get("gasPrice", 1_000_000_000)
-                gas_cost = gas * max_fee
+                payer_address = w3.eth.account.recover_transaction(tx)
+                # Use the same gas constants as the library's approve tx builder
+                gas_cost = 70_000 * 1_000_000_000  # ERC20_APPROVE_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS
 
-                # Check if the payer has enough ETH for gas
                 payer_balance = w3.eth.get_balance(payer_address)
                 if payer_balance < gas_cost:
                     deficit = gas_cost - payer_balance

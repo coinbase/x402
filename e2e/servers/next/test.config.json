@@ -48,7 +48,8 @@
       "description": "Protected Upto Permit2 endpoint with EIP-2612 gas sponsoring",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "transferMethod": "upto"
+      "transferMethod": "upto",
+      "coldstart": true
     },
     {
       "path": "/api/upto/evm/permit2-erc20ApprovalGasSponsoring",
@@ -57,7 +58,8 @@
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "upto",
-      "extensions": ["erc20ApprovalGasSponsoring"]
+      "extensions": ["erc20ApprovalGasSponsoring"],
+      "coldstart": true
     },
     {
       "path": "/api/exact/svm",
