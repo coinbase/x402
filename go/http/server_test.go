@@ -466,7 +466,7 @@ func TestProcessSettlement(t *testing.T) {
 	}
 
 	// Test settlement processing
-	result := server.ProcessSettlement(ctx, payload, requirements)
+	result := server.ProcessSettlement(ctx, payload, requirements, nil)
 	if !result.Success {
 		t.Fatalf("Unexpected failure: %v", result.ErrorReason)
 	}
@@ -512,7 +512,7 @@ func TestProcessSettlement_Failure(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	result := server.ProcessSettlement(ctx, payload, requirements)
+	result := server.ProcessSettlement(ctx, payload, requirements, nil)
 	if result.Success {
 		t.Fatal("Expected settlement failure")
 	}
@@ -535,47 +535,78 @@ func TestParseRoutePattern(t *testing.T) {
 	tests := []struct {
 		pattern     string
 		expectVerb  string
+		expectPath  string
 		testPath    string
 		shouldMatch bool
 	}{
 		{
 			pattern:     "GET /api",
 			expectVerb:  "GET",
+			expectPath:  "/api",
 			testPath:    "/api",
 			shouldMatch: true,
 		},
 		{
 			pattern:     "POST /api/*",
 			expectVerb:  "POST",
+			expectPath:  "/api/*",
 			testPath:    "/api/users",
 			shouldMatch: true,
 		},
 		{
 			pattern:     "/public",
 			expectVerb:  "*",
+			expectPath:  "/public",
 			testPath:    "/public",
 			shouldMatch: true,
 		},
 		{
 			pattern:     "*",
 			expectVerb:  "*",
+			expectPath:  "*",
 			testPath:    "/anything",
 			shouldMatch: true,
 		},
 		{
 			pattern:     "GET /api/[id]",
 			expectVerb:  "GET",
+			expectPath:  "/api/[id]",
 			testPath:    "/api/123",
+			shouldMatch: true,
+		},
+		{
+			pattern:     "GET /api/users/:userId",
+			expectVerb:  "GET",
+			expectPath:  "/api/users/:userId",
+			testPath:    "/api/users/456",
+			shouldMatch: true,
+		},
+		{
+			pattern:     "GET /api/users/:userId/posts/:postId",
+			expectVerb:  "GET",
+			expectPath:  "/api/users/:userId/posts/:postId",
+			testPath:    "/api/users/42/posts/7",
+			shouldMatch: true,
+		},
+		{
+			pattern:     "/api/:version/items",
+			expectVerb:  "*",
+			expectPath:  "/api/:version/items",
+			testPath:    "/api/v2/items",
 			shouldMatch: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.pattern, func(t *testing.T) {
-			verb, regex := parseRoutePattern(tt.pattern)
+			verb, path, regex := parseRoutePattern(tt.pattern)
 
 			if verb != tt.expectVerb {
 				t.Errorf("Expected verb %s, got %s", tt.expectVerb, verb)
+			}
+
+			if path != tt.expectPath {
+				t.Errorf("Expected path %s, got %s", tt.expectPath, path)
 			}
 
 			normalized := normalizePath(tt.testPath)
