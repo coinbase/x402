@@ -1,0 +1,7 @@
+{
+  "name": "x402 Trust Score",
+  "description": "Trust scoring for MCP servers and x402 services. 0-100 risk score before you connect or pay. The only MCP tool definition linter. Governance scoring for agent system prompts.",
+  "logoUrl": "/logos/x402-trust-score.png",
+  "websiteUrl": "https://x402.asalvocreative.com",
+  "category": "Services/Endpoints"
+}
