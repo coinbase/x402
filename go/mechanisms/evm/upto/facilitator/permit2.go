@@ -15,24 +15,8 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// VerifyUptoPermit2Options controls optional behaviour for VerifyUptoPermit2.
-type VerifyUptoPermit2Options struct {
-	Simulate *bool
-}
-
-func (o *VerifyUptoPermit2Options) shouldSimulate() bool {
-	if o == nil || o.Simulate == nil {
-		return true
-	}
-	return *o.Simulate
-}
-
-// UptoPermit2FacilitatorConfig holds optional settlement-time configuration.
-type UptoPermit2FacilitatorConfig struct {
-	SimulateInSettle bool
-}
-
 // VerifyUptoPermit2 verifies an upto Permit2 payment payload against the given requirements.
+// simulate controls whether to run an eth_call simulation as part of verification.
 func VerifyUptoPermit2(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,
@@ -40,7 +24,7 @@ func VerifyUptoPermit2(
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.UptoPermit2Payload,
 	facilCtx *x402.FacilitatorContext,
-	opts *VerifyUptoPermit2Options,
+	simulate bool,
 ) (*x402.VerifyResponse, error) {
 	payer := permit2Payload.Permit2Authorization.From
 
@@ -127,7 +111,7 @@ func VerifyUptoPermit2(
 		}
 	}
 
-	if !opts.shouldSimulate() {
+	if !simulate {
 		return &x402.VerifyResponse{IsValid: true, Payer: payer}, nil
 	}
 
@@ -198,6 +182,7 @@ func VerifyUptoPermit2(
 }
 
 // SettleUptoPermit2 settles an upto Permit2 payment by calling x402UptoPermit2Proxy.settle().
+// simulateInSettle controls whether to run an eth_call simulation as part of pre-settle verification.
 func SettleUptoPermit2(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,
@@ -205,7 +190,7 @@ func SettleUptoPermit2(
 	requirements types.PaymentRequirements,
 	permit2Payload *evm.UptoPermit2Payload,
 	facilCtx *x402.FacilitatorContext,
-	config *UptoPermit2FacilitatorConfig,
+	simulateInSettle bool,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
 	payer := permit2Payload.Permit2Authorization.From
@@ -219,12 +204,7 @@ func SettleUptoPermit2(
 	verifyRequirements := requirements
 	verifyRequirements.Amount = permit2Payload.Permit2Authorization.Permitted.Amount
 
-	simulate := true
-	if config != nil {
-		simulate = config.SimulateInSettle
-	}
-
-	verifyResp, err := VerifyUptoPermit2(ctx, signer, payload, verifyRequirements, permit2Payload, facilCtx, &VerifyUptoPermit2Options{Simulate: &simulate})
+	verifyResp, err := VerifyUptoPermit2(ctx, signer, payload, verifyRequirements, permit2Payload, facilCtx, simulateInSettle)
 	if err != nil {
 		ve := &x402.VerifyError{}
 		if errors.As(err, &ve) {

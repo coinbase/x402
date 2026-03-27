@@ -985,7 +985,7 @@ describe("x402ResourceServer", () => {
       expect(mockClient.settleCalls[0].requirements.amount).toBe("1000");
     });
 
-    it("should resolve dollar override using extra.decimals", async () => {
+    it("should resolve dollar override using scheme getAssetDecimals", async () => {
       const mockClient = new MockFacilitatorClient(
         buildSupportedResponse({
           kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
@@ -995,12 +995,15 @@ describe("x402ResourceServer", () => {
       );
 
       const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("exact");
+      mockScheme.setAssetDecimalsResult(8);
+      server.register("eip155:8453" as Network, mockScheme);
+
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
         scheme: "exact",
         network: "eip155:8453" as Network,
         amount: "1000000",
-        extra: { decimals: 8 },
       });
 
       await server.settlePayment(payload, requirements, undefined, undefined, { amount: "$0.05" });
@@ -1024,7 +1027,6 @@ describe("x402ResourceServer", () => {
         network: "eip155:8453" as Network,
         amount: "1000000",
         asset: "0xOriginalToken",
-        extra: { decimals: 6 },
       });
 
       await server.settlePayment(payload, requirements, undefined, undefined, {
@@ -1337,9 +1339,8 @@ describe("resolveSettlementOverrideAmount", () => {
       expect(resolveSettlementOverrideAmount("$0.05", baseRequirements)).toBe("50000");
     });
 
-    it("converts '$0.05' using extra.decimals = 8 when provided", () => {
-      const reqs = buildPaymentRequirements({ amount: "2000", extra: { decimals: 8 } });
-      expect(resolveSettlementOverrideAmount("$0.05", reqs)).toBe("5000000");
+    it("converts '$0.05' using 8 decimals when provided", () => {
+      expect(resolveSettlementOverrideAmount("$0.05", baseRequirements, 8)).toBe("5000000");
     });
 
     it("converts '$0.001' using default 6 decimals", () => {

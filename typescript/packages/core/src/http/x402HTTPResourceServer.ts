@@ -16,7 +16,7 @@ import {
 } from "../types";
 import { x402Version } from "..";
 
-export const SETTLEMENT_OVERRIDES_HEADER = "settlement-overrides";
+export const SETTLEMENT_OVERRIDES_HEADER = "Settlement-Overrides";
 
 /**
  * Framework-agnostic HTTP adapter interface

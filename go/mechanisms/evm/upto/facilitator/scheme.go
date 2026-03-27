@@ -73,7 +73,7 @@ func (f *UptoEvmScheme) Verify(
 		return nil, x402.NewVerifyError(ErrUptoInvalidPayload, "", fmt.Sprintf("failed to parse upto Permit2 payload: %s", err.Error()))
 	}
 
-	return VerifyUptoPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, nil)
+	return VerifyUptoPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, true)
 }
 
 // Settle settles a V2 upto payment on-chain.
@@ -94,7 +94,5 @@ func (f *UptoEvmScheme) Settle(
 		return nil, x402.NewSettleError(ErrUptoInvalidPayload, "", network, "", fmt.Sprintf("failed to parse upto Permit2 payload: %s", err.Error()))
 	}
 
-	return SettleUptoPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, &UptoPermit2FacilitatorConfig{
-		SimulateInSettle: f.config.SimulateInSettle,
-	})
+	return SettleUptoPermit2(ctx, f.signer, payload, requirements, permit2Payload, fctx, f.config.SimulateInSettle)
 }

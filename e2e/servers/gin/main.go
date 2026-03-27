@@ -384,7 +384,7 @@ func main() {
 			return
 		}
 
-		// Settle with full authorized amount (for e2e tests)
+		// Settle with partial amount (for e2e tests)
 		ginmw.SetSettlementOverrides(c, &x402.SettlementOverrides{
 			Amount: "1000",
 		})

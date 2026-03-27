@@ -712,45 +712,6 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 		}
 	})
 
-	t.Run("dollar override respects requirements extra decimals", func(t *testing.T) {
-		capturedRequirements = nil
-		reqsWithDecimals := types.PaymentRequirements{
-			Scheme:  "exact",
-			Network: "eip155:1",
-			Amount:  "1000000",
-			PayTo:   "0xtest",
-			Asset:   "0xToken",
-			Extra:   map[string]interface{}{"decimals": float64(8)},
-		}
-		payloadWithDecimals := types.PaymentPayload{
-			X402Version: 2,
-			Accepted:    reqsWithDecimals,
-			Payload:     map[string]interface{}{},
-		}
-		h := http.Header{}
-		h.Set(SettlementOverridesHeader, `{"amount":"$0.05"}`)
-		tc := &HTTPTransportContext{
-			ResponseHeaders: h,
-		}
-
-		result := server.ProcessSettlement(ctx, payloadWithDecimals, reqsWithDecimals, nil, tc)
-		if !result.Success {
-			t.Fatalf("unexpected failure: %v", result.ErrorReason)
-		}
-
-		var settled types.PaymentRequirements
-		if err := json.Unmarshal(capturedRequirements, &settled); err != nil {
-			t.Fatalf("failed to unmarshal: %v", err)
-		}
-		// $0.05 with 8 decimals = 5000000
-		if settled.Amount != "5000000" {
-			t.Errorf("expected 5000000, got %s", settled.Amount)
-		}
-		// Asset must remain unchanged -- overrides only affect amount
-		if settled.Asset != "0xToken" {
-			t.Errorf("expected asset 0xToken unchanged, got %s", settled.Asset)
-		}
-	})
 }
 
 func TestParseRoutePattern(t *testing.T) {

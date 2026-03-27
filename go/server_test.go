@@ -623,7 +623,7 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 			{"999999", "999999"},
 		}
 		for _, tt := range tests {
-			result, err := ResolveSettlementOverrideAmount(tt.input, baseReqs)
+			result, err := ResolveSettlementOverrideAmount(tt.input, baseReqs, 6)
 			if err != nil {
 				t.Errorf("ResolveSettlementOverrideAmount(%q) error: %v", tt.input, err)
 			}
@@ -648,7 +648,7 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 		}
 		for _, tt := range tests {
 			reqs := types.PaymentRequirements{Amount: tt.amount}
-			result, err := ResolveSettlementOverrideAmount(tt.input, reqs)
+			result, err := ResolveSettlementOverrideAmount(tt.input, reqs, 6)
 			if err != nil {
 				t.Errorf("ResolveSettlementOverrideAmount(%q, amount=%s) error: %v", tt.input, tt.amount, err)
 			}
@@ -669,7 +669,7 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 			{"$0", "0"},
 		}
 		for _, tt := range tests {
-			result, err := ResolveSettlementOverrideAmount(tt.input, baseReqs)
+			result, err := ResolveSettlementOverrideAmount(tt.input, baseReqs, 6)
 			if err != nil {
 				t.Errorf("ResolveSettlementOverrideAmount(%q) error: %v", tt.input, err)
 			}
@@ -679,12 +679,9 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 		}
 	})
 
-	t.Run("dollar price with custom decimals from extra", func(t *testing.T) {
-		reqs := types.PaymentRequirements{
-			Amount: "2000",
-			Extra:  map[string]interface{}{"decimals": float64(8)},
-		}
-		result, err := ResolveSettlementOverrideAmount("$0.05", reqs)
+	t.Run("dollar price with 8 decimals", func(t *testing.T) {
+		reqs := types.PaymentRequirements{Amount: "2000"}
+		result, err := ResolveSettlementOverrideAmount("$0.05", reqs, 8)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -693,13 +690,9 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 		}
 	})
 
-	t.Run("dollar price uses requirements decimals not a different asset", func(t *testing.T) {
-		reqs := types.PaymentRequirements{
-			Amount: "2000",
-			Asset:  "0xSomeToken",
-			Extra:  map[string]interface{}{"decimals": float64(6)},
-		}
-		result, err := ResolveSettlementOverrideAmount("$0.001", reqs)
+	t.Run("dollar price result uses requirements asset regardless of decimals", func(t *testing.T) {
+		reqs := types.PaymentRequirements{Amount: "2000", Asset: "0xSomeToken"}
+		result, err := ResolveSettlementOverrideAmount("$0.001", reqs, 6)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -709,17 +702,14 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 		}
 	})
 
-	t.Run("dollar price without decimals falls back to 6", func(t *testing.T) {
-		reqs := types.PaymentRequirements{
-			Amount: "2000",
-			Asset:  "0xUnknownToken",
-		}
-		result, err := ResolveSettlementOverrideAmount("$0.05", reqs)
+	t.Run("dollar price with 6 decimals", func(t *testing.T) {
+		reqs := types.PaymentRequirements{Amount: "2000", Asset: "0xUnknownToken"}
+		result, err := ResolveSettlementOverrideAmount("$0.05", reqs, 6)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if result != "50000" {
-			t.Errorf("expected 50000 (default 6 decimals), got %s", result)
+			t.Errorf("expected 50000 (6 decimals), got %s", result)
 		}
 	})
 }

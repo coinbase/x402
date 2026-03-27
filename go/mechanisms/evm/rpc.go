@@ -55,7 +55,12 @@ func getOrCreateRPCClient(ctx context.Context, rpcURL string) (*ethclient.Client
 	if err != nil {
 		return nil, err
 	}
-	rpcClientCache.Store(rpcURL, client)
+	actual, loaded := rpcClientCache.LoadOrStore(rpcURL, client)
+	if loaded {
+		// Another goroutine stored first; close our duplicate connection.
+		client.Close()
+		return actual.(*ethclient.Client), nil
+	}
 	return client, nil
 }
 

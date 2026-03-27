@@ -172,7 +172,7 @@ func TestVerifyUptoPermit2_SchemeMismatch_Payload(t *testing.T) {
 	payload := buildValidPayload(testFacilitatorAddr)
 	payload.Accepted.Scheme = "exact"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrUptoInvalidScheme)
 }
 
@@ -183,7 +183,7 @@ func TestVerifyUptoPermit2_SchemeMismatch_Requirements(t *testing.T) {
 	req := buildValidRequirements()
 	req.Scheme = "exact"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, payload, req, p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, payload, req, p, nil, false)
 	assertVerifyError(t, err, ErrUptoInvalidScheme)
 }
 
@@ -193,7 +193,7 @@ func TestVerifyUptoPermit2_NetworkMismatch(t *testing.T) {
 	payload := buildValidPayload(testFacilitatorAddr)
 	payload.Accepted.Network = "eip155:8453"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrUptoNetworkMismatch)
 }
 
@@ -202,7 +202,7 @@ func TestVerifyUptoPermit2_InvalidSpender(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Spender = "0x0000000000000000000000000000000000000001"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2InvalidSpender)
 }
 
@@ -211,7 +211,7 @@ func TestVerifyUptoPermit2_RecipientMismatch(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Witness.To = "0x0000000000000000000000000000000000000001"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2RecipientMismatch)
 }
 
@@ -220,7 +220,7 @@ func TestVerifyUptoPermit2_FacilitatorMismatch(t *testing.T) {
 	// Witness references a different facilitator address
 	p := buildValidUptoPayload("0x0000000000000000000000000000000000000001")
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrUptoFacilitatorMismatch)
 }
 
@@ -232,7 +232,7 @@ func TestVerifyUptoPermit2_FacilitatorMatch_CaseInsensitive(t *testing.T) {
 
 	p := buildValidUptoPayload(lowerFacilitator)
 	// simulation should succeed (readContractError == nil)
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(lowerFacilitator), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(lowerFacilitator), buildValidRequirements(), p, nil, true)
 	if err != nil {
 		t.Fatalf("expected facilitator case-insensitive match to succeed, got: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestVerifyUptoPermit2_DeadlineExpired(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Deadline = "1000000000" // year 2001 — expired
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2DeadlineExpired)
 }
 
@@ -252,7 +252,7 @@ func TestVerifyUptoPermit2_NotYetValid(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Witness.ValidAfter = fmt.Sprintf("%d", time.Now().Unix()+9999)
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2NotYetValid)
 }
 
@@ -261,7 +261,7 @@ func TestVerifyUptoPermit2_AmountMismatch(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Permitted.Amount = "9999" // != requirements.Amount "1000"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2AmountMismatch)
 }
 
@@ -270,7 +270,7 @@ func TestVerifyUptoPermit2_TokenMismatch(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Permit2Authorization.Permitted.Token = "0x0000000000000000000000000000000000000001"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2TokenMismatch)
 }
 
@@ -279,7 +279,7 @@ func TestVerifyUptoPermit2_InvalidSignatureHex(t *testing.T) {
 	p := buildValidUptoPayload(testFacilitatorAddr)
 	p.Signature = "not-hex"
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrInvalidSignatureFormat)
 }
 
@@ -289,7 +289,7 @@ func TestVerifyUptoPermit2_InvalidSig_PayerIsEOA(t *testing.T) {
 	signer.getCodeResult = []byte{} // EOA
 
 	p := buildValidUptoPayload(testFacilitatorAddr)
-	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	assertVerifyError(t, err, ErrPermit2InvalidSignature)
 }
 
@@ -300,8 +300,7 @@ func TestVerifyUptoPermit2_SimulationDisabled_ReturnsValid(t *testing.T) {
 	// getCodeResult is non-empty by default (contract)
 
 	p := buildValidUptoPayload(testFacilitatorAddr)
-	noSim := false
-	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, &VerifyUptoPermit2Options{Simulate: &noSim})
+	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -315,7 +314,7 @@ func TestVerifyUptoPermit2_SimulationSucceeds(t *testing.T) {
 	signer := newMockSigner()
 
 	p := buildValidUptoPayload(testFacilitatorAddr)
-	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -330,7 +329,7 @@ func TestVerifyUptoPermit2_SimulationSucceeds(t *testing.T) {
 func TestVerifyUptoPermit2_ViabilityCheck_FailOpenOnMulticallError(t *testing.T) {
 	signer := newMockSigner()
 	p := buildValidUptoPayload(testFacilitatorAddr)
-	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, nil)
+	resp, err := VerifyUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), p, nil, true)
 	if err != nil {
 		t.Fatalf("unexpected error in standard viability path: %v", err)
 	}
@@ -360,7 +359,7 @@ func TestVerifyUptoPermit2_WithEIP2612Extension_FromMismatch(t *testing.T) {
 		},
 	}
 
-	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, nil)
+	_, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, true)
 	if err == nil {
 		t.Fatal("expected error from EIP-2612 from mismatch")
 	}
@@ -395,32 +394,12 @@ func TestVerifyUptoPermit2_WithEIP2612Extension_Valid_SimSucceeds(t *testing.T) 
 	}
 
 	// readContract: first call is settleWithPermit sim (succeeds with nil error)
-	resp, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, nil)
+	resp, err := VerifyUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), p, nil, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !resp.IsValid {
 		t.Errorf("expected valid, got %s", resp.InvalidReason)
-	}
-}
-
-// ─── VerifyUptoPermit2Options.shouldSimulate ─────────────────────────────────
-
-func TestShouldSimulate(t *testing.T) {
-	trueVal := true
-	falseVal := false
-
-	if !(*VerifyUptoPermit2Options)(nil).shouldSimulate() {
-		t.Error("nil opts should simulate")
-	}
-	if !(&VerifyUptoPermit2Options{}).shouldSimulate() {
-		t.Error("zero-value opts should simulate")
-	}
-	if !(&VerifyUptoPermit2Options{Simulate: &trueVal}).shouldSimulate() {
-		t.Error("Simulate=true should simulate")
-	}
-	if (&VerifyUptoPermit2Options{Simulate: &falseVal}).shouldSimulate() {
-		t.Error("Simulate=false should not simulate")
 	}
 }
 
@@ -434,7 +413,7 @@ func TestSettleUptoPermit2_ZeroSettlement(t *testing.T) {
 	req := buildValidRequirements()
 	req.Amount = "0" // settle zero — no on-chain tx
 
-	resp, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	resp, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -457,7 +436,7 @@ func TestSettleUptoPermit2_ExceedsPermittedAmount(t *testing.T) {
 	req := buildValidRequirements()
 	req.Amount = "99999" // more than permitted "1000"
 
-	_, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	_, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, false)
 	assertSettleError(t, err, ErrUptoSettlementExceedsAmount)
 }
 
@@ -469,7 +448,7 @@ func TestSettleUptoPermit2_FullAmount(t *testing.T) {
 		buildValidRequirements(),
 		buildValidUptoPayload(testFacilitatorAddr),
 		nil,
-		&UptoPermit2FacilitatorConfig{SimulateInSettle: false},
+		false,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -487,7 +466,7 @@ func TestSettleUptoPermit2_PartialAmount(t *testing.T) {
 	req := buildValidRequirements()
 	req.Amount = "500" // 500 of 1000 permitted
 
-	resp, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), req, buildValidUptoPayload(testFacilitatorAddr), nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	resp, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), req, buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -504,7 +483,7 @@ func TestSettleUptoPermit2_InvalidSettlementAmount(t *testing.T) {
 	req := buildValidRequirements()
 	req.Amount = "not-a-number"
 
-	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), req, buildValidUptoPayload(testFacilitatorAddr), nil, nil)
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), req, buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	if err == nil {
 		t.Fatal("expected error on invalid settlement amount")
 	}
@@ -514,7 +493,7 @@ func TestSettleUptoPermit2_WriteContractFails(t *testing.T) {
 	signer := newMockSigner()
 	signer.writeContractError = errors.New("out of gas")
 
-	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	if err == nil {
 		t.Fatal("expected error on WriteContract failure")
 	}
@@ -524,7 +503,7 @@ func TestSettleUptoPermit2_ReceiptStatusFailed(t *testing.T) {
 	signer := newMockSigner()
 	signer.receiptResult = &evm.TransactionReceipt{Status: evm.TxStatusFailed, TxHash: "0xfail"}
 
-	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	assertSettleError(t, err, ErrUptoTransactionFailed)
 }
 
@@ -532,7 +511,7 @@ func TestSettleUptoPermit2_ReceiptError(t *testing.T) {
 	signer := newMockSigner()
 	signer.receiptError = errors.New("timeout")
 
-	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	assertSettleError(t, err, ErrUptoFailedToGetReceipt)
 }
 
@@ -541,7 +520,7 @@ func TestSettleUptoPermit2_VerifyFails_EOAPayer(t *testing.T) {
 	signer := newMockSigner()
 	signer.getCodeResult = []byte{} // EOA
 
-	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, false)
 	if err == nil {
 		t.Fatal("expected error when verify fails during settle")
 	}
@@ -570,7 +549,7 @@ func TestSettleUptoPermit2_WithEIP2612_ZeroSettlement(t *testing.T) {
 	req := buildValidRequirements()
 	req.Amount = "0"
 
-	resp, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, &UptoPermit2FacilitatorConfig{SimulateInSettle: false})
+	resp, err := SettleUptoPermit2(context.Background(), signer, payload, req, p, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

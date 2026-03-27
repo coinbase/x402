@@ -29,6 +29,18 @@ export class UptoEvmScheme implements SchemeNetworkServer {
   }
 
   /**
+   * Returns the decimal precision of the default stablecoin for the given network.
+   * Implements the optional AssetDecimalsProvider interface used by resolveSettlementOverrideAmount.
+   */
+  getAssetDecimals(_asset: string, network: Network): number {
+    try {
+      return getDefaultAsset(network).decimals;
+    } catch {
+      return 6;
+    }
+  }
+
+  /**
    * Parses a price into an asset amount for the given network.
    *
    * @param price - The price to parse (string, number, or AssetAmount)

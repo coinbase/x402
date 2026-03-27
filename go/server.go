@@ -23,8 +23,8 @@ var (
 // to a final atomic-unit string. Supports three formats:
 //   - Raw atomic units: "1000"
 //   - Percent of requirements.Amount: "50%"  (up to 2 decimal places, floored)
-//   - Dollar price: "$0.05" (uses requirements.Extra["decimals"] or defaults to 6)
-func ResolveSettlementOverrideAmount(rawAmount string, requirements types.PaymentRequirements) (string, error) {
+//   - Dollar price: "$0.05" (converted using the provided decimals)
+func ResolveSettlementOverrideAmount(rawAmount string, requirements types.PaymentRequirements, decimals int) (string, error) {
 	if m := percentRegex.FindStringSubmatch(rawAmount); m != nil {
 		parts := strings.SplitN(m[1], ".", 2)
 		intPart, _ := strconv.ParseInt(parts[0], 10, 64)
@@ -44,21 +44,6 @@ func ResolveSettlementOverrideAmount(rawAmount string, requirements types.Paymen
 	}
 
 	if m := dollarRegex.FindStringSubmatch(rawAmount); m != nil {
-		decimals := 6
-		if requirements.Extra != nil {
-			if d, ok := requirements.Extra["decimals"]; ok {
-				switch v := d.(type) {
-				case float64:
-					decimals = int(v)
-				case int:
-					decimals = v
-				case json.Number:
-					if n, err := v.Int64(); err == nil {
-						decimals = int(n)
-					}
-				}
-			}
-		}
 		dollarFloat, ok := new(big.Float).SetPrec(256).SetString(m[1])
 		if !ok {
 			return "", fmt.Errorf("invalid dollar amount: %s", rawAmount)
@@ -467,7 +452,18 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *SettlementOverrides) (*SettleResponse, error) {
 	effectiveRequirements := requirements
 	if overrides != nil && overrides.Amount != "" {
-		resolved, err := ResolveSettlementOverrideAmount(overrides.Amount, requirements)
+		decimals := 6
+		s.mu.RLock()
+		network := Network(requirements.Network)
+		if networkSchemes, ok := s.schemes[network]; ok {
+			if scheme, ok := networkSchemes[requirements.Scheme]; ok {
+				if dp, ok := scheme.(AssetDecimalsProvider); ok {
+					decimals = dp.GetAssetDecimals(requirements.Asset, network)
+				}
+			}
+		}
+		s.mu.RUnlock()
+		resolved, err := ResolveSettlementOverrideAmount(overrides.Amount, requirements, decimals)
 		if err != nil {
 			return nil, NewSettleError("invalid_settlement_override", "", Network(requirements.Network), "", err.Error())
 		}

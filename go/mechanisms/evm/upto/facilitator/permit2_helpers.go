@@ -192,17 +192,18 @@ func SimulateUptoPermit2SettleWithPermit(
 	return true, nil
 }
 
-// DiagnoseUptoPermit2SimulationFailure runs a multicall diagnostic to return the most
-// specific error reason after an upto simulation failure.
-func DiagnoseUptoPermit2SimulationFailure(
+// uptoPermit2Multicall3 runs the standard 3-call multicall shared by the diagnostic and
+// prerequisites helpers: [PERMIT2(), balanceOf(payer), thirdCall]. Returns (results,
+// reqAmount, error). results is nil when the multicall itself fails; reqAmount is nil when
+// amountRequired cannot be parsed.
+func uptoPermit2Multicall3(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,
 	tokenAddress string,
-	permit2Payload *evm.UptoPermit2Payload,
+	payer string,
 	amountRequired string,
-) *x402.VerifyResponse {
-	payer := permit2Payload.Permit2Authorization.From
-
+	thirdCall evm.MulticallCall,
+) ([]evm.MulticallResult, *big.Int, error) {
 	results, err := evm.Multicall(ctx, signer, []evm.MulticallCall{
 		{
 			Address:      evm.X402UptoPermit2ProxyAddress,
@@ -215,14 +216,33 @@ func DiagnoseUptoPermit2SimulationFailure(
 			FunctionName: "balanceOf",
 			Args:         []interface{}{common.HexToAddress(payer)},
 		},
-		{
-			Address:      tokenAddress,
-			ABI:          evm.ERC20AllowanceABI,
-			FunctionName: "allowance",
-			Args:         []interface{}{common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address)},
-		},
+		thirdCall,
 	})
 	if err != nil || len(results) < 3 {
+		return nil, nil, err
+	}
+	reqAmount, _ := new(big.Int).SetString(amountRequired, 10)
+	return results, reqAmount, nil
+}
+
+// DiagnoseUptoPermit2SimulationFailure runs a multicall diagnostic to return the most
+// specific error reason after an upto simulation failure.
+func DiagnoseUptoPermit2SimulationFailure(
+	ctx context.Context,
+	signer evm.FacilitatorEvmSigner,
+	tokenAddress string,
+	permit2Payload *evm.UptoPermit2Payload,
+	amountRequired string,
+) *x402.VerifyResponse {
+	payer := permit2Payload.Permit2Authorization.From
+
+	results, reqAmount, _ := uptoPermit2Multicall3(ctx, signer, tokenAddress, payer, amountRequired, evm.MulticallCall{
+		Address:      tokenAddress,
+		ABI:          evm.ERC20AllowanceABI,
+		FunctionName: "allowance",
+		Args:         []interface{}{common.HexToAddress(payer), common.HexToAddress(evm.PERMIT2Address)},
+	})
+	if results == nil {
 		return &x402.VerifyResponse{IsValid: false, InvalidReason: ErrPermit2SimulationFailed, Payer: payer}
 	}
 
@@ -230,8 +250,7 @@ func DiagnoseUptoPermit2SimulationFailure(
 		return &x402.VerifyResponse{IsValid: false, InvalidReason: ErrPermit2ProxyNotDeployed, Payer: payer}
 	}
 
-	reqAmount, ok := new(big.Int).SetString(amountRequired, 10)
-	if !ok {
+	if reqAmount == nil {
 		return &x402.VerifyResponse{IsValid: false, InvalidReason: ErrPermit2SimulationFailed, Payer: payer}
 	}
 
@@ -258,35 +277,21 @@ func CheckUptoPermit2Prerequisites(
 	payer string,
 	amountRequired string,
 ) *x402.VerifyResponse {
-	results, err := evm.Multicall(ctx, signer, []evm.MulticallCall{
-		{
-			Address:      evm.X402UptoPermit2ProxyAddress,
-			ABI:          evm.X402UptoPermit2ProxyPermit2ABI,
-			FunctionName: "PERMIT2",
-		},
-		{
-			Address:      tokenAddress,
-			ABI:          evm.ERC20BalanceOfABI,
-			FunctionName: "balanceOf",
-			Args:         []interface{}{common.HexToAddress(payer)},
-		},
-		{
-			Address:      evm.MULTICALL3Address,
-			ABI:          evm.Multicall3GetEthBalanceABI,
-			FunctionName: "getEthBalance",
-			Args:         []interface{}{common.HexToAddress(payer)},
-		},
+	results, reqAmount, _ := uptoPermit2Multicall3(ctx, signer, tokenAddress, payer, amountRequired, evm.MulticallCall{
+		Address:      evm.MULTICALL3Address,
+		ABI:          evm.Multicall3GetEthBalanceABI,
+		FunctionName: "getEthBalance",
+		Args:         []interface{}{common.HexToAddress(payer)},
 	})
-	if err != nil || len(results) < 3 {
-		return &x402.VerifyResponse{IsValid: true, Payer: payer}
+	if results == nil {
+		return &x402.VerifyResponse{IsValid: true, Payer: payer} // fail-open on multicall error
 	}
 
 	if !results[0].Success() {
 		return &x402.VerifyResponse{IsValid: false, InvalidReason: ErrPermit2ProxyNotDeployed, Payer: payer}
 	}
 
-	reqAmount, ok := new(big.Int).SetString(amountRequired, 10)
-	if ok && results[1].Success() {
+	if reqAmount != nil && results[1].Success() {
 		if balance := asBigInt(results[1].Result); balance != nil && balance.Cmp(reqAmount) < 0 {
 			return &x402.VerifyResponse{IsValid: false, InvalidReason: ErrPermit2InsufficientBalance, Payer: payer}
 		}

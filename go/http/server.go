@@ -650,9 +650,9 @@ func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool
 }
 
 // SettlementOverridesHeader is the HTTP header name for settlement overrides.
-// Callers must use http.Header methods (e.g. Get/Set/Del) which canonicalize the key,
-// because net/http stores headers as Title-Case ("Settlement-Overrides").
-const SettlementOverridesHeader = "settlement-overrides"
+// The value is the canonical HTTP header form (Title-Case) so it works correctly
+// with both http.Header methods and direct map access.
+const SettlementOverridesHeader = "Settlement-Overrides"
 
 // MarshalSettlementOverrides serializes overrides to the JSON string suitable for
 // the SettlementOverridesHeader value. Returns an empty string on marshal failure
