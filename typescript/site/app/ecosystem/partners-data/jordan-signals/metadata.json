@@ -1,0 +1,7 @@
+{
+  "name": "Jordan Signal API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/jordan-signals.png",
+  "description": "Prediction market ML signals and crypto technical analysis, pay-per-call in USDC on Base. Endpoints: Kalshi ML probability vs implied odds, BTC/ETH/SOL momentum signals, sentiment scoring, live Polymarket opportunities, and full ensemble output. Trained on real Kalshi market data.",
+  "websiteUrl": "https://jordan-signals.willshanahan.workers.dev/capabilities"
+}
