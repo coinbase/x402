@@ -1,0 +1,7 @@
+{
+  "name": "CardZero",
+  "description": "Payment wallet for AI agents on Base L2. Each agent gets an ERC-4337 smart contract wallet with owner-controlled spending rules. x402 buyer support via POST /v1/x402/pay.",
+  "logoUrl": "/logos/cardzero.svg",
+  "websiteUrl": "https://cardzero.ai",
+  "category": "Client-Side Integrations"
+}
