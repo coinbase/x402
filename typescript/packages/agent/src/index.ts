@@ -7,6 +7,9 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { z } from 'zod'
 
+// Add fetch types globally
+declare const fetch: (_input: RequestInfo | URL, _init?: RequestInit) => Promise<Response>
+
 /**
  * Configuration for the simplified x402 agent client
  */
@@ -104,7 +107,8 @@ export async function createX402Client(config: X402AgentConfig = {}) {
         base58.decode(walletConfig.svmPrivateKey),
       )
       client.register('solana:*', new ExactSvmScheme(svmSigner))
-    } catch (error) {
+    } catch {
+       
       console.warn('⚠️  Solana support not available. Install @solana/kit for Solana payments.')
     }
   }
@@ -156,12 +160,16 @@ async function loadOrCreateWallet(
     try {
       const walletData = JSON.parse(readFileSync(walletPath, 'utf-8'))
       const wallet = WalletConfigSchema.parse(walletData)
+       
       console.log(`📦 Loaded x402 wallet from ${walletPath}`)
+       
       console.log(`💰 EVM Address: ${wallet.addresses.evm}`)
+       
       console.log(`💰 SVM Address: ${wallet.addresses.svm}`)
       return wallet
-    } catch (error) {
-      console.warn(`⚠️  Invalid wallet config, creating new one: ${error}`)
+    } catch (_error) {
+       
+      console.warn(`⚠️  Invalid wallet config, creating new one: ${_error}`)
     }
   }
 
@@ -186,7 +194,8 @@ async function loadOrCreateWallet(
 
     wallet.svmPrivateKey = svmPrivateKey
     wallet.addresses.svm = svmAccount.address
-  } catch (error) {
+  } catch {
+     
     console.log(
       'ℹ️  Solana support not available. EVM-only mode. Install @solana/kit for Solana support.',
     )
@@ -194,9 +203,12 @@ async function loadOrCreateWallet(
 
   // Save wallet
   writeFileSync(walletPath, JSON.stringify(wallet, null, 2))
+   
   console.log(`🆕 Created new x402 wallet at ${walletPath}`)
+   
   console.log(`💰 EVM Address: ${wallet.addresses.evm} (Base, Ethereum)`)
   if (wallet.addresses.svm) {
+     
     console.log(`💰 Solana Address: ${wallet.addresses.svm}`)
   }
   console.log(`⚠️  Fund these addresses with USDC to start making payments`)

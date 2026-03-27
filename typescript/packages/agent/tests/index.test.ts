@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createX402Client, getWalletInfo } from '../src/index'
-import { existsSync, unlinkSync, mkdirSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -60,7 +60,7 @@ describe('@x402/agent', () => {
       const customEvmKey = '0x1234567890123456789012345678901234567890123456789012345678901234'
       const customSvmKey = '5J3mBbAH58CpQ3Y2BbkByE4xNqkMSMW5kLvAj9C9kJ2yHw1F4g3i4j5k6l7m8n9o'
 
-      const client = createX402Client({
+      const _client = createX402Client({
         walletPath,
         evmPrivateKey: customEvmKey,
         svmPrivateKey: customSvmKey,
