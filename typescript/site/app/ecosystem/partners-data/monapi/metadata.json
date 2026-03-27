@@ -1,0 +1,7 @@
+{
+  "name": "monapi",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/monapi.png",
+  "description": "One-line API monetization SDK for x402. Wraps the entire x402 setup into a single function call. Supports Express, Next.js, and MCP. Set your price, provide your wallet — monapi handles payment verification, scheme registration, and facilitator communication.",
+  "websiteUrl": "https://monapi.dev"
+}
