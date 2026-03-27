@@ -3,7 +3,6 @@ package echo
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -359,6 +358,7 @@ func handlePaymentVerified(c echo.Context, next echo.HandlerFunc, server *x402ht
 
 	// Restore original writer
 	c.Response().Writer = origWriter
+	c.Response().Committed = false
 
 	// If handler returned error, propagate it
 	if err != nil {
@@ -378,26 +378,27 @@ func handlePaymentVerified(c echo.Context, next echo.HandlerFunc, server *x402ht
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
+		nil,
 	)
 
 	// Check settlement success
 	if !settleResult.Success {
-		errorReason := settleResult.ErrorReason
-		if errorReason == "" {
-			errorReason = "Settlement failed"
+		// Always set PAYMENT-RESPONSE header on settlement failure
+		for key, value := range settleResult.Headers {
+			origWriter.Header().Set(key, value)
 		}
-		if config.ErrorHandler != nil {
+		switch {
+		case config.ErrorHandler != nil:
+			errorReason := settleResult.ErrorReason
+			if errorReason == "" {
+				errorReason = "Settlement failed"
+			}
 			config.ErrorHandler(c, fmt.Errorf("settlement failed: %s", errorReason))
-			return nil
+		case settleResult.Response != nil:
+			return handlePaymentError(c, settleResult.Response)
+		default:
+			return c.JSON(http.StatusPaymentRequired, map[string]interface{}{})
 		}
-		// Write error response directly to original writer
-		errorBody, _ := json.Marshal(map[string]interface{}{
-			"error":   "Settlement failed",
-			"details": errorReason,
-		})
-		origWriter.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		origWriter.WriteHeader(http.StatusPaymentRequired)
-		_, _ = origWriter.Write(errorBody)
 		return nil
 	}
 
@@ -467,3 +468,6 @@ func (w *responseCapture) Write(data []byte) (int, error) {
 func (w *responseCapture) WriteString(s string) (int, error) {
 	return w.Write([]byte(s))
 }
+
+// Flush is a no-op to prevent premature flushing to the wire before settlement.
+func (w *responseCapture) Flush() {}
