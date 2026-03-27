@@ -1,0 +1,7 @@
+{
+  "name": "ClearAgent",
+  "description": "Real-time BSA/AML compliance screening for AI agent payments. OFAC sanctions screening, spend policy enforcement, and BSA officer review queue — before settlement, in under 50ms.",
+  "logoUrl": "/logos/clearagent.png",
+  "websiteUrl": "https://clearagent.dev",
+  "category": "Services/Endpoints"
+}
