@@ -33,7 +33,8 @@
       "description": "Protected endpoint requiring Permit2 payment with EIP-2612 gas sponsoring",
       "requiresPayment": true,
       "protocolFamily": "evm",
-      "transferMethod": "permit2"
+      "transferMethod": "permit2",
+      "coldstart": true
     },
     {
       "path": "/exact/evm/permit2-erc20ApprovalGasSponsoring",
@@ -42,7 +43,8 @@
       "requiresPayment": true,
       "protocolFamily": "evm",
       "transferMethod": "permit2",
-      "extensions": ["erc20ApprovalGasSponsoring"]
+      "extensions": ["erc20ApprovalGasSponsoring"],
+      "coldstart": true
     },
     {
       "path": "/exact/svm",
