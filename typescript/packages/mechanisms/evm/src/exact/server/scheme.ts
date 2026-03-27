@@ -6,6 +6,7 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
+import { getDefaultAsset, type ExactDefaultAssetInfo } from "../../shared/defaultAssets";
 
 /**
  * EVM server implementation for the Exact payment scheme.
@@ -129,15 +130,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Default money conversion implementation.
-   * Converts decimal amount to the default stablecoin on the specified network.
+   * Converts a numeric dollar amount to an AssetAmount using the default token for the network.
    *
-   * @param amount - The decimal amount (e.g., 1.50)
-   * @param network - The network to use
-   * @returns The parsed asset amount in the default stablecoin
+   * @param amount - The dollar amount as a number
+   * @param network - The target network
+   * @returns The converted asset amount with token metadata
    */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    const assetInfo = this.getDefaultAsset(network);
+    const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network);
     const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
@@ -162,18 +162,17 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Convert decimal amount to token units (e.g., 0.10 -> 100000 for 6-decimal tokens)
+   * Converts a decimal string amount to an integer token amount using the given decimals.
    *
-   * @param decimalAmount - The decimal amount to convert
-   * @param decimals - The number of decimals for the token
-   * @returns The token amount as a string
+   * @param decimalAmount - The amount as a decimal string (e.g. "1.5")
+   * @param decimals - The number of decimal places for the token
+   * @returns The token amount as an integer string in smallest units
    */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);
     if (isNaN(amount)) {
       throw new Error(`Invalid amount: ${decimalAmount}`);
     }
-    // Convert to smallest unit (e.g., for USDC with 6 decimals: 0.10 * 10^6 = 100000)
     const [intPart, decPart = ""] = String(amount).split(".");
     const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
     const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
