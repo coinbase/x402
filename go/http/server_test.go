@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -564,10 +565,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 
 	t.Run("reads overrides from response headers", func(t *testing.T) {
 		capturedRequirements = nil
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"500"}`)
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"500"}`},
-			},
+			ResponseHeaders: h,
 		}
 
 		result := server.ProcessSettlement(ctx, payload, requirements, nil, tc)
@@ -586,10 +587,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 
 	t.Run("explicit overrides take precedence over header", func(t *testing.T) {
 		capturedRequirements = nil
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"500"}`)
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"500"}`},
-			},
+			ResponseHeaders: h,
 		}
 		explicit := &x402.SettlementOverrides{Amount: "200"}
 
@@ -609,10 +610,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 
 	t.Run("malformed header is ignored", func(t *testing.T) {
 		capturedRequirements = nil
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, "not-valid-json{{{")
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {"not-valid-json{{{"},
-			},
+			ResponseHeaders: h,
 		}
 
 		result := server.ProcessSettlement(ctx, payload, requirements, nil, tc)
@@ -630,19 +631,19 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 	})
 
 	t.Run("header is deleted after extraction", func(t *testing.T) {
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"500"}`)
+		h.Set("Content-Type", "application/json")
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"500"}`},
-				"Content-Type":            {"application/json"},
-			},
+			ResponseHeaders: h,
 		}
 
 		server.ProcessSettlement(ctx, payload, requirements, nil, tc)
 
-		if _, exists := tc.ResponseHeaders[SettlementOverridesHeader]; exists {
+		if tc.ResponseHeaders.Get(SettlementOverridesHeader) != "" {
 			t.Error("expected settlement-overrides header to be deleted from transport context")
 		}
-		if _, exists := tc.ResponseHeaders["Content-Type"]; !exists {
+		if tc.ResponseHeaders.Get("Content-Type") == "" {
 			t.Error("expected other headers to remain")
 		}
 	})
@@ -667,10 +668,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 
 	t.Run("percent override via header", func(t *testing.T) {
 		capturedRequirements = nil
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"50%"}`)
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"50%"}`},
-			},
+			ResponseHeaders: h,
 		}
 
 		result := server.ProcessSettlement(ctx, payload, requirements, nil, tc)
@@ -690,10 +691,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 
 	t.Run("dollar override via header with default decimals", func(t *testing.T) {
 		capturedRequirements = nil
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"$0.001"}`)
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"$0.001"}`},
-			},
+			ResponseHeaders: h,
 		}
 
 		result := server.ProcessSettlement(ctx, payload, requirements, nil, tc)
@@ -726,10 +727,10 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 			Accepted:    reqsWithDecimals,
 			Payload:     map[string]interface{}{},
 		}
+		h := http.Header{}
+		h.Set(SettlementOverridesHeader, `{"amount":"$0.05"}`)
 		tc := &HTTPTransportContext{
-			ResponseHeaders: map[string][]string{
-				SettlementOverridesHeader: {`{"amount":"$0.05"}`},
-			},
+			ResponseHeaders: h,
 		}
 
 		result := server.ProcessSettlement(ctx, payloadWithDecimals, reqsWithDecimals, nil, tc)

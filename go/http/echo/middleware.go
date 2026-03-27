@@ -3,7 +3,6 @@ package echo
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -18,8 +17,7 @@ import (
 // SetSettlementOverrides sets settlement overrides on the Echo response for partial settlement.
 // The middleware extracts these before settlement and strips the header from the client response.
 func SetSettlementOverrides(c echo.Context, overrides *x402.SettlementOverrides) {
-	data, _ := json.Marshal(overrides)
-	c.Response().Header().Set(x402http.SettlementOverridesHeader, string(data))
+	c.Response().Header().Set(x402http.SettlementOverridesHeader, x402http.MarshalSettlementOverrides(overrides))
 }
 
 // ============================================================================

@@ -1,7 +1,8 @@
 package facilitator
 
+import "github.com/coinbase/x402/go/mechanisms/evm"
+
 // Upto-specific error constants.
-// Shared Permit2 error constants are imported from exact/facilitator where needed.
 const (
 	ErrUptoInvalidScheme            = "invalid_upto_evm_scheme"
 	ErrUptoNetworkMismatch          = "invalid_upto_evm_network_mismatch"
@@ -15,27 +16,27 @@ const (
 	ErrUptoFailedToGetReceipt       = "invalid_upto_evm_failed_to_get_receipt"
 	ErrUptoTransactionFailed        = "invalid_upto_evm_transaction_failed"
 
-	// Shared Permit2 error constants (same values as exact for cross-SDK parity)
-	ErrPermit2InvalidSpender      = "invalid_permit2_spender"
-	ErrPermit2RecipientMismatch   = "invalid_permit2_recipient_mismatch"
-	ErrPermit2DeadlineExpired     = "permit2_deadline_expired"
-	ErrPermit2NotYetValid         = "permit2_not_yet_valid"
-	ErrPermit2AmountMismatch      = "permit2_amount_mismatch"
-	ErrPermit2TokenMismatch       = "permit2_token_mismatch"
-	ErrPermit2InvalidSignature    = "invalid_permit2_signature"
-	ErrPermit2InvalidAmount       = "permit2_invalid_amount"
-	ErrPermit2InvalidDestination  = "permit2_invalid_destination"
-	ErrPermit2InvalidOwner        = "permit2_invalid_owner"
-	ErrPermit2PaymentTooEarly     = "permit2_payment_too_early"
-	ErrPermit2InvalidNonce        = "permit2_invalid_nonce"
-	ErrPermit2612AmountMismatch   = "permit2_2612_amount_mismatch"
-	ErrPermit2SimulationFailed    = "permit2_simulation_failed"
-	ErrPermit2InsufficientBalance = "permit2_insufficient_balance"
-	ErrPermit2ProxyNotDeployed    = "permit2_proxy_not_deployed"
-	ErrPermit2AllowanceRequired   = "permit2_allowance_required"
+	// Shared Permit2 error constants — canonical values live in evm.ErrPermit2*
+	ErrPermit2InvalidSpender      = evm.ErrPermit2InvalidSpender
+	ErrPermit2RecipientMismatch   = evm.ErrPermit2RecipientMismatch
+	ErrPermit2DeadlineExpired     = evm.ErrPermit2DeadlineExpired
+	ErrPermit2NotYetValid         = evm.ErrPermit2NotYetValid
+	ErrPermit2AmountMismatch      = evm.ErrPermit2AmountMismatch
+	ErrPermit2TokenMismatch       = evm.ErrPermit2TokenMismatch
+	ErrPermit2InvalidSignature    = evm.ErrPermit2InvalidSignature
+	ErrPermit2InvalidAmount       = evm.ErrPermit2InvalidAmount
+	ErrPermit2InvalidDestination  = evm.ErrPermit2InvalidDestination
+	ErrPermit2InvalidOwner        = evm.ErrPermit2InvalidOwner
+	ErrPermit2PaymentTooEarly     = evm.ErrPermit2PaymentTooEarly
+	ErrPermit2InvalidNonce        = evm.ErrPermit2InvalidNonce
+	ErrPermit2612AmountMismatch   = evm.ErrPermit2612AmountMismatch
+	ErrPermit2SimulationFailed    = evm.ErrPermit2SimulationFailed
+	ErrPermit2InsufficientBalance = evm.ErrPermit2InsufficientBalance
+	ErrPermit2ProxyNotDeployed    = evm.ErrPermit2ProxyNotDeployed
+	ErrPermit2AllowanceRequired   = evm.ErrPermit2AllowanceRequired
 
-	ErrErc20ApprovalInsufficientEth = "erc20_approval_insufficient_eth_for_gas"
-	ErrErc20ApprovalBroadcastFailed = "erc20_approval_broadcast_failed"
+	ErrErc20ApprovalInsufficientEth = evm.ErrErc20ApprovalInsufficientEth
+	ErrErc20ApprovalBroadcastFailed = evm.ErrErc20ApprovalBroadcastFailed
 
 	ErrInvalidSignatureFormat = "invalid_upto_evm_signature_format"
 	ErrInvalidRequiredAmount  = "invalid_upto_evm_required_amount"

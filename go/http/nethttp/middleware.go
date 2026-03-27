@@ -17,8 +17,7 @@ import (
 // SetSettlementOverrides sets settlement overrides on the response for partial settlement.
 // The middleware extracts these before settlement and strips the header from the client response.
 func SetSettlementOverrides(w http.ResponseWriter, overrides *x402.SettlementOverrides) {
-	data, _ := json.Marshal(overrides)
-	w.Header().Set(x402http.SettlementOverridesHeader, string(data))
+	w.Header().Set(x402http.SettlementOverridesHeader, x402http.MarshalSettlementOverrides(overrides))
 }
 
 // ============================================================================

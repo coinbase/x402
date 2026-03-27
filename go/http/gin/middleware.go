@@ -3,7 +3,6 @@ package gin
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -18,8 +17,7 @@ import (
 // SetSettlementOverrides sets settlement overrides on the Gin response for partial settlement.
 // The middleware extracts these before settlement and strips the header from the client response.
 func SetSettlementOverrides(c *gin.Context, overrides *x402.SettlementOverrides) {
-	data, _ := json.Marshal(overrides)
-	c.Header(x402http.SettlementOverridesHeader, string(data))
+	c.Header(x402http.SettlementOverridesHeader, x402http.MarshalSettlementOverrides(overrides))
 }
 
 // ============================================================================

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"regexp"
 	"strconv"
@@ -60,12 +59,16 @@ func ResolveSettlementOverrideAmount(rawAmount string, requirements types.Paymen
 				}
 			}
 		}
-		dollars, err := strconv.ParseFloat(m[1], 64)
-		if err != nil {
+		dollarFloat, ok := new(big.Float).SetPrec(256).SetString(m[1])
+		if !ok {
 			return "", fmt.Errorf("invalid dollar amount: %s", rawAmount)
 		}
-		atomic := math.Round(dollars * math.Pow(10, float64(decimals)))
-		return strconv.FormatInt(int64(atomic), 10), nil
+		multiplier := new(big.Float).SetPrec(256).SetInt(
+			new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil),
+		)
+		atomicFloat := new(big.Float).SetPrec(256).Mul(dollarFloat, multiplier)
+		atomicInt, _ := atomicFloat.Int(nil) // truncates toward zero (floor for positive values)
+		return atomicInt.String(), nil
 	}
 
 	return rawAmount, nil

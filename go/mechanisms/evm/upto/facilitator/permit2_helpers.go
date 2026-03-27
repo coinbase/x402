@@ -328,20 +328,4 @@ func asBigInt(value interface{}) *big.Int {
 	}
 }
 
-func splitEip2612Signature(signature string) (uint8, [32]byte, [32]byte, error) {
-	sigBytes, err := evm.HexToBytes(signature)
-	if err != nil {
-		return 0, [32]byte{}, [32]byte{}, err
-	}
-
-	if len(sigBytes) != 65 {
-		return 0, [32]byte{}, [32]byte{}, errParse("signature must be 65 bytes")
-	}
-
-	var r, s [32]byte
-	copy(r[:], sigBytes[0:32])
-	copy(s[:], sigBytes[32:64])
-	v := sigBytes[64]
-
-	return v, r, s, nil
-}
+var splitEip2612Signature = evm.SplitEip2612Signature
