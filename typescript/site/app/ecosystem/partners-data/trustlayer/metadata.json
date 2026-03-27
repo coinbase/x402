@@ -1,0 +1,7 @@
+{
+  "name": "TrustLayer",
+  "description": "Reputation intelligence API for AI agents. Scores agents 0-100 across 6 chains (BSC, Ethereum, Base, Monad, Polygon, Solana) using on-chain feedback analysis, Sybil detection, and cross-chain identity resolution. Paid via x402 micropayments ($0.001 USDC per query on Base).",
+  "logoUrl": "/logos/trustlayer.png",
+  "websiteUrl": "https://thetrustlayer.xyz",
+  "category": "Services/Endpoints"
+}
