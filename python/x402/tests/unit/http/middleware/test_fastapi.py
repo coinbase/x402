@@ -577,7 +577,6 @@ class TestFastAPIMiddlewareConcurrency:
         }
 
         init_call_count = 0
-        init_event = asyncio.Event()
 
         with patch("x402.http.middleware.fastapi.x402HTTPResourceServer") as mock_http_server:
             mock_http_server_instance = MagicMock()
@@ -609,7 +608,7 @@ class TestFastAPIMiddlewareConcurrency:
             async def call_next(req):
                 return MagicMock()
 
-            results = await asyncio.gather(
+            await asyncio.gather(
                 mw(request1, call_next),
                 mw(request2, call_next),
                 mw(request3, call_next),
