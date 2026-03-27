@@ -138,7 +138,10 @@ describe("Core Integration Tests", () => {
       expect(initial402Response.headers).toBeDefined();
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
       expect(initial402Response.isHtml).toBeFalsy();
-      expect(initial402Response.body).toEqual({});
+      // Default body contains the PaymentRequired object for agent discoverability
+      expect(initial402Response.body).toBeDefined();
+      expect((initial402Response.body as Record<string, unknown>).x402Version).toBeDefined();
+      expect((initial402Response.body as Record<string, unknown>).accepts).toBeDefined();
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(

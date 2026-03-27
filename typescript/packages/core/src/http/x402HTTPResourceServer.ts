@@ -894,9 +894,12 @@ export class x402HTTPResourceServer {
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
 
-    // Use callback result if provided, otherwise default to JSON with empty object
+    // Use callback result if provided, otherwise include the PaymentRequired object
+    // in the body for agent discoverability (addresses #1677). Clients that use the
+    // PAYMENT-REQUIRED header (v2) will ignore the body; clients that parse the body
+    // (v1, third-party agents) get structured payment info instead of an empty {}.
     const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
-    const body = unpaidResponse ? unpaidResponse.body : {};
+    const body = unpaidResponse ? unpaidResponse.body : paymentRequired;
 
     return {
       status,

@@ -108,17 +108,21 @@ export class x402HTTPClient {
       return decodePaymentRequiredHeader(paymentRequired);
     }
 
-    // v1
+    // v1 or v2 body fallback (body contains PaymentRequired with accepts[])
     if (
       body &&
       body instanceof Object &&
       "x402Version" in body &&
-      (body as PaymentRequired).x402Version === 1
+      "accepts" in body
     ) {
       return body as PaymentRequired;
     }
 
-    throw new Error("Invalid payment required response");
+    throw new Error(
+      "Invalid payment required response: expected PAYMENT-REQUIRED header (v2) " +
+        "or response body with x402Version and accepts[] fields. " +
+        "See https://docs.x402.org for the correct 402 response format.",
+    );
   }
 
   /**
