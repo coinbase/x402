@@ -1,0 +1,7 @@
+{
+  "name": "x402dash",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402dash.png",
+  "description": "Independent liveness dashboard and scoring engine for x402 endpoints. Monitors 200+ providers with L1-L3 scoring, FTS5 search, and liveness history — paid via x402 on Base.",
+  "websiteUrl": "https://x402dash.com"
+}
