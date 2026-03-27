@@ -1,0 +1,7 @@
+{
+  "name": "X.orb",
+  "description": "The orchestration layer for AI agent trust. One API call runs every agent action through an 8-gate security pipeline — identity (ERC-8004), permissions, rate limits, x402 micropayments, audit logging, trust scoring (MoltGuard), execution, and escrow. Live on Polygon and Base with 8 deployed smart contracts. SDK on npm.",
+  "logoUrl": "/logos/xorb.png",
+  "websiteUrl": "https://xorb.xyz",
+  "category": "Infrastructure & Tooling"
+}
