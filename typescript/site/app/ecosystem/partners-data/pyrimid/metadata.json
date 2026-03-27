@@ -1,0 +1,7 @@
+{
+  "name": "Pyrimid",
+  "description": "Onchain agent-to-agent commerce protocol on Base. Commission routing via ERC-8004 smart contracts with x402 payment gating. 1% protocol fee, USDC settlement.",
+  "logoUrl": "/logos/pyrimid.png",
+  "websiteUrl": "https://pyrimid.ai",
+  "category": "Facilitators"
+}
