@@ -1,0 +1,25 @@
+{
+  "name": "Alby Bitcoin Facilitator",
+  "description": "The first X402 facilitator to accept Bitcoin payments on the Lightning Network — the only form of money that settles instantly, without issuer risk, on permissionless rails.",
+  "logoUrl": "/logos/alby.png",
+  "websiteUrl": "https://x402.albylabs.com/",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402.albylabs.com/",
+    "networks": [
+      "lightning"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "BTC"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
