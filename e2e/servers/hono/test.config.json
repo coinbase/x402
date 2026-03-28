@@ -43,6 +43,15 @@
       "coldstart": true
     },
     {
+      "path": "/upto/evm/permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment (direct, client must pre-approve)",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto",
+      "permit2Direct": true
+    },
+    {
       "path": "/upto/evm/permit2-eip2612GasSponsoring",
       "method": "GET",
       "description": "Protected endpoint requiring Upto Permit2 payment with EIP-2612 gas sponsoring",
