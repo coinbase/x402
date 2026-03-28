@@ -194,4 +194,97 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
     return tokenAmount;
   }
+
+  /**
+   * Get the default asset info for a network (typically USDC)
+   *
+   * @param network - The network to get asset info for
+   * @returns The asset information including address, name, version, and decimals
+   */
+  private getDefaultAsset(network: Network): {
+    address: string;
+    name: string;
+    version: string;
+    decimals: number;
+    assetTransferMethod?: string;
+    supportsEip2612?: boolean;
+  } {
+    // Map of network to stablecoin info including EIP-712 domain parameters.
+    // Each network has the right to determine its own default stablecoin that can be expressed as a USD string by calling servers.
+    // Tokens that don't support EIP-3009 should set assetTransferMethod: "permit2".
+    // For permit2 tokens, set supportsEip2612: true if the token implements EIP-2612 permit().
+    // When supportsEip2612 is false/absent on a permit2 token, name/version are omitted from
+    // extra so the client skips the EIP-2612 path and falls back to ERC-20 approval gas sponsoring.
+    const stablecoins: Record<
+      string,
+      {
+        address: string;
+        name: string;
+        version: string;
+        decimals: number;
+        assetTransferMethod?: string;
+        supportsEip2612?: boolean;
+      }
+    > = {
+      "eip155:8453": {
+        address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Base mainnet USDC
+      "eip155:84532": {
+        address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        name: "USDC",
+        version: "2",
+        decimals: 6,
+      }, // Base Sepolia USDC
+      "eip155:4326": {
+        address: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+        name: "MegaUSD",
+        version: "1",
+        decimals: 18,
+        assetTransferMethod: "permit2",
+        supportsEip2612: true,
+      }, // MegaETH mainnet MegaUSD (no EIP-3009, supports EIP-2612)
+      "eip155:143": {
+        address: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Monad mainnet USDC
+      "eip155:31611": {
+        address: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+        name: "Mezo USD",
+        version: "1",
+        decimals: 18,
+        assetTransferMethod: "permit2",
+        supportsEip2612: true,
+      }, // Mezo Testnet mUSD (no EIP-3009, supports EIP-2612)
+      "eip155:988": {
+        address: "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+        name: "USDT0",
+        version: "1",
+        decimals: 6,
+      }, // Stable mainnet USDT0
+      "eip155:42161": {
+        address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Arbitrum One USDC
+      "eip155:421614": {
+        address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+        name: "USD Coin",
+        version: "2",
+        decimals: 6,
+      }, // Arbitrum Sepolia USDC
+    };
+
+    const assetInfo = stablecoins[network];
+    if (!assetInfo) {
+      throw new Error(`No default asset configured for network ${network}`);
+    }
+
+    return assetInfo;
+  }
 }
