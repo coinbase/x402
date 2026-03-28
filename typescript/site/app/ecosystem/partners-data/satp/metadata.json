@@ -1,0 +1,7 @@
+{
+  "name": "SATP (Soulbound Agent Trust Protocol)",
+  "description": "On-chain trust and identity verification for AI agents on Solana. SATP provides soulbound reputation tokens, multi-source trust scoring, and verifiable agent portfolios — enabling agents to prove trustworthiness before transacting via x402.",
+  "logoUrl": "/logos/satp.png",
+  "websiteUrl": "https://agentfolio.bot",
+  "category": "Infrastructure & Tooling"
+}
