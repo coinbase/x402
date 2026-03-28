@@ -1,0 +1,7 @@
+{
+    "name": "x402-cfo",
+    "description": "Agent financial controller for x402 payments. Budget enforcement, cost policies, spend ledger, analytics, event system, and persistent storage for AI agents making autonomous on-chain payments. Drop-in fetch replacement with LangChain, CrewAI, and MCP integrations.",
+    "logoUrl": "/logos/x402-cfo.png",
+    "websiteUrl": "https://upn-130guthub.github.io/x402-cfo/",
+    "category": "Infrastructure & Tooling"
+}
