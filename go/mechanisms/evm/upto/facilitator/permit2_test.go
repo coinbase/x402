@@ -788,13 +788,15 @@ func TestUptoEvmScheme_GetExtra_NoAddresses(t *testing.T) {
 	}
 }
 
-func TestUptoEvmScheme_GetExtra_MultipleAddresses_UsesFirst(t *testing.T) {
+func TestUptoEvmScheme_GetExtra_MultipleAddresses_UsesOneFromPool(t *testing.T) {
 	addr1 := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	addr2 := "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	pool := map[string]bool{addr1: true, addr2: true}
 	s := NewUptoEvmScheme(newMockSigner(addr1, addr2), nil)
 	extra := s.GetExtra(x402.Network(testNetwork))
-	if extra["facilitatorAddress"] != addr1 {
-		t.Errorf("expected first address %s, got %v", addr1, extra["facilitatorAddress"])
+	got, ok := extra["facilitatorAddress"].(string)
+	if !ok || !pool[got] {
+		t.Errorf("expected one of pool addresses, got %v", extra["facilitatorAddress"])
 	}
 }
 

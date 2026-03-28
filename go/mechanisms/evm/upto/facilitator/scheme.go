@@ -42,8 +42,7 @@ func (f *UptoEvmScheme) CaipFamily() string {
 }
 
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
-// For upto, returns a randomly selected facilitatorAddress so clients include it in
-// their signed witness. Randomizing distributes settlement load across the signer pool.
+// For upto, returns the facilitatorAddress so clients include it in their signed witness.
 func (f *UptoEvmScheme) GetExtra(_ x402.Network) map[string]interface{} {
 	addresses := f.signer.GetAddresses()
 	if len(addresses) == 0 {
