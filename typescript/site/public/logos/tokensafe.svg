@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <style>
+      .stroke-mark { fill: none; stroke: #00E5FF; stroke-linecap: round; stroke-linejoin: round; }
+      .fill-mark { fill: #00E5FF; }
+    </style>
+  </defs>
+
+  <!-- Dark background -->
+  <rect width="512" height="512" rx="64" fill="#111111"/>
+
+  <!-- Left beam -->
+  <line class="stroke-mark" x1="108" y1="408" x2="256" y2="104" stroke-width="36" />
+
+  <!-- Right beam -->
+  <line class="stroke-mark" x1="404" y1="408" x2="256" y2="104" stroke-width="36" />
+
+  <!-- Waveform crossbar -->
+  <path class="stroke-mark"
+    d="M 168,300
+       C 180,268 200,268 212,300
+       C 224,332 244,332 256,300
+       C 268,268 288,268 300,300
+       C 312,332 332,332 344,300"
+    stroke-width="20" />
+
+  <!-- Base feet -->
+  <line class="stroke-mark" x1="76" y1="408" x2="140" y2="408" stroke-width="36" />
+  <line class="stroke-mark" x1="372" y1="408" x2="436" y2="408" stroke-width="36" />
+
+</svg>
