@@ -14,6 +14,7 @@ from x402.mcp import (
     create_payment_wrapper_sync as create_payment_wrapper,
 )
 from x402.mcp.types import MCPToolResult
+from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
 from x402.schemas import PaymentPayload, PaymentRequirements, SettleResponse
 
 
@@ -586,57 +587,21 @@ def test_create_payment_wrapper_hooks_order():
     assert call_order == ["before", "handler", "after", "settlement"]
 
 
-# ============================================================================
-# Additional edge case scenarios
-# ============================================================================
-
-
-def _make_default_accepts():
-    """Helper to create default accepts list."""
-    return [
-        PaymentRequirements(
-            scheme="exact",
-            network="eip155:84532",
-            amount="1000",
-            asset="USDC",
-            pay_to="0xrecipient",
-            max_timeout_seconds=300,
-        )
-    ]
-
-
-def _make_payload(**overrides):
-    """Helper to build a PaymentPayload with optional overrides."""
-    accepted = {
-        "scheme": "exact",
-        "network": "eip155:84532",
-        "amount": "1000",
-        "asset": "USDC",
-        "pay_to": "0xrecipient",
-        "max_timeout_seconds": 300,
-    }
-    accepted.update(overrides)
-    return PaymentPayload(
-        x402_version=2,
-        accepted=accepted,
-        payload={"signature": "0x123"},
-    )
-
-
-def _make_extra(payload, tool_name="test"):
-    """Helper to build extra dict for wrapped handler."""
-    return {
-        "_meta": {
-            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
-        },
-        "toolName": tool_name,
-    }
-
-
 def test_no_meta_key_returns_402():
-    """When _meta is missing entirely from extra, return payment-required error."""
+    """Test that missing _meta key returns payment-required error."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     wrapped = create_payment_wrapper(server, config)(lambda args, ctx: {"content": []})
     result = wrapped({}, {"toolName": "test"})
@@ -645,9 +610,20 @@ def test_no_meta_key_returns_402():
 
 
 def test_non_dict_meta_returns_402():
-    """When _meta is not a dict, return payment-required error."""
+    """Test that non-dict _meta returns payment-required error."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     wrapped = create_payment_wrapper(server, config)(lambda args, ctx: {"content": []})
     result = wrapped({}, {"_meta": "bad", "toolName": "test"})
@@ -656,23 +632,63 @@ def test_non_dict_meta_returns_402():
 
 
 def test_no_matching_requirements():
-    """When payment doesn't match any accepts entry, return 402."""
+    """Test that mismatched network returns 402 without verification."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     wrapped = create_payment_wrapper(server, config)(lambda args, ctx: {"content": []})
 
-    payload = _make_payload(network="eip155:1")
-    result = wrapped({}, _make_extra(payload))
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:1",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    result = wrapped({}, extra)
 
     assert result.is_error is True
     assert not server.verify_payment.called
 
 
 def test_handler_returns_mcp_tool_result():
-    """Handler that returns MCPToolResult directly is used as-is."""
+    """Test that handler returning MCPToolResult directly is used as-is."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     def handler(args, context):
         return MCPToolResult(
@@ -681,28 +697,90 @@ def test_handler_returns_mcp_tool_result():
         )
 
     wrapped = create_payment_wrapper(server, config)(handler)
-    result = wrapped({}, _make_extra(_make_payload()))
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    result = wrapped({}, extra)
 
     assert result.is_error is False
     assert result.content[0]["text"] == "direct result"
 
 
 def test_handler_returns_non_dict():
-    """Handler returning a non-dict/non-MCPToolResult gets stringified."""
+    """Test that handler returning a non-dict gets stringified."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     wrapped = create_payment_wrapper(server, config)(lambda args, ctx: 42)
-    result = wrapped({}, _make_extra(_make_payload()))
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    result = wrapped({}, extra)
 
     assert result.is_error is False
     assert result.content[0]["text"] == "42"
 
 
 def test_handler_dict_with_structured_content():
-    """Dict result with structuredContent key is preserved."""
+    """Test that dict result with structuredContent key is preserved."""
     server = MockResourceServer()
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     def handler(args, context):
         return {
@@ -712,40 +790,98 @@ def test_handler_dict_with_structured_content():
         }
 
     wrapped = create_payment_wrapper(server, config)(handler)
-    result = wrapped({}, _make_extra(_make_payload()))
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    result = wrapped({}, extra)
 
     assert result.structured_content == {"key": "value"}
 
 
 def test_empty_accepts_raises():
-    """PaymentWrapperConfig with empty accepts raises ValueError."""
+    """Test that empty accepts raises ValueError."""
     with pytest.raises(ValueError, match="at least one"):
         PaymentWrapperConfig(accepts=[])
 
 
 def test_verification_failure_no_reason():
-    """When verification fails without a reason, wrapper still returns 402."""
+    """Test that verification failure without reason still returns 402."""
     server = MockResourceServer()
     server.verify_payment = Mock(return_value=Mock(is_valid=False, invalid_reason=None))
-    config = PaymentWrapperConfig(accepts=_make_default_accepts())
+    config = PaymentWrapperConfig(
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
+    )
 
     wrapped = create_payment_wrapper(server, config)(lambda args, ctx: {"content": []})
-    result = wrapped({}, _make_extra(_make_payload()))
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    result = wrapped({}, extra)
 
     assert result.is_error is True
 
 
 def test_hook_context_carries_expected_fields():
-    """Verify hook context objects carry tool_name, arguments, and payment data."""
-    from x402.mcp.types import SyncPaymentWrapperHooks as PaymentWrapperHooks
-
+    """Test that hook context objects carry tool_name, arguments, and payment data."""
     server = MockResourceServer()
     captured_before = []
     captured_after = []
     captured_settlement = []
 
     config = PaymentWrapperConfig(
-        accepts=_make_default_accepts(),
+        accepts=[
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000",
+                asset="USDC",
+                pay_to="0xrecipient",
+                max_timeout_seconds=300,
+            )
+        ],
         hooks=PaymentWrapperHooks(
             on_before_execution=lambda ctx: captured_before.append(ctx) or True,
             on_after_execution=lambda ctx: captured_after.append(ctx),
@@ -756,21 +892,38 @@ def test_hook_context_carries_expected_fields():
     wrapped = create_payment_wrapper(server, config)(
         lambda args, ctx: {"content": [{"type": "text", "text": "data"}]}
     )
-    wrapped({"city": "NYC"}, _make_extra(_make_payload()))
 
-    # ServerHookContext
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted={
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "amount": "1000",
+            "asset": "USDC",
+            "pay_to": "0xrecipient",
+            "max_timeout_seconds": 300,
+        },
+        payload={"signature": "0x123"},
+    )
+    extra = {
+        "_meta": {
+            "x402/payment": (payload.model_dump() if hasattr(payload, "model_dump") else payload)
+        },
+        "toolName": "test",
+    }
+
+    wrapped({"city": "NYC"}, extra)
+
     before_ctx = captured_before[0]
     assert before_ctx.tool_name == "test"
     assert before_ctx.arguments == {"city": "NYC"}
     assert before_ctx.payment_requirements is not None
     assert before_ctx.payment_payload is not None
 
-    # AfterExecutionContext
     after_ctx = captured_after[0]
     assert after_ctx.result is not None
     assert after_ctx.result.content[0]["text"] == "data"
 
-    # SettlementContext
     settle_ctx = captured_settlement[0]
     assert settle_ctx.settlement is not None
     assert settle_ctx.settlement.success is True
