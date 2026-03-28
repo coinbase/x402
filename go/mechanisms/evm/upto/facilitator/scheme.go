@@ -3,6 +3,7 @@ package facilitator
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
@@ -41,14 +42,15 @@ func (f *UptoEvmScheme) CaipFamily() string {
 }
 
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
-// For upto, returns the facilitatorAddress so clients include it in their signed witness.
+// For upto, returns a randomly selected facilitatorAddress so clients include it in
+// their signed witness. Randomizing distributes settlement load across the signer pool.
 func (f *UptoEvmScheme) GetExtra(_ x402.Network) map[string]interface{} {
 	addresses := f.signer.GetAddresses()
 	if len(addresses) == 0 {
 		return nil
 	}
 	return map[string]interface{}{
-		"facilitatorAddress": addresses[0],
+		"facilitatorAddress": addresses[rand.Intn(len(addresses))],
 	}
 }
 
