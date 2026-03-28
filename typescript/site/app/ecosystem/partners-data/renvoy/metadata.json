@@ -1,0 +1,19 @@
+{
+  "name": "Renvoy",
+  "description": "Managed x402 facilitators for Base and Solana",
+  "logoUrl": "/logos/renvoy.png",
+  "websiteUrl": "https://renvoy.ai",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402.renvoy.ai",
+    "networks": ["base", "base-sepolia", "solana-devnet", "solana"],
+    "schemes": ["exact", "upto"],
+    "assets": ["ERC20"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": true
+    }
+  }
+}
