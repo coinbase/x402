@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { x402Facilitator } from "../../../src/facilitator/x402Facilitator";
 import {
   PaymentPayload,
@@ -329,6 +329,261 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
         .onSettleFailure(async () => {});
 
       expect(result).toBe(facilitator);
+    });
+  });
+
+  describe("Hook Error Isolation", () => {
+    let consoleErrorSpy: any;
+
+    beforeEach(() => {
+      // Mock console.error to verify error logging
+      consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    describe("beforeVerify hook errors", () => {
+      it("should isolate beforeVerify hook errors and continue verification", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        const hookErrorMessage = "Network error in beforeVerify hook";
+        facilitator.onBeforeVerify(async () => {
+          throw new Error(hookErrorMessage);
+        });
+
+        // Verification should succeed despite hook error
+        const result = await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.isValid).toBe(true);
+        expect(result.payer).toBe("0xMockPayer");
+
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in beforeVerify hook:",
+          expect.objectContaining({
+            message: hookErrorMessage,
+          }),
+        );
+      });
+
+      it("should execute remaining beforeVerify hooks even if one throws", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        const executionOrder: number[] = [];
+
+        facilitator
+          .onBeforeVerify(async () => {
+            executionOrder.push(1);
+          })
+          .onBeforeVerify(async () => {
+            executionOrder.push(2);
+            throw new Error("Hook 2 error");
+          })
+          .onBeforeVerify(async () => {
+            executionOrder.push(3);
+          });
+
+        await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
+
+        expect(executionOrder).toEqual([1, 2, 3]);
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("afterVerify hook errors", () => {
+      it("should isolate afterVerify hook errors without affecting verification result", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        const hookErrorMessage = "Database write error in afterVerify hook";
+        facilitator.onAfterVerify(async () => {
+          throw new Error(hookErrorMessage);
+        });
+
+        // Verification should succeed despite hook error
+        const result = await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.isValid).toBe(true);
+        expect(result.payer).toBe("0xMockPayer");
+
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in afterVerify hook:",
+          expect.objectContaining({
+            message: hookErrorMessage,
+          }),
+        );
+      });
+    });
+
+    describe("onVerifyFailure hook errors", () => {
+      it("should isolate onVerifyFailure hook errors", async () => {
+        const facilitator = new x402Facilitator();
+        const schemeFacilitator = new MockSchemeFacilitator(async () => {
+          throw new Error("Verification failed");
+        });
+        facilitator.register("eip155:8453", schemeFacilitator);
+
+        facilitator.onVerifyFailure(async () => {
+          throw new Error("Logging service unavailable");
+        });
+
+        await expect(
+          facilitator.verify(buildPaymentPayload(), buildPaymentRequirements()),
+        ).rejects.toThrow("Verification failed");
+
+        // Hook error should be logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in onVerifyFailure hook:",
+          expect.objectContaining({
+            message: "Logging service unavailable",
+          }),
+        );
+      });
+    });
+
+    describe("beforeSettle hook errors", () => {
+      it("should isolate beforeSettle hook errors and continue settlement", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        const hookErrorMessage = "Risk assessment service error";
+        facilitator.onBeforeSettle(async () => {
+          throw new Error(hookErrorMessage);
+        });
+
+        // Settlement should succeed despite hook error
+        const result = await facilitator.settle(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.success).toBe(true);
+        expect(result.transaction).toBe("0xMockTx");
+
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in beforeSettle hook:",
+          expect.objectContaining({
+            message: hookErrorMessage,
+          }),
+        );
+      });
+    });
+
+    describe("afterSettle hook errors", () => {
+      it("should isolate afterSettle hook errors without affecting settlement result", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        const hookErrorMessage = "Webhook notification failed";
+        facilitator.onAfterSettle(async () => {
+          throw new Error(hookErrorMessage);
+        });
+
+        // Settlement should succeed despite hook error
+        const result = await facilitator.settle(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.success).toBe(true);
+        expect(result.transaction).toBe("0xMockTx");
+
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in afterSettle hook:",
+          expect.objectContaining({
+            message: hookErrorMessage,
+          }),
+        );
+      });
+    });
+
+    describe("onSettleFailure hook errors", () => {
+      it("should isolate onSettleFailure hook errors", async () => {
+        const facilitator = new x402Facilitator();
+        const schemeFacilitator = new MockSchemeFacilitator(undefined, async () => {
+          throw new Error("Settlement failed");
+        });
+        facilitator.register("eip155:8453", schemeFacilitator);
+
+        facilitator.onSettleFailure(async () => {
+          throw new Error("Error reporting service down");
+        });
+
+        await expect(
+          facilitator.settle(buildPaymentPayload(), buildPaymentRequirements()),
+        ).rejects.toThrow("Settlement failed");
+
+        // Hook error should be logged
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in onSettleFailure hook:",
+          expect.objectContaining({
+            message: "Error reporting service down",
+          }),
+        );
+      });
+    });
+
+    describe("Complex error scenarios", () => {
+      it("should handle multiple hook errors gracefully", async () => {
+        const facilitator = new x402Facilitator();
+        facilitator.register("eip155:8453", new MockSchemeFacilitator());
+
+        facilitator
+          .onBeforeVerify(async () => {
+            throw new Error("First hook error");
+          })
+          .onBeforeVerify(async () => {
+            throw new Error("Second hook error");
+          })
+          .onAfterVerify(async () => {
+            throw new Error("Third hook error");
+          });
+
+        const result = await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.isValid).toBe(true);
+
+        // All three errors should be logged
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(3);
+      });
+
+      it("should preserve successful payment settlement despite afterSettle hook failures", async () => {
+        const facilitator = new x402Facilitator();
+
+        // Mock successful settlement
+        const mockTransaction = "0xSuccessfulTx";
+        const schemeFacilitator = new MockSchemeFacilitator(undefined, async () => ({
+          success: true,
+          transaction: mockTransaction,
+          network: "eip155:8453",
+        }));
+        facilitator.register("eip155:8453", schemeFacilitator);
+
+        // Add hooks that will fail
+        facilitator
+          .onAfterSettle(async () => {
+            throw new Error("Analytics service down");
+          })
+          .onAfterSettle(async () => {
+            throw new Error("Notification service timeout");
+          });
+
+        // Settlement should still return successful result
+        const result = await facilitator.settle(buildPaymentPayload(), buildPaymentRequirements());
+        expect(result.success).toBe(true);
+        expect(result.transaction).toBe(mockTransaction);
+
+        // Both hook errors should be logged
+        expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in afterSettle hook:",
+          expect.objectContaining({
+            message: "Analytics service down",
+          }),
+        );
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Error in afterSettle hook:",
+          expect.objectContaining({
+            message: "Notification service timeout",
+          }),
+        );
+      });
     });
   });
 });

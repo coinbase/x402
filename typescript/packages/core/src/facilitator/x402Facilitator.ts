@@ -291,12 +291,17 @@ export class x402Facilitator {
 
     // Execute beforeVerify hooks
     for (const hook of this.beforeVerifyHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
-        return {
-          isValid: false,
-          invalidReason: result.reason,
-        };
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          return {
+            isValid: false,
+            invalidReason: result.reason,
+          };
+        }
+      } catch (error) {
+        console.error("Error in beforeVerify hook:", error);
+        // Continue with remaining hooks, but verification should not abort due to hook errors
       }
     }
 
@@ -372,7 +377,11 @@ export class x402Facilitator {
       };
 
       for (const hook of this.afterVerifyHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          console.error("Error in afterVerify hook:", error);
+        }
       }
 
       return verifyResult;
@@ -384,9 +393,13 @@ export class x402Facilitator {
 
       // Execute onVerifyFailure hooks
       for (const hook of this.onVerifyFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (hookError) {
+          console.error("Error in onVerifyFailure hook:", hookError);
         }
       }
 
@@ -412,9 +425,17 @@ export class x402Facilitator {
 
     // Execute beforeSettle hooks
     for (const hook of this.beforeSettleHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
-        throw new Error(`Settlement aborted: ${result.reason}`);
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          throw new Error(`Settlement aborted: ${result.reason}`);
+        }
+      } catch (error) {
+        // Re-throw if this is an intended abort (Error message starts with "Settlement aborted:")
+        if (error instanceof Error && error.message.startsWith("Settlement aborted:")) {
+          throw error;
+        }
+        console.error("Error in beforeSettle hook:", error);
       }
     }
 
@@ -464,7 +485,11 @@ export class x402Facilitator {
       };
 
       for (const hook of this.afterSettleHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          console.error("Error in afterSettle hook:", error);
+        }
       }
 
       return settleResult;
@@ -476,9 +501,13 @@ export class x402Facilitator {
 
       // Execute onSettleFailure hooks
       for (const hook of this.onSettleFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (hookError) {
+          console.error("Error in onSettleFailure hook:", hookError);
         }
       }
 
