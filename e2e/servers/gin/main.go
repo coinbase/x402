@@ -454,6 +454,7 @@ func main() {
 ║  • GET  /exact/evm/permit2                    (Permit2)       ║
 ║  • GET  /exact/evm/permit2-eip2612GasSponsoring               ║
 ║  • GET  /exact/evm/permit2-erc20ApprovalGasSponsoring         ║
+║  • GET  /upto/evm/permit2                     (Upto Permit2)  ║
 ║  • GET  /exact/svm                            (SVM)           ║
 ║  • GET  /health                 (no payment required)  ║
 ║  • POST /close                  (shutdown server)      ║
