@@ -1,0 +1,7 @@
+{
+  "name": "ScoutGate",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/scoutgate.png",
+  "description": "x402 payment proxy — wrap any API with on-chain micropayments in under 2 minutes. No protocol knowledge required. Settles on Base.",
+  "websiteUrl": "https://x402-scoutgate.onrender.com"
+}
