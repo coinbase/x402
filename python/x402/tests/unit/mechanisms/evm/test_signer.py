@@ -168,7 +168,7 @@ class TestFacilitatorWeb3Signer:
         """Should accept custom gas limit in constructor."""
         account = Account.create()
         custom_gas_limit = 500_000
-        
+
         signer = FacilitatorWeb3Signer(
             private_key=account.key.hex(),
             rpc_url="https://sepolia.base.org",
