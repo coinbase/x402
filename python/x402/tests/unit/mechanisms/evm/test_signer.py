@@ -153,6 +153,61 @@ class TestFacilitatorWeb3Signer:
         assert callable(signer.get_chain_id)
         assert callable(signer.get_code)
 
+    def test_default_gas_limit(self):
+        """Should use default gas limit of 300,000."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+        )
+
+        assert signer._gas_limit == 300_000
+        assert FacilitatorWeb3Signer.DEFAULT_GAS_LIMIT == 300_000
+
+    def test_custom_gas_limit(self):
+        """Should accept custom gas limit in constructor."""
+        account = Account.create()
+        custom_gas_limit = 500_000
+        
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=custom_gas_limit,
+        )
+
+        assert signer._gas_limit == custom_gas_limit
+
+    def test_write_contract_accepts_gas_parameter(self):
+        """write_contract method should accept optional gas parameter."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=300_000,
+        )
+
+        # This should not raise an exception even though we're testing parameter acceptance
+        # We're checking that the method signature accepts the gas parameter
+        import inspect
+        sig = inspect.signature(signer.write_contract)
+        assert 'gas' in sig.parameters
+        assert sig.parameters['gas'].default is None
+
+    def test_send_transaction_accepts_gas_parameter(self):
+        """send_transaction method should accept optional gas parameter."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=300_000,
+        )
+
+        # Check that the method signature accepts the gas parameter
+        import inspect
+        sig = inspect.signature(signer.send_transaction)
+        assert 'gas' in sig.parameters
+        assert sig.parameters['gas'].default is None
+
 
 class TestSignerProtocols:
     """Test that signers implement expected protocols."""
