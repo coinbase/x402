@@ -1,0 +1,7 @@
+{
+  "name": "ag402",
+  "description": "Payment layer for AI agents using Coinbase x402 protocol. Wrap any API or MCP server with a USDC paywall in one command. Solana USDC, ~0.5s settlement, non-custodial, 648+ tests. Works with Claude Code, Cursor, OpenClaw, LangChain, AutoGen.",
+  "logoUrl": "",
+  "websiteUrl": "https://github.com/AetherCore-Dev/ag402",
+  "category": "Infrastructure & Tooling"
+}
