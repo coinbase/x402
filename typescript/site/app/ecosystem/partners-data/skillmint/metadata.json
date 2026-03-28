@@ -1,0 +1,7 @@
+{
+  "name": "SkillMint",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/skillmint.png",
+  "description": "Pay-per-call AI skills marketplace with 51 skills across 7 categories. No API keys, no subscriptions — just USDC on Base.",
+  "websiteUrl": "https://skillmint.sagasu.art"
+}
