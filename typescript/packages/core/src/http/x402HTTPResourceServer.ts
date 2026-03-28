@@ -712,7 +712,12 @@ export class x402HTTPResourceServer {
       : undefined;
 
     const contentType = customBody ? customBody.contentType : "application/json";
-    const body = customBody ? customBody.body : {};
+    const body = customBody
+      ? customBody.body
+      : {
+          error: failure.errorReason || "Settlement failed",
+          ...(failure.errorMessage && { message: failure.errorMessage }),
+        };
 
     return {
       status: 402,
@@ -894,9 +899,24 @@ export class x402HTTPResourceServer {
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
 
-    // Use callback result if provided, otherwise default to JSON with empty object
+    // Use callback result if provided, otherwise populate body with payment info
+    // so agents and programmatic clients can act on 402 responses without decoding headers
     const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
-    const body = unpaidResponse ? unpaidResponse.body : {};
+    const body = unpaidResponse
+      ? unpaidResponse.body
+      : {
+          x402Version: paymentRequired.x402Version,
+          error: paymentRequired.error || "Payment required",
+          accepts: paymentRequired.accepts.map(req => ({
+            scheme: req.scheme,
+            network: req.network,
+            asset: req.asset,
+            amount: req.amount,
+            payTo: req.payTo,
+            maxTimeoutSeconds: req.maxTimeoutSeconds,
+          })),
+          resource: paymentRequired.resource,
+        };
 
     return {
       status,
