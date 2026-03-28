@@ -425,6 +425,10 @@ func (s *x402HTTPResourceServer) BuildPaymentRequirementsFromOptions(ctx context
 
 // ProcessHTTPRequest handles an HTTP request and returns processing result
 func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx HTTPRequestContext, paywallConfig *PaywallConfig) HTTPProcessResult {
+	if reqCtx.Method == "" {
+		reqCtx.Method = reqCtx.Adapter.GetMethod()
+	}
+
 	// Find matching route
 	routeConfig, routePattern := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
 	if routeConfig == nil {
@@ -628,14 +632,22 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 // RequiresPayment checks if a request requires payment based on route configuration
 func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool {
-	routeConfig, _ := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
+	method := reqCtx.Method
+	if method == "" {
+		method = reqCtx.Adapter.GetMethod()
+	}
+	routeConfig, _ := s.getRouteConfig(reqCtx.Path, method)
 	return routeConfig != nil
 }
 
-// ProcessSettlement handles settlement after successful response
-func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) *ProcessSettleResult {
+// SettlementOverridesHeader is the HTTP header name for settlement overrides.
+const SettlementOverridesHeader = "settlement-overrides"
+
+// ProcessSettlement handles settlement after successful response.
+// If overrides is non-nil, the settlement amount is replaced before forwarding to SettlePayment.
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *x402.SettlementOverrides) *ProcessSettleResult {
 	// Settle payment (type-safe, no marshal needed)
-	settleResult, err := s.SettlePayment(ctx, payload, requirements)
+	settleResult, err := s.SettlePayment(ctx, payload, requirements, overrides)
 	if err != nil {
 		return s.buildSettlementFailureResult(err.Error(), x402.Network(requirements.Network), "", nil)
 	}
