@@ -1,0 +1,7 @@
+{
+  "name": "Revettr",
+  "description": "x402-native counterparty risk scoring API for agentic commerce. Enables AI agents to assess counterparty trustworthiness before transacting, with pay-per-query pricing via USDC on Base.",
+  "logoUrl": "/logos/revettr.png",
+  "websiteUrl": "https://revettr.com",
+  "category": "Services/Endpoints"
+}
