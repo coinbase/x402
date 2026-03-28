@@ -1,0 +1,7 @@
+{
+  "name": "Pyrimid",
+  "category": "Agent Commerce",
+  "logoUrl": "/logos/pyrimid.png",
+  "description": "Onchain distribution and monetization protocol for AI agents. Vendor registration, catalog discovery, affiliate commissions — all settled in USDC via x402 micropayments on Base. 4 verified smart contracts, MCP server with 7 tools, TypeScript SDK.",
+  "websiteUrl": "https://pyrimid.ai"
+}
