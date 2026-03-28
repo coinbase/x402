@@ -1,0 +1,4 @@
+node_modules
+dist
+.env
+.x402-observed
