@@ -791,7 +791,8 @@ export class x402ResourceServer {
         requirements.scheme,
         requirements.network as Network,
       );
-      const decimals = scheme?.getAssetDecimals?.(requirements.asset ?? "", requirements.network as Network) ?? 6;
+      const decimals =
+        scheme?.getAssetDecimals?.(requirements.asset ?? "", requirements.network as Network) ?? 6;
       effectiveRequirements = {
         ...requirements,
         amount: resolveSettlementOverrideAmount(settlementOverrides.amount, requirements, decimals),

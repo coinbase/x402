@@ -43,6 +43,10 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   /**
    * Returns the decimal precision of the default stablecoin for the given network.
    * Implements the optional AssetDecimalsProvider interface used by resolveSettlementOverrideAmount.
+   *
+   * @param _asset - The asset symbol (unused; defaults to the network's default stablecoin)
+   * @param network - The network to look up the default asset for
+   * @returns The number of decimal places for the asset
    */
   getAssetDecimals(_asset: string, network: Network): number {
     try {
