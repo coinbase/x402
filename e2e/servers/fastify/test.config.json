@@ -43,6 +43,32 @@
       "coldstart": true
     },
     {
+      "path": "/upto/evm/permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment (direct, client must pre-approve)",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto",
+      "permit2Direct": true
+    },
+    {
+      "path": "/upto/evm/permit2-eip2612GasSponsoring",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment with EIP-2612 gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto"
+    },
+    {
+      "path": "/upto/evm/permit2-erc20ApprovalGasSponsoring",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment with ERC-20 approval gas sponsoring",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto",
+      "extensions": ["erc20ApprovalGasSponsoring"]
+    },
+    {
       "path": "/exact/svm",
       "method": "GET",
       "description": "Protected endpoint requiring payment on SVM network",
