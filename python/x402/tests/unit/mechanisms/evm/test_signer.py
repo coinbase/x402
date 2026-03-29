@@ -1,5 +1,8 @@
 """Tests for EVM signer implementations."""
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 
 try:
@@ -122,6 +125,112 @@ class TestFacilitatorWeb3Signer:
         )
 
         assert signer.address == account.address
+
+    def test_should_use_default_gas_limit_for_transactions(self):
+        """write_contract and send_transaction should use configured default gas limit."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=420000,
+        )
+
+        built_tx: dict = {}
+        tx_builder = Mock()
+        tx_builder.build_transaction = Mock(side_effect=lambda tx: built_tx.update(tx) or tx)
+        contract = Mock()
+        contract.functions = SimpleNamespace(transfer=Mock(return_value=tx_builder))
+
+        signer._w3 = Mock()
+        signer._w3.eth = Mock()
+        signer._w3.eth.contract = Mock(return_value=contract)
+        signer._w3.eth.get_transaction_count = Mock(return_value=7)
+        signer._w3.eth.gas_price = 100
+        signer._w3.eth.send_raw_transaction = Mock(return_value=bytes.fromhex("12" * 32))
+        signer._account.sign_transaction = Mock(
+            return_value=SimpleNamespace(raw_transaction=b"signed-tx")
+        )
+
+        signer.write_contract(
+            "0x1111111111111111111111111111111111111111",
+            [],
+            "transfer",
+            "0x2222222222222222222222222222222222222222",
+            1,
+        )
+
+        assert built_tx["gas"] == 420000
+
+        signer.send_transaction(
+            "0x2222222222222222222222222222222222222222",
+            b"\x12\x34",
+        )
+
+        sent_tx = signer._account.sign_transaction.call_args[0][0]
+        assert sent_tx["gas"] == 420000
+
+    def test_should_allow_write_contract_gas_limit_override(self):
+        """write_contract should allow per-call gas limit override."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=300000,
+        )
+
+        built_tx: dict = {}
+        tx_builder = Mock()
+        tx_builder.build_transaction = Mock(side_effect=lambda tx: built_tx.update(tx) or tx)
+        contract = Mock()
+        contract.functions = SimpleNamespace(transfer=Mock(return_value=tx_builder))
+
+        signer._w3 = Mock()
+        signer._w3.eth = Mock()
+        signer._w3.eth.contract = Mock(return_value=contract)
+        signer._w3.eth.get_transaction_count = Mock(return_value=1)
+        signer._w3.eth.gas_price = 99
+        signer._w3.eth.send_raw_transaction = Mock(return_value=bytes.fromhex("34" * 32))
+        signer._account.sign_transaction = Mock(
+            return_value=SimpleNamespace(raw_transaction=b"signed-tx")
+        )
+
+        signer.write_contract(
+            "0x1111111111111111111111111111111111111111",
+            [],
+            "transfer",
+            "0x2222222222222222222222222222222222222222",
+            1,
+            gas_limit=550000,
+        )
+
+        assert built_tx["gas"] == 550000
+
+    def test_should_allow_send_transaction_gas_limit_override(self):
+        """send_transaction should allow per-call gas limit override."""
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=300000,
+        )
+
+        signer._w3 = Mock()
+        signer._w3.eth = Mock()
+        signer._w3.eth.get_transaction_count = Mock(return_value=3)
+        signer._w3.eth.gas_price = 88
+        signer._w3.eth.send_raw_transaction = Mock(return_value=bytes.fromhex("56" * 32))
+        signer._account.sign_transaction = Mock(
+            return_value=SimpleNamespace(raw_transaction=b"signed-tx")
+        )
+
+        signer.send_transaction(
+            "0x2222222222222222222222222222222222222222",
+            b"\xab\xcd",
+            gas_limit=650000,
+        )
+
+        sent_tx = signer._account.sign_transaction.call_args[0][0]
+        assert sent_tx["gas"] == 650000
 
     def test_should_have_required_methods(self):
         """Should have all required facilitator signer methods."""

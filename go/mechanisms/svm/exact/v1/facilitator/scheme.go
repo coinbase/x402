@@ -2,10 +2,11 @@ package facilitator
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"strconv"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -54,9 +55,16 @@ func (f *ExactSvmSchemeV1) CaipFamily() string {
 // Random selection distributes load across multiple signers.
 func (f *ExactSvmSchemeV1) GetExtra(network x402.Network) map[string]interface{} {
 	addresses := f.signer.GetAddresses(context.Background(), string(network))
+	if len(addresses) == 0 {
+		return map[string]interface{}{}
+	}
 
-	// Randomly select from available addresses to distribute load
-	randomIndex := rand.Intn(len(addresses))
+	// Randomly select from available addresses to distribute load.
+	// Use crypto/rand to avoid deterministic PRNG behavior in long-lived processes.
+	randomIndex := 0
+	if idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(addresses)))); err == nil {
+		randomIndex = int(idx.Int64())
+	}
 
 	return map[string]interface{}{
 		"feePayer": addresses[randomIndex].String(),

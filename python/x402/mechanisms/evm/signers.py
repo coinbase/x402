@@ -262,12 +262,14 @@ class FacilitatorWeb3Signer:
         self,
         private_key: str,
         rpc_url: str,
+        gas_limit: int = 300000,
     ) -> None:
         """Initialize signer with private key and RPC connection.
 
         Args:
             private_key: Hex private key with or without 0x prefix.
             rpc_url: Ethereum RPC endpoint URL.
+            gas_limit: Default gas limit used for write transactions.
 
         """
         # Normalize private key format
@@ -282,6 +284,7 @@ class FacilitatorWeb3Signer:
 
         # Cache chain ID
         self._chain_id: int | None = None
+        self._gas_limit = gas_limit
 
     @property
     def address(self) -> str:
@@ -453,6 +456,7 @@ class FacilitatorWeb3Signer:
         abi: list[dict[str, Any]],
         function_name: str,
         *args: Any,
+        gas_limit: int | None = None,
     ) -> str:
         """Execute a smart contract transaction.
 
@@ -460,6 +464,7 @@ class FacilitatorWeb3Signer:
             address: Contract address.
             abi: Contract ABI.
             function_name: Function to call.
+            gas_limit: Optional gas limit override for this transaction.
             *args: Function arguments.
 
         Returns:
@@ -476,7 +481,7 @@ class FacilitatorWeb3Signer:
             {
                 "from": self._account.address,
                 "nonce": self._w3.eth.get_transaction_count(self._account.address),
-                "gas": 300000,
+                "gas": gas_limit if gas_limit is not None else self._gas_limit,
                 "gasPrice": self._w3.eth.gas_price,
             }
         )
@@ -487,12 +492,13 @@ class FacilitatorWeb3Signer:
 
         return tx_hash.hex()
 
-    def send_transaction(self, to: str, data: bytes) -> str:
+    def send_transaction(self, to: str, data: bytes, gas_limit: int | None = None) -> str:
         """Send a raw transaction.
 
         Args:
             to: Recipient address.
             data: Transaction data.
+            gas_limit: Optional gas limit override for this transaction.
 
         Returns:
             Transaction hash.
@@ -502,7 +508,7 @@ class FacilitatorWeb3Signer:
             "to": Web3.to_checksum_address(to),
             "data": data,
             "nonce": self._w3.eth.get_transaction_count(self._account.address),
-            "gas": 300000,
+            "gas": gas_limit if gas_limit is not None else self._gas_limit,
             "gasPrice": self._w3.eth.gas_price,
         }
 
