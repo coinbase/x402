@@ -19,6 +19,14 @@ import { createRpcClient, decodeTransactionFromPayload } from "./utils";
 export type ClientSvmSigner = TransactionSigner;
 
 /**
+ * RPC client type that can be used for client operations
+ */
+export type ClientRpcClient =
+  | RpcDevnet<SolanaRpcApiDevnet>
+  | RpcTestnet<SolanaRpcApiTestnet>
+  | RpcMainnet<SolanaRpcApiMainnet>;
+
+/**
  * Configuration for client operations
  */
 export type ClientSvmConfig = {
@@ -26,6 +34,13 @@ export type ClientSvmConfig = {
    * Optional custom RPC URL for the client to use
    */
   rpcUrl?: string;
+
+  /**
+   * Optional pre-configured RPC client to use instead of creating one internally.
+   * Useful for custom transports (failover, retry, rate-limit handling).
+   * Takes precedence over rpcUrl when provided.
+   */
+  rpc?: ClientRpcClient;
 };
 
 /**
