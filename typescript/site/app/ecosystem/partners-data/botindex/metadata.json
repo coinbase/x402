@@ -1,0 +1,7 @@
+{
+  "name": "BotIndex",
+  "description": "x402-gated intelligence API for AI agents — sports betting odds, crypto correlations, meme token signals, Solana launches, and prediction market data. 17 MCP tools, pay-per-request via USDC on Base.",
+  "logoUrl": "/logos/botindex-logo.png",
+  "websiteUrl": "https://king-backend.fly.dev/api/botindex/v1/",
+  "category": "Services/Endpoints"
+}
