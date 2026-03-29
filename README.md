@@ -70,6 +70,75 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 
 **Documentation:** see [docs/](./docs/) for the GitBook documentation source
 
+## Security Best Practices
+
+As the x402 ecosystem grows and AI agents begin making autonomous payments, it's important to assess counterparty risk before sending payments. This is especially critical for regulatory compliance (sanctions screening) and preventing financial losses to malicious services.
+
+### Counterparty Risk Assessment
+
+Before making x402 payments, consider checking:
+
+**Domain & Service Validation:**
+- Domain reputation and registration history
+- IP geolocation and hosting provider
+- SSL certificate validity and issuer
+- Service uptime and response reliability
+
+**Wallet & On-Chain Analysis:**
+- Recipient wallet transaction history and age  
+- On-chain behavior patterns across multiple networks
+- Wallet holdings and economic substance
+- Sanctions screening (OFAC and other watchlists)
+
+**Service-Specific Checks:**
+- Service documentation quality and transparency
+- API response consistency and error handling
+- Community reputation and user feedback
+- Support responsiveness and issue resolution
+
+### Available Risk Assessment Tools
+
+The x402 ecosystem includes several tools for automated counterparty risk checking:
+
+- **Revettr** - Comprehensive risk scoring with domain, IP, wallet, and sanctions screening. Provides [SafeX402Client](https://github.com/AlexanderLawson17/revettr-python) wrapper with automatic pre-payment risk checks
+- **InsumerAPI** - Cross-chain wallet trust profiles covering governance, staking, NFTs, and stablecoins across 33+ networks
+- **Agent Trust Score** - DID-based identity verification and behavioral trust scoring for AI agents
+
+### Implementation Guidelines
+
+**For Client Applications:**
+- Implement allowlist/blocklist management for known good/bad services
+- Set spending limits per service, per transaction, and daily totals
+- Log all payment attempts with risk scores for audit trails
+- Implement circuit breakers for services with high failure rates
+- Use multi-signature or approval workflows for high-value payments
+
+**For Service Operators:**
+- Clearly document your service capabilities and pricing
+- Maintain consistent API responses and error messages
+- Provide transparency about data sources and processing
+- Implement proper rate limiting and abuse prevention
+- Consider obtaining third-party security audits
+
+**Network & Infrastructure Security:**
+- Always use HTTPS for x402 communications
+- Verify facilitator SSL certificates and reputation
+- Monitor facilitator health and response times
+- Implement retry logic with exponential backoff
+- Use secure key management for payment signing
+
+### Regulatory Compliance
+
+For production deployments, especially those handling large volumes or serving regulated entities:
+
+- Implement sanctions screening against OFAC and other relevant watchlists
+- Maintain audit logs of all payment decisions and risk assessments
+- Consider KYC/AML requirements for high-value or repeated transactions
+- Review compliance requirements in your jurisdiction
+- Implement transaction monitoring for suspicious patterns
+
+Remember: **the goal is not to eliminate all risk, but to make informed decisions based on your risk tolerance and use case requirements.**
+
 ## Terms:
 
 - `resource`: Something on the internet. This could be a webpage, file server, RPC service, API, any resource on the internet that accepts HTTP / HTTPS requests.
