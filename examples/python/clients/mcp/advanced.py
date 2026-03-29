@@ -60,9 +60,7 @@ class MCPClientAdapter:
         """Close session."""
         pass
 
-    async def call_tool(
-        self, params: dict[str, Any], **kwargs: Any
-    ) -> MCPToolResult:
+    async def call_tool(self, params: dict[str, Any], **kwargs: Any) -> MCPToolResult:
         """Call tool via MCP session.
 
         Args:
@@ -130,7 +128,9 @@ async def run_advanced_async() -> None:
 
             def on_payment_requested(context):
                 print(f"\n💰 Payment required for tool: {context.tool_name}")
-                print(f"   Amount: {context.payment_required.accepts[0].amount} ({context.payment_required.accepts[0].asset})")
+                print(
+                    f"   Amount: {context.payment_required.accepts[0].amount} ({context.payment_required.accepts[0].asset})"
+                )
                 print(f"   Network: {context.payment_required.accepts[0].network}")
                 print("   Approving payment...\n")
                 return True
@@ -185,7 +185,11 @@ async def run_advanced_async() -> None:
             ping_result = await x402_mcp.call_tool("ping", {})
             if ping_result.content:
                 first = ping_result.content[0]
-                text = first.get("text", str(first)) if isinstance(first, dict) else getattr(first, "text", str(first))
+                text = (
+                    first.get("text", str(first))
+                    if isinstance(first, dict)
+                    else getattr(first, "text", str(first))
+                )
                 print(f"Response: {text}")
             print(f"Payment made: {ping_result.payment_made}\n")
 
@@ -197,7 +201,11 @@ async def run_advanced_async() -> None:
             weather_result = await x402_mcp.call_tool("get_weather", {"city": "San Francisco"})
             if weather_result.content:
                 first = weather_result.content[0]
-                text = first.get("text", str(first)) if isinstance(first, dict) else getattr(first, "text", str(first))
+                text = (
+                    first.get("text", str(first))
+                    if isinstance(first, dict)
+                    else getattr(first, "text", str(first))
+                )
                 print(f"Response: {text}")
             print(f"Payment made: {weather_result.payment_made}")
 

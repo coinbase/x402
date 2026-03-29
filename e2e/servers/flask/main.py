@@ -19,7 +19,9 @@ from x402.extensions.bazaar import (
     declare_discovery_extension,
     OutputConfig,
 )
-from x402.extensions.eip2612_gas_sponsoring import declare_eip2612_gas_sponsoring_extension
+from x402.extensions.eip2612_gas_sponsoring import (
+    declare_eip2612_gas_sponsoring_extension,
+)
 from x402.extensions.erc20_approval_gas_sponsoring import (
     declare_erc20_approval_gas_sponsoring_extension,
 )

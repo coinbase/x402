@@ -76,16 +76,20 @@ def run_advanced() -> None:
     # ========================================================================
     weather_accepts = resource_server.build_payment_requirements(
         ResourceConfig(
-            scheme="exact", network="eip155:84532",
-            pay_to=EVM_ADDRESS, price="$0.001",
+            scheme="exact",
+            network="eip155:84532",
+            pay_to=EVM_ADDRESS,
+            price="$0.001",
             extra={"name": "USDC", "version": "2"},
         )
     )
 
     forecast_accepts = resource_server.build_payment_requirements(
         ResourceConfig(
-            scheme="exact", network="eip155:84532",
-            pay_to=EVM_ADDRESS, price="$0.005",
+            scheme="exact",
+            network="eip155:84532",
+            pay_to=EVM_ADDRESS,
+            price="$0.005",
             extra={"name": "USDC", "version": "2"},
         )
     )
@@ -141,7 +145,9 @@ def run_advanced() -> None:
     paid_weather_tool = wrap_fastmcp_tool_sync(
         paid_weather,
         lambda args, _: MCPToolResult(
-            content=[{"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}],
+            content=[
+                {"type": "text", "text": json.dumps(get_weather_data(args["city"]), indent=2)}
+            ],
         ),
         tool_name="get_weather",
     )
@@ -149,9 +155,15 @@ def run_advanced() -> None:
     paid_forecast_tool = wrap_fastmcp_tool_sync(
         paid_forecast,
         lambda args, _: MCPToolResult(
-            content=[{"type": "text", "text": json.dumps(
-                [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)], indent=2,
-            )}],
+            content=[
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        [{**get_weather_data(args["city"]), "day": i + 1} for i in range(7)],
+                        indent=2,
+                    ),
+                }
+            ],
         ),
         tool_name="get_forecast",
     )

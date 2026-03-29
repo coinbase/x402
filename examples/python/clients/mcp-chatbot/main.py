@@ -78,9 +78,7 @@ class MCPClientAdapter:
         """Close session."""
         pass
 
-    async def call_tool(
-        self, params: dict[str, Any], **kwargs: Any
-    ) -> MCPToolResult:
+    async def call_tool(self, params: dict[str, Any], **kwargs: Any) -> MCPToolResult:
         """Call tool via MCP session.
 
         Handles the bridge between x402MCPClient's call format and the
@@ -188,9 +186,8 @@ async def main() -> None:
             mcp_tools = tools_result.tools
             print(f"Found {len(mcp_tools)} tools:")
             for tool in mcp_tools:
-                is_paid = (
-                    tool.description
-                    and ("payment" in tool.description.lower() or "$" in tool.description)
+                is_paid = tool.description and (
+                    "payment" in tool.description.lower() or "$" in tool.description
                 )
                 prefix = "[paid]" if is_paid else "[free]"
                 print(f"   {prefix} {tool.name}: {tool.description}")
@@ -200,14 +197,16 @@ async def main() -> None:
             # ================================================================
             openai_tools: list[ChatCompletionToolParam] = []
             for tool in mcp_tools:
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description or "",
-                        "parameters": tool.inputSchema if tool.inputSchema else {},
-                    },
-                })
+                openai_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description or "",
+                            "parameters": tool.inputSchema if tool.inputSchema else {},
+                        },
+                    }
+                )
 
             print("Converted to OpenAI tool format")
             print("=" * 70)
@@ -246,10 +245,12 @@ async def main() -> None:
                     break
 
                 # Add user message to history
-                conversation_history.append({
-                    "role": "user",
-                    "content": user_input,
-                })
+                conversation_history.append(
+                    {
+                        "role": "user",
+                        "content": user_input,
+                    }
+                )
 
                 # ==============================================================
                 # OPENAI CALL: Send conversation + tools to LLM
@@ -305,10 +306,7 @@ async def main() -> None:
                                         f"{mcp_result.payment_response.transaction}"
                                     )
                                 if hasattr(mcp_result.payment_response, "network"):
-                                    print(
-                                        f"      Network: "
-                                        f"{mcp_result.payment_response.network}"
-                                    )
+                                    print(f"      Network: {mcp_result.payment_response.network}")
 
                             # Extract text content from MCP result
                             result_text = "No content returned"
@@ -322,25 +320,27 @@ async def main() -> None:
                                     result_text = str(first)
 
                             truncated = (
-                                result_text[:200] + "..."
-                                if len(result_text) > 200
-                                else result_text
+                                result_text[:200] + "..." if len(result_text) > 200 else result_text
                             )
                             print(f"   Result: {truncated}")
 
-                            tool_results.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": result_text,
-                            })
+                            tool_results.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": result_text,
+                                }
+                            )
 
                         except Exception as e:
                             print(f"   Error: {e}")
-                            tool_results.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": f"Error executing tool: {e}",
-                            })
+                            tool_results.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": f"Error executing tool: {e}",
+                                }
+                            )
 
                     # Add tool results to conversation
                     conversation_history.extend(tool_results)

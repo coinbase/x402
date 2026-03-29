@@ -7,7 +7,11 @@ import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
 
-logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s", stream=__import__('sys').stderr)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s %(levelname)s: %(message)s",
+    stream=__import__("sys").stderr,
+)
 logging.getLogger("x402.signers").setLevel(logging.DEBUG)
 logging.getLogger("x402.permit2").setLevel(logging.DEBUG)
 
