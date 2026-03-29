@@ -1,0 +1,7 @@
+{
+  "name": "ClawPurse",
+  "description": "x402-compatible HTTP 402 micropayment gateway and agentic wallet on the Neutaro (Cosmos SDK) blockchain. Gate any API behind NTMPI micropayments with pay-per-request and prepaid balance flows. Direct on-chain verification — no facilitator required. Built for AI agents and DePIN operators.",
+  "logoUrl": "/logos/clawpurse.png",
+  "websiteUrl": "https://clawpurse.ai/x402/",
+  "category": "Infrastructure & Tooling"
+}
