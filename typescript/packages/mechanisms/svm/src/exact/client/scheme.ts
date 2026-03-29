@@ -40,7 +40,7 @@ export class ExactSvmScheme implements SchemeNetworkClient {
    * Creates a new ExactSvmClient instance.
    *
    * @param signer - The SVM signer for client operations
-   * @param config - Optional configuration with custom RPC URL
+   * @param config - Optional configuration with custom RPC URL or RPC client
    * @returns ExactSvmClient instance
    */
   constructor(
@@ -59,7 +59,8 @@ export class ExactSvmScheme implements SchemeNetworkClient {
     x402Version: number,
     paymentRequirements: PaymentRequirements,
   ): Promise<Pick<PaymentPayload, "x402Version" | "payload">> {
-    const rpc = createRpcClient(paymentRequirements.network, this.config?.rpcUrl);
+    const rpc =
+      this.config?.rpc ?? createRpcClient(paymentRequirements.network, this.config?.rpcUrl);
 
     const tokenMint = await fetchMint(rpc, paymentRequirements.asset as Address);
     const tokenProgramAddress = tokenMint.programAddress;
