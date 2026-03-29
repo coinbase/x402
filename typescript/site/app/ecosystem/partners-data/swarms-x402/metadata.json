@@ -1,0 +1,7 @@
+{
+  "name": "SwarmX",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/swarmx.svg",
+  "description": "Multi-agent AI orchestration with native x402 micropayments on Solana. 47 pay-per-call endpoints across crypto analysis, DeFi risk scoring, contract audits, adversarial fact-checking, code review, research reports, and investment due diligence. 15+ swarm architectures powered by Gemini and OpenAI.",
+  "websiteUrl": "https://x402-swarms-production.up.railway.app"
+}
