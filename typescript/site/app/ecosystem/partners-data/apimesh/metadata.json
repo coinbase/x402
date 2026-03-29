@@ -1,0 +1,7 @@
+{
+  "name": "APIMesh",
+  "description": "22 x402-payable web analysis APIs and MCP tools for AI agents. Includes SEO audit, security headers, Core Web Vitals, tech stack detection, email verification, domain availability, and more. All endpoints accept USDC on Base via x402.",
+  "logoUrl": "/logos/apimesh.png",
+  "websiteUrl": "https://apimesh.xyz",
+  "category": "Services/Endpoints"
+}
