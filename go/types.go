@@ -94,7 +94,7 @@ type SettleResponse struct {
 	ErrorReason  string  `json:"errorReason,omitempty"`
 	ErrorMessage string  `json:"errorMessage,omitempty"`
 	Payer        string  `json:"payer,omitempty"`
-	Transaction  string  `json:"transaction"`
+	Transaction  string  `json:"transaction,omitempty"`
 	Network      Network `json:"network"`
 	Amount       string  `json:"amount,omitempty"`
 }

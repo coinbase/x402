@@ -235,8 +235,8 @@ The `SettleResponse` schema contains the following fields:
 | ------------- | --------- | -------- | --------------------------------------------------------------------- |
 | `success`     | `boolean` | Required | Indicates whether the payment settlement was successful               |
 | `errorReason` | `string`  | Optional | Error reason if settlement failed (omitted if successful)             |
-| `payer`       | `string`  | Optional | Address of the payer's wallet                                         |
-| `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed)       |
+| `payer`       | `string`  | Optional | Address of the payer's wallet when it can be determined               |
+| `transaction` | `string`  | Optional | Blockchain transaction hash when settlement succeeds                  |
 | `network`     | `string`  | Required | Blockchain network identifier in CAIP-2 format                        |
 | `amount`      | `string`  | Optional | The actual amount settled in atomic units (omitted if not applicable) |
 | `extensions`  | `object`  | Optional | Protocol extensions data                                              |
@@ -429,8 +429,6 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
 {
   "success": false,
   "errorReason": "insufficient_funds",
-  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-  "transaction": "",
   "network": "eip155:84532"
 }
 ```

@@ -141,7 +141,7 @@ The base64 response header decodes to:
 ```http
 HTTP/1.1 402 Payment Required
 Content-Type: application/json
-PAYMENT-RESPONSE: eyJzdWNjZXNzIjpmYWxzZSwiZXJyb3JSZWFzb24iOiJpbnN1ZmZpY2llbnRfZnVuZHMiLCJ0cmFuc2FjdGlvbiI6IiIsIm5ldHdvcmsiOiJlaXAxNTU6ODQ1MzIiLCJwYXllciI6IjB4ODU3YjA2NTE5RTkxZTNBNTQ1Mzg3OTFiRGJiMEUyMjM3M2UzNmI2NiJ9
+PAYMENT-RESPONSE: eyJzdWNjZXNzIjpmYWxzZSwiZXJyb3JSZWFzb24iOiJpbnN1ZmZpY2llbnRfZnVuZHMiLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMyIn0=
 
 {}
 ```
@@ -152,9 +152,7 @@ The base64 response header decodes to:
 {
   "success": false,
   "errorReason": "insufficient_funds",
-  "transaction": "",
-  "network": "eip155:84532",
-  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+  "network": "eip155:84532"
 }
 ```
 

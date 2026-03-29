@@ -266,14 +266,17 @@ class TestPaymentResponseHeader:
         settle = SettleResponse(
             success=False,
             error_reason="Insufficient funds",
-            transaction="",
             network="eip155:8453",
         )
         encoded = encode_payment_response_header(settle)
+        data = json.loads(safe_base64_decode(encoded))
         decoded = decode_payment_response_header(encoded)
 
         assert decoded.success is False
         assert decoded.error_reason == "Insufficient funds"
+        assert decoded.transaction is None
+        assert "transaction" not in data
+        assert "payer" not in data
 
 
 class TestDetectPaymentRequiredVersion:

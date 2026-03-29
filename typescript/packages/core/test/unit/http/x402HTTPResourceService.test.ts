@@ -4,6 +4,7 @@ import {
   HTTPRequestContext,
   HTTPAdapter,
 } from "../../../src/http/x402HTTPResourceServer";
+import { decodePaymentResponseHeader } from "../../../src/http";
 import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
   MockFacilitatorClient,
@@ -824,6 +825,10 @@ describe("x402HTTPResourceServer", () => {
         expect(result.errorReason).toBe("Insufficient funds");
         expect(result.headers).toBeDefined();
         expect(result.headers["PAYMENT-RESPONSE"]).toBeDefined();
+        expect(result.transaction).toBeUndefined();
+        expect(
+          decodePaymentResponseHeader(result.headers["PAYMENT-RESPONSE"]).transaction,
+        ).toBeUndefined();
       }
     });
 

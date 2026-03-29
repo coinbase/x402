@@ -55,6 +55,12 @@ go get github.com/coinbase/x402/go
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
 - **Easy to use:** It is the goal of the x402 community to improve ease of use relative to other forms of payment on the Internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
 
+## Security Best Practices
+
+- Check counterparty risk before sending payment. x402 verifies payment mechanics, but it does not attest that a service is trustworthy or that the recipient is safe to pay.
+- Consider screening the resource server domain, IP, payout wallet, and operator identity before funding autonomous requests, especially for sanctions compliance and fraud prevention.
+- Treat payment as only one part of trust. Clients should still validate response integrity, reputation, and any application-specific safety signals before continuing automated workflows.
+
 ## Ecosystem
 
 The x402 ecosystem is growing! Check out our [ecosystem page](https://x402.org/ecosystem) to see projects building with x402, including:
