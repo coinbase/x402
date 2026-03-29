@@ -1,0 +1,7 @@
+{
+  "name": "EventAlphaOracle",
+  "description": "Real-time prediction market signals for AI agents. Combines 40+ sportsbooks with Polymarket and Kalshi data for NBA, NFL, MMA, Boxing, and Politics. Cross-platform arbitrage scanning and trending market detection. Accepts x402 payments on Base, Monad, Hedera, and Algorand. Built by Nurse2Web3.",
+  "logoUrl": "/logos/eventalphaoracle.png",
+  "websiteUrl": "https://eventalphaoraclecode-production.up.railway.app",
+  "category": "Services/Endpoints"
+}

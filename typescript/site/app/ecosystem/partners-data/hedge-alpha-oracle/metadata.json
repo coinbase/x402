@@ -1,0 +1,7 @@
+{
+  "name": "HedgeAlphaOracle",
+  "description": "Real-time crypto and stock trading signals for AI agents. 6 endpoints including sentiment analysis, alpha signals with entry/target/stop loss, premium thesis with risk assessment, Fear & Greed Index, whale alerts, and portfolio risk scoring. Accepts x402 payments on Base, Monad, Hedera, and Algorand. Built by Nurse2Web3.",
+  "logoUrl": "/logos/hedgealphaoracle.png",
+  "websiteUrl": "https://hedgealphaoracle-production.up.railway.app",
+  "category": "Services/Endpoints"
+}
