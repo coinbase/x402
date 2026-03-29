@@ -10,6 +10,7 @@ export {
   SettleError,
   FacilitatorResponseError,
   getFacilitatorResponseError,
+  normalizeSettleResponse,
 } from "./facilitator";
 export type {
   PaymentRequirements,

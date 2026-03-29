@@ -519,6 +519,17 @@ func TestProcessSettlement_Failure(t *testing.T) {
 	if result.Headers == nil || result.Headers["PAYMENT-RESPONSE"] == "" {
 		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
 	}
+	decodedHeader, err := base64.StdEncoding.DecodeString(result.Headers["PAYMENT-RESPONSE"])
+	if err != nil {
+		t.Fatalf("failed to decode PAYMENT-RESPONSE header: %v", err)
+	}
+	var paymentResponse map[string]interface{}
+	if err := json.Unmarshal(decodedHeader, &paymentResponse); err != nil {
+		t.Fatalf("failed to unmarshal PAYMENT-RESPONSE header: %v", err)
+	}
+	if _, exists := paymentResponse["transaction"]; exists {
+		t.Errorf("expected failed settlement response to omit transaction, got %v", paymentResponse["transaction"])
+	}
 	if result.Response == nil {
 		t.Fatal("Expected Response to be set on settlement failure")
 	}

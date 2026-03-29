@@ -206,9 +206,9 @@ The `SettlementResponse` schema contains the following fields:
 | ------------- | --------- | -------- | --------------------------------------------------------------- |
 | `success`     | `boolean` | Required | Indicates whether the payment settlement was successful         |
 | `errorReason` | `string`  | Optional | Error reason if settlement failed (omitted if successful)       |
-| `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed) |
+| `transaction` | `string`  | Optional | Blockchain transaction hash when settlement succeeds            |
 | `network`     | `string`  | Required | Blockchain network identifier                                   |
-| `payer`       | `string`  | Required | Address of the payer's wallet                                   |
+| `payer`       | `string`  | Optional | Address of the payer's wallet when it can be determined         |
 
 **6. Payment Schemes (The Logic)**
 
@@ -371,8 +371,6 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
 {
   "success": false,
   "errorReason": "insufficient_funds",
-  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-  "transaction": "",
   "network": "base-sepolia"
 }
 ```

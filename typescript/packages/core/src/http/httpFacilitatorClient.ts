@@ -95,8 +95,11 @@ const settleResponseSchema: z.ZodType<SettleResponse, z.ZodTypeDef, unknown> = z
   payer: z
     .string()
     .nullish()
-    .transform(v => v ?? undefined),
-  transaction: z.string(),
+    .transform(v => (v && v.length > 0 ? v : undefined)),
+  transaction: z
+    .string()
+    .nullish()
+    .transform(v => (v && v.length > 0 ? v : undefined)),
   network: z.custom<SettleResponse["network"]>(value => typeof value === "string"),
   extensions: z
     .record(z.string(), z.unknown())

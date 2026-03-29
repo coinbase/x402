@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from .base import BaseX402Model, Network
 from .payments import PaymentPayload, PaymentRequirements
@@ -60,7 +60,7 @@ class SettleResponse(BaseX402Model):
         error_reason: Reason for failure (if success is False).
         error_message: Human-readable message for failure.
         payer: The payer's address.
-        transaction: Transaction hash/identifier.
+        transaction: Transaction hash/identifier when settlement succeeds.
         network: Network where settlement occurred.
     """
 
@@ -68,8 +68,15 @@ class SettleResponse(BaseX402Model):
     error_reason: str | None = None
     error_message: str | None = None
     payer: str | None = None
-    transaction: str
+    transaction: str | None = None
     network: Network
+
+    @field_validator("payer", "transaction", mode="before")
+    @classmethod
+    def normalize_optional_strings(cls, value: str | None) -> str | None:
+        if value == "":
+            return None
+        return value
 
 
 class SupportedKind(BaseX402Model):

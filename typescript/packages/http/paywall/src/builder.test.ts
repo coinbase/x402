@@ -131,11 +131,17 @@ describe("PaywallBuilder", () => {
       expect(html).toContain("0.1");
     });
 
-    it("uses resource URL as currentUrl when not provided", () => {
+    it("preserves query params when using the resource URL as currentUrl", () => {
       const paywall = createPaywall().withNetwork(evmPaywall).build();
-      const html = paywall.generateHtml(mockPaymentRequired);
+      const html = paywall.generateHtml({
+        ...mockPaymentRequired,
+        resource: {
+          ...mockPaymentRequired.resource,
+          url: "https://example.com/api/data?city=sf&units=metric",
+        },
+      });
 
-      expect(html).toContain("https://example.com/api/data");
+      expect(html).toContain("https://example.com/api/data?city=sf&units=metric");
     });
 
     it("defaults to testnet when not specified", () => {

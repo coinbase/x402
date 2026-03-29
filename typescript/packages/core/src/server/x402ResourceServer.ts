@@ -4,6 +4,7 @@ import {
   VerifyResponse,
   SupportedResponse,
   SupportedKind,
+  normalizeSettleResponse,
 } from "../types/facilitator";
 import {
   PaymentPayload,
@@ -802,25 +803,29 @@ export class x402ResourceServer {
       try {
         const result = await hook(context);
         if (result && "abort" in result && result.abort) {
-          throw new SettleError(400, {
-            success: false,
-            errorReason: result.reason,
-            errorMessage: result.message,
-            transaction: "",
-            network: requirements.network,
-          });
+          throw new SettleError(
+            400,
+            normalizeSettleResponse({
+              success: false,
+              errorReason: result.reason,
+              errorMessage: result.message,
+              network: requirements.network,
+            }),
+          );
         }
       } catch (error) {
         if (error instanceof SettleError) {
           throw error;
         }
-        throw new SettleError(400, {
-          success: false,
-          errorReason: "before_settle_hook_error",
-          errorMessage: error instanceof Error ? error.message : "",
-          transaction: "",
-          network: requirements.network,
-        });
+        throw new SettleError(
+          400,
+          normalizeSettleResponse({
+            success: false,
+            errorReason: "before_settle_hook_error",
+            errorMessage: error instanceof Error ? error.message : "",
+            network: requirements.network,
+          }),
+        );
       }
     }
 

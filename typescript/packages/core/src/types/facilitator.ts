@@ -26,12 +26,28 @@ export type SettleResponse = {
   errorReason?: string;
   errorMessage?: string;
   payer?: string;
-  transaction: string;
+  transaction?: string;
   network: Network;
   /** Actual amount settled in atomic token units. Present for schemes like `upto` where settlement amount may differ from the authorized maximum. */
   amount?: string;
   extensions?: Record<string, unknown>;
 };
+
+function normalizeOptionalSettleField(value?: string | null): string | undefined {
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+
+  return value;
+}
+
+export function normalizeSettleResponse(response: SettleResponse): SettleResponse {
+  return {
+    ...response,
+    payer: normalizeOptionalSettleField(response.payer),
+    transaction: normalizeOptionalSettleField(response.transaction),
+  };
+}
 
 export type SupportedKind = {
   x402Version: number;
@@ -80,7 +96,7 @@ export class SettleError extends Error {
   readonly errorReason?: string;
   readonly errorMessage?: string;
   readonly payer?: string;
-  readonly transaction: string;
+  readonly transaction?: string;
   readonly network: Network;
   readonly statusCode: number;
 
@@ -98,8 +114,8 @@ export class SettleError extends Error {
     this.statusCode = statusCode;
     this.errorReason = response.errorReason;
     this.errorMessage = response.errorMessage;
-    this.payer = response.payer;
-    this.transaction = response.transaction;
+    this.payer = normalizeOptionalSettleField(response.payer);
+    this.transaction = normalizeOptionalSettleField(response.transaction);
     this.network = response.network;
   }
 }

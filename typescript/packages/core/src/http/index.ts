@@ -1,4 +1,4 @@
-import { SettleResponse } from "../types";
+import { normalizeSettleResponse, SettleResponse } from "../types";
 import { PaymentPayload, PaymentRequired } from "../types/payments";
 import { Base64EncodedRegex, safeBase64Decode, safeBase64Encode } from "../utils";
 
@@ -61,7 +61,7 @@ export function decodePaymentRequiredHeader(paymentRequiredHeader: string): Paym
  * @returns Base64 encoded string representation of the payment response
  */
 export function encodePaymentResponseHeader(paymentResponse: SettleResponse): string {
-  return safeBase64Encode(JSON.stringify(paymentResponse));
+  return safeBase64Encode(JSON.stringify(normalizeSettleResponse(paymentResponse)));
 }
 
 /**
@@ -74,7 +74,9 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
   if (!Base64EncodedRegex.test(paymentResponseHeader)) {
     throw new Error("Invalid payment response header");
   }
-  return JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse;
+  return normalizeSettleResponse(
+    JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse,
+  );
 }
 
 // Export HTTP service and types

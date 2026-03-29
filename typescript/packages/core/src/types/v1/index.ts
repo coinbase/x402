@@ -46,7 +46,7 @@ export type SettleResponseV1 = {
   errorReason?: string;
   errorMessage?: string;
   payer?: string;
-  transaction: string;
+  transaction?: string;
   network: Network;
 };
 

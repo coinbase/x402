@@ -97,7 +97,6 @@ describe("HTTPFacilitatorClient", () => {
           JSON.stringify({
             success: false,
             errorReason: "insufficient_allowance",
-            transaction: "",
             network: "eip155:8453",
           }),
           { status: 400 },
@@ -107,7 +106,11 @@ describe("HTTPFacilitatorClient", () => {
 
     const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
 
-    await expect(client.settle(paymentPayload, paymentRequirements)).rejects.toThrow(SettleError);
+    await expect(client.settle(paymentPayload, paymentRequirements)).rejects.toMatchObject({
+      name: "SettleError",
+      errorReason: "insufficient_allowance",
+      transaction: undefined,
+    });
   });
 
   it("parses verify 200 when optional string fields are JSON null", async () => {

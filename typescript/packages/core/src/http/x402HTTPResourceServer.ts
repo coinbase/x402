@@ -13,6 +13,7 @@ import {
   Price,
   Network,
   PaymentRequirements,
+  normalizeSettleResponse,
 } from "../types";
 import { x402Version } from "..";
 
@@ -610,12 +611,14 @@ export class x402HTTPResourceServer {
         }
       }
 
-      const settleResponse = await this.ResourceServer.settlePayment(
-        paymentPayload,
-        requirements,
-        declaredExtensions,
-        transportContext,
-        resolvedOverrides,
+      const settleResponse = normalizeSettleResponse(
+        await this.ResourceServer.settlePayment(
+          paymentPayload,
+          requirements,
+          declaredExtensions,
+          transportContext,
+          resolvedOverrides,
+        ),
       );
 
       if (!settleResponse.success) {
@@ -643,14 +646,14 @@ export class x402HTTPResourceServer {
       }
       if (error instanceof SettleError) {
         const errorReason = error.errorReason || error.message;
-        const settleResponse: SettleResponse = {
+        const settleResponse = normalizeSettleResponse({
           success: false,
           errorReason,
           errorMessage: error.errorMessage || errorReason,
           payer: error.payer,
           network: error.network,
           transaction: error.transaction,
-        };
+        });
         const failure = {
           ...settleResponse,
           success: false as const,
@@ -661,13 +664,12 @@ export class x402HTTPResourceServer {
         return { ...failure, response };
       }
       const errorReason = error instanceof Error ? error.message : "Settlement failed";
-      const settleResponse: SettleResponse = {
+      const settleResponse = normalizeSettleResponse({
         success: false,
         errorReason,
         errorMessage: errorReason,
         network: requirements.network as Network,
-        transaction: "",
-      };
+      });
       const failure = {
         ...settleResponse,
         success: false as const,
