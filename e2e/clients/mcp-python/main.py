@@ -44,13 +44,9 @@ async def main() -> dict:
     register_exact_evm_client(client, evm_signer)
 
     try:
-        async with create_x402_mcp_client(
-            client, server_url, auto_payment=True
-        ) as mcp:
+        async with create_x402_mcp_client(client, server_url, auto_payment=True) as mcp:
             # Call the paid tool - payment is handled automatically
-            result = await mcp.call_tool(
-                endpoint_path, {"city": "San Francisco"}
-            )
+            result = await mcp.call_tool(endpoint_path, {"city": "San Francisco"})
 
             # Extract data from content
             data = None

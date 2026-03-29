@@ -189,9 +189,10 @@ class TestFacilitatorWeb3Signer:
         # This should not raise an exception even though we're testing parameter acceptance
         # We're checking that the method signature accepts the gas parameter
         import inspect
+
         sig = inspect.signature(signer.write_contract)
-        assert 'gas' in sig.parameters
-        assert sig.parameters['gas'].default is None
+        assert "gas" in sig.parameters
+        assert sig.parameters["gas"].default is None
 
     def test_send_transaction_accepts_gas_parameter(self):
         """send_transaction method should accept optional gas parameter."""
@@ -204,9 +205,10 @@ class TestFacilitatorWeb3Signer:
 
         # Check that the method signature accepts the gas parameter
         import inspect
+
         sig = inspect.signature(signer.send_transaction)
-        assert 'gas' in sig.parameters
-        assert sig.parameters['gas'].default is None
+        assert "gas" in sig.parameters
+        assert sig.parameters["gas"].default is None
 
 
 class TestSignerProtocols:

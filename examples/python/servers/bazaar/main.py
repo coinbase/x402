@@ -115,7 +115,12 @@ async def get_weather_by_country(country: str, city: str) -> dict:
         },
     }
     data = weather_data.get(country, {}).get(city, {"weather": "sunny", "temperature": 70})
-    return {"country": country, "city": city, "weather": data["weather"], "temperature": data["temperature"]}
+    return {
+        "country": country,
+        "city": city,
+        "weather": data["weather"],
+        "temperature": data["temperature"],
+    }
 
 
 if __name__ == "__main__":

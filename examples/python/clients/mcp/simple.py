@@ -50,9 +50,7 @@ class MCPClientAdapter:
         """Close session."""
         pass
 
-    async def call_tool(
-        self, params: dict[str, Any], **kwargs: Any
-    ) -> MCPToolResult:
+    async def call_tool(self, params: dict[str, Any], **kwargs: Any) -> MCPToolResult:
         """Call tool via MCP session."""
         name = params.get("name", "")
         args = params.get("arguments", {})

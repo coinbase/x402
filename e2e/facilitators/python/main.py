@@ -95,22 +95,30 @@ class Erc20ApprovalSigner:
 
                 payer_address = w3.eth.account.recover_transaction(tx)
                 # Use the same gas constants as the library's approve tx builder
-                gas_cost = 70_000 * 1_000_000_000  # ERC20_APPROVE_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS
+                gas_cost = (
+                    70_000 * 1_000_000_000
+                )  # ERC20_APPROVE_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS
 
                 payer_balance = w3.eth.get_balance(payer_address)
                 if payer_balance < gas_cost:
                     deficit = gas_cost - payer_balance
-                    print(f"⛽ Funding payer {payer_address} with {deficit} wei for gas")
+                    print(
+                        f"⛽ Funding payer {payer_address} with {deficit} wei for gas"
+                    )
                     fund_tx = {
                         "to": payer_address,
                         "value": deficit,
                         "gas": 21000,
                         "gasPrice": w3.eth.gas_price,
-                        "nonce": w3.eth.get_transaction_count(self._signer._account.address),
+                        "nonce": w3.eth.get_transaction_count(
+                            self._signer._account.address
+                        ),
                         "chainId": w3.eth.chain_id,
                     }
                     signed_fund = self._signer._account.sign_transaction(fund_tx)
-                    fund_hash = w3.eth.send_raw_transaction(signed_fund.raw_transaction).hex()
+                    fund_hash = w3.eth.send_raw_transaction(
+                        signed_fund.raw_transaction
+                    ).hex()
                     fund_receipt = w3.eth.wait_for_transaction_receipt(fund_hash)
                     if fund_receipt["status"] != 1:
                         raise RuntimeError(f"gas_funding_failed: {fund_hash}")
@@ -266,11 +274,14 @@ async def verify(request: VerifyRequest):
         response = await facilitator.verify(payload, requirements)
 
         if not response.is_valid:
-            print(f"  ❌ Verify rejected: {response.invalid_reason} (payer={response.payer})")
+            print(
+                f"  ❌ Verify rejected: {response.invalid_reason} (payer={response.payer})"
+            )
 
         return response.model_dump(by_alias=True, exclude_none=True)
     except Exception as e:
         import traceback
+
         print(f"Verify error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -335,7 +346,9 @@ async def supported():
         response = facilitator.get_supported()
 
         return {
-            "kinds": [k.model_dump(by_alias=True, exclude_none=True) for k in response.kinds],
+            "kinds": [
+                k.model_dump(by_alias=True, exclude_none=True) for k in response.kinds
+            ],
             "extensions": response.extensions,
             "signers": response.signers,
         }
