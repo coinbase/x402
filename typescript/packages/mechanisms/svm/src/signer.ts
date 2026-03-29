@@ -24,8 +24,19 @@ export type ClientSvmSigner = TransactionSigner;
 export type ClientSvmConfig = {
   /**
    * Optional custom RPC URL for the client to use
+   * Ignored if a custom RPC client is provided
    */
   rpcUrl?: string;
+
+  /**
+   * Optional custom RPC client for the client to use
+   * Takes precedence over rpcUrl. Useful for customizing the transport layer
+   * (failover, retry, rate-limit handling, custom RPC endpoint priorities)
+   */
+  rpc?:
+    | RpcDevnet<SolanaRpcApiDevnet>
+    | RpcTestnet<SolanaRpcApiTestnet>
+    | RpcMainnet<SolanaRpcApiMainnet>;
 };
 
 /**
