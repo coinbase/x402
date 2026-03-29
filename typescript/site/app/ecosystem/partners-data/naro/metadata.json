@@ -1,0 +1,7 @@
+{
+  "name": "Naro",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/naro.png",
+  "description": "Real-time flight search and booking infrastructure for AI agents. 300+ airlines, pay-per-request with USDC micropayments on Base.",
+  "websiteUrl": "https://naro.com.ai"
+}
