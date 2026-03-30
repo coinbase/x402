@@ -40,6 +40,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | exact/svm (SPL) | ✅ | ✅ | ✅ |
 | exact/stellar (Soroban) | ✅ | ❌ | ❌ |
 | exact/aptos (Fungible Assets) | ✅ | ❌ | ❌ |
+| upto/evm (Permit2) | ✅ | ✅ | ❌ |
 
 ## Extensions
 
