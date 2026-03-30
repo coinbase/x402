@@ -744,7 +744,11 @@ export class x402ResourceServer {
       };
 
       for (const hook of this.afterVerifyHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          console.error("Error in afterVerify hook:", error);
+        }
       }
 
       return verifyResult;
@@ -756,9 +760,13 @@ export class x402ResourceServer {
 
       // Execute onVerifyFailure hooks
       for (const hook of this.onVerifyFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (error) {
+          console.error("Error in onVerifyFailure hook:", error);
         }
       }
 
@@ -875,7 +883,11 @@ export class x402ResourceServer {
       };
 
       for (const hook of this.afterSettleHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          console.error("Error in afterSettle hook:", error);
+        }
       }
 
       // Let declared extensions add data to settlement response
@@ -910,9 +922,13 @@ export class x402ResourceServer {
 
       // Execute onSettleFailure hooks
       for (const hook of this.onSettleFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (error) {
+          console.error("Error in onSettleFailure hook:", error);
         }
       }
 
