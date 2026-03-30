@@ -1,0 +1,7 @@
+{
+  "name": "InsumerAPI",
+  "description": "Wallet auth infrastructure for condition-based access across 33 blockchains. Agents verify wallet state and get ECDSA-signed booleans — no balances exposed, verifiable offline via JWKS.",
+  "logoUrl": "/logos/insumer-model.png",
+  "websiteUrl": "https://insumermodel.com",
+  "category": "Infrastructure & Tooling"
+}
