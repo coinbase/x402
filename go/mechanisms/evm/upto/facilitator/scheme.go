@@ -3,6 +3,7 @@ package facilitator
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
@@ -48,7 +49,7 @@ func (f *UptoEvmScheme) GetExtra(_ x402.Network) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"facilitatorAddress": addresses[0],
+		"facilitatorAddress": addresses[rand.Intn(len(addresses))],
 	}
 }
 
