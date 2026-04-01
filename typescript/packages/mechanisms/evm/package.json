@@ -149,6 +149,36 @@
         "types": "./dist/cjs/upto/facilitator/index.d.ts",
         "default": "./dist/cjs/upto/facilitator/index.js"
       }
+    },
+    "./deferred/client": {
+      "import": {
+        "types": "./dist/esm/deferred/client/index.d.mts",
+        "default": "./dist/esm/deferred/client/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/deferred/client/index.d.ts",
+        "default": "./dist/cjs/deferred/client/index.js"
+      }
+    },
+    "./deferred/server": {
+      "import": {
+        "types": "./dist/esm/deferred/server/index.d.mts",
+        "default": "./dist/esm/deferred/server/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/deferred/server/index.d.ts",
+        "default": "./dist/cjs/deferred/server/index.js"
+      }
+    },
+    "./deferred/facilitator": {
+      "import": {
+        "types": "./dist/esm/deferred/facilitator/index.d.mts",
+        "default": "./dist/esm/deferred/facilitator/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/deferred/facilitator/index.d.ts",
+        "default": "./dist/cjs/deferred/facilitator/index.js"
+      }
     }
   },
   "files": [

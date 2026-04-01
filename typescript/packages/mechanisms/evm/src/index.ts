@@ -36,6 +36,41 @@ export { UptoEvmScheme } from "./upto";
 export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
+// Deferred scheme client
+export { DeferredEvmScheme } from "./deferred";
+
+// Deferred types
+export type {
+  DeferredDepositPayload,
+  DeferredVoucherPayload,
+  DeferredVoucherFields,
+  DeferredErc3009Authorization,
+  DeferredClaimPayload,
+  DeferredSettleActionPayload,
+  DeferredDepositSettlePayload,
+  DeferredVoucherClaim,
+  DeferredPayload,
+  DeferredSettlePayload,
+} from "./types";
+export {
+  isDeferredDepositPayload,
+  isDeferredVoucherPayload,
+  isDeferredClaimPayload,
+  isDeferredSettleActionPayload,
+  isDeferredDepositSettlePayload,
+} from "./types";
+
+// Deferred constants
+export {
+  DEFERRED_ESCROW_ADDRESS,
+  DEFERRED_ESCROW_DOMAIN,
+  voucherTypes,
+} from "./deferred/constants";
+
+// Default stablecoins (USD string pricing → token address per chain)
+export { getDefaultAsset } from "./shared/defaultAssets";
+export type { DefaultAssetInfo, ExactDefaultAssetInfo } from "./shared/defaultAssets";
+
 // Constants
 export {
   PERMIT2_ADDRESS,

@@ -85,7 +85,9 @@ export type OnVerifyFailureHook = (
 
 export type BeforeSettleHook = (
   context: SettleContext,
-) => Promise<void | { abort: true; reason: string; message?: string }>;
+) => Promise<
+  void | { abort: true; reason: string; message?: string } | { skip: true; result: SettleResponse }
+>;
 
 export type AfterSettleHook = (context: SettleResultContext) => Promise<void>;
 
@@ -816,6 +818,43 @@ export class x402ResourceServer {
             transaction: "",
             network: requirements.network,
           });
+        }
+        if (result && "skip" in result && result.skip) {
+          const settleResult = result.result;
+          const skipResultContext: SettleResultContext = {
+            ...context,
+            result: settleResult,
+            transportContext,
+          };
+          // Still run afterSettle hooks even if settlement is skipped
+          for (const afterHook of this.afterSettleHooks) {
+            await afterHook(skipResultContext);
+          }
+          if (declaredExtensions) {
+            for (const [key, declaration] of Object.entries(declaredExtensions)) {
+              const extension = this.registeredExtensions.get(key);
+              if (extension?.enrichSettlementResponse) {
+                try {
+                  const extensionData = await extension.enrichSettlementResponse(
+                    declaration,
+                    skipResultContext,
+                  );
+                  if (extensionData !== undefined) {
+                    if (!settleResult.extensions) {
+                      settleResult.extensions = {};
+                    }
+                    settleResult.extensions[key] = extensionData;
+                  }
+                } catch (error) {
+                  console.error(
+                    `Error in enrichSettlementResponse hook for extension ${key}:`,
+                    error,
+                  );
+                }
+              }
+            }
+          }
+          return settleResult;
         }
       } catch (error) {
         if (error instanceof SettleError) {

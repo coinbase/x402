@@ -109,13 +109,34 @@ export type UptoPermit2Payload = {
   };
 };
 
+// Deferred types
+export type {
+  DeferredDepositPayload,
+  DeferredVoucherPayload,
+  DeferredVoucherFields,
+  DeferredErc3009Authorization,
+  DeferredClaimPayload,
+  DeferredSettleActionPayload,
+  DeferredDepositSettlePayload,
+  DeferredVoucherClaim,
+  DeferredPayload,
+  DeferredSettlePayload,
+} from "./deferred/types";
+export {
+  isDeferredDepositPayload,
+  isDeferredVoucherPayload,
+  isDeferredClaimPayload,
+  isDeferredSettleActionPayload,
+  isDeferredDepositSettlePayload,
+} from "./deferred/types";
+
 /**
  * Type guard to check if a payload is an upto Permit2 payload.
  * Validates structural presence of all required fields: signature, permit2Authorization
  * (with from, permitted, spender, nonce, deadline), and a witness containing facilitator.
  *
- * @param payload - The payload to check
- * @returns True if the payload is an upto Permit2 payload, false otherwise
+ * @param payload - The payload to check.
+ * @returns True if the payload is an upto Permit2 payload, false otherwise.
  */
 export function isUptoPermit2Payload(
   payload: Record<string, unknown>,

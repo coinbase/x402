@@ -1,0 +1,24 @@
+export const ErrServiceNotFound = "deferred_evm_service_not_found";
+export const ErrSubchannelNotFound = "deferred_evm_subchannel_not_found";
+export const ErrWithdrawalPending = "deferred_evm_withdrawal_pending";
+export const ErrTokenMismatch = "deferred_evm_token_mismatch";
+export const ErrInvalidVoucherSignature = "deferred_evm_invalid_voucher_signature";
+export const ErrCumulativeAmountExceedsDeposit = "deferred_evm_cumulative_exceeds_deposit";
+export const ErrCumulativeAmountBelowClaimed = "deferred_evm_cumulative_below_claimed";
+export const ErrNonceNotIncreasing = "deferred_evm_nonce_not_increasing";
+export const ErrInsufficientBalance = "deferred_evm_insufficient_balance";
+export const ErrDepositTransactionFailed = "deferred_evm_deposit_transaction_failed";
+export const ErrClaimTransactionFailed = "deferred_evm_claim_transaction_failed";
+export const ErrSettleTransactionFailed = "deferred_evm_settle_transaction_failed";
+export const ErrInvalidScheme = "deferred_evm_invalid_scheme";
+export const ErrNetworkMismatch = "deferred_evm_network_mismatch";
+export const ErrMissingServiceId = "deferred_evm_missing_service_id";
+export const ErrServiceIdMismatch = "deferred_evm_service_id_mismatch";
+export const ErrDepositVoucherMismatch = "deferred_evm_deposit_voucher_mismatch";
+export const ErrMissingEip712Domain = "deferred_evm_missing_eip712_domain";
+export const ErrValidBeforeExpired = "deferred_evm_payload_authorization_valid_before";
+export const ErrValidAfterInFuture = "deferred_evm_payload_authorization_valid_after";
+export const ErrInvalidReceiveAuthorizationSignature =
+  "deferred_evm_invalid_receive_authorization_signature";
+export const ErrErc3009AuthorizationRequired = "deferred_evm_erc3009_authorization_required";
+export const ErrInvalidPayloadType = "deferred_evm_invalid_payload_type";
