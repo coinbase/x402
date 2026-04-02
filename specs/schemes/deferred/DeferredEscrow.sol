@@ -26,15 +26,14 @@ interface IERC3009 {
  *      claimed funds are transferred to the service's current payTo via settle().
  */
 contract DeferredEscrow is EIP712 {
-
     // =========================================================================
     // Structs
     // =========================================================================
 
     struct Service {
         address token;
-        uint64  withdrawWindow;
-        bool    registered;
+        uint64 withdrawWindow;
+        bool registered;
         address payTo;
         uint128 unsettled;
         uint256 adminNonce;
@@ -43,16 +42,16 @@ contract DeferredEscrow is EIP712 {
     struct Subchannel {
         uint128 deposit;
         uint128 totalClaimed;
-        uint64  nonce;
-        uint64  withdrawRequestedAt;
+        uint64 nonce;
+        uint64 withdrawRequestedAt;
     }
 
     struct VoucherClaim {
         address payer;
         uint128 cumulativeAmount;
         uint128 claimAmount;
-        uint64  nonce;
-        bytes   signature;
+        uint64 nonce;
+        bytes signature;
     }
 
     // =========================================================================
@@ -60,22 +59,32 @@ contract DeferredEscrow is EIP712 {
     // =========================================================================
 
     bytes32 public constant VOUCHER_TYPEHASH =
-        keccak256("Voucher(bytes32 serviceId,address payer,uint128 cumulativeAmount,uint64 nonce)");
+        keccak256(
+            "Voucher(bytes32 serviceId,address payer,uint128 cumulativeAmount,uint64 nonce)"
+        );
 
     bytes32 public constant REQUEST_WITHDRAWAL_TYPEHASH =
         keccak256("RequestWithdrawal(bytes32 serviceId,address payer)");
 
     bytes32 public constant ADD_AUTHORIZER_TYPEHASH =
-        keccak256("AddAuthorizer(bytes32 serviceId,address newAuthorizer,uint256 nonce)");
+        keccak256(
+            "AddAuthorizer(bytes32 serviceId,address newAuthorizer,uint256 nonce)"
+        );
 
     bytes32 public constant REMOVE_AUTHORIZER_TYPEHASH =
-        keccak256("RemoveAuthorizer(bytes32 serviceId,address target,uint256 nonce)");
+        keccak256(
+            "RemoveAuthorizer(bytes32 serviceId,address target,uint256 nonce)"
+        );
 
     bytes32 public constant UPDATE_PAY_TO_TYPEHASH =
-        keccak256("UpdatePayTo(bytes32 serviceId,address newPayTo,uint256 nonce)");
+        keccak256(
+            "UpdatePayTo(bytes32 serviceId,address newPayTo,uint256 nonce)"
+        );
 
     bytes32 public constant UPDATE_WITHDRAW_WINDOW_TYPEHASH =
-        keccak256("UpdateWithdrawWindow(bytes32 serviceId,uint64 newWindow,uint256 nonce)");
+        keccak256(
+            "UpdateWithdrawWindow(bytes32 serviceId,uint64 newWindow,uint256 nonce)"
+        );
 
     // =========================================================================
     // State
@@ -96,7 +105,10 @@ contract DeferredEscrow is EIP712 {
         address authorizer,
         uint64 withdrawWindow
     );
-    event AuthorizerAdded(bytes32 indexed serviceId, address indexed newAuthorizer);
+    event AuthorizerAdded(
+        bytes32 indexed serviceId,
+        address indexed newAuthorizer
+    );
     event AuthorizerRemoved(bytes32 indexed serviceId, address indexed target);
     event PayToUpdated(bytes32 indexed serviceId, address indexed newPayTo);
     event WithdrawWindowUpdated(bytes32 indexed serviceId, uint64 newWindow);
@@ -205,7 +217,13 @@ contract DeferredEscrow is EIP712 {
         });
         authorizers[serviceId][authorizer] = true;
 
-        emit ServiceRegistered(serviceId, payTo, token, authorizer, withdrawWindow);
+        emit ServiceRegistered(
+            serviceId,
+            payTo,
+            token,
+            authorizer,
+            withdrawWindow
+        );
     }
 
     // =========================================================================
@@ -229,9 +247,17 @@ contract DeferredEscrow is EIP712 {
 
         uint256 currentNonce = svc.adminNonce;
         bytes32 structHash = keccak256(
-            abi.encode(ADD_AUTHORIZER_TYPEHASH, serviceId, newAuthorizer, currentNonce)
+            abi.encode(
+                ADD_AUTHORIZER_TYPEHASH,
+                serviceId,
+                newAuthorizer,
+                currentNonce
+            )
         );
-        address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), authSignature);
+        address signer = ECDSA.recoverCalldata(
+            _hashTypedData(structHash),
+            authSignature
+        );
         if (!authorizers[serviceId][signer]) revert NotAuthorizer();
 
         svc.adminNonce = currentNonce + 1;
@@ -256,9 +282,17 @@ contract DeferredEscrow is EIP712 {
 
         uint256 currentNonce = svc.adminNonce;
         bytes32 structHash = keccak256(
-            abi.encode(REMOVE_AUTHORIZER_TYPEHASH, serviceId, target, currentNonce)
+            abi.encode(
+                REMOVE_AUTHORIZER_TYPEHASH,
+                serviceId,
+                target,
+                currentNonce
+            )
         );
-        address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), authSignature);
+        address signer = ECDSA.recoverCalldata(
+            _hashTypedData(structHash),
+            authSignature
+        );
         if (!authorizers[serviceId][signer]) revert NotAuthorizer();
         if (signer == target) revert LastAuthorizer();
 
@@ -285,9 +319,17 @@ contract DeferredEscrow is EIP712 {
 
         uint256 currentNonce = svc.adminNonce;
         bytes32 structHash = keccak256(
-            abi.encode(UPDATE_PAY_TO_TYPEHASH, serviceId, newPayTo, currentNonce)
+            abi.encode(
+                UPDATE_PAY_TO_TYPEHASH,
+                serviceId,
+                newPayTo,
+                currentNonce
+            )
         );
-        address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), authSignature);
+        address signer = ECDSA.recoverCalldata(
+            _hashTypedData(structHash),
+            authSignature
+        );
         if (!authorizers[serviceId][signer]) revert NotAuthorizer();
 
         svc.adminNonce = currentNonce + 1;
@@ -312,9 +354,17 @@ contract DeferredEscrow is EIP712 {
 
         uint256 currentNonce = svc.adminNonce;
         bytes32 structHash = keccak256(
-            abi.encode(UPDATE_WITHDRAW_WINDOW_TYPEHASH, serviceId, newWindow, currentNonce)
+            abi.encode(
+                UPDATE_WITHDRAW_WINDOW_TYPEHASH,
+                serviceId,
+                newWindow,
+                currentNonce
+            )
         );
-        address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), authSignature);
+        address signer = ECDSA.recoverCalldata(
+            _hashTypedData(structHash),
+            authSignature
+        );
         if (!authorizers[serviceId][signer]) revert NotAuthorizer();
 
         svc.adminNonce = currentNonce + 1;
@@ -415,9 +465,18 @@ contract DeferredEscrow is EIP712 {
 
             // Verify EIP-712 Voucher signature from payer
             bytes32 structHash = keccak256(
-                abi.encode(VOUCHER_TYPEHASH, serviceId, vc.payer, vc.cumulativeAmount, vc.nonce)
+                abi.encode(
+                    VOUCHER_TYPEHASH,
+                    serviceId,
+                    vc.payer,
+                    vc.cumulativeAmount,
+                    vc.nonce
+                )
             );
-            address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), vc.signature);
+            address signer = ECDSA.recoverCalldata(
+                _hashTypedData(structHash),
+                vc.signature
+            );
             if (signer != vc.payer) revert InvalidSignature();
 
             uint128 delta = vc.claimAmount - sub.totalClaimed;
@@ -504,7 +563,10 @@ contract DeferredEscrow is EIP712 {
         bytes32 structHash = keccak256(
             abi.encode(REQUEST_WITHDRAWAL_TYPEHASH, serviceId, payer)
         );
-        address signer = ECDSA.recoverCalldata(_hashTypedData(structHash), authorization);
+        address signer = ECDSA.recoverCalldata(
+            _hashTypedData(structHash),
+            authorization
+        );
         if (signer != payer) revert InvalidSignature();
 
         sub.withdrawRequestedAt = uint64(block.timestamp);
@@ -519,6 +581,7 @@ contract DeferredEscrow is EIP712 {
     /**
      * @notice Refund unclaimed deposit after the withdraw window. Anyone can call.
      *         Resets the subchannel for future deposits (persistent subchannel).
+     *         Voucher nonce is preserved so previously claimed vouchers cannot be replayed.
      * @param serviceId Target service
      * @param payer     Client address
      */
@@ -529,15 +592,15 @@ contract DeferredEscrow is EIP712 {
         Subchannel storage sub = subchannels[serviceId][payer];
         if (sub.withdrawRequestedAt == 0) revert WithdrawalNotRequested();
 
-        bool windowElapsed = block.timestamp >= sub.withdrawRequestedAt + svc.withdrawWindow;
+        bool windowElapsed = block.timestamp >=
+            sub.withdrawRequestedAt + svc.withdrawWindow;
         if (!windowElapsed) revert WithdrawWindowNotElapsed();
 
         uint128 refund = sub.deposit - sub.totalClaimed;
 
-        // Effects — reset subchannel (not delete, it stays addressable)
+        // Effects — reset balances and timer (not delete; nonce must stay monotonic)
         sub.deposit = 0;
         sub.totalClaimed = 0;
-        sub.nonce = 0;
         sub.withdrawRequestedAt = 0;
 
         // service.unsettled is NOT affected — claimed funds stay for settle()
@@ -558,7 +621,9 @@ contract DeferredEscrow is EIP712 {
     /**
      * @notice Read service state.
      */
-    function getService(bytes32 serviceId) external view returns (Service memory) {
+    function getService(
+        bytes32 serviceId
+    ) external view returns (Service memory) {
         return services[serviceId];
     }
 
@@ -599,7 +664,13 @@ contract DeferredEscrow is EIP712 {
         uint64 nonce
     ) external view returns (bytes32) {
         bytes32 structHash = keccak256(
-            abi.encode(VOUCHER_TYPEHASH, serviceId, payer, cumulativeAmount, nonce)
+            abi.encode(
+                VOUCHER_TYPEHASH,
+                serviceId,
+                payer,
+                cumulativeAmount,
+                nonce
+            )
         );
         return _hashTypedData(structHash);
     }

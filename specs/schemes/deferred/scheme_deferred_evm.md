@@ -583,9 +583,9 @@ If the signature does not verify, the client MUST NOT sign based on the server's
 1. Client calls `requestWithdrawal` (or `requestWithdrawalFor` via facilitator). This sets `withdrawRequestedAt = block.timestamp` on the subchannel.
 2. The server has `withdrawWindow` seconds (configured at service registration) to claim outstanding vouchers via `claim()`.
 3. After `withdrawRequestedAt + service.withdrawWindow`, anyone can call `withdraw(serviceId, payer)` to refund unclaimed funds to the payer.
-4. `withdraw` **resets** the subchannel (deposit, totalClaimed, nonce, and withdrawRequestedAt all go to 0) rather than deleting it. The subchannel remains addressable at `(serviceId, payer)` and the client can deposit again at any time.
+4. `withdraw` **resets** balances and the withdrawal timer (`deposit`, `totalClaimed` and `withdrawRequestedAt` all go to 0) rather than deleting the subchannel. **`nonce` is not reset**: it remains the last onchain voucher nonce so old vouchers already used in `claim()` cannot be replayed after the payer deposits again.
 
-**Subchannel Persistence**: Subchannels are never deleted. They are created implicitly on first deposit and persist forever. After withdrawal, the subchannel is reset to a zero state, ready for future deposits. This avoids collision issues if the same payer re-engages with the same service.
+**Subchannel Persistence**: Subchannels are never deleted. They are created implicitly on first deposit and persist forever. After withdrawal, deposit accounting is cleared and the client can top up again; the voucher nonce stays monotonic for the lifetime of `(serviceId, payer)`. This avoids collision issues if the same payer re-engages with the same service.
 
 **Server Claim Timing**: The server MUST claim all outstanding vouchers before the withdraw window elapses. Unclaimed vouchers become unclaimable after `withdraw()` resets the subchannel. The facilitator returns `withdrawRequestedAt` in every `/verify` and `/settle` response, so the server is always aware of pending withdrawal requests.
 
