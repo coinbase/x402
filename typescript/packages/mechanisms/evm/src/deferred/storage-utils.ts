@@ -4,6 +4,9 @@ import { dirname, join } from "node:path";
 /**
  * Writes JSON to `filePath` atomically (temp file in the same directory, then rename).
  * Creates parent directories as needed.
+ *
+ * @param filePath - Destination file path; parent dirs are created if missing.
+ * @param value - JSON-serializable value to persist.
  */
 export async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
   const dir = dirname(filePath);

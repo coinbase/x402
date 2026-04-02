@@ -3,6 +3,7 @@ import { getDefaultAsset } from "@x402/evm";
 import {
   createDeferredEscrowWalletClient,
   DeferredEvmScheme,
+  DeferredSettlementManager,
   ensureDeferredServiceRegistered,
   FileSessionStorage,
 } from "@x402/evm/deferred/server";
@@ -77,6 +78,36 @@ const resourceServer = new x402ResourceServer(facilitatorClient)
   .onAfterVerify(deferredScheme.lifecycleHooks.onAfterVerify)
   .onBeforeSettle(deferredScheme.lifecycleHooks.onBeforeSettle)
   .onAfterSettle(deferredScheme.lifecycleHooks.onAfterSettle)
+
+const settlement = new DeferredSettlementManager({
+  scheme: deferredScheme,
+  facilitator: facilitatorClient,
+  serviceId,
+  network: NETWORK,
+  payTo: evmAddress,
+  asset: tokenAddress,
+});
+
+settlement.start({
+  tickSecs: 5, // evaluate policies every 5s 
+  claimIntervalSecs: 10,
+  claimOnIdleSecs: 30,
+  claimOnWithdrawal: true,
+  settleIntervalSecs: 20,
+  settleThreshold: "1000000",
+  maxClaimsPerBatch: 50,
+  onClaim: (r: { vouchers: number; transaction: string }) =>
+    console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
+  onSettle: (r: { transaction: string }) =>
+    console.log(`Settled to ${evmAddress} (tx: ${r.transaction})`),
+  onError: (e: unknown) => console.error("Settlement error:", e),
+});
+
+process.on("SIGINT", async () => {
+  console.log("Shutting down — flushing pending claims…");
+  await settlement.stop({ flush: true });
+  process.exit(0);
+});
 
 const app = express();
 

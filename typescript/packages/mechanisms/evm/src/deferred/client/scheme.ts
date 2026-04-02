@@ -380,10 +380,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
 
     const autoTopUp = this.depositPolicy?.autoTopUp !== false;
     const currentDep = BigInt(deferredCtx.currentDeposit ?? "0");
-    const needsTopUp =
-      autoTopUp &&
-      !needsInitialDeposit &&
-      BigInt(cumulativeAmount) > currentDep;
+    const needsTopUp = autoTopUp && !needsInitialDeposit && BigInt(cumulativeAmount) > currentDep;
 
     if (needsInitialDeposit || needsTopUp) {
       const depositAmount = needsInitialDeposit
@@ -428,7 +425,12 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     return `${serviceId.toLowerCase()}:${this.signer.address.toLowerCase()}`;
   }
 
-  /** `min(depositMultiplier * requestAmount, maxDeposit)` with scheme defaults. */
+  /**
+   * `min(depositMultiplier * requestAmount, maxDeposit)` with scheme defaults.
+   *
+   * @param requestAmount - Payment amount for this request (atomic units).
+   * @returns Deposit string in atomic units after applying multiplier and cap.
+   */
   private depositAmountForRequest(requestAmount: bigint): string {
     const mult = BigInt(this.depositPolicy?.depositMultiplier ?? 10);
     let depositBig = mult * requestAmount;

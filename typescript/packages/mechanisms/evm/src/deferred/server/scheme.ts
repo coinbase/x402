@@ -19,6 +19,7 @@ import type {
 } from "@x402/core/server";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { isDeferredDepositPayload, isDeferredVoucherPayload } from "../types";
+import type { DeferredVoucherClaim } from "../types";
 import { InMemorySessionStorage, SessionStorage, SubchannelSession } from "./storage";
 
 /**
@@ -156,6 +157,69 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
         version: assetInfo.version,
       },
     });
+  }
+
+  /**
+   * Exposes the session storage for use by {@link DeferredSettlementManager}.
+   *
+   * @returns The configured {@link SessionStorage} instance.
+   */
+  getStorage(): SessionStorage {
+    return this.storage;
+  }
+
+  /**
+   * Returns this scheme's on-chain service id.
+   *
+   * @returns The deferred service id configured for this scheme.
+   */
+  getServiceId(): `0x${string}` {
+    return this.serviceId;
+  }
+
+  /**
+   * Returns {@link DeferredVoucherClaim} entries for every session where
+   * `chargedCumulativeAmount > totalClaimed`.
+   *
+   * @param opts - Optional filters for which sessions qualify as claimable.
+   * @param opts.idleSecs - When set, only includes payers idle for at least this many seconds.
+   * @returns Claimable voucher claims ready to submit to the facilitator.
+   */
+  async getClaimableVouchers(opts?: { idleSecs?: number }): Promise<DeferredVoucherClaim[]> {
+    const sessions = await this.storage.list(lowerServiceId(this.serviceId));
+    const now = Date.now();
+    const claims: DeferredVoucherClaim[] = [];
+
+    for (const s of sessions) {
+      if (BigInt(s.chargedCumulativeAmount) <= BigInt(s.totalClaimed)) {
+        continue;
+      }
+      if (opts?.idleSecs !== undefined) {
+        const idleMs = now - s.lastRequestTimestamp;
+        if (idleMs < opts.idleSecs * 1000) {
+          continue;
+        }
+      }
+      claims.push({
+        payer: s.payer as `0x${string}`,
+        cumulativeAmount: s.signedCumulativeAmount,
+        claimAmount: s.chargedCumulativeAmount,
+        nonce: s.lastNonce,
+        signature: s.signature as `0x${string}`,
+      });
+    }
+
+    return claims;
+  }
+
+  /**
+   * Returns sessions where a withdrawal has been requested (`withdrawRequestedAt > 0`).
+   *
+   * @returns Matching sessions from storage for this service.
+   */
+  async getWithdrawalPendingSessions(): Promise<SubchannelSession[]> {
+    const sessions = await this.storage.list(lowerServiceId(this.serviceId));
+    return sessions.filter(s => s.withdrawRequestedAt > 0);
   }
 
   /**

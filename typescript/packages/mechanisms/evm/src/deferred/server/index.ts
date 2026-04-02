@@ -9,3 +9,10 @@ export type {
   EnsureDeferredServiceRegisteredParams,
   EnsureDeferredServiceRegisteredResult,
 } from "./registration";
+export { DeferredSettlementManager } from "./settlement";
+export type {
+  SettlementManagerConfig,
+  AutoSettlementConfig,
+  ClaimResult,
+  SettleResult,
+} from "./settlement";
