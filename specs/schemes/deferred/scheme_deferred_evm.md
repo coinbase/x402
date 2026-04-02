@@ -80,6 +80,7 @@ A service MUST always have at least one authorizer. The authorizer signature cov
 | `settle`                     | Anyone                  | Transfer claimed funds to the service's current `payTo`                       |
 | `requestWithdrawal`          | Payer                   | Start withdrawal countdown (`withdrawRequestedAt = now`)                      |
 | `requestWithdrawalFor`       | Anyone (with payer sig) | Gasless `requestWithdrawal` via payer's EIP-712 authorization                 |
+| `cooperativeWithdraw`        | Anyone (with auth sig)  | Instant batch refund signed by authorizer (no waiting period)                 |
 | `withdraw`                   | Anyone                  | After withdraw window, refund unclaimed deposit and reset subchannel          |
 | `getService`                 | View                    | Read service state                                                            |
 | `getSubchannel`              | View                    | Read subchannel state for a `(serviceId, payer)` pair                         |
@@ -121,6 +122,16 @@ Used for gasless withdrawal requests via `requestWithdrawalFor`.
 
 ```
 RequestWithdrawal(bytes32 serviceId, address payer)
+```
+
+### CooperativeWithdraw EIP-712 Type
+
+Used for instant cooperative withdrawal via `cooperativeWithdraw`. The `withdrawNonce` (per-subchannel, incremented on each cooperative withdrawal) prevents replay after the subchannel is reset and re-deposited.
+
+**Type:**
+
+```
+CooperativeWithdraw(bytes32 serviceId, address payer, uint64 withdrawNonce)
 ```
 
 ### Subchannel Identity
@@ -419,6 +430,7 @@ Performs onchain operations. The facilitator infers the action from the payload:
 | `"claim"`             | `voucher[]`   | `claim(serviceId, VoucherClaim[])`                                             | Server batches voucher claims                        |
 | `"settle"`            | (none)        | `settle(serviceId)`                                                            | Server transfers claimed funds to payTo              |
 | `"requestWithdrawal"` | (payer auth)  | `requestWithdrawalFor(serviceId, payer, authorization)`                        | Client requests withdrawal                           |
+| `"cooperativeWithdraw"` | (auth sigs) | `cooperativeWithdraw(serviceId, CooperativeWithdrawRequest[])`                 | Authorizer-signed instant batch refund               |
 | `"withdraw"`          | (none)        | `withdraw(serviceId, payer)`                                                   | After withdraw window elapses, resets subchannel     |
 
 
@@ -428,6 +440,7 @@ Performs onchain operations. The facilitator infers the action from the payload:
 - **`claim`**: Submit `claim(serviceId, VoucherClaim[])` with one or more voucher entries from different subchannels. The contract verifies each voucher signature and updates subchannel accounting. No token transfer occurs.
 - **`settle`**: Submit `settle(serviceId)`. Transfers all claimed-but-unsettled funds to the service's current `payTo`.
 - **`requestWithdrawal`**: Submit `requestWithdrawalFor(serviceId, payer, authorization)` with the payer's EIP-712 signature. Records `withdrawRequestedAt = now` on the subchannel.
+- **`cooperativeWithdraw`**: Submit `cooperativeWithdraw(serviceId, requests[])` with authorizer-signed `CooperativeWithdraw` digests. Instantly refunds unclaimed deposits to payers and resets subchannels. No waiting period. Batches across multiple payers.
 - **`withdraw`**: Submit `withdraw(serviceId, payer)`. After `withdrawRequestedAt + service.withdrawWindow`, refunds unclaimed deposit to the payer and resets the subchannel for future deposits.
 
 **Response:**
@@ -579,11 +592,12 @@ If the signature does not verify, the client MUST NOT sign based on the server's
 
 **payTo Rotation**: The service's authorizer can call `updatePayTo()` at any time. This takes effect at the next `settle()` call. No subchannel closures or channel rotations are needed — claimed funds simply flow to the new `payTo` when settled.
 
-**Withdrawal Flow**: When a client wants funds back:
-1. Client calls `requestWithdrawal` (or `requestWithdrawalFor` via facilitator). This sets `withdrawRequestedAt = block.timestamp` on the subchannel.
-2. The server has `withdrawWindow` seconds (configured at service registration) to claim outstanding vouchers via `claim()`.
-3. After `withdrawRequestedAt + service.withdrawWindow`, anyone can call `withdraw(serviceId, payer)` to refund unclaimed funds to the payer.
-4. `withdraw` **resets** balances and the withdrawal timer (`deposit`, `totalClaimed` and `withdrawRequestedAt` all go to 0) rather than deleting the subchannel. **`nonce` is not reset**: it remains the last onchain voucher nonce so old vouchers already used in `claim()` cannot be replayed after the payer deposits again.
+**Withdrawal Flow**: Three paths are available:
+- **Cooperative (instant)**: The server calls `claim()` to settle outstanding vouchers, then submits `cooperativeWithdraw()` with an authorizer signature per payer. Funds are refunded immediately with no waiting period. Batches across multiple payers in a single transaction.
+- **Non-cooperative gasless (time-delayed)**: Client signs an EIP-712 `RequestWithdrawal` authorization, facilitator submits `requestWithdrawalFor()`. After `withdrawWindow` elapses, anyone calls `withdraw()`.
+- **Non-cooperative direct (time-delayed)**: Client calls `requestWithdrawal()` directly. After `withdrawWindow` elapses, anyone calls `withdraw()`.
+
+Both `cooperativeWithdraw` and `withdraw` **reset** balances and the withdrawal timer (`deposit`, `totalClaimed` and `withdrawRequestedAt` all go to 0) rather than deleting the subchannel. **`nonce` is not reset**: it remains the last onchain voucher nonce so old vouchers already used in `claim()` cannot be replayed after the payer deposits again. `cooperativeWithdraw` additionally increments `withdrawNonce` to prevent replay of the authorizer signature after re-deposit.
 
 **Subchannel Persistence**: Subchannels are never deleted. They are created implicitly on first deposit and persist forever. After withdrawal, deposit accounting is cleared and the client can top up again; the voucher nonce stays monotonic for the lifetime of `(serviceId, payer)`. This avoids collision issues if the same payer re-engages with the same service.
 
@@ -616,6 +630,7 @@ The EVM network binding additionally defines these binding-specific codes:
 
 | Version | Date       | Changes                                       | Author    |
 | ------- | ---------- | --------------------------------------------- | --------- |
+| v0.5    | 2026-04-02 | Add cooperativeWithdraw                        | @phdargen |
 | v0.4    | 2026-03-31 | Service registry + subchannel architecture     | @CarsonRoscoe |
 | v0.3    | 2026-03-31 | Add voucherId for concurrency                  | @phdargen |
 | v0.2    | 2025-03-30 | Add dynamic price                              | @phdargen |

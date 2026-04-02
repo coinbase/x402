@@ -44,6 +44,7 @@ contract DeferredEscrow is EIP712 {
         uint128 totalClaimed;
         uint64 nonce;
         uint64 withdrawRequestedAt;
+        uint64 withdrawNonce;
     }
 
     struct VoucherClaim {
@@ -52,6 +53,11 @@ contract DeferredEscrow is EIP712 {
         uint128 claimAmount;
         uint64 nonce;
         bytes signature;
+    }
+
+    struct CooperativeWithdrawRequest {
+        address payer;
+        bytes authorizerSignature;
     }
 
     // =========================================================================
@@ -65,6 +71,11 @@ contract DeferredEscrow is EIP712 {
 
     bytes32 public constant REQUEST_WITHDRAWAL_TYPEHASH =
         keccak256("RequestWithdrawal(bytes32 serviceId,address payer)");
+
+    bytes32 public constant COOPERATIVE_WITHDRAW_TYPEHASH =
+        keccak256(
+            "CooperativeWithdraw(bytes32 serviceId,address payer,uint64 withdrawNonce)"
+        );
 
     bytes32 public constant ADD_AUTHORIZER_TYPEHASH =
         keccak256(
@@ -579,6 +590,51 @@ contract DeferredEscrow is EIP712 {
     }
 
     /**
+     * @notice Instant cooperative withdrawal signed by an authorizer.
+     *         Refunds unclaimed deposit to each payer immediately (no waiting period).
+     *         Batches across multiple payers in a single transaction.
+     * @param serviceId  Target service
+     * @param requests   Array of payer addresses with authorizer signatures
+     */
+    function cooperativeWithdraw(
+        bytes32 serviceId,
+        CooperativeWithdrawRequest[] calldata requests
+    ) external {
+        Service storage svc = services[serviceId];
+        if (!svc.registered) revert ServiceNotRegistered();
+
+        for (uint256 i = 0; i < requests.length; ++i) {
+            CooperativeWithdrawRequest calldata req = requests[i];
+            Subchannel storage sub = subchannels[serviceId][req.payer];
+
+            if (sub.deposit == 0) revert NothingToWithdraw();
+
+            bytes32 structHash = keccak256(
+                abi.encode(COOPERATIVE_WITHDRAW_TYPEHASH, serviceId, req.payer, sub.withdrawNonce)
+            );
+            address authSigner = ECDSA.recoverCalldata(
+                _hashTypedData(structHash),
+                req.authorizerSignature
+            );
+            if (!authorizers[serviceId][authSigner]) revert NotAuthorizer();
+
+            uint128 refund = sub.deposit - sub.totalClaimed;
+
+            sub.deposit = 0;
+            sub.totalClaimed = 0;
+            sub.withdrawRequestedAt = 0;
+            sub.withdrawNonce += 1;
+
+            if (refund > 0) {
+                bool success = IERC20(svc.token).transfer(req.payer, refund);
+                if (!success) revert TransferFailed();
+            }
+
+            emit Withdrawn(serviceId, req.payer, refund);
+        }
+    }
+
+    /**
      * @notice Refund unclaimed deposit after the withdraw window. Anyone can call.
      *         Resets the subchannel for future deposits (persistent subchannel).
      *         Voucher nonce is preserved so previously claimed vouchers cannot be replayed.
@@ -684,6 +740,20 @@ contract DeferredEscrow is EIP712 {
     ) external view returns (bytes32) {
         bytes32 structHash = keccak256(
             abi.encode(REQUEST_WITHDRAWAL_TYPEHASH, serviceId, payer)
+        );
+        return _hashTypedData(structHash);
+    }
+
+    /**
+     * @notice Compute the EIP-712 digest for a CooperativeWithdraw (for off-chain signing).
+     */
+    function getCooperativeWithdrawDigest(
+        bytes32 serviceId,
+        address payer,
+        uint64 withdrawNonce
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(COOPERATIVE_WITHDRAW_TYPEHASH, serviceId, payer, withdrawNonce)
         );
         return _hashTypedData(structHash);
     }
