@@ -24,6 +24,8 @@ if (!process.env.EVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
+const evmRpcUrl = process.env.EVM_RPC_URL;
+
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
@@ -34,7 +36,7 @@ console.info(`EVM Facilitator account: ${evmAccount.address}`);
 const viemClient = createWalletClient({
   account: evmAccount,
   chain: baseSepolia,
-  transport: http(),
+  transport: http(evmRpcUrl),
 }).extend(publicActions);
 
 // Initialize the x402 Facilitator with EVM support

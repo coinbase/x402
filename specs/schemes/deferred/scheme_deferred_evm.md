@@ -605,6 +605,7 @@ The EVM network binding additionally defines these binding-specific codes:
 | `deferred_evm_withdrawal_pending`     | A withdrawal request is pending on this subchannel; client should wait or deposit to cancel it                        |
 | `deferred_evm_invalid_increment`      | Voucher delta does not equal the required `amount` per request                                                        |
 | `deferred_evm_token_mismatch`         | Service's registered token does not match `asset` in requirements                                                     |
+| `deferred_evm_cumulative_exceeds_deposit` | Voucher `cumulativeAmount` exceeds onchain `subchannel.deposit`  |
 | `deferred_stale_cumulative_amount`    | Client voucher base does not match the server's last known `chargedCumulativeAmount`; server returns a corrective 402 |
 
 

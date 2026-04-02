@@ -4,6 +4,7 @@ import {
   createDeferredEscrowWalletClient,
   DeferredEvmScheme,
   ensureDeferredServiceRegistered,
+  FileSessionStorage,
 } from "@x402/evm/deferred/server";
 import { paymentMiddleware, setSettlementOverrides, x402ResourceServer } from "@x402/express";
 import { config } from "dotenv";
@@ -18,6 +19,7 @@ const NETWORK = "eip155:84532" as const;
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
 const serviceId = process.env.SERVICE_ID as `0x${string}`;
 const serverPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
+const sessionDir = process.env.DEFERRED_SESSION_DIR;
 
 if (!evmAddress || !/^0x[0-9a-fA-F]{40}$/.test(evmAddress)) {
   console.error("Missing or invalid EVM_ADDRESS (checksummed 20-byte hex, 0x-prefixed)");
@@ -65,11 +67,13 @@ if (registration.alreadyRegistered) {
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const deferredScheme = new DeferredEvmScheme(serviceId); // Uses in-memory session storage by default
-//const deferredScheme = new DeferredEvmScheme(serviceId, { storage: new RedisSessionStorage(...) }); // Custom (Redis, database, etc. for production)
+const deferredScheme = new DeferredEvmScheme(serviceId, {
+  ...(sessionDir ? { storage: new FileSessionStorage({ directory: sessionDir }) } : {}),
+});
 
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, deferredScheme)
+  .onBeforeVerify(deferredScheme.lifecycleHooks.onBeforeVerify)
   .onAfterVerify(deferredScheme.lifecycleHooks.onAfterVerify)
   .onBeforeSettle(deferredScheme.lifecycleHooks.onBeforeSettle)
   .onAfterSettle(deferredScheme.lifecycleHooks.onAfterSettle)

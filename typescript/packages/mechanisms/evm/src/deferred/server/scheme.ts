@@ -13,7 +13,9 @@ import type {
   AfterSettleHook,
   AfterVerifyHook,
   BeforeSettleHook,
+  BeforeVerifyHook,
   SettleContext,
+  VerifyContext,
 } from "@x402/core/server";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { isDeferredDepositPayload, isDeferredVoucherPayload } from "../types";
@@ -43,11 +45,12 @@ function lowerServiceId(id: string): string {
  * default asset resolution, and optional session lifecycle hooks for voucher/deposit flows.
  *
  * Register hooks explicitly on {@link x402ResourceServer}, e.g.:
- * `server.register(..., deferred).onAfterVerify(deferred.lifecycleHooks.onAfterVerify)...`
+ * `server.register(..., deferred).onBeforeVerify(deferred.lifecycleHooks.onBeforeVerify).onAfterVerify(deferred.lifecycleHooks.onAfterVerify)...`
  */
 export class DeferredEvmScheme implements SchemeNetworkServer {
   readonly scheme = "deferred";
   readonly lifecycleHooks: {
+    onBeforeVerify: BeforeVerifyHook;
     onAfterVerify: AfterVerifyHook;
     onBeforeSettle: BeforeSettleHook;
     onAfterSettle: AfterSettleHook;
@@ -68,6 +71,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   ) {
     this.storage = config?.storage ?? new InMemorySessionStorage();
     this.lifecycleHooks = {
+      onBeforeVerify: this.handleBeforeVerify.bind(this),
       onAfterVerify: this.handleAfterVerify.bind(this),
       onBeforeSettle: this.handleBeforeSettle.bind(this),
       onAfterSettle: this.handleAfterSettle.bind(this),
@@ -162,6 +166,58 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    */
   private assertThisServiceId(id: `0x${string}`): boolean {
     return lowerServiceId(id) === lowerServiceId(this.serviceId);
+  }
+
+  /**
+   * Rejects voucher payments whose cumulative/nonce do not match stored session and emits a corrective 402
+   * (`deferred_stale_cumulative_amount`) with server session fields in `requirements.extra`.
+   *
+   * @param ctx - Verification context (payload, requirements, hooks).
+   * @returns Nothing to continue; or `{ abort: true, ... }` to short-circuit verification with an error.
+   */
+  private async handleBeforeVerify(
+    ctx: VerifyContext,
+  ): Promise<void | { abort: true; reason: string; message?: string }> {
+    const { paymentPayload, requirements } = ctx;
+    if (requirements.scheme !== "deferred") {
+      return;
+    }
+
+    const raw = paymentPayload.payload as Record<string, unknown>;
+    if (!isDeferredVoucherPayload(raw)) {
+      return;
+    }
+
+    if (!this.assertThisServiceId(raw.serviceId)) {
+      return;
+    }
+
+    const session = await this.storage.get(lowerServiceId(raw.serviceId), raw.payer);
+    if (!session) {
+      return;
+    }
+
+    const expectedCumulative =
+      BigInt(session.chargedCumulativeAmount) + BigInt(requirements.amount);
+    const expectedNonce = session.lastNonce + 1;
+
+    if (BigInt(raw.cumulativeAmount) === expectedCumulative && raw.nonce === expectedNonce) {
+      return;
+    }
+
+    requirements.extra = {
+      ...requirements.extra,
+      chargedCumulativeAmount: session.chargedCumulativeAmount,
+      signedCumulativeAmount: session.signedCumulativeAmount,
+      nonce: session.lastNonce,
+      signature: session.signature,
+    };
+
+    return {
+      abort: true,
+      reason: "deferred_stale_cumulative_amount",
+      message: "Client voucher base does not match server state",
+    };
   }
 
   /**
@@ -414,7 +470,13 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10) || 0
             : 0;
-      const chargedActual = requirements.amount;
+      const prevDepositSession = await this.storage.get(
+        lowerServiceId(raw.deposit.serviceId),
+        raw.deposit.payer,
+      );
+      const chargedActual = (
+        BigInt(prevDepositSession?.chargedCumulativeAmount ?? "0") + BigInt(requirements.amount)
+      ).toString();
       const signedCumulative = raw.voucher.cumulativeAmount;
       const session: SubchannelSession = {
         serviceId: lowerServiceId(raw.deposit.serviceId),

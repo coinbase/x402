@@ -61,11 +61,11 @@ export async function verifyDeposit(
 
   const extra = requirements.extra as
     | {
-      serviceId?: string;
-      name?: string;
-      version?: string;
-      assetTransferMethod?: string;
-    }
+        serviceId?: string;
+        name?: string;
+        version?: string;
+        assetTransferMethod?: string;
+      }
     | undefined;
 
   if (!extra?.serviceId || !serviceIdsEqual(serviceId, extra.serviceId)) {
