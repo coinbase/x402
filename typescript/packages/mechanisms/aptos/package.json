@@ -24,7 +24,7 @@
   ],
   "license": "Apache-2.0",
   "author": "Aptos Labs",
-  "repository": "https://github.com/coinbase/x402",
+  "repository": "https://github.com/x402-foundation/x402",
   "description": "x402 Payment Protocol Aptos Implementation",
   "devDependencies": {
     "@eslint/js": "^9.24.0",

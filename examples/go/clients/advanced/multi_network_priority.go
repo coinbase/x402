@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	x402 "github.com/coinbase/x402/go"
-	x402http "github.com/coinbase/x402/go/http"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
+	x402 "github.com/x402-foundation/x402/go"
+	x402http "github.com/x402-foundation/x402/go/http"
+	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/client"
+	evmsigners "github.com/x402-foundation/x402/go/signers/evm"
 )
 
 /**
@@ -33,9 +33,9 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, url stri
 
 	// In a real scenario, you might have different signers for different networks
 	// For demo purposes, we'll use the same signer but show the pattern
-	mainnetSigner := primarySigner   // Would be different in production
-	testnetSigner := primarySigner   // Would be different in production
-	baseSigner := primarySigner      // Would be different in production
+	mainnetSigner := primarySigner // Would be different in production
+	testnetSigner := primarySigner // Would be different in production
+	baseSigner := primarySigner    // Would be different in production
 
 	fmt.Println("📝 Registering networks with priority:")
 	fmt.Println("   1. Specific networks (highest priority)")
@@ -64,7 +64,7 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, url stri
 	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
 		fmt.Printf("💰 Creating payment for network: %s\n", ctx.SelectedRequirements.GetNetwork())
 		fmt.Printf("   Scheme: %s\n", ctx.SelectedRequirements.GetScheme())
-		
+
 		// Show which signer would be used based on network
 		var signerType string
 		switch ctx.SelectedRequirements.GetNetwork() {
@@ -117,4 +117,3 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, url stri
 	printPaymentDetails(resp.Header)
 	return nil
 }
-
