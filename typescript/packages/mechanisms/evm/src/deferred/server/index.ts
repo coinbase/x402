@@ -1,5 +1,5 @@
 export { DeferredEvmScheme } from "./scheme";
-export type { DeferredEvmSchemeServerConfig } from "./scheme";
+export type { DeferredEvmSchemeServerConfig, AuthorizerSigner } from "./scheme";
 export { InMemorySessionStorage } from "./storage";
 export type { SubchannelSession, SessionStorage } from "./storage";
 export type { FileSessionStorageOptions } from "./fileStorage";
@@ -15,4 +15,5 @@ export type {
   AutoSettlementConfig,
   ClaimResult,
   SettleResult,
+  CooperativeWithdrawResult,
 } from "./settlement";

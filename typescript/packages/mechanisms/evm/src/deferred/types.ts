@@ -28,6 +28,7 @@ export type DeferredVoucherFields = {
   cumulativeAmount: string;
   nonce: number;
   signature: `0x${string}`;
+  withdraw?: boolean;
 };
 
 export type DeferredClaimPayload = {
@@ -56,10 +57,18 @@ export type DeferredVoucherClaim = {
 
 export type DeferredPayload = DeferredDepositPayload | DeferredVoucherPayload;
 
+export type DeferredCooperativeWithdrawSettlePayload = {
+  settleAction: "cooperativeWithdraw";
+  serviceId: `0x${string}`;
+  claims: DeferredVoucherClaim[];
+  requests: Array<{ payer: `0x${string}`; authorizerSignature: `0x${string}` }>;
+};
+
 export type DeferredSettlePayload =
   | DeferredDepositSettlePayload
   | DeferredClaimPayload
-  | DeferredSettleActionPayload;
+  | DeferredSettleActionPayload
+  | DeferredCooperativeWithdrawSettlePayload;
 
 /**
  * Type guard for a deferred deposit payload (deposit + voucher).
@@ -112,6 +121,20 @@ export function isDeferredSettleActionPayload(
   payload: Record<string, unknown>,
 ): payload is DeferredSettleActionPayload {
   return payload.settleAction === "settle" && "serviceId" in payload;
+}
+
+/**
+ * Type guard for a cooperative withdraw settle payload.
+ *
+ * @param payload - The raw payload object.
+ * @returns True if the object matches {@link DeferredCooperativeWithdrawSettlePayload}.
+ */
+export function isDeferredCooperativeWithdrawSettlePayload(
+  payload: Record<string, unknown>,
+): payload is DeferredCooperativeWithdrawSettlePayload {
+  return (
+    payload.settleAction === "cooperativeWithdraw" && "claims" in payload && "requests" in payload
+  );
 }
 
 /**

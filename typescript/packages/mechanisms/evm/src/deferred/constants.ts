@@ -1,4 +1,4 @@
-export const DEFERRED_ESCROW_ADDRESS = "0xc23131c54603Fb33DA9AeC98afbE8E4CE9Be6CFF" as const;
+export const DEFERRED_ESCROW_ADDRESS = "0x004d19Ee84818850b02a2EA88330Db86547952Ac" as const;
 
 export const DEFERRED_ESCROW_DOMAIN = {
   name: "Deferred Escrow",
@@ -11,6 +11,14 @@ export const voucherTypes = {
     { name: "payer", type: "address" },
     { name: "cumulativeAmount", type: "uint128" },
     { name: "nonce", type: "uint64" },
+  ],
+} as const;
+
+export const cooperativeWithdrawTypes = {
+  CooperativeWithdraw: [
+    { name: "serviceId", type: "bytes32" },
+    { name: "payer", type: "address" },
+    { name: "withdrawNonce", type: "uint64" },
   ],
 } as const;
 

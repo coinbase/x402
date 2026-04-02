@@ -27,6 +27,7 @@ type SubchannelState = {
   totalClaimed: bigint;
   nonce: bigint;
   withdrawRequestedAt: bigint;
+  withdrawNonce: bigint;
 };
 
 /**
@@ -206,6 +207,7 @@ export async function verifyDeposit(
       deposit: subchannel.deposit.toString(),
       totalClaimed: subchannel.totalClaimed.toString(),
       withdrawRequestedAt: Number(subchannel.withdrawRequestedAt),
+      withdrawNonce: Number(subchannel.withdrawNonce),
     },
   };
 }
@@ -289,6 +291,7 @@ export async function settleDeposit(
         ).toString(),
         totalClaimed: verified.extra?.totalClaimed ?? "0",
         withdrawRequestedAt: Number(verified.extra?.withdrawRequestedAt ?? 0),
+        withdrawNonce: Number(verified.extra?.withdrawNonce ?? 0),
       },
     };
   } catch {

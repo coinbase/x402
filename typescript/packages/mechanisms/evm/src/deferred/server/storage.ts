@@ -8,6 +8,7 @@ export interface SubchannelSession {
   deposit: string;
   totalClaimed: string;
   withdrawRequestedAt: number;
+  withdrawNonce: number;
   lastRequestTimestamp: number;
 }
 

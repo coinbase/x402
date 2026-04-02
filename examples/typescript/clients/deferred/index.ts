@@ -42,11 +42,14 @@ async function main(): Promise<void> {
       : {}),
   });
 
+  let serviceId: `0x${string}` | undefined;
+
   const client = new x402Client();
   client.register("eip155:*", deferredScheme);
 
   client.onBeforePaymentCreation(async ({ selectedRequirements }) => {
     const sid = selectedRequirements.extra?.serviceId as `0x${string}` | undefined;
+    if (sid) serviceId = sid;
     if (
       sid &&
       selectedRequirements.scheme === "deferred" &&
@@ -62,6 +65,10 @@ async function main(): Promise<void> {
   console.log(`Base URL: ${baseURL}, endpoint: ${endpointPath}\n`);
 
   for (let i = 0; i < 3; i++) {
+    if (i === 2 && serviceId) {
+      deferredScheme.requestCooperativeWithdraw(serviceId);
+    }
+
     const requestInit: RequestInit = { method: "GET" };
     let response = await fetchWithPayment(url, requestInit);
     const getHeader = (name: string) => response.headers.get(name);
@@ -101,7 +108,7 @@ async function main(): Promise<void> {
 
     await deferredScheme.processPaymentResponse(getHeader);
 
-    // await new Promise(resolve => setTimeout(resolve, 10_000)); // Wait 10s before the next request
+
   }
 }
 

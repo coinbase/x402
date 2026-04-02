@@ -148,6 +148,23 @@ export const deferredEscrowABI = [
   },
   {
     type: "function",
+    name: "cooperativeWithdraw",
+    inputs: [
+      { name: "serviceId", type: "bytes32" },
+      {
+        name: "requests",
+        type: "tuple[]",
+        components: [
+          { name: "payer", type: "address" },
+          { name: "authorizerSignature", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "getSubchannel",
     inputs: [
       { name: "serviceId", type: "bytes32" },
@@ -162,6 +179,7 @@ export const deferredEscrowABI = [
           { name: "totalClaimed", type: "uint128" },
           { name: "nonce", type: "uint64" },
           { name: "withdrawRequestedAt", type: "uint64" },
+          { name: "withdrawNonce", type: "uint64" },
         ],
       },
     ],
@@ -192,6 +210,17 @@ export const deferredEscrowABI = [
       { name: "payer", type: "address" },
       { name: "cumulativeAmount", type: "uint128" },
       { name: "nonce", type: "uint64" },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCooperativeWithdrawDigest",
+    inputs: [
+      { name: "serviceId", type: "bytes32" },
+      { name: "payer", type: "address" },
+      { name: "withdrawNonce", type: "uint64" },
     ],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",

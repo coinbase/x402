@@ -21,4 +21,6 @@ export const ErrValidAfterInFuture = "deferred_evm_payload_authorization_valid_a
 export const ErrInvalidReceiveAuthorizationSignature =
   "deferred_evm_invalid_receive_authorization_signature";
 export const ErrErc3009AuthorizationRequired = "deferred_evm_erc3009_authorization_required";
+export const ErrCooperativeWithdrawTransactionFailed =
+  "deferred_evm_cooperative_withdraw_transaction_failed";
 export const ErrInvalidPayloadType = "deferred_evm_invalid_payload_type";

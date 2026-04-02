@@ -37,10 +37,17 @@ export interface AutoSettlementConfig {
   /** Background tick evaluation interval in seconds (default: 5). */
   tickSecs?: number;
 
+  /** Cooperative-withdraw payers idle longer than N seconds (requires authorizerSigner). */
+  cooperativeWithdrawOnIdleSecs?: number;
+  /** Cooperative-withdraw all remaining sessions on {@link DeferredSettlementManager.stop} with `flush: true`. */
+  cooperativeWithdrawOnShutdown?: boolean;
+
   /** Called after a successful claim batch. */
   onClaim?: (result: ClaimResult) => void;
   /** Called after a successful settle. */
   onSettle?: (result: SettleResult) => void;
+  /** Called after a successful cooperative withdraw. */
+  onCooperativeWithdraw?: (result: CooperativeWithdrawResult) => void;
   /** Called on any claim/settle error. */
   onError?: (error: unknown) => void;
 }
@@ -51,6 +58,11 @@ export interface ClaimResult {
 }
 
 export interface SettleResult {
+  transaction: string;
+}
+
+export interface CooperativeWithdrawResult {
+  payers: string[];
   transaction: string;
 }
 
@@ -71,6 +83,7 @@ export class DeferredSettlementManager {
   private lastSettleTime = 0;
   private pendingSettle = false;
   private running = false;
+  private autoSettleConfig: AutoSettlementConfig = {};
 
   /**
    * Creates a manager bound to a deferred scheme, facilitator, and settlement context.
@@ -161,6 +174,78 @@ export class DeferredSettlementManager {
   }
 
   /**
+   * Cooperative-withdraws selected (or all) payers: claims outstanding vouchers,
+   * signs `CooperativeWithdraw` as authorizer, then submits to the facilitator.
+   * Deletes sessions after success.
+   *
+   * @param payers - If provided, only withdraw these addresses; otherwise all sessions.
+   * @returns Result with payer list and facilitator transaction hash.
+   */
+  async cooperativeWithdraw(payers?: string[]): Promise<CooperativeWithdrawResult> {
+    const storage = this.scheme.getStorage();
+    const sid = this.scheme.getServiceId().toLowerCase();
+    const sessions = await storage.list(sid);
+
+    const targets = payers
+      ? sessions.filter(s => payers.some(p => p.toLowerCase() === s.payer.toLowerCase()))
+      : sessions;
+
+    if (targets.length === 0) {
+      return { payers: [], transaction: "" };
+    }
+
+    const claims: DeferredVoucherClaim[] = [];
+    const requests: Array<{ payer: `0x${string}`; authorizerSignature: `0x${string}` }> = [];
+
+    for (const s of targets) {
+      if (BigInt(s.chargedCumulativeAmount) > BigInt(s.totalClaimed)) {
+        claims.push({
+          payer: s.payer as `0x${string}`,
+          cumulativeAmount: s.signedCumulativeAmount,
+          claimAmount: s.chargedCumulativeAmount,
+          nonce: s.lastNonce,
+          signature: s.signature as `0x${string}`,
+        });
+      }
+
+      const authSig = await this.scheme.signCooperativeWithdraw(
+        this.serviceId,
+        s.payer as `0x${string}`,
+        s.withdrawNonce,
+        this.network,
+      );
+      requests.push({ payer: s.payer as `0x${string}`, authorizerSignature: authSig });
+    }
+
+    const paymentPayload: PaymentPayload = {
+      x402Version: 2,
+      accepted: this.buildPaymentRequirements(),
+      payload: {
+        settleAction: "cooperativeWithdraw",
+        serviceId: this.serviceId,
+        claims,
+        requests,
+      },
+    };
+
+    const response = await this.facilitator.settle(paymentPayload, this.buildPaymentRequirements());
+    if (!response.success) {
+      throw new Error(
+        `CooperativeWithdraw failed: ${response.errorReason ?? "unknown"} — ${response.errorMessage ?? ""}`,
+      );
+    }
+
+    for (const s of targets) {
+      await storage.delete(sid, s.payer);
+    }
+
+    return {
+      payers: targets.map(s => s.payer),
+      transaction: response.transaction,
+    };
+  }
+
+  /**
    * Starts a single background timer that evaluates all settlement policies each tick.
    *
    * @param config - Intervals, thresholds, hooks, and batch limits for auto claim/settle.
@@ -180,6 +265,8 @@ export class DeferredSettlementManager {
     this.lastSettleTime = Date.now();
     this.running = true;
 
+    this.autoSettleConfig = config;
+
     this.tickTimer = setInterval(() => {
       void this.tick({
         claimIntervalMs,
@@ -189,8 +276,10 @@ export class DeferredSettlementManager {
         claimOnWithdrawal,
         settleThreshold: config.settleThreshold,
         maxClaimsPerBatch,
+        cooperativeWithdrawOnIdleSecs: config.cooperativeWithdrawOnIdleSecs,
         onClaim: config.onClaim,
         onSettle: config.onSettle,
+        onCooperativeWithdraw: config.onCooperativeWithdraw,
         onError: config.onError,
       });
     }, tickMs);
@@ -211,6 +300,16 @@ export class DeferredSettlementManager {
     }
     if (opts?.flush) {
       await this.claimAndSettle();
+      if (this.autoSettleConfig.cooperativeWithdrawOnShutdown) {
+        try {
+          const result = await this.cooperativeWithdraw();
+          if (result.payers.length > 0) {
+            this.autoSettleConfig.onCooperativeWithdraw?.(result);
+          }
+        } catch (err) {
+          this.autoSettleConfig.onError?.(err);
+        }
+      }
     }
   }
 
@@ -232,6 +331,8 @@ export class DeferredSettlementManager {
    * @param cfg.onClaim - Hook after each successful claim batch.
    * @param cfg.onSettle - Hook after a successful settle.
    * @param cfg.onError - Hook for claim or settle errors.
+   * @param cfg.cooperativeWithdrawOnIdleSecs - When set, cooperative-withdraw payers idle longer than this many seconds (requires authorizer signer).
+   * @param cfg.onCooperativeWithdraw - Hook after a successful cooperative withdraw when idle payers were batched.
    * @returns Resolves when this tick's claim and settle attempts finish.
    */
   private async tick(cfg: {
@@ -242,8 +343,10 @@ export class DeferredSettlementManager {
     claimOnWithdrawal: boolean;
     settleThreshold?: string;
     maxClaimsPerBatch: number;
+    cooperativeWithdrawOnIdleSecs?: number;
     onClaim?: (result: ClaimResult) => void;
     onSettle?: (result: SettleResult) => void;
+    onCooperativeWithdraw?: (result: CooperativeWithdrawResult) => void;
     onError?: (error: unknown) => void;
   }): Promise<void> {
     if (!this.running) {
@@ -272,6 +375,22 @@ export class DeferredSettlementManager {
       }
     } catch (err) {
       cfg.onError?.(err);
+    }
+
+    if (cfg.cooperativeWithdrawOnIdleSecs !== undefined) {
+      try {
+        const idlePayers = await this.getIdlePayersForCooperativeWithdraw(
+          cfg.cooperativeWithdrawOnIdleSecs,
+        );
+        if (idlePayers.length > 0) {
+          const result = await this.cooperativeWithdraw(idlePayers);
+          if (result.payers.length > 0) {
+            cfg.onCooperativeWithdraw?.(result);
+          }
+        }
+      } catch (err) {
+        cfg.onError?.(err);
+      }
     }
   }
 
@@ -361,6 +480,32 @@ export class DeferredSettlementManager {
     }
 
     return false;
+  }
+
+  /**
+   * Returns payer addresses idle for at least `idleSecs` that still have a deposit.
+   *
+   * @param idleSecs - Minimum idle time in seconds.
+   * @returns Payer addresses eligible for cooperative withdraw.
+   */
+  private async getIdlePayersForCooperativeWithdraw(idleSecs: number): Promise<string[]> {
+    const storage = this.scheme.getStorage();
+    const sid = this.scheme.getServiceId().toLowerCase();
+    const sessions = await storage.list(sid);
+    const now = Date.now();
+    const idleMs = idleSecs * 1000;
+    const payers: string[] = [];
+
+    for (const s of sessions) {
+      if (BigInt(s.deposit) === 0n) {
+        continue;
+      }
+      if (now - s.lastRequestTimestamp >= idleMs) {
+        payers.push(s.payer);
+      }
+    }
+
+    return payers;
   }
 
   // ---------------------------------------------------------------------------

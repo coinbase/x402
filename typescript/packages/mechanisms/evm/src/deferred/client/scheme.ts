@@ -95,6 +95,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
 
   private readonly storage: ClientSessionStorage;
   private readonly depositPolicy: DeferredDepositPolicy | undefined;
+  private pendingWithdraw = new Set<string>();
 
   /** Last `serviceId` from {@link createPaymentPayload}; used when settle `extra` omits `serviceId` (e.g. deposit tx). */
   private lastPaymentServiceId: string | undefined;
@@ -162,6 +163,12 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     if (!serviceId) return;
 
     const key = this.sessionKey(serviceId);
+
+    if (extra.cooperativeWithdraw === true) {
+      await this.storage.delete(key);
+      return;
+    }
+
     const prev = await this.storage.get(key);
     const next: DeferredClientContext = { ...(prev ?? {}) };
 
@@ -179,6 +186,17 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     }
 
     await this.storage.set(key, next);
+  }
+
+  /**
+   * Marks a service for cooperative withdraw: the next voucher payload
+   * for this service will include `withdraw: true`. The flag is cleared
+   * after {@link createPaymentPayload} consumes it.
+   *
+   * @param serviceId - The on-chain service id to request a withdraw for.
+   */
+  requestCooperativeWithdraw(serviceId: string): void {
+    this.pendingWithdraw.add(serviceId.toLowerCase());
   }
 
   /**
@@ -404,9 +422,15 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       paymentRequirements.network,
     );
 
+    const shouldWithdraw = this.pendingWithdraw.has(serviceId.toLowerCase());
+    if (shouldWithdraw) {
+      this.pendingWithdraw.delete(serviceId.toLowerCase());
+    }
+
     const payload: DeferredVoucherPayload = {
       type: "voucher",
       ...voucher,
+      ...(shouldWithdraw ? { withdraw: true } : {}),
     };
 
     return {

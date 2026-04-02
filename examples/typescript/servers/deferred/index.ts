@@ -69,6 +69,7 @@ if (registration.alreadyRegistered) {
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const deferredScheme = new DeferredEvmScheme(serviceId, {
+  authorizerSigner: walletClient.account,
   ...(sessionDir ? { storage: new FileSessionStorage({ directory: sessionDir }) } : {}),
 });
 
@@ -96,10 +97,14 @@ settlement.start({
   settleIntervalSecs: 20,
   settleThreshold: "1000000",
   maxClaimsPerBatch: 50,
+  cooperativeWithdrawOnIdleSecs: 30,
+  cooperativeWithdrawOnShutdown: true,
   onClaim: (r: { vouchers: number; transaction: string }) =>
     console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
   onSettle: (r: { transaction: string }) =>
     console.log(`Settled to ${evmAddress} (tx: ${r.transaction})`),
+  onCooperativeWithdraw: (r: { payers: string[]; transaction: string }) =>
+    console.log(`Cooperative withdraw for ${r.payers.length} payer(s) (tx: ${r.transaction})`),
   onError: (e: unknown) => console.error("Settlement error:", e),
 });
 

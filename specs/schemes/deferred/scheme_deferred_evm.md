@@ -313,7 +313,7 @@ Used when no subchannel exists or the existing subchannel needs more funds. The 
 
 **Type: `voucher`**
 
-Used when a subchannel exists with sufficient remaining balance.
+Used when a subchannel exists with sufficient remaining balance. The optional `withdraw` flag signals a cooperative withdraw request.
 
 ```json
 {
@@ -337,7 +337,8 @@ Used when a subchannel exists with sufficient remaining balance.
     "payer": "0xClientAddress",
     "cumulativeAmount": "5000",
     "nonce": 5,
-    "signature": "0x...EIP-712 voucher signature"
+    "signature": "0x...EIP-712 voucher signature",
+    "withdraw": true
   }
 }
 ```
@@ -364,6 +365,7 @@ The server MUST maintain per-subchannel state:
 | `deposit`                 | `uint128` | Current subchannel deposit (mirrored from facilitator `/verify` response) |
 | `totalClaimed`            | `uint128` | Total claimed onchain (mirrored from facilitator response)                |
 | `withdrawRequestedAt`     | `uint64`  | Withdrawal request timestamp, 0 if none (mirrored from facilitator)       |
+| `withdrawNonce`           | `uint64`  | Per-subchannel nonce for cooperative withdraw replay protection (from on-chain) |
 | `lastRequestTimestamp`    | `uint64`  | Timestamp of the last paid request on this subchannel                     |
 
 
@@ -382,6 +384,18 @@ The server MUST serialize request processing per subchannel. The server MUST NOT
   - Mirror `deposit`, `totalClaimed`, `withdrawRequestedAt` from the facilitator response
   - Update `lastRequestTimestamp`
 3b. **On failure**: State unchanged, client can retry the same voucher.
+
+### Cooperative Withdraw Settle Flow
+
+When the server receives a voucher with `withdraw: true` and has access to an authorizer key for the service, the server MUST:
+
+1. Update `chargedCumulativeAmount` as with a normal voucher.
+2. Sign a `CooperativeWithdraw(serviceId, payer, withdrawNonce)` EIP-712 digest as authorizer.
+3. Build a `VoucherClaim` from the current voucher (with `claimAmount = chargedCumulativeAmount`).
+4. Submit a `cooperativeWithdraw` settle action to the facilitator containing the claim and the authorizer signature.
+5. On successful settlement, reset the session for that payer.
+
+If the server receives `withdraw: true` but has no authorizer key, it MUST reject with `cooperative_withdraw_not_supported`.
 
 ---
 
@@ -430,7 +444,7 @@ Performs onchain operations. The facilitator infers the action from the payload:
 | `"claim"`             | `voucher[]`   | `claim(serviceId, VoucherClaim[])`                                             | Server batches voucher claims                        |
 | `"settle"`            | (none)        | `settle(serviceId)`                                                            | Server transfers claimed funds to payTo              |
 | `"requestWithdrawal"` | (payer auth)  | `requestWithdrawalFor(serviceId, payer, authorization)`                        | Client requests withdrawal                           |
-| `"cooperativeWithdraw"` | (auth sigs) | `cooperativeWithdraw(serviceId, CooperativeWithdrawRequest[])`                 | Authorizer-signed instant batch refund               |
+| `"cooperativeWithdraw"` | claims + auth sigs | `claim()` (if claims) then `cooperativeWithdraw(serviceId, requests[])`   | Authorizer-signed instant refund (auto-claims first) |
 | `"withdraw"`          | (none)        | `withdraw(serviceId, payer)`                                                   | After withdraw window elapses, resets subchannel     |
 
 
@@ -440,7 +454,7 @@ Performs onchain operations. The facilitator infers the action from the payload:
 - **`claim`**: Submit `claim(serviceId, VoucherClaim[])` with one or more voucher entries from different subchannels. The contract verifies each voucher signature and updates subchannel accounting. No token transfer occurs.
 - **`settle`**: Submit `settle(serviceId)`. Transfers all claimed-but-unsettled funds to the service's current `payTo`.
 - **`requestWithdrawal`**: Submit `requestWithdrawalFor(serviceId, payer, authorization)` with the payer's EIP-712 signature. Records `withdrawRequestedAt = now` on the subchannel.
-- **`cooperativeWithdraw`**: Submit `cooperativeWithdraw(serviceId, requests[])` with authorizer-signed `CooperativeWithdraw` digests. Instantly refunds unclaimed deposits to payers and resets subchannels. No waiting period. Batches across multiple payers.
+- **`cooperativeWithdraw`**: If `claims[]` is non-empty, first submit `claim(serviceId, claims)` to settle outstanding vouchers. Then submit `cooperativeWithdraw(serviceId, requests[])` with authorizer-signed `CooperativeWithdraw` digests. Instantly refunds unclaimed deposits to payers and resets subchannels. No waiting period. Batches across multiple payers.
 - **`withdraw`**: Submit `withdraw(serviceId, payer)`. After `withdrawRequestedAt + service.withdrawWindow`, refunds unclaimed deposit to the payer and resets the subchannel for future deposits.
 
 **Response:**
@@ -538,6 +552,10 @@ struct VoucherClaim {
 
 The server MUST claim all outstanding vouchers before the withdraw window elapses (i.e., before `withdrawRequestedAt + service.withdrawWindow`). After the window passes, anyone can call `withdraw()` and unclaimed funds are returned to the payer.
 
+### Server-Initiated Cooperative Withdraw
+
+In addition to claim/settle strategies, a server with an authorizer key MAY proactively cooperative-withdraw on behalf of idle clients (e.g., after N seconds of inactivity) or on graceful shutdown. The server signs a `CooperativeWithdraw` digest for each eligible payer, gathers outstanding claims, and submits a batched `cooperativeWithdraw` settle action to the facilitator.
+
 ---
 
 ## Subchannel Discovery
@@ -621,6 +639,7 @@ The EVM network binding additionally defines these binding-specific codes:
 | `deferred_evm_token_mismatch`         | Service's registered token does not match `asset` in requirements                                                     |
 | `deferred_evm_cumulative_exceeds_deposit` | Voucher `cumulativeAmount` exceeds onchain `subchannel.deposit`  |
 | `deferred_stale_cumulative_amount`    | Client voucher base does not match the server's last known `chargedCumulativeAmount`; server returns a corrective 402 |
+| `cooperative_withdraw_not_supported`  | Client sent `withdraw: true` but server has no `authorizerSigner` configured                                          |
 
 
 ---

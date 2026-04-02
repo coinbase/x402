@@ -13,16 +13,19 @@ import {
   DeferredClaimPayload,
   DeferredSettleActionPayload,
   DeferredDepositSettlePayload,
+  DeferredCooperativeWithdrawSettlePayload,
   isDeferredDepositPayload,
   isDeferredVoucherPayload,
   isDeferredClaimPayload,
   isDeferredSettleActionPayload,
   isDeferredDepositSettlePayload,
+  isDeferredCooperativeWithdrawSettlePayload,
 } from "../types";
 import { verifyDeposit, settleDeposit } from "./deposit";
 import { verifyVoucher } from "./voucher";
 import { executeClaim } from "./claim";
 import { executeSettle } from "./settle";
+import { executeCooperativeWithdraw } from "./cooperativeWithdraw";
 import * as Errors from "./errors";
 
 /**
@@ -130,6 +133,14 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
 
     if (isDeferredClaimPayload(rawPayload)) {
       return executeClaim(this.signer, rawPayload as unknown as DeferredClaimPayload, requirements);
+    }
+
+    if (isDeferredCooperativeWithdrawSettlePayload(rawPayload)) {
+      return executeCooperativeWithdraw(
+        this.signer,
+        rawPayload as unknown as DeferredCooperativeWithdrawSettlePayload,
+        requirements,
+      );
     }
 
     if (isDeferredSettleActionPayload(rawPayload)) {

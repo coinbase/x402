@@ -17,10 +17,34 @@ import type {
   SettleContext,
   VerifyContext,
 } from "@x402/core/server";
+import { getAddress } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
-import { isDeferredDepositPayload, isDeferredVoucherPayload } from "../types";
+import { getEvmChainId } from "../../utils";
+import {
+  isDeferredDepositPayload,
+  isDeferredVoucherPayload,
+  isDeferredCooperativeWithdrawSettlePayload,
+} from "../types";
 import type { DeferredVoucherClaim } from "../types";
+import {
+  DEFERRED_ESCROW_ADDRESS,
+  DEFERRED_ESCROW_DOMAIN,
+  cooperativeWithdrawTypes,
+} from "../constants";
 import { InMemorySessionStorage, SessionStorage, SubchannelSession } from "./storage";
+
+/**
+ * A signer that can produce EIP-712 typed data signatures (e.g. a viem `LocalAccount`).
+ */
+export interface AuthorizerSigner {
+  address: `0x${string}`;
+  signTypedData(params: {
+    domain: Record<string, unknown>;
+    types: Record<string, Array<{ name: string; type: string }>>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }): Promise<`0x${string}`>;
+}
 
 /**
  * Optional configuration for {@link DeferredEvmScheme} on the resource server.
@@ -28,6 +52,11 @@ import { InMemorySessionStorage, SessionStorage, SubchannelSession } from "./sto
 export interface DeferredEvmSchemeServerConfig {
   /** Session persistence; defaults to {@link InMemorySessionStorage}. */
   storage?: SessionStorage;
+  /**
+   * When set, enables cooperative withdraw: the server signs EIP-712 `CooperativeWithdraw`
+   * messages so clients can get instant refunds without waiting for the withdraw window.
+   */
+  authorizerSigner?: AuthorizerSigner;
 }
 
 /**
@@ -59,6 +88,8 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
 
   private moneyParsers: MoneyParser[] = [];
   private readonly storage: SessionStorage;
+  private readonly authorizerSigner: AuthorizerSigner | undefined;
+  private pendingCooperativeWithdrawPayers = new Set<string>();
 
   /**
    * Creates the deferred server scheme for a registered service.
@@ -71,6 +102,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     config?: DeferredEvmSchemeServerConfig,
   ) {
     this.storage = config?.storage ?? new InMemorySessionStorage();
+    this.authorizerSigner = config?.authorizerSigner;
     this.lifecycleHooks = {
       onBeforeVerify: this.handleBeforeVerify.bind(this),
       onAfterVerify: this.handleAfterVerify.bind(this),
@@ -223,6 +255,47 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
+   * Signs an EIP-712 `CooperativeWithdraw` message as the authorizer.
+   * Requires `authorizerSigner` to be configured.
+   *
+   * @param serviceId - The on-chain service id.
+   * @param payer - The payer address to refund.
+   * @param withdrawNonce - The current withdraw nonce from the subchannel.
+   * @param network - The x402 network (e.g. `eip155:8453`) for chain id.
+   * @returns The authorizer's EIP-712 signature.
+   */
+  async signCooperativeWithdraw(
+    serviceId: `0x${string}`,
+    payer: `0x${string}`,
+    withdrawNonce: number,
+    network: string,
+  ): Promise<`0x${string}`> {
+    if (!this.authorizerSigner) {
+      throw new Error("authorizerSigner is not configured");
+    }
+
+    const chainId = getEvmChainId(network);
+
+    return this.authorizerSigner.signTypedData({
+      domain: {
+        ...DEFERRED_ESCROW_DOMAIN,
+        chainId,
+        verifyingContract: getAddress(DEFERRED_ESCROW_ADDRESS),
+      },
+      types: cooperativeWithdrawTypes as unknown as Record<
+        string,
+        Array<{ name: string; type: string }>
+      >,
+      primaryType: "CooperativeWithdraw",
+      message: {
+        serviceId,
+        payer: getAddress(payer),
+        withdrawNonce: BigInt(withdrawNonce),
+      },
+    });
+  }
+
+  /**
    * Returns whether the given service id matches this scheme's service id (case-insensitive).
    *
    * @param id - On-chain service id from the payment payload.
@@ -350,6 +423,13 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           ? parseInt(ex.withdrawRequestedAt, 10) || 0
           : 0;
 
+    const hasWithdrawNonce = ex.withdrawNonce !== undefined && ex.withdrawNonce !== null;
+    const withdrawNonceFromExtra = hasWithdrawNonce
+      ? typeof ex.withdrawNonce === "number"
+        ? ex.withdrawNonce
+        : parseInt(String(ex.withdrawNonce), 10) || 0
+      : undefined;
+
     const prev = await this.storage.get(lowerServiceId(sid), payer);
     const session: SubchannelSession = {
       serviceId: lowerServiceId(sid),
@@ -361,6 +441,8 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       deposit,
       totalClaimed,
       withdrawRequestedAt,
+      withdrawNonce:
+        withdrawNonceFromExtra !== undefined ? withdrawNonceFromExtra : (prev?.withdrawNonce ?? 0),
       lastRequestTimestamp: Date.now(),
     };
     await this.storage.set(lowerServiceId(sid), payer, session);
@@ -419,6 +501,41 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       };
     }
 
+    if (raw.withdraw === true) {
+      if (!this.authorizerSigner) {
+        return {
+          abort: true,
+          reason: "cooperative_withdraw_not_supported",
+          message: "Server does not have an authorizerSigner configured for cooperative withdraw",
+        };
+      }
+
+      const authorizerSignature = await this.signCooperativeWithdraw(
+        raw.serviceId,
+        raw.payer,
+        session.withdrawNonce,
+        requirements.network,
+      );
+
+      const claimEntry = {
+        payer: raw.payer,
+        cumulativeAmount: raw.cumulativeAmount,
+        claimAmount: newCharged.toString(),
+        nonce: raw.nonce,
+        signature: raw.signature,
+      };
+
+      (paymentPayload as { payload: unknown }).payload = {
+        settleAction: "cooperativeWithdraw",
+        serviceId: raw.serviceId,
+        claims: [claimEntry],
+        requests: [{ payer: raw.payer, authorizerSignature }],
+      };
+
+      this.pendingCooperativeWithdrawPayers.add(raw.payer.toLowerCase());
+      return;
+    }
+
     return {
       skip: true,
       result: {
@@ -434,6 +551,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           deposit: session.deposit,
           totalClaimed: session.totalClaimed,
           withdrawRequestedAt: session.withdrawRequestedAt,
+          withdrawNonce: session.withdrawNonce,
         },
       },
     };
@@ -459,6 +577,23 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
+
+    if (isDeferredCooperativeWithdrawSettlePayload(raw)) {
+      if (!this.assertThisServiceId(raw.serviceId)) {
+        return;
+      }
+      for (const req of raw.requests) {
+        const payerLower = req.payer.toLowerCase();
+        this.pendingCooperativeWithdrawPayers.delete(payerLower);
+        await this.storage.delete(lowerServiceId(raw.serviceId), req.payer);
+      }
+      result.extra = {
+        ...result.extra,
+        serviceId: raw.serviceId,
+        cooperativeWithdraw: true,
+      };
+      return;
+    }
 
     if (isDeferredVoucherPayload(raw)) {
       if (!this.assertThisServiceId(raw.serviceId)) {
@@ -490,6 +625,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10)
             : undefined;
+      const withdrawNonce =
+        typeof ex.withdrawNonce === "number"
+          ? ex.withdrawNonce
+          : typeof ex.withdrawNonce === "string"
+            ? parseInt(ex.withdrawNonce, 10)
+            : undefined;
 
       const prev = await this.storage.get(lowerServiceId(raw.serviceId), raw.payer);
       const session: SubchannelSession = {
@@ -505,6 +646,10 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           withdrawRequestedAt !== undefined && !Number.isNaN(withdrawRequestedAt)
             ? withdrawRequestedAt
             : (prev?.withdrawRequestedAt ?? 0),
+        withdrawNonce:
+          withdrawNonce !== undefined && !Number.isNaN(withdrawNonce)
+            ? withdrawNonce
+            : (prev?.withdrawNonce ?? 0),
         lastRequestTimestamp: Date.now(),
       };
       await this.storage.set(lowerServiceId(raw.serviceId), raw.payer, session);
@@ -534,6 +679,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10) || 0
             : 0;
+      const hasWithdrawNonceSnap = ex.withdrawNonce !== undefined && ex.withdrawNonce !== null;
+      const withdrawNonceSnap = hasWithdrawNonceSnap
+        ? typeof ex.withdrawNonce === "number"
+          ? ex.withdrawNonce
+          : parseInt(String(ex.withdrawNonce), 10) || 0
+        : undefined;
       const prevDepositSession = await this.storage.get(
         lowerServiceId(raw.deposit.serviceId),
         raw.deposit.payer,
@@ -552,6 +703,10 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
         deposit: depositSnap,
         totalClaimed: totalClaimedSnap,
         withdrawRequestedAt: withdrawAtSnap,
+        withdrawNonce:
+          withdrawNonceSnap !== undefined && !Number.isNaN(withdrawNonceSnap)
+            ? withdrawNonceSnap
+            : (prevDepositSession?.withdrawNonce ?? 0),
         lastRequestTimestamp: Date.now(),
       };
       await this.storage.set(lowerServiceId(raw.deposit.serviceId), raw.deposit.payer, session);

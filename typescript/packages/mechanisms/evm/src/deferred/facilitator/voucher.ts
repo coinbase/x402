@@ -23,6 +23,7 @@ type SubchannelState = {
   totalClaimed: bigint;
   nonce: bigint;
   withdrawRequestedAt: bigint;
+  withdrawNonce: bigint;
 };
 
 /**
@@ -117,6 +118,7 @@ export async function verifyVoucher(
       deposit: subchannel.deposit.toString(),
       totalClaimed: subchannel.totalClaimed.toString(),
       withdrawRequestedAt: Number(subchannel.withdrawRequestedAt),
+      withdrawNonce: Number(subchannel.withdrawNonce),
     },
   };
 }
