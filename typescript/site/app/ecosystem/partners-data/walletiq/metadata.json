@@ -1,0 +1,7 @@
+{
+  "name": "WalletIQ",
+  "description": "Wallet intelligence API for EVM addresses. One call returns a full wallet profile: age, activity score, DeFi protocols, risk score, and on-chain labels. Pay $0.005/lookup via x402 in USDC on Base — no API key, no signup.",
+  "logoUrl": "/logos/walletiq.svg",
+  "websiteUrl": "https://walletiq.dev",
+  "category": "Services/Endpoints"
+}
