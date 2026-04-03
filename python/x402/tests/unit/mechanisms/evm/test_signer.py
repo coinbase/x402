@@ -1,5 +1,7 @@
 """Tests for EVM signer implementations."""
 
+from types import SimpleNamespace
+
 import pytest
 
 try:
@@ -8,6 +10,68 @@ except ImportError:
     pytest.skip("EVM signers require eth_account", allow_module_level=True)
 
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
+
+
+class _FakeBuiltTx:
+    def __init__(self, raw_transaction: bytes):
+        self.raw_transaction = raw_transaction
+
+
+class _FakeContractCall:
+    def __init__(self, sink: dict):
+        self._sink = sink
+
+    def build_transaction(self, tx: dict) -> dict:
+        self._sink["tx"] = tx
+        return tx
+
+
+class _FakeContractFunctions:
+    def __init__(self, sink: dict):
+        self._sink = sink
+
+    def __getattr__(self, _name: str):
+        def caller(*args):
+            self._sink["args"] = args
+            return _FakeContractCall(self._sink)
+
+        return caller
+
+
+class _FakeContract:
+    def __init__(self, sink: dict):
+        self.functions = _FakeContractFunctions(sink)
+
+
+class _FakeEth:
+    def __init__(self, contract_sink: dict | None = None):
+        self.contract_sink = contract_sink
+        self.gas_price = 123456
+        self.sent_raw_transaction: bytes | None = None
+
+    def contract(self, address: str, abi: list[dict]):
+        if self.contract_sink is None:
+            raise AssertionError("contract() should not be called in this test")
+        self.contract_sink["address"] = address
+        self.contract_sink["abi"] = abi
+        return _FakeContract(self.contract_sink)
+
+    def get_transaction_count(self, _address: str) -> int:
+        return 7
+
+    def send_raw_transaction(self, raw_transaction: bytes) -> bytes:
+        self.sent_raw_transaction = raw_transaction
+        return bytes.fromhex("12" * 32)
+
+
+class _FakeSignerAccount:
+    def __init__(self, address: str):
+        self.address = address
+        self.signed_txs: list[dict] = []
+
+    def sign_transaction(self, tx: dict) -> _FakeBuiltTx:
+        self.signed_txs.append(tx)
+        return _FakeBuiltTx(b"signed")
 
 
 class TestEthAccountSigner:
@@ -152,6 +216,89 @@ class TestFacilitatorWeb3Signer:
         assert callable(signer.get_balance)
         assert callable(signer.get_chain_id)
         assert callable(signer.get_code)
+
+    def test_write_contract_should_use_configured_default_gas_limit(self):
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=450000,
+        )
+        contract_sink: dict = {}
+        fake_eth = _FakeEth(contract_sink)
+        fake_account = _FakeSignerAccount(account.address)
+        signer._w3 = SimpleNamespace(eth=fake_eth)
+        signer._account = fake_account
+
+        signer.write_contract(
+            "0x1234567890123456789012345678901234567890",
+            [],
+            "transferWithAuthorization",
+            "arg1",
+        )
+
+        assert contract_sink["tx"]["gas"] == 450000
+        assert fake_account.signed_txs[0]["gas"] == 450000
+
+    def test_write_contract_should_allow_per_call_gas_override(self):
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=450000,
+        )
+        contract_sink: dict = {}
+        fake_eth = _FakeEth(contract_sink)
+        fake_account = _FakeSignerAccount(account.address)
+        signer._w3 = SimpleNamespace(eth=fake_eth)
+        signer._account = fake_account
+
+        signer.write_contract(
+            "0x1234567890123456789012345678901234567890",
+            [],
+            "transferWithAuthorization",
+            "arg1",
+            gas=510000,
+        )
+
+        assert contract_sink["tx"]["gas"] == 510000
+        assert fake_account.signed_txs[0]["gas"] == 510000
+
+    def test_send_transaction_should_use_configured_default_gas_limit(self):
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=450000,
+        )
+        fake_eth = _FakeEth()
+        fake_account = _FakeSignerAccount(account.address)
+        signer._w3 = SimpleNamespace(eth=fake_eth)
+        signer._account = fake_account
+
+        signer.send_transaction("0x1234567890123456789012345678901234567890", b"\x01\x02")
+
+        assert fake_account.signed_txs[0]["gas"] == 450000
+
+    def test_send_transaction_should_allow_per_call_gas_override(self):
+        account = Account.create()
+        signer = FacilitatorWeb3Signer(
+            private_key=account.key.hex(),
+            rpc_url="https://sepolia.base.org",
+            gas_limit=450000,
+        )
+        fake_eth = _FakeEth()
+        fake_account = _FakeSignerAccount(account.address)
+        signer._w3 = SimpleNamespace(eth=fake_eth)
+        signer._account = fake_account
+
+        signer.send_transaction(
+            "0x1234567890123456789012345678901234567890",
+            b"\x01\x02",
+            gas=510000,
+        )
+
+        assert fake_account.signed_txs[0]["gas"] == 510000
 
 
 class TestSignerProtocols:

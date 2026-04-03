@@ -109,6 +109,7 @@ class FacilitatorEvmSigner(Protocol):
         abi: list[dict[str, Any]],
         function_name: str,
         *args: Any,
+        gas: int | None = None,
     ) -> str:
         """Execute a smart contract transaction.
 
@@ -117,18 +118,20 @@ class FacilitatorEvmSigner(Protocol):
             abi: Contract ABI.
             function_name: Function to call.
             *args: Function arguments.
+            gas: Optional per-call gas limit override.
 
         Returns:
             Transaction hash.
         """
         ...
 
-    def send_transaction(self, to: str, data: bytes) -> str:
+    def send_transaction(self, to: str, data: bytes, *, gas: int | None = None) -> str:
         """Send raw transaction.
 
         Args:
             to: Recipient address.
             data: Transaction data.
+            gas: Optional per-call gas limit override.
 
         Returns:
             Transaction hash.

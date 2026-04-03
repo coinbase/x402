@@ -258,17 +258,20 @@ class FacilitatorWeb3Signer:
         address: The signer's checksummed Ethereum address.
     """
 
+    DEFAULT_GAS_LIMIT = 300_000
+
     def __init__(
         self,
         private_key: str,
         rpc_url: str,
+        gas_limit: int = DEFAULT_GAS_LIMIT,
     ) -> None:
         """Initialize signer with private key and RPC connection.
 
         Args:
             private_key: Hex private key with or without 0x prefix.
             rpc_url: Ethereum RPC endpoint URL.
-
+            gas_limit: Default gas limit to use for settlement transactions.
         """
         # Normalize private key format
         if not private_key.startswith("0x"):
@@ -282,6 +285,7 @@ class FacilitatorWeb3Signer:
 
         # Cache chain ID
         self._chain_id: int | None = None
+        self._gas_limit = gas_limit
 
     @property
     def address(self) -> str:
@@ -453,6 +457,7 @@ class FacilitatorWeb3Signer:
         abi: list[dict[str, Any]],
         function_name: str,
         *args: Any,
+        gas: int | None = None,
     ) -> str:
         """Execute a smart contract transaction.
 
@@ -461,6 +466,7 @@ class FacilitatorWeb3Signer:
             abi: Contract ABI.
             function_name: Function to call.
             *args: Function arguments.
+            gas: Optional per-call gas limit override.
 
         Returns:
             Transaction hash.
@@ -476,7 +482,7 @@ class FacilitatorWeb3Signer:
             {
                 "from": self._account.address,
                 "nonce": self._w3.eth.get_transaction_count(self._account.address),
-                "gas": 300000,
+                "gas": gas if gas is not None else self._gas_limit,
                 "gasPrice": self._w3.eth.gas_price,
             }
         )
@@ -487,12 +493,13 @@ class FacilitatorWeb3Signer:
 
         return tx_hash.hex()
 
-    def send_transaction(self, to: str, data: bytes) -> str:
+    def send_transaction(self, to: str, data: bytes, *, gas: int | None = None) -> str:
         """Send a raw transaction.
 
         Args:
             to: Recipient address.
             data: Transaction data.
+            gas: Optional per-call gas limit override.
 
         Returns:
             Transaction hash.
@@ -502,7 +509,7 @@ class FacilitatorWeb3Signer:
             "to": Web3.to_checksum_address(to),
             "data": data,
             "nonce": self._w3.eth.get_transaction_count(self._account.address),
-            "gas": 300000,
+            "gas": gas if gas is not None else self._gas_limit,
             "gasPrice": self._w3.eth.gas_price,
         }
 
