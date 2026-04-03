@@ -1,0 +1,7 @@
+{
+  "name": "Valorem MEV Intelligence",
+  "description": "Valorem MEV Intelligence provides real-time MEV data from a Reth L1 node — decoded MEV-Share hints, builder acceptance stats, Aave V3 liquidation watchlists, L2 pool spread detection, agent wallet intelligence, token safety checks, and premium RPC proxy. 8 paid endpoints serving live data to AI agents via x402 on Base.",
+  "logoUrl": "https://advalorem.io/favicon.ico",
+  "websiteUrl": "https://18-220-76-66.nip.io/engine-api/x402/catalog",
+  "category": "Services/Endpoints"
+}
