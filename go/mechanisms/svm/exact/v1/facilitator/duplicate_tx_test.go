@@ -1,10 +1,13 @@
 package facilitator
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/svm"
+	solana "github.com/gagliardetto/solana-go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -113,4 +116,45 @@ func TestDuplicateSettlementCacheV1(t *testing.T) {
 		assert.True(t, cache.IsDuplicate("new-2"), "fresh entry should still be cached")
 		assert.True(t, cache.IsDuplicate("new-3"), "fresh entry should still be cached")
 	})
+}
+
+func TestGetExtraReturnsManagedFeePayerV1(t *testing.T) {
+	addresses := []solana.PublicKey{
+		solana.MustPublicKeyFromBase58(svm.MemoProgramAddress),
+		solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress),
+	}
+	scheme := NewExactSvmSchemeV1(mockFacilitatorSvmSignerV1{addresses: addresses})
+
+	extra := scheme.GetExtra(x402.Network("solana:mainnet"))
+
+	feePayer, ok := extra["feePayer"].(string)
+	if !ok {
+		t.Fatalf("expected feePayer string, got %T", extra["feePayer"])
+	}
+
+	assert.Contains(t, []string{addresses[0].String(), addresses[1].String()}, feePayer)
+}
+
+type mockFacilitatorSvmSignerV1 struct {
+	addresses []solana.PublicKey
+}
+
+func (m mockFacilitatorSvmSignerV1) GetAddresses(context.Context, string) []solana.PublicKey {
+	return m.addresses
+}
+
+func (mockFacilitatorSvmSignerV1) SignTransaction(context.Context, *solana.Transaction, solana.PublicKey, string) error {
+	return nil
+}
+
+func (mockFacilitatorSvmSignerV1) SimulateTransaction(context.Context, *solana.Transaction, string) error {
+	return nil
+}
+
+func (mockFacilitatorSvmSignerV1) SendTransaction(context.Context, *solana.Transaction, string) (solana.Signature, error) {
+	return solana.Signature{}, nil
+}
+
+func (mockFacilitatorSvmSignerV1) ConfirmTransaction(context.Context, solana.Signature, string) error {
+	return nil
 }

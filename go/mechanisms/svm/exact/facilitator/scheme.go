@@ -2,9 +2,10 @@ package facilitator
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"strconv"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -53,13 +54,29 @@ func (f *ExactSvmScheme) CaipFamily() string {
 // Random selection distributes load across multiple signers.
 func (f *ExactSvmScheme) GetExtra(network x402.Network) map[string]interface{} {
 	addresses := f.signer.GetAddresses(context.Background(), string(network))
+	if len(addresses) == 0 {
+		return map[string]interface{}{}
+	}
 
 	// Randomly select from available addresses to distribute load
-	randomIndex := rand.Intn(len(addresses))
+	randomIndex := randomAddressIndex(len(addresses))
 
 	return map[string]interface{}{
 		"feePayer": addresses[randomIndex].String(),
 	}
+}
+
+func randomAddressIndex(addressCount int) int {
+	if addressCount <= 1 {
+		return 0
+	}
+
+	randomValue, err := rand.Int(rand.Reader, big.NewInt(int64(addressCount)))
+	if err != nil {
+		return 0
+	}
+
+	return int(randomValue.Int64())
 }
 
 // GetSigners returns signer addresses used by this facilitator.
