@@ -1,0 +1,7 @@
+{
+  "name": "satoshidata.ai",
+  "description": "Bitcoin wallet intelligence API with 33M+ labeled addresses. Trust scores, entity labels, and network analytics via x402-gated micropayments on Lightning Network. No API key, no signup \u2014 agents pay per request.",
+  "logoUrl": "/logos/satoshidata.svg",
+  "websiteUrl": "https://satoshidata.ai",
+  "category": "Services/Endpoints"
+}
