@@ -1,7 +1,7 @@
 {
   "name": "Strale",
-  "description": "Trust and compliance infrastructure for AI agents. 344 x402-enabled endpoints: wallet risk scoring, token security, DeFi protocol intelligence, ENS resolution, sanctions screening, EU MiCA VASP verification, and 9 pre-built Web3 compliance solutions. Quality-scored via SQS.",
-  "logoUrl": "/logos/strale.jpg",
+  "description": "Trust layer for AI agents — 270+ quality-scored API capabilities (company data, compliance, financial validation, web intelligence) available via x402 pay-per-call with USDC on Base. No signup needed.",
+  "logoUrl": "/logos/strale.png",
   "websiteUrl": "https://strale.dev",
   "category": "Services/Endpoints"
 }
