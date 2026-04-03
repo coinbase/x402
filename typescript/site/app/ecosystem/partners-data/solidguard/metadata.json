@@ -1,0 +1,7 @@
+{
+  "name": "SolidGuard",
+  "description": "AI-powered smart contract vulnerability scanner with Slither integration. Pay-per-scan via x402. 18 vulnerability patterns, 5 analysis engines. Free demo available.",
+  "url": "http://83.142.209.218:8402",
+  "logo": "/logos/solidguard.svg",
+  "category": "Services/Endpoints"
+}
