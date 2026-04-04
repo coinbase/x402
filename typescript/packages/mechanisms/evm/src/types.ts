@@ -2,8 +2,9 @@
  * Asset transfer methods for the exact EVM scheme.
  * - eip3009: Uses transferWithAuthorization (USDC, etc.) - recommended for compatible tokens
  * - permit2: Uses Permit2 + x402Permit2Proxy - universal fallback for any ERC-20
+ * - erc7710: Uses ERC-7710 smart account delegation
  */
-export type AssetTransferMethod = "eip3009" | "permit2";
+export type AssetTransferMethod = "eip3009" | "permit2" | "erc7710";
 
 /**
  * EIP-3009 payload for tokens with native transferWithAuthorization support.
@@ -55,9 +56,21 @@ export type ExactPermit2Payload = {
   };
 };
 
+/**
+ * ERC-7710 delegation payload for smart accounts with delegation support.
+ */
+export type ExactERC7710Payload = {
+  /** Address of the ERC-7710 DelegationManager contract */
+  delegationManager: `0x${string}`;
+  /** Opaque delegation proof/context bytes (ABI-encoded delegation chain) */
+  permissionContext: `0x${string}`;
+  /** Address of the delegating smart account */
+  delegator: `0x${string}`;
+};
+
 export type ExactEvmPayloadV1 = ExactEIP3009Payload;
 
-export type ExactEvmPayloadV2 = ExactEIP3009Payload | ExactPermit2Payload;
+export type ExactEvmPayloadV2 = ExactEIP3009Payload | ExactPermit2Payload | ExactERC7710Payload;
 
 /**
  * Type guard to check if a payload is a Permit2 payload.
@@ -68,6 +81,17 @@ export type ExactEvmPayloadV2 = ExactEIP3009Payload | ExactPermit2Payload;
  */
 export function isPermit2Payload(payload: ExactEvmPayloadV2): payload is ExactPermit2Payload {
   return "permit2Authorization" in payload;
+}
+
+/**
+ * Type guard to check if a payload is an ERC-7710 payload.
+ * ERC-7710 payloads have a `delegationManager` field.
+ *
+ * @param payload - The payload to check.
+ * @returns True if the payload is an ERC-7710 payload, false otherwise.
+ */
+export function isERC7710Payload(payload: ExactEvmPayloadV2): payload is ExactERC7710Payload {
+  return "delegationManager" in payload;
 }
 
 /**
