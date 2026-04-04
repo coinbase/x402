@@ -1,0 +1,13 @@
+[project]
+name = "polygon-mainnet-x402-example"
+version = "0.1.0"
+description = "x402 Polygon mainnet payment example"
+requires-python = ">=3.10"
+dependencies = [
+    "x402",
+    "python-dotenv",
+    "requests",
+]
+
+[tool.uv]
+dev-dependencies = []
