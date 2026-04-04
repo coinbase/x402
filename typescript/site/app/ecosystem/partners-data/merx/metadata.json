@@ -1,0 +1,19 @@
+{
+  "name": "MERX",
+  "description": "First x402 facilitator for TRON. Verify USDT/USDC/USDD payments on TRON mainnet, issue JWT authorizations. Sub-3s confirmation for micropayments. Express middleware available.",
+  "logoUrl": "/logos/merx.png",
+  "websiteUrl": "https://github.com/Hovsteder/x402-tron",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402.merx.exchange",
+    "networks": ["tron"],
+    "schemes": ["exact"],
+    "assets": ["TRC20"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
