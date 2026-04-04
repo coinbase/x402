@@ -7,9 +7,16 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
-import { ExactEvmPayloadV2, ExactEIP3009Payload, isPermit2Payload } from "../../types";
+import {
+  ExactEvmPayloadV2,
+  ExactEIP3009Payload,
+  ExactERC7710Payload,
+  isPermit2Payload,
+  isERC7710Payload,
+} from "../../types";
 import { verifyEIP3009, settleEIP3009 } from "./eip3009";
 import { verifyPermit2, settlePermit2 } from "./permit2";
+import { verifyERC7710, settleERC7710 } from "./erc7710";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -44,10 +51,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
    * @param signer - The EVM signer for facilitator operations
    * @param config - Optional configuration
    */
-  constructor(
-    private readonly signer: FacilitatorEvmSigner,
-    config?: ExactEvmSchemeConfig,
-  ) {
+  constructor(private readonly signer: FacilitatorEvmSigner, config?: ExactEvmSchemeConfig) {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
       simulateInSettle: config?.simulateInSettle ?? false,
@@ -75,7 +79,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Verifies a payment payload. Routes to Permit2 or EIP-3009 based on payload type.
+   * Verifies a payment payload. Routes to ERC-7710, Permit2, or EIP-3009 based on payload type.
    *
    * @param payload - The payment payload to verify
    * @param requirements - The payment requirements
@@ -88,9 +92,12 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     context?: FacilitatorContext,
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
-    const isPermit2 = isPermit2Payload(rawPayload);
 
-    if (isPermit2) {
+    if (isERC7710Payload(rawPayload)) {
+      return verifyERC7710(this.signer, payload, requirements, rawPayload as ExactERC7710Payload);
+    }
+
+    if (isPermit2Payload(rawPayload)) {
       return verifyPermit2(this.signer, payload, requirements, rawPayload, context);
     }
 
@@ -99,7 +106,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Settles a payment. Routes to Permit2 or EIP-3009 based on payload type.
+   * Settles a payment. Routes to ERC-7710, Permit2, or EIP-3009 based on payload type.
    *
    * @param payload - The payment payload to settle
    * @param requirements - The payment requirements
@@ -112,9 +119,12 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     context?: FacilitatorContext,
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
-    const isPermit2 = isPermit2Payload(rawPayload);
 
-    if (isPermit2) {
+    if (isERC7710Payload(rawPayload)) {
+      return settleERC7710(this.signer, payload, requirements, rawPayload as ExactERC7710Payload);
+    }
+
+    if (isPermit2Payload(rawPayload)) {
       return settlePermit2(this.signer, payload, requirements, rawPayload, context, {
         simulateInSettle: this.config.simulateInSettle,
       });
