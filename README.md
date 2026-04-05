@@ -136,3 +136,5 @@ See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/sc
 Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different from the way you need to implement `exact` on Solana).
 
 Clients and facilitators must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
+
+- [Aethel-Nexus AAAA](https://aaaa-nexus.atomadictech.workers.dev) - 22-endpoint AI infrastructure on Cloudflare Workers: streaming CoT inference, Leech lattice compression, AIBOM drift, EU AI Act compliance, agent swarm, quantum RNG. x402 USDC micropayments on Base L2. Google A2A agent card (22 skills) + MCP server.
