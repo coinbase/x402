@@ -35,15 +35,118 @@ if (!facilitatorUrl) {
 // Create HTTP facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-// Build the paywall provider
-const paywall = createPaywall()
+// Build the base paywall provider
+const basePaywall = createPaywall()
   .withNetwork(evmPaywall)
   .withNetwork(svmPaywall)
   .withConfig({
-    appName: "x402 Demo",
-    appLogo: "/logos/x402-examples.png",
+    appName: "Demo Example",
+    appLogo: "/images/x402_logo.svg",
   })
   .build();
+
+function injectSiteIntroAnimation(html: string): string {
+  if (html.includes("x402-site-intro-overlay")) {
+    return html;
+  }
+
+  const introCss = `
+<style id="x402-site-intro-style">
+  body.x402-site-intro-hidden .paywall-page {
+    visibility: hidden;
+  }
+  #x402-site-intro-overlay {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 1;
+    transition: opacity 220ms ease-out;
+  }
+  #x402-site-intro-overlay.intro-done {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #x402-site-intro-logo {
+    width: 105px;
+    height: 105px;
+  }
+</style>`;
+
+  const introMarkup = `
+<div id="x402-site-intro-overlay" aria-hidden="true">
+  <div id="x402-site-intro-logo"></div>
+</div>`;
+
+  const introScript = `
+<script>
+  (function () {
+    var SEGMENT_START = 60;
+    var SEGMENT_END = 182;
+    var SPEED = 1.5;
+    var FALLBACK_MS = 2000;
+    var done = false;
+
+    function finish() {
+      if (done) return;
+      done = true;
+      var overlay = document.getElementById("x402-site-intro-overlay");
+      if (overlay) overlay.classList.add("intro-done");
+      document.body.classList.remove("x402-site-intro-hidden");
+    }
+
+    function run() {
+      document.body.classList.add("x402-site-intro-hidden");
+      var container = document.getElementById("x402-site-intro-logo");
+      if (!container || !window.lottie || !window.lottie.loadAnimation) {
+        finish();
+        return;
+      }
+
+      var timer = setTimeout(finish, FALLBACK_MS);
+      var animation = window.lottie.loadAnimation({
+        container: container,
+        renderer: "svg",
+        loop: false,
+        autoplay: false,
+        initialSegment: [SEGMENT_START, SEGMENT_END],
+        path: "/lottie/CB_Dev_X402_02_v005.json"
+      });
+
+      animation.addEventListener("DOMLoaded", function () {
+        animation.setSpeed(SPEED);
+        animation.goToAndStop(SEGMENT_START, true);
+        animation.playSegments([SEGMENT_START, SEGMENT_END], true);
+      });
+      animation.addEventListener("complete", function () {
+        clearTimeout(timer);
+        finish();
+      });
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run, { once: true });
+    } else {
+      run();
+    }
+  })();
+</script>`;
+
+  let nextHtml = html.replace("</head>", `${introCss}</head>`);
+  nextHtml = nextHtml.replace(
+    "</body>",
+    `${introMarkup}<script src="https://unpkg.com/lottie-web@5.12.2/build/player/lottie.min.js"></script>${introScript}</body>`,
+  );
+  return nextHtml;
+}
+
+const paywall = {
+  generateHtml: (paymentRequired: Parameters<typeof basePaywall.generateHtml>[0]) =>
+    injectSiteIntroAnimation(basePaywall.generateHtml(paymentRequired)),
+};
 
 const x402PaymentProxy = paymentProxyFromConfig(
   {

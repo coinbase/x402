@@ -28,10 +28,22 @@ export function PaywallApp() {
 
   if (!paymentRequired || !paymentRequired.accepts || paymentRequired.accepts.length === 0) {
     return (
-      <div className="container">
-        <div className="header">
-          <h1 className="title">Payment Required</h1>
-          <p className="subtitle">Loading payment details...</p>
+      <div className="paywall-page">
+        <div className="card">
+          <div className="card-body">
+            <div className="amount-section">
+              <div className="amount-value">...</div>
+              <div className="amount-asset">Loading payment details</div>
+            </div>
+          </div>
+          <div className="card-footer">
+            <span className="powered-by">
+              Powered by{" "}
+              <a href="https://x402.org" target="_blank" rel="noopener noreferrer">
+                x402
+              </a>
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -59,13 +71,24 @@ export function PaywallApp() {
   }
 
   return (
-    <div className="container">
-      <div className="header">
-        <h1 className="title">Payment Required</h1>
-        <p className="subtitle">
-          Unsupported network configuration for this paywall. Please contact the application
-          developer.
-        </p>
+    <div className="paywall-page">
+      <div className="card">
+        <div className="card-body">
+          <div className="amount-section">
+            <div className="amount-value">Unsupported network</div>
+            <div className="amount-asset">
+              Please contact the application developer.
+            </div>
+          </div>
+        </div>
+        <div className="card-footer">
+          <span className="powered-by">
+            Powered by{" "}
+            <a href="https://x402.org" target="_blank" rel="noopener noreferrer">
+              x402
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   );

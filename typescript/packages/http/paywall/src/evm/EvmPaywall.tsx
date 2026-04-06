@@ -10,6 +10,7 @@ import type { PaymentRequired } from "@x402/core/types";
 import { getUSDCBalance } from "./utils";
 
 import { Spinner } from "./Spinner";
+import { WalletSelect } from "../WalletSelect";
 import { getNetworkDisplayName, isTestnetNetwork } from "../paywallUtils";
 import { wagmiToClientSigner } from "./browserAdapter";
 
@@ -42,6 +43,8 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
   const x402 = window.x402;
   const amount = x402.amount;
+  const appName = x402.appName;
+  const appLogo = x402.appLogo;
 
   const firstRequirement = paymentRequired.accepts[0];
   if (!firstRequirement) {
@@ -51,6 +54,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const network = firstRequirement.network;
   const chainName = getNetworkDisplayName(network);
   const testnet = isTestnetNetwork(network);
+  const description = paymentRequired.resource?.description;
 
   const chainId = parseInt(network.split(":")[1]);
 
@@ -69,6 +73,15 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       }).extend(publicActions),
     [paymentChain],
   );
+
+  const selectableConnectors = useMemo(() => {
+    const filtered = connectors.filter(
+      connector =>
+        connector.id.toLowerCase() !== "injected" &&
+        connector.name.trim().toLowerCase() !== "injected",
+    );
+    return filtered.length > 0 ? filtered : connectors;
+  }, [connectors]);
 
   const checkUSDCBalance = useCallback(async () => {
     if (!address) {
@@ -117,10 +130,10 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
   // Auto-select if only one connector is available
   useEffect(() => {
-    if (!selectedConnectorId && connectors.length === 1) {
-      setSelectedConnectorId(connectors[0].id);
+    if (!selectedConnectorId && selectableConnectors.length === 1) {
+      setSelectedConnectorId(selectableConnectors[0].id);
     }
-  }, [connectors, selectedConnectorId]);
+  }, [selectableConnectors, selectedConnectorId]);
 
   const handlePayment = useCallback(async () => {
     if (!address || !x402) {
@@ -191,107 +204,118 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   }
 
   return (
-    <div className="container gap-8">
-      <div className="header">
-        <h1 className="title">Payment Required</h1>
-        <p>
-          {paymentRequired.resource?.description && `${paymentRequired.resource.description}.`} To
-          access this content, please pay ${amount} {chainName} USDC.
-        </p>
-        {testnet && (
-          <p className="instructions">
-            Need {chainName} USDC?{" "}
-            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
-              Get some <u>here</u>.
-            </a>
-          </p>
-        )}
-      </div>
+    <div className="paywall-page">
+      <div className="card">
+        <div className="card-body">
+          {/* App branding */}
+          {(appLogo || appName) && (
+            <div className="app-branding">
+              {appLogo && <img className="app-logo" src={appLogo} alt={appName || "App"} />}
+              {appName && <span className="app-name">{appName}</span>}
+            </div>
+          )}
 
-      <div className="content w-full">
-        {!isConnected ? (
-          <div className="cta-container">
-            <select
-              className="input"
-              value={selectedConnectorId}
-              onChange={event => setSelectedConnectorId((event.target as HTMLSelectElement).value)}
-            >
-              <option value="" disabled>
-                Select a wallet
-              </option>
-              {connectors.map(connector => (
-                <option value={connector.id} key={connector.id}>
-                  {connector.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className="button button-primary"
-              onClick={() => {
-                const connector = connectors.find(c => c.id === selectedConnectorId);
-                if (connector) {
-                  connect({ connector });
-                }
-              }}
-              disabled={!selectedConnectorId}
-            >
-              Connect wallet
-            </button>
+          {/* Amount */}
+          <div className="amount-section">
+            <div className="amount-value">${amount}</div>
+            <div className="amount-asset">USDC on {chainName}</div>
           </div>
-        ) : (
-          <div className="cta-container">
-            <button className="button button-secondary" onClick={() => disconnect()}>
-              Disconnect
-            </button>
-          </div>
-        )}
-        {isConnected && (
-          <div id="payment-section">
-            <div className="payment-details">
-              <div className="payment-row">
-                <span className="payment-label">Wallet:</span>
-                <span className="payment-value">
-                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Loading..."}
-                </span>
+
+          {!isConnected && description && (
+            <div className="resource-description">{description}</div>
+          )}
+
+          {/* Wallet connection or payment details */}
+          {!isConnected ? (
+            <div className="actions">
+              <WalletSelect
+                value={selectedConnectorId}
+                onChange={setSelectedConnectorId}
+                options={selectableConnectors.map(connector => ({
+                  value: connector.id,
+                  label: connector.name,
+                }))}
+                placeholder="Select a wallet"
+              />
+              <button
+                className="button button-connect"
+                onClick={() => {
+                  const connector = selectableConnectors.find(c => c.id === selectedConnectorId);
+                  if (connector) {
+                    connect({ connector });
+                  }
+                }}
+                disabled={!selectedConnectorId}
+              >
+                Connect wallet
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="payment-details">
+                <div className="payment-row">
+                  <span className="payment-label">Wallet</span>
+                  <span className="payment-value">
+                    {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Loading..."}
+                  </span>
+                </div>
+                <div className="payment-row">
+                  <span className="payment-label">Balance</span>
+                  <span className="payment-value">
+                    <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
+                      {formattedUsdcBalance && !hideBalance
+                        ? `$${formattedUsdcBalance} USDC`
+                        : "••••• USDC"}
+                    </button>
+                  </span>
+                </div>
+                <div className="payment-row">
+                  <span className="payment-label">Network</span>
+                  <span className="payment-value">{chainName}</span>
+                </div>
               </div>
-              <div className="payment-row">
-                <span className="payment-label">Available balance:</span>
-                <span className="payment-value">
-                  <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
-                    {formattedUsdcBalance && !hideBalance
-                      ? `$${formattedUsdcBalance} USDC`
-                      : "••••• USDC"}
+
+              <div className="actions">
+                {isCorrectChain ? (
+                  <button
+                    className="button button-primary"
+                    onClick={handlePayment}
+                    disabled={isPaying}
+                  >
+                    {isPaying ? <Spinner /> : "Pay now"}
                   </button>
-                </span>
+                ) : (
+                  <button className="button button-primary" onClick={handleSwitchChain}>
+                    Switch to {chainName}
+                  </button>
+                )}
+                <button className="button button-secondary" onClick={() => disconnect()}>
+                  Disconnect
+                </button>
               </div>
-              <div className="payment-row">
-                <span className="payment-label">Amount:</span>
-                <span className="payment-value">${amount} USDC</span>
-              </div>
-              <div className="payment-row">
-                <span className="payment-label">Network:</span>
-                <span className="payment-value">{chainName}</span>
-              </div>
-            </div>
+            </>
+          )}
 
-            <div className="cta-container">
-              {isCorrectChain ? (
-                <button
-                  className="button button-primary"
-                  onClick={handlePayment}
-                  disabled={isPaying}
-                >
-                  {isPaying ? <Spinner /> : "Pay now"}
-                </button>
-              ) : (
-                <button className="button button-primary w-full" onClick={handleSwitchChain}>
-                  Switch to {chainName}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        {status && <div className="status">{status}</div>}
+          {status && <div className="status">{status}</div>}
+        </div>
+
+        {/* Footer */}
+        <div className="card-footer">
+          {testnet && (
+            <span className="faucet-link">
+              Need {chainName} USDC?{" "}
+              <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
+                Get some here
+              </a>
+            </span>
+          )}
+          <span className="powered-by">
+            Powered by{" "}
+            <a href="https://x402.org" target="_blank" rel="noopener noreferrer">
+              x402
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   );
