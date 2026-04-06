@@ -14,16 +14,32 @@ import { verifyUptoPermit2, settleUptoPermit2 } from "./permit2";
  * EVM facilitator implementation for the Upto payment scheme.
  * Handles verification and settlement of Permit2-based payments.
  */
+export interface UptoEvmSchemeConfig {
+  /** ERC-8021 Builder Code to append to settlement calldata. */
+  builderCode?: string;
+}
+
+/**
+ * EVM facilitator implementation for the Upto payment scheme.
+ * Handles verification and settlement of Permit2-based payments.
+ */
 export class UptoEvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "upto";
   readonly caipFamily = "eip155:*";
+  private readonly config: UptoEvmSchemeConfig;
 
   /**
-   * Creates a new UptoEvmScheme facilitator instance.
+   * Creates an UptoEvmScheme facilitator.
    *
-   * @param signer - The EVM signer for facilitator operations
+   * @param signer - The facilitator EVM signer
+   * @param config - Optional scheme configuration
    */
-  constructor(private readonly signer: FacilitatorEvmSigner) {}
+  constructor(
+    private readonly signer: FacilitatorEvmSigner,
+    config?: UptoEvmSchemeConfig,
+  ) {
+    this.config = config ?? {};
+  }
 
   /**
    * Returns extra metadata required by the upto scheme, including the facilitator address.
@@ -104,6 +120,7 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
       requirements,
       rawPayload as UptoPermit2Payload,
       context,
+      { builderCode: this.config.builderCode },
     );
   }
 }

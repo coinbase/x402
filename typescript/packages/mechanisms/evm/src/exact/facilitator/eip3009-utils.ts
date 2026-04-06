@@ -1,5 +1,6 @@
 import { PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import { encodeFunctionData, getAddress, Hex, parseErc6492Signature, parseSignature } from "viem";
+import { writeContractWithBuilderCode } from "../../erc8021";
 import { eip3009ABI } from "../../constants";
 import { multicall, ContractCall, RawContractCall } from "../../multicall";
 import { FacilitatorEvmSigner } from "../../signer";
@@ -195,12 +196,14 @@ export async function diagnoseEip3009SimulationFailure(
  * @param erc20Address - ERC-20 token contract address
  * @param payload - EIP-3009 transfer authorization payload
  *
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Transaction hash
  */
 export async function executeTransferWithAuthorization(
   signer: FacilitatorEvmSigner,
   erc20Address: `0x${string}`,
   payload: ExactEIP3009Payload,
+  builderCode?: string,
 ): Promise<Hex> {
   const { signature } = parseErc6492Signature(payload.signature!);
   const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
@@ -218,23 +221,31 @@ export async function executeTransferWithAuthorization(
 
   if (isECDSA) {
     const parsedSig = parseSignature(signature);
-    return signer.writeContract({
+    return writeContractWithBuilderCode(
+      signer,
+      {
+        address: erc20Address,
+        abi: eip3009ABI,
+        functionName: "transferWithAuthorization",
+        args: [
+          ...baseArgs,
+          (parsedSig.v as number | undefined) || parsedSig.yParity,
+          parsedSig.r,
+          parsedSig.s,
+        ],
+      },
+      builderCode,
+    );
+  }
+
+  return writeContractWithBuilderCode(
+    signer,
+    {
       address: erc20Address,
       abi: eip3009ABI,
       functionName: "transferWithAuthorization",
-      args: [
-        ...baseArgs,
-        (parsedSig.v as number | undefined) || parsedSig.yParity,
-        parsedSig.r,
-        parsedSig.s,
-      ],
-    });
-  }
-
-  return signer.writeContract({
-    address: erc20Address,
-    abi: eip3009ABI,
-    functionName: "transferWithAuthorization",
-    args: [...baseArgs, signature],
-  });
+      args: [...baseArgs, signature],
+    },
+    builderCode,
+  );
 }

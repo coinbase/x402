@@ -35,6 +35,8 @@ export interface EIP3009FacilitatorConfig {
    * @default false
    */
   simulateInSettle?: boolean;
+  /** ERC-8021 Builder Code to append to settlement calldata. */
+  builderCode?: string;
 }
 
 /**
@@ -297,6 +299,7 @@ export async function settleEIP3009(
       signer,
       getAddress(requirements.asset),
       eip3009Payload,
+      config.builderCode,
     );
 
     // Wait for transaction confirmation
