@@ -1,0 +1,7 @@
+{
+  "name": "x402-insights",
+  "description": "Spend observability for x402 facilitator flows. Instruments verify and settle hooks to surface cost concentration, retry waste, and settlement latency. Tested on Base Sepolia.",
+  "logoUrl": "/logos/x402-insights.svg",
+  "websiteUrl": "https://github.com/Bortlesboat/x402-insights",
+  "category": "Infrastructure & Tooling"
+}
