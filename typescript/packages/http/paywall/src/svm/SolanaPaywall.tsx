@@ -8,6 +8,7 @@ import { encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentRequired } from "@x402/core/types";
 
 import { Spinner } from "./Spinner";
+import { WalletSelect } from "../WalletSelect";
 import { getNetworkDisplayName, SOLANA_NETWORK_REFS } from "../paywallUtils";
 import { getStandardConnectFeature, getStandardDisconnectFeature } from "./solana/features";
 import { useSolanaBalance } from "./solana/useSolanaBalance";
@@ -42,11 +43,14 @@ export function SolanaPaywall({ paymentRequired, onSuccessfulResponse }: SolanaP
 
   const x402 = window.x402;
   const amount = x402.amount;
+  const appName = x402.appName;
+  const appLogo = x402.appLogo;
 
   const firstRequirement = paymentRequired.accepts[0];
   if (!firstRequirement) {
     throw new Error("No payment requirements in paymentRequired.accepts");
   }
+  const description = paymentRequired.resource?.description;
 
   const network = firstRequirement.network;
   const chainName = getNetworkDisplayName(network);
@@ -218,105 +222,116 @@ export function SolanaPaywall({ paymentRequired, onSuccessfulResponse }: SolanaP
   ]);
 
   return (
-    <div className="container gap-8">
-      <div className="header">
-        <h1 className="title">Payment Required</h1>
-        <p>
-          {paymentRequired.resource?.description && `${paymentRequired.resource.description}.`} To
-          access this content, please pay ${amount} {chainName} USDC.
-        </p>
-        {String(network).includes("devnet") && (
-          <p className="instructions">
-            Need Solana Devnet USDC?{" "}
-            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
-              Request some <u>here</u>.
-            </a>
-          </p>
-        )}
-      </div>
+    <div className="paywall-page">
+      <div className="card">
+        <div className="card-body">
+          {/* App branding */}
+          {(appLogo || appName) && (
+            <div className="app-branding">
+              {appLogo && <img className="app-logo" src={appLogo} alt={appName || "App"} />}
+              {appName && <span className="app-name">{appName}</span>}
+            </div>
+          )}
 
-      <div className="content w-full">
-        <div className="payment-details">
-          <div className="payment-row">
-            <span className="payment-label">Wallet:</span>
-            <span className="payment-value">
-              {activeAccount
-                ? `${activeAccount.address.slice(0, 6)}...${activeAccount.address.slice(-4)}`
-                : "-"}
-            </span>
+          {/* Amount */}
+          <div className="amount-section">
+            <div className="amount-value">${amount}</div>
+            <div className="amount-asset">USDC on {chainName}</div>
           </div>
-          <div className="payment-row">
-            <span className="payment-label">Available balance:</span>
-            <span className="payment-value">
-              {activeAccount ? (
-                <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
-                  {!hideBalance && formattedBalance
-                    ? `$${formattedBalance} USDC`
-                    : isFetchingBalance
-                      ? "Loading..."
-                      : "••••• USDC"}
-                </button>
-              ) : (
-                "-"
-              )}
-            </span>
-          </div>
-          <div className="payment-row">
-            <span className="payment-label">Amount:</span>
-            <span className="payment-value">${amount} USDC</span>
-          </div>
-          <div className="payment-row">
-            <span className="payment-label">Network:</span>
-            <span className="payment-value">{chainName}</span>
-          </div>
-        </div>
 
-        <div className="cta-container">
-          {activeAccount ? (
-            <button className="button button-secondary" onClick={handleDisconnect}>
-              Disconnect
-            </button>
-          ) : (
-            <>
-              <select
-                className="input"
+          {/* Payment details */}
+          <div className="payment-details">
+            <div className="payment-row">
+              <span className="payment-label">Wallet</span>
+              <span className="payment-value">
+                {activeAccount
+                  ? `${activeAccount.address.slice(0, 6)}...${activeAccount.address.slice(-4)}`
+                  : "-"}
+              </span>
+            </div>
+            <div className="payment-row">
+              <span className="payment-label">Balance</span>
+              <span className="payment-value">
+                {activeAccount ? (
+                  <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
+                    {!hideBalance && formattedBalance
+                      ? `$${formattedBalance} USDC`
+                      : isFetchingBalance
+                        ? "Loading..."
+                        : "••••• USDC"}
+                  </button>
+                ) : (
+                  "-"
+                )}
+              </span>
+            </div>
+            <div className="payment-row">
+              <span className="payment-label">Network</span>
+              <span className="payment-value">{chainName}</span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          {!activeAccount && description && (
+            <div className="resource-description">{description}</div>
+          )}
+
+          {!activeAccount ? (
+            <div className="actions">
+              <WalletSelect
                 value={selectedWalletValue}
-                onChange={event =>
-                  setSelectedWalletValue((event.target as HTMLSelectElement).value)
-                }
-              >
-                <option value="" disabled>
-                  Select a wallet
-                </option>
-                {walletOptions.map(option => (
-                  <option value={option.value} key={option.value}>
-                    {option.wallet.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedWalletValue}
+                options={walletOptions.map(option => ({
+                  value: option.value,
+                  label: option.wallet.name,
+                }))}
+                placeholder="Select a wallet"
+              />
               <button
-                className="button button-primary"
+                className="button button-connect"
                 onClick={handleConnect}
                 disabled={!selectedWalletValue}
               >
                 Connect wallet
               </button>
-            </>
+            </div>
+          ) : (
+            <div className="actions">
+              <button className="button button-primary" onClick={handlePayment} disabled={isPaying}>
+                {isPaying ? <Spinner /> : "Pay now"}
+              </button>
+              <button className="button button-secondary" onClick={handleDisconnect}>
+                Disconnect
+              </button>
+            </div>
           )}
-          {activeAccount && (
-            <button className="button button-primary" onClick={handlePayment} disabled={isPaying}>
-              {isPaying ? <Spinner /> : "Pay now"}
-            </button>
+
+          {!walletOptions.length && (
+            <div className="status">
+              Install a Solana wallet such as Phantom to continue, then refresh this page.
+            </div>
           )}
+
+          {status && <div className="status">{status}</div>}
         </div>
 
-        {!walletOptions.length && (
-          <div className="status">
-            Install a Solana wallet such as Phantom to continue, then refresh this page.
-          </div>
-        )}
-
-        {status && <div className="status">{status}</div>}
+        {/* Footer */}
+        <div className="card-footer">
+          {String(network).includes("devnet") && (
+            <span className="faucet-link">
+              Need Solana Devnet USDC?{" "}
+              <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
+                Get some here
+              </a>
+            </span>
+          )}
+          <span className="powered-by">
+            Powered by{" "}
+            <a href="https://x402.org" target="_blank" rel="noopener noreferrer">
+              x402
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   );
