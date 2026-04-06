@@ -1,0 +1,7 @@
+{
+  "name": "SmartFlow Signal API",
+  "description": "AI-powered token decision engine serving BUY/WATCH/AVOID signals via x402. 13 Solana bots feed real-time data — price snapshots, whale tracking, token scoring. PQS quality-scored. First certified partner of Onchainintel.",
+  "logoUrl": "/logos/smartflow.png",
+  "websiteUrl": "https://smartflowproai.com",
+  "category": "Services/Endpoints"
+}

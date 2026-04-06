@@ -1,0 +1,7 @@
+{
+  "name": "Solana x402 Facilitator",
+  "description": "First x402 payment facilitator for Solana. Express middleware for USDC micropayments with 400ms finality and near-zero fees. Drop-in replacement for EVM facilitators.",
+  "logoUrl": "/logos/solana-x402.png",
+  "websiteUrl": "https://github.com/smartflowproai-lang/solana-x402-facilitator",
+  "category": "Infrastructure & Tooling"
+}
