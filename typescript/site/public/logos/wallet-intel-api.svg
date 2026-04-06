@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" rx="32" fill="#0D1117"/>
+  <g transform="translate(100,100)">
+    <!-- Shield outline -->
+    <path d="M0-65 L55-40 L55,15 Q55,55 0,75 Q-55,55 -55,15 L-55-40 Z" fill="none" stroke="#58A6FF" stroke-width="5"/>
+    <!-- Inner shield fill -->
+    <path d="M0-55 L45-33 L45,12 Q45,45 0,62 Q-45,45 -45,12 L-45-33 Z" fill="#161B22"/>
+    <!-- Eye/scan icon -->
+    <ellipse cx="0" cy="-5" rx="28" ry="18" fill="none" stroke="#58A6FF" stroke-width="3"/>
+    <circle cx="0" cy="-5" r="9" fill="#58A6FF"/>
+    <!-- Signal waves -->
+    <path d="M-20,30 Q0,20 20,30" fill="none" stroke="#3FB950" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M-28,38 Q0,25 28,38" fill="none" stroke="#3FB950" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+</svg>
