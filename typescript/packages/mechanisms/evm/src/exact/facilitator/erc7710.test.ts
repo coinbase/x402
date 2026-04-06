@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { verifyERC7710, settleERC7710 } from "./erc7710";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactERC7710Payload } from "../../types";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
+import { getAddress } from "viem";
 import * as Errors from "./errors";
 
 // ---------------------------------------------------------------------------
@@ -13,6 +14,7 @@ const DELEGATION_MANAGER = "0x1234567890abcdef1234567890abcdef12345678" as const
 const DELEGATOR = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef" as const;
 const PAY_TO = "0x209693Bc6afc0C5328bA36FaF03C514EF312287C" as const;
 const ASSET = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as const;
+const FACILITATOR = "0x1111111111111111111111111111111111111111" as const;
 const NETWORK = "eip155:84532";
 const TX_HASH = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab" as const;
 
@@ -59,7 +61,7 @@ const validPayload: PaymentPayload = {
 
 function makeSigner(overrides?: Partial<FacilitatorEvmSigner>): FacilitatorEvmSigner {
   return {
-    getAddresses: vi.fn().mockReturnValue([PAY_TO]),
+    getAddresses: vi.fn().mockReturnValue([FACILITATOR]),
     readContract: vi.fn().mockResolvedValue(undefined), // simulation succeeds by default
     verifyTypedData: vi.fn().mockResolvedValue(true),
     writeContract: vi.fn().mockResolvedValue(TX_HASH),
@@ -149,17 +151,19 @@ describe("verifyERC7710", () => {
   it("calls redeemDelegations with correct args", async () => {
     const signer = makeSigner();
     await verifyERC7710(signer, validPayload, validRequirements, validErc7710Payload);
-    expect(signer.readContract).toHaveBeenCalledWith(
-      expect.objectContaining({
-        address: DELEGATION_MANAGER,
-        functionName: "redeemDelegations",
-        args: [
-          [validErc7710Payload.permissionContext],
-          ["0x0000000000000000000000000000000000000000000000000000000000000000"],
-          [expect.stringMatching(/^0x/)], // executionCalldata
-        ],
-      }),
-    );
+
+    const readContract = vi.mocked(signer.readContract);
+    expect(readContract).toHaveBeenCalledTimes(1);
+
+    const [call] = readContract.mock.calls[0];
+    expect(call.address).toBe(getAddress(DELEGATION_MANAGER));
+    expect(call.account).toBe(FACILITATOR);
+    expect(call.functionName).toBe("redeemDelegations");
+    expect(call.args?.[0]).toEqual([validErc7710Payload.permissionContext]);
+    expect(call.args?.[1]).toEqual([
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    ]);
+    expect(call.args?.[2]?.[0]).toMatch(/^0x/);
   });
 });
 
@@ -227,11 +231,17 @@ describe("settleERC7710", () => {
   it("calls redeemDelegations with correct args on settle", async () => {
     const signer = makeSigner();
     await settleERC7710(signer, validPayload, validRequirements, validErc7710Payload);
-    expect(signer.writeContract).toHaveBeenCalledWith(
-      expect.objectContaining({
-        address: DELEGATION_MANAGER,
-        functionName: "redeemDelegations",
-      }),
-    );
+
+    const writeContract = vi.mocked(signer.writeContract);
+    expect(writeContract).toHaveBeenCalledTimes(1);
+
+    const [call] = writeContract.mock.calls[0];
+    expect(call.address).toBe(getAddress(DELEGATION_MANAGER));
+    expect(call.functionName).toBe("redeemDelegations");
+    expect(call.args[0]).toEqual([validErc7710Payload.permissionContext]);
+    expect(call.args[1]).toEqual([
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    ]);
+    expect(call.args[2][0]).toMatch(/^0x/);
   });
 });

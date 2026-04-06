@@ -7,7 +7,6 @@ import {
 import { encodeFunctionData, getAddress, isAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactERC7710Payload } from "../../types";
-import { getEvmChainId } from "../../utils";
 import * as Errors from "./errors";
 
 /**
@@ -92,6 +91,7 @@ function buildExecutionCalldata(
  * Validates structural integrity of an ERC-7710 payload.
  * Does NOT perform on-chain checks — purely field-level validation.
  *
+ * @param erc7710Payload - The ERC-7710 payload to validate.
  * @returns null if valid, or an error reason string.
  */
 function validatePayloadFields(erc7710Payload: ExactERC7710Payload): string | null {
@@ -118,8 +118,8 @@ function validatePayloadFields(erc7710Payload: ExactERC7710Payload): string | nu
  * the facilitator calls `redeemDelegations` via `eth_call` to confirm the delegation
  * is valid and the transfer would succeed.
  *
- * @param signer       - The facilitator signer (needs readContract for simulation)
- * @param payload      - The full payment payload
+ * @param signer - The facilitator signer (needs readContract for simulation)
+ * @param payload - The full payment payload
  * @param requirements - The payment requirements
  * @param erc7710Payload - The ERC-7710 specific payload fields
  * @returns Promise resolving to a VerifyResponse
@@ -151,6 +151,7 @@ export async function verifyERC7710(
   const payTo = getAddress(requirements.payTo);
   const amount = BigInt(requirements.amount);
   const delegationManager = getAddress(erc7710Payload.delegationManager);
+  const facilitatorAddress = signer.getAddresses()[0];
 
   // Build the execution calldata for a single ERC-20 transfer
   const executionCalldata = buildExecutionCalldata(tokenAddress, payTo, amount);
@@ -163,6 +164,7 @@ export async function verifyERC7710(
       abi: delegationManagerABI,
       functionName: "redeemDelegations",
       args: [[erc7710Payload.permissionContext], [SINGLE_CALL_MODE], [executionCalldata]],
+      account: facilitatorAddress,
     });
   } catch {
     return { isValid: false, invalidReason: Errors.ErrERC7710SimulationFailed, payer };
@@ -180,9 +182,9 @@ export async function verifyERC7710(
  *    and calls the delegator account, which performs `token.transfer(payTo, amount)`.
  * 3. Wait for receipt and confirm success.
  *
- * @param signer        - The facilitator signer (needs writeContract + waitForTransactionReceipt)
- * @param payload       - The full payment payload
- * @param requirements  - The payment requirements
+ * @param signer - The facilitator signer (needs writeContract + waitForTransactionReceipt)
+ * @param payload - The full payment payload
+ * @param requirements - The payment requirements
  * @param erc7710Payload - The ERC-7710 specific payload fields
  * @returns Promise resolving to a SettleResponse
  */
