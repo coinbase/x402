@@ -1,6 +1,6 @@
 {
   "name": "AurelianFlo",
-  "description": "Professional document generation (DOCX, XLSX, PDF), Monte Carlo simulation suite, and OFAC/sanctions screening for vendor due diligence - all x402-paid, USDC on Base, no API keys needed.",
+  "description": "x402-paid API for enhanced due diligence memos, OFAC wallet screening, and audit-ready document output (PDF, DOCX, XLSX). Built for compliance teams, fintech operators, and AI agents. USDC on Base. No API keys required.",
   "logoUrl": "/logos/aurelianflo.png",
   "websiteUrl": "https://x402.aurelianflo.com/",
   "category": "Services/Endpoints"
