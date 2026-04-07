@@ -12,13 +12,14 @@ const PERMIT2: [u8; 20] = hex_literal::hex!("000000000022D473030F116dDEE9F6B43aC
 const PREFIX: [u8; 2] = [0x40, 0x20]; // 0x4020
 const EXACT_SUFFIX: [u8; 2] = [0x00, 0x01]; // ...0001
 const UPTO_SUFFIX: [u8; 2] = [0x00, 0x02]; // ...0002
+const BATCH_SUFFIX: [u8; 2] = [0x00, 0x03]; // ...0003
 
 // Init code hashes: keccak256(creationCode ++ abi.encode(PERMIT2))
 // Run `forge script script/ComputeAddress.s.sol` to verify these match.
 //
 // IMPORTANT: The Exact hash is from the ORIGINAL build (with CBOR metadata enabled).
 // Since that bytecode is already deployed, we preserve it via script/data/exact-proxy-initcode.hex.
-// The Upto hash is from the current build (cbor_metadata = false, bytecode_hash = "none").
+// The Upto & Batch hashes are from the current build (cbor_metadata = false, bytecode_hash = "none").
 //
 // x402ExactPermit2Proxy (pre-built initCode, includes CBOR metadata)
 const EXACT_INIT_CODE_HASH: [u8; 32] =
@@ -26,6 +27,10 @@ const EXACT_INIT_CODE_HASH: [u8; 32] =
 // x402UptoPermit2Proxy (deterministic build, no CBOR metadata)
 const UPTO_INIT_CODE_HASH: [u8; 32] =
     hex_literal::hex!("74f7a29cbc3c55f87cdef7f7c551643189e8bb62eed9de67753aebc402b83797");
+// x402BatchSettlement (deterministic build, no CBOR metadata)
+// Recompute with: forge script script/ComputeAddress.s.sol --sig "computeBatchAddress(bytes32)" <zero-padded-bytes32>
+const BATCH_INIT_CODE_HASH: [u8; 32] =
+    hex_literal::hex!("97dd838ca52715d68b46cfe95e009f07b7003f23a38628df3a63978726726293");
 
 fn compute_create2_address(salt: &[u8; 32], init_code_hash: &[u8; 32]) -> [u8; 20] {
     let mut hasher = Keccak::v256();
@@ -125,6 +130,7 @@ fn main() {
 
     let mine_exact = matches!(filter, None | Some("exact"));
     let mine_upto = matches!(filter, None | Some("upto"));
+    let mine_batch = matches!(filter, None | Some("batch"));
 
     println!("\n🔍 x402 Vanity Address Miner (Rust)");
     println!("   Prefix: 0x{}", hex::encode(PREFIX));
@@ -133,6 +139,9 @@ fn main() {
     }
     if mine_upto {
         println!("   Upto suffix: 0x{}", hex::encode(UPTO_SUFFIX));
+    }
+    if mine_batch {
+        println!("   Batch suffix: 0x{}", hex::encode(BATCH_SUFFIX));
     }
     println!("   CREATE2 Deployer: 0x{}", hex::encode(CREATE2_DEPLOYER));
 
@@ -147,6 +156,12 @@ fn main() {
 
     let upto_result = if mine_upto {
         mine_vanity("x402UptoPermit2Proxy", &UPTO_INIT_CODE_HASH, &PREFIX, &UPTO_SUFFIX)
+    } else {
+        None
+    };
+
+    let batch_result = if mine_batch {
+        mine_vanity("x402BatchSettlement", &BATCH_INIT_CODE_HASH, &PREFIX, &BATCH_SUFFIX)
     } else {
         None
     };
@@ -167,13 +182,23 @@ fn main() {
         println!("  Address: 0x{}", hex::encode(addr));
     }
 
-    if let (Some((exact_salt, _)), Some((upto_salt, _))) = (exact_result, upto_result) {
-        println!("\n// Update Deploy.s.sol with these values:");
-        println!("bytes32 constant EXACT_SALT = 0x{};", hex::encode(exact_salt));
-        println!("bytes32 constant UPTO_SALT = 0x{};", hex::encode(upto_salt));
-    } else if let Some((salt, _)) = exact_result.or(upto_result) {
-        println!("\n// Update Deploy.s.sol:");
-        println!("bytes32 constant SALT = 0x{};", hex::encode(salt));
+    if let Some((salt, addr)) = batch_result {
+        println!("\nx402BatchSettlement:");
+        println!("  Salt:    0x{}", hex::encode(salt));
+        println!("  Address: 0x{}", hex::encode(addr));
+    }
+
+    let results: Vec<(&str, [u8; 32])> = [
+        exact_result.map(|(s, _)| ("EXACT_SALT", s)),
+        upto_result.map(|(s, _)| ("UPTO_SALT", s)),
+        batch_result.map(|(s, _)| ("BATCH_SALT", s)),
+    ].iter().filter_map(|x| *x).collect();
+
+    if !results.is_empty() {
+        println!("\n// Update deploy scripts with these values:");
+        for (name, salt) in &results {
+            println!("bytes32 constant {} = 0x{};", name, hex::encode(salt));
+        }
     }
 }
 

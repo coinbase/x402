@@ -5,6 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 
 import {x402ExactPermit2Proxy} from "../src/x402ExactPermit2Proxy.sol";
 import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
+import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 
 /**
  * @title ComputeAddress
@@ -19,8 +20,11 @@ import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
  * @dev Run with default salts:
  *      forge script script/ComputeAddress.s.sol
  *
- * @dev Run with custom salts:
+ * @dev Run with custom salts (exact + upto):
  *      forge script script/ComputeAddress.s.sol --sig "computeAddresses(bytes32,bytes32)" <EXACT_SALT> <UPTO_SALT>
+ *
+ * @dev Run BatchSettlement only with custom salt:
+ *      forge script script/ComputeAddress.s.sol --sig "computeBatchAddress(bytes32)" <BATCH_SALT>
  */
 contract ComputeAddress is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer
@@ -36,6 +40,10 @@ contract ComputeAddress is Script {
     /// @notice Default salt for x402UptoPermit2Proxy
     /// @dev Vanity mined for address 0x4020a4f3b7b90cca423b9fabcc0ce57c6c240002
     bytes32 constant DEFAULT_UPTO_SALT = 0x000000000000000000000000000000000000000000000000b000000001db633d;
+
+    /// @notice Default salt for x402BatchSettlement
+    /// @dev PLACEHOLDER — vanity mine for address 0x4020...0003 after contract is finalized
+    bytes32 constant DEFAULT_BATCH_SALT = bytes32(0);
 
     /// @notice Expected initCodeHash for x402ExactPermit2Proxy (pre-built, includes CBOR metadata)
     bytes32 constant EXACT_INIT_CODE_HASH = 0xe774d1d5a07218946ab54efe010b300481478b86861bb17d69c98a57f68a604c;
@@ -109,6 +117,42 @@ contract ComputeAddress is Script {
             }
             console2.log("");
         }
+    }
+
+    /**
+     * @notice Computes the CREATE2 address for x402BatchSettlement
+     * @param batchSalt The salt to use for x402BatchSettlement
+     */
+    function computeBatchAddress(bytes32 batchSalt) public view {
+        console2.log("");
+        console2.log("============================================================");
+        console2.log("  x402BatchSettlement Address Computation");
+        console2.log("============================================================");
+        console2.log("");
+
+        console2.log("Configuration:");
+        console2.log("  CREATE2 Deployer:    ", CREATE2_DEPLOYER);
+        console2.log("  Permit2 (ctor arg):  ", CANONICAL_PERMIT2);
+        console2.log("");
+
+        bytes memory initCode =
+            abi.encodePacked(type(x402BatchSettlement).creationCode, abi.encode(CANONICAL_PERMIT2));
+        bytes32 initCodeHash = keccak256(initCode);
+        address expectedAddress = _computeCreate2Addr(batchSalt, initCodeHash, CREATE2_DEPLOYER);
+
+        console2.log("------------------------------------------------------------");
+        console2.log("  x402BatchSettlement (deterministic build)");
+        console2.log("------------------------------------------------------------");
+        console2.log("  Salt:           ", vm.toString(batchSalt));
+        console2.log("  Init Code Hash: ", vm.toString(initCodeHash));
+        console2.log("  Address:        ", expectedAddress);
+
+        if (block.chainid != 0 && expectedAddress.code.length > 0) {
+            console2.log("  Status: DEPLOYED");
+        } else {
+            console2.log("  Status: NOT DEPLOYED");
+        }
+        console2.log("");
     }
 
     function _computeCreate2Addr(
