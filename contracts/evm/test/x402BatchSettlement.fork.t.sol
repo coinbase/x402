@@ -7,7 +7,7 @@ import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @title X402BatchSettlementForkTest
-/// @notice Fork tests against real Permit2 deployment for batch settlement
+/// @notice Fork tests against real Permit2 deployment for the stateless channel model
 /// @dev Run with: forge test --match-contract X402BatchSettlementForkTest --fork-url $RPC_URL
 contract X402BatchSettlementForkTest is Test {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -15,22 +15,24 @@ contract X402BatchSettlementForkTest is Test {
     bytes32 constant PERMIT2_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
     bytes32 constant PERMIT_WITNESS_TYPEHASH = keccak256(
-        "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 serviceId)"
+        "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)"
     );
     bytes32 constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
-    bytes32 constant DEPOSIT_WITNESS_TYPEHASH = keccak256("DepositWitness(bytes32 serviceId)");
+    bytes32 constant DEPOSIT_WITNESS_TYPEHASH = keccak256("DepositWitness(bytes32 channelId)");
 
     x402BatchSettlement public settlement;
     MockERC20 public token;
 
     uint256 public payerKey;
     address public payer;
-    uint256 public authorizerKey;
-    address public authorizerAddr;
-    address public recipient;
+    uint256 public signerKey;
+    address public signerAddr;
+    uint256 public receiverKey;
+    address public receiverAddr;
+    uint256 public facilitatorKey;
+    address public facilitatorAddr;
 
-    bytes32 constant SERVICE_ID = keccak256("fork-test-service");
-    uint64 constant WITHDRAW_WINDOW = 3600;
+    uint40 constant WITHDRAW_DELAY = 3600;
     uint128 constant DEPOSIT_AMOUNT = 1000e6;
     uint128 constant CLAIM_AMOUNT = 100e6;
 
@@ -40,9 +42,12 @@ contract X402BatchSettlementForkTest is Test {
 
         payerKey = uint256(keccak256("x402-batch-test-payer"));
         payer = vm.addr(payerKey);
-        authorizerKey = uint256(keccak256("x402-batch-test-authorizer"));
-        authorizerAddr = vm.addr(authorizerKey);
-        recipient = makeAddr("recipient");
+        signerKey = uint256(keccak256("x402-batch-test-signer"));
+        signerAddr = vm.addr(signerKey);
+        receiverKey = uint256(keccak256("x402-batch-test-receiver"));
+        receiverAddr = vm.addr(receiverKey);
+        facilitatorKey = uint256(keccak256("x402-batch-test-facilitator"));
+        facilitatorAddr = vm.addr(facilitatorKey);
 
         settlement = new x402BatchSettlement(PERMIT2);
         token = new MockERC20("USDC", "USDC", 6);
@@ -50,13 +55,31 @@ contract X402BatchSettlementForkTest is Test {
 
         vm.prank(payer);
         token.approve(PERMIT2, type(uint256).max);
-
-        settlement.register(SERVICE_ID, recipient, authorizerAddr, WITHDRAW_WINDOW);
     }
 
     modifier onlyFork() {
         if (block.chainid == 31_337) return;
         _;
+    }
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    function _makeConfig() internal view returns (x402BatchSettlement.ChannelConfig memory) {
+        return x402BatchSettlement.ChannelConfig({
+            payer: payer,
+            signer: signerAddr,
+            receiver: receiverAddr,
+            facilitator: facilitatorAddr,
+            token: address(token),
+            withdrawDelay: WITHDRAW_DELAY,
+            salt: bytes32(0)
+        });
+    }
+
+    function _channelId(x402BatchSettlement.ChannelConfig memory config) internal pure returns (bytes32) {
+        return keccak256(abi.encode(config));
     }
 
     function _permit2DomainSeparator() internal view returns (bytes32) {
@@ -67,148 +90,126 @@ contract X402BatchSettlementForkTest is Test {
         return uint256(keccak256(abi.encodePacked(block.timestamp, block.number, salt)));
     }
 
-    function _signPermit2Deposit(uint256 amount, uint256 nonce, uint256 deadline, bytes32 serviceId)
-        internal
-        view
-        returns (bytes memory)
-    {
-        bytes32 witnessHash = keccak256(abi.encode(DEPOSIT_WITNESS_TYPEHASH, serviceId));
+    function _signPermit2Deposit(
+        x402BatchSettlement.ChannelConfig memory config,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
+        bytes32 channelId = _channelId(config);
+        bytes32 witnessHash = keccak256(abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId));
         bytes32 tokenHash = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, address(token), amount));
-        bytes32 structHash =
-            keccak256(abi.encode(PERMIT_WITNESS_TYPEHASH, tokenHash, address(settlement), nonce, deadline, witnessHash));
+        bytes32 structHash = keccak256(
+            abi.encode(PERMIT_WITNESS_TYPEHASH, tokenHash, address(settlement), nonce, deadline, witnessHash)
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _permit2DomainSeparator(), structHash));
-
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
-    function _settlementDomainSeparator() internal view returns (bytes32) {
-        return settlement.domainSeparator();
-    }
-
-    function _signVoucher(uint128 cumulativeAmount, uint64 nonce) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(
-            abi.encode(settlement.VOUCHER_TYPEHASH(), SERVICE_ID, payer, address(token), cumulativeAmount, nonce)
-        );
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _settlementDomainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerKey, digest);
+    function _signVoucher(bytes32 channelId, uint128 maxClaimableAmount) internal view returns (bytes memory) {
+        bytes32 structHash =
+            keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, maxClaimableAmount));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
-    function _signCooperativeWithdraw(uint64 withdrawNonce) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(
-            abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), SERVICE_ID, payer, address(token), withdrawNonce)
-        );
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _settlementDomainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(authorizerKey, digest);
+    function _signCooperativeWithdraw(bytes32 channelId) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), channelId));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
     // =========================================================================
-    // Full lifecycle: deposit -> claim -> settle
+    // Fork Tests
     // =========================================================================
 
-    function test_fork_fullLifecycle_deposit_claim_settle() public onlyFork {
-        uint256 nonce = _nonce(1);
-        uint256 deadline = block.timestamp + 3600;
+    function test_fork_fullLifecycle_permit2() public onlyFork {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
 
-        bytes memory depositSig = _signPermit2Deposit(DEPOSIT_AMOUNT, nonce, deadline, SERVICE_ID);
+        uint256 nonce = _nonce(0);
+        uint256 deadline = block.timestamp + 3600;
+        bytes memory depositSig = _signPermit2Deposit(config, DEPOSIT_AMOUNT, nonce, deadline);
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: DEPOSIT_AMOUNT}),
             nonce: nonce,
             deadline: deadline
         });
-        x402BatchSettlement.DepositWitness memory witness =
-            x402BatchSettlement.DepositWitness({serviceId: SERVICE_ID});
+        settlement.depositWithPermit2(config, permit, depositSig);
 
-        settlement.depositWithPermit2(permit, payer, witness, depositSig);
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Subchannel memory sub = settlement.getSubchannel(SERVICE_ID, payer, address(token));
-        assertEq(sub.deposit, DEPOSIT_AMOUNT);
-
-        bytes memory voucherSig = _signVoucher(CLAIM_AMOUNT, 1);
-        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
-        claims[0] = x402BatchSettlement.VoucherClaim({
-            payer: payer,
-            cumulativeAmount: CLAIM_AMOUNT,
+        bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);
+        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
+        vouchers[0] = x402BatchSettlement.Voucher({
+            channel: config,
+            maxClaimableAmount: CLAIM_AMOUNT,
             claimAmount: CLAIM_AMOUNT,
-            nonce: 1,
             signature: voucherSig
         });
-        settlement.claim(SERVICE_ID, address(token), claims);
+        vm.prank(facilitatorAddr);
+        settlement.claim(vouchers);
 
-        uint256 recipientBefore = token.balanceOf(recipient);
-        settlement.settle(SERVICE_ID, address(token));
-        assertEq(token.balanceOf(recipient), recipientBefore + CLAIM_AMOUNT);
+        uint256 balBefore = token.balanceOf(receiverAddr);
+        settlement.settle(receiverAddr, address(token));
+        assertEq(token.balanceOf(receiverAddr), balBefore + CLAIM_AMOUNT);
     }
 
-    // =========================================================================
-    // Cooperative withdraw after partial claim
-    // =========================================================================
+    function test_fork_cooperativeWithdraw_afterPartialClaim() public onlyFork {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
 
-    function test_fork_cooperativeWithdraw_afterClaim() public onlyFork {
-        uint256 nonce = _nonce(2);
+        uint256 nonce = _nonce(0);
         uint256 deadline = block.timestamp + 3600;
-
-        bytes memory depositSig = _signPermit2Deposit(DEPOSIT_AMOUNT, nonce, deadline, SERVICE_ID);
+        bytes memory depositSig = _signPermit2Deposit(config, DEPOSIT_AMOUNT, nonce, deadline);
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: DEPOSIT_AMOUNT}),
             nonce: nonce,
             deadline: deadline
         });
-        x402BatchSettlement.DepositWitness memory witness =
-            x402BatchSettlement.DepositWitness({serviceId: SERVICE_ID});
+        settlement.depositWithPermit2(config, permit, depositSig);
 
-        settlement.depositWithPermit2(permit, payer, witness, depositSig);
-
-        bytes memory voucherSig = _signVoucher(CLAIM_AMOUNT, 1);
-        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
-        claims[0] = x402BatchSettlement.VoucherClaim({
-            payer: payer,
-            cumulativeAmount: CLAIM_AMOUNT,
+        bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);
+        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
+        vouchers[0] = x402BatchSettlement.Voucher({
+            channel: config,
+            maxClaimableAmount: CLAIM_AMOUNT,
             claimAmount: CLAIM_AMOUNT,
-            nonce: 1,
             signature: voucherSig
         });
-        settlement.claim(SERVICE_ID, address(token), claims);
-        settlement.settle(SERVICE_ID, address(token));
+        vm.prank(facilitatorAddr);
+        settlement.claim(vouchers);
 
-        bytes memory authSig = _signCooperativeWithdraw(0);
-        x402BatchSettlement.CooperativeWithdrawRequest[] memory requests =
-            new x402BatchSettlement.CooperativeWithdrawRequest[](1);
-        requests[0] = x402BatchSettlement.CooperativeWithdrawRequest({payer: payer, authorizerSignature: authSig});
+        bytes memory coopSig = _signCooperativeWithdraw(channelId);
+        uint256 payerBalBefore = token.balanceOf(payer);
+        settlement.cooperativeWithdraw(config, coopSig);
 
-        uint256 payerBefore = token.balanceOf(payer);
-        settlement.cooperativeWithdraw(SERVICE_ID, address(token), requests);
-
-        uint128 expectedRefund = DEPOSIT_AMOUNT - CLAIM_AMOUNT;
-        assertEq(token.balanceOf(payer), payerBefore + expectedRefund);
+        assertEq(token.balanceOf(payer), payerBalBefore + (DEPOSIT_AMOUNT - CLAIM_AMOUNT));
     }
 
-    // =========================================================================
-    // Reject tampered witness
-    // =========================================================================
+    function test_fork_tamperedWitness_reverts() public onlyFork {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
 
-    function test_fork_rejectsTamperedWitness() public onlyFork {
-        uint256 nonce = _nonce(3);
+        x402BatchSettlement.ChannelConfig memory tamperedConfig = _makeConfig();
+        tamperedConfig.salt = bytes32(uint256(999));
+
+        uint256 nonce = _nonce(0);
         uint256 deadline = block.timestamp + 3600;
-
-        bytes memory depositSig = _signPermit2Deposit(DEPOSIT_AMOUNT, nonce, deadline, SERVICE_ID);
-
-        bytes32 differentService = keccak256("different-service");
-        settlement.register(differentService, recipient, authorizerAddr, WITHDRAW_WINDOW);
+        bytes memory depositSig = _signPermit2Deposit(config, DEPOSIT_AMOUNT, nonce, deadline);
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: DEPOSIT_AMOUNT}),
             nonce: nonce,
             deadline: deadline
         });
-        x402BatchSettlement.DepositWitness memory tamperedWitness =
-            x402BatchSettlement.DepositWitness({serviceId: differentService});
 
         vm.expectRevert();
-        settlement.depositWithPermit2(permit, payer, tamperedWitness, depositSig);
+        settlement.depositWithPermit2(tamperedConfig, permit, depositSig);
     }
 }

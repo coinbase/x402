@@ -4,15 +4,13 @@ pragma solidity ^0.8.20;
 import {Script, console2} from "forge-std/Script.sol";
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 
-/**
- * @title DeployBatchSettlement
- * @notice Deployment script for x402BatchSettlement using CREATE2
- * @dev Run with: forge script script/DeployBatchSettlement.s.sol --rpc-url $RPC_URL --broadcast --verify
- *
- *      Uses deterministic bytecode (cbor_metadata = false in foundry.toml) so
- *      any machine compiling at the same git commit produces the same initCode
- *      and therefore the same CREATE2 address.
- */
+/// @title DeployBatchSettlement
+/// @notice Deployment script for x402BatchSettlement using CREATE2
+/// @dev Run with: forge script script/DeployBatchSettlement.s.sol --rpc-url $RPC_URL --broadcast --verify
+///
+///      Uses deterministic bytecode (cbor_metadata = false in foundry.toml) so
+///      any machine compiling at the same git commit produces the same initCode
+///      and therefore the same CREATE2 address.
 contract DeployBatchSettlement is Script {
     /// @notice Canonical Permit2 address (Uniswap's official deployment)
     address constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -20,9 +18,8 @@ contract DeployBatchSettlement is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer (same on all EVM chains)
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    /// @notice Salt for x402BatchSettlement deterministic deployment
-    /// @dev Vanity mined for address 0x40200e6f073acb938e0cf766b83f4e5286e60003
-    bytes32 constant BATCH_SALT = 0x00000000000000000000000000000000000000000000000098000000021f0fce;
+    // TODO: Re-mine vanity salt after contract rewrite. Initcode has changed.
+    bytes32 constant BATCH_SALT = bytes32(0);
 
     function run() public {
         address permit2 = vm.envOr("PERMIT2_ADDRESS", CANONICAL_PERMIT2);
@@ -30,6 +27,7 @@ contract DeployBatchSettlement is Script {
         console2.log("");
         console2.log("============================================================");
         console2.log("  x402BatchSettlement Deterministic Deployment (CREATE2)");
+        console2.log("  Model: Stateless Channel-Config");
         console2.log("============================================================");
         console2.log("");
 
@@ -53,9 +51,7 @@ contract DeployBatchSettlement is Script {
         console2.log("");
     }
 
-    function _deploy(
-        address permit2
-    ) internal {
+    function _deploy(address permit2) internal {
         console2.log("");
         console2.log("------------------------------------------------------------");
         console2.log("  Deploying x402BatchSettlement");
