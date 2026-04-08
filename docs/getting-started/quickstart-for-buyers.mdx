@@ -480,6 +480,45 @@ You can register multiple payment schemes to handle different networks:
   </Tab>
 </Tabs>
 
+### Supporting the Upto Scheme
+
+If you need to interact with services that use the `upto` payment scheme (usage-based billing), register the `UptoEvmScheme` alongside your existing exact schemes. The upto scheme is transparent to the buyer -- the SDK handles the max-authorization signing automatically, and you are only charged the actual settled amount (which may be less than the authorized maximum).
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402Client } from "@x402/core/client";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
+    import { UptoEvmScheme } from "@x402/evm/upto/client";
+    import { privateKeyToAccount } from "viem/accounts";
+
+    const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+
+    const client = new x402Client();
+    client.register("eip155:*", new ExactEvmScheme(signer));
+    client.register("eip155:*", new UptoEvmScheme(signer));
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402 "github.com/x402-foundation/x402/go"
+        exactevm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/client"
+        uptoevm "github.com/x402-foundation/x402/go/mechanisms/evm/upto/client"
+        evmsigners "github.com/x402-foundation/x402/go/signers/evm"
+    )
+
+    evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+
+    x402Client := x402.Newx402Client().
+        Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner)).
+        Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner))
+    ```
+  </Tab>
+</Tabs>
+
+**Note:** The `upto` scheme is currently available on EVM networks only (TypeScript and Go SDKs). Python does not yet support upto. When registered, the SDK automatically selects the correct scheme based on what the server advertises in its 402 response.
+
 ### 4. Discover Available Services (Optional)
 
 Instead of hardcoding endpoints, you can use the x402 Bazaar to dynamically discover available services. This is especially powerful for building autonomous agents.
@@ -532,10 +571,10 @@ try {
 
 * Install x402 client packages (`@x402/fetch` or `@x402/axios`) and mechanism packages (`@x402/evm`, `@x402/svm`, `@x402/aptos`)
 * Create a wallet signer
-* Create an `x402Client` and register payment schemes
+* Create an `x402Client` and register payment schemes (`exact` for fixed-price, `upto` for usage-based billing)
 * Use the provided wrapper/interceptor to make paid API requests
 * (Optional) Use the x402 Bazaar to discover services dynamically
-* Payment flows are handled automatically for you
+* Payment flows are handled automatically for you -- including `upto` where you only pay the actual usage
 
 ***
 
