@@ -1,7 +1,0 @@
-{
-  "name": "Aethel-Nexus AAAA",
-  "description": "Pay-per-call AI inference (Llama-3.1-8B, OpenAI-compatible) + Leech lattice tensor compression (8:1, Lean 4 formally verified) via x402 USDC micropayments on Base L2. No account, no API key. Google A2A agent card at /.well-known/agent.json with 22 machine-readable skills.",
-  "logoUrl": "/logos/aethel-nexus-aaaa.png",
-  "websiteUrl": "https://aaaa-nexus.atomadictech.workers.dev",
-  "category": "Services/Endpoints"
-}

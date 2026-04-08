@@ -137,4 +137,4 @@ Because a scheme is a logical way of moving money, the way a scheme is implement
 
 Clients and facilitators must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
 
-- [Aethel-Nexus AAAA](https://aaaa-nexus.atomadictech.workers.dev) - 22-endpoint AI infrastructure on Cloudflare Workers: streaming CoT inference, Leech lattice compression, AIBOM drift, EU AI Act compliance, agent swarm, quantum RNG. x402 USDC micropayments on Base L2. Google A2A agent card (22 skills) + MCP server.
+- [AAAA-Nexus](https://aaaa-nexus.atomadictech.workers.dev) - Hosted AI infrastructure with x402 pay-per-call access, MCP support, and public agent discovery.
