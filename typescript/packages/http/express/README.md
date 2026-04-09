@@ -235,6 +235,29 @@ const resourceServer = new x402ResourceServer(customFacilitator)
 app.use(paymentMiddleware(routes, resourceServer, paywallConfig));
 ```
 
+### Settlement Overrides (Upto Scheme)
+
+For the upto scheme, route handlers specify the actual settlement amount via `setSettlementOverrides`.
+This is critical for usage-based billing where the actual charge is less than the authorized maximum:
+
+```typescript
+import { setSettlementOverrides } from "@x402/express";
+
+app.get("/api/metered", (req, res) => {
+  const usage = calculateUsage(req);
+  setSettlementOverrides(res, { amount: usage });
+
+  res.json({ result: "ok" });
+});
+```
+
+The `amount` field supports raw atomic units (`"1000"`), percentages (`"50%"`), or dollar amounts (`"$0.05"`).
+
+**For custom middleware integrators:** If building custom middleware, you must call `setSettlementOverrides`
+(or manually set the `Settlement-Overrides` response header) before settlement occurs. The middleware
+extracts this header and passes it to `processSettlement`. Without this, the upto scheme will always
+settle the full authorized amount.
+
 ## Migration from x402-express
 
 If you're migrating from the legacy `x402-express` package:

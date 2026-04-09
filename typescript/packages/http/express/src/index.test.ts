@@ -368,6 +368,52 @@ describe("paymentMiddleware", () => {
     expect(res.setHeader).toHaveBeenCalledWith("PAYMENT-RESPONSE", "settled");
   });
 
+  it("passes settlement overrides header from handler to processSettlement", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const middleware = paymentMiddleware(
+      mockRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const req = createMockRequest();
+    const res = createMockResponse();
+    const next = vi.fn(() => {
+      // Simulate handler calling setSettlementOverrides — this sets the header
+      // on the response. Express normalises header keys to lowercase via getHeaders().
+      res.setHeader("Settlement-Overrides", JSON.stringify({ amount: "500" }));
+      res.statusCode = 200;
+      res.end();
+    });
+
+    await middleware(req, res, next);
+
+    expect(mockProcessSettlement).toHaveBeenCalled();
+    const callArgs = mockProcessSettlement.mock.calls[0];
+    const transportContext = callArgs[3];
+    expect(transportContext).toBeDefined();
+    expect(transportContext.responseHeaders).toBeDefined();
+    // Verify the settlement overrides header is present in responseHeaders
+    const headerKeys = Object.keys(transportContext.responseHeaders);
+    const hasOverrides = headerKeys.some((k: string) => k.toLowerCase() === "settlement-overrides");
+    expect(hasOverrides).toBe(true);
+    // Verify the value is parseable and contains the correct amount
+    const overridesKey = headerKeys.find(
+      (k: string) => k.toLowerCase() === "settlement-overrides",
+    )!;
+    const parsed = JSON.parse(transportContext.responseHeaders[overridesKey]);
+    expect(parsed.amount).toBe("500");
+  });
+
   it("skips settlement when handler returns >= 400", async () => {
     setupMockHttpServer(
       {

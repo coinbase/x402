@@ -282,6 +282,51 @@ describe("Upto Integration Tests", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should extract overrides from lowercase responseHeaders key (as frameworks produce)", async () => {
+      // Get PaymentRequired
+      const context = { adapter: createMockAdapter(), path: "/api/generate", method: "GET" };
+      const httpResult = await httpServer.processHTTPRequest(context);
+      const initial402 = (
+        httpResult as { type: "payment-error"; response: HTTPResponseInstructions }
+      ).response;
+
+      // Client creates payment
+      const paymentRequired = client.getPaymentRequiredResponse(
+        name => initial402.headers[name],
+        initial402.body,
+      );
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+      const requestHeaders = await client.encodePaymentSignatureHeader(paymentPayload);
+
+      context.adapter.getHeader = (name: string) => {
+        if (name === "PAYMENT-SIGNATURE") return requestHeaders["PAYMENT-SIGNATURE"];
+        return undefined;
+      };
+      const verified = await httpServer.processHTTPRequest(context);
+
+      const { paymentPayload: verifiedPayload, paymentRequirements: verifiedRequirements } =
+        verified as {
+          type: "payment-verified";
+          paymentPayload: PaymentPayload;
+          paymentRequirements: PaymentRequirements;
+        };
+
+      // Pass overrides with lowercase key — this is what Express/Hono/Fastify actually produce
+      // when iterating response headers (Node.js getHeaders() and Fetch API Headers return lowercase)
+      const result = await httpServer.processSettlement(
+        verifiedPayload,
+        verifiedRequirements,
+        undefined,
+        {
+          request: context,
+          responseHeaders: {
+            "settlement-overrides": JSON.stringify({ amount: "5" }),
+          },
+        },
+      );
+      expect(result.success).toBe(true);
+    });
+
     it("explicit overrides should take precedence over header overrides", async () => {
       const context = { adapter: createMockAdapter(), path: "/api/generate", method: "GET" };
       const httpResult = await httpServer.processHTTPRequest(context);

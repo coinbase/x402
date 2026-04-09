@@ -357,6 +357,60 @@ describe("paymentMiddleware", () => {
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");
   });
 
+  it("passes settlement overrides header from handler to processSettlement", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const middleware = paymentMiddleware(
+      mockRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+    const context = createMockContext();
+
+    // Create a Response with the Settlement-Overrides header set.
+    // The Fetch API Headers object normalises keys to lowercase, so
+    // iterating with forEach returns "settlement-overrides" (lowercase).
+    const responseHeaders = new Headers();
+    responseHeaders.set("Settlement-Overrides", JSON.stringify({ amount: "500" }));
+    const mockResponse = {
+      status: 200,
+      headers: responseHeaders,
+      clone: () => ({
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }),
+    } as unknown as Response;
+
+    const next = vi.fn().mockImplementation(async () => {
+      context.res = mockResponse;
+    });
+
+    await middleware(context, next);
+
+    expect(mockProcessSettlement).toHaveBeenCalled();
+    const callArgs = mockProcessSettlement.mock.calls[0];
+    const transportContext = callArgs[3];
+    expect(transportContext).toBeDefined();
+    expect(transportContext.responseHeaders).toBeDefined();
+    // Fetch API Headers.forEach returns lowercase keys
+    const headerKeys = Object.keys(transportContext.responseHeaders);
+    const hasOverrides = headerKeys.some((k: string) => k.toLowerCase() === "settlement-overrides");
+    expect(hasOverrides).toBe(true);
+    const overridesKey = headerKeys.find(
+      (k: string) => k.toLowerCase() === "settlement-overrides",
+    )!;
+    const parsed = JSON.parse(transportContext.responseHeaders[overridesKey]);
+    expect(parsed.amount).toBe("500");
+  });
+
   it("skips settlement when handler returns >= 400", async () => {
     setupMockHttpServer(
       {

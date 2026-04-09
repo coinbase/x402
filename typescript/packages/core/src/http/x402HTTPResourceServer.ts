@@ -598,7 +598,9 @@ export class x402HTTPResourceServer {
       };
     }
     try {
-      // Resolve overrides: explicit param takes precedence, fall back to response header
+      // Resolve overrides: explicit param takes precedence, fall back to response header.
+      // Use case-insensitive lookup because frameworks normalise header keys differently
+      // (Express/Fastify/Node.js return lowercase, Go returns title-case).
       let resolvedOverrides = settlementOverrides;
       if (!resolvedOverrides && transportContext?.responseHeaders) {
         const overridesKey = SETTLEMENT_OVERRIDES_HEADER.toLowerCase();

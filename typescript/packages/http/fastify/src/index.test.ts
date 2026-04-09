@@ -438,6 +438,56 @@ describe("paymentMiddleware", () => {
     expect(result).toBe(payload);
   });
 
+  it("passes settlement overrides header from handler to processSettlement", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const { app, hooks } = createMockApp();
+    paymentMiddleware(
+      app,
+      mockRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+
+    const request = createMockRequest();
+    const reply = createMockReply();
+
+    // Simulate handler setting settlement overrides via reply.header.
+    // Fastify (like Node.js) normalises header keys to lowercase via getHeaders().
+    reply.header("Settlement-Overrides", JSON.stringify({ amount: "500" }));
+
+    // Step 1: onRequest stashes payment context
+    await hooks.onRequest[0](request, reply);
+
+    // Step 2: onSend settles payment — this is where responseHeaders are extracted
+    const payload = JSON.stringify({ data: "premium content" });
+    await hooks.onSend[0](request, reply, payload);
+
+    expect(mockProcessSettlement).toHaveBeenCalled();
+    const callArgs = mockProcessSettlement.mock.calls[0];
+    const transportContext = callArgs[3];
+    expect(transportContext).toBeDefined();
+    expect(transportContext.responseHeaders).toBeDefined();
+    // Verify the settlement overrides header is present in responseHeaders
+    const headerKeys = Object.keys(transportContext.responseHeaders);
+    const hasOverrides = headerKeys.some((k: string) => k.toLowerCase() === "settlement-overrides");
+    expect(hasOverrides).toBe(true);
+    const overridesKey = headerKeys.find(
+      (k: string) => k.toLowerCase() === "settlement-overrides",
+    )!;
+    const parsed = JSON.parse(transportContext.responseHeaders[overridesKey]);
+    expect(parsed.amount).toBe("500");
+  });
+
   it("passes Buffer payload bytes to settlement without JSON stringifying them", async () => {
     setupMockHttpServer(
       {

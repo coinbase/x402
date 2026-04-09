@@ -585,6 +585,37 @@ func TestProcessSettlement_OverridesFromTransportContext(t *testing.T) {
 		}
 	})
 
+	t.Run("http.Header.Set canonicalizes keys (Go is inherently case-insensitive)", func(t *testing.T) {
+		// Go's http.Header.Set() canonicalizes keys via textproto.CanonicalMIMEHeaderKey,
+		// so setting with a lowercase key still stores it as title-case. This means
+		// http.Header.Get() (which also canonicalizes the lookup key) will always find it.
+		// All Go frameworks (net/http, gin, echo) use Set()/Add(), so settlement overrides
+		// are inherently safe from case-sensitivity bugs in Go.
+		capturedRequirements = nil
+		h := http.Header{}
+		h.Set("settlement-overrides", `{"amount":"500"}`) // lowercase input
+		// Verify canonicalization happened
+		if _, ok := h["Settlement-Overrides"]; !ok {
+			t.Fatal("expected http.Header.Set to canonicalize the key to title-case")
+		}
+		tc := &HTTPTransportContext{
+			ResponseHeaders: h,
+		}
+
+		result := server.ProcessSettlement(ctx, payload, requirements, nil, tc)
+		if !result.Success {
+			t.Fatalf("unexpected failure: %v", result.ErrorReason)
+		}
+
+		var settled types.PaymentRequirements
+		if err := json.Unmarshal(capturedRequirements, &settled); err != nil {
+			t.Fatalf("failed to unmarshal captured requirements: %v", err)
+		}
+		if settled.Amount != "500" {
+			t.Errorf("expected overridden amount 500, got %s", settled.Amount)
+		}
+	})
+
 	t.Run("explicit overrides take precedence over header", func(t *testing.T) {
 		capturedRequirements = nil
 		h := http.Header{}

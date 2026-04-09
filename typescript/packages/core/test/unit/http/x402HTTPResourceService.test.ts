@@ -987,6 +987,55 @@ describe("x402HTTPResourceServer", () => {
       expect(result.success).toBe(true);
       expect(mockFacilitator.settleCalls[0].requirements.amount).toBe("100000");
     });
+
+    describe("case-insensitive header lookup", () => {
+      const caseCombinations = [
+        { label: "lowercase (framework-normalized)", key: "settlement-overrides" },
+        { label: "UPPERCASE", key: "SETTLEMENT-OVERRIDES" },
+        { label: "title-case (constant value)", key: "Settlement-Overrides" },
+        { label: "mixed case", key: "sEtTlEmEnT-oVeRrIdEs" },
+      ];
+
+      for (const { label, key } of caseCombinations) {
+        it(`should find overrides when header key is ${label}: "${key}"`, async () => {
+          const routes = {
+            "/api/test": {
+              accepts: {
+                scheme: "exact",
+                payTo: "0xabc",
+                price: "$1.00" as Price,
+                network: "eip155:8453" as Network,
+              },
+            },
+          };
+
+          const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+
+          const payload = buildPaymentPayload();
+          const requirements = buildPaymentRequirements({
+            scheme: "exact",
+            network: "eip155:8453" as Network,
+            amount: "1000000",
+          });
+
+          mockFacilitator.settleCalls = [];
+
+          const result = await httpServer.processSettlement(payload, requirements, undefined, {
+            request: {
+              adapter: new MockHTTPAdapter(),
+              path: "/api/test",
+              method: "GET",
+            },
+            responseHeaders: {
+              [key]: JSON.stringify({ amount: "300000" }),
+            },
+          });
+
+          expect(result.success).toBe(true);
+          expect(mockFacilitator.settleCalls[0].requirements.amount).toBe("300000");
+        });
+      }
+    });
   });
 
   describe("Browser detection", () => {

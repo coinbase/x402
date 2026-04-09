@@ -1592,3 +1592,101 @@ func TestPaymentMiddleware_StreamingDoesNotLeakHeaders(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================================
+// Settlement Override Round-Trip Tests
+// ============================================================================
+
+// TestPaymentMiddleware_SettlementOverrideViaHeader verifies the full path:
+// SetSettlementOverrides (handler) → responseCapture.Header() →
+// HTTPTransportContext.ResponseHeaders → ProcessSettlement → facilitator.
+func TestPaymentMiddleware_SettlementOverrideViaHeader(t *testing.T) {
+	var capturedRequirementsBytes []byte
+
+	mockClient := &mockFacilitatorClient{
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
+			return &x402.VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+		},
+		settleFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			capturedRequirementsBytes = requirementsBytes
+			return &x402.SettleResponse{
+				Success:     true,
+				Transaction: "0xtx",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}, nil
+		},
+		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
+			}, nil
+		},
+	}
+
+	mockServer := &mockSchemeServer{scheme: "exact"}
+
+	routes := x402http.RoutesConfig{
+		"POST /api": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
+		},
+	}
+
+	router := createTestRouter()
+	router.Use(PaymentMiddlewareFromConfig(routes,
+		WithFacilitatorClient(mockClient),
+		WithScheme("eip155:1", mockServer),
+		WithSyncFacilitatorOnStart(true),
+		WithTimeout(5*time.Second),
+	))
+
+	// Handler calls SetSettlementOverrides to request partial settlement of 500.
+	router.POST("/api", func(c *gin.Context) {
+		SetSettlementOverrides(c, &x402.SettlementOverrides{Amount: "500"})
+		c.JSON(http.StatusOK, gin.H{"data": "ok"})
+	})
+
+	req := httptest.NewRequest("POST", "/api", nil)
+	req.Header.Set("PAYMENT-SIGNATURE", createPaymentHeader("0xtest"))
+	req.Host = "example.com"
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	if w.Header().Get("PAYMENT-RESPONSE") == "" {
+		t.Error("Expected PAYMENT-RESPONSE header (settlement must succeed)")
+	}
+
+	// The settlement-overrides header must be stripped from the client response.
+	if w.Header().Get(x402http.SettlementOverridesHeader) != "" {
+		t.Error("settlement-overrides header must be stripped from the client response")
+	}
+
+	// Verify the overridden amount reached the facilitator.
+	if capturedRequirementsBytes == nil {
+		t.Fatal("settle was never called; payment was not processed")
+	}
+	var settledReqs struct {
+		Amount string `json:"amount"`
+	}
+	if err := json.Unmarshal(capturedRequirementsBytes, &settledReqs); err != nil {
+		t.Fatalf("failed to unmarshal captured requirements: %v", err)
+	}
+	if settledReqs.Amount != "500" {
+		t.Errorf("expected settle to be called with amount \"500\" (override), got %q", settledReqs.Amount)
+	}
+}
