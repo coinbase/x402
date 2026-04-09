@@ -955,4 +955,98 @@ contract X402BatchSettlementTest is Test {
         bytes32 id = settlement.getChannelId(config);
         assertTrue(id != bytes32(0));
     }
+
+    // =========================================================================
+    // Multicall Tests
+    // =========================================================================
+
+    function test_multicall_migration_refundAndDeposit() public {
+        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
+        bytes32 oldChannelId = _channelId(oldConfig);
+        _deposit(oldConfig, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(oldConfig, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
+        newConfig.salt = bytes32(uint256(77));
+        bytes32 newChannelId = _channelId(newConfig);
+
+        bytes memory refundSig = _signRefund(receiverAuthWallet, oldChannelId);
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(settlement.refundWithSignature, (oldConfig, refundSig));
+        calls[1] = abi.encodeCall(
+            settlement.deposit,
+            (newConfig, DEPOSIT_AMOUNT - CLAIM_AMOUNT, address(mockCollector), "")
+        );
+
+        uint256 payerBalBefore = token.balanceOf(payerWallet.addr);
+
+        settlement.multicall(calls);
+
+        x402BatchSettlement.ChannelState memory oldCh = settlement.getChannel(oldChannelId);
+        assertEq(oldCh.balance, oldCh.totalClaimed);
+
+        x402BatchSettlement.ChannelState memory newCh = settlement.getChannel(newChannelId);
+        assertEq(newCh.balance, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
+
+        assertEq(token.balanceOf(payerWallet.addr), payerBalBefore);
+    }
+
+    function test_multicall_batchDeposits() public {
+        x402BatchSettlement.ChannelConfig memory config1 = _makeConfig();
+        x402BatchSettlement.ChannelConfig memory config2 = _makeConfig();
+        config2.salt = bytes32(uint256(1));
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(
+            settlement.deposit,
+            (config1, DEPOSIT_AMOUNT, address(mockCollector), "")
+        );
+        calls[1] = abi.encodeCall(
+            settlement.deposit,
+            (config2, DEPOSIT_AMOUNT / 2, address(mockCollector), "")
+        );
+
+        settlement.multicall(calls);
+
+        assertEq(settlement.getChannel(_channelId(config1)).balance, DEPOSIT_AMOUNT);
+        assertEq(settlement.getChannel(_channelId(config2)).balance, DEPOSIT_AMOUNT / 2);
+    }
+
+    function test_multicall_singleCall() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+
+        bytes[] memory calls = new bytes[](1);
+        calls[0] = abi.encodeCall(
+            settlement.deposit,
+            (config, DEPOSIT_AMOUNT, address(mockCollector), "")
+        );
+
+        settlement.multicall(calls);
+
+        assertEq(settlement.getChannel(_channelId(config)).balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_multicall_revert_propagates() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(
+            settlement.deposit,
+            (config, DEPOSIT_AMOUNT, address(mockCollector), "")
+        );
+        calls[1] = abi.encodeCall(
+            settlement.deposit,
+            (config, 0, address(mockCollector), "")
+        );
+
+        vm.expectRevert();
+        settlement.multicall(calls);
+
+        assertEq(settlement.getChannel(_channelId(config)).balance, 0);
+    }
 }

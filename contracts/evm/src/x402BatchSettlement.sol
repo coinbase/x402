@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {IDepositCollector} from "./interfaces/IDepositCollector.sol";
@@ -16,7 +17,7 @@ import {IDepositCollector} from "./interfaces/IDepositCollector.sol";
 ///      `channelId = keccak256(abi.encode(channelConfig))`.
 ///      Deployed at the same address across all supported EVM chains using CREATE2.
 /// @author x402 Protocol
-contract x402BatchSettlement is EIP712, ReentrancyGuard {
+contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // =========================================================================
