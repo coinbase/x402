@@ -97,7 +97,7 @@ DepositWitness(bytes32 channelId)
 
 ## 402 Response (PaymentRequirements)
 
-The 402 response contains pricing terms and the server's channel parameters. The client fills in `payer`, `payerAuthorizer`, `token`, and `salt` to construct the full `ChannelConfig`.
+The 402 response contains pricing terms and the server's channel parameters. The client uses `payTo` as `ChannelConfig.receiver` and fills in `payer`, `payerAuthorizer`, `token`, and `salt` to construct the full `ChannelConfig`.
 
 ```json
 {
@@ -108,7 +108,6 @@ The 402 response contains pricing terms and the server's channel parameters. The
   "payTo": "0xServerReceiverAddress",
   "maxTimeoutSeconds": 3600,
   "extra": {
-    "receiver": "0xServerReceiverAddress",
     "receiverAuthorizer": "0xReceiverAuthorizerAddress",
     "withdrawDelay": 900,
     "name": "USDC",
@@ -117,9 +116,10 @@ The 402 response contains pricing terms and the server's channel parameters. The
 }
 ```
 
+The `payTo` field serves as `ChannelConfig.receiver` — no separate `extra.receiver` is needed.
+
 | Field                          | Type     | Required | Description |
 | ------------------------------ | -------- | -------- | ----------- |
-| `extra.receiver`               | `string` | yes      | Server's receiver address (EOA or contract) |
 | `extra.receiverAuthorizer`     | `string` | yes      | Receiver authorizer address (EOA or EIP-1271 contract) |
 | `extra.withdrawDelay`          | `number` | yes      | Withdrawal delay in seconds (15 min – 30 days) |
 | `extra.assetTransferMethod`    | `string` | optional | `"eip3009"` (default), `"permit2"`, or `"direct"` |
@@ -150,7 +150,6 @@ The `deposit.authorization` field contains the token transfer authorization — 
     "payTo": "0xServerReceiverAddress",
     "maxTimeoutSeconds": 3600,
     "extra": {
-      "receiver": "0xServerReceiverAddress",
       "receiverAuthorizer": "0xReceiverAuthorizerAddress",
       "withdrawDelay": 900,
       "name": "USDC",
