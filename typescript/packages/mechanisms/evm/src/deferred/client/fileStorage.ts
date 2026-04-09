@@ -5,14 +5,14 @@ import { writeJsonAtomic } from "../storage-utils";
 import type { ClientSessionStorage, DeferredClientContext } from "./storage";
 
 export interface FileClientSessionStorageOptions {
-  /** Root directory; sessions are stored under `{directory}/client/{serviceId}/{payer}.json`. */
+  /** Root directory; sessions are stored under `{directory}/client/{channelId}.json`. */
   directory: string;
 }
 
 /**
- * Node.js file-backed {@link ClientSessionStorage}. For browser builds use {@link InMemoryClientSessionStorage}.
- *
- * Expects storage keys shaped as `serviceId:payer` (same composite key as the deferred client scheme).
+ * Node.js file-backed {@link ClientSessionStorage} for the batch-settlement client scheme.
+ * Each channel's context is persisted as `{root}/client/{channelId}.json` so that sessions
+ * survive process restarts.
  */
 export class FileClientSessionStorage implements ClientSessionStorage {
   private readonly root: string;
@@ -27,28 +27,10 @@ export class FileClientSessionStorage implements ClientSessionStorage {
   }
 
   /**
-   * Parses a composite session key into normalized path components.
+   * Loads the stored client context for a channel, if present.
    *
-   * @param key - Session key `serviceId:payer`.
-   * @returns Lowercased `serviceId` and `payer` segments.
-   */
-  private static parseKey(key: string): { serviceId: string; payer: string } {
-    const idx = key.indexOf(":");
-    if (idx <= 0 || idx === key.length - 1) {
-      throw new Error(
-        `FileClientSessionStorage: invalid session key (expected "serviceId:payer"): ${key.slice(0, 80)}`,
-      );
-    }
-    const serviceId = key.slice(0, idx).toLowerCase();
-    const payer = key.slice(idx + 1).toLowerCase();
-    return { serviceId, payer };
-  }
-
-  /**
-   * Loads persisted client session context for the composite key, if present.
-   *
-   * @param key - Session key `serviceId:payer` (lowercased when resolved to paths).
-   * @returns Parsed session or `undefined` when the file is missing.
+   * @param key - Channel storage key (typically a lowercased channelId).
+   * @returns Parsed context or `undefined` when the file is missing.
    */
   async get(key: string): Promise<DeferredClientContext | undefined> {
     const path = this.filePath(key);
@@ -66,19 +48,19 @@ export class FileClientSessionStorage implements ClientSessionStorage {
   }
 
   /**
-   * Persists client session context for the composite key.
+   * Persists the client context for a channel.
    *
-   * @param key - Session key `serviceId:payer`.
-   * @param context - Client session fields to write.
+   * @param key - Channel storage key.
+   * @param context - Context record to write.
    */
   async set(key: string, context: DeferredClientContext): Promise<void> {
     await writeJsonAtomic(this.filePath(key), context);
   }
 
   /**
-   * Removes the persisted session file for the key, if it exists.
+   * Removes the persisted context file for a channel, if it exists.
    *
-   * @param key - Session key `serviceId:payer`.
+   * @param key - Channel storage key.
    */
   async delete(key: string): Promise<void> {
     try {
@@ -94,13 +76,12 @@ export class FileClientSessionStorage implements ClientSessionStorage {
   }
 
   /**
-   * Absolute path to the JSON file for a session key.
+   * Absolute path to the JSON file for a channel.
    *
-   * @param key - Session key `serviceId:payer`.
+   * @param key - Channel storage key.
    * @returns Filesystem path under `{root}/client/...`.
    */
   private filePath(key: string): string {
-    const { serviceId, payer } = FileClientSessionStorage.parseKey(key);
-    return join(this.root, "client", serviceId, `${payer}.json`);
+    return join(this.root, "client", `${key.toLowerCase()}.json`);
   }
 }

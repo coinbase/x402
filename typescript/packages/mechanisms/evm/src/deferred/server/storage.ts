@@ -1,87 +1,66 @@
-export interface SubchannelSession {
-  serviceId: string;
+import type { ChannelConfig } from "../types";
+
+export interface ChannelSession {
+  channelId: string;
+  channelConfig: ChannelConfig;
   payer: string;
   chargedCumulativeAmount: string;
-  signedCumulativeAmount: string;
-  lastNonce: number;
+  signedMaxClaimable: string;
   signature: string;
-  deposit: string;
+  balance: string;
   totalClaimed: string;
   withdrawRequestedAt: number;
-  withdrawNonce: number;
   lastRequestTimestamp: number;
 }
 
 export interface SessionStorage {
-  get(serviceId: string, payer: string): Promise<SubchannelSession | undefined>;
-  set(serviceId: string, payer: string, session: SubchannelSession): Promise<void>;
-  delete(serviceId: string, payer: string): Promise<void>;
-  list(serviceId: string): Promise<SubchannelSession[]>;
+  get(channelId: string): Promise<ChannelSession | undefined>;
+  set(channelId: string, session: ChannelSession): Promise<void>;
+  delete(channelId: string): Promise<void>;
+  list(): Promise<ChannelSession[]>;
 }
 
 /**
- * In-memory {@link SessionStorage} backed by a Map keyed by `serviceId:payer`.
+ * In-memory {@link SessionStorage} backed by a Map keyed by `channelId`.
  */
 export class InMemorySessionStorage implements SessionStorage {
-  private sessions = new Map<string, SubchannelSession>();
+  private sessions = new Map<string, ChannelSession>();
 
   /**
-   * Returns the session for a service and payer, if present.
+   * Returns the session for a channel, if present.
    *
-   * @param serviceId - The service identifier.
-   * @param payer - The payer address.
+   * @param channelId - The channel identifier.
    * @returns The session or undefined when not found.
    */
-  async get(serviceId: string, payer: string): Promise<SubchannelSession | undefined> {
-    return this.sessions.get(this.key(serviceId, payer));
+  async get(channelId: string): Promise<ChannelSession | undefined> {
+    return this.sessions.get(channelId.toLowerCase());
   }
 
   /**
-   * Stores or replaces the session for a service and payer.
+   * Stores or replaces the session for a channel.
    *
-   * @param serviceId - The service identifier.
-   * @param payer - The payer address.
+   * @param channelId - The channel identifier.
    * @param session - The session record to persist.
    */
-  async set(serviceId: string, payer: string, session: SubchannelSession): Promise<void> {
-    this.sessions.set(this.key(serviceId, payer), session);
+  async set(channelId: string, session: ChannelSession): Promise<void> {
+    this.sessions.set(channelId.toLowerCase(), session);
   }
 
   /**
-   * Deletes the session for a service and payer.
+   * Deletes the session for a channel.
    *
-   * @param serviceId - The service identifier.
-   * @param payer - The payer address.
+   * @param channelId - The channel identifier.
    */
-  async delete(serviceId: string, payer: string): Promise<void> {
-    this.sessions.delete(this.key(serviceId, payer));
+  async delete(channelId: string): Promise<void> {
+    this.sessions.delete(channelId.toLowerCase());
   }
 
   /**
-   * Lists all sessions for a given service.
+   * Lists all stored sessions.
    *
-   * @param serviceId - The service identifier.
-   * @returns Sessions whose key starts with this service id.
+   * @returns All sessions in storage.
    */
-  async list(serviceId: string): Promise<SubchannelSession[]> {
-    const prefix = `${serviceId}:`;
-    const results: SubchannelSession[] = [];
-    for (const [key, session] of this.sessions) {
-      if (key.startsWith(prefix)) {
-        results.push(session);
-      }
-    }
-    return results;
-  }
-
-  /**
-   * Builds the internal map key for a service and payer.
-   *
-   * @param serviceId - The service identifier.
-   * @param payer - The payer address.
-   * @returns Lowercased composite key string.
-   */
-  private key(serviceId: string, payer: string): string {
-    return `${serviceId}:${payer.toLowerCase()}`;
+  async list(): Promise<ChannelSession[]> {
+    return [...this.sessions.values()];
   }
 }

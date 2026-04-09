@@ -1,49 +1,47 @@
 import { getAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
-import { DEFERRED_ESCROW_ADDRESS, DEFERRED_ESCROW_DOMAIN, voucherTypes } from "../constants";
+import { BATCH_SETTLEMENT_ADDRESS, BATCH_SETTLEMENT_DOMAIN, voucherTypes } from "../constants";
 import { DeferredVoucherFields } from "../types";
 import { getEvmChainId } from "../../utils";
 
 /**
- * Signs an EIP-712 Voucher typed data using the escrow contract domain.
+ * Signs a cumulative voucher using the client's wallet.
  *
- * @param signer - The client EVM signer.
- * @param serviceId - The registered service id.
- * @param cumulativeAmount - Cumulative amount string in smallest units.
- * @param nonce - Voucher nonce.
- * @param network - The x402 network name for chain id resolution.
- * @returns The voucher fields including the signature.
+ * The voucher authorises the receiver to claim up to `maxClaimableAmount` from the
+ * channel identified by `channelId`.  The signature covers the EIP-712 `Voucher` struct
+ * under the batch-settlement domain.
+ *
+ * @param signer - Client wallet used to produce the EIP-712 signature.
+ * @param channelId - Identifier of the payment channel (`keccak256(abi.encode(ChannelConfig))`).
+ * @param maxClaimableAmount - Cumulative ceiling the receiver may claim (decimal string in token units).
+ * @param network - CAIP-2 network identifier (e.g. `eip155:84532`).
+ * @returns Signed voucher fields ready to be included in a payment payload.
  */
 export async function signVoucher(
   signer: ClientEvmSigner,
-  serviceId: `0x${string}`,
-  cumulativeAmount: string,
-  nonce: number,
+  channelId: `0x${string}`,
+  maxClaimableAmount: string,
   network: string,
 ): Promise<DeferredVoucherFields> {
   const chainId = getEvmChainId(network);
 
   const signature = await signer.signTypedData({
     domain: {
-      ...DEFERRED_ESCROW_DOMAIN,
+      ...BATCH_SETTLEMENT_DOMAIN,
       chainId,
-      verifyingContract: getAddress(DEFERRED_ESCROW_ADDRESS),
+      verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
     },
     types: voucherTypes,
     primaryType: "Voucher",
     message: {
-      serviceId,
-      payer: getAddress(signer.address),
-      cumulativeAmount: BigInt(cumulativeAmount),
-      nonce: BigInt(nonce),
+      channelId,
+      maxClaimableAmount: BigInt(maxClaimableAmount),
     },
   });
 
   return {
-    serviceId,
-    payer: signer.address,
-    cumulativeAmount,
-    nonce,
+    channelId,
+    maxClaimableAmount,
     signature,
   };
 }

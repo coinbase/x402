@@ -9,110 +9,129 @@ import {
 } from "@x402/core/types";
 import { getAddress, recoverTypedDataAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
-import { deferredEscrowABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS, DEFERRED_ESCROW_DOMAIN, voucherTypes } from "../constants";
-import { DeferredVoucherPayload } from "../types";
+import { batchSettlementABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS, BATCH_SETTLEMENT_DOMAIN, voucherTypes } from "../constants";
+import { ChannelConfig, DeferredVoucherPayload } from "../types";
 import { getEvmChainId } from "../../utils";
 import { createDeferredEIP3009DepositPayload } from "./eip3009";
 import { ClientSessionStorage, InMemoryClientSessionStorage } from "./storage";
 import type { DeferredClientContext } from "./storage";
 import { signVoucher } from "./voucher";
+import { computeChannelId } from "../utils";
 
-/**
- * Optional rules for sizing the onchain deposit when the client sends a `deposit` payload.
- *
- * Default deposit is `10 * paymentRequirements.amount` (see {@link DeferredDepositPolicy.depositMultiplier}).
- */
 export interface DeferredDepositPolicy {
-  /**
-   * Integer multiplier on `paymentRequirements.amount` (default 10). Must be >= 1.
-   */
   depositMultiplier?: number;
-  /**
-   * Optional maximum deposit in token smallest units.
-   * The signed deposit becomes `min(depositMultiplier * amount, maxDeposit)` when set.
-   * If that is less than the voucher `cumulativeAmount` for the request, facilitation will reject the payload.
-   */
   maxDeposit?: string;
-  /**
-   * When true (default), if the next voucher `cumulativeAmount` would exceed the session’s `deposit`,
-   * the client sends a `deposit` payload (top-up) using the same sizing as the initial deposit ({@link depositMultiplier} / {@link maxDeposit}).
-   */
   autoTopUp?: boolean;
 }
 
 export interface DeferredEvmSchemeOptions {
   depositPolicy?: DeferredDepositPolicy;
   storage?: ClientSessionStorage;
+  salt?: `0x${string}`;
+  payerAuthorizer?: `0x${string}`;
+  /** When set, EIP-712 vouchers are signed with this key; deposits still use the main `signer`. */
+  voucherSigner?: ClientEvmSigner;
 }
 
 export type { DeferredClientContext } from "./storage";
 
 /**
- * Whether `o` is full {@link DeferredEvmSchemeOptions} (not only {@link DeferredDepositPolicy}).
+ * Discriminates a full options object from a bare deposit-policy object.
  *
- * @param o - Scheme options, deposit policy only, or undefined.
- * @returns True when `o` has `storage` or `depositPolicy` keys.
+ * @param o - Constructor argument that may be options, deposit policy only, or undefined.
+ * @returns `true` when `o` is a {@link DeferredEvmSchemeOptions} object.
  */
 function isDeferredEvmSchemeOptions(
   o: DeferredEvmSchemeOptions | DeferredDepositPolicy | undefined,
 ): o is DeferredEvmSchemeOptions {
-  return o !== undefined && typeof o === "object" && ("storage" in o || "depositPolicy" in o);
+  return (
+    o !== undefined &&
+    typeof o === "object" &&
+    ("storage" in o ||
+      "depositPolicy" in o ||
+      "salt" in o ||
+      "payerAuthorizer" in o ||
+      "voucherSigner" in o)
+  );
 }
 
 /**
- * Normalizes the constructor's optional second argument into storage and deposit policy.
+ * Normalises the constructor's second argument into a uniform options shape.
  *
- * @param second - Full options, bare deposit policy, or undefined for defaults.
- * @returns Resolved `storage` and optional `depositPolicy`.
+ * @param second - Optional second constructor argument (options or deposit policy).
+ * @returns Resolved storage, salt, deposit policy, and optional payer authorizer.
  */
 function resolveClientOptions(second?: DeferredEvmSchemeOptions | DeferredDepositPolicy): {
   depositPolicy?: DeferredDepositPolicy;
   storage: ClientSessionStorage;
+  salt: `0x${string}`;
+  payerAuthorizer?: `0x${string}`;
+  voucherSigner?: ClientEvmSigner;
 } {
+  const defaultSalt =
+    "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
   if (second === undefined) {
-    return { storage: new InMemoryClientSessionStorage() };
+    return { storage: new InMemoryClientSessionStorage(), salt: defaultSalt };
   }
   if (isDeferredEvmSchemeOptions(second)) {
     return {
       storage: second.storage ?? new InMemoryClientSessionStorage(),
       depositPolicy: second.depositPolicy,
+      salt: second.salt ?? defaultSalt,
+      payerAuthorizer: second.payerAuthorizer,
+      voucherSigner: second.voucherSigner,
     };
   }
   return {
     storage: new InMemoryClientSessionStorage(),
     depositPolicy: second,
+    salt: defaultSalt,
   };
 }
 
 /**
- * EVM client implementation for the Deferred payment scheme.
- * Creates deposit+voucher or voucher-only payloads using session state updated via
- * {@link DeferredEvmScheme.processPaymentResponse}.
+ * Client-side implementation of the `batch-settlement` scheme for EVM networks.
+ *
+ * Builds payment payloads (deposit + voucher or voucher-only), processes server responses
+ * to update local session state, handles corrective 402 resynchronisation, and supports
+ * on-demand cooperative withdrawal requests.
  */
 export class DeferredEvmScheme implements SchemeNetworkClient {
-  readonly scheme = "deferred";
+  readonly scheme = "batch-settlement";
 
   private readonly storage: ClientSessionStorage;
   private readonly depositPolicy: DeferredDepositPolicy | undefined;
+  private readonly salt: `0x${string}`;
+  private readonly payerAuthorizer: `0x${string}` | undefined;
+  private readonly voucherSigner: ClientEvmSigner | undefined;
   private pendingWithdraw = new Set<string>();
 
-  /** Last `serviceId` from {@link createPaymentPayload}; used when settle `extra` omits `serviceId` (e.g. deposit tx). */
-  private lastPaymentServiceId: string | undefined;
-
   /**
-   * Creates the deferred client scheme with the given signer.
+   * Constructs a batch-settlement client scheme.
    *
-   * @param signer - The client EVM signer.
-   * @param optionsOrPolicy - Optional {@link DeferredEvmSchemeOptions}, or for backward compatibility a bare {@link DeferredDepositPolicy}.
+   * @param signer - Client EVM wallet used for signing vouchers and ERC-3009 authorizations.
+   * @param optionsOrPolicy - Either a full options object or a bare deposit-policy.
    */
   constructor(
     private readonly signer: ClientEvmSigner,
     optionsOrPolicy?: DeferredEvmSchemeOptions | DeferredDepositPolicy,
   ) {
-    const { storage, depositPolicy } = resolveClientOptions(optionsOrPolicy);
+    const { storage, depositPolicy, salt, payerAuthorizer, voucherSigner } =
+      resolveClientOptions(optionsOrPolicy);
     this.storage = storage;
     this.depositPolicy = depositPolicy;
+    this.salt = salt;
+    this.payerAuthorizer = payerAuthorizer;
+    this.voucherSigner = voucherSigner;
+
+    if (
+      payerAuthorizer !== undefined &&
+      voucherSigner !== undefined &&
+      getAddress(payerAuthorizer) !== getAddress(voucherSigner.address)
+    ) {
+      throw new Error("payerAuthorizer address must match voucherSigner.address");
+    }
 
     if (depositPolicy) {
       const m = depositPolicy.depositMultiplier;
@@ -132,10 +151,36 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   }
 
   /**
-   * Parses `PAYMENT-RESPONSE` from a settled HTTP response and
-   * updates internal subchannel session state for the next `createPaymentPayload` call.
+   * Constructs the immutable {@link ChannelConfig} from payment requirements and client
+   * settings (signer address, salt, payerAuthorizer).
    *
-   * @param getHeader - Resolves a response header value by name (case-insensitive).
+   * @param paymentRequirements - Server payment requirements providing receiver, asset, and extra fields.
+   * @returns The ChannelConfig that uniquely identifies this payment channel.
+   */
+  buildChannelConfig(paymentRequirements: PaymentRequirements): ChannelConfig {
+    const extra = paymentRequirements.extra as Record<string, unknown> | undefined;
+    return {
+      payer: this.signer.address,
+      payerAuthorizer: getAddress(
+        this.payerAuthorizer ?? this.voucherSigner?.address ?? this.signer.address,
+      ),
+      receiver: paymentRequirements.payTo as `0x${string}`,
+      receiverAuthorizer:
+        (extra?.receiverAuthorizer as `0x${string}`) ??
+        ("0x0000000000000000000000000000000000000000" as `0x${string}`),
+      token: paymentRequirements.asset as `0x${string}`,
+      withdrawDelay: typeof extra?.withdrawDelay === "number" ? extra.withdrawDelay : 900,
+      salt: this.salt,
+    };
+  }
+
+  /**
+   * Processes the `PAYMENT-RESPONSE` header after a successful request.
+   *
+   * Updates local session state (chargedCumulativeAmount, balance, totalClaimed) or
+   * deletes the session if the response indicates a cooperative withdrawal.
+   *
+   * @param getHeader - Function to retrieve a response header by name.
    */
   async processPaymentResponse(
     getHeader: (name: string) => string | null | undefined,
@@ -151,18 +196,11 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     }
 
     const extra = settle.extra ?? {};
-    let serviceId: string | undefined =
-      typeof extra.serviceId === "string" && extra.serviceId ? extra.serviceId : undefined;
-    if (
-      !serviceId &&
-      (extra.deposit !== undefined || extra.totalClaimed !== undefined) &&
-      this.lastPaymentServiceId
-    ) {
-      serviceId = this.lastPaymentServiceId;
-    }
-    if (!serviceId) return;
+    const channelId =
+      typeof extra.channelId === "string" && extra.channelId ? extra.channelId : undefined;
+    if (!channelId) return;
 
-    const key = this.sessionKey(serviceId);
+    const key = channelId.toLowerCase();
 
     if (extra.cooperativeWithdraw === true) {
       await this.storage.delete(key);
@@ -175,11 +213,8 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     if (extra.chargedCumulativeAmount !== undefined) {
       next.chargedCumulativeAmount = String(extra.chargedCumulativeAmount);
     }
-    if (extra.nonce !== undefined) {
-      next.lastNonce = Number(extra.nonce);
-    }
-    if (extra.deposit !== undefined) {
-      next.currentDeposit = String(extra.deposit);
+    if (extra.balance !== undefined) {
+      next.balance = String(extra.balance);
     }
     if (extra.totalClaimed !== undefined) {
       next.totalClaimed = String(extra.totalClaimed);
@@ -189,184 +224,179 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   }
 
   /**
-   * Marks a service for cooperative withdraw: the next voucher payload
-   * for this service will include `withdraw: true`. The flag is cleared
-   * after {@link createPaymentPayload} consumes it.
+   * Flags a channel for cooperative withdrawal on the next voucher request.
    *
-   * @param serviceId - The on-chain service id to request a withdraw for.
+   * @param channelId - The channel to request withdrawal for.
    */
-  requestCooperativeWithdraw(serviceId: string): void {
-    this.pendingWithdraw.add(serviceId.toLowerCase());
+  requestCooperativeWithdraw(channelId: string): void {
+    this.pendingWithdraw.add(channelId.toLowerCase());
   }
 
   /**
-   * Reads on-chain subchannel state and seeds session storage with a conservative baseline
-   * (`chargedCumulativeAmount = totalClaimed`, `lastNonce = on-chain nonce`).
+   * Recovers a channel session from on-chain state (useful after a cold start or session loss).
    *
-   * @param serviceId - Deferred escrow service id.
-   * @param _network - x402 network (e.g. `eip155:8453`); reserved for future chain-specific reads.
-   * @returns The restored client context.
+   * @param paymentRequirements - Server payment requirements used to derive the ChannelConfig.
+   * @returns The recovered client context.
    */
-  async recoverSession(serviceId: `0x${string}`, _network: string): Promise<DeferredClientContext> {
-    void _network;
+  async recoverSession(paymentRequirements: PaymentRequirements): Promise<DeferredClientContext> {
     if (!this.signer.readContract) {
-      throw new Error(
-        "recoverSession requires ClientEvmSigner.readContract (e.g. toClientEvmSigner(account, publicClient))",
-      );
+      throw new Error("recoverSession requires ClientEvmSigner.readContract");
     }
 
-    const sub = (await this.signer.readContract({
-      address: DEFERRED_ESCROW_ADDRESS,
-      abi: deferredEscrowABI,
-      functionName: "getSubchannel",
-      args: [serviceId, getAddress(this.signer.address)],
+    const config = this.buildChannelConfig(paymentRequirements);
+    const channelId = computeChannelId(config);
+
+    const channel = (await this.signer.readContract({
+      address: BATCH_SETTLEMENT_ADDRESS,
+      abi: batchSettlementABI,
+      functionName: "getChannel",
+      args: [channelId],
     })) as {
-      deposit: bigint;
+      balance: bigint;
       totalClaimed: bigint;
-      nonce: bigint;
-      withdrawRequestedAt: bigint;
     };
 
-    void sub.withdrawRequestedAt;
-
-    const depositStr = sub.deposit.toString();
-    const totalClaimedStr = sub.totalClaimed.toString();
+    const balanceStr = channel.balance.toString();
+    const totalClaimedStr = channel.totalClaimed.toString();
     const ctx: DeferredClientContext = {
       chargedCumulativeAmount: totalClaimedStr,
-      lastNonce: Number(sub.nonce),
-      currentDeposit: depositStr,
+      balance: balanceStr,
       totalClaimed: totalClaimedStr,
     };
 
-    await this.storage.set(this.sessionKey(serviceId), ctx);
+    await this.storage.set(channelId.toLowerCase(), ctx);
     return ctx;
   }
 
   /**
-   * Returns true if a session exists for this service and signer.
+   * Returns whether a local session exists for the given channel.
    *
-   * @param serviceId - `PaymentRequirements.extra.serviceId`.
-   * @returns True when session storage has an entry for this service.
+   * @param channelId - The channel identifier to check.
+   * @returns `true` when a session is stored for the channel.
    */
-  async hasSession(serviceId: string): Promise<boolean> {
-    return (await this.storage.get(this.sessionKey(serviceId))) !== undefined;
+  async hasSession(channelId: string): Promise<boolean> {
+    return (await this.storage.get(channelId.toLowerCase())) !== undefined;
   }
 
   /**
-   * Returns persisted session context if any.
+   * Returns the local session context for a channel, if present.
    *
-   * @param serviceId - `PaymentRequirements.extra.serviceId`.
-   * @returns Stored context, or undefined when none.
+   * @param channelId - The channel identifier.
+   * @returns Stored context or `undefined`.
    */
-  async getSession(serviceId: string): Promise<DeferredClientContext | undefined> {
-    return this.storage.get(this.sessionKey(serviceId));
+  async getSession(channelId: string): Promise<DeferredClientContext | undefined> {
+    return this.storage.get(channelId.toLowerCase());
   }
 
   /**
-   * Handles a corrective 402 (`error === "deferred_stale_cumulative_amount"`): verifies EIP-712 voucher data from
-   * `accepts[].extra` and updates session storage when valid.
+   * Handles a corrective 402 response from the server when the client's cumulative base
+   * is out of sync.
    *
-   * @param paymentRequired - Parsed 402 JSON body.
-   * @returns True when session was updated from verified corrective data.
+   * Validates the server-provided state (chargedCumulativeAmount, signedMaxClaimable,
+   * signature) against on-chain data and the client's own signing key, then updates the
+   * local session if everything checks out.
+   *
+   * @param paymentRequired - The decoded 402 response body.
+   * @returns `true` if the session was successfully resynced and the request can be retried.
    */
   async processCorrectivePaymentRequired(paymentRequired: PaymentRequired): Promise<boolean> {
-    if (paymentRequired.error !== "deferred_stale_cumulative_amount") {
+    if (paymentRequired.error !== "batch_settlement_stale_cumulative_amount") {
       return false;
     }
 
     const accept = paymentRequired.accepts.find(
       a =>
-        a.scheme === "deferred" &&
+        a.scheme === "batch-settlement" &&
         a.extra?.chargedCumulativeAmount !== undefined &&
-        a.extra?.signedCumulativeAmount !== undefined &&
-        a.extra?.nonce !== undefined &&
-        a.extra?.signature !== undefined &&
-        typeof a.extra.serviceId === "string",
+        a.extra?.signedMaxClaimable !== undefined &&
+        a.extra?.signature !== undefined,
     );
     if (!accept?.extra) {
       return false;
     }
 
     const ex = accept.extra;
-    const serviceId = ex.serviceId as `0x${string}`;
     const chargedRaw = ex.chargedCumulativeAmount;
-    const signedRaw = ex.signedCumulativeAmount;
-    const nonceRaw = ex.nonce;
+    const signedRaw = ex.signedMaxClaimable;
     const sig = ex.signature as `0x${string}`;
 
     const charged = BigInt(String(chargedRaw));
     const signed = BigInt(String(signedRaw));
-    const nonce =
-      typeof nonceRaw === "bigint"
-        ? nonceRaw
-        : BigInt(typeof nonceRaw === "number" ? nonceRaw : String(nonceRaw));
 
     if (charged > signed) {
       return false;
     }
 
+    const config = this.buildChannelConfig(accept);
+    const channelId = computeChannelId(config);
+
     if (!this.signer.readContract) {
       return false;
     }
 
-    let sub: { deposit: bigint; totalClaimed: bigint; nonce: bigint };
+    let channel: { balance: bigint; totalClaimed: bigint };
     try {
-      sub = (await this.signer.readContract({
-        address: DEFERRED_ESCROW_ADDRESS,
-        abi: deferredEscrowABI,
-        functionName: "getSubchannel",
-        args: [serviceId, getAddress(this.signer.address)],
-      })) as { deposit: bigint; totalClaimed: bigint; nonce: bigint };
+      channel = (await this.signer.readContract({
+        address: BATCH_SETTLEMENT_ADDRESS,
+        abi: batchSettlementABI,
+        functionName: "getChannel",
+        args: [channelId],
+      })) as { balance: bigint; totalClaimed: bigint };
     } catch {
       return false;
     }
-    const onChainClaimed = sub.totalClaimed;
-    if (charged < onChainClaimed) {
+
+    if (charged < channel.totalClaimed) {
       return false;
     }
 
     const chainId = getEvmChainId(accept.network);
     const recovered = await recoverTypedDataAddress({
       domain: {
-        ...DEFERRED_ESCROW_DOMAIN,
+        ...BATCH_SETTLEMENT_DOMAIN,
         chainId,
-        verifyingContract: getAddress(DEFERRED_ESCROW_ADDRESS),
+        verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
       },
       types: voucherTypes,
       primaryType: "Voucher",
       message: {
-        serviceId,
-        payer: getAddress(this.signer.address),
-        cumulativeAmount: signed,
-        nonce,
+        channelId,
+        maxClaimableAmount: signed,
       },
       signature: sig,
     });
 
-    if (recovered.toLowerCase() !== this.signer.address.toLowerCase()) {
+    const expectedSigner = getAddress(
+      this.payerAuthorizer ?? this.voucherSigner?.address ?? this.signer.address,
+    );
+    if (recovered.toLowerCase() !== expectedSigner.toLowerCase()) {
       return false;
     }
 
     const ctx: DeferredClientContext = {
       chargedCumulativeAmount: charged.toString(),
-      signedCumulativeAmount: signed.toString(),
+      signedMaxClaimable: signed.toString(),
       signature: sig,
-      lastNonce: Number(nonce),
-      currentDeposit: sub.deposit.toString(),
-      totalClaimed: sub.totalClaimed.toString(),
+      balance: channel.balance.toString(),
+      totalClaimed: channel.totalClaimed.toString(),
     };
 
-    await this.storage.set(this.sessionKey(serviceId), ctx);
+    await this.storage.set(channelId.toLowerCase(), ctx);
     return true;
   }
 
   /**
-   * Builds a deposit+voucher or voucher-only payload from requirements and internal session state.
+   * Creates the payment payload for a batch-settlement request.
    *
-   * @param x402Version - The x402 protocol version for the payload envelope.
-   * @param paymentRequirements - Server-issued requirements including `serviceId` in `extra`.
-   * @param _context - Unused; deferred session is managed via {@link processPaymentResponse}.
-   * @returns The payment payload result for the client to submit.
+   * If the channel has no on-chain deposit (or needs a top-up), builds an ERC-3009 deposit
+   * payload bundled with a voucher.  Otherwise, signs and returns a voucher-only payload.
+   * If a cooperative withdrawal has been requested for this channel, the `withdraw` flag
+   * is set on the voucher so the server initiates the on-chain withdrawal.
+   *
+   * @param x402Version - Protocol version for the payload envelope.
+   * @param paymentRequirements - Server payment requirements (scheme, network, asset, amount).
+   * @param _context - Optional payment payload context (unused).
+   * @returns A {@link PaymentPayloadResult} ready to be sent as the `X-PAYMENT` header.
    */
   async createPaymentPayload(
     x402Version: number,
@@ -375,30 +405,26 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   ): Promise<PaymentPayloadResult> {
     void _context;
 
-    const serviceId = paymentRequirements.extra?.serviceId as `0x${string}`;
-    if (!serviceId) {
-      throw new Error("Missing serviceId in paymentRequirements.extra");
-    }
+    const config = this.buildChannelConfig(paymentRequirements);
+    const channelId = computeChannelId(config);
+    const key = channelId.toLowerCase();
 
-    this.lastPaymentServiceId = serviceId;
-
-    const key = this.sessionKey(serviceId);
     let deferredCtx = await this.storage.get(key);
     if (deferredCtx === undefined && this.signer.readContract) {
-      deferredCtx = await this.recoverSession(serviceId, paymentRequirements.network);
+      deferredCtx = await this.recoverSession(paymentRequirements);
     }
     deferredCtx = deferredCtx ?? {};
 
-    const needsInitialDeposit = !deferredCtx.currentDeposit || deferredCtx.currentDeposit === "0";
+    const needsInitialDeposit = !deferredCtx.balance || deferredCtx.balance === "0";
 
     const baseCumulative = BigInt(deferredCtx.chargedCumulativeAmount ?? "0");
     const requestAmount = BigInt(paymentRequirements.amount);
-    const cumulativeAmount = (baseCumulative + requestAmount).toString();
-    const voucherNonce = (deferredCtx.lastNonce ?? 0) + 1;
+    const maxClaimableAmount = (baseCumulative + requestAmount).toString();
 
     const autoTopUp = this.depositPolicy?.autoTopUp !== false;
-    const currentDep = BigInt(deferredCtx.currentDeposit ?? "0");
-    const needsTopUp = autoTopUp && !needsInitialDeposit && BigInt(cumulativeAmount) > currentDep;
+    const currentBalance = BigInt(deferredCtx.balance ?? "0");
+    const needsTopUp =
+      autoTopUp && !needsInitialDeposit && BigInt(maxClaimableAmount) > currentBalance;
 
     if (needsInitialDeposit || needsTopUp) {
       const depositAmount = needsInitialDeposit
@@ -408,27 +434,29 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
         this.signer,
         x402Version,
         paymentRequirements,
+        config,
         depositAmount,
-        cumulativeAmount,
-        voucherNonce,
+        maxClaimableAmount,
+        this.voucherSigner,
       );
     }
 
+    const voucherSigner = this.voucherSigner ?? this.signer;
     const voucher = await signVoucher(
-      this.signer,
-      serviceId,
-      cumulativeAmount,
-      voucherNonce,
+      voucherSigner,
+      channelId,
+      maxClaimableAmount,
       paymentRequirements.network,
     );
 
-    const shouldWithdraw = this.pendingWithdraw.has(serviceId.toLowerCase());
+    const shouldWithdraw = this.pendingWithdraw.has(channelId.toLowerCase());
     if (shouldWithdraw) {
-      this.pendingWithdraw.delete(serviceId.toLowerCase());
+      this.pendingWithdraw.delete(channelId.toLowerCase());
     }
 
     const payload: DeferredVoucherPayload = {
       type: "voucher",
+      channelConfig: config,
       ...voucher,
       ...(shouldWithdraw ? { withdraw: true } : {}),
     };
@@ -440,20 +468,10 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   }
 
   /**
-   * Stable map key for a (serviceId, signer) subchannel session.
+   * Computes the deposit amount based on the deposit policy (multiplier and cap).
    *
-   * @param serviceId - The service identifier from payment requirements or settle extra.
-   * @returns Lowercased composite key for the internal session map.
-   */
-  private sessionKey(serviceId: string): string {
-    return `${serviceId.toLowerCase()}:${this.signer.address.toLowerCase()}`;
-  }
-
-  /**
-   * `min(depositMultiplier * requestAmount, maxDeposit)` with scheme defaults.
-   *
-   * @param requestAmount - Payment amount for this request (atomic units).
-   * @returns Deposit string in atomic units after applying multiplier and cap.
+   * @param requestAmount - Amount requested for this operation, in token base units.
+   * @returns Deposit amount string in token base units.
    */
   private depositAmountForRequest(requestAmount: bigint): string {
     const mult = BigInt(this.depositPolicy?.depositMultiplier ?? 10);

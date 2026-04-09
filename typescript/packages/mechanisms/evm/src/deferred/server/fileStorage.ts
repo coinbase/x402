@@ -2,15 +2,15 @@ import { readdir, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { writeJsonAtomic } from "../storage-utils";
-import type { SessionStorage, SubchannelSession } from "./storage";
+import type { SessionStorage, ChannelSession } from "./storage";
 
 export interface FileSessionStorageOptions {
-  /** Root directory; sessions are stored under `{directory}/server/{serviceId}/{payer}.json`. */
+  /** Root directory; sessions are stored under `{directory}/server/{channelId}.json`. */
   directory: string;
 }
 
 /**
- * Node.js file-backed {@link SessionStorage} for the deferred server scheme.
+ * Node.js file-backed {@link SessionStorage} for the batch-settlement server scheme.
  */
 export class FileSessionStorage implements SessionStorage {
   private readonly root: string;
@@ -25,17 +25,16 @@ export class FileSessionStorage implements SessionStorage {
   }
 
   /**
-   * Loads a persisted subchannel session for the service and payer, if present.
+   * Loads a persisted channel session, if present.
    *
-   * @param serviceId - On-chain service id (path segment is lowercased).
-   * @param payer - Payer address (path segment is lowercased).
+   * @param channelId - The channel identifier (path segment is lowercased).
    * @returns Parsed session or `undefined` when the file is missing.
    */
-  async get(serviceId: string, payer: string): Promise<SubchannelSession | undefined> {
-    const path = this.filePath(serviceId, payer);
+  async get(channelId: string): Promise<ChannelSession | undefined> {
+    const path = this.filePath(channelId);
     try {
       const raw = await readFile(path, "utf8");
-      return JSON.parse(raw) as SubchannelSession;
+      return JSON.parse(raw) as ChannelSession;
     } catch (err: unknown) {
       const code =
         err && typeof err === "object" && "code" in err
@@ -47,25 +46,23 @@ export class FileSessionStorage implements SessionStorage {
   }
 
   /**
-   * Persists a subchannel session for the service and payer.
+   * Persists a channel session.
    *
-   * @param serviceId - On-chain service id.
-   * @param payer - Payer address.
+   * @param channelId - The channel identifier.
    * @param session - Session record to write.
    */
-  async set(serviceId: string, payer: string, session: SubchannelSession): Promise<void> {
-    await writeJsonAtomic(this.filePath(serviceId, payer), session);
+  async set(channelId: string, session: ChannelSession): Promise<void> {
+    await writeJsonAtomic(this.filePath(channelId), session);
   }
 
   /**
-   * Removes the persisted session file for the service and payer, if it exists.
+   * Removes the persisted session file for a channel, if it exists.
    *
-   * @param serviceId - On-chain service id.
-   * @param payer - Payer address.
+   * @param channelId - The channel identifier.
    */
-  async delete(serviceId: string, payer: string): Promise<void> {
+  async delete(channelId: string): Promise<void> {
     try {
-      await unlink(this.filePath(serviceId, payer));
+      await unlink(this.filePath(channelId));
     } catch (err: unknown) {
       const code =
         err && typeof err === "object" && "code" in err
@@ -77,14 +74,12 @@ export class FileSessionStorage implements SessionStorage {
   }
 
   /**
-   * Lists all stored sessions for a service id by reading the service directory.
+   * Lists all stored sessions by reading the server directory.
    *
-   * @param serviceId - On-chain service id (directory name is lowercased).
-   * @returns Sessions sorted by payer; empty array if the directory is missing.
+   * @returns Sessions sorted by channelId; empty array if the directory is missing.
    */
-  async list(serviceId: string): Promise<SubchannelSession[]> {
-    const sid = serviceId.toLowerCase();
-    const dir = join(this.root, "server", sid);
+  async list(): Promise<ChannelSession[]> {
+    const dir = join(this.root, "server");
     let names: string[];
     try {
       names = await readdir(dir);
@@ -97,40 +92,27 @@ export class FileSessionStorage implements SessionStorage {
       throw err;
     }
 
-    const sessions: SubchannelSession[] = [];
+    const sessions: ChannelSession[] = [];
     for (const name of names) {
       if (!name.endsWith(".json")) continue;
       const path = join(dir, name);
       try {
         const raw = await readFile(path, "utf8");
-        sessions.push(JSON.parse(raw) as SubchannelSession);
+        sessions.push(JSON.parse(raw) as ChannelSession);
       } catch {
         /* skip unreadable entries */
       }
     }
-    return sessions.sort((a, b) => a.payer.localeCompare(b.payer));
+    return sessions.sort((a, b) => a.channelId.localeCompare(b.channelId));
   }
 
   /**
-   * Normalizes ids for stable filesystem paths.
+   * Absolute path to the JSON file for a channel.
    *
-   * @param serviceId - Raw service id.
-   * @param payer - Raw payer address.
-   * @returns Lowercased pair used in paths.
-   */
-  private normalized(serviceId: string, payer: string): { serviceId: string; payer: string } {
-    return { serviceId: serviceId.toLowerCase(), payer: payer.toLowerCase() };
-  }
-
-  /**
-   * Absolute path to the JSON file for a service/payer pair.
-   *
-   * @param serviceId - On-chain service id.
-   * @param payer - Payer address.
+   * @param channelId - The channel identifier.
    * @returns Filesystem path under `{root}/server/...`.
    */
-  private filePath(serviceId: string, payer: string): string {
-    const { serviceId: sid, payer: p } = this.normalized(serviceId, payer);
-    return join(this.root, "server", sid, `${p}.json`);
+  private filePath(channelId: string): string {
+    return join(this.root, "server", `${channelId.toLowerCase()}.json`);
   }
 }

@@ -1,27 +1,31 @@
-export const DEFERRED_ESCROW_ADDRESS = "0x004d19Ee84818850b02a2EA88330Db86547952Ac" as const;
+/** Deployed address of the x402BatchSettlement contract. */
+export const BATCH_SETTLEMENT_ADDRESS = "0x4020cfaffad9df99f9acc48227c40f80d17a0003" as const;
 
-export const DEFERRED_ESCROW_DOMAIN = {
-  name: "Deferred Escrow",
+/** EIP-712 domain fields shared across all batch-settlement typed-data signatures. */
+export const BATCH_SETTLEMENT_DOMAIN = {
+  name: "x402 Batch Settlement",
   version: "1",
 } as const;
 
+/** EIP-712 type definition for a cumulative voucher: `Voucher(bytes32 channelId, uint128 maxClaimableAmount)`. */
 export const voucherTypes = {
   Voucher: [
-    { name: "serviceId", type: "bytes32" },
-    { name: "payer", type: "address" },
-    { name: "cumulativeAmount", type: "uint128" },
-    { name: "nonce", type: "uint64" },
+    { name: "channelId", type: "bytes32" },
+    { name: "maxClaimableAmount", type: "uint128" },
   ],
 } as const;
 
+/** EIP-712 type definition for cooperative withdrawal: `CooperativeWithdraw(bytes32 channelId)`. */
 export const cooperativeWithdrawTypes = {
-  CooperativeWithdraw: [
-    { name: "serviceId", type: "bytes32" },
-    { name: "payer", type: "address" },
-    { name: "withdrawNonce", type: "uint64" },
-  ],
+  CooperativeWithdraw: [{ name: "channelId", type: "bytes32" }],
 } as const;
 
+/** EIP-712 type definition for a receiver-authorizer claim batch: `ClaimBatch(bytes32 claimsHash)`. */
+export const claimBatchTypes = {
+  ClaimBatch: [{ name: "claimsHash", type: "bytes32" }],
+} as const;
+
+/** EIP-712 type definition for ERC-3009 `ReceiveWithAuthorization` (used for gasless deposits). */
 export const receiveAuthorizationTypes = {
   ReceiveWithAuthorization: [
     { name: "from", type: "address" },

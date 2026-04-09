@@ -17,25 +17,25 @@ import type {
   SettleContext,
   VerifyContext,
 } from "@x402/core/server";
-import { getAddress } from "viem";
+import { getAddress, encodeAbiParameters, keccak256, concatHex } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { getEvmChainId } from "../../utils";
 import {
   isDeferredDepositPayload,
   isDeferredVoucherPayload,
-  isDeferredCooperativeWithdrawSettlePayload,
+  isDeferredCooperativeWithdrawPayload,
+  isDeferredCooperativeWithdrawWithSignaturePayload,
 } from "../types";
-import type { DeferredVoucherClaim } from "../types";
+import type { ChannelConfig, DeferredVoucherClaim } from "../types";
 import {
-  DEFERRED_ESCROW_ADDRESS,
-  DEFERRED_ESCROW_DOMAIN,
+  BATCH_SETTLEMENT_ADDRESS,
+  BATCH_SETTLEMENT_DOMAIN,
   cooperativeWithdrawTypes,
+  claimBatchTypes,
 } from "../constants";
-import { InMemorySessionStorage, SessionStorage, SubchannelSession } from "./storage";
+import { computeChannelId } from "../utils";
+import { InMemorySessionStorage, SessionStorage, ChannelSession } from "./storage";
 
-/**
- * A signer that can produce EIP-712 typed data signatures (e.g. a viem `LocalAccount`).
- */
 export interface AuthorizerSigner {
   address: `0x${string}`;
   signTypedData(params: {
@@ -46,39 +46,22 @@ export interface AuthorizerSigner {
   }): Promise<`0x${string}`>;
 }
 
-/**
- * Optional configuration for {@link DeferredEvmScheme} on the resource server.
- */
 export interface DeferredEvmSchemeServerConfig {
-  /** Session persistence; defaults to {@link InMemorySessionStorage}. */
   storage?: SessionStorage;
-  /**
-   * When set, enables cooperative withdraw: the server signs EIP-712 `CooperativeWithdraw`
-   * messages so clients can get instant refunds without waiting for the withdraw window.
-   */
-  authorizerSigner?: AuthorizerSigner;
+  receiverAuthorizerSigner?: AuthorizerSigner;
+  withdrawDelay?: number;
 }
 
 /**
- * Lowercases a service id for storage keys and comparisons.
+ * Server-side implementation of the `batch-settlement` scheme for EVM networks.
  *
- * @param id - Hex service id string.
- * @returns Lowercased service id.
- */
-function lowerServiceId(id: string): string {
-  return id.toLowerCase();
-}
-
-/**
- * EVM server implementation for the Deferred payment scheme.
- * Handles price parsing, payment requirements enhancement with serviceId injection,
- * default asset resolution, and optional session lifecycle hooks for voucher/deposit flows.
- *
- * Register hooks explicitly on {@link x402ResourceServer}, e.g.:
- * `server.register(..., deferred).onBeforeVerify(deferred.lifecycleHooks.onBeforeVerify).onAfterVerify(deferred.lifecycleHooks.onAfterVerify)...`
+ * Manages per-channel session state (cumulative amounts, voucher signatures, balances)
+ * via lifecycle hooks that integrate with the x402 resource-server middleware.  The scheme
+ * skips on-chain settlement for voucher-only requests by returning a deferred result and
+ * only hits the chain for deposits or cooperative withdrawals.
  */
 export class DeferredEvmScheme implements SchemeNetworkServer {
-  readonly scheme = "deferred";
+  readonly scheme = "batch-settlement";
   readonly lifecycleHooks: {
     onBeforeVerify: BeforeVerifyHook;
     onAfterVerify: AfterVerifyHook;
@@ -88,21 +71,22 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
 
   private moneyParsers: MoneyParser[] = [];
   private readonly storage: SessionStorage;
-  private readonly authorizerSigner: AuthorizerSigner | undefined;
-  private pendingCooperativeWithdrawPayers = new Set<string>();
+  private readonly receiverAuthorizerSigner: AuthorizerSigner | undefined;
+  private readonly receiverAddress: `0x${string}`;
+  private readonly withdrawDelay: number;
+  private pendingCooperativeWithdrawChannels = new Set<string>();
 
   /**
-   * Creates the deferred server scheme for a registered service.
+   * Constructs a batch-settlement server scheme.
    *
-   * @param serviceId - The on-chain service id for this resource.
-   * @param config - Optional storage and other server settings.
+   * @param receiverAddress - The server's receiver address (payTo).
+   * @param config - Optional configuration for storage, receiver-authorizer signer, and withdraw delay.
    */
-  constructor(
-    private readonly serviceId: `0x${string}`,
-    config?: DeferredEvmSchemeServerConfig,
-  ) {
+  constructor(receiverAddress: `0x${string}`, config?: DeferredEvmSchemeServerConfig) {
+    this.receiverAddress = receiverAddress;
     this.storage = config?.storage ?? new InMemorySessionStorage();
-    this.authorizerSigner = config?.authorizerSigner;
+    this.receiverAuthorizerSigner = config?.receiverAuthorizerSigner;
+    this.withdrawDelay = config?.withdrawDelay ?? 900;
     this.lifecycleHooks = {
       onBeforeVerify: this.handleBeforeVerify.bind(this),
       onAfterVerify: this.handleAfterVerify.bind(this),
@@ -112,10 +96,10 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Registers a custom money parser for price strings.
+   * Registers a custom money parser for converting price strings to token amounts.
    *
-   * @param parser - The money parser function to register.
-   * @returns This instance for chaining.
+   * @param parser - A parser function to try before the default USD→token conversion.
+   * @returns `this` for chaining.
    */
   registerMoneyParser(parser: MoneyParser): DeferredEvmScheme {
     this.moneyParsers.push(parser);
@@ -123,11 +107,11 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Parses a price into an asset amount for the target network.
+   * Resolves a human-readable price (e.g. `"$0.01"`) into an on-chain token amount.
    *
-   * @param price - The price to parse (string, number, or AssetAmount).
-   * @param network - The target network.
-   * @returns Resolved token amount and asset metadata.
+   * @param price - A price string, number, or explicit {@link AssetAmount}.
+   * @param network - CAIP-2 network identifier for looking up the default asset.
+   * @returns Token amount with asset address and metadata.
    */
   async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
     if (typeof price === "object" && price !== null && "amount" in price) {
@@ -154,16 +138,17 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Injects default asset metadata and this service id into payment requirements.
+   * Injects batch-settlement-specific fields into the payment requirements returned to
+   * the client (receiverAuthorizer, withdrawDelay, EIP-712 domain info).
    *
-   * @param paymentRequirements - The base payment requirements.
-   * @param _supportedKind - The supported scheme/network kind (unused).
-   * @param _supportedKind.x402Version - The x402 protocol version.
-   * @param _supportedKind.scheme - The payment scheme name.
-   * @param _supportedKind.network - The target network.
-   * @param _supportedKind.extra - Optional extra metadata.
-   * @param _extensionKeys - Extension keys to include (unused).
-   * @returns Enhanced requirements with `serviceId` and token name/version in `extra`.
+   * @param paymentRequirements - Base payment requirements from the middleware.
+   * @param _supportedKind - Matched scheme/network kind (extra may contain overrides).
+   * @param _supportedKind.x402Version - Protocol version from the matched kind.
+   * @param _supportedKind.scheme - Scheme name from the matched kind.
+   * @param _supportedKind.network - Network identifier from the matched kind.
+   * @param _supportedKind.extra - Optional extra fields on the matched kind.
+   * @param _extensionKeys - Extension keys (unused).
+   * @returns Enhanced payment requirements with batch-settlement fields in `extra`.
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -180,11 +165,16 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
 
     const assetInfo = getDefaultAsset(paymentRequirements.network as Network);
 
+    const receiverAuthorizer = this.receiverAuthorizerSigner
+      ? this.receiverAuthorizerSigner.address
+      : (_supportedKind.extra?.receiverAuthorizer as string | undefined);
+
     return Promise.resolve({
       ...paymentRequirements,
       extra: {
         ...paymentRequirements.extra,
-        serviceId: this.serviceId,
+        receiverAuthorizer: receiverAuthorizer ?? "",
+        withdrawDelay: this.withdrawDelay,
         name: assetInfo.name,
         version: assetInfo.version,
       },
@@ -192,33 +182,54 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Exposes the session storage for use by {@link DeferredSettlementManager}.
+   * Returns the underlying session storage instance.
    *
-   * @returns The configured {@link SessionStorage} instance.
+   * @returns The configured {@link SessionStorage} backend.
    */
   getStorage(): SessionStorage {
     return this.storage;
   }
 
   /**
-   * Returns this scheme's on-chain service id.
+   * Returns the server's receiver address.
    *
-   * @returns The deferred service id configured for this scheme.
+   * @returns Receiver wallet address for the payment channel.
    */
-  getServiceId(): `0x${string}` {
-    return this.serviceId;
+  getReceiverAddress(): `0x${string}` {
+    return this.receiverAddress;
   }
 
   /**
-   * Returns {@link DeferredVoucherClaim} entries for every session where
-   * `chargedCumulativeAmount > totalClaimed`.
+   * Returns the configured withdraw delay (seconds).
    *
-   * @param opts - Optional filters for which sessions qualify as claimable.
-   * @param opts.idleSecs - When set, only includes payers idle for at least this many seconds.
-   * @returns Claimable voucher claims ready to submit to the facilitator.
+   * @returns Withdraw delay in seconds before uncooperative withdrawal is allowed.
+   */
+  getWithdrawDelay(): number {
+    return this.withdrawDelay;
+  }
+
+  /**
+   * Returns the receiver-authorizer signer address, if configured.
+   *
+   * @returns Receiver-authorizer address, or `undefined` when not set.
+   */
+  getReceiverAuthorizerAddress(): `0x${string}` | undefined {
+    return this.receiverAuthorizerSigner?.address;
+  }
+
+  /**
+   * Collects vouchers that are eligible for on-chain claiming.
+   *
+   * A voucher is claimable when its `chargedCumulativeAmount` exceeds what has already
+   * been claimed on-chain.  An optional idle filter skips sessions that received a
+   * request within the last `idleSecs` seconds.
+   *
+   * @param opts - Optional filtering: `idleSecs` to only return idle channels.
+   * @param opts.idleSecs - Minimum seconds since last request for a channel to be included.
+   * @returns Array of {@link DeferredVoucherClaim} entries for batch submission.
    */
   async getClaimableVouchers(opts?: { idleSecs?: number }): Promise<DeferredVoucherClaim[]> {
-    const sessions = await this.storage.list(lowerServiceId(this.serviceId));
+    const sessions = await this.storage.list();
     const now = Date.now();
     const claims: DeferredVoucherClaim[] = [];
 
@@ -233,11 +244,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
         }
       }
       claims.push({
-        payer: s.payer as `0x${string}`,
-        cumulativeAmount: s.signedCumulativeAmount,
-        claimAmount: s.chargedCumulativeAmount,
-        nonce: s.lastNonce,
+        voucher: {
+          channel: s.channelConfig,
+          maxClaimableAmount: s.signedMaxClaimable,
+        },
         signature: s.signature as `0x${string}`,
+        claimAmount: s.chargedCumulativeAmount,
       });
     }
 
@@ -245,42 +257,35 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Returns sessions where a withdrawal has been requested (`withdrawRequestedAt > 0`).
+   * Returns sessions that have a pending payer-initiated withdrawal.
    *
-   * @returns Matching sessions from storage for this service.
+   * @returns All stored sessions with `withdrawRequestedAt` set.
    */
-  async getWithdrawalPendingSessions(): Promise<SubchannelSession[]> {
-    const sessions = await this.storage.list(lowerServiceId(this.serviceId));
+  async getWithdrawalPendingSessions(): Promise<ChannelSession[]> {
+    const sessions = await this.storage.list();
     return sessions.filter(s => s.withdrawRequestedAt > 0);
   }
 
   /**
-   * Signs an EIP-712 `CooperativeWithdraw` message as the authorizer.
-   * Requires `authorizerSigner` to be configured.
+   * Produces a `CooperativeWithdraw` EIP-712 signature from the receiver-authorizer signer,
+   * permitting the payer to immediately withdraw remaining channel funds.
    *
-   * @param serviceId - The on-chain service id.
-   * @param payer - The payer address to refund.
-   * @param withdrawNonce - The current withdraw nonce from the subchannel.
-   * @param network - The x402 network (e.g. `eip155:8453`) for chain id.
-   * @returns The authorizer's EIP-712 signature.
+   * @param channelId - The channel to authorize withdrawal for.
+   * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
+   * @returns The receiver-authorizer's EIP-712 signature over `CooperativeWithdraw(channelId)`.
    */
-  async signCooperativeWithdraw(
-    serviceId: `0x${string}`,
-    payer: `0x${string}`,
-    withdrawNonce: number,
-    network: string,
-  ): Promise<`0x${string}`> {
-    if (!this.authorizerSigner) {
-      throw new Error("authorizerSigner is not configured");
+  async signCooperativeWithdraw(channelId: `0x${string}`, network: string): Promise<`0x${string}`> {
+    if (!this.receiverAuthorizerSigner) {
+      throw new Error("receiverAuthorizerSigner is not configured");
     }
 
     const chainId = getEvmChainId(network);
 
-    return this.authorizerSigner.signTypedData({
+    return this.receiverAuthorizerSigner.signTypedData({
       domain: {
-        ...DEFERRED_ESCROW_DOMAIN,
+        ...BATCH_SETTLEMENT_DOMAIN,
         chainId,
-        verifyingContract: getAddress(DEFERRED_ESCROW_ADDRESS),
+        verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
       },
       types: cooperativeWithdrawTypes as unknown as Record<
         string,
@@ -288,35 +293,67 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       >,
       primaryType: "CooperativeWithdraw",
       message: {
-        serviceId,
-        payer: getAddress(payer),
-        withdrawNonce: BigInt(withdrawNonce),
+        channelId,
       },
     });
   }
 
   /**
-   * Returns whether the given service id matches this scheme's service id (case-insensitive).
+   * Produces a `ClaimBatch` EIP-712 signature from the receiver-authorizer signer,
+   * authorizing a third party (e.g. facilitator) to submit a batch claim via
+   * `claimWithSignature()`.
    *
-   * @param id - On-chain service id from the payment payload.
-   * @returns True when `id` refers to this resource server's deferred service.
+   * @param claims - The voucher claims to authorize.
+   * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
+   * @returns The receiver-authorizer's EIP-712 signature over `ClaimBatch(claimsHash)`.
    */
-  private assertThisServiceId(id: `0x${string}`): boolean {
-    return lowerServiceId(id) === lowerServiceId(this.serviceId);
+  async signClaimBatch(claims: DeferredVoucherClaim[], network: string): Promise<`0x${string}`> {
+    if (!this.receiverAuthorizerSigner) {
+      throw new Error("receiverAuthorizerSigner is not configured");
+    }
+
+    const chainId = getEvmChainId(network);
+
+    const hashes = claims.map(c => {
+      const channelId = computeChannelId(c.voucher.channel);
+      return keccak256(
+        encodeAbiParameters(
+          [{ type: "bytes32" }, { type: "uint128" }, { type: "uint128" }],
+          [channelId, BigInt(c.voucher.maxClaimableAmount), BigInt(c.claimAmount)],
+        ),
+      );
+    });
+    const claimsHash = keccak256(concatHex(hashes));
+
+    return this.receiverAuthorizerSigner.signTypedData({
+      domain: {
+        ...BATCH_SETTLEMENT_DOMAIN,
+        chainId,
+        verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      },
+      types: claimBatchTypes as unknown as Record<string, Array<{ name: string; type: string }>>,
+      primaryType: "ClaimBatch",
+      message: {
+        claimsHash,
+      },
+    });
   }
 
   /**
-   * Rejects voucher payments whose cumulative/nonce do not match stored session and emits a corrective 402
-   * (`deferred_stale_cumulative_amount`) with server session fields in `requirements.extra`.
+   * Lifecycle hook: runs before the facilitator verifies a payment.
    *
-   * @param ctx - Verification context (payload, requirements, hooks).
-   * @returns Nothing to continue; or `{ abort: true, ... }` to short-circuit verification with an error.
+   * For voucher payloads, checks whether the client's cumulative amount matches server
+   * state.  If stale, aborts with `batch_settlement_stale_cumulative_amount` and embeds
+   * the correct state in `requirements.extra` so the client can resync.
+   *
+   * @param ctx - Verify lifecycle context (payload, requirements, and related state).
+   * @returns Nothing to continue verification; or an object with `abort` to fail with a reason.
    */
   private async handleBeforeVerify(
     ctx: VerifyContext,
   ): Promise<void | { abort: true; reason: string; message?: string }> {
     const { paymentPayload, requirements } = ctx;
-    if (requirements.scheme !== "deferred") {
+    if (requirements.scheme !== "batch-settlement") {
       return;
     }
 
@@ -325,46 +362,43 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       return;
     }
 
-    if (!this.assertThisServiceId(raw.serviceId)) {
-      return;
-    }
-
-    const session = await this.storage.get(lowerServiceId(raw.serviceId), raw.payer);
+    const session = await this.storage.get(raw.channelId as string);
     if (!session) {
       return;
     }
 
-    const expectedCumulative =
+    const expectedMaxClaimable =
       BigInt(session.chargedCumulativeAmount) + BigInt(requirements.amount);
-    const expectedNonce = session.lastNonce + 1;
 
-    if (BigInt(raw.cumulativeAmount) === expectedCumulative && raw.nonce === expectedNonce) {
+    if (BigInt(raw.maxClaimableAmount as string) === expectedMaxClaimable) {
       return;
     }
 
     requirements.extra = {
       ...requirements.extra,
       chargedCumulativeAmount: session.chargedCumulativeAmount,
-      signedCumulativeAmount: session.signedCumulativeAmount,
-      nonce: session.lastNonce,
+      signedMaxClaimable: session.signedMaxClaimable,
       signature: session.signature,
     };
 
     return {
       abort: true,
-      reason: "deferred_stale_cumulative_amount",
+      reason: "batch_settlement_stale_cumulative_amount",
       message: "Client voucher base does not match server state",
     };
   }
 
   /**
-   * Persists deferred session state after a successful verify for voucher or deposit payloads.
+   * Lifecycle hook: runs after the facilitator verifies a payment.
    *
-   * @param ctx - Resource server verify hook context.
-   * @param ctx.paymentPayload - Client payment body for this request.
-   * @param ctx.requirements - Payment requirements being verified against.
-   * @param ctx.result - Facilitator verify outcome, including validity and payer.
-   * @returns Promise that resolves when session storage has been updated.
+   * Persists channel session state (balance, totalClaimed, voucher info) so that
+   * subsequent requests can correctly calculate cumulative amounts and detect stale state.
+   *
+   * @param ctx - Post-verify lifecycle context.
+   * @param ctx.paymentPayload - Incoming payment payload that was verified.
+   * @param ctx.requirements - Requirements used for verification.
+   * @param ctx.result - Facilitator verify response.
+   * @returns Resolves when session state has been persisted (no return value).
    */
   private async handleAfterVerify(ctx: {
     paymentPayload: PaymentPayload;
@@ -372,43 +406,41 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     result: VerifyResponse;
   }): Promise<void> {
     const { paymentPayload, requirements, result } = ctx;
-    if (requirements.scheme !== "deferred" || !result.isValid || !result.payer) {
+    if (requirements.scheme !== "batch-settlement" || !result.isValid || !result.payer) {
       return;
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
-    let sid: `0x${string}`;
-    let payer: `0x${string}`;
-    let signedCumulative: string;
-    let nonce: number;
+    let channelId: string;
+    let signedMaxClaimable: string;
     let signature: `0x${string}`;
+    let payer: string;
+    let channelConfig: ChannelConfig | undefined;
 
     if (isDeferredDepositPayload(raw)) {
-      sid = raw.deposit.serviceId;
-      payer = raw.deposit.payer;
-      signedCumulative = raw.voucher.cumulativeAmount;
-      nonce = raw.voucher.nonce;
-      signature = raw.voucher.signature;
+      channelId = raw.voucher.channelId as string;
+      signedMaxClaimable = raw.voucher.maxClaimableAmount as string;
+      signature = raw.voucher.signature as `0x${string}`;
+      channelConfig = (raw.deposit as Record<string, unknown>).channelConfig as
+        | ChannelConfig
+        | undefined;
+      payer = channelConfig?.payer ?? result.payer;
     } else if (isDeferredVoucherPayload(raw)) {
-      sid = raw.serviceId;
-      payer = raw.payer;
-      signedCumulative = raw.cumulativeAmount;
-      nonce = raw.nonce;
-      signature = raw.signature;
+      channelId = raw.channelId as string;
+      signedMaxClaimable = raw.maxClaimableAmount as string;
+      signature = raw.signature as `0x${string}`;
+      channelConfig = raw.channelConfig as ChannelConfig | undefined;
+      payer = channelConfig?.payer ?? result.payer;
     } else {
       return;
     }
 
-    if (!this.assertThisServiceId(sid)) {
-      return;
-    }
-
     const ex = result.extra ?? {};
-    const deposit =
-      typeof ex.deposit === "string"
-        ? ex.deposit
-        : typeof ex.deposit === "number"
-          ? String(ex.deposit)
+    const balance =
+      typeof ex.balance === "string"
+        ? ex.balance
+        : typeof ex.balance === "number"
+          ? String(ex.balance)
           : "0";
     const totalClaimed =
       typeof ex.totalClaimed === "string"
@@ -423,36 +455,37 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           ? parseInt(ex.withdrawRequestedAt, 10) || 0
           : 0;
 
-    const hasWithdrawNonce = ex.withdrawNonce !== undefined && ex.withdrawNonce !== null;
-    const withdrawNonceFromExtra = hasWithdrawNonce
-      ? typeof ex.withdrawNonce === "number"
-        ? ex.withdrawNonce
-        : parseInt(String(ex.withdrawNonce), 10) || 0
-      : undefined;
-
-    const prev = await this.storage.get(lowerServiceId(sid), payer);
-    const session: SubchannelSession = {
-      serviceId: lowerServiceId(sid),
+    const prev = await this.storage.get(channelId);
+    const resolvedConfig = channelConfig ?? prev?.channelConfig;
+    if (!resolvedConfig) {
+      return;
+    }
+    const session: ChannelSession = {
+      channelId,
+      channelConfig: resolvedConfig,
       payer: payer.toLowerCase(),
       chargedCumulativeAmount: prev?.chargedCumulativeAmount ?? "0",
-      signedCumulativeAmount: signedCumulative,
-      lastNonce: nonce,
+      signedMaxClaimable,
       signature,
-      deposit,
+      balance,
       totalClaimed,
       withdrawRequestedAt,
-      withdrawNonce:
-        withdrawNonceFromExtra !== undefined ? withdrawNonceFromExtra : (prev?.withdrawNonce ?? 0),
       lastRequestTimestamp: Date.now(),
     };
-    await this.storage.set(lowerServiceId(sid), payer, session);
+    await this.storage.set(channelId, session);
   }
 
   /**
-   * Validates deferred voucher settlement against stored session and returns a synthetic settle result when allowed.
+   * Lifecycle hook: runs before the facilitator settles a payment.
    *
-   * @param ctx - Resource server settle hook context.
-   * @returns Nothing when not applicable; otherwise abort/skip instructions for the server pipeline.
+   * For voucher payloads the server does NOT trigger an on-chain settle.  Instead, it
+   * increments the local `chargedCumulativeAmount` and returns a `skip` result so the
+   * middleware responds immediately (deferred settlement).  If the client requests a
+   * cooperative withdrawal, the payload is rewritten to a `cooperativeWithdraw` settle
+   * action that the facilitator will execute on-chain.
+   *
+   * @param ctx - Settle lifecycle context (payload and requirements).
+   * @returns Nothing to proceed; `abort` to fail; `skip` with a result to short-circuit settlement.
    */
   private async handleBeforeSettle(
     ctx: SettleContext,
@@ -462,7 +495,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     | { skip: true; result: SettleResponse }
   > {
     const { paymentPayload, requirements } = ctx;
-    if (requirements.scheme !== "deferred") {
+    if (requirements.scheme !== "batch-settlement") {
       return;
     }
 
@@ -471,25 +504,18 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       return;
     }
 
-    if (!this.assertThisServiceId(raw.serviceId)) {
-      return {
-        abort: true,
-        reason: "service_id_mismatch",
-        message: "Deferred voucher serviceId does not match this server scheme",
-      };
-    }
-
-    const session = await this.storage.get(lowerServiceId(raw.serviceId), raw.payer);
+    const channelId = raw.channelId as string;
+    const session = await this.storage.get(channelId);
     if (!session) {
       return {
         abort: true,
         reason: "missing_deferred_session",
-        message: "No session for payer; verify may not have completed",
+        message: "No session for channel; verify may not have completed",
       };
     }
 
     const increment = BigInt(requirements.amount);
-    const signedCap = BigInt(raw.cumulativeAmount);
+    const signedCap = BigInt(raw.maxClaimableAmount as string);
     const prevCharged = BigInt(session.chargedCumulativeAmount);
     const newCharged = prevCharged + increment;
 
@@ -497,42 +523,49 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       return {
         abort: true,
         reason: "deferred_charge_exceeds_signed_cumulative",
-        message: `Charged ${newCharged.toString()} exceeds signed cumulative ${signedCap.toString()}`,
+        message: `Charged ${newCharged.toString()} exceeds signed max ${signedCap.toString()}`,
       };
     }
 
     if (raw.withdraw === true) {
-      if (!this.authorizerSigner) {
-        return {
-          abort: true,
-          reason: "cooperative_withdraw_not_supported",
-          message: "Server does not have an authorizerSigner configured for cooperative withdraw",
+      const config = session.channelConfig;
+
+      const claimEntry: DeferredVoucherClaim = {
+        voucher: {
+          channel: config,
+          maxClaimableAmount: raw.maxClaimableAmount as string,
+        },
+        signature: raw.signature as `0x${string}`,
+        claimAmount: newCharged.toString(),
+      };
+
+      if (this.receiverAuthorizerSigner) {
+        const authorizerSignature = await this.signCooperativeWithdraw(
+          channelId as `0x${string}`,
+          requirements.network,
+        );
+
+        const claimAuthorizerSignature = await this.signClaimBatch(
+          [claimEntry],
+          requirements.network,
+        );
+
+        (paymentPayload as { payload: unknown }).payload = {
+          settleAction: "cooperativeWithdrawWithSignature",
+          config,
+          claims: [claimEntry],
+          receiverAuthorizerSignature: authorizerSignature,
+          claimAuthorizerSignature,
+        };
+      } else {
+        (paymentPayload as { payload: unknown }).payload = {
+          settleAction: "cooperativeWithdraw",
+          config,
+          claims: [claimEntry],
         };
       }
 
-      const authorizerSignature = await this.signCooperativeWithdraw(
-        raw.serviceId,
-        raw.payer,
-        session.withdrawNonce,
-        requirements.network,
-      );
-
-      const claimEntry = {
-        payer: raw.payer,
-        cumulativeAmount: raw.cumulativeAmount,
-        claimAmount: newCharged.toString(),
-        nonce: raw.nonce,
-        signature: raw.signature,
-      };
-
-      (paymentPayload as { payload: unknown }).payload = {
-        settleAction: "cooperativeWithdraw",
-        serviceId: raw.serviceId,
-        claims: [claimEntry],
-        requests: [{ payer: raw.payer, authorizerSignature }],
-      };
-
-      this.pendingCooperativeWithdrawPayers.add(raw.payer.toLowerCase());
+      this.pendingCooperativeWithdrawChannels.add(channelId.toLowerCase());
       return;
     }
 
@@ -542,29 +575,30 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
         success: true,
         transaction: "",
         network: requirements.network,
-        payer: raw.payer,
+        payer: session.payer as `0x${string}`,
         amount: requirements.amount,
         extra: {
           chargedCumulativeAmount: newCharged.toString(),
-          nonce: raw.nonce,
-          serviceId: this.serviceId,
-          deposit: session.deposit,
+          channelId,
+          balance: session.balance,
           totalClaimed: session.totalClaimed,
           withdrawRequestedAt: session.withdrawRequestedAt,
-          withdrawNonce: session.withdrawNonce,
         },
       },
     };
   }
 
   /**
-   * Updates stored session after settlement so charged totals and on-chain snapshots stay consistent.
+   * Lifecycle hook: runs after the facilitator settles a payment.
    *
-   * @param ctx - Resource server settle-after hook context.
-   * @param ctx.paymentPayload - Client payment body for this request.
-   * @param ctx.requirements - Payment requirements that were settled.
-   * @param ctx.result - Successful settle outcome and facilitator extras.
-   * @returns Promise that resolves when session storage has been updated.
+   * Updates session state to reflect the settlement outcome — adjusting charged amounts,
+   * balances, and handling cooperative-withdrawal cleanup (session deletion).
+   *
+   * @param ctx - Post-settle lifecycle context.
+   * @param ctx.paymentPayload - Payment payload that was settled (possibly rewritten).
+   * @param ctx.requirements - Requirements used for settlement.
+   * @param ctx.result - Facilitator settle response.
+   * @returns Resolves when session updates are complete (no return value).
    */
   private async handleAfterSettle(ctx: {
     paymentPayload: PaymentPayload;
@@ -572,46 +606,50 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     result: SettleResponse;
   }): Promise<void> {
     const { paymentPayload, requirements, result } = ctx;
-    if (requirements.scheme !== "deferred" || !result.success) {
+    if (requirements.scheme !== "batch-settlement" || !result.success) {
       return;
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
 
-    if (isDeferredCooperativeWithdrawSettlePayload(raw)) {
-      if (!this.assertThisServiceId(raw.serviceId)) {
-        return;
+    if (
+      isDeferredCooperativeWithdrawWithSignaturePayload(raw) ||
+      isDeferredCooperativeWithdrawPayload(raw)
+    ) {
+      const channelId =
+        typeof (raw.config as Record<string, unknown>)?.payer === "string"
+          ? (result.extra as Record<string, unknown>)?.channelId
+          : undefined;
+      const channelIdStr =
+        typeof channelId === "string" ? channelId : raw.claims ? undefined : undefined;
+
+      if (channelIdStr) {
+        this.pendingCooperativeWithdrawChannels.delete(channelIdStr.toLowerCase());
+        await this.storage.delete(channelIdStr);
       }
-      for (const req of raw.requests) {
-        const payerLower = req.payer.toLowerCase();
-        this.pendingCooperativeWithdrawPayers.delete(payerLower);
-        await this.storage.delete(lowerServiceId(raw.serviceId), req.payer);
-      }
+
       result.extra = {
         ...result.extra,
-        serviceId: raw.serviceId,
         cooperativeWithdraw: true,
       };
       return;
     }
 
     if (isDeferredVoucherPayload(raw)) {
-      if (!this.assertThisServiceId(raw.serviceId)) {
-        return;
-      }
+      const channelId = raw.channelId as string;
       const ex = result.extra ?? {};
       const charged =
         typeof ex.chargedCumulativeAmount === "string"
           ? ex.chargedCumulativeAmount
           : typeof ex.chargedCumulativeAmount === "number"
             ? String(ex.chargedCumulativeAmount)
-            : raw.cumulativeAmount;
+            : (raw.maxClaimableAmount as string);
 
-      const deposit =
-        typeof ex.deposit === "string"
-          ? ex.deposit
-          : typeof ex.deposit === "number"
-            ? String(ex.deposit)
+      const balance =
+        typeof ex.balance === "string"
+          ? ex.balance
+          : typeof ex.balance === "number"
+            ? String(ex.balance)
             : undefined;
       const totalClaimed =
         typeof ex.totalClaimed === "string"
@@ -625,47 +663,40 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10)
             : undefined;
-      const withdrawNonce =
-        typeof ex.withdrawNonce === "number"
-          ? ex.withdrawNonce
-          : typeof ex.withdrawNonce === "string"
-            ? parseInt(ex.withdrawNonce, 10)
-            : undefined;
 
-      const prev = await this.storage.get(lowerServiceId(raw.serviceId), raw.payer);
-      const session: SubchannelSession = {
-        serviceId: lowerServiceId(raw.serviceId),
-        payer: raw.payer.toLowerCase(),
+      const prev = await this.storage.get(channelId);
+      const voucherConfig = (raw.channelConfig as ChannelConfig | undefined) ?? prev?.channelConfig;
+      if (!voucherConfig) {
+        return;
+      }
+      const session: ChannelSession = {
+        channelId,
+        channelConfig: voucherConfig,
+        payer:
+          voucherConfig.payer?.toLowerCase() ?? prev?.payer ?? (result.payer ?? "").toLowerCase(),
         chargedCumulativeAmount: charged,
-        signedCumulativeAmount: raw.cumulativeAmount,
-        lastNonce: raw.nonce,
-        signature: raw.signature,
-        deposit: deposit ?? prev?.deposit ?? "0",
+        signedMaxClaimable: raw.maxClaimableAmount as string,
+        signature: raw.signature as `0x${string}`,
+        balance: balance ?? prev?.balance ?? "0",
         totalClaimed: totalClaimed ?? prev?.totalClaimed ?? "0",
         withdrawRequestedAt:
           withdrawRequestedAt !== undefined && !Number.isNaN(withdrawRequestedAt)
             ? withdrawRequestedAt
             : (prev?.withdrawRequestedAt ?? 0),
-        withdrawNonce:
-          withdrawNonce !== undefined && !Number.isNaN(withdrawNonce)
-            ? withdrawNonce
-            : (prev?.withdrawNonce ?? 0),
         lastRequestTimestamp: Date.now(),
       };
-      await this.storage.set(lowerServiceId(raw.serviceId), raw.payer, session);
+      await this.storage.set(channelId, session);
       return;
     }
 
     if (isDeferredDepositPayload(raw)) {
-      if (!this.assertThisServiceId(raw.deposit.serviceId)) {
-        return;
-      }
+      const channelId = (raw.voucher as Record<string, unknown>).channelId as string;
       const ex = result.extra ?? {};
-      const depositSnap =
-        typeof ex.deposit === "string"
-          ? ex.deposit
-          : typeof ex.deposit === "number"
-            ? String(ex.deposit)
+      const balanceSnap =
+        typeof ex.balance === "string"
+          ? ex.balance
+          : typeof ex.balance === "number"
+            ? String(ex.balance)
             : "0";
       const totalClaimedSnap =
         typeof ex.totalClaimed === "string"
@@ -679,51 +710,48 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10) || 0
             : 0;
-      const hasWithdrawNonceSnap = ex.withdrawNonce !== undefined && ex.withdrawNonce !== null;
-      const withdrawNonceSnap = hasWithdrawNonceSnap
-        ? typeof ex.withdrawNonce === "number"
-          ? ex.withdrawNonce
-          : parseInt(String(ex.withdrawNonce), 10) || 0
-        : undefined;
-      const prevDepositSession = await this.storage.get(
-        lowerServiceId(raw.deposit.serviceId),
-        raw.deposit.payer,
-      );
+
+      const prevSession = await this.storage.get(channelId);
+      const depositConfig = (raw.deposit as Record<string, unknown>)?.channelConfig as
+        | ChannelConfig
+        | undefined;
+      const resolvedConfig = depositConfig ?? prevSession?.channelConfig;
+      if (!resolvedConfig) {
+        return;
+      }
       const chargedActual = (
-        BigInt(prevDepositSession?.chargedCumulativeAmount ?? "0") + BigInt(requirements.amount)
+        BigInt(prevSession?.chargedCumulativeAmount ?? "0") + BigInt(requirements.amount)
       ).toString();
-      const signedCumulative = raw.voucher.cumulativeAmount;
-      const session: SubchannelSession = {
-        serviceId: lowerServiceId(raw.deposit.serviceId),
-        payer: raw.deposit.payer.toLowerCase(),
+      const signedMaxClaimable = (raw.voucher as Record<string, unknown>)
+        .maxClaimableAmount as string;
+      const payer = resolvedConfig.payer ?? result.payer ?? "";
+
+      const session: ChannelSession = {
+        channelId,
+        channelConfig: resolvedConfig,
+        payer: payer.toLowerCase(),
         chargedCumulativeAmount: chargedActual,
-        signedCumulativeAmount: signedCumulative,
-        lastNonce: raw.voucher.nonce,
-        signature: raw.voucher.signature,
-        deposit: depositSnap,
+        signedMaxClaimable,
+        signature: (raw.voucher as Record<string, unknown>).signature as `0x${string}`,
+        balance: balanceSnap,
         totalClaimed: totalClaimedSnap,
         withdrawRequestedAt: withdrawAtSnap,
-        withdrawNonce:
-          withdrawNonceSnap !== undefined && !Number.isNaN(withdrawNonceSnap)
-            ? withdrawNonceSnap
-            : (prevDepositSession?.withdrawNonce ?? 0),
         lastRequestTimestamp: Date.now(),
       };
-      await this.storage.set(lowerServiceId(raw.deposit.serviceId), raw.deposit.payer, session);
+      await this.storage.set(channelId, session);
       result.extra = {
         ...ex,
-        serviceId: raw.deposit.serviceId,
+        channelId,
         chargedCumulativeAmount: chargedActual,
-        nonce: raw.voucher.nonce,
       };
     }
   }
 
   /**
-   * Parses a money string or number into a decimal number.
+   * Parses a human-readable money string (e.g. `"$1.50"`) into a decimal number.
    *
-   * @param money - The money value to parse.
-   * @returns The numeric amount.
+   * @param money - Money string (may include `$`) or numeric amount.
+   * @returns Parsed finite number.
    */
   private parseMoneyToDecimal(money: string | number): number {
     if (typeof money === "number") {
@@ -741,11 +769,11 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Converts a dollar amount to the default token amount for the network.
+   * Converts a decimal dollar amount to the network's default token amount.
    *
-   * @param amount - The dollar amount as a number.
-   * @param network - The target network.
-   * @returns Asset amount using the default asset for the network.
+   * @param amount - Decimal amount in display units.
+   * @param network - Target chain/network for default asset resolution.
+   * @returns {@link AssetAmount} with integer token amount, contract address, and metadata.
    */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
     const assetInfo = getDefaultAsset(network);
@@ -755,7 +783,6 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       amount: tokenAmount,
       asset: assetInfo.address,
       extra: {
-        serviceId: this.serviceId,
         name: assetInfo.name,
         version: assetInfo.version,
       },
@@ -763,11 +790,11 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Converts a decimal string to a fixed-point integer token amount string.
+   * Converts a decimal amount string to its integer token representation.
    *
-   * @param decimalAmount - The amount as a decimal string (e.g. "1.5").
-   * @param decimals - The number of decimal places for the token.
-   * @returns Non-negative integer string in smallest units.
+   * @param decimalAmount - Amount as a decimal string (e.g. `"1.23"`).
+   * @param decimals - Token decimals (fractional digit count).
+   * @returns Integer token amount as a string (no decimal point).
    */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);

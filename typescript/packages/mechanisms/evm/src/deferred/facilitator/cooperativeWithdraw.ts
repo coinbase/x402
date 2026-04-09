@@ -1,65 +1,150 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredCooperativeWithdrawSettlePayload } from "../types";
-import { deferredEscrowABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS } from "../constants";
+import {
+  DeferredCooperativeWithdrawPayload,
+  DeferredCooperativeWithdrawWithSignaturePayload,
+} from "../types";
+import { batchSettlementABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
+import { executeClaim, executeClaimWithSignature } from "./claim";
 
 /**
- * Claims outstanding vouchers (if any) then executes cooperativeWithdraw on-chain.
- * Returns the cooperativeWithdraw transaction hash on success.
+ * Normalizes channel config fields to checksummed addresses for the batch settlement contract.
  *
- * @param signer - The facilitator EVM signer.
- * @param payload - Cooperative withdraw settle payload with claims and requests.
- * @param requirements - Payment requirements (network).
- * @returns Settlement outcome with the cooperativeWithdraw transaction hash.
+ * @param config - Channel configuration from the cooperative withdraw payload.
+ * @returns Arguments object suitable for `cooperativeWithdraw` on the settlement contract.
+ */
+function buildConfigTuple(config: DeferredCooperativeWithdrawPayload["config"]) {
+  return {
+    payer: getAddress(config.payer),
+    payerAuthorizer: getAddress(config.payerAuthorizer),
+    receiver: getAddress(config.receiver),
+    receiverAuthorizer: getAddress(config.receiverAuthorizer),
+    token: getAddress(config.token),
+    withdrawDelay: config.withdrawDelay,
+    salt: config.salt,
+  };
+}
+
+/**
+ * Executes a cooperative withdrawal via msg.sender path (facilitator IS the receiverAuthorizer).
+ *
+ * If `payload.claims` is non-empty, outstanding vouchers are claimed first via
+ * {@link executeClaim}.  Then the channel balance is returned to the payer through
+ * `cooperativeWithdraw(config)`.
+ *
+ * @param signer - Facilitator signer used to submit the on-chain transactions.
+ * @param payload - Cooperative withdraw payload (ChannelConfig + claims, no signature).
+ * @param requirements - Payment requirements for network identification.
+ * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeCooperativeWithdraw(
   signer: FacilitatorEvmSigner,
-  payload: DeferredCooperativeWithdrawSettlePayload,
+  payload: DeferredCooperativeWithdrawPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
 
   try {
     if (payload.claims.length > 0) {
-      const claimArgs = payload.claims.map(c => ({
-        payer: getAddress(c.payer),
-        cumulativeAmount: BigInt(c.cumulativeAmount),
-        claimAmount: BigInt(c.claimAmount),
-        nonce: BigInt(c.nonce),
-        signature: c.signature,
-      }));
-
-      const claimTx = await signer.writeContract({
-        address: getAddress(DEFERRED_ESCROW_ADDRESS),
-        abi: deferredEscrowABI,
-        functionName: "claim",
-        args: [payload.serviceId, claimArgs],
-      });
-
-      const claimReceipt = await signer.waitForTransactionReceipt({ hash: claimTx });
-      if (claimReceipt.status !== "success") {
-        return {
-          success: false,
-          errorReason: Errors.ErrClaimTransactionFailed,
-          transaction: claimTx,
-          network,
-        };
+      const claimResult = await executeClaim(
+        signer,
+        { settleAction: "claim", claims: payload.claims },
+        requirements,
+      );
+      if (!claimResult.success) {
+        return claimResult;
       }
     }
 
-    const withdrawArgs = payload.requests.map(r => ({
-      payer: getAddress(r.payer),
-      authorizerSignature: r.authorizerSignature,
-    }));
+    const tx = await signer.writeContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "cooperativeWithdraw",
+      args: [buildConfigTuple(payload.config)],
+    });
+
+    const receipt = await signer.waitForTransactionReceipt({ hash: tx });
+    if (receipt.status !== "success") {
+      return {
+        success: false,
+        errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+        transaction: tx,
+        network,
+      };
+    }
+
+    return {
+      success: true,
+      transaction: tx,
+      network,
+      amount: requirements.amount,
+    };
+  } catch {
+    return {
+      success: false,
+      errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+      transaction: "",
+      network,
+    };
+  }
+}
+
+/**
+ * Executes a cooperative withdrawal via signature path (server IS the receiverAuthorizer).
+ *
+ * If `payload.claims` is non-empty:
+ * - If `claimAuthorizerSignature` is present, uses `claimWithSignature`
+ * - Otherwise, falls back to msg.sender-gated `claim`
+ *
+ * Then calls `cooperativeWithdrawWithSignature(config, receiverAuthorizerSignature)`.
+ *
+ * @param signer - Facilitator signer used to submit the on-chain transactions.
+ * @param payload - Cooperative withdraw payload with receiverAuthorizer signature.
+ * @param requirements - Payment requirements for network identification.
+ * @returns A {@link SettleResponse} with the transaction hash on success.
+ */
+export async function executeCooperativeWithdrawWithSignature(
+  signer: FacilitatorEvmSigner,
+  payload: DeferredCooperativeWithdrawWithSignaturePayload,
+  requirements: PaymentRequirements,
+): Promise<SettleResponse> {
+  const network = requirements.network;
+
+  try {
+    if (payload.claims.length > 0) {
+      if (payload.claimAuthorizerSignature) {
+        const claimResult = await executeClaimWithSignature(
+          signer,
+          {
+            settleAction: "claimWithSignature",
+            claims: payload.claims,
+            authorizerSignature: payload.claimAuthorizerSignature,
+          },
+          requirements,
+        );
+        if (!claimResult.success) {
+          return claimResult;
+        }
+      } else {
+        const claimResult = await executeClaim(
+          signer,
+          { settleAction: "claim", claims: payload.claims },
+          requirements,
+        );
+        if (!claimResult.success) {
+          return claimResult;
+        }
+      }
+    }
 
     const tx = await signer.writeContract({
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
-      functionName: "cooperativeWithdraw",
-      args: [payload.serviceId, withdrawArgs],
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "cooperativeWithdrawWithSignature",
+      args: [buildConfigTuple(payload.config), payload.receiverAuthorizerSignature],
     });
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });

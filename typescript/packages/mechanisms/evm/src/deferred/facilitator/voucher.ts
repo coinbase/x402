@@ -1,124 +1,113 @@
 import { PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredVoucherPayload } from "../types";
-import { deferredEscrowABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS } from "../constants";
+import { DeferredVoucherPayload, ChannelConfig } from "../types";
+import { batchSettlementABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { getEvmChainId } from "../../utils";
-import { multicall } from "../../multicall";
 import * as Errors from "./errors";
-import { serviceIdsEqual, verifyDeferredVoucherTypedData } from "./utils";
+import { validateChannelConfig, verifyDeferredVoucherTypedData } from "./utils";
 
-type ServiceState = {
-  token: string;
-  withdrawWindow: bigint;
-  registered: boolean;
-  payTo: string;
-  unsettled: bigint;
-  adminNonce: bigint;
-};
-
-type SubchannelState = {
-  deposit: bigint;
+type ChannelState = {
+  balance: bigint;
   totalClaimed: bigint;
-  nonce: bigint;
-  withdrawRequestedAt: bigint;
-  withdrawNonce: bigint;
 };
 
 /**
- * Verifies a voucher payload.
+ * Verifies a cumulative voucher payload against on-chain channel state.
  *
- * Order: local `extra.serviceId` consistency → EIP-712 voucher signature → one Multicall3 batch
- * (`getService`, `getSubchannel`) → apply service/token/subchannel and voucher arithmetic gates.
+ * Checks that:
+ * 1. The voucher signature is valid (ECDSA or ERC-1271 depending on `payerAuthorizer`).
+ * 2. The token in the channel config matches the payment requirements asset.
+ * 3. The channel exists on-chain with a non-zero balance.
+ * 4. The `maxClaimableAmount` does not exceed the channel's deposited balance.
+ * 5. The `maxClaimableAmount` is greater than what has already been claimed.
  *
- * @param signer - The facilitator EVM signer.
- * @param payload - The deferred voucher payload.
- * @param requirements - The payment requirements.
- * @returns Verification result with payer and subchannel extras on success.
+ * @param signer - Facilitator signer used for on-chain reads and signature verification.
+ * @param payload - The voucher payload (channelId, maxClaimableAmount, signature).
+ * @param requirements - Server payment requirements (asset, network, amount).
+ * @param channelConfig - Reconstructed channel configuration for the payer/receiver pair.
+ * @returns A {@link VerifyResponse} indicating validity and returning channel state in `extra`.
  */
 export async function verifyVoucher(
   signer: FacilitatorEvmSigner,
   payload: DeferredVoucherPayload,
   requirements: PaymentRequirements,
+  channelConfig: ChannelConfig,
 ): Promise<VerifyResponse> {
-  const payer = payload.payer;
-  const serviceId = payload.serviceId;
+  const channelId = payload.channelId;
   const chainId = getEvmChainId(requirements.network);
 
-  const extra = requirements.extra as { serviceId?: string } | undefined;
+  const configErr = validateChannelConfig(channelConfig, channelId, requirements);
+  if (configErr) {
+    return { isValid: false, invalidReason: configErr, payer: channelConfig.payer };
+  }
 
-  if (!extra?.serviceId || !serviceIdsEqual(serviceId, extra.serviceId)) {
+  const voucherOk = await verifyDeferredVoucherTypedData(
+    signer,
+    {
+      channelId,
+      maxClaimableAmount: payload.maxClaimableAmount,
+      payerAuthorizer: channelConfig.payerAuthorizer,
+      payer: channelConfig.payer,
+      signature: payload.signature,
+    },
+    chainId,
+  );
+  if (!voucherOk) {
     return {
       isValid: false,
-      invalidReason: extra?.serviceId ? Errors.ErrServiceIdMismatch : Errors.ErrMissingServiceId,
-      payer,
+      invalidReason: Errors.ErrInvalidVoucherSignature,
+      payer: channelConfig.payer,
     };
   }
 
-  const voucherOk = await verifyDeferredVoucherTypedData(signer, payload, chainId);
-  if (!voucherOk) {
-    return { isValid: false, invalidReason: Errors.ErrInvalidVoucherSignature, payer };
+  if (getAddress(channelConfig.token) !== getAddress(requirements.asset)) {
+    return { isValid: false, invalidReason: Errors.ErrTokenMismatch, payer: channelConfig.payer };
   }
 
-  const mcResults = await multicall(signer.readContract.bind(signer), [
-    {
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
-      functionName: "getService",
-      args: [serviceId],
-    },
-    {
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
-      functionName: "getSubchannel",
-      args: [serviceId, getAddress(payer)],
-    },
-  ]);
-
-  const [svcRes, subRes] = mcResults;
-  if (svcRes.status === "failure" || subRes.status === "failure") {
-    return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType, payer };
+  let channel: ChannelState;
+  try {
+    channel = (await signer.readContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "getChannel",
+      args: [channelId],
+    })) as ChannelState;
+  } catch {
+    return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
   }
 
-  const service = svcRes.result as ServiceState;
-  const subchannel = subRes.result as SubchannelState;
-
-  if (!service.registered) {
-    return { isValid: false, invalidReason: Errors.ErrServiceNotFound, payer };
+  if (channel.balance === 0n) {
+    return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
   }
 
-  if (getAddress(service.token) !== getAddress(requirements.asset)) {
-    return { isValid: false, invalidReason: Errors.ErrTokenMismatch, payer };
+  const maxClaimableAmount = BigInt(payload.maxClaimableAmount);
+
+  if (maxClaimableAmount > channel.balance) {
+    return {
+      isValid: false,
+      invalidReason: Errors.ErrCumulativeExceedsBalance,
+      payer: channelConfig.payer,
+    };
   }
 
-  const remainingBalance = subchannel.deposit - subchannel.totalClaimed;
-  if (remainingBalance <= 0n) {
-    return { isValid: false, invalidReason: Errors.ErrSubchannelNotFound, payer };
-  }
-
-  const cumulativeAmount = BigInt(payload.cumulativeAmount);
-
-  if (cumulativeAmount > subchannel.deposit) {
-    return { isValid: false, invalidReason: Errors.ErrCumulativeAmountExceedsDeposit, payer };
-  }
-
-  if (cumulativeAmount <= subchannel.totalClaimed) {
-    return { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer };
-  }
-
-  if (BigInt(payload.nonce) <= subchannel.nonce) {
-    return { isValid: false, invalidReason: Errors.ErrNonceNotIncreasing, payer };
+  if (maxClaimableAmount <= channel.totalClaimed) {
+    return {
+      isValid: false,
+      invalidReason: Errors.ErrCumulativeAmountBelowClaimed,
+      payer: channelConfig.payer,
+    };
   }
 
   return {
     isValid: true,
-    payer,
+    payer: channelConfig.payer,
     extra: {
-      deposit: subchannel.deposit.toString(),
-      totalClaimed: subchannel.totalClaimed.toString(),
-      withdrawRequestedAt: Number(subchannel.withdrawRequestedAt),
-      withdrawNonce: Number(subchannel.withdrawNonce),
+      channelId,
+      balance: channel.balance.toString(),
+      totalClaimed: channel.totalClaimed.toString(),
+      withdrawRequestedAt: 0,
     },
   };
 }

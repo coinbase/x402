@@ -2,53 +2,38 @@ import { PaymentRequirements, VerifyResponse, SettleResponse } from "@x402/core/
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { DeferredDepositPayload } from "../types";
-import { deferredEscrowABI, erc20BalanceOfABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS, receiveAuthorizationTypes } from "../constants";
+import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
 import { getEvmChainId } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "./errors";
 import {
   erc3009AuthorizationTimeInvalidReason,
-  serviceIdsEqual,
+  validateChannelConfig,
   verifyDeferredVoucherTypedData,
 } from "./utils";
 
-type ServiceState = {
-  token: string;
-  withdrawWindow: bigint;
-  registered: boolean;
-  payTo: string;
-  unsettled: bigint;
-  adminNonce: bigint;
-};
-
-type SubchannelState = {
-  deposit: bigint;
+type ChannelState = {
+  balance: bigint;
   totalClaimed: bigint;
-  nonce: bigint;
-  withdrawRequestedAt: bigint;
-  withdrawNonce: bigint;
 };
 
 /**
- * Verifies a deferred deposit payload.
+ * Verifies a deposit payload (ERC-3009 authorization + voucher) without executing any
+ * on-chain transaction.
  *
- * Execution order (EIP-6492 factory parsing and `receiveWithAuthorization` simulation are intentionally not part of facilitator verify):
+ * Performs the following validations:
+ * - Token in channelConfig matches the payment requirements asset.
+ * - ERC-3009 authorization is present and its time window is valid.
+ * - `ReceiveWithAuthorization` signature is valid (payer → contract).
+ * - Accompanying voucher signature is valid (ECDSA or ERC-1271).
+ * - Payer has sufficient token balance for the deposit.
+ * - Resulting `maxClaimableAmount` does not exceed effective balance (existing + deposit).
  *
- * 1. **Local checks** (no escrow or ERC-20 balance reads): scheme/network are enforced in
- *    {@link DeferredEvmScheme.verify}. Here: `extra.serviceId` vs `deposit.serviceId`, deposit↔voucher
- *    `serviceId` / `payer`, EIP-3009-only path, `extra.name` / `version`, ERC-3009 authorization presence,
- *    authorization time windows vs local clock.
- * 2. **Signatures**: EIP-712 `ReceiveWithAuthorization` (token domain) + DeferredEscrow `Voucher` — before any
- *    batched chain reads so bad signatures do not trigger a multicall round-trip.
- * 3. **One Multicall3 batch**: `getService(serviceId)`, `getSubchannel(serviceId, payer)`, `balanceOf(payer)` on
- *    `requirements.asset`.
- * 4. **Apply results**: service registration, token match, balance, subchannel arithmetic, voucher/state gates.
- *
- * @param signer - The facilitator EVM signer.
- * @param payload - The deferred deposit payload.
- * @param requirements - The payment requirements.
- * @returns Verification result with payer and subchannel extras on success.
+ * @param signer - Facilitator signer for on-chain reads and signature verification.
+ * @param payload - The full deposit payload including channelConfig, amount, authorization, and voucher.
+ * @param requirements - Server payment requirements (asset, EIP-712 domain info, timeout, etc.).
+ * @returns A {@link VerifyResponse} with channel state in `extra` on success.
  */
 export async function verifyDeposit(
   signer: FacilitatorEvmSigner,
@@ -56,36 +41,20 @@ export async function verifyDeposit(
   requirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   const { deposit, voucher } = payload;
-  const payer = deposit.payer;
-  const serviceId = deposit.serviceId;
+  const config = deposit.channelConfig;
+  const payer = config.payer;
   const chainId = getEvmChainId(requirements.network);
 
+  const configErr = validateChannelConfig(config, voucher.channelId, requirements);
+  if (configErr) {
+    return { isValid: false, invalidReason: configErr, payer };
+  }
+
   const extra = requirements.extra as
-    | {
-        serviceId?: string;
-        name?: string;
-        version?: string;
-        assetTransferMethod?: string;
-      }
+    | { name?: string; version?: string; assetTransferMethod?: string }
     | undefined;
 
-  if (!extra?.serviceId || !serviceIdsEqual(serviceId, extra.serviceId)) {
-    return {
-      isValid: false,
-      invalidReason: extra?.serviceId ? Errors.ErrServiceIdMismatch : Errors.ErrMissingServiceId,
-      payer,
-    };
-  }
-
-  if (!serviceIdsEqual(voucher.serviceId, serviceId)) {
-    return { isValid: false, invalidReason: Errors.ErrDepositVoucherMismatch, payer };
-  }
-
-  if (getAddress(voucher.payer) !== getAddress(payer)) {
-    return { isValid: false, invalidReason: Errors.ErrDepositVoucherMismatch, payer };
-  }
-
-  const transferMethod = extra.assetTransferMethod ?? "eip3009";
+  const transferMethod = extra?.assetTransferMethod ?? "eip3009";
   if (transferMethod !== "eip3009") {
     return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType, payer };
   }
@@ -95,7 +64,7 @@ export async function verifyDeposit(
     return { isValid: false, invalidReason: Errors.ErrErc3009AuthorizationRequired, payer };
   }
 
-  if (!extra.name || !extra.version) {
+  if (!extra?.name || !extra?.version) {
     return { isValid: false, invalidReason: Errors.ErrMissingEip712Domain, payer };
   }
 
@@ -120,7 +89,7 @@ export async function verifyDeposit(
       primaryType: "ReceiveWithAuthorization",
       message: {
         from: getAddress(payer),
-        to: getAddress(DEFERRED_ESCROW_ADDRESS),
+        to: getAddress(BATCH_SETTLEMENT_ADDRESS),
         value: BigInt(deposit.amount),
         validAfter,
         validBefore,
@@ -136,23 +105,27 @@ export async function verifyDeposit(
     return { isValid: false, invalidReason: Errors.ErrInvalidReceiveAuthorizationSignature, payer };
   }
 
-  const voucherOk = await verifyDeferredVoucherTypedData(signer, voucher, chainId);
+  const voucherOk = await verifyDeferredVoucherTypedData(
+    signer,
+    {
+      channelId: voucher.channelId,
+      maxClaimableAmount: voucher.maxClaimableAmount,
+      payerAuthorizer: config.payerAuthorizer,
+      payer: config.payer,
+      signature: voucher.signature,
+    },
+    chainId,
+  );
   if (!voucherOk) {
     return { isValid: false, invalidReason: Errors.ErrInvalidVoucherSignature, payer };
   }
 
   const mcResults = await multicall(signer.readContract.bind(signer), [
     {
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
-      functionName: "getService",
-      args: [serviceId],
-    },
-    {
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
-      functionName: "getSubchannel",
-      args: [serviceId, getAddress(payer)],
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "getChannel",
+      args: [voucher.channelId],
     },
     {
       address: getAddress(requirements.asset),
@@ -162,71 +135,62 @@ export async function verifyDeposit(
     },
   ]);
 
-  const [svcRes, subRes, balRes] = mcResults;
-  if (svcRes.status === "failure" || subRes.status === "failure" || balRes.status === "failure") {
+  const [chRes, balRes] = mcResults;
+  if (chRes.status === "failure" || balRes.status === "failure") {
     return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType, payer };
   }
 
-  const service = svcRes.result as ServiceState;
-  const subchannel = subRes.result as SubchannelState;
+  const channel = chRes.result as ChannelState;
   const balance = balRes.result as bigint;
-
-  if (!service.registered) {
-    return { isValid: false, invalidReason: Errors.ErrServiceNotFound, payer };
-  }
-
-  if (getAddress(service.token) !== getAddress(requirements.asset)) {
-    return { isValid: false, invalidReason: Errors.ErrTokenMismatch, payer };
-  }
-
   const depositAmount = BigInt(deposit.amount);
 
   if (balance < depositAmount) {
     return { isValid: false, invalidReason: Errors.ErrInsufficientBalance, payer };
   }
 
-  const effectiveDeposit = subchannel.deposit + depositAmount;
-  const cumulativeAmount = BigInt(voucher.cumulativeAmount);
+  const effectiveBalance = channel.balance + depositAmount;
+  const maxClaimableAmount = BigInt(voucher.maxClaimableAmount);
 
-  if (cumulativeAmount > effectiveDeposit) {
-    return { isValid: false, invalidReason: Errors.ErrCumulativeAmountExceedsDeposit, payer };
+  if (maxClaimableAmount > effectiveBalance) {
+    return { isValid: false, invalidReason: Errors.ErrCumulativeExceedsBalance, payer };
   }
 
-  if (cumulativeAmount <= subchannel.totalClaimed) {
+  if (maxClaimableAmount <= channel.totalClaimed) {
     return { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer };
-  }
-
-  if (BigInt(voucher.nonce) <= subchannel.nonce) {
-    return { isValid: false, invalidReason: Errors.ErrNonceNotIncreasing, payer };
   }
 
   return {
     isValid: true,
     payer,
     extra: {
-      deposit: subchannel.deposit.toString(),
-      totalClaimed: subchannel.totalClaimed.toString(),
-      withdrawRequestedAt: Number(subchannel.withdrawRequestedAt),
-      withdrawNonce: Number(subchannel.withdrawNonce),
+      channelId: voucher.channelId,
+      balance: channel.balance.toString(),
+      totalClaimed: channel.totalClaimed.toString(),
+      withdrawRequestedAt: 0,
     },
   };
 }
 
 /**
- * Settles a deposit by calling depositWithERC3009 on the escrow contract.
+ * Executes an ERC-3009 deposit on-chain by calling `depositWithERC3009` on the
+ * batch-settlement contract.
  *
- * @param signer - The facilitator EVM signer.
- * @param payload - The deferred deposit payload.
- * @param requirements - The payment requirements.
- * @returns Settlement outcome with transaction hash and updated subchannel state.
+ * The deposit is first verified via {@link verifyDeposit}; if invalid the returned
+ * {@link SettleResponse} will have `success: false` with the verification reason.
+ *
+ * @param signer - Facilitator signer used to submit the on-chain transaction.
+ * @param payload - The deposit payload (channelConfig, amount, authorization, voucher).
+ * @param requirements - Server payment requirements.
+ * @returns A {@link SettleResponse} with the transaction hash and updated channel state in `extra`.
  */
 export async function settleDeposit(
   signer: FacilitatorEvmSigner,
   payload: DeferredDepositPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
-  const { deposit } = payload;
-  const payer = deposit.payer;
+  const { deposit, voucher } = payload;
+  const config = deposit.channelConfig;
+  const payer = config.payer;
   const auth = deposit.authorization.erc3009Authorization;
 
   if (!auth) {
@@ -252,13 +216,22 @@ export async function settleDeposit(
   }
 
   try {
+    const configTuple = {
+      payer: getAddress(config.payer),
+      payerAuthorizer: getAddress(config.payerAuthorizer),
+      receiver: getAddress(config.receiver),
+      receiverAuthorizer: getAddress(config.receiverAuthorizer),
+      token: getAddress(config.token),
+      withdrawDelay: config.withdrawDelay,
+      salt: config.salt,
+    };
+
     const tx = await signer.writeContract({
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
       functionName: "depositWithERC3009",
       args: [
-        deposit.serviceId,
-        getAddress(payer),
+        configTuple,
         BigInt(deposit.amount),
         BigInt(auth.validAfter),
         BigInt(auth.validBefore),
@@ -286,12 +259,12 @@ export async function settleDeposit(
       payer,
       amount: requirements.amount,
       extra: {
-        deposit: (
-          BigInt(String(verified.extra?.deposit ?? "0")) + BigInt(deposit.amount)
+        channelId: voucher.channelId,
+        balance: (
+          BigInt(String(verified.extra?.balance ?? "0")) + BigInt(deposit.amount)
         ).toString(),
         totalClaimed: verified.extra?.totalClaimed ?? "0",
-        withdrawRequestedAt: Number(verified.extra?.withdrawRequestedAt ?? 0),
-        withdrawNonce: Number(verified.extra?.withdrawNonce ?? 0),
+        withdrawRequestedAt: 0,
       },
     };
   } catch {

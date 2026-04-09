@@ -36,18 +36,22 @@ export { UptoEvmScheme } from "./upto";
 export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
-// Deferred scheme client
+// Batch-settlement (deferred) scheme client
 export { DeferredEvmScheme } from "./deferred";
 
-// Deferred types
+// Batch-settlement types
 export type {
+  ChannelConfig,
   DeferredDepositPayload,
   DeferredVoucherPayload,
   DeferredVoucherFields,
   DeferredErc3009Authorization,
   DeferredClaimPayload,
+  DeferredClaimWithSignaturePayload,
   DeferredSettleActionPayload,
   DeferredDepositSettlePayload,
+  DeferredCooperativeWithdrawPayload,
+  DeferredCooperativeWithdrawWithSignaturePayload,
   DeferredVoucherClaim,
   DeferredPayload,
   DeferredSettlePayload,
@@ -56,15 +60,20 @@ export {
   isDeferredDepositPayload,
   isDeferredVoucherPayload,
   isDeferredClaimPayload,
+  isDeferredClaimWithSignaturePayload,
   isDeferredSettleActionPayload,
   isDeferredDepositSettlePayload,
+  isDeferredCooperativeWithdrawPayload,
+  isDeferredCooperativeWithdrawWithSignaturePayload,
 } from "./types";
 
-// Deferred constants
+// Batch-settlement constants
 export {
-  DEFERRED_ESCROW_ADDRESS,
-  DEFERRED_ESCROW_DOMAIN,
+  BATCH_SETTLEMENT_ADDRESS,
+  BATCH_SETTLEMENT_DOMAIN,
   voucherTypes,
+  cooperativeWithdrawTypes,
+  claimBatchTypes,
 } from "./deferred/constants";
 
 // Default stablecoins (USD string pricing → token address per chain)

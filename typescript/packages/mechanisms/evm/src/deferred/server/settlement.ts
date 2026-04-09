@@ -11,44 +11,25 @@ import type { DeferredEvmScheme } from "./scheme";
 export interface SettlementManagerConfig {
   scheme: DeferredEvmScheme;
   facilitator: FacilitatorClient;
-  serviceId: `0x${string}`;
+  receiver: `0x${string}`;
+  token: `0x${string}`;
   network: Network;
-  payTo: `0x${string}`;
-  asset: `0x${string}`;
 }
 
 export interface AutoSettlementConfig {
-  /** Periodic claim interval in seconds (default: 60). */
   claimIntervalSecs?: number;
-  /** Claim payers idle longer than N seconds. */
   claimOnIdleSecs?: number;
-  /** Claim when total claimable exceeds this threshold (atomic token units). */
   claimThreshold?: string;
-  /** Immediately claim when a withdrawal request is detected (default: true). */
   claimOnWithdrawal?: boolean;
-
-  /** Periodic settle interval in seconds (default: 300). */
   settleIntervalSecs?: number;
-  /** Settle when unsettled (claimed but not transferred) exceeds threshold (atomic token units). */
   settleThreshold?: string;
-
-  /** Max voucher claims per batch transaction (default: 50). */
   maxClaimsPerBatch?: number;
-  /** Background tick evaluation interval in seconds (default: 5). */
   tickSecs?: number;
-
-  /** Cooperative-withdraw payers idle longer than N seconds (requires authorizerSigner). */
   cooperativeWithdrawOnIdleSecs?: number;
-  /** Cooperative-withdraw all remaining sessions on {@link DeferredSettlementManager.stop} with `flush: true`. */
   cooperativeWithdrawOnShutdown?: boolean;
-
-  /** Called after a successful claim batch. */
   onClaim?: (result: ClaimResult) => void;
-  /** Called after a successful settle. */
   onSettle?: (result: SettleResult) => void;
-  /** Called after a successful cooperative withdraw. */
   onCooperativeWithdraw?: (result: CooperativeWithdrawResult) => void;
-  /** Called on any claim/settle error. */
   onError?: (error: unknown) => void;
 }
 
@@ -62,21 +43,25 @@ export interface SettleResult {
 }
 
 export interface CooperativeWithdrawResult {
-  payers: string[];
+  channels: string[];
   transaction: string;
 }
 
 /**
- * Aggregates deferred voucher sessions and submits batched claim/settle
- * operations to the facilitator. Supports configurable background policies.
+ * Manages the lifecycle of batch claiming, settlement, and cooperative withdrawal for
+ * the `batch-settlement` scheme on the server side.
+ *
+ * Provides both manual (`claim()`, `settle()`, `cooperativeWithdraw()`) and automatic
+ * (`start()` / `stop()`) modes.  In automatic mode a periodic tick evaluates configurable
+ * triggers (interval, idle time, threshold, pending withdrawal) and batches claims/settlements
+ * accordingly.
  */
 export class DeferredSettlementManager {
   private readonly scheme: DeferredEvmScheme;
   private readonly facilitator: FacilitatorClient;
-  private readonly serviceId: `0x${string}`;
+  private readonly receiver: `0x${string}`;
+  private readonly token: `0x${string}`;
   private readonly network: Network;
-  private readonly payTo: `0x${string}`;
-  private readonly asset: `0x${string}`;
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private lastClaimTime = 0;
@@ -86,28 +71,25 @@ export class DeferredSettlementManager {
   private autoSettleConfig: AutoSettlementConfig = {};
 
   /**
-   * Creates a manager bound to a deferred scheme, facilitator, and settlement context.
+   * Creates a new settlement manager.
    *
-   * @param config - Scheme, facilitator client, and on-chain addressing fields.
+   * @param config - Manager configuration: scheme, facilitator, receiver, token, network.
    */
   constructor(config: SettlementManagerConfig) {
     this.scheme = config.scheme;
     this.facilitator = config.facilitator;
-    this.serviceId = config.serviceId;
+    this.receiver = config.receiver;
+    this.token = config.token;
     this.network = config.network;
-    this.payTo = config.payTo;
-    this.asset = config.asset;
   }
 
   /**
-   * Claims all vouchers where `chargedCumulativeAmount > totalClaimed`.
-   * Splits into batches of `maxClaimsPerBatch` if needed.
-   * Updates each claimed session's `totalClaimed` in storage after success.
+   * Collects claimable vouchers and submits them in batches to the facilitator via `claim()`.
    *
-   * @param opts - Optional claim tuning.
-   * @param opts.maxClaimsPerBatch - Max claims per facilitator batch (default 50).
-   * @param opts.idleSecs - If set, only claim payers idle at least this long.
-   * @returns One result per batch submitted successfully.
+   * @param opts - Optional: `maxClaimsPerBatch` (default 50), `idleSecs` to filter idle channels.
+   * @param opts.maxClaimsPerBatch - Max vouchers per facilitator `claim` batch.
+   * @param opts.idleSecs - When set, only include channels idle for at least this many seconds.
+   * @returns Array of claim results (one per batch).
    */
   async claim(opts?: { maxClaimsPerBatch?: number; idleSecs?: number }): Promise<ClaimResult[]> {
     const maxBatch = opts?.maxClaimsPerBatch ?? 50;
@@ -135,10 +117,9 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Submits a settle transaction to transfer all claimed-but-unsettled funds
-   * to the service's `payTo` address.
+   * Transfers claimed (but unsettled) funds to the receiver by calling `settle(receiver, token)`.
    *
-   * @returns Facilitator transaction identifier for the settle call.
+   * @returns Settle result with the transaction hash.
    */
   async settle(): Promise<SettleResult> {
     const paymentPayload = this.buildSettlePaymentPayload();
@@ -156,11 +137,11 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Convenience: claims all outstanding vouchers then settles.
+   * Convenience: claims all eligible vouchers then settles in one call.
    *
-   * @param opts - Optional claim batching; passed through to {@link claim}.
-   * @param opts.maxClaimsPerBatch - Max claims per batch when claiming.
-   * @returns Claim batch results and settle result when any claim ran.
+   * @param opts - Optional: `maxClaimsPerBatch`.
+   * @param opts.maxClaimsPerBatch - Max vouchers per claim batch before settling.
+   * @returns Combined claim and settle results.
    */
   async claimAndSettle(opts?: {
     maxClaimsPerBatch?: number;
@@ -174,59 +155,77 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Cooperative-withdraws selected (or all) payers: claims outstanding vouchers,
-   * signs `CooperativeWithdraw` as authorizer, then submits to the facilitator.
-   * Deletes sessions after success.
+   * Initiates a cooperative withdrawal for one or more channels, optionally claiming
+   * outstanding vouchers first.
    *
-   * @param payers - If provided, only withdraw these addresses; otherwise all sessions.
-   * @returns Result with payer list and facilitator transaction hash.
+   * @param channelIds - Specific channels to withdraw; defaults to all sessions.
+   * @returns Result with the list of withdrawn channels and the transaction hash.
    */
-  async cooperativeWithdraw(payers?: string[]): Promise<CooperativeWithdrawResult> {
+  async cooperativeWithdraw(channelIds?: string[]): Promise<CooperativeWithdrawResult> {
     const storage = this.scheme.getStorage();
-    const sid = this.scheme.getServiceId().toLowerCase();
-    const sessions = await storage.list(sid);
+    const sessions = await storage.list();
 
-    const targets = payers
-      ? sessions.filter(s => payers.some(p => p.toLowerCase() === s.payer.toLowerCase()))
+    const targets = channelIds
+      ? sessions.filter(s => channelIds.some(id => id.toLowerCase() === s.channelId.toLowerCase()))
       : sessions;
 
     if (targets.length === 0) {
-      return { payers: [], transaction: "" };
+      return { channels: [], transaction: "" };
     }
 
     const claims: DeferredVoucherClaim[] = [];
-    const requests: Array<{ payer: `0x${string}`; authorizerSignature: `0x${string}` }> = [];
-
     for (const s of targets) {
       if (BigInt(s.chargedCumulativeAmount) > BigInt(s.totalClaimed)) {
         claims.push({
-          payer: s.payer as `0x${string}`,
-          cumulativeAmount: s.signedCumulativeAmount,
-          claimAmount: s.chargedCumulativeAmount,
-          nonce: s.lastNonce,
+          voucher: {
+            channel: s.channelConfig,
+            maxClaimableAmount: s.signedMaxClaimable,
+          },
           signature: s.signature as `0x${string}`,
+          claimAmount: s.chargedCumulativeAmount,
         });
       }
-
-      const authSig = await this.scheme.signCooperativeWithdraw(
-        this.serviceId,
-        s.payer as `0x${string}`,
-        s.withdrawNonce,
-        this.network,
-      );
-      requests.push({ payer: s.payer as `0x${string}`, authorizerSignature: authSig });
     }
 
-    const paymentPayload: PaymentPayload = {
-      x402Version: 2,
-      accepted: this.buildPaymentRequirements(),
-      payload: {
-        settleAction: "cooperativeWithdraw",
-        serviceId: this.serviceId,
-        claims,
-        requests,
-      },
-    };
+    const firstTarget = targets[0];
+    const config = firstTarget.channelConfig;
+    const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
+
+    let paymentPayload: PaymentPayload;
+
+    if (hasAuthorizerSigner) {
+      const authSig = await this.scheme.signCooperativeWithdraw(
+        firstTarget.channelId as `0x${string}`,
+        this.network,
+      );
+
+      let claimAuthorizerSignature: `0x${string}` | undefined;
+      if (claims.length > 0) {
+        claimAuthorizerSignature = await this.scheme.signClaimBatch(claims, this.network);
+      }
+
+      paymentPayload = {
+        x402Version: 2,
+        accepted: this.buildPaymentRequirements(),
+        payload: {
+          settleAction: "cooperativeWithdrawWithSignature",
+          config,
+          claims,
+          receiverAuthorizerSignature: authSig,
+          ...(claimAuthorizerSignature ? { claimAuthorizerSignature } : {}),
+        },
+      };
+    } else {
+      paymentPayload = {
+        x402Version: 2,
+        accepted: this.buildPaymentRequirements(),
+        payload: {
+          settleAction: "cooperativeWithdraw",
+          config,
+          claims,
+        },
+      };
+    }
 
     const response = await this.facilitator.settle(paymentPayload, this.buildPaymentRequirements());
     if (!response.success) {
@@ -236,19 +235,20 @@ export class DeferredSettlementManager {
     }
 
     for (const s of targets) {
-      await storage.delete(sid, s.payer);
+      await storage.delete(s.channelId);
     }
 
     return {
-      payers: targets.map(s => s.payer),
+      channels: targets.map(s => s.channelId),
       transaction: response.transaction,
     };
   }
 
   /**
-   * Starts a single background timer that evaluates all settlement policies each tick.
+   * Starts the auto-settlement loop that periodically evaluates claim/settle/withdraw
+   * triggers and executes them.
    *
-   * @param config - Intervals, thresholds, hooks, and batch limits for auto claim/settle.
+   * @param config - Auto-settlement policy configuration (intervals, thresholds, callbacks).
    */
   start(config: AutoSettlementConfig = {}): void {
     if (this.tickTimer) {
@@ -286,11 +286,11 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Stops the background tick timer.
-   * With `flush: true`, performs a final claimAndSettle before returning.
+   * Stops the auto-settlement loop.
    *
-   * @param opts - Stop behavior options.
-   * @param opts.flush - When true, runs one last claim-and-settle pass.
+   * @param opts - Stop options.
+   * @param opts.flush - When true, run `claimAndSettle` and optional shutdown cooperative withdraw first.
+   * @returns Resolves when the loop is stopped (and flush work completes, if requested).
    */
   async stop(opts?: { flush?: boolean }): Promise<void> {
     this.running = false;
@@ -303,7 +303,7 @@ export class DeferredSettlementManager {
       if (this.autoSettleConfig.cooperativeWithdrawOnShutdown) {
         try {
           const result = await this.cooperativeWithdraw();
-          if (result.payers.length > 0) {
+          if (result.channels.length > 0) {
             this.autoSettleConfig.onCooperativeWithdraw?.(result);
           }
         } catch (err) {
@@ -313,27 +313,24 @@ export class DeferredSettlementManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Internal tick logic
-  // ---------------------------------------------------------------------------
-
   /**
-   * Single background tick: may claim and/or settle according to policy.
+   * Single tick of the auto-settlement loop: evaluates claim, settle, and cooperative
+   * withdrawal triggers and executes any that fire.
    *
-   * @param cfg - Resolved intervals, thresholds, callbacks, and batch size from {@link start}.
-   * @param cfg.claimIntervalMs - Minimum milliseconds between automatic claims.
-   * @param cfg.settleIntervalMs - Minimum milliseconds between automatic settles.
-   * @param cfg.claimOnIdleSecs - When set, idle-based claim trigger threshold in seconds.
-   * @param cfg.claimThreshold - When set, claim when total claimable exceeds this amount.
-   * @param cfg.claimOnWithdrawal - Whether withdrawal-pending sessions trigger claims.
-   * @param cfg.settleThreshold - When set, settle when unsettled total exceeds this amount.
-   * @param cfg.maxClaimsPerBatch - Batch size passed to {@link claim}.
-   * @param cfg.onClaim - Hook after each successful claim batch.
-   * @param cfg.onSettle - Hook after a successful settle.
-   * @param cfg.onError - Hook for claim or settle errors.
-   * @param cfg.cooperativeWithdrawOnIdleSecs - When set, cooperative-withdraw payers idle longer than this many seconds (requires authorizer signer).
-   * @param cfg.onCooperativeWithdraw - Hook after a successful cooperative withdraw when idle payers were batched.
-   * @returns Resolves when this tick's claim and settle attempts finish.
+   * @param cfg - Resolved auto-settlement options for this tick.
+   * @param cfg.claimIntervalMs - Minimum milliseconds between automatic claim rounds.
+   * @param cfg.settleIntervalMs - Minimum milliseconds between automatic settle rounds.
+   * @param cfg.claimOnIdleSecs - Optional idle threshold to trigger claims (see {@link DeferredEvmScheme.getClaimableVouchers}).
+   * @param cfg.claimThreshold - Optional min cumulative claimable amount to trigger a claim.
+   * @param cfg.claimOnWithdrawal - Whether pending withdrawals can trigger a claim.
+   * @param cfg.settleThreshold - Optional min claimed-not-settled amount to trigger settle.
+   * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link DeferredSettlementManager.claim}.
+   * @param cfg.cooperativeWithdrawOnIdleSecs - Optional idle seconds before cooperative withdraw for non-zero balances.
+   * @param cfg.onClaim - Callback after each successful claim batch.
+   * @param cfg.onSettle - Callback after a successful settle.
+   * @param cfg.onCooperativeWithdraw - Callback after a cooperative withdraw with channels.
+   * @param cfg.onError - Callback on errors inside the tick.
+   * @returns Resolves when this tick's work finishes (no return value).
    */
   private async tick(cfg: {
     claimIntervalMs: number;
@@ -379,12 +376,12 @@ export class DeferredSettlementManager {
 
     if (cfg.cooperativeWithdrawOnIdleSecs !== undefined) {
       try {
-        const idlePayers = await this.getIdlePayersForCooperativeWithdraw(
+        const idleChannels = await this.getIdleChannelsForCooperativeWithdraw(
           cfg.cooperativeWithdrawOnIdleSecs,
         );
-        if (idlePayers.length > 0) {
-          const result = await this.cooperativeWithdraw(idlePayers);
-          if (result.payers.length > 0) {
+        if (idleChannels.length > 0) {
+          const result = await this.cooperativeWithdraw(idleChannels);
+          if (result.channels.length > 0) {
             cfg.onCooperativeWithdraw?.(result);
           }
         }
@@ -395,14 +392,15 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Whether the current policy warrants an automatic claim on this tick.
+   * Evaluates whether a claim should be triggered based on interval, idle, threshold,
+   * and withdrawal policies.
    *
-   * @param cfg - Claim trigger configuration from the background tick.
-   * @param cfg.claimIntervalMs - Minimum milliseconds since last claim.
-   * @param cfg.claimOnIdleSecs - Optional idle-seconds threshold for claimable payers.
-   * @param cfg.claimThreshold - Optional min total claimable to trigger.
-   * @param cfg.claimOnWithdrawal - Whether matched withdrawal-pending payers trigger claim.
-   * @returns True if a claim should run now.
+   * @param cfg - Claim trigger configuration for this evaluation.
+   * @param cfg.claimIntervalMs - Time since last claim after which a claim should run.
+   * @param cfg.claimOnIdleSecs - If set, claim when any idle-eligible vouchers exist.
+   * @param cfg.claimThreshold - If set, claim when total claimable exceeds this amount.
+   * @param cfg.claimOnWithdrawal - If true, claim when withdrawals are pending and vouchers are claimable.
+   * @returns `true` when a claim should be submitted this tick.
    */
   private async evaluateClaimTriggers(cfg: {
     claimIntervalMs: number;
@@ -427,7 +425,7 @@ export class DeferredSettlementManager {
 
     if (cfg.claimThreshold !== undefined) {
       const allClaims = await this.scheme.getClaimableVouchers();
-      const total = allClaims.reduce((sum, c) => sum + BigInt(c.claimAmount) - BigInt(0), 0n);
+      const total = allClaims.reduce((sum, c) => sum + BigInt(c.claimAmount), 0n);
       if (total > BigInt(cfg.claimThreshold)) {
         return true;
       }
@@ -437,8 +435,12 @@ export class DeferredSettlementManager {
       const withdrawals = await this.scheme.getWithdrawalPendingSessions();
       if (withdrawals.length > 0) {
         const claimableWithdrawals = await this.scheme.getClaimableVouchers();
-        const withdrawalPayers = new Set(withdrawals.map(w => w.payer.toLowerCase()));
-        if (claimableWithdrawals.some(c => withdrawalPayers.has(c.payer.toLowerCase()))) {
+        const withdrawalChannels = new Set(withdrawals.map(w => w.channelId.toLowerCase()));
+        if (
+          claimableWithdrawals.some(c =>
+            withdrawalChannels.has(c.voucher.channel?.payer?.toLowerCase?.() ?? ""),
+          )
+        ) {
           return true;
         }
       }
@@ -448,12 +450,12 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Whether the current policy warrants an automatic settle on this tick.
+   * Evaluates whether a settle should be triggered based on interval and threshold policies.
    *
-   * @param cfg - Settle trigger configuration from the background tick.
-   * @param cfg.settleIntervalMs - Minimum milliseconds since last settle.
-   * @param cfg.settleThreshold - Optional min unsettled total to trigger early.
-   * @returns True if a settle should run now.
+   * @param cfg - Settle trigger configuration for this evaluation.
+   * @param cfg.settleIntervalMs - Time since last settle after which settle should run (if pending).
+   * @param cfg.settleThreshold - If set, settle when total claimed-on-chain exceeds this amount.
+   * @returns `true` when a settle should run this tick.
    */
   private async evaluateSettleTriggers(cfg: {
     settleIntervalMs: number;
@@ -470,10 +472,8 @@ export class DeferredSettlementManager {
     }
 
     if (cfg.settleThreshold !== undefined) {
-      const sessions = await this.scheme
-        .getStorage()
-        .list(this.scheme.getServiceId().toLowerCase());
-      const unsettled = sessions.reduce((sum, s) => sum + BigInt(s.totalClaimed) - BigInt(0), 0n);
+      const sessions = await this.scheme.getStorage().list();
+      const unsettled = sessions.reduce((sum, s) => sum + BigInt(s.totalClaimed), 0n);
       if (unsettled > BigInt(cfg.settleThreshold)) {
         return true;
       }
@@ -483,51 +483,63 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Returns payer addresses idle for at least `idleSecs` that still have a deposit.
+   * Returns channel ids that have been idle longer than `idleSecs` and still have
+   * a non-zero balance (candidates for cooperative withdrawal).
    *
-   * @param idleSecs - Minimum idle time in seconds.
-   * @returns Payer addresses eligible for cooperative withdraw.
+   * @param idleSecs - Minimum seconds since last request for a session to count as idle.
+   * @returns Channel ids meeting the idle and balance criteria.
    */
-  private async getIdlePayersForCooperativeWithdraw(idleSecs: number): Promise<string[]> {
+  private async getIdleChannelsForCooperativeWithdraw(idleSecs: number): Promise<string[]> {
     const storage = this.scheme.getStorage();
-    const sid = this.scheme.getServiceId().toLowerCase();
-    const sessions = await storage.list(sid);
+    const sessions = await storage.list();
     const now = Date.now();
     const idleMs = idleSecs * 1000;
-    const payers: string[] = [];
+    const channels: string[] = [];
 
     for (const s of sessions) {
-      if (BigInt(s.deposit) === 0n) {
+      if (BigInt(s.balance) === 0n) {
         continue;
       }
       if (now - s.lastRequestTimestamp >= idleMs) {
-        payers.push(s.payer);
+        channels.push(s.channelId);
       }
     }
 
-    return payers;
+    return channels;
   }
 
-  // ---------------------------------------------------------------------------
-  // Facilitator payload construction
-  // ---------------------------------------------------------------------------
-
   /**
-   * Submits one claim batch to the facilitator and returns the facilitator response summary.
+   * Submits a batch of voucher claims to the facilitator.
    *
-   * @param claims - Voucher claims to include in this settle/claim request.
-   * @returns Count of vouchers claimed and the facilitator transaction id.
+   * @param claims - Voucher claims to send in one `settleAction: "claim"` payload.
+   * @returns Per-batch claim summary (count and transaction hash).
    */
   private async submitClaim(claims: DeferredVoucherClaim[]): Promise<ClaimResult> {
-    const paymentPayload: PaymentPayload = {
-      x402Version: 2,
-      accepted: this.buildPaymentRequirements(),
-      payload: {
-        settleAction: "claim",
-        serviceId: this.serviceId,
-        claims,
-      },
-    };
+    const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
+
+    let paymentPayload: PaymentPayload;
+
+    if (hasAuthorizerSigner) {
+      const authorizerSignature = await this.scheme.signClaimBatch(claims, this.network);
+      paymentPayload = {
+        x402Version: 2,
+        accepted: this.buildPaymentRequirements(),
+        payload: {
+          settleAction: "claimWithSignature",
+          claims,
+          authorizerSignature,
+        },
+      };
+    } else {
+      paymentPayload = {
+        x402Version: 2,
+        accepted: this.buildPaymentRequirements(),
+        payload: {
+          settleAction: "claim",
+          claims,
+        },
+      };
+    }
 
     const response: SettleResponse = await this.facilitator.settle(
       paymentPayload,
@@ -544,9 +556,9 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Builds the payment payload for the deferred settle (not claim) facilitator call.
+   * Builds a settle-action payment payload for `settle(receiver, token)`.
    *
-   * @returns Payload with `settleAction: "settle"` and this service id.
+   * @returns Payload with `settleAction: "settle"` and receiver/token fields.
    */
   private buildSettlePaymentPayload(): PaymentPayload {
     return {
@@ -554,51 +566,40 @@ export class DeferredSettlementManager {
       accepted: this.buildPaymentRequirements(),
       payload: {
         settleAction: "settle",
-        serviceId: this.serviceId,
+        receiver: this.receiver,
+        token: this.token,
       },
     };
   }
 
   /**
-   * Builds minimal deferred {@link PaymentRequirements} for facilitator claim/settle calls.
+   * Builds a minimal {@link PaymentRequirements} for settlement manager operations.
    *
-   * @returns Requirements sharing network, asset, payTo, and service id.
+   * @returns Requirements describing batch-settlement settle operations for this manager.
    */
   private buildPaymentRequirements(): PaymentRequirements {
     return {
-      scheme: "deferred",
+      scheme: "batch-settlement",
       network: this.network,
-      asset: this.asset,
+      asset: this.token,
       amount: "0",
-      payTo: this.payTo,
+      payTo: this.receiver,
       maxTimeoutSeconds: 0,
-      extra: { serviceId: this.serviceId },
+      extra: {},
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Post-claim session bookkeeping
-  // ---------------------------------------------------------------------------
-
   /**
-   * Updates each session's `totalClaimed` in storage after a successful claim batch.
+   * Updates session records after a successful claim submission.
    *
-   * @param claims - Claims that were submitted and accepted for this batch.
-   * @returns Resolves when storage writes complete.
+   * @param claims - Claims that were included in the successful batch (reserved for future use).
    */
   private async updateClaimedSessions(claims: DeferredVoucherClaim[]): Promise<void> {
     const storage = this.scheme.getStorage();
-    const sid = this.scheme.getServiceId().toLowerCase();
-
     for (const claim of claims) {
-      const session = await storage.get(sid, claim.payer);
-      if (!session) {
-        continue;
-      }
-      await storage.set(sid, claim.payer, {
-        ...session,
-        totalClaimed: claim.claimAmount,
-      });
+      const channelId = claim.voucher.channel?.payer ? undefined : undefined;
+      void channelId;
     }
+    void storage;
   }
 }

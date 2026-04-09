@@ -1,20 +1,46 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredClaimPayload } from "../types";
-import { deferredEscrowABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS } from "../constants";
+import { DeferredClaimPayload, DeferredClaimWithSignaturePayload } from "../types";
+import { batchSettlementABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
 
 /**
- * Executes a batch claim on the escrow contract.
- * Submits claim(serviceId, VoucherClaim[]) to validate voucher signatures
- * and update subchannel accounting on-chain.
+ * Converts an array of {@link DeferredVoucherClaim} into the on-chain tuple format
+ * expected by the contract's `claim()` and `claimWithSignature()` functions.
  *
- * @param signer - The facilitator EVM signer.
- * @param payload - The claim payload with service id and voucher claims.
- * @param requirements - Payment requirements (network and billed `amount` for this settlement).
- * @returns Settlement outcome with transaction hash or error reason.
+ * @param claims - Typed voucher claims with channel config, amounts, and signatures.
+ * @returns Contract-ready VoucherClaim argument array.
+ */
+function buildVoucherClaimArgs(claims: DeferredClaimPayload["claims"]) {
+  return claims.map(c => ({
+    voucher: {
+      channel: {
+        payer: getAddress(c.voucher.channel.payer),
+        payerAuthorizer: getAddress(c.voucher.channel.payerAuthorizer),
+        receiver: getAddress(c.voucher.channel.receiver),
+        receiverAuthorizer: getAddress(c.voucher.channel.receiverAuthorizer),
+        token: getAddress(c.voucher.channel.token),
+        withdrawDelay: c.voucher.channel.withdrawDelay,
+        salt: c.voucher.channel.salt,
+      },
+      maxClaimableAmount: BigInt(c.voucher.maxClaimableAmount),
+    },
+    signature: c.signature,
+    claimAmount: BigInt(c.claimAmount),
+  }));
+}
+
+/**
+ * Submits a batch claim to the on-chain `claim()` function (self-claim path).
+ *
+ * The caller (facilitator) must be the receiver or have on-chain approval.
+ *
+ * @param signer - Facilitator signer used to submit the claim transaction.
+ * @param payload - Claim payload containing one or more voucher claims.
+ * @param requirements - Payment requirements for network identification.
+ * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeClaim(
   signer: FacilitatorEvmSigner,
@@ -22,20 +48,69 @@ export async function executeClaim(
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
-  const claimArgs = payload.claims.map(c => ({
-    payer: getAddress(c.payer),
-    cumulativeAmount: BigInt(c.cumulativeAmount),
-    claimAmount: BigInt(c.claimAmount),
-    nonce: BigInt(c.nonce),
-    signature: c.signature,
-  }));
+  const claimArgs = buildVoucherClaimArgs(payload.claims);
 
   try {
     const tx = await signer.writeContract({
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
       functionName: "claim",
-      args: [payload.serviceId, claimArgs],
+      args: [claimArgs],
+    });
+
+    const receipt = await signer.waitForTransactionReceipt({ hash: tx });
+
+    if (receipt.status !== "success") {
+      return {
+        success: false,
+        errorReason: Errors.ErrClaimTransactionFailed,
+        transaction: tx,
+        network,
+      };
+    }
+
+    return {
+      success: true,
+      transaction: tx,
+      network,
+      amount: requirements.amount,
+    };
+  } catch {
+    return {
+      success: false,
+      errorReason: Errors.ErrClaimTransactionFailed,
+      transaction: "",
+      network,
+    };
+  }
+}
+
+/**
+ * Submits a batch claim with a receiver-authorizer signature via `claimWithSignature()`.
+ *
+ * This path is used when a third party (not the receiver) submits the claim on behalf
+ * of the receiver, authorised by an off-chain EIP-712 `ClaimBatch` signature from the
+ * `receiverAuthorizer`.
+ *
+ * @param signer - Facilitator signer used to submit the claim transaction.
+ * @param payload - Claim payload containing voucher claims and the authorizer's signature.
+ * @param requirements - Payment requirements for network identification.
+ * @returns A {@link SettleResponse} with the transaction hash on success.
+ */
+export async function executeClaimWithSignature(
+  signer: FacilitatorEvmSigner,
+  payload: DeferredClaimWithSignaturePayload,
+  requirements: PaymentRequirements,
+): Promise<SettleResponse> {
+  const network = requirements.network;
+  const claimArgs = buildVoucherClaimArgs(payload.claims);
+
+  try {
+    const tx = await signer.writeContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "claimWithSignature",
+      args: [claimArgs, payload.authorizerSignature],
     });
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });

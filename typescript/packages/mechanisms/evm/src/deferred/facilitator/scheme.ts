@@ -11,70 +11,83 @@ import {
   DeferredDepositPayload,
   DeferredVoucherPayload,
   DeferredClaimPayload,
+  DeferredClaimWithSignaturePayload,
   DeferredSettleActionPayload,
   DeferredDepositSettlePayload,
-  DeferredCooperativeWithdrawSettlePayload,
+  DeferredCooperativeWithdrawPayload,
+  DeferredCooperativeWithdrawWithSignaturePayload,
   isDeferredDepositPayload,
   isDeferredVoucherPayload,
   isDeferredClaimPayload,
+  isDeferredClaimWithSignaturePayload,
   isDeferredSettleActionPayload,
   isDeferredDepositSettlePayload,
-  isDeferredCooperativeWithdrawSettlePayload,
+  isDeferredCooperativeWithdrawPayload,
+  isDeferredCooperativeWithdrawWithSignaturePayload,
 } from "../types";
 import { verifyDeposit, settleDeposit } from "./deposit";
 import { verifyVoucher } from "./voucher";
-import { executeClaim } from "./claim";
+import { executeClaim, executeClaimWithSignature } from "./claim";
 import { executeSettle } from "./settle";
-import { executeCooperativeWithdraw } from "./cooperativeWithdraw";
+import {
+  executeCooperativeWithdraw,
+  executeCooperativeWithdrawWithSignature,
+} from "./cooperativeWithdraw";
 import * as Errors from "./errors";
 
 /**
- * EVM facilitator implementation for the Deferred payment scheme.
- * Routes verify/settle to deposit, voucher, claim, or settle handlers
- * based on payload discriminators.
+ * Facilitator-side implementation of the `batch-settlement` scheme for EVM networks.
+ *
+ * Routes incoming verify/settle requests to the appropriate handler based on payload
+ * type (deposit, voucher, claim, claimWithSignature, settle, cooperativeWithdraw).
  */
 export class DeferredEvmScheme implements SchemeNetworkFacilitator {
-  readonly scheme = "deferred";
+  readonly scheme = "batch-settlement";
   readonly caipFamily = "eip155:*";
 
   /**
-   * Creates the deferred facilitator using the given EVM signer.
+   * Creates a facilitator scheme for verifying and settling deferred batch-settlement payments.
    *
-   * @param signer - The EVM signer used for facilitator contract operations.
+   * @param signer - Facilitator EVM signer used for on-chain reads, writes, and signature verification.
    */
   constructor(private readonly signer: FacilitatorEvmSigner) {}
 
   /**
-   * Returns optional extra metadata for a network; deferred uses none.
+   * Returns facilitator-specific extra fields to be merged into payment requirements.
    *
-   * @param _ - The network identifier (unused for this scheme).
-   * @returns Always undefined; deferred scheme does not attach extra metadata here.
+   * Exposes the facilitator's first signer address as `receiverAuthorizer` so the
+   * server and client can embed it in `ChannelConfig`.
+   *
+   * @param _ - Network identifier (unused).
+   * @returns Extra fields containing `receiverAuthorizer`, or undefined if no addresses configured.
    */
   getExtra(_: string): Record<string, unknown> | undefined {
-    return undefined;
+    const addresses = this.signer.getAddresses();
+    const receiverAuthorizer = addresses[0];
+    if (!receiverAuthorizer) return undefined;
+    return { receiverAuthorizer };
   }
 
   /**
-   * Returns facilitator signer addresses for the given network.
+   * Returns all facilitator signer addresses available for the given network.
    *
-   * @param _ - The network identifier (unused for this scheme).
-   * @returns Addresses returned by the facilitator signer.
+   * @param _ - Network identifier (unused).
+   * @returns Array of hex addresses.
    */
   getSigners(_: string): string[] {
     return [...this.signer.getAddresses()];
   }
 
   /**
-   * Verifies a deferred payment payload (deposit or voucher).
+   * Verifies a payment payload (deposit or voucher) without executing settlement.
    *
-   * Deposit verification uses local checks, typed-data signature verification, and a single Multicall3
-   * batch for escrow or balance reads; it does not simulate `receiveWithAuthorization` onchain or apply
-   * EIP-6492 factory deployment beyond what `FacilitatorEvmSigner.verifyTypedData` already supports.
+   * - Deposit payloads: validates ERC-3009 authorization + voucher signature + on-chain state.
+   * - Voucher payloads: validates cumulative voucher signature + on-chain channel balance.
    *
-   * @param payload - The payment payload to verify.
-   * @param requirements - The payment requirements to verify against.
+   * @param payload - The x402 payment payload envelope.
+   * @param requirements - Server payment requirements (scheme, network, asset, amount).
    * @param _ - Optional facilitator context (unused).
-   * @returns Verification result indicating validity and payer or error reason.
+   * @returns A {@link VerifyResponse} indicating validity with payer and channel state in `extra`.
    */
   async verify(
     payload: PaymentPayload,
@@ -83,7 +96,10 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload as Record<string, unknown>;
 
-    if (payload.accepted.scheme !== "deferred" || requirements.scheme !== "deferred") {
+    if (
+      payload.accepted.scheme !== "batch-settlement" ||
+      requirements.scheme !== "batch-settlement"
+    ) {
       return { isValid: false, invalidReason: Errors.ErrInvalidScheme };
     }
 
@@ -96,19 +112,28 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
     }
 
     if (isDeferredVoucherPayload(rawPayload)) {
-      return verifyVoucher(this.signer, rawPayload as DeferredVoucherPayload, requirements);
+      const voucherPayload = rawPayload as unknown as DeferredVoucherPayload;
+      return verifyVoucher(this.signer, voucherPayload, requirements, voucherPayload.channelConfig);
     }
 
     return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType };
   }
 
   /**
-   * Settles a deferred payment (deposit, claim, settle action, or deposit-only settle).
+   * Executes settlement for a payment payload.
    *
-   * @param payload - The payment payload to settle.
-   * @param requirements - The payment requirements to settle against.
+   * Dispatches to the correct handler based on payload settle action:
+   * - `deposit` → on-chain `depositWithERC3009`
+   * - `claim` → on-chain `claim(VoucherClaim[])`
+   * - `claimWithSignature` → on-chain `claimWithSignature(VoucherClaim[], bytes)`
+   * - `settle` → on-chain `settle(receiver, token)`
+   * - `cooperativeWithdraw` → optional claim + onchain `cooperativeWithdraw` (msg.sender-gated)
+   * - `cooperativeWithdrawWithSignature` → optional claim + onchain `cooperativeWithdrawWithSignature`
+   *
+   * @param payload - The x402 payment payload envelope.
+   * @param requirements - Server payment requirements.
    * @param _ - Optional facilitator context (unused).
-   * @returns Settlement result including transaction hash and network.
+   * @returns A {@link SettleResponse} with the transaction hash on success.
    */
   async settle(
     payload: PaymentPayload,
@@ -135,10 +160,26 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
       return executeClaim(this.signer, rawPayload as unknown as DeferredClaimPayload, requirements);
     }
 
-    if (isDeferredCooperativeWithdrawSettlePayload(rawPayload)) {
+    if (isDeferredClaimWithSignaturePayload(rawPayload)) {
+      return executeClaimWithSignature(
+        this.signer,
+        rawPayload as unknown as DeferredClaimWithSignaturePayload,
+        requirements,
+      );
+    }
+
+    if (isDeferredCooperativeWithdrawWithSignaturePayload(rawPayload)) {
+      return executeCooperativeWithdrawWithSignature(
+        this.signer,
+        rawPayload as unknown as DeferredCooperativeWithdrawWithSignaturePayload,
+        requirements,
+      );
+    }
+
+    if (isDeferredCooperativeWithdrawPayload(rawPayload)) {
       return executeCooperativeWithdraw(
         this.signer,
-        rawPayload as unknown as DeferredCooperativeWithdrawSettlePayload,
+        rawPayload as unknown as DeferredCooperativeWithdrawPayload,
         requirements,
       );
     }

@@ -109,15 +109,19 @@ export type UptoPermit2Payload = {
   };
 };
 
-// Deferred types
+// Deferred / batch-settlement types
 export type {
+  ChannelConfig,
   DeferredDepositPayload,
   DeferredVoucherPayload,
   DeferredVoucherFields,
   DeferredErc3009Authorization,
   DeferredClaimPayload,
+  DeferredClaimWithSignaturePayload,
   DeferredSettleActionPayload,
   DeferredDepositSettlePayload,
+  DeferredCooperativeWithdrawPayload,
+  DeferredCooperativeWithdrawWithSignaturePayload,
   DeferredVoucherClaim,
   DeferredPayload,
   DeferredSettlePayload,
@@ -126,8 +130,11 @@ export {
   isDeferredDepositPayload,
   isDeferredVoucherPayload,
   isDeferredClaimPayload,
+  isDeferredClaimWithSignaturePayload,
   isDeferredSettleActionPayload,
   isDeferredDepositSettlePayload,
+  isDeferredCooperativeWithdrawPayload,
+  isDeferredCooperativeWithdrawWithSignaturePayload,
 } from "./deferred/types";
 
 /**

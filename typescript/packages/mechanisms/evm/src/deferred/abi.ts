@@ -1,10 +1,46 @@
-export const deferredEscrowABI = [
+export const channelConfigComponents = [
+  { name: "payer", type: "address" },
+  { name: "payerAuthorizer", type: "address" },
+  { name: "receiver", type: "address" },
+  { name: "receiverAuthorizer", type: "address" },
+  { name: "token", type: "address" },
+  { name: "withdrawDelay", type: "uint40" },
+  { name: "salt", type: "bytes32" },
+] as const;
+
+const voucherClaimComponents = [
+  {
+    name: "voucher",
+    type: "tuple",
+    components: [
+      {
+        name: "channel",
+        type: "tuple",
+        components: channelConfigComponents,
+      },
+      { name: "maxClaimableAmount", type: "uint128" },
+    ],
+  },
+  { name: "signature", type: "bytes" },
+  { name: "claimAmount", type: "uint128" },
+] as const;
+
+export const batchSettlementABI = [
+  {
+    type: "function",
+    name: "deposit",
+    inputs: [
+      { name: "config", type: "tuple", components: channelConfigComponents },
+      { name: "amount", type: "uint128" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
   {
     type: "function",
     name: "depositWithERC3009",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
+      { name: "config", type: "tuple", components: channelConfigComponents },
       { name: "amount", type: "uint128" },
       { name: "validAfter", type: "uint256" },
       { name: "validBefore", type: "uint256" },
@@ -16,20 +52,43 @@ export const deferredEscrowABI = [
   },
   {
     type: "function",
-    name: "claim",
+    name: "depositWithPermit2",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
+      { name: "config", type: "tuple", components: channelConfigComponents },
       {
-        name: "claims",
-        type: "tuple[]",
+        name: "permit",
+        type: "tuple",
         components: [
-          { name: "payer", type: "address" },
-          { name: "cumulativeAmount", type: "uint128" },
-          { name: "claimAmount", type: "uint128" },
-          { name: "nonce", type: "uint64" },
-          { name: "signature", type: "bytes" },
+          {
+            name: "permitted",
+            type: "tuple",
+            components: [
+              { name: "token", type: "address" },
+              { name: "amount", type: "uint256" },
+            ],
+          },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
         ],
       },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claim",
+    inputs: [{ name: "voucherClaims", type: "tuple[]", components: voucherClaimComponents }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claimWithSignature",
+    inputs: [
+      { name: "voucherClaims", type: "tuple[]", components: voucherClaimComponents },
+      { name: "authorizerSignature", type: "bytes" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -37,149 +96,65 @@ export const deferredEscrowABI = [
   {
     type: "function",
     name: "settle",
-    inputs: [{ name: "serviceId", type: "bytes32" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "register",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payTo", type: "address" },
+      { name: "receiver", type: "address" },
       { name: "token", type: "address" },
-      { name: "authorizer", type: "address" },
-      { name: "withdrawWindow", type: "uint64" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "addAuthorizer",
+    name: "initiateWithdraw",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "newAuthorizer", type: "address" },
-      { name: "authSignature", type: "bytes" },
+      { name: "config", type: "tuple", components: channelConfigComponents },
+      { name: "amount", type: "uint128" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "removeAuthorizer",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "target", type: "address" },
-      { name: "authSignature", type: "bytes" },
-    ],
+    name: "finalizeWithdraw",
+    inputs: [{ name: "config", type: "tuple", components: channelConfigComponents }],
     outputs: [],
     stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "updatePayTo",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "newPayTo", type: "address" },
-      { name: "authSignature", type: "bytes" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "updateWithdrawWindow",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "newWindow", type: "uint64" },
-      { name: "authSignature", type: "bytes" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "requestWithdrawal",
-    inputs: [{ name: "serviceId", type: "bytes32" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "requestWithdrawalFor",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
-      { name: "authorization", type: "bytes" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "withdraw",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "getService",
-    inputs: [{ name: "serviceId", type: "bytes32" }],
-    outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "token", type: "address" },
-          { name: "withdrawWindow", type: "uint64" },
-          { name: "registered", type: "bool" },
-          { name: "payTo", type: "address" },
-          { name: "unsettled", type: "uint128" },
-          { name: "adminNonce", type: "uint256" },
-        ],
-      },
-    ],
-    stateMutability: "view",
   },
   {
     type: "function",
     name: "cooperativeWithdraw",
+    inputs: [{ name: "config", type: "tuple", components: channelConfigComponents }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "cooperativeWithdrawWithSignature",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
-      {
-        name: "requests",
-        type: "tuple[]",
-        components: [
-          { name: "payer", type: "address" },
-          { name: "authorizerSignature", type: "bytes" },
-        ],
-      },
+      { name: "config", type: "tuple", components: channelConfigComponents },
+      { name: "receiverAuthorizerSignature", type: "bytes" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "getSubchannel",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
-    ],
+    name: "getChannelId",
+    inputs: [{ name: "config", type: "tuple", components: channelConfigComponents }],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getChannel",
+    inputs: [{ name: "channelId", type: "bytes32" }],
     outputs: [
       {
         name: "",
         type: "tuple",
         components: [
-          { name: "deposit", type: "uint128" },
+          { name: "balance", type: "uint128" },
           { name: "totalClaimed", type: "uint128" },
-          { name: "nonce", type: "uint64" },
-          { name: "withdrawRequestedAt", type: "uint64" },
-          { name: "withdrawNonce", type: "uint64" },
         ],
       },
     ],
@@ -187,12 +162,37 @@ export const deferredEscrowABI = [
   },
   {
     type: "function",
-    name: "isAuthorizer",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "account", type: "address" },
+    name: "getPendingWithdrawal",
+    inputs: [{ name: "channelId", type: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "amount", type: "uint128" },
+          { name: "initiatedAt", type: "uint40" },
+        ],
+      },
     ],
-    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getReceiver",
+    inputs: [
+      { name: "receiver", type: "address" },
+      { name: "token", type: "address" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "totalClaimed", type: "uint128" },
+          { name: "totalSettled", type: "uint128" },
+        ],
+      },
+    ],
     stateMutability: "view",
   },
   {
@@ -206,10 +206,8 @@ export const deferredEscrowABI = [
     type: "function",
     name: "getVoucherDigest",
     inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
-      { name: "cumulativeAmount", type: "uint128" },
-      { name: "nonce", type: "uint64" },
+      { name: "channelId", type: "bytes32" },
+      { name: "maxClaimableAmount", type: "uint128" },
     ],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
@@ -217,11 +215,14 @@ export const deferredEscrowABI = [
   {
     type: "function",
     name: "getCooperativeWithdrawDigest",
-    inputs: [
-      { name: "serviceId", type: "bytes32" },
-      { name: "payer", type: "address" },
-      { name: "withdrawNonce", type: "uint64" },
-    ],
+    inputs: [{ name: "channelId", type: "bytes32" }],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getClaimBatchDigest",
+    inputs: [{ name: "voucherClaims", type: "tuple[]", components: voucherClaimComponents }],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },

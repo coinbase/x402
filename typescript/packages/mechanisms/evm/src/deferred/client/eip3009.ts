@@ -1,36 +1,37 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { getAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
-import { DeferredDepositPayload } from "../types";
-import { DEFERRED_ESCROW_ADDRESS, receiveAuthorizationTypes } from "../constants";
+import { ChannelConfig, DeferredDepositPayload } from "../types";
+import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
 import { createNonce, getEvmChainId } from "../../utils";
 import { signVoucher } from "./voucher";
+import { computeChannelId } from "../utils";
 
 /**
- * Creates a deposit payload with EIP-3009 ReceiveWithAuthorization
- * (to = escrow contract) plus the first voucher.
+ * Creates a deposit payload that bundles an ERC-3009 `receiveWithAuthorization` approval
+ * together with a cumulative voucher signature.
  *
- * @param signer - The client EVM signer.
- * @param x402Version - The x402 protocol version for the payload envelope.
- * @param paymentRequirements - Requirements including asset, timeouts, and EIP-712 domain in `extra`.
- * @param depositAmount - Token amount to deposit (smallest units).
- * @param cumulativeAmount - New cumulative charged amount for the voucher.
- * @param voucherNonce - Nonce for the signed voucher.
- * @returns The x402 version and typed deferred deposit payload.
+ * When the facilitator submits this payload on-chain, the contract atomically transfers
+ * tokens from the payer into the channel and records the initial voucher.
+ *
+ * @param signer - Client wallet used to sign the ERC-3009 authorization (`from` = payer).
+ * @param x402Version - Protocol version to embed in the payload envelope.
+ * @param paymentRequirements - Server-provided payment requirements (asset, network, amount, etc.).
+ * @param channelConfig - Immutable channel configuration (payer, receiver, token, …).
+ * @param depositAmount - Number of tokens (decimal string) to deposit into the channel.
+ * @param maxClaimableAmount - Cumulative ceiling for the accompanying voucher.
+ * @param voucherSigner - Optional key that signs the voucher; defaults to `signer` (same as payer).
+ * @returns A {@link PaymentPayloadResult} containing the signed deposit + voucher payload.
  */
 export async function createDeferredEIP3009DepositPayload(
   signer: ClientEvmSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
+  channelConfig: ChannelConfig,
   depositAmount: string,
-  cumulativeAmount: string,
-  voucherNonce: number,
+  maxClaimableAmount: string,
+  voucherSigner?: ClientEvmSigner,
 ): Promise<PaymentPayloadResult> {
-  const serviceId = paymentRequirements.extra?.serviceId as `0x${string}`;
-  if (!serviceId) {
-    throw new Error("Missing serviceId in paymentRequirements.extra");
-  }
-
   const nonce = createNonce();
   const now = Math.floor(Date.now() / 1000);
   const chainId = getEvmChainId(paymentRequirements.network);
@@ -54,7 +55,7 @@ export async function createDeferredEIP3009DepositPayload(
     primaryType: "ReceiveWithAuthorization",
     message: {
       from: getAddress(signer.address),
-      to: getAddress(DEFERRED_ESCROW_ADDRESS),
+      to: getAddress(BATCH_SETTLEMENT_ADDRESS),
       value: BigInt(depositAmount),
       validAfter: BigInt(now - 600),
       validBefore: BigInt(now + paymentRequirements.maxTimeoutSeconds),
@@ -62,19 +63,19 @@ export async function createDeferredEIP3009DepositPayload(
     },
   });
 
+  const channelId = computeChannelId(channelConfig);
+  const vSigner = voucherSigner ?? signer;
   const voucher = await signVoucher(
-    signer,
-    serviceId,
-    cumulativeAmount,
-    voucherNonce,
+    vSigner,
+    channelId,
+    maxClaimableAmount,
     paymentRequirements.network,
   );
 
   const payload: DeferredDepositPayload = {
     type: "deposit",
     deposit: {
-      serviceId,
-      payer: signer.address,
+      channelConfig,
       amount: depositAmount,
       authorization: {
         erc3009Authorization: {

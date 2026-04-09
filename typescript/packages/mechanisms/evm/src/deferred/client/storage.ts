@@ -1,20 +1,18 @@
 /**
- * Client-side subchannel session fields mirrored from PAYMENT-RESPONSE / recovery flows.
+ * Client-side channel session fields mirrored from PAYMENT-RESPONSE / recovery flows.
  */
 export interface DeferredClientContext {
-  /** Current cumulative amount charged by the server for this subchannel */
+  /** Current cumulative amount charged by the server for this channel */
   chargedCumulativeAmount?: string;
-  /** Last nonce used in this subchannel */
-  lastNonce?: number;
-  /** Current deposit amount on-chain for this subchannel */
-  currentDeposit?: string;
+  /** Current on-chain channel balance */
+  balance?: string;
   /** Total claimed on-chain */
   totalClaimed?: string;
   /** Amount to deposit (only for deposit payloads) */
   depositAmount?: string;
-  /** Latest client-signed cumulative cap (after corrective recovery, optional) */
-  signedCumulativeAmount?: string;
-  /** Client voucher signature for {@link signedCumulativeAmount} (optional) */
+  /** Latest client-signed maxClaimableAmount cap (after corrective recovery, optional) */
+  signedMaxClaimable?: string;
+  /** Client voucher signature for {@link signedMaxClaimable} (optional) */
   signature?: `0x${string}`;
 }
 
@@ -33,7 +31,7 @@ export class InMemoryClientSessionStorage implements ClientSessionStorage {
   /**
    * Returns the session for `key` if present.
    *
-   * @param key - Session storage key (e.g. derived from service id).
+   * @param key - Session storage key (channelId).
    * @returns Persisted context or undefined.
    */
   async get(key: string): Promise<DeferredClientContext | undefined> {
@@ -44,7 +42,7 @@ export class InMemoryClientSessionStorage implements ClientSessionStorage {
    * Stores or replaces the session for `key`.
    *
    * @param key - Session storage key.
-   * @param context - Subchannel fields to persist.
+   * @param context - Channel fields to persist.
    * @returns Resolves when stored.
    */
   async set(key: string, context: DeferredClientContext): Promise<void> {

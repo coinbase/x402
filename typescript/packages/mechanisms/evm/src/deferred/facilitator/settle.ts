@@ -2,18 +2,20 @@ import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { DeferredSettleActionPayload } from "../types";
-import { deferredEscrowABI } from "../abi";
-import { DEFERRED_ESCROW_ADDRESS } from "../constants";
+import { batchSettlementABI } from "../abi";
+import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
 
 /**
- * Executes settle on the escrow contract.
- * Transfers all claimed-but-unsettled funds to the service's current payTo address.
+ * Transfers claimed funds from the contract.
  *
- * @param signer - The facilitator EVM signer.
- * @param payload - The settle action payload with service id.
- * @param requirements - Payment requirements (network and optional billed `amount` for this call).
- * @returns Settlement outcome with transaction hash or error reason.
+ * This should be called after one or more `claim()` transactions have updated the
+ * receiver's `totalClaimed` accounting on-chain.
+ *
+ * @param signer - Facilitator signer used to submit the settlement transaction.
+ * @param payload - Settle payload containing the receiver address and token address.
+ * @param requirements - Payment requirements for network identification.
+ * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeSettle(
   signer: FacilitatorEvmSigner,
@@ -23,10 +25,10 @@ export async function executeSettle(
   const network = requirements.network;
   try {
     const tx = await signer.writeContract({
-      address: getAddress(DEFERRED_ESCROW_ADDRESS),
-      abi: deferredEscrowABI,
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
       functionName: "settle",
-      args: [payload.serviceId],
+      args: [getAddress(payload.receiver), getAddress(payload.token)],
     });
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
