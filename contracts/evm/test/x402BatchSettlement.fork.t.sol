@@ -118,8 +118,8 @@ contract X402BatchSettlementForkTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function _signCooperativeWithdraw(bytes32 channelId) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), channelId));
+    function _signRefund(bytes32 channelId) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverAuthKey, digest);
         return abi.encodePacked(r, s, v);
@@ -171,7 +171,7 @@ contract X402BatchSettlementForkTest is Test {
         assertEq(token.balanceOf(receiverAddr), balBefore + CLAIM_AMOUNT);
     }
 
-    function test_fork_cooperativeWithdraw_afterPartialClaim() public onlyFork {
+    function test_fork_refund_afterPartialClaim() public onlyFork {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
 
@@ -189,9 +189,9 @@ contract X402BatchSettlementForkTest is Test {
         vm.prank(receiverAuthAddr);
         settlement.claim(claims);
 
-        bytes memory coopSig = _signCooperativeWithdraw(channelId);
+        bytes memory refundSig = _signRefund(channelId);
         uint256 payerBalBefore = token.balanceOf(payer);
-        settlement.cooperativeWithdrawWithSignature(config, coopSig);
+        settlement.refundWithSignature(config, refundSig);
 
         assertEq(token.balanceOf(payer), payerBalBefore + (DEPOSIT_AMOUNT - CLAIM_AMOUNT));
     }

@@ -126,11 +126,11 @@ contract X402BatchSettlementTest is Test {
         return _signTypedData(wallet, structHash);
     }
 
-    function _signCooperativeWithdraw(VmSafe.Wallet memory wallet, bytes32 channelId)
+    function _signRefund(VmSafe.Wallet memory wallet, bytes32 channelId)
         internal
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), channelId));
+        bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId));
         return _signTypedData(wallet, structHash);
     }
 
@@ -758,7 +758,7 @@ contract X402BatchSettlementTest is Test {
     // Cooperative Withdrawal Tests
     // =========================================================================
 
-    function test_cooperativeWithdraw_directCall() public {
+    function test_refund_directCall() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
@@ -774,7 +774,7 @@ contract X402BatchSettlementTest is Test {
         emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT, receiverAuthWallet.addr);
 
         vm.prank(receiverAuthWallet.addr);
-        settlement.cooperativeWithdraw(config);
+        settlement.refund(config);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
 
@@ -782,16 +782,16 @@ contract X402BatchSettlementTest is Test {
         assertEq(ch.balance, ch.totalClaimed);
     }
 
-    function test_cooperativeWithdraw_revert_notReceiverAuthorizer() public {
+    function test_refund_revert_notReceiverAuthorizer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _deposit(config, DEPOSIT_AMOUNT);
 
         vm.prank(otherWallet.addr);
         vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
-        settlement.cooperativeWithdraw(config);
+        settlement.refund(config);
     }
 
-    function test_cooperativeWithdrawWithSignature_success() public {
+    function test_refundWithSignature_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
@@ -801,16 +801,16 @@ contract X402BatchSettlementTest is Test {
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
+        bytes memory sig = _signRefund(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
         vm.prank(otherWallet.addr);
-        settlement.cooperativeWithdrawWithSignature(config, sig);
+        settlement.refundWithSignature(config, sig);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
     }
 
-    function test_cooperativeWithdrawWithSignature_clearsPendingWithdrawal() public {
+    function test_refundWithSignature_clearsPendingWithdrawal() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
@@ -818,14 +818,14 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
-        settlement.cooperativeWithdrawWithSignature(config, sig);
+        bytes memory sig = _signRefund(receiverAuthWallet, channelId);
+        settlement.refundWithSignature(config, sig);
 
         x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
     }
 
-    function test_cooperativeWithdrawWithSignature_zeroRefund() public {
+    function test_refundWithSignature_zeroRefund() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
@@ -835,22 +835,22 @@ contract X402BatchSettlementTest is Test {
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
+        bytes memory sig = _signRefund(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
-        settlement.cooperativeWithdrawWithSignature(config, sig);
+        settlement.refundWithSignature(config, sig);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore);
     }
 
-    function test_cooperativeWithdrawWithSignature_revert_wrongSignature() public {
+    function test_refundWithSignature_revert_wrongSignature() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
 
-        bytes memory badSig = _signCooperativeWithdraw(otherWallet, channelId);
+        bytes memory badSig = _signRefund(otherWallet, channelId);
         vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.cooperativeWithdrawWithSignature(config, badSig);
+        settlement.refundWithSignature(config, badSig);
     }
 
     // =========================================================================
@@ -887,7 +887,7 @@ contract X402BatchSettlementTest is Test {
         assertEq(settlement.getVoucherDigest(channelId, 100), expected);
     }
 
-    function test_getCooperativeWithdrawDigest_matches() public view {
+    function test_getRefundDigest_matches() public view {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
 
@@ -895,10 +895,10 @@ contract X402BatchSettlementTest is Test {
             abi.encodePacked(
                 "\x19\x01",
                 settlement.domainSeparator(),
-                keccak256(abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), channelId))
+                keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId))
             )
         );
-        assertEq(settlement.getCooperativeWithdrawDigest(channelId), expected);
+        assertEq(settlement.getRefundDigest(channelId), expected);
     }
 
     function test_getClaimBatchDigest_matches() public {
@@ -923,7 +923,7 @@ contract X402BatchSettlementTest is Test {
         _deposit(config, DEPOSIT_AMOUNT);
 
         vm.prank(receiverAuthWallet.addr);
-        settlement.cooperativeWithdraw(config);
+        settlement.refund(config);
 
         _deposit(config, DEPOSIT_AMOUNT);
 

@@ -75,8 +75,8 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     bytes32 public constant VOUCHER_TYPEHASH =
         keccak256("Voucher(bytes32 channelId,uint128 maxClaimableAmount)");
 
-    bytes32 public constant COOPERATIVE_WITHDRAW_TYPEHASH =
-        keccak256("CooperativeWithdraw(bytes32 channelId)");
+    bytes32 public constant REFUND_TYPEHASH =
+        keccak256("Refund(bytes32 channelId)");
 
     bytes32 public constant CLAIM_BATCH_TYPEHASH =
         keccak256("ClaimBatch(bytes32 claimsHash)");
@@ -307,28 +307,28 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         }
     }
 
-    /// @notice Instant cooperative withdrawal called by the receiverAuthorizer.
-    function cooperativeWithdraw(
+    /// @notice Instant refund called by the receiverAuthorizer.
+    function refund(
         ChannelConfig calldata config
     ) external nonReentrant {
         if (msg.sender != config.receiverAuthorizer)
             revert NotReceiverAuthorizer();
-        _executeCooperativeWithdraw(config);
+        _executeRefund(config);
     }
 
-    /// @notice Instant cooperative withdrawal. Anyone can submit with a signature authorized by the receiverAuthorizer.
-    function cooperativeWithdrawWithSignature(
+    /// @notice Instant refund. Anyone can submit with a signature authorized by the receiverAuthorizer.
+    function refundWithSignature(
         ChannelConfig calldata config,
         bytes calldata receiverAuthorizerSignature
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
         _verifyReceiverAuthorizer(
-            COOPERATIVE_WITHDRAW_TYPEHASH,
+            REFUND_TYPEHASH,
             channelId,
             config.receiverAuthorizer,
             receiverAuthorizerSignature
         );
-        _executeCooperativeWithdraw(config);
+        _executeRefund(config);
     }
 
     // =========================================================================
@@ -376,12 +376,12 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
             );
     }
 
-    function getCooperativeWithdrawDigest(
+    function getRefundDigest(
         bytes32 channelId
     ) external view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(COOPERATIVE_WITHDRAW_TYPEHASH, channelId))
+                keccak256(abi.encode(REFUND_TYPEHASH, channelId))
             );
     }
 
@@ -507,19 +507,19 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         }
     }
 
-    function _executeCooperativeWithdraw(
+    function _executeRefund(
         ChannelConfig calldata config
     ) internal {
         bytes32 channelId = getChannelId(config);
         ChannelState storage ch = channels[channelId];
-        uint128 refund = ch.balance - ch.totalClaimed;
+        uint128 refundAmount = ch.balance - ch.totalClaimed;
         ch.balance = ch.totalClaimed;
 
         _clearPendingWithdrawal(channelId);
-        emit WithdrawFinalized(channelId, refund, msg.sender);
+        emit WithdrawFinalized(channelId, refundAmount, msg.sender);
 
-        if (refund > 0) {
-            IERC20(config.token).safeTransfer(config.payer, refund);
+        if (refundAmount > 0) {
+            IERC20(config.token).safeTransfer(config.payer, refundAmount);
         }
     }
 
