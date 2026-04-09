@@ -36,6 +36,9 @@ export { UptoEvmScheme } from "./upto";
 export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
+// ERC-8021 Builder Code
+export { buildErc8021Suffix } from "./erc8021";
+
 // Constants
 export {
   PERMIT2_ADDRESS,

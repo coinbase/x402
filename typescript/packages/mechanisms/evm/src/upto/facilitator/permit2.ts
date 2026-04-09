@@ -14,6 +14,7 @@ import {
   type Erc20ApprovalGasSponsoringSigner,
 } from "../../exact/extensions";
 import { getAddress, encodeFunctionData } from "viem";
+import { writeContractWithBuilderCode, buildErc8021Suffix } from "../../erc8021";
 import {
   PERMIT2_ADDRESS,
   uptoPermit2WitnessTypes,
@@ -57,6 +58,8 @@ export interface VerifyUptoPermit2Options {
 
 export interface UptoPermit2FacilitatorConfig {
   simulateInSettle?: boolean;
+  /** ERC-8021 Builder Code to append to settlement calldata. */
+  builderCode?: string;
 }
 
 /**
@@ -409,6 +412,7 @@ export async function settleUptoPermit2(
   }
 
   const facilitatorAddress = getAddress(permit2Payload.permit2Authorization.witness.facilitator);
+  const builderCode = config?.builderCode;
 
   // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
@@ -420,6 +424,7 @@ export async function settleUptoPermit2(
       eip2612Info,
       settlementAmount,
       facilitatorAddress,
+      builderCode,
     );
   }
 
@@ -442,12 +447,20 @@ export async function settleUptoPermit2(
         erc20Info,
         settlementAmount,
         facilitatorAddress,
+        builderCode,
       );
     }
   }
 
   // Branch: standard settle (allowance already on-chain)
-  return settleUptoDirect(signer, payload, permit2Payload, settlementAmount, facilitatorAddress);
+  return settleUptoDirect(
+    signer,
+    payload,
+    permit2Payload,
+    settlementAmount,
+    facilitatorAddress,
+    builderCode,
+  );
 }
 
 /**
@@ -459,6 +472,7 @@ export async function settleUptoPermit2(
  * @param eip2612Info - The EIP-2612 gas sponsoring info from the payload extension
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoWithEIP2612(
@@ -468,26 +482,31 @@ async function settleUptoWithEIP2612(
   eip2612Info: Eip2612GasSponsoringInfo,
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
     const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
 
-    const tx = await signer.writeContract({
-      address: uptoProxyConfig.proxyAddress,
-      abi: uptoProxyConfig.proxyABI,
-      functionName: "settleWithPermit",
-      args: [
-        {
-          value: BigInt(eip2612Info.amount),
-          deadline: BigInt(eip2612Info.deadline),
-          r,
-          s,
-          v,
-        },
-        ...buildUptoPermit2SettleArgs(permit2Payload, settlementAmount, facilitatorAddress),
-      ],
-    });
+    const tx = await writeContractWithBuilderCode(
+      signer,
+      {
+        address: uptoProxyConfig.proxyAddress,
+        abi: uptoProxyConfig.proxyABI,
+        functionName: "settleWithPermit",
+        args: [
+          {
+            value: BigInt(eip2612Info.amount),
+            deadline: BigInt(eip2612Info.deadline),
+            r,
+            s,
+            v,
+          },
+          ...buildUptoPermit2SettleArgs(permit2Payload, settlementAmount, facilitatorAddress),
+        ],
+      },
+      builderCode,
+    );
 
     const response = await waitAndReturnSettleResponse(signer, tx, payload, payer);
     return { ...response, amount: settlementAmount.toString() };
@@ -509,6 +528,7 @@ async function settleUptoWithEIP2612(
  * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction hex string
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoWithERC20Approval(
@@ -518,15 +538,20 @@ async function settleUptoWithERC20Approval(
   erc20Info: { signedTransaction: string },
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
 
   try {
-    const settleData = encodeFunctionData({
+    let settleData = encodeFunctionData({
       abi: uptoProxyConfig.proxyABI,
       functionName: "settle",
       args: buildUptoPermit2SettleArgs(permit2Payload, settlementAmount, facilitatorAddress),
     });
+
+    if (builderCode) {
+      settleData = `${settleData}${buildErc8021Suffix(builderCode)}` as `0x${string}`;
+    }
 
     const txHashes = await extensionSigner.sendTransactions([
       erc20Info.signedTransaction as `0x${string}`,
@@ -554,6 +579,7 @@ async function settleUptoWithERC20Approval(
  * @param permit2Payload - The upto Permit2 specific payload with authorization and signature
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoDirect(
@@ -562,15 +588,20 @@ async function settleUptoDirect(
   permit2Payload: UptoPermit2Payload,
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
-    const tx = await signer.writeContract({
-      address: uptoProxyConfig.proxyAddress,
-      abi: uptoProxyConfig.proxyABI,
-      functionName: "settle",
-      args: buildUptoPermit2SettleArgs(permit2Payload, settlementAmount, facilitatorAddress),
-    });
+    const tx = await writeContractWithBuilderCode(
+      signer,
+      {
+        address: uptoProxyConfig.proxyAddress,
+        abi: uptoProxyConfig.proxyABI,
+        functionName: "settle",
+        args: buildUptoPermit2SettleArgs(permit2Payload, settlementAmount, facilitatorAddress),
+      },
+      builderCode,
+    );
 
     const response = await waitAndReturnSettleResponse(signer, tx, payload, payer);
     return { ...response, amount: settlementAmount.toString() };
