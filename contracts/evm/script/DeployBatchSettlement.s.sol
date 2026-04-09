@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console2} from "forge-std/Script.sol";
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 import {Permit2DepositCollector} from "../src/periphery/Permit2DepositCollector.sol";
-import {Permit2WithPermitDepositCollector} from "../src/periphery/Permit2WithPermitDepositCollector.sol";
+import {Permit2WithERC2612DepositCollector} from "../src/periphery/Permit2WithERC2612DepositCollector.sol";
 import {ERC3009DepositCollector} from "../src/periphery/ERC3009DepositCollector.sol";
 
 /// @title DeployBatchSettlement
@@ -21,7 +21,10 @@ contract DeployBatchSettlement is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer (same on all EVM chains)
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    bytes32 constant BATCH_SALT = 0x00000000000000000000000000000000000000000000000020000000041a1d56;
+    bytes32 constant BATCH_SALT = 0x3ae0178c98d9f45c37d2b84ff96b0b02268269ea699dfbcb47374a79ef0156b0;
+    bytes32 constant ERC3009_SALT = 0xb2ec2379b202aede0729d830e1d0d267773fc2cac72c62f3225e29664737db12;
+    bytes32 constant PERMIT2_COLLECTOR_SALT = 0x111b85d49160296fc0fb956a78308c07197adb99d9bba5901e94e7c4929ec8e2;
+    bytes32 constant PERMIT2_ERC2612_SALT = 0x785692bab508580f81a234bd806b3044ef4da86fd9aaeb281f107bd49ed11859;
 
     function run() public {
         address permit2 = vm.envOr("PERMIT2_ADDRESS", CANONICAL_PERMIT2);
@@ -60,37 +63,11 @@ contract DeployBatchSettlement is Script {
         console2.log("  Deploying x402BatchSettlement");
         console2.log("------------------------------------------------------------");
 
-        bytes memory initCode = type(x402BatchSettlement).creationCode;
-        bytes32 initCodeHash = keccak256(initCode);
-        address expectedAddress = _computeCreate2Addr(BATCH_SALT, initCodeHash, CREATE2_DEPLOYER);
-
-        console2.log("Salt:", vm.toString(BATCH_SALT));
-        console2.log("Expected address:", expectedAddress);
-        console2.log("Init code hash:", vm.toString(initCodeHash));
-
-        x402BatchSettlement bs;
-
-        if (expectedAddress.code.length > 0) {
-            console2.log("Contract already deployed at", expectedAddress);
-            return;
-        }
-
-        vm.startBroadcast();
-
-        if (block.chainid == 31_337 || block.chainid == 1337) {
-            console2.log("(Using regular deployment for local network)");
-            bs = new x402BatchSettlement();
-        } else {
-            bytes memory deploymentData = abi.encodePacked(BATCH_SALT, initCode);
-            (bool success,) = CREATE2_DEPLOYER.call(deploymentData);
-            require(success, "CREATE2 deployment failed for BatchSettlement");
-            require(expectedAddress.code.length > 0, "No bytecode at expected address");
-            bs = x402BatchSettlement(expectedAddress);
-        }
-
-        vm.stopBroadcast();
-
-        console2.log("Deployed to:", address(bs));
+        _deployCreate2(
+            "x402BatchSettlement",
+            BATCH_SALT,
+            type(x402BatchSettlement).creationCode
+        );
     }
 
     function _deployCollectors(address permit2) internal {
@@ -99,18 +76,61 @@ contract DeployBatchSettlement is Script {
         console2.log("  Deploying Deposit Collectors");
         console2.log("------------------------------------------------------------");
 
+        _deployCreate2(
+            "ERC3009DepositCollector",
+            ERC3009_SALT,
+            type(ERC3009DepositCollector).creationCode
+        );
+
+        _deployCreate2(
+            "Permit2DepositCollector",
+            PERMIT2_COLLECTOR_SALT,
+            abi.encodePacked(type(Permit2DepositCollector).creationCode, abi.encode(permit2))
+        );
+
+        _deployCreate2(
+            "Permit2WithERC2612DepositCollector",
+            PERMIT2_ERC2612_SALT,
+            abi.encodePacked(type(Permit2WithERC2612DepositCollector).creationCode, abi.encode(permit2))
+        );
+    }
+
+    function _deployCreate2(
+        string memory name,
+        bytes32 salt,
+        bytes memory initCode
+    ) internal {
+        bytes32 initCodeHash = keccak256(initCode);
+        address expectedAddress = _computeCreate2Addr(salt, initCodeHash, CREATE2_DEPLOYER);
+
+        console2.log("");
+        console2.log(string.concat("  ", name));
+        console2.log("  Salt:", vm.toString(salt));
+        console2.log("  Expected address:", expectedAddress);
+
+        if (expectedAddress.code.length > 0) {
+            console2.log("  Already deployed, skipping");
+            return;
+        }
+
         vm.startBroadcast();
 
-        ERC3009DepositCollector erc3009Collector = new ERC3009DepositCollector();
-        console2.log("ERC3009DepositCollector:", address(erc3009Collector));
-
-        Permit2DepositCollector permit2Collector = new Permit2DepositCollector(permit2);
-        console2.log("Permit2DepositCollector:", address(permit2Collector));
-
-        Permit2WithPermitDepositCollector permit2WithPermitCollector = new Permit2WithPermitDepositCollector(permit2);
-        console2.log("Permit2WithPermitDepositCollector:", address(permit2WithPermitCollector));
+        if (block.chainid == 31_337 || block.chainid == 1337) {
+            console2.log("  (Local network - using regular CREATE)");
+            assembly {
+                let addr := create(0, add(initCode, 0x20), mload(initCode))
+                if iszero(addr) { revert(0, 0) }
+            }
+        } else {
+            bytes memory deploymentData = abi.encodePacked(salt, initCode);
+            (bool success,) = CREATE2_DEPLOYER.call(deploymentData);
+            require(success, string.concat("CREATE2 deployment failed for ", name));
+            require(expectedAddress.code.length > 0, string.concat("No bytecode at expected address for ", name));
+        }
 
         vm.stopBroadcast();
+
+        console2.log("  Deployed to:", expectedAddress);
     }
 
     function _computeCreate2Addr(

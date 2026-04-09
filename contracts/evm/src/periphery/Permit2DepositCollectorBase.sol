@@ -7,7 +7,7 @@ import {ISignatureTransfer} from "../interfaces/ISignatureTransfer.sol";
 /// @title Permit2DepositCollectorBase
 /// @notice Abstract base for deposit collectors that use Permit2 permitWitnessTransferFrom.
 /// @dev Shared witness type constants and Permit2 transfer logic for DRY across
-///      Permit2DepositCollector and Permit2WithPermitDepositCollector.
+///      Permit2DepositCollector and Permit2WithERC2612DepositCollector.
 abstract contract Permit2DepositCollectorBase is IDepositCollector {
     ISignatureTransfer public immutable PERMIT2;
 

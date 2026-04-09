@@ -7,12 +7,12 @@ import {IDepositCollector} from "../interfaces/IDepositCollector.sol";
 import {ISignatureTransfer} from "../interfaces/ISignatureTransfer.sol";
 import {Permit2DepositCollectorBase} from "./Permit2DepositCollectorBase.sol";
 
-/// @title Permit2WithPermitDepositCollector
+/// @title Permit2WithERC2612DepositCollector
 /// @notice Deposit collector combining EIP-2612 permit (to approve Permit2) with Permit2 witness transfer.
 /// @dev Enables a single-tx deposit for tokens that implement EIP-2612, without requiring the payer
 ///      to have previously approved Permit2. The EIP-2612 permit call is soft-fail (try/catch) so that
 ///      pre-existing approvals or replayed permits don't revert the entire deposit.
-contract Permit2WithPermitDepositCollector is Permit2DepositCollectorBase {
+contract Permit2WithERC2612DepositCollector is Permit2DepositCollectorBase {
     struct EIP2612Permit {
         uint256 value;
         uint256 deadline;
