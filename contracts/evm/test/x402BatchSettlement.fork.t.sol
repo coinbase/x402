@@ -7,7 +7,7 @@ import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @title X402BatchSettlementForkTest
-/// @notice Fork tests against real Permit2 deployment for the stateless channel model
+/// @notice Fork tests against real Permit2 deployment for the dual-authorizer channel model
 /// @dev Run with: forge test --match-contract X402BatchSettlementForkTest --fork-url $RPC_URL
 contract X402BatchSettlementForkTest is Test {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -25,12 +25,12 @@ contract X402BatchSettlementForkTest is Test {
 
     uint256 public payerKey;
     address public payer;
-    uint256 public signerKey;
-    address public signerAddr;
+    uint256 public payerAuthKey;
+    address public payerAuthAddr;
     uint256 public receiverKey;
     address public receiverAddr;
-    uint256 public facilitatorKey;
-    address public facilitatorAddr;
+    uint256 public receiverAuthKey;
+    address public receiverAuthAddr;
 
     uint40 constant WITHDRAW_DELAY = 3600;
     uint128 constant DEPOSIT_AMOUNT = 1000e6;
@@ -42,12 +42,12 @@ contract X402BatchSettlementForkTest is Test {
 
         payerKey = uint256(keccak256("x402-batch-test-payer"));
         payer = vm.addr(payerKey);
-        signerKey = uint256(keccak256("x402-batch-test-signer"));
-        signerAddr = vm.addr(signerKey);
+        payerAuthKey = uint256(keccak256("x402-batch-test-payerAuth"));
+        payerAuthAddr = vm.addr(payerAuthKey);
         receiverKey = uint256(keccak256("x402-batch-test-receiver"));
         receiverAddr = vm.addr(receiverKey);
-        facilitatorKey = uint256(keccak256("x402-batch-test-facilitator"));
-        facilitatorAddr = vm.addr(facilitatorKey);
+        receiverAuthKey = uint256(keccak256("x402-batch-test-receiverAuth"));
+        receiverAuthAddr = vm.addr(receiverAuthKey);
 
         settlement = new x402BatchSettlement(PERMIT2);
         token = new MockERC20("USDC", "USDC", 6);
@@ -69,9 +69,9 @@ contract X402BatchSettlementForkTest is Test {
     function _makeConfig() internal view returns (x402BatchSettlement.ChannelConfig memory) {
         return x402BatchSettlement.ChannelConfig({
             payer: payer,
-            signer: signerAddr,
+            payerAuthorizer: payerAuthAddr,
             receiver: receiverAddr,
-            facilitator: facilitatorAddr,
+            receiverAuthorizer: receiverAuthAddr,
             token: address(token),
             withdrawDelay: WITHDRAW_DELAY,
             salt: bytes32(0)
@@ -111,14 +111,14 @@ contract X402BatchSettlementForkTest is Test {
         bytes32 structHash =
             keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, maxClaimableAmount));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerAuthKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
     function _signCooperativeWithdraw(bytes32 channelId) internal view returns (bytes memory) {
         bytes32 structHash = keccak256(abi.encode(settlement.COOPERATIVE_WITHDRAW_TYPEHASH(), channelId));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverAuthKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
@@ -145,15 +145,14 @@ contract X402BatchSettlementForkTest is Test {
         assertEq(ch.balance, DEPOSIT_AMOUNT);
 
         bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = x402BatchSettlement.Voucher({
-            channel: config,
-            maxClaimableAmount: CLAIM_AMOUNT,
-            claimAmount: CLAIM_AMOUNT,
-            signature: voucherSig
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
+            signature: voucherSig,
+            claimAmount: CLAIM_AMOUNT
         });
-        vm.prank(facilitatorAddr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthAddr);
+        settlement.claim(claims);
 
         uint256 balBefore = token.balanceOf(receiverAddr);
         settlement.settle(receiverAddr, address(token));
@@ -176,15 +175,14 @@ contract X402BatchSettlementForkTest is Test {
         settlement.depositWithPermit2(config, permit, depositSig);
 
         bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = x402BatchSettlement.Voucher({
-            channel: config,
-            maxClaimableAmount: CLAIM_AMOUNT,
-            claimAmount: CLAIM_AMOUNT,
-            signature: voucherSig
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
+            signature: voucherSig,
+            claimAmount: CLAIM_AMOUNT
         });
-        vm.prank(facilitatorAddr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthAddr);
+        settlement.claim(claims);
 
         bytes memory coopSig = _signCooperativeWithdraw(channelId);
         uint256 payerBalBefore = token.balanceOf(payer);

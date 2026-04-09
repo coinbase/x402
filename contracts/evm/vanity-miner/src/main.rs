@@ -30,7 +30,7 @@ const UPTO_INIT_CODE_HASH: [u8; 32] =
 // x402BatchSettlement (deterministic build, no CBOR metadata)
 // Recompute with: forge script script/ComputeAddress.s.sol --sig "computeBatchAddress(bytes32)" <zero-padded-bytes32>
 const BATCH_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("97dd838ca52715d68b46cfe95e009f07b7003f23a38628df3a63978726726293");
+    hex_literal::hex!("9b0fae2e4fbb3a2d487de668b82454033d3becad8a99979a0e2ca4b78f3176d1");
 
 fn compute_create2_address(salt: &[u8; 32], init_code_hash: &[u8; 32]) -> [u8; 20] {
     let mut hasher = Keccak::v256();

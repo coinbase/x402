@@ -42,8 +42,8 @@ contract ComputeAddress is Script {
     bytes32 constant DEFAULT_UPTO_SALT = 0x000000000000000000000000000000000000000000000000b000000001db633d;
 
     /// @notice Default salt for x402BatchSettlement
-    /// @dev PLACEHOLDER — vanity mine for address 0x4020...0003 after contract is finalized
-    bytes32 constant DEFAULT_BATCH_SALT = bytes32(0);
+    /// @dev Vanity mined for address 0x4020cfaffad9df99f9acc48227c40f80d17a0003
+    bytes32 constant DEFAULT_BATCH_SALT = 0x00000000000000000000000000000000000000000000000020000000041a1d56;
 
     /// @notice Expected initCodeHash for x402ExactPermit2Proxy (pre-built, includes CBOR metadata)
     bytes32 constant EXACT_INIT_CODE_HASH = 0xe774d1d5a07218946ab54efe010b300481478b86861bb17d69c98a57f68a604c;

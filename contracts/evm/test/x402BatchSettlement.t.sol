@@ -16,9 +16,9 @@ contract X402BatchSettlementTest is Test {
     MockERC3009Token public erc3009Token;
 
     VmSafe.Wallet public payerWallet;
-    VmSafe.Wallet public signerWallet;
+    VmSafe.Wallet public payerAuthWallet;
     VmSafe.Wallet public receiverWallet;
-    VmSafe.Wallet public facilitatorWallet;
+    VmSafe.Wallet public receiverAuthWallet;
     VmSafe.Wallet public otherWallet;
 
     uint40 constant WITHDRAW_DELAY = 3600; // 1 hour
@@ -30,16 +30,15 @@ contract X402BatchSettlementTest is Test {
     event Claimed(bytes32 indexed channelId, uint128 claimAmount, uint128 newTotalClaimed);
     event Settled(address indexed receiver, address indexed token, uint128 amount);
     event WithdrawInitiated(bytes32 indexed channelId, uint128 amount, uint40 finalizeAfter);
-    event WithdrawFinalized(bytes32 indexed channelId, uint128 amount);
-    event ChannelMigrated(bytes32 indexed oldChannelId, bytes32 indexed newChannelId, uint128 migratedAmount);
+    event WithdrawFinalized(bytes32 indexed channelId, uint128 amount, address sender);
 
     function setUp() public {
         vm.warp(1_000_000);
 
         payerWallet = vm.createWallet("payer");
-        signerWallet = vm.createWallet("signer");
+        payerAuthWallet = vm.createWallet("payerAuth");
         receiverWallet = vm.createWallet("receiver");
-        facilitatorWallet = vm.createWallet("facilitator");
+        receiverAuthWallet = vm.createWallet("receiverAuth");
         otherWallet = vm.createWallet("other");
 
         mockPermit2 = new MockPermit2();
@@ -65,9 +64,9 @@ contract X402BatchSettlementTest is Test {
     function _makeConfig() internal view returns (x402BatchSettlement.ChannelConfig memory) {
         return x402BatchSettlement.ChannelConfig({
             payer: payerWallet.addr,
-            signer: signerWallet.addr,
+            payerAuthorizer: payerAuthWallet.addr,
             receiver: receiverWallet.addr,
-            facilitator: facilitatorWallet.addr,
+            receiverAuthorizer: receiverAuthWallet.addr,
             token: address(token),
             withdrawDelay: WITHDRAW_DELAY,
             salt: bytes32(0)
@@ -77,12 +76,24 @@ contract X402BatchSettlementTest is Test {
     function _makeERC3009Config() internal view returns (x402BatchSettlement.ChannelConfig memory) {
         return x402BatchSettlement.ChannelConfig({
             payer: payerWallet.addr,
-            signer: signerWallet.addr,
+            payerAuthorizer: payerAuthWallet.addr,
             receiver: receiverWallet.addr,
-            facilitator: facilitatorWallet.addr,
+            receiverAuthorizer: receiverAuthWallet.addr,
             token: address(erc3009Token),
             withdrawDelay: WITHDRAW_DELAY,
             salt: bytes32(0)
+        });
+    }
+
+    function _makeStatefulConfig() internal view returns (x402BatchSettlement.ChannelConfig memory) {
+        return x402BatchSettlement.ChannelConfig({
+            payer: payerWallet.addr,
+            payerAuthorizer: address(0),
+            receiver: receiverWallet.addr,
+            receiverAuthorizer: receiverAuthWallet.addr,
+            token: address(token),
+            withdrawDelay: WITHDRAW_DELAY,
+            salt: bytes32(uint256(42))
         });
     }
 
@@ -112,6 +123,37 @@ contract X402BatchSettlementTest is Test {
         return _signTypedData(wallet, structHash);
     }
 
+    function _signFinalizeWithdraw(VmSafe.Wallet memory wallet, bytes32 channelId)
+        internal
+        returns (bytes memory)
+    {
+        bytes32 structHash = keccak256(abi.encode(settlement.FINALIZE_WITHDRAW_TYPEHASH(), channelId));
+        return _signTypedData(wallet, structHash);
+    }
+
+    function _signClaimBatch(
+        VmSafe.Wallet memory wallet,
+        x402BatchSettlement.VoucherClaim[] memory claims
+    ) internal returns (bytes memory) {
+        bytes32 claimsHash = _computeClaimsHashMemory(claims);
+        bytes32 structHash = keccak256(abi.encode(settlement.CLAIM_BATCH_TYPEHASH(), claimsHash));
+        return _signTypedData(wallet, structHash);
+    }
+
+    function _computeClaimsHashMemory(x402BatchSettlement.VoucherClaim[] memory claims) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](claims.length);
+        for (uint256 i = 0; i < claims.length; ++i) {
+            hashes[i] = keccak256(
+                abi.encode(
+                    keccak256(abi.encode(claims[i].voucher.channel)),
+                    claims[i].voucher.maxClaimableAmount,
+                    claims[i].claimAmount
+                )
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
+    }
+
     function _directDeposit(x402BatchSettlement.ChannelConfig memory config, uint128 amount) internal {
         vm.prank(config.payer);
         settlement.deposit(config, amount);
@@ -132,18 +174,32 @@ contract X402BatchSettlementTest is Test {
         settlement.depositWithPermit2(config, permit, sig);
     }
 
-    function _makeVoucher(
+    function _makeVoucherClaim(
         x402BatchSettlement.ChannelConfig memory config,
         uint128 maxClaimableAmount,
         uint128 claimAmount
-    ) internal returns (x402BatchSettlement.Voucher memory) {
+    ) internal returns (x402BatchSettlement.VoucherClaim memory) {
         bytes32 channelId = _channelId(config);
-        bytes memory sig = _signVoucher(signerWallet, channelId, maxClaimableAmount);
-        return x402BatchSettlement.Voucher({
-            channel: config,
-            maxClaimableAmount: maxClaimableAmount,
-            claimAmount: claimAmount,
-            signature: sig
+        bytes memory sig = _signVoucher(payerAuthWallet, channelId, maxClaimableAmount);
+        return x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: maxClaimableAmount}),
+            signature: sig,
+            claimAmount: claimAmount
+        });
+    }
+
+    function _makeVoucherClaimWithSigner(
+        x402BatchSettlement.ChannelConfig memory config,
+        uint128 maxClaimableAmount,
+        uint128 claimAmount,
+        VmSafe.Wallet memory signer
+    ) internal returns (x402BatchSettlement.VoucherClaim memory) {
+        bytes32 channelId = _channelId(config);
+        bytes memory sig = _signVoucher(signer, channelId, maxClaimableAmount);
+        return x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: maxClaimableAmount}),
+            signature: sig,
+            claimAmount: claimAmount
         });
     }
 
@@ -205,14 +261,6 @@ contract X402BatchSettlementTest is Test {
         settlement.deposit(config, 0);
     }
 
-    function test_deposit_revert_zeroSigner() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        config.signer = address(0);
-        vm.prank(payerWallet.addr);
-        vm.expectRevert(x402BatchSettlement.InvalidSigner.selector);
-        settlement.deposit(config, DEPOSIT_AMOUNT);
-    }
-
     function test_deposit_revert_withdrawDelayTooLow() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         config.withdrawDelay = 1;
@@ -237,9 +285,9 @@ contract X402BatchSettlementTest is Test {
         settlement.deposit(config, DEPOSIT_AMOUNT);
     }
 
-    function test_deposit_revert_zeroFacilitator() public {
+    function test_deposit_revert_zeroReceiverAuthorizer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        config.facilitator = address(0);
+        config.receiverAuthorizer = address(0);
         vm.prank(payerWallet.addr);
         vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
         settlement.deposit(config, DEPOSIT_AMOUNT);
@@ -280,6 +328,14 @@ contract X402BatchSettlementTest is Test {
         ws = settlement.getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
         assertEq(ws.amount, 0);
+    }
+
+    function test_deposit_revert_zeroPayer() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        config.payer = address(0);
+        vm.prank(address(0));
+        vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
+        settlement.deposit(config, DEPOSIT_AMOUNT);
     }
 
     // =========================================================================
@@ -357,13 +413,12 @@ contract X402BatchSettlementTest is Test {
             deadline: block.timestamp + 3600
         });
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-
         vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
         settlement.depositWithPermit2(config, permit, sig);
     }
 
     // =========================================================================
-    // Claim Tests
+    // Claim Tests (direct call)
     // =========================================================================
 
     function test_claim_single() public {
@@ -372,14 +427,14 @@ contract X402BatchSettlementTest is Test {
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
         vm.expectEmit(true, false, false, true);
         emit Claimed(channelId, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
         assertEq(ch.totalClaimed, CLAIM_AMOUNT);
@@ -396,12 +451,12 @@ contract X402BatchSettlementTest is Test {
         _directDeposit(config1, DEPOSIT_AMOUNT);
         _directDeposit(config2, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](2);
-        vouchers[0] = _makeVoucher(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vouchers[1] = _makeVoucher(config2, CLAIM_AMOUNT * 2, CLAIM_AMOUNT * 2);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](2);
+        claims[0] = _makeVoucherClaim(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        claims[1] = _makeVoucherClaim(config2, CLAIM_AMOUNT * 2, CLAIM_AMOUNT * 2);
 
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
         assertEq(rs.totalClaimed, CLAIM_AMOUNT * 3);
@@ -412,93 +467,197 @@ contract X402BatchSettlementTest is Test {
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, 200e6, CLAIM_AMOUNT);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, 200e6, CLAIM_AMOUNT);
 
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
-        vouchers[0] = _makeVoucher(config, 200e6, CLAIM_AMOUNT);
+        claims[0] = _makeVoucherClaim(config, 200e6, CLAIM_AMOUNT);
 
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         bytes32 channelId = _channelId(config);
         x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
         assertEq(ch.totalClaimed, 200e6);
     }
 
-    function test_claim_revert_notFacilitator() public {
+    function test_claim_revert_notReceiverAuthorizer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
         vm.prank(otherWallet.addr);
-        vm.expectRevert(x402BatchSettlement.NotFacilitator.selector);
-        settlement.claim(vouchers);
+        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        settlement.claim(claims);
     }
 
     function test_claim_revert_exceedsCeiling() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT + 1);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT + 1);
 
-        vm.prank(facilitatorWallet.addr);
+        vm.prank(receiverAuthWallet.addr);
         vm.expectRevert(x402BatchSettlement.ClaimExceedsCeiling.selector);
-        settlement.claim(vouchers);
+        settlement.claim(claims);
     }
 
     function test_claim_revert_exceedsBalance() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, CLAIM_AMOUNT / 2);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
-        vm.prank(facilitatorWallet.addr);
+        vm.prank(receiverAuthWallet.addr);
         vm.expectRevert(x402BatchSettlement.ClaimExceedsBalance.selector);
-        settlement.claim(vouchers);
+        settlement.claim(claims);
     }
 
     function test_claim_revert_wrongSigner() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        bytes32 channelId = _channelId(config);
-        bytes memory badSig = _signVoucher(otherWallet, channelId, CLAIM_AMOUNT);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaimWithSigner(config, CLAIM_AMOUNT, CLAIM_AMOUNT, otherWallet);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = x402BatchSettlement.Voucher({
-            channel: config,
-            maxClaimableAmount: CLAIM_AMOUNT,
-            claimAmount: CLAIM_AMOUNT,
-            signature: badSig
-        });
-
-        vm.prank(facilitatorWallet.addr);
+        vm.prank(receiverAuthWallet.addr);
         vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.claim(vouchers);
+        settlement.claim(claims);
     }
 
     function test_claim_revert_malformedSignature() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = x402BatchSettlement.Voucher({
-            channel: config,
-            maxClaimableAmount: CLAIM_AMOUNT,
-            claimAmount: CLAIM_AMOUNT,
-            signature: hex"0000"
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
+            signature: hex"0000",
+            claimAmount: CLAIM_AMOUNT
         });
 
-        vm.prank(facilitatorWallet.addr);
+        vm.prank(receiverAuthWallet.addr);
         vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.claim(vouchers);
+        settlement.claim(claims);
+    }
+
+    // =========================================================================
+    // Claim Tests — Stateful (payerAuthorizer == address(0), EIP-1271 path)
+    // =========================================================================
+
+    function test_claim_statefulMode_payerSigns() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeStatefulConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        bytes32 channelId = _channelId(config);
+        bytes memory sig = _signVoucher(payerWallet, channelId, CLAIM_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
+            signature: sig,
+            claimAmount: CLAIM_AMOUNT
+        });
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.totalClaimed, CLAIM_AMOUNT);
+    }
+
+    function test_claim_statefulMode_revert_wrongSigner() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeStatefulConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        bytes32 channelId = _channelId(config);
+        bytes memory sig = _signVoucher(otherWallet, channelId, CLAIM_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = x402BatchSettlement.VoucherClaim({
+            voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
+            signature: sig,
+            claimAmount: CLAIM_AMOUNT
+        });
+
+        vm.prank(receiverAuthWallet.addr);
+        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
+        settlement.claim(claims);
+    }
+
+    // =========================================================================
+    // claimWithSignature Tests
+    // =========================================================================
+
+    function test_claimWithSignature_success() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        bytes memory authSig = _signClaimBatch(receiverAuthWallet, claims);
+
+        vm.prank(otherWallet.addr);
+        settlement.claimWithSignature(claims, authSig);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.totalClaimed, CLAIM_AMOUNT);
+    }
+
+    function test_claimWithSignature_revert_emptyClaims() public {
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](0);
+        bytes memory sig = hex"dead";
+
+        vm.expectRevert(x402BatchSettlement.EmptyBatch.selector);
+        settlement.claimWithSignature(claims, sig);
+    }
+
+    function test_claim_revert_emptyBatch() public {
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](0);
+
+        vm.prank(receiverAuthWallet.addr);
+        vm.expectRevert(x402BatchSettlement.EmptyBatch.selector);
+        settlement.claim(claims);
+    }
+
+    function test_claimWithSignature_revert_wrongAuthorizerSignature() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        bytes memory badSig = _signClaimBatch(otherWallet, claims);
+
+        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
+        settlement.claimWithSignature(claims, badSig);
+    }
+
+    function test_claimWithSignature_revert_mixedReceiverAuthorizers() public {
+        x402BatchSettlement.ChannelConfig memory config1 = _makeConfig();
+        x402BatchSettlement.ChannelConfig memory config2 = _makeConfig();
+        config2.receiverAuthorizer = otherWallet.addr;
+        config2.salt = bytes32(uint256(2));
+
+        _directDeposit(config1, DEPOSIT_AMOUNT);
+        _directDeposit(config2, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](2);
+        claims[0] = _makeVoucherClaim(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        claims[1] = _makeVoucherClaim(config2, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        bytes memory authSig = _signClaimBatch(receiverAuthWallet, claims);
+
+        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        settlement.claimWithSignature(claims, authSig);
     }
 
     // =========================================================================
@@ -510,10 +669,10 @@ contract X402BatchSettlementTest is Test {
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         uint256 balBefore = token.balanceOf(receiverWallet.addr);
 
@@ -535,14 +694,14 @@ contract X402BatchSettlementTest is Test {
         _directDeposit(config1, DEPOSIT_AMOUNT);
         _directDeposit(config2, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory v1 = new x402BatchSettlement.Voucher[](1);
-        v1[0] = _makeVoucher(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
+        x402BatchSettlement.VoucherClaim[] memory v1 = new x402BatchSettlement.VoucherClaim[](1);
+        v1[0] = _makeVoucherClaim(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
         settlement.claim(v1);
 
-        x402BatchSettlement.Voucher[] memory v2 = new x402BatchSettlement.Voucher[](1);
-        v2[0] = _makeVoucher(config2, CLAIM_AMOUNT * 2, CLAIM_AMOUNT * 2);
-        vm.prank(facilitatorWallet.addr);
+        x402BatchSettlement.VoucherClaim[] memory v2 = new x402BatchSettlement.VoucherClaim[](1);
+        v2[0] = _makeVoucherClaim(config2, CLAIM_AMOUNT * 2, CLAIM_AMOUNT * 2);
+        vm.prank(receiverAuthWallet.addr);
         settlement.claim(v2);
 
         uint256 balBefore = token.balanceOf(receiverWallet.addr);
@@ -574,23 +733,6 @@ contract X402BatchSettlementTest is Test {
         assertEq(ws.initiatedAt, uint40(block.timestamp));
     }
 
-    function test_initiateWithdraw_capsAtAvailable() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        bytes32 channelId = _channelId(config);
-        _directDeposit(config, DEPOSIT_AMOUNT);
-
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
-
-        vm.prank(payerWallet.addr);
-        settlement.initiateWithdraw(config, type(uint128).max);
-
-        x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
-        assertEq(ws.amount, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
-    }
-
     function test_initiateWithdraw_revert_notPayer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -600,14 +742,7 @@ contract X402BatchSettlementTest is Test {
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
     }
 
-    function test_initiateWithdraw_revert_nothingToWithdraw_noBalance() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        vm.prank(payerWallet.addr);
-        vm.expectRevert(x402BatchSettlement.NothingToWithdraw.selector);
-        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
-    }
-
-    function test_initiateWithdraw_revert_nothingToWithdraw_zeroAmount() public {
+    function test_initiateWithdraw_revert_zeroAmount() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
         vm.prank(payerWallet.addr);
@@ -627,7 +762,7 @@ contract X402BatchSettlementTest is Test {
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
     }
 
-    function test_finalizeWithdraw_success() public {
+    function test_finalizeWithdraw_successByPayer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -640,17 +775,44 @@ contract X402BatchSettlementTest is Test {
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
         vm.expectEmit(true, false, false, true);
-        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT);
+        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT, payerWallet.addr);
+
+        vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT);
+    }
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
-        assertEq(ch.balance, 0);
+    function test_finalizeWithdraw_successByReceiverAuthorizer() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.finalizeWithdraw(config);
+    }
+
+    function test_finalizeWithdraw_revert_unauthorized() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+
+        vm.prank(otherWallet.addr);
+        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        settlement.finalizeWithdraw(config);
     }
 
     function test_finalizeWithdraw_revert_notPending() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        vm.prank(payerWallet.addr);
         vm.expectRevert(x402BatchSettlement.WithdrawalNotPending.selector);
         settlement.finalizeWithdraw(config);
     }
@@ -662,6 +824,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
+        vm.prank(payerWallet.addr);
         vm.expectRevert(x402BatchSettlement.WithdrawDelayNotElapsed.selector);
         settlement.finalizeWithdraw(config);
     }
@@ -673,13 +836,14 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
+        vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore);
@@ -693,16 +857,66 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, 500e6, 500e6);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, 500e6, 500e6);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+        vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);
 
         x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
         assertEq(ch.balance, 500e6);
+    }
+
+    // =========================================================================
+    // finalizeWithdrawWithSignature Tests
+    // =========================================================================
+
+    function test_finalizeWithdrawWithSignature_success() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+
+        bytes memory sig = _signFinalizeWithdraw(receiverAuthWallet, channelId);
+
+        vm.prank(otherWallet.addr);
+        settlement.finalizeWithdrawWithSignature(config, sig);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, 0);
+    }
+
+    function test_finalizeWithdrawWithSignature_revert_wrongSigner() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+
+        bytes memory sig = _signFinalizeWithdraw(otherWallet, channelId);
+
+        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
+        settlement.finalizeWithdrawWithSignature(config, sig);
+    }
+
+    function test_finalizeWithdrawWithSignature_revert_notPending() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+
+        bytes memory sig = _signFinalizeWithdraw(receiverAuthWallet, channelId);
+
+        vm.expectRevert(x402BatchSettlement.WithdrawalNotPending.selector);
+        settlement.finalizeWithdrawWithSignature(config, sig);
     }
 
     // =========================================================================
@@ -714,16 +928,16 @@ contract X402BatchSettlementTest is Test {
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, channelId);
+        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
         vm.expectEmit(true, false, false, true);
-        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
+        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT, address(this));
         settlement.cooperativeWithdraw(config, sig);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
@@ -740,7 +954,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, channelId);
+        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         settlement.cooperativeWithdraw(config, sig);
 
         x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
@@ -752,12 +966,12 @@ contract X402BatchSettlementTest is Test {
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, channelId);
+        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
         settlement.cooperativeWithdraw(config, sig);
@@ -773,102 +987,6 @@ contract X402BatchSettlementTest is Test {
         bytes memory badSig = _signCooperativeWithdraw(otherWallet, channelId);
         vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
         settlement.cooperativeWithdraw(config, badSig);
-    }
-
-    // =========================================================================
-    // Migration Tests
-    // =========================================================================
-
-    function test_migrateChannel_success() public {
-        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
-        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
-        newConfig.salt = bytes32(uint256(1));
-        newConfig.signer = otherWallet.addr;
-
-        bytes32 oldChannelId = _channelId(oldConfig);
-        bytes32 newChannelId = _channelId(newConfig);
-
-        _directDeposit(oldConfig, DEPOSIT_AMOUNT);
-
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(oldConfig, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
-
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, oldChannelId);
-
-        vm.expectEmit(true, true, false, true);
-        emit ChannelMigrated(oldChannelId, newChannelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
-        settlement.migrateChannel(oldConfig, newConfig, sig);
-
-        x402BatchSettlement.ChannelState memory oldCh = settlement.getChannel(oldChannelId);
-        assertEq(oldCh.balance, oldCh.totalClaimed);
-
-        x402BatchSettlement.ChannelState memory newCh = settlement.getChannel(newChannelId);
-        assertEq(newCh.balance, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
-    }
-
-    function test_migrateChannel_zeroRefund() public {
-        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
-        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
-        newConfig.salt = bytes32(uint256(1));
-
-        _directDeposit(oldConfig, DEPOSIT_AMOUNT);
-
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(oldConfig, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
-
-        bytes32 oldChannelId = _channelId(oldConfig);
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, oldChannelId);
-        settlement.migrateChannel(oldConfig, newConfig, sig);
-
-        bytes32 newChannelId = _channelId(newConfig);
-        x402BatchSettlement.ChannelState memory newCh = settlement.getChannel(newChannelId);
-        assertEq(newCh.balance, 0);
-    }
-
-    function test_migrateChannel_revert_wrongReceiverSignature() public {
-        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
-        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
-        newConfig.salt = bytes32(uint256(1));
-
-        _directDeposit(oldConfig, DEPOSIT_AMOUNT);
-
-        bytes32 oldChannelId = _channelId(oldConfig);
-        bytes memory badSig = _signCooperativeWithdraw(otherWallet, oldChannelId);
-
-        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.migrateChannel(oldConfig, newConfig, badSig);
-    }
-
-    function test_migrateChannel_revert_payerMismatch() public {
-        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
-        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
-        newConfig.payer = otherWallet.addr;
-
-        bytes32 oldChannelId = _channelId(oldConfig);
-        _directDeposit(oldConfig, DEPOSIT_AMOUNT);
-
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, oldChannelId);
-
-        vm.expectRevert(x402BatchSettlement.PayerMismatch.selector);
-        settlement.migrateChannel(oldConfig, newConfig, sig);
-    }
-
-    function test_migrateChannel_revert_tokenMismatch() public {
-        x402BatchSettlement.ChannelConfig memory oldConfig = _makeConfig();
-        x402BatchSettlement.ChannelConfig memory newConfig = _makeConfig();
-        newConfig.token = address(erc3009Token);
-
-        bytes32 oldChannelId = _channelId(oldConfig);
-        _directDeposit(oldConfig, DEPOSIT_AMOUNT);
-
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, oldChannelId);
-
-        vm.expectRevert(x402BatchSettlement.TokenMismatch.selector);
-        settlement.migrateChannel(oldConfig, newConfig, sig);
     }
 
     // =========================================================================
@@ -919,6 +1037,30 @@ contract X402BatchSettlementTest is Test {
         assertEq(settlement.getCooperativeWithdrawDigest(channelId), expected);
     }
 
+    function test_getFinalizeWithdrawDigest_matches() public view {
+        bytes32 channelId = bytes32(uint256(123));
+
+        bytes32 expected = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                settlement.domainSeparator(),
+                keccak256(abi.encode(settlement.FINALIZE_WITHDRAW_TYPEHASH(), channelId))
+            )
+        );
+        assertEq(settlement.getFinalizeWithdrawDigest(channelId), expected);
+    }
+
+    function test_getClaimBatchDigest_matches() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        bytes32 digest = settlement.getClaimBatchDigest(claims);
+        assertTrue(digest != bytes32(0));
+    }
+
     // =========================================================================
     // Edge Case Tests
     // =========================================================================
@@ -929,7 +1071,7 @@ contract X402BatchSettlementTest is Test {
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverWallet, channelId);
+        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         settlement.cooperativeWithdraw(config, sig);
 
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -946,13 +1088,20 @@ contract X402BatchSettlementTest is Test {
         _directDeposit(config1, DEPOSIT_AMOUNT);
         _directDeposit(config2, DEPOSIT_AMOUNT / 2);
 
-        x402BatchSettlement.Voucher[] memory vouchers = new x402BatchSettlement.Voucher[](1);
-        vouchers[0] = _makeVoucher(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
-        vm.prank(facilitatorWallet.addr);
-        settlement.claim(vouchers);
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config1, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
 
         bytes32 channelId2 = _channelId(config2);
         x402BatchSettlement.ChannelState memory ch2 = settlement.getChannel(channelId2);
         assertEq(ch2.totalClaimed, 0);
+    }
+
+    function test_payerAuthorizer_zeroAllowed_inConfig() public view {
+        x402BatchSettlement.ChannelConfig memory config = _makeStatefulConfig();
+        assertEq(config.payerAuthorizer, address(0));
+        bytes32 id = settlement.getChannelId(config);
+        assertTrue(id != bytes32(0));
     }
 }

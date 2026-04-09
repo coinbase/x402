@@ -18,8 +18,7 @@ contract DeployBatchSettlement is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer (same on all EVM chains)
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    // TODO: Re-mine vanity salt after contract rewrite. Initcode has changed.
-    bytes32 constant BATCH_SALT = bytes32(0);
+    bytes32 constant BATCH_SALT = 0x00000000000000000000000000000000000000000000000020000000041a1d56;
 
     function run() public {
         address permit2 = vm.envOr("PERMIT2_ADDRESS", CANONICAL_PERMIT2);
@@ -27,7 +26,7 @@ contract DeployBatchSettlement is Script {
         console2.log("");
         console2.log("============================================================");
         console2.log("  x402BatchSettlement Deterministic Deployment (CREATE2)");
-        console2.log("  Model: Stateless Channel-Config");
+        console2.log("  Model: Dual-Authorizer Channel-Config");
         console2.log("============================================================");
         console2.log("");
 
