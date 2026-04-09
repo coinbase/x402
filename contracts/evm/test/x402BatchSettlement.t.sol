@@ -1049,4 +1049,184 @@ contract X402BatchSettlementTest is Test {
 
         assertEq(settlement.getChannel(_channelId(config)).balance, 0);
     }
+
+    // =========================================================================
+    // Complex Scenario Tests
+    // =========================================================================
+
+    /// @dev Full double-migration lifecycle:
+    ///   Round 1: deposit A → claim A → migrate(refund A + deposit B) → settle
+    ///   Round 2: deposit A → claim A → migrate(refund A + deposit B) → settle
+    ///   Asserts channel A is fully drained after each round, channel B accumulates
+    ///   both migrations, and the receiver settles both claims.
+    function test_scenario_doubleMigrationLifecycle() public {
+        x402BatchSettlement.ChannelConfig memory configA = _makeConfig();
+        configA.salt = bytes32(uint256(0xA));
+
+        x402BatchSettlement.ChannelConfig memory configB = _makeConfig();
+        configB.salt = bytes32(uint256(0xB));
+
+        uint256 payerStart = token.balanceOf(payerWallet.addr);
+
+        // ── Round 1: deposit A, claim A, migrate A→B, settle ─────────────────
+        _roundDepositClaimMigrate(configA, configB, 1000e6, 100e6, 100e6);
+        settlement.settle(receiverWallet.addr, address(token));
+
+        _assertRound1(configA, configB, payerStart);
+
+        // ── Round 2: deposit A again, claim A, migrate A→B, settle ───────────
+        _roundDepositClaimMigrate(configA, configB, 1000e6, 200e6, 100e6);
+        settlement.settle(receiverWallet.addr, address(token));
+
+        _assertRound2(configA, configB, payerStart);
+    }
+
+    function _roundDepositClaimMigrate(
+        x402BatchSettlement.ChannelConfig memory configA,
+        x402BatchSettlement.ChannelConfig memory configB,
+        uint128 depositAmt,
+        uint128 maxClaimable,
+        uint128 claimAmt
+    ) internal {
+        bytes32 channelA = _channelId(configA);
+
+        _deposit(configA, depositAmt);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(configA, maxClaimable, claimAmt);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(channelA);
+        uint128 migrateAmt = chA.balance - chA.totalClaimed;
+
+        bytes memory refundSig = _signRefund(receiverAuthWallet, channelA);
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(settlement.refundWithSignature, (configA, refundSig));
+        calls[1] = abi.encodeCall(settlement.deposit, (configB, migrateAmt, address(mockCollector), ""));
+        settlement.multicall(calls);
+    }
+
+    function _assertRound1(
+        x402BatchSettlement.ChannelConfig memory configA,
+        x402BatchSettlement.ChannelConfig memory configB,
+        uint256 payerStart
+    ) internal view {
+        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(_channelId(configA));
+        assertEq(chA.balance, chA.totalClaimed, "R1: A fully drained");
+        assertEq(chA.totalClaimed, 100e6);
+
+        x402BatchSettlement.ChannelState memory chB = settlement.getChannel(_channelId(configB));
+        assertEq(chB.balance, 900e6, "R1: B holds migrated funds");
+
+        assertEq(token.balanceOf(receiverWallet.addr), 100e6, "R1: receiver settled");
+        assertEq(token.balanceOf(payerWallet.addr), payerStart - 1000e6, "R1: payer spent one deposit");
+    }
+
+    function _assertRound2(
+        x402BatchSettlement.ChannelConfig memory configA,
+        x402BatchSettlement.ChannelConfig memory configB,
+        uint256 payerStart
+    ) internal view {
+        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(_channelId(configA));
+        assertEq(chA.balance, chA.totalClaimed, "R2: A fully drained again");
+        assertEq(chA.totalClaimed, 200e6, "R2: A accumulated two claims");
+
+        x402BatchSettlement.ChannelState memory chB = settlement.getChannel(_channelId(configB));
+        assertEq(chB.balance, 1800e6, "R2: B holds both migrations");
+
+        assertEq(token.balanceOf(receiverWallet.addr), 200e6, "R2: receiver settled both claims");
+
+        x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
+        assertEq(rs.totalSettled, 200e6, "R2: totalSettled matches");
+        assertEq(rs.totalClaimed, rs.totalSettled, "R2: nothing unsettled");
+
+        assertEq(token.balanceOf(payerWallet.addr), payerStart - 2000e6, "R2: payer funded both deposit rounds");
+    }
+
+    /// @dev Multiple individual claims across 3 channels, then a batched
+    ///      claimWithSignature across all 3, followed by a single settle.
+    function test_scenario_multiChannelClaimsThenBatchedClaimAndSettle() public {
+        x402BatchSettlement.ChannelConfig memory c1 = _makeConfig();
+        c1.salt = bytes32(uint256(1));
+        x402BatchSettlement.ChannelConfig memory c2 = _makeConfig();
+        c2.salt = bytes32(uint256(2));
+        x402BatchSettlement.ChannelConfig memory c3 = _makeConfig();
+        c3.salt = bytes32(uint256(3));
+
+        _deposit(c1, 1000e6);
+        _deposit(c2, 2000e6);
+        _deposit(c3, 500e6);
+
+        // ── Individual claims ────────────────────────────────────────────────
+
+        // C1: claim 50, then claim 100 more (total 150)
+        x402BatchSettlement.VoucherClaim[] memory v = new x402BatchSettlement.VoucherClaim[](1);
+        v[0] = _makeVoucherClaim(c1, 50e6, 50e6);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(v);
+
+        v[0] = _makeVoucherClaim(c1, 150e6, 100e6);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(v);
+
+        // C2: claim 200
+        v[0] = _makeVoucherClaim(c2, 200e6, 200e6);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(v);
+
+        // C3: claim 50
+        v[0] = _makeVoucherClaim(c3, 50e6, 50e6);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(v);
+
+        // Verify intermediate state
+        assertEq(settlement.getChannel(_channelId(c1)).totalClaimed, 150e6);
+        assertEq(settlement.getChannel(_channelId(c2)).totalClaimed, 200e6);
+        assertEq(settlement.getChannel(_channelId(c3)).totalClaimed, 50e6);
+
+        x402BatchSettlement.ReceiverState memory rsMid = settlement.getReceiver(receiverWallet.addr, address(token));
+        assertEq(rsMid.totalClaimed, 400e6, "Mid: total claimed across all channels");
+        assertEq(rsMid.totalSettled, 0, "Mid: nothing settled yet");
+
+        // ── Batched claimWithSignature across all 3 channels ─────────────────
+
+        x402BatchSettlement.VoucherClaim[] memory batchClaims = new x402BatchSettlement.VoucherClaim[](3);
+        batchClaims[0] = _makeVoucherClaim(c1, 250e6, 100e6);  // C1: +100 → total 250
+        batchClaims[1] = _makeVoucherClaim(c2, 500e6, 300e6);  // C2: +300 → total 500
+        batchClaims[2] = _makeVoucherClaim(c3, 200e6, 150e6);  // C3: +150 → total 200
+
+        bytes memory authSig = _signClaimBatch(receiverAuthWallet, batchClaims);
+        vm.prank(otherWallet.addr);
+        settlement.claimWithSignature(batchClaims, authSig);
+
+        // Verify post-batch state
+        assertEq(settlement.getChannel(_channelId(c1)).totalClaimed, 250e6);
+        assertEq(settlement.getChannel(_channelId(c2)).totalClaimed, 500e6);
+        assertEq(settlement.getChannel(_channelId(c3)).totalClaimed, 200e6);
+
+        x402BatchSettlement.ReceiverState memory rsPost = settlement.getReceiver(receiverWallet.addr, address(token));
+        uint128 expectedTotal = 250e6 + 500e6 + 200e6;
+        assertEq(rsPost.totalClaimed, expectedTotal, "Post: accumulated across individual + batch");
+        assertEq(rsPost.totalSettled, 0, "Post: still nothing settled");
+
+        // ── Single settle sweeps everything ──────────────────────────────────
+
+        uint256 receiverBefore = token.balanceOf(receiverWallet.addr);
+        settlement.settle(receiverWallet.addr, address(token));
+        assertEq(
+            token.balanceOf(receiverWallet.addr),
+            receiverBefore + expectedTotal,
+            "Settle: receiver received all claimed funds"
+        );
+
+        x402BatchSettlement.ReceiverState memory rsFinal = settlement.getReceiver(receiverWallet.addr, address(token));
+        assertEq(rsFinal.totalSettled, expectedTotal);
+        assertEq(rsFinal.totalClaimed, rsFinal.totalSettled, "Final: fully settled");
+
+        // Channel balances unchanged (claims don't reduce balance)
+        assertEq(settlement.getChannel(_channelId(c1)).balance, 1000e6);
+        assertEq(settlement.getChannel(_channelId(c2)).balance, 2000e6);
+        assertEq(settlement.getChannel(_channelId(c3)).balance, 500e6);
+    }
 }
