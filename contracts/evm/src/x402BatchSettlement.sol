@@ -8,6 +8,8 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+
 import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 import {IERC3009} from "./interfaces/IERC3009.sol";
 
@@ -64,6 +66,15 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
 
     struct DepositWitness {
         bytes32 channelId;
+    }
+
+    /// @notice EIP-2612 permit parameters for granting Permit2 approval in the same transaction.
+    struct EIP2612Permit {
+        uint256 value;
+        uint256 deadline;
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
     }
 
     // =========================================================================
@@ -157,6 +168,11 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     error WithdrawDelayOutOfRange();
     error EmptyBatch();
     error InvalidPermit2Address();
+    error Permit2612AmountMismatch();
+
+    event EIP2612PermitFailedWithReason(address indexed token, address indexed owner, string reason);
+    event EIP2612PermitFailedWithPanic(address indexed token, address indexed owner, uint256 errorCode);
+    event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
 
     // =========================================================================
     // Constructor
@@ -191,7 +207,7 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     }
 
     /// @notice Gasless deposit via ERC-3009 receiveWithAuthorization.
-    function depositWithERC3009(
+    function depositERC3009(
         ChannelConfig calldata config,
         uint128 amount,
         uint256 validAfter,
@@ -216,36 +232,24 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         );
     }
 
-    /// @notice Gasless deposit via Permit2 (ISignatureTransfer).
-    function depositWithPermit2(
+    /// @notice Gasless deposit via Permit2 (ISignatureTransfer). Payer must have pre-approved Permit2.
+    function depositPermit2(
         ChannelConfig calldata config,
         ISignatureTransfer.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
-        _validateConfig(config);
-        if (config.token != permit.permitted.token) revert InvalidChannel();
+        _executePermit2Deposit(config, permit, signature);
+    }
 
-        uint128 amount = _safeToUint128(permit.permitted.amount);
-        if (amount == 0) revert ZeroDeposit();
-
-        bytes32 channelId = getChannelId(config);
-        _applyDeposit(channelId, config, amount);
-
-        bytes32 witnessHash = keccak256(
-            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
-        );
-
-        PERMIT2.permitWitnessTransferFrom(
-            permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: permit.permitted.amount
-            }),
-            config.payer,
-            witnessHash,
-            DEPOSIT_WITNESS_TYPE_STRING,
-            signature
-        );
+    /// @notice Gasless deposit via Permit2 with EIP-2612 permit to approve Permit2 in the same transaction.
+    function depositPermit2WithPermit(
+        ChannelConfig calldata config,
+        EIP2612Permit calldata permit2612,
+        ISignatureTransfer.PermitTransferFrom calldata permit,
+        bytes calldata signature
+    ) external nonReentrant {
+        _executeEIP2612Permit(config.token, config.payer, permit2612, permit.permitted.amount);
+        _executePermit2Deposit(config, permit, signature);
     }
 
     // =========================================================================
@@ -461,6 +465,60 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     // =========================================================================
     // Internal Helpers
     // =========================================================================
+
+    function _executePermit2Deposit(
+        ChannelConfig calldata config,
+        ISignatureTransfer.PermitTransferFrom calldata permit,
+        bytes calldata signature
+    ) internal {
+        _validateConfig(config);
+        if (config.token != permit.permitted.token) revert InvalidChannel();
+
+        uint128 amount = _safeToUint128(permit.permitted.amount);
+        if (amount == 0) revert ZeroDeposit();
+
+        bytes32 channelId = getChannelId(config);
+        _applyDeposit(channelId, config, amount);
+
+        bytes32 witnessHash = keccak256(
+            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
+        );
+
+        PERMIT2.permitWitnessTransferFrom(
+            permit,
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: permit.permitted.amount
+            }),
+            config.payer,
+            witnessHash,
+            DEPOSIT_WITNESS_TYPE_STRING,
+            signature
+        );
+    }
+
+    function _executeEIP2612Permit(
+        address token,
+        address owner,
+        EIP2612Permit calldata permit2612,
+        uint256 permittedAmount
+    ) internal {
+        if (permit2612.value != permittedAmount) {
+            revert Permit2612AmountMismatch();
+        }
+
+        try IERC20Permit(token).permit(
+            owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
+        ) {
+            // EIP-2612 permit succeeded
+        } catch Error(string memory reason) {
+            emit EIP2612PermitFailedWithReason(token, owner, reason);
+        } catch Panic(uint256 errorCode) {
+            emit EIP2612PermitFailedWithPanic(token, owner, errorCode);
+        } catch (bytes memory data) {
+            emit EIP2612PermitFailedWithData(token, owner, data);
+        }
+    }
 
     function _validateConfig(ChannelConfig calldata config) internal pure {
         if (config.payer == address(0)) revert InvalidChannel();
