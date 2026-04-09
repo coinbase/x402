@@ -66,6 +66,13 @@ export const ErrEip2612AssetMismatch = "eip2612_asset_mismatch";
 export const ErrEip2612SpenderNotPermit2 = "eip2612_spender_not_permit2";
 export const ErrEip2612DeadlineExpired = "eip2612_deadline_expired";
 
+// ERC-7710 verify/settle errors
+export const ErrERC7710InvalidDelegationManager = "invalid_erc7710_delegation_manager";
+export const ErrERC7710InvalidDelegator = "invalid_erc7710_delegator";
+export const ErrERC7710InvalidPermissionContext = "invalid_erc7710_permission_context";
+export const ErrERC7710SimulationFailed = "invalid_erc7710_simulation_failed";
+export const ErrERC7710RedeemFailed = "invalid_erc7710_redeem_failed";
+
 // Shared settle errors
 export const ErrUnsupportedPayloadType = "unsupported_payload_type";
 export const ErrInvalidTransactionState = "invalid_transaction_state";

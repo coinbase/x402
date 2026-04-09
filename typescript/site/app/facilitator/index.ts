@@ -55,6 +55,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
       abi: readonly unknown[];
       functionName: string;
       args?: readonly unknown[];
+      account?: `0x${string}`;
     }) =>
       viemClient.readContract({
         ...args,
