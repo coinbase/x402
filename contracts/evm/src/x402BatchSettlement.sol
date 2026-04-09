@@ -86,13 +86,11 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     bytes32 public constant CLAIM_BATCH_TYPEHASH =
         keccak256("ClaimBatch(bytes32 claimsHash)");
 
-    bytes32 public constant FINALIZE_WITHDRAW_TYPEHASH =
-        keccak256("FinalizeWithdraw(bytes32 channelId)");
-
     string public constant DEPOSIT_WITNESS_TYPE_STRING =
         "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)";
 
-    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH = keccak256("DepositWitness(bytes32 channelId)");
+    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH =
+        keccak256("DepositWitness(bytes32 channelId)");
 
     // =========================================================================
     // Immutables
@@ -106,18 +104,39 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
 
     mapping(bytes32 channelId => ChannelState) public channels;
     mapping(bytes32 channelId => WithdrawalState) public pendingWithdrawals;
-    mapping(address receiver => mapping(address token => ReceiverState)) public receivers;
+    mapping(address receiver => mapping(address token => ReceiverState))
+        public receivers;
 
     // =========================================================================
     // Events
     // =========================================================================
 
     event ChannelCreated(bytes32 indexed channelId, ChannelConfig config);
-    event Deposited(bytes32 indexed channelId, uint128 amount, uint128 newBalance);
-    event Claimed(bytes32 indexed channelId, uint128 claimAmount, uint128 newTotalClaimed);
-    event Settled(address indexed receiver, address indexed token, uint128 amount);
-    event WithdrawInitiated(bytes32 indexed channelId, uint128 amount, uint40 finalizeAfter);
-    event WithdrawFinalized(bytes32 indexed channelId, uint128 amount, address sender);
+    event Deposited(
+        bytes32 indexed channelId,
+        uint128 amount,
+        uint128 newBalance
+    );
+    event Claimed(
+        bytes32 indexed channelId,
+        uint128 claimAmount,
+        uint128 newTotalClaimed
+    );
+    event Settled(
+        address indexed receiver,
+        address indexed token,
+        uint128 amount
+    );
+    event WithdrawInitiated(
+        bytes32 indexed channelId,
+        uint128 amount,
+        uint40 finalizeAfter
+    );
+    event WithdrawFinalized(
+        bytes32 indexed channelId,
+        uint128 amount,
+        address sender
+    );
 
     // =========================================================================
     // Errors
@@ -153,7 +172,10 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     // =========================================================================
 
     /// @notice Direct deposit via ERC-20 transferFrom. Caller must be the payer.
-    function deposit(ChannelConfig calldata config, uint128 amount) external nonReentrant {
+    function deposit(
+        ChannelConfig calldata config,
+        uint128 amount
+    ) external nonReentrant {
         if (msg.sender != config.payer) revert InvalidChannel();
         _validateConfig(config);
         if (amount == 0) revert ZeroDeposit();
@@ -161,7 +183,11 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         bytes32 channelId = getChannelId(config);
         _applyDeposit(channelId, config, amount);
 
-        IERC20(config.token).safeTransferFrom(config.payer, address(this), amount);
+        IERC20(config.token).safeTransferFrom(
+            config.payer,
+            address(this),
+            amount
+        );
     }
 
     /// @notice Gasless deposit via ERC-3009 receiveWithAuthorization.
@@ -180,7 +206,13 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         _applyDeposit(channelId, config, amount);
 
         IERC3009(config.token).receiveWithAuthorization(
-            config.payer, address(this), amount, validAfter, validBefore, nonce, signature
+            config.payer,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            signature
         );
     }
 
@@ -199,11 +231,16 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         bytes32 channelId = getChannelId(config);
         _applyDeposit(channelId, config, amount);
 
-        bytes32 witnessHash = keccak256(abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId));
+        bytes32 witnessHash = keccak256(
+            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
+        );
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: permit.permitted.amount}),
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: permit.permitted.amount
+            }),
             config.payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,
@@ -217,11 +254,16 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
 
     /// @notice Batch-validate voucher claims and update channel accounting.
     ///         Caller must be the receiverAuthorizer for every claim in the batch.
-    function claim(VoucherClaim[] calldata voucherClaims) external nonReentrant {
+    function claim(
+        VoucherClaim[] calldata voucherClaims
+    ) external nonReentrant {
         if (voucherClaims.length == 0) revert EmptyBatch();
 
         for (uint256 i = 0; i < voucherClaims.length; ++i) {
-            if (msg.sender != voucherClaims[i].voucher.channel.receiverAuthorizer) {
+            if (
+                msg.sender !=
+                voucherClaims[i].voucher.channel.receiverAuthorizer
+            ) {
                 revert NotReceiverAuthorizer();
             }
             _processVoucherClaim(voucherClaims[i]);
@@ -236,13 +278,24 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     ) external nonReentrant {
         if (voucherClaims.length == 0) revert EmptyBatch();
 
-        address authorizer = voucherClaims[0].voucher.channel.receiverAuthorizer;
+        address authorizer = voucherClaims[0]
+            .voucher
+            .channel
+            .receiverAuthorizer;
 
         bytes32 claimsHash = _computeClaimsHash(voucherClaims);
-        _verifyReceiverAuthorizer(CLAIM_BATCH_TYPEHASH, claimsHash, authorizer, authorizerSignature);
+        _verifyReceiverAuthorizer(
+            CLAIM_BATCH_TYPEHASH,
+            claimsHash,
+            authorizer,
+            authorizerSignature
+        );
 
         for (uint256 i = 0; i < voucherClaims.length; ++i) {
-            if (voucherClaims[i].voucher.channel.receiverAuthorizer != authorizer) {
+            if (
+                voucherClaims[i].voucher.channel.receiverAuthorizer !=
+                authorizer
+            ) {
                 revert NotReceiverAuthorizer();
             }
             _processVoucherClaim(voucherClaims[i]);
@@ -267,7 +320,10 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     // =========================================================================
 
     /// @notice Start the withdrawal countdown. Only the payer can call.
-    function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external {
+    function initiateWithdraw(
+        ChannelConfig calldata config,
+        uint128 amount
+    ) external {
         if (msg.sender != config.payer) revert InvalidChannel();
         if (amount == 0) revert NothingToWithdraw();
 
@@ -284,65 +340,86 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     }
 
     /// @notice Finalize withdrawal after delay has elapsed.
-    ///         Only the payer or receiverAuthorizer can call.
-    function finalizeWithdraw(ChannelConfig calldata config) external nonReentrant {
-        if (msg.sender != config.payer && msg.sender != config.receiverAuthorizer) {
-            revert NotReceiverAuthorizer();
-        }
-
-        bytes32 channelId = getChannelId(config);
-        _executeFinalizeWithdraw(channelId, config);
-    }
-
-    /// @notice Finalize withdrawal with an off-chain receiverAuthorizer signature.
     ///         Anyone can submit.
-    function finalizeWithdrawWithSignature(
-        ChannelConfig calldata config,
-        bytes calldata authorizerSignature
+    function finalizeWithdraw(
+        ChannelConfig calldata config
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
-        _verifyReceiverAuthorizer(FINALIZE_WITHDRAW_TYPEHASH, channelId, config.receiverAuthorizer, authorizerSignature);
-        _executeFinalizeWithdraw(channelId, config);
+        WithdrawalState storage ws = pendingWithdrawals[channelId];
+
+        if (ws.initiatedAt == 0) revert WithdrawalNotPending();
+        if (
+            block.timestamp <
+            uint256(ws.initiatedAt) + uint256(config.withdrawDelay)
+        ) {
+            revert WithdrawDelayNotElapsed();
+        }
+
+        ChannelState storage ch = channels[channelId];
+        uint128 available = ch.balance - ch.totalClaimed;
+        uint128 withdrawAmount = ws.amount > available ? available : ws.amount;
+
+        ws.amount = 0;
+        ws.initiatedAt = 0;
+        ch.balance -= withdrawAmount;
+
+        emit WithdrawFinalized(channelId, withdrawAmount, msg.sender);
+
+        if (withdrawAmount > 0) {
+            IERC20(config.token).safeTransfer(config.payer, withdrawAmount);
+        }
     }
 
-    /// @notice Instant cooperative withdrawal signed by the receiverAuthorizer.
+    /// @notice Instant cooperative withdrawal called by the receiverAuthorizer.
     function cooperativeWithdraw(
+        ChannelConfig calldata config
+    ) external nonReentrant {
+        if (msg.sender != config.receiverAuthorizer)
+            revert NotReceiverAuthorizer();
+        _executeCooperativeWithdraw(config);
+    }
+
+    /// @notice Instant cooperative withdrawal. Anyone can submit with a signature authorized by the receiverAuthorizer.
+    function cooperativeWithdrawWithSignature(
         ChannelConfig calldata config,
         bytes calldata receiverAuthorizerSignature
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
-        _verifyReceiverAuthorizer(COOPERATIVE_WITHDRAW_TYPEHASH, channelId, config.receiverAuthorizer, receiverAuthorizerSignature);
-
-        ChannelState storage ch = channels[channelId];
-        uint128 refund = ch.balance - ch.totalClaimed;
-        ch.balance = ch.totalClaimed;
-
-        _clearPendingWithdrawal(channelId);
-
-        emit WithdrawFinalized(channelId, refund, msg.sender);
-
-        if (refund > 0) {
-            IERC20(config.token).safeTransfer(config.payer, refund);
-        }
+        _verifyReceiverAuthorizer(
+            COOPERATIVE_WITHDRAW_TYPEHASH,
+            channelId,
+            config.receiverAuthorizer,
+            receiverAuthorizerSignature
+        );
+        _executeCooperativeWithdraw(config);
     }
 
     // =========================================================================
     // View Functions
     // =========================================================================
 
-    function getChannelId(ChannelConfig calldata config) public pure returns (bytes32) {
+    function getChannelId(
+        ChannelConfig calldata config
+    ) public pure returns (bytes32) {
         return keccak256(abi.encode(config));
     }
 
-    function getChannel(bytes32 channelId) external view returns (ChannelState memory) {
+    function getChannel(
+        bytes32 channelId
+    ) external view returns (ChannelState memory) {
         return channels[channelId];
     }
 
-    function getPendingWithdrawal(bytes32 channelId) external view returns (WithdrawalState memory) {
+    function getPendingWithdrawal(
+        bytes32 channelId
+    ) external view returns (WithdrawalState memory) {
         return pendingWithdrawals[channelId];
     }
 
-    function getReceiver(address receiver, address token) external view returns (ReceiverState memory) {
+    function getReceiver(
+        address receiver,
+        address token
+    ) external view returns (ReceiverState memory) {
         return receivers[receiver][token];
     }
 
@@ -350,21 +427,35 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         return _domainSeparatorV4();
     }
 
-    function getVoucherDigest(bytes32 channelId, uint128 maxClaimableAmount) external view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, maxClaimableAmount)));
+    function getVoucherDigest(
+        bytes32 channelId,
+        uint128 maxClaimableAmount
+    ) external view returns (bytes32) {
+        return
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(VOUCHER_TYPEHASH, channelId, maxClaimableAmount)
+                )
+            );
     }
 
-    function getCooperativeWithdrawDigest(bytes32 channelId) external view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(COOPERATIVE_WITHDRAW_TYPEHASH, channelId)));
+    function getCooperativeWithdrawDigest(
+        bytes32 channelId
+    ) external view returns (bytes32) {
+        return
+            _hashTypedDataV4(
+                keccak256(abi.encode(COOPERATIVE_WITHDRAW_TYPEHASH, channelId))
+            );
     }
 
-    function getClaimBatchDigest(VoucherClaim[] calldata voucherClaims) external view returns (bytes32) {
+    function getClaimBatchDigest(
+        VoucherClaim[] calldata voucherClaims
+    ) external view returns (bytes32) {
         bytes32 claimsHash = _computeClaimsHash(voucherClaims);
-        return _hashTypedDataV4(keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, claimsHash)));
-    }
-
-    function getFinalizeWithdrawDigest(bytes32 channelId) external view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(FINALIZE_WITHDRAW_TYPEHASH, channelId)));
+        return
+            _hashTypedDataV4(
+                keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, claimsHash))
+            );
     }
 
     // =========================================================================
@@ -376,12 +467,19 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         if (config.receiver == address(0)) revert InvalidChannel();
         if (config.receiverAuthorizer == address(0)) revert InvalidChannel();
         if (config.token == address(0)) revert InvalidChannel();
-        if (config.withdrawDelay < MIN_WITHDRAW_DELAY || config.withdrawDelay > MAX_WITHDRAW_DELAY) {
+        if (
+            config.withdrawDelay < MIN_WITHDRAW_DELAY ||
+            config.withdrawDelay > MAX_WITHDRAW_DELAY
+        ) {
             revert WithdrawDelayOutOfRange();
         }
     }
 
-    function _applyDeposit(bytes32 channelId, ChannelConfig calldata config, uint128 amount) internal {
+    function _applyDeposit(
+        bytes32 channelId,
+        ChannelConfig calldata config,
+        uint128 amount
+    ) internal {
         ChannelState storage ch = channels[channelId];
 
         bool isNew = ch.balance == 0 && ch.totalClaimed == 0;
@@ -402,54 +500,48 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         ChannelState storage ch = channels[channelId];
 
         uint128 newTotalClaimed = ch.totalClaimed + vc.claimAmount;
-        if (newTotalClaimed > vc.voucher.maxClaimableAmount) revert ClaimExceedsCeiling();
+        if (newTotalClaimed > vc.voucher.maxClaimableAmount)
+            revert ClaimExceedsCeiling();
         if (newTotalClaimed > ch.balance) revert ClaimExceedsBalance();
 
-        bytes32 structHash = keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, vc.voucher.maxClaimableAmount));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                VOUCHER_TYPEHASH,
+                channelId,
+                vc.voucher.maxClaimableAmount
+            )
+        );
         bytes32 digest = _hashTypedDataV4(structHash);
 
         address payerAuth = vc.voucher.channel.payerAuthorizer;
         if (payerAuth != address(0)) {
-            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(digest, vc.signature);
+            (address recovered, ECDSA.RecoverError err, ) = ECDSA
+                .tryRecoverCalldata(digest, vc.signature);
             if (err != ECDSA.RecoverError.NoError || recovered != payerAuth) {
                 revert InvalidSignature();
             }
         } else {
-            if (!SignatureChecker.isValidSignatureNow(vc.voucher.channel.payer, digest, vc.signature)) {
+            if (
+                !SignatureChecker.isValidSignatureNow(
+                    vc.voucher.channel.payer,
+                    digest,
+                    vc.signature
+                )
+            ) {
                 revert InvalidSignature();
             }
         }
 
         ch.totalClaimed = newTotalClaimed;
-        receivers[vc.voucher.channel.receiver][vc.voucher.channel.token].totalClaimed += vc.claimAmount;
+        receivers[vc.voucher.channel.receiver][vc.voucher.channel.token]
+            .totalClaimed += vc.claimAmount;
 
         emit Claimed(channelId, vc.claimAmount, newTotalClaimed);
     }
 
-    function _executeFinalizeWithdraw(bytes32 channelId, ChannelConfig calldata config) internal {
-        WithdrawalState storage ws = pendingWithdrawals[channelId];
-
-        if (ws.initiatedAt == 0) revert WithdrawalNotPending();
-        if (block.timestamp < uint256(ws.initiatedAt) + uint256(config.withdrawDelay)) {
-            revert WithdrawDelayNotElapsed();
-        }
-
-        ChannelState storage ch = channels[channelId];
-        uint128 available = ch.balance - ch.totalClaimed;
-        uint128 withdrawAmount = ws.amount > available ? available : ws.amount;
-
-        ws.amount = 0;
-        ws.initiatedAt = 0;
-        ch.balance -= withdrawAmount;
-
-        emit WithdrawFinalized(channelId, withdrawAmount, msg.sender);
-
-        if (withdrawAmount > 0) {
-            IERC20(config.token).safeTransfer(config.payer, withdrawAmount);
-        }
-    }
-
-    function _computeClaimsHash(VoucherClaim[] calldata voucherClaims) internal pure returns (bytes32) {
+    function _computeClaimsHash(
+        VoucherClaim[] calldata voucherClaims
+    ) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](voucherClaims.length);
         for (uint256 i = 0; i < voucherClaims.length; ++i) {
             hashes[i] = keccak256(
@@ -471,8 +563,26 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     ) internal view {
         bytes32 structHash = keccak256(abi.encode(typehash, data));
         bytes32 digest = _hashTypedDataV4(structHash);
-        if (!SignatureChecker.isValidSignatureNow(authorizer, digest, signature)) {
+        if (
+            !SignatureChecker.isValidSignatureNow(authorizer, digest, signature)
+        ) {
             revert InvalidSignature();
+        }
+    }
+
+    function _executeCooperativeWithdraw(
+        ChannelConfig calldata config
+    ) internal {
+        bytes32 channelId = getChannelId(config);
+        ChannelState storage ch = channels[channelId];
+        uint128 refund = ch.balance - ch.totalClaimed;
+        ch.balance = ch.totalClaimed;
+
+        _clearPendingWithdrawal(channelId);
+        emit WithdrawFinalized(channelId, refund, msg.sender);
+
+        if (refund > 0) {
+            IERC20(config.token).safeTransfer(config.payer, refund);
         }
     }
 
