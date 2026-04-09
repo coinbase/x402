@@ -3,9 +3,12 @@ pragma solidity ^0.8.20;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
+import {Permit2DepositCollector} from "../src/periphery/Permit2DepositCollector.sol";
+import {Permit2WithPermitDepositCollector} from "../src/periphery/Permit2WithPermitDepositCollector.sol";
+import {ERC3009DepositCollector} from "../src/periphery/ERC3009DepositCollector.sol";
 
 /// @title DeployBatchSettlement
-/// @notice Deployment script for x402BatchSettlement using CREATE2
+/// @notice Deployment script for x402BatchSettlement and deposit collectors using CREATE2
 /// @dev Run with: forge script script/DeployBatchSettlement.s.sol --rpc-url $RPC_URL --broadcast --verify
 ///
 ///      Uses deterministic bytecode (cbor_metadata = false in foundry.toml) so
@@ -26,7 +29,7 @@ contract DeployBatchSettlement is Script {
         console2.log("");
         console2.log("============================================================");
         console2.log("  x402BatchSettlement Deterministic Deployment (CREATE2)");
-        console2.log("  Model: Dual-Authorizer Channel-Config");
+        console2.log("  Model: Dual-Authorizer Channel-Config + Deposit Collectors");
         console2.log("============================================================");
         console2.log("");
 
@@ -43,20 +46,21 @@ contract DeployBatchSettlement is Script {
             console2.log("CREATE2 deployer verified");
         }
 
-        _deploy(permit2);
+        _deploySettlement();
+        _deployCollectors(permit2);
 
         console2.log("");
         console2.log("Deployment complete!");
         console2.log("");
     }
 
-    function _deploy(address permit2) internal {
+    function _deploySettlement() internal {
         console2.log("");
         console2.log("------------------------------------------------------------");
         console2.log("  Deploying x402BatchSettlement");
         console2.log("------------------------------------------------------------");
 
-        bytes memory initCode = abi.encodePacked(type(x402BatchSettlement).creationCode, abi.encode(permit2));
+        bytes memory initCode = type(x402BatchSettlement).creationCode;
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(BATCH_SALT, initCodeHash, CREATE2_DEPLOYER);
 
@@ -68,32 +72,45 @@ contract DeployBatchSettlement is Script {
 
         if (expectedAddress.code.length > 0) {
             console2.log("Contract already deployed at", expectedAddress);
-            bs = x402BatchSettlement(expectedAddress);
-            console2.log("PERMIT2:", address(bs.PERMIT2()));
             return;
         }
 
         vm.startBroadcast();
 
-        address deployedAddress;
         if (block.chainid == 31_337 || block.chainid == 1337) {
             console2.log("(Using regular deployment for local network)");
-            bs = new x402BatchSettlement(permit2);
-            deployedAddress = address(bs);
+            bs = new x402BatchSettlement();
         } else {
             bytes memory deploymentData = abi.encodePacked(BATCH_SALT, initCode);
             (bool success,) = CREATE2_DEPLOYER.call(deploymentData);
             require(success, "CREATE2 deployment failed for BatchSettlement");
-            deployedAddress = expectedAddress;
-            require(deployedAddress.code.length > 0, "No bytecode at expected address");
-            bs = x402BatchSettlement(deployedAddress);
+            require(expectedAddress.code.length > 0, "No bytecode at expected address");
+            bs = x402BatchSettlement(expectedAddress);
         }
 
         vm.stopBroadcast();
 
-        console2.log("Deployed to:", deployedAddress);
-        console2.log("Verification - PERMIT2:", address(bs.PERMIT2()));
-        require(address(bs.PERMIT2()) == permit2, "PERMIT2 mismatch");
+        console2.log("Deployed to:", address(bs));
+    }
+
+    function _deployCollectors(address permit2) internal {
+        console2.log("");
+        console2.log("------------------------------------------------------------");
+        console2.log("  Deploying Deposit Collectors");
+        console2.log("------------------------------------------------------------");
+
+        vm.startBroadcast();
+
+        ERC3009DepositCollector erc3009Collector = new ERC3009DepositCollector();
+        console2.log("ERC3009DepositCollector:", address(erc3009Collector));
+
+        Permit2DepositCollector permit2Collector = new Permit2DepositCollector(permit2);
+        console2.log("Permit2DepositCollector:", address(permit2Collector));
+
+        Permit2WithPermitDepositCollector permit2WithPermitCollector = new Permit2WithPermitDepositCollector(permit2);
+        console2.log("Permit2WithPermitDepositCollector:", address(permit2WithPermitCollector));
+
+        vm.stopBroadcast();
     }
 
     function _computeCreate2Addr(

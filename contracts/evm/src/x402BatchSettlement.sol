@@ -8,10 +8,7 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-
-import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
-import {IERC3009} from "./interfaces/IERC3009.sol";
+import {IDepositCollector} from "./interfaces/IDepositCollector.sol";
 
 /// @title x402BatchSettlement
 /// @notice Stateless unidirectional payment channel contract for the x402 `batch-settlement` scheme on EVM.
@@ -64,19 +61,6 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         uint128 claimAmount;
     }
 
-    struct DepositWitness {
-        bytes32 channelId;
-    }
-
-    /// @notice EIP-2612 permit parameters for granting Permit2 approval in the same transaction.
-    struct EIP2612Permit {
-        uint256 value;
-        uint256 deadline;
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-    }
-
     // =========================================================================
     // Constants
     // =========================================================================
@@ -96,18 +80,6 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
 
     bytes32 public constant CLAIM_BATCH_TYPEHASH =
         keccak256("ClaimBatch(bytes32 claimsHash)");
-
-    string public constant DEPOSIT_WITNESS_TYPE_STRING =
-        "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)";
-
-    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH =
-        keccak256("DepositWitness(bytes32 channelId)");
-
-    // =========================================================================
-    // Immutables
-    // =========================================================================
-
-    ISignatureTransfer public immutable PERMIT2;
 
     // =========================================================================
     // Storage
@@ -167,89 +139,50 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     error NothingToWithdraw();
     error WithdrawDelayOutOfRange();
     error EmptyBatch();
-    error InvalidPermit2Address();
-    error Permit2612AmountMismatch();
-
-    event EIP2612PermitFailedWithReason(address indexed token, address indexed owner, string reason);
-    event EIP2612PermitFailedWithPanic(address indexed token, address indexed owner, uint256 errorCode);
-    event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
+    error DepositCollectionFailed();
+    error InvalidCollector();
 
     // =========================================================================
     // Constructor
     // =========================================================================
 
-    constructor(address _permit2) EIP712("x402 Batch Settlement", "1") {
-        if (_permit2 == address(0)) revert InvalidPermit2Address();
-        PERMIT2 = ISignatureTransfer(_permit2);
-    }
+    constructor() EIP712("x402 Batch Settlement", "1") {}
 
     // =========================================================================
     // Deposits
     // =========================================================================
 
-    /// @notice Direct deposit via ERC-20 transferFrom. Caller must be the payer.
+    /// @notice Deposit tokens into a channel using a pluggable collector.
+    /// @dev The collector handles the token transfer mechanics. This function verifies
+    ///      actual token receipt via balance checks (checks-effects-interactions with post-check).
+    /// @param config The immutable channel configuration
+    /// @param amount The exact amount of tokens to deposit
+    /// @param collector The deposit collector contract address
+    /// @param collectorData Opaque bytes forwarded to the collector (signatures, nonces, etc.)
     function deposit(
         ChannelConfig calldata config,
-        uint128 amount
-    ) external nonReentrant {
-        if (msg.sender != config.payer) revert InvalidChannel();
-        _validateConfig(config);
-        if (amount == 0) revert ZeroDeposit();
-
-        bytes32 channelId = getChannelId(config);
-        _applyDeposit(channelId, config, amount);
-
-        IERC20(config.token).safeTransferFrom(
-            config.payer,
-            address(this),
-            amount
-        );
-    }
-
-    /// @notice Gasless deposit via ERC-3009 receiveWithAuthorization.
-    function depositERC3009(
-        ChannelConfig calldata config,
         uint128 amount,
-        uint256 validAfter,
-        uint256 validBefore,
-        bytes32 nonce,
-        bytes calldata signature
+        address collector,
+        bytes calldata collectorData
     ) external nonReentrant {
         _validateConfig(config);
         if (amount == 0) revert ZeroDeposit();
+        if (collector == address(0)) revert InvalidCollector();
 
         bytes32 channelId = getChannelId(config);
         _applyDeposit(channelId, config, amount);
 
-        IERC3009(config.token).receiveWithAuthorization(
+        uint256 balBefore = IERC20(config.token).balanceOf(address(this));
+        IDepositCollector(collector).collect(
             config.payer,
+            config.token,
             address(this),
             amount,
-            validAfter,
-            validBefore,
-            nonce,
-            signature
+            channelId,
+            collectorData
         );
-    }
-
-    /// @notice Gasless deposit via Permit2 (ISignatureTransfer). Payer must have pre-approved Permit2.
-    function depositPermit2(
-        ChannelConfig calldata config,
-        ISignatureTransfer.PermitTransferFrom calldata permit,
-        bytes calldata signature
-    ) external nonReentrant {
-        _executePermit2Deposit(config, permit, signature);
-    }
-
-    /// @notice Gasless deposit via Permit2 with EIP-2612 permit to approve Permit2 in the same transaction.
-    function depositPermit2WithPermit(
-        ChannelConfig calldata config,
-        EIP2612Permit calldata permit2612,
-        ISignatureTransfer.PermitTransferFrom calldata permit,
-        bytes calldata signature
-    ) external nonReentrant {
-        _executeEIP2612Permit(config.token, config.payer, permit2612, permit.permitted.amount);
-        _executePermit2Deposit(config, permit, signature);
+        uint256 balAfter = IERC20(config.token).balanceOf(address(this));
+        if (balAfter != balBefore + amount) revert DepositCollectionFailed();
     }
 
     // =========================================================================
@@ -466,60 +399,6 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
     // Internal Helpers
     // =========================================================================
 
-    function _executePermit2Deposit(
-        ChannelConfig calldata config,
-        ISignatureTransfer.PermitTransferFrom calldata permit,
-        bytes calldata signature
-    ) internal {
-        _validateConfig(config);
-        if (config.token != permit.permitted.token) revert InvalidChannel();
-
-        uint128 amount = _safeToUint128(permit.permitted.amount);
-        if (amount == 0) revert ZeroDeposit();
-
-        bytes32 channelId = getChannelId(config);
-        _applyDeposit(channelId, config, amount);
-
-        bytes32 witnessHash = keccak256(
-            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
-        );
-
-        PERMIT2.permitWitnessTransferFrom(
-            permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: permit.permitted.amount
-            }),
-            config.payer,
-            witnessHash,
-            DEPOSIT_WITNESS_TYPE_STRING,
-            signature
-        );
-    }
-
-    function _executeEIP2612Permit(
-        address token,
-        address owner,
-        EIP2612Permit calldata permit2612,
-        uint256 permittedAmount
-    ) internal {
-        if (permit2612.value != permittedAmount) {
-            revert Permit2612AmountMismatch();
-        }
-
-        try IERC20Permit(token).permit(
-            owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
-        ) {
-            // EIP-2612 permit succeeded
-        } catch Error(string memory reason) {
-            emit EIP2612PermitFailedWithReason(token, owner, reason);
-        } catch Panic(uint256 errorCode) {
-            emit EIP2612PermitFailedWithPanic(token, owner, errorCode);
-        } catch (bytes memory data) {
-            emit EIP2612PermitFailedWithData(token, owner, data);
-        }
-    }
-
     function _validateConfig(ChannelConfig calldata config) internal pure {
         if (config.payer == address(0)) revert InvalidChannel();
         if (config.receiver == address(0)) revert InvalidChannel();
@@ -652,8 +531,4 @@ contract x402BatchSettlement is EIP712, ReentrancyGuard {
         }
     }
 
-    function _safeToUint128(uint256 value) internal pure returns (uint128) {
-        if (value > type(uint128).max) revert DepositOverflow();
-        return uint128(value);
-    }
 }
