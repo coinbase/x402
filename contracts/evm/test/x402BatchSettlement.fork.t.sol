@@ -139,7 +139,7 @@ contract X402BatchSettlementForkTest is Test {
             nonce: nonce,
             deadline: deadline
         });
-        settlement.depositWithPermit2(config, permit, depositSig);
+        settlement.depositPermit2(config, permit, depositSig);
 
         x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT);
@@ -172,7 +172,7 @@ contract X402BatchSettlementForkTest is Test {
             nonce: nonce,
             deadline: deadline
         });
-        settlement.depositWithPermit2(config, permit, depositSig);
+        settlement.depositPermit2(config, permit, depositSig);
 
         bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);
         x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
@@ -186,7 +186,7 @@ contract X402BatchSettlementForkTest is Test {
 
         bytes memory coopSig = _signCooperativeWithdraw(channelId);
         uint256 payerBalBefore = token.balanceOf(payer);
-        settlement.cooperativeWithdraw(config, coopSig);
+        settlement.cooperativeWithdrawWithSignature(config, coopSig);
 
         assertEq(token.balanceOf(payer), payerBalBefore + (DEPOSIT_AMOUNT - CLAIM_AMOUNT));
     }
@@ -208,6 +208,6 @@ contract X402BatchSettlementForkTest is Test {
         });
 
         vm.expectRevert();
-        settlement.depositWithPermit2(tamperedConfig, permit, depositSig);
+        settlement.depositPermit2(tamperedConfig, permit, depositSig);
     }
 }

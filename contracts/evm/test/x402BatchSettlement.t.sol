@@ -7,12 +7,14 @@ import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockERC20Permit} from "./mocks/MockERC20Permit.sol";
 import {MockERC3009Token} from "./mocks/MockERC3009Token.sol";
 
 contract X402BatchSettlementTest is Test {
     x402BatchSettlement public settlement;
     MockPermit2 public mockPermit2;
     MockERC20 public token;
+    MockERC20Permit public permitToken;
     MockERC3009Token public erc3009Token;
 
     VmSafe.Wallet public payerWallet;
@@ -45,15 +47,19 @@ contract X402BatchSettlementTest is Test {
         settlement = new x402BatchSettlement(address(mockPermit2));
 
         token = new MockERC20("USDC", "USDC", 6);
+        permitToken = new MockERC20Permit("PermitUSDC", "pUSDC", 6);
         erc3009Token = new MockERC3009Token("USDC3009", "USDC3009", 6);
 
         token.mint(payerWallet.addr, 100_000e6);
+        permitToken.mint(payerWallet.addr, 100_000e6);
         erc3009Token.mint(payerWallet.addr, 100_000e6);
 
         vm.prank(payerWallet.addr);
         token.approve(address(settlement), type(uint256).max);
         vm.prank(payerWallet.addr);
         token.approve(address(mockPermit2), type(uint256).max);
+        vm.prank(payerWallet.addr);
+        permitToken.approve(address(mockPermit2), type(uint256).max);
         mockPermit2.setShouldActuallyTransfer(true);
     }
 
@@ -123,14 +129,6 @@ contract X402BatchSettlementTest is Test {
         return _signTypedData(wallet, structHash);
     }
 
-    function _signFinalizeWithdraw(VmSafe.Wallet memory wallet, bytes32 channelId)
-        internal
-        returns (bytes memory)
-    {
-        bytes32 structHash = keccak256(abi.encode(settlement.FINALIZE_WITHDRAW_TYPEHASH(), channelId));
-        return _signTypedData(wallet, structHash);
-    }
-
     function _signClaimBatch(
         VmSafe.Wallet memory wallet,
         x402BatchSettlement.VoucherClaim[] memory claims
@@ -161,7 +159,7 @@ contract X402BatchSettlementTest is Test {
 
     function _depositERC3009(x402BatchSettlement.ChannelConfig memory config, uint128 amount) internal {
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        settlement.depositWithERC3009(config, amount, 0, block.timestamp + 3600, bytes32(0), sig);
+        settlement.depositERC3009(config, amount, 0, block.timestamp + 3600, bytes32(0), sig);
     }
 
     function _depositPermit2(x402BatchSettlement.ChannelConfig memory config, uint128 amount) internal {
@@ -171,7 +169,39 @@ contract X402BatchSettlementTest is Test {
             deadline: block.timestamp + 3600
         });
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        settlement.depositWithPermit2(config, permit, sig);
+        settlement.depositPermit2(config, permit, sig);
+    }
+
+    function _makePermitTokenConfig() internal view returns (x402BatchSettlement.ChannelConfig memory) {
+        return x402BatchSettlement.ChannelConfig({
+            payer: payerWallet.addr,
+            payerAuthorizer: payerAuthWallet.addr,
+            receiver: receiverWallet.addr,
+            receiverAuthorizer: receiverAuthWallet.addr,
+            token: address(permitToken),
+            withdrawDelay: WITHDRAW_DELAY,
+            salt: bytes32(0)
+        });
+    }
+
+    function _depositPermit2WithPermit(
+        x402BatchSettlement.ChannelConfig memory config,
+        uint128 amount
+    ) internal {
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: amount}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: amount,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
     }
 
     function _makeVoucherClaim(
@@ -339,10 +369,10 @@ contract X402BatchSettlementTest is Test {
     }
 
     // =========================================================================
-    // ERC-3009 Deposit Tests
+    // depositERC3009 Tests
     // =========================================================================
 
-    function test_depositWithERC3009_success() public {
+    function test_depositERC3009_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeERC3009Config();
         bytes32 channelId = _channelId(config);
 
@@ -352,26 +382,26 @@ contract X402BatchSettlementTest is Test {
         assertEq(ch.balance, DEPOSIT_AMOUNT);
     }
 
-    function test_depositWithERC3009_revert_zeroAmount() public {
+    function test_depositERC3009_revert_zeroAmount() public {
         x402BatchSettlement.ChannelConfig memory config = _makeERC3009Config();
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
         vm.expectRevert(x402BatchSettlement.ZeroDeposit.selector);
-        settlement.depositWithERC3009(config, 0, 0, block.timestamp + 3600, bytes32(0), sig);
+        settlement.depositERC3009(config, 0, 0, block.timestamp + 3600, bytes32(0), sig);
     }
 
-    function test_depositWithERC3009_revert_zeroPayer() public {
+    function test_depositERC3009_revert_zeroPayer() public {
         x402BatchSettlement.ChannelConfig memory config = _makeERC3009Config();
         config.payer = address(0);
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
         vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
-        settlement.depositWithERC3009(config, DEPOSIT_AMOUNT, 0, block.timestamp + 3600, bytes32(0), sig);
+        settlement.depositERC3009(config, DEPOSIT_AMOUNT, 0, block.timestamp + 3600, bytes32(0), sig);
     }
 
     // =========================================================================
-    // Permit2 Deposit Tests
+    // depositPermit2 Tests
     // =========================================================================
 
-    function test_depositWithPermit2_success() public {
+    function test_depositPermit2_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
 
@@ -381,7 +411,7 @@ contract X402BatchSettlementTest is Test {
         assertEq(ch.balance, DEPOSIT_AMOUNT);
     }
 
-    function test_depositWithPermit2_revert_zeroAmount() public {
+    function test_depositPermit2_revert_zeroAmount() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: 0}),
@@ -390,10 +420,10 @@ contract X402BatchSettlementTest is Test {
         });
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
         vm.expectRevert(x402BatchSettlement.ZeroDeposit.selector);
-        settlement.depositWithPermit2(config, permit, sig);
+        settlement.depositPermit2(config, permit, sig);
     }
 
-    function test_depositWithPermit2_revert_amountOverflow() public {
+    function test_depositPermit2_revert_amountOverflow() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: uint256(type(uint128).max) + 1}),
@@ -402,10 +432,10 @@ contract X402BatchSettlementTest is Test {
         });
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
         vm.expectRevert(x402BatchSettlement.DepositOverflow.selector);
-        settlement.depositWithPermit2(config, permit, sig);
+        settlement.depositPermit2(config, permit, sig);
     }
 
-    function test_depositWithPermit2_revert_tokenMismatch() public {
+    function test_depositPermit2_revert_tokenMismatch() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(erc3009Token), amount: DEPOSIT_AMOUNT}),
@@ -414,7 +444,162 @@ contract X402BatchSettlementTest is Test {
         });
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
         vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
-        settlement.depositWithPermit2(config, permit, sig);
+        settlement.depositPermit2(config, permit, sig);
+    }
+
+    // =========================================================================
+    // depositPermit2WithPermit Tests
+    // =========================================================================
+
+    function test_depositPermit2WithPermit_success() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+        bytes32 channelId = _channelId(config);
+
+        _depositPermit2WithPermit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_depositPermit2WithPermit_softFail_approvalAlreadyExists() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+        bytes32 channelId = _channelId(config);
+
+        permitToken.setPermitRevert(true, "ERC20Permit: invalid signature");
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: DEPOSIT_AMOUNT}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: DEPOSIT_AMOUNT,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_depositPermit2WithPermit_softFail_panic() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+        bytes32 channelId = _channelId(config);
+
+        permitToken.setRevertMode(MockERC20Permit.RevertMode.Panic);
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: DEPOSIT_AMOUNT}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: DEPOSIT_AMOUNT,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_depositPermit2WithPermit_softFail_customError() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+        bytes32 channelId = _channelId(config);
+
+        permitToken.setRevertMode(MockERC20Permit.RevertMode.CustomError);
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: DEPOSIT_AMOUNT}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: DEPOSIT_AMOUNT,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_depositPermit2WithPermit_revert_amountMismatch() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: DEPOSIT_AMOUNT}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: DEPOSIT_AMOUNT + 1,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        vm.expectRevert(x402BatchSettlement.Permit2612AmountMismatch.selector);
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
+    }
+
+    function test_depositPermit2WithPermit_revert_zeroAmount() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: config.token, amount: 0}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: 0,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        vm.expectRevert(x402BatchSettlement.ZeroDeposit.selector);
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
+    }
+
+    function test_depositPermit2WithPermit_revert_tokenMismatch() public {
+        x402BatchSettlement.ChannelConfig memory config = _makePermitTokenConfig();
+
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: address(erc3009Token), amount: DEPOSIT_AMOUNT}),
+            nonce: 0,
+            deadline: block.timestamp + 3600
+        });
+        x402BatchSettlement.EIP2612Permit memory permit2612 = x402BatchSettlement.EIP2612Permit({
+            value: DEPOSIT_AMOUNT,
+            deadline: block.timestamp + 3600,
+            r: bytes32(0),
+            s: bytes32(0),
+            v: 27
+        });
+        bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
+
+        vm.expectRevert(x402BatchSettlement.InvalidChannel.selector);
+        settlement.depositPermit2WithPermit(config, permit2612, permit, sig);
     }
 
     // =========================================================================
@@ -762,7 +947,7 @@ contract X402BatchSettlementTest is Test {
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
     }
 
-    function test_finalizeWithdraw_successByPayer() public {
+    function test_finalizeWithdraw_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -783,20 +968,7 @@ contract X402BatchSettlementTest is Test {
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT);
     }
 
-    function test_finalizeWithdraw_successByReceiverAuthorizer() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        _directDeposit(config, DEPOSIT_AMOUNT);
-
-        vm.prank(payerWallet.addr);
-        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
-
-        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
-
-        vm.prank(receiverAuthWallet.addr);
-        settlement.finalizeWithdraw(config);
-    }
-
-    function test_finalizeWithdraw_revert_unauthorized() public {
+    function test_finalizeWithdraw_permissionless() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
 
@@ -806,13 +978,11 @@ contract X402BatchSettlementTest is Test {
         vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
 
         vm.prank(otherWallet.addr);
-        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
         settlement.finalizeWithdraw(config);
     }
 
     function test_finalizeWithdraw_revert_notPending() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        vm.prank(payerWallet.addr);
         vm.expectRevert(x402BatchSettlement.WithdrawalNotPending.selector);
         settlement.finalizeWithdraw(config);
     }
@@ -824,7 +994,6 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        vm.prank(payerWallet.addr);
         vm.expectRevert(x402BatchSettlement.WithdrawDelayNotElapsed.selector);
         settlement.finalizeWithdraw(config);
     }
@@ -871,59 +1040,43 @@ contract X402BatchSettlementTest is Test {
     }
 
     // =========================================================================
-    // finalizeWithdrawWithSignature Tests
-    // =========================================================================
-
-    function test_finalizeWithdrawWithSignature_success() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        bytes32 channelId = _channelId(config);
-        _directDeposit(config, DEPOSIT_AMOUNT);
-
-        vm.prank(payerWallet.addr);
-        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
-
-        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
-
-        bytes memory sig = _signFinalizeWithdraw(receiverAuthWallet, channelId);
-
-        vm.prank(otherWallet.addr);
-        settlement.finalizeWithdrawWithSignature(config, sig);
-
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
-        assertEq(ch.balance, 0);
-    }
-
-    function test_finalizeWithdrawWithSignature_revert_wrongSigner() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        bytes32 channelId = _channelId(config);
-        _directDeposit(config, DEPOSIT_AMOUNT);
-
-        vm.prank(payerWallet.addr);
-        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
-
-        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
-
-        bytes memory sig = _signFinalizeWithdraw(otherWallet, channelId);
-
-        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.finalizeWithdrawWithSignature(config, sig);
-    }
-
-    function test_finalizeWithdrawWithSignature_revert_notPending() public {
-        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
-        bytes32 channelId = _channelId(config);
-
-        bytes memory sig = _signFinalizeWithdraw(receiverAuthWallet, channelId);
-
-        vm.expectRevert(x402BatchSettlement.WithdrawalNotPending.selector);
-        settlement.finalizeWithdrawWithSignature(config, sig);
-    }
-
-    // =========================================================================
     // Cooperative Withdrawal Tests
     // =========================================================================
 
-    function test_cooperativeWithdraw_success() public {
+    function test_cooperativeWithdraw_directCall() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        uint256 balBefore = token.balanceOf(payerWallet.addr);
+
+        vm.expectEmit(true, false, false, true);
+        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT, receiverAuthWallet.addr);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.cooperativeWithdraw(config);
+
+        assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
+
+        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        assertEq(ch.balance, ch.totalClaimed);
+    }
+
+    function test_cooperativeWithdraw_revert_notReceiverAuthorizer() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        _directDeposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(otherWallet.addr);
+        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        settlement.cooperativeWithdraw(config);
+    }
+
+    function test_cooperativeWithdrawWithSignature_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -936,17 +1089,13 @@ contract X402BatchSettlementTest is Test {
         bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
-        vm.expectEmit(true, false, false, true);
-        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT, address(this));
-        settlement.cooperativeWithdraw(config, sig);
+        vm.prank(otherWallet.addr);
+        settlement.cooperativeWithdrawWithSignature(config, sig);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
-
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
-        assertEq(ch.balance, ch.totalClaimed);
     }
 
-    function test_cooperativeWithdraw_clearsPendingWithdrawal() public {
+    function test_cooperativeWithdrawWithSignature_clearsPendingWithdrawal() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -955,13 +1104,13 @@ contract X402BatchSettlementTest is Test {
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
         bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
-        settlement.cooperativeWithdraw(config, sig);
+        settlement.cooperativeWithdrawWithSignature(config, sig);
 
         x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
     }
 
-    function test_cooperativeWithdraw_zeroRefund() public {
+    function test_cooperativeWithdrawWithSignature_zeroRefund() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -974,19 +1123,19 @@ contract X402BatchSettlementTest is Test {
         bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
-        settlement.cooperativeWithdraw(config, sig);
+        settlement.cooperativeWithdrawWithSignature(config, sig);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore);
     }
 
-    function test_cooperativeWithdraw_revert_wrongSignature() public {
+    function test_cooperativeWithdrawWithSignature_revert_wrongSignature() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _directDeposit(config, DEPOSIT_AMOUNT);
 
         bytes memory badSig = _signCooperativeWithdraw(otherWallet, channelId);
         vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
-        settlement.cooperativeWithdraw(config, badSig);
+        settlement.cooperativeWithdrawWithSignature(config, badSig);
     }
 
     // =========================================================================
@@ -1037,19 +1186,6 @@ contract X402BatchSettlementTest is Test {
         assertEq(settlement.getCooperativeWithdrawDigest(channelId), expected);
     }
 
-    function test_getFinalizeWithdrawDigest_matches() public view {
-        bytes32 channelId = bytes32(uint256(123));
-
-        bytes32 expected = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                settlement.domainSeparator(),
-                keccak256(abi.encode(settlement.FINALIZE_WITHDRAW_TYPEHASH(), channelId))
-            )
-        );
-        assertEq(settlement.getFinalizeWithdrawDigest(channelId), expected);
-    }
-
     function test_getClaimBatchDigest_matches() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _directDeposit(config, DEPOSIT_AMOUNT);
@@ -1071,8 +1207,8 @@ contract X402BatchSettlementTest is Test {
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
-        bytes memory sig = _signCooperativeWithdraw(receiverAuthWallet, channelId);
-        settlement.cooperativeWithdraw(config, sig);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.cooperativeWithdraw(config);
 
         _directDeposit(config, DEPOSIT_AMOUNT);
 
