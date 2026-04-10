@@ -11,6 +11,12 @@ import type {
   OnVerifyFailureHook,
   OnSettleFailureHook,
 } from "../server/x402ResourceServer";
+import type {
+  BeforePaymentCreationHook,
+  AfterPaymentCreationHook,
+  OnPaymentCreationFailureHook,
+  OnPaymentResponseHook,
+} from "../client/x402Client";
 
 /**
  * Money parser function that converts a numeric amount to an AssetAmount
@@ -43,8 +49,16 @@ export interface PaymentPayloadContext {
   extensions?: Record<string, unknown>;
 }
 
+export interface SchemeClientHooks {
+  onBeforePaymentCreation?: BeforePaymentCreationHook;
+  onAfterPaymentCreation?: AfterPaymentCreationHook;
+  onPaymentCreationFailure?: OnPaymentCreationFailureHook;
+  onPaymentResponse?: OnPaymentResponseHook;
+}
+
 export interface SchemeNetworkClient {
   readonly scheme: string;
+  readonly schemeHooks?: SchemeClientHooks;
 
   createPaymentPayload(
     x402Version: number,

@@ -19,6 +19,7 @@ export type {
 } from "./payments";
 export type {
   SchemeNetworkClient,
+  SchemeClientHooks,
   SchemeNetworkFacilitator,
   SchemeNetworkServer,
   SchemeServerHooks,

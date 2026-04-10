@@ -2,6 +2,7 @@ import { decodePaymentResponseHeader } from "@x402/core/http";
 import type { PaymentRequired } from "@x402/core/types";
 import {
   SchemeNetworkClient,
+  SchemeClientHooks,
   PaymentRequirements,
   PaymentPayloadResult,
   PaymentPayloadContext,
@@ -100,6 +101,29 @@ function resolveClientOptions(second?: DeferredEvmSchemeOptions | DeferredDeposi
 export class DeferredEvmScheme implements SchemeNetworkClient {
   readonly scheme = "batch-settlement";
 
+  readonly schemeHooks: SchemeClientHooks = {
+    onBeforePaymentCreation: async ({ selectedRequirements }) => {
+      if (selectedRequirements.scheme !== "batch-settlement") return;
+      const config = this.buildChannelConfig(selectedRequirements);
+      const channelId = computeChannelId(config);
+      if (!(await this.hasSession(channelId))) {
+        await this.recoverSession(selectedRequirements);
+      }
+    },
+
+    onPaymentResponse: async ctx => {
+      if (ctx.settleResponse) {
+        await this.processSettleResponse(ctx.settleResponse);
+        return;
+      }
+
+      if (ctx.paymentRequired) {
+        const ok = await this.processCorrectivePaymentRequired(ctx.paymentRequired);
+        return ok ? { recovered: true } : undefined;
+      }
+    },
+  };
+
   private readonly storage: ClientSessionStorage;
   private readonly depositPolicy: DeferredDepositPolicy | undefined;
   private readonly salt: `0x${string}`;
@@ -177,8 +201,8 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   /**
    * Processes the `PAYMENT-RESPONSE` header after a successful request.
    *
-   * Updates local session state (chargedCumulativeAmount, balance, totalClaimed) or
-   * deletes the session if the response indicates a cooperative withdrawal.
+   * Decodes the header into a `SettleResponse` and delegates to `processSettleResponse`.
+   * Kept as public API for manual / advanced use.
    *
    * @param getHeader - Function to retrieve a response header by name.
    */
@@ -195,6 +219,18 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       return;
     }
 
+    await this.processSettleResponse(settle);
+  }
+
+  /**
+   * Updates local session state from a parsed `SettleResponse`.
+   *
+   * Updates chargedCumulativeAmount, balance, and totalClaimed, or
+   * deletes the session if the response indicates a cooperative withdrawal.
+   *
+   * @param settle - The parsed settle response.
+   */
+  async processSettleResponse(settle: SettleResponse): Promise<void> {
     const extra = settle.extra ?? {};
     const channelId =
       typeof extra.channelId === "string" && extra.channelId ? extra.channelId : undefined;

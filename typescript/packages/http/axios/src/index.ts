@@ -134,6 +134,41 @@ export function wrapAxiosWithPayment(
 
         // Retry the request with payment
         const secondResponse = await axiosInstance.request(originalConfig);
+
+        // Fire payment response hooks and handle recovery
+        const getResponseHeader = (name: string) => {
+          const value = secondResponse.headers[name] ?? secondResponse.headers[name.toLowerCase()];
+          return typeof value === "string" ? value : undefined;
+        };
+        const result = await httpClient.processPaymentResult(
+          paymentPayload,
+          getResponseHeader,
+          secondResponse.status,
+        );
+
+        if (result.recovered) {
+          // Hook fixed state — retry with fresh payload (bounded to one recovery)
+          const freshPayload = await client.createPaymentPayload(paymentRequired);
+          const retryHeaders = httpClient.encodePaymentSignatureHeader(freshPayload);
+          const retryConfig = { ...originalConfig };
+          retryConfig.headers = { ...originalConfig.headers } as typeof originalConfig.headers;
+          Object.entries(retryHeaders).forEach(([key, value]) => {
+            retryConfig.headers.set(key, value);
+          });
+          retryConfig.headers.set(
+            "Access-Control-Expose-Headers",
+            "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
+          );
+          const retryResponse = await axiosInstance.request(retryConfig);
+          // Fire hooks on retry response — no further recovery to prevent loops
+          const getRetryHeader = (name: string) => {
+            const value = retryResponse.headers[name] ?? retryResponse.headers[name.toLowerCase()];
+            return typeof value === "string" ? value : undefined;
+          };
+          await httpClient.processPaymentResult(freshPayload, getRetryHeader, retryResponse.status);
+          return retryResponse;
+        }
+
         return secondResponse;
       } catch (retryError) {
         return Promise.reject(retryError);

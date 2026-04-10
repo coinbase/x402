@@ -1,7 +1,7 @@
 import { x402Version } from "..";
 import { SchemeNetworkClient } from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
-import { Network, PaymentRequired } from "../types";
+import { Network, PaymentRequired, SettleResponse } from "../types";
 import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 
 /**
@@ -34,6 +34,31 @@ export type AfterPaymentCreationHook = (context: PaymentCreatedContext) => Promi
 export type OnPaymentCreationFailureHook = (
   context: PaymentCreationFailureContext,
 ) => Promise<void | { recovered: true; payload: PaymentPayload }>;
+
+/**
+ * Context provided to payment response hooks after the paid request completes.
+ *
+ * Discriminate by what's present:
+ * - `settleResponse` with `success: true` → settle succeeded
+ * - `settleResponse` with `success: false` → settle failed
+ * - `paymentRequired` (no `settleResponse`) → verify failed
+ * - `error` → transport or parse error
+ */
+export interface PaymentResponseContext {
+  paymentPayload: PaymentPayload;
+  requirements: PaymentRequirements;
+  settleResponse?: SettleResponse;
+  paymentRequired?: PaymentRequired;
+  error?: Error;
+}
+
+/**
+ * Hook fired after a paid request completes.
+ * Return `{ recovered: true }` to signal the transport should retry with a fresh payload.
+ */
+export type OnPaymentResponseHook = (
+  ctx: PaymentResponseContext,
+) => Promise<void | { recovered: true }>;
 
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
 
@@ -135,6 +160,7 @@ export class x402Client {
   private beforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
   private afterPaymentCreationHooks: AfterPaymentCreationHook[] = [];
   private onPaymentCreationFailureHooks: OnPaymentCreationFailureHook[] = [];
+  private paymentResponseHooks: OnPaymentResponseHook[] = [];
 
   /**
    * Creates a new x402Client instance.
@@ -174,7 +200,17 @@ export class x402Client {
    * @returns The x402Client instance for chaining
    */
   register(network: Network, client: SchemeNetworkClient): x402Client {
-    return this._registerScheme(x402Version, network, client);
+    this._registerScheme(x402Version, network, client);
+
+    if (client.schemeHooks) {
+      const h = client.schemeHooks;
+      if (h.onBeforePaymentCreation) this.onBeforePaymentCreation(h.onBeforePaymentCreation);
+      if (h.onAfterPaymentCreation) this.onAfterPaymentCreation(h.onAfterPaymentCreation);
+      if (h.onPaymentCreationFailure) this.onPaymentCreationFailure(h.onPaymentCreationFailure);
+      if (h.onPaymentResponse) this.onPaymentResponse(h.onPaymentResponse);
+    }
+
+    return this;
   }
 
   /**
@@ -264,6 +300,37 @@ export class x402Client {
   onPaymentCreationFailure(hook: OnPaymentCreationFailureHook): x402Client {
     this.onPaymentCreationFailureHooks.push(hook);
     return this;
+  }
+
+  /**
+   * Register a hook to execute after a paid request completes.
+   * Can signal recovery by returning { recovered: true }, causing the transport to retry.
+   *
+   * @param hook - The hook function to register
+   * @returns The x402Client instance for chaining
+   */
+  onPaymentResponse(hook: OnPaymentResponseHook): x402Client {
+    this.paymentResponseHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Fires all registered payment response hooks in order.
+   * Returns `{ recovered: true }` if any hook signals recovery (first wins).
+   *
+   * @param ctx - The payment response context
+   * @returns Recovery signal or undefined
+   */
+  async handlePaymentResponse(
+    ctx: PaymentResponseContext,
+  ): Promise<{ recovered: true } | undefined> {
+    for (const hook of this.paymentResponseHooks) {
+      const result = await hook(ctx);
+      if (result && "recovered" in result && result.recovered) {
+        return { recovered: true };
+      }
+    }
+    return undefined;
   }
 
   /**

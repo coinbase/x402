@@ -1,6 +1,10 @@
 import { toClientEvmSigner } from "@x402/evm";
-import { DeferredEvmScheme, FileClientSessionStorage, computeChannelId } from "@x402/evm/deferred/client";
-import { type PaymentRequired, x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
+import {
+  DeferredEvmScheme,
+  FileClientSessionStorage,
+  computeChannelId,
+} from "@x402/evm/deferred/client";
+import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -8,7 +12,6 @@ import { privateKeyToAccount } from "viem/accounts";
 
 config();
 
-/** Pretty-print JSON-serializable values (standard `JSON.stringify` indentation). */
 function prettyPrint(value: unknown): void {
   const text =
     typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : String(value);
@@ -20,7 +23,9 @@ function formatSeconds(ms: number): string {
 }
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
-const evmVoucherSignerPrivateKey = process.env.EVM_VOUCHER_SIGNER_PRIVATE_KEY as `0x${string}` | undefined;
+const evmVoucherSignerPrivateKey = process.env.EVM_VOUCHER_SIGNER_PRIVATE_KEY as
+  | `0x${string}`
+  | undefined;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const endpointPath = process.env.ENDPOINT_PATH || "/api/generate";
 const url = `${baseURL}${endpointPath}`;
@@ -48,33 +53,19 @@ async function main(): Promise<void> {
     },
     salt: channelSalt,
     ...(voucherSigner ? { voucherSigner } : {}),
-    ...(storageDir
-      ? { storage: new FileClientSessionStorage({ directory: storageDir }) }
-      : {}),
+    ...(storageDir ? { storage: new FileClientSessionStorage({ directory: storageDir }) } : {}),
   });
 
   console.log("payer:", signer.address);
   console.log("payerAuthorizer:", voucherSigner?.address ?? signer.address);
 
-  let lastChannelId: string | undefined;
-
   const client = new x402Client();
   client.register("eip155:*", deferredScheme);
 
-  client.onBeforePaymentCreation(async ({ selectedRequirements }) => {
-    if (selectedRequirements.scheme === "batch-settlement") {
-      const config = deferredScheme.buildChannelConfig(selectedRequirements);
-      const channelId = computeChannelId(config);
-      lastChannelId = channelId;
-
-      if (!(await deferredScheme.hasSession(channelId))) {
-        await deferredScheme.recoverSession(selectedRequirements);
-      }
-    }
-  });
-
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
   const httpClient = new x402HTTPClient(client);
+
+  let channelId: string | undefined;
 
   console.log(`Base URL: ${baseURL}, endpoint: ${endpointPath}`);
   if (voucherSigner) {
@@ -86,56 +77,25 @@ async function main(): Promise<void> {
   }
 
   for (let i = 0; i < 3; i++) {
-    const n = i + 1;
     const requestT0 = performance.now();
 
-    if (i === 2 && lastChannelId) {
+    if (i === 2 && channelId) {
+      //console.log(`REQUESTING COOPERATIVE WITHDRAW`);
       //deferredScheme.requestCooperativeWithdraw(lastChannelId);
     }
 
-    const requestInit: RequestInit = { method: "GET" };
-    let response = await fetchWithPayment(url, requestInit);
-    const getHeader = (name: string) => response.headers.get(name);
-    let correctivePaymentRequired: PaymentRequired | undefined;
+    const response = await fetchWithPayment(url, { method: "GET" });
+    const result = await httpClient.processResponse(response);
 
-    if (response.status === 402) {
-      console.log(`\nRequest ${n} — corrective PAYMENT-REQUIRED`);
-      console.log("Corrective payment required");
-      try {
-        correctivePaymentRequired = httpClient.getPaymentRequiredResponse(getHeader);
-        prettyPrint(correctivePaymentRequired);
-        if (await deferredScheme.processCorrectivePaymentRequired(correctivePaymentRequired)) {
-          response = await fetchWithPayment(url, requestInit);
-        }
-      } catch {
-        // leave `response` as the corrective 402 (or invalid PAYMENT-REQUIRED)
-      }
-      console.log();
+    if (result.kind === "success") {
+      console.log(`Request ${i + 1} — RESPONSE`);
+      console.log(result.body);
+      console.log(JSON.stringify(result.settleResponse, null, 2));
+      if (result.settleResponse.extra) channelId = result.settleResponse.extra.channelId;
     }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    const body =
-      response.status === 402 && correctivePaymentRequired !== undefined
-        ? correctivePaymentRequired
-        : contentType.includes("application/json")
-          ? await response.json()
-          : await response.text();
-
-    console.log(`\nRequest ${n} — response body (HTTP ${response.status})`);
-    prettyPrint(body);
-
-    if (getHeader("PAYMENT-RESPONSE") || getHeader("X-PAYMENT-RESPONSE")) {
-      const paymentResponse = httpClient.getPaymentSettleResponse(getHeader);
-      console.log(`\nRequest ${n} — PAYMENT-RESPONSE`);
-      prettyPrint(paymentResponse);
-    } else {
-      console.log(`\nRequest ${n} — PAYMENT-RESPONSE: (none, HTTP ${response.status})`);
-    }
-
-    await deferredScheme.processPaymentResponse(getHeader);
-
-    const elapsedMs = performance.now() - requestT0;
-    console.log(`\nRequest ${n} — completed in ${formatSeconds(elapsedMs)}s\n`);
+    console.log(
+      `Request ${i + 1} — completed in ${formatSeconds(performance.now() - requestT0)}s\n`,
+    );
   }
 }
 

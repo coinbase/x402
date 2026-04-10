@@ -78,7 +78,6 @@ const evmSigner = toFacilitatorEvmSigner({
     viemClient.waitForTransactionReceipt(args),
 });
 
-
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     console.log("Before verify", context);

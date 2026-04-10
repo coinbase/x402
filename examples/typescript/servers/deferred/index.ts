@@ -1,8 +1,5 @@
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import {
-  DeferredEvmScheme,
-  FileSessionStorage,
-} from "@x402/evm/deferred/server";
+import { DeferredEvmScheme, FileSessionStorage } from "@x402/evm/deferred/server";
 import { paymentMiddleware, setSettlementOverrides, x402ResourceServer } from "@x402/express";
 import { config } from "dotenv";
 import express from "express";
@@ -13,7 +10,9 @@ config();
 const NETWORK = "eip155:84532" as const;
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-const receiverAuthorizerPrivateKey = process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY as `0x${string}` | undefined;
+const receiverAuthorizerPrivateKey = process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY as
+  | `0x${string}`
+  | undefined;
 const storageDir = process.env.STORAGE_DIR;
 const withdrawDelay = Number(process.env.DEFERRED_WITHDRAW_DELAY_SECONDS ?? "900");
 
@@ -40,13 +39,12 @@ const deferredScheme = new DeferredEvmScheme(evmAddress, {
   ...(storageDir ? { storage: new FileSessionStorage({ directory: storageDir }) } : {}),
 });
 
-const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register(NETWORK, deferredScheme)
+const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWORK, deferredScheme);
 
 const channelManager = deferredScheme.createChannelManager(facilitatorClient, NETWORK);
 
 // channelManager.start({
-//   tickSecs: 5, // evaluate policies every 5s 
+//   tickSecs: 5, // evaluate policies every 5s
 //   claimIntervalSecs: 10,
 //   claimOnIdleSecs: 30,
 //   claimOnWithdrawal: true,
@@ -85,7 +83,8 @@ app.use(
           network: NETWORK,
           payTo: evmAddress,
         },
-        description: "Batch-settlement demo — voucher updates session without per-request chain settle",
+        description:
+          "Batch-settlement demo — voucher updates session without per-request chain settle",
         mimeType: "application/json",
       },
     },
@@ -94,7 +93,6 @@ app.use(
 );
 
 app.get("/api/generate", (req, res) => {
-
   const chargedPercent = 1 + Math.floor(Math.random() * 100);
   setSettlementOverrides(res, { amount: `${chargedPercent}%` });
 
@@ -115,12 +113,8 @@ app.listen(4021, () => {
   console.log("Batch-settlement server listening at http://localhost:4021");
   console.log("  GET /api/generate");
   if (receiverAuthorizerSigner) {
-    console.log(
-      `  Receiver authorizer: local signer ${receiverAuthorizerSigner.address}`,
-    );
+    console.log(`  Receiver authorizer: local signer ${receiverAuthorizerSigner.address}`);
   } else {
-    console.log(
-      "  Receiver authorizer: facilitator",
-    );
+    console.log("  Receiver authorizer: facilitator");
   }
 });
