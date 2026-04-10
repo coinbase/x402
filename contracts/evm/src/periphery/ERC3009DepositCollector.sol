@@ -23,21 +23,11 @@ contract ERC3009DepositCollector is IDepositCollector {
         bytes32,
         bytes calldata collectorData
     ) external override {
-        (
-            uint256 validAfter,
-            uint256 validBefore,
-            bytes32 nonce,
-            bytes memory signature
-        ) = abi.decode(collectorData, (uint256, uint256, bytes32, bytes));
+        (uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes memory signature) =
+            abi.decode(collectorData, (uint256, uint256, bytes32, bytes));
 
         IERC3009(token).receiveWithAuthorization(
-            payer,
-            address(this),
-            amount,
-            validAfter,
-            validBefore,
-            nonce,
-            signature
+            payer, address(this), amount, validAfter, validBefore, nonce, signature
         );
 
         IERC20(token).safeTransfer(recipient, amount);

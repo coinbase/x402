@@ -44,13 +44,12 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_witnessConstants() public view {
-        assertEq(
-            collector.DEPOSIT_WITNESS_TYPEHASH(),
-            keccak256("DepositWitness(bytes32 channelId)")
-        );
+        assertEq(collector.DEPOSIT_WITNESS_TYPEHASH(), keccak256("DepositWitness(bytes32 channelId)"));
         assertEq(
             keccak256(bytes(collector.DEPOSIT_WITNESS_TYPE_STRING())),
-            keccak256("DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)")
+            keccak256(
+                "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)"
+            )
         );
     }
 

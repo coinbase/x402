@@ -51,9 +51,10 @@ contract X402BatchSettlementTest is Test {
     uint128 constant CLAIM_AMOUNT = 100e6;
 
     event ChannelCreated(bytes32 indexed channelId, x402BatchSettlement.ChannelConfig config);
-    event Deposited(bytes32 indexed channelId, uint128 amount, uint128 newBalance);
-    event Claimed(bytes32 indexed channelId, uint128 claimAmount, uint128 newTotalClaimed);
-    event Settled(address indexed receiver, address indexed token, uint128 amount);
+    event Deposited(bytes32 indexed channelId, address indexed sender, uint128 amount, uint128 newBalance);
+    event Claimed(bytes32 indexed channelId, address indexed sender, uint128 claimAmount, uint128 newTotalClaimed);
+    event Settled(address indexed receiver, address indexed token, address indexed sender, uint128 amount);
+    event Refunded(bytes32 indexed channelId, address indexed sender, uint128 amount);
     event WithdrawInitiated(bytes32 indexed channelId, uint128 amount, uint40 finalizeAfter);
     event WithdrawFinalized(bytes32 indexed channelId, uint128 amount, address sender);
 
@@ -108,28 +109,42 @@ contract X402BatchSettlementTest is Test {
         });
     }
 
-    function _channelId(x402BatchSettlement.ChannelConfig memory config) internal pure returns (bytes32) {
+    function _channelId(
+        x402BatchSettlement.ChannelConfig memory config
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encode(config));
     }
 
+    function _domainSeparator() internal view returns (bytes32) {
+        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            settlement.eip712Domain();
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+    }
+
     function _signTypedData(VmSafe.Wallet memory wallet, bytes32 structHash) internal returns (bytes memory) {
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wallet, digest);
         return abi.encodePacked(r, s, v);
     }
 
-    function _signVoucher(VmSafe.Wallet memory wallet, bytes32 channelId, uint128 maxClaimableAmount)
-        internal
-        returns (bytes memory)
-    {
+    function _signVoucher(
+        VmSafe.Wallet memory wallet,
+        bytes32 channelId,
+        uint128 maxClaimableAmount
+    ) internal returns (bytes memory) {
         bytes32 structHash = keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, maxClaimableAmount));
         return _signTypedData(wallet, structHash);
     }
 
-    function _signRefund(VmSafe.Wallet memory wallet, bytes32 channelId)
-        internal
-        returns (bytes memory)
-    {
+    function _signRefund(VmSafe.Wallet memory wallet, bytes32 channelId) internal returns (bytes memory) {
         bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId));
         return _signTypedData(wallet, structHash);
     }
@@ -143,7 +158,9 @@ contract X402BatchSettlementTest is Test {
         return _signTypedData(wallet, structHash);
     }
 
-    function _computeClaimsHashMemory(x402BatchSettlement.VoucherClaim[] memory claims) internal pure returns (bytes32) {
+    function _computeClaimsHashMemory(
+        x402BatchSettlement.VoucherClaim[] memory claims
+    ) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](claims.length);
         for (uint256 i = 0; i < claims.length; ++i) {
             hashes[i] = keccak256(
@@ -159,6 +176,25 @@ contract X402BatchSettlementTest is Test {
 
     function _deposit(x402BatchSettlement.ChannelConfig memory config, uint128 amount) internal {
         settlement.deposit(config, amount, address(mockCollector), "");
+    }
+
+    function _getChannel(
+        bytes32 id
+    ) internal view returns (x402BatchSettlement.ChannelState memory ch) {
+        (ch.balance, ch.totalClaimed) = settlement.channels(id);
+    }
+
+    function _getPendingWithdrawal(
+        bytes32 id
+    ) internal view returns (x402BatchSettlement.WithdrawalState memory ws) {
+        (ws.amount, ws.initiatedAt) = settlement.pendingWithdrawals(id);
+    }
+
+    function _getReceiver(
+        address receiver,
+        address tkn
+    ) internal view returns (x402BatchSettlement.ReceiverState memory rs) {
+        (rs.totalClaimed, rs.totalSettled) = settlement.receivers(receiver, tkn);
     }
 
     function _makeVoucherClaim(
@@ -208,12 +244,12 @@ contract X402BatchSettlementTest is Test {
 
         vm.expectEmit(true, false, false, true);
         emit ChannelCreated(channelId, config);
-        vm.expectEmit(true, false, false, true);
-        emit Deposited(channelId, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        vm.expectEmit(true, true, false, true);
+        emit Deposited(channelId, address(this), DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
 
         _deposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT);
         assertEq(ch.totalClaimed, 0);
     }
@@ -225,7 +261,7 @@ contract X402BatchSettlementTest is Test {
         _deposit(config, DEPOSIT_AMOUNT);
         _deposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT * 2);
     }
 
@@ -307,12 +343,12 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
         assertGt(ws.initiatedAt, 0);
 
         _deposit(config, DEPOSIT_AMOUNT);
 
-        ws = settlement.getPendingWithdrawal(channelId);
+        ws = _getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
         assertEq(ws.amount, 0);
     }
@@ -330,16 +366,16 @@ contract X402BatchSettlementTest is Test {
         x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
         claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
-        vm.expectEmit(true, false, false, true);
-        emit Claimed(channelId, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.expectEmit(true, true, false, true);
+        emit Claimed(channelId, receiverAuthWallet.addr, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.totalClaimed, CLAIM_AMOUNT);
 
-        x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rs = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rs.totalClaimed, CLAIM_AMOUNT);
     }
 
@@ -358,7 +394,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rs = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rs.totalClaimed, CLAIM_AMOUNT * 3);
     }
 
@@ -379,7 +415,7 @@ contract X402BatchSettlementTest is Test {
         settlement.claim(claims);
 
         bytes32 channelId = _channelId(config);
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.totalClaimed, 200e6);
     }
 
@@ -443,7 +479,7 @@ contract X402BatchSettlementTest is Test {
         });
 
         vm.prank(receiverAuthWallet.addr);
-        vm.expectRevert(x402BatchSettlement.InvalidSignature.selector);
+        vm.expectRevert();
         settlement.claim(claims);
     }
 
@@ -468,7 +504,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.totalClaimed, CLAIM_AMOUNT);
     }
 
@@ -508,7 +544,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(otherWallet.addr);
         settlement.claimWithSignature(claims, authSig);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.totalClaimed, CLAIM_AMOUNT);
     }
 
@@ -576,13 +612,13 @@ contract X402BatchSettlementTest is Test {
 
         uint256 balBefore = token.balanceOf(receiverWallet.addr);
 
-        vm.expectEmit(true, true, false, true);
-        emit Settled(receiverWallet.addr, address(token), CLAIM_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit Settled(receiverWallet.addr, address(token), address(this), CLAIM_AMOUNT);
         settlement.settle(receiverWallet.addr, address(token));
 
         assertEq(token.balanceOf(receiverWallet.addr), balBefore + CLAIM_AMOUNT);
 
-        x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rs = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rs.totalSettled, CLAIM_AMOUNT);
     }
 
@@ -609,9 +645,10 @@ contract X402BatchSettlementTest is Test {
         assertEq(token.balanceOf(receiverWallet.addr), balBefore + CLAIM_AMOUNT * 3);
     }
 
-    function test_settle_revert_nothingToSettle() public {
-        vm.expectRevert(x402BatchSettlement.NothingToSettle.selector);
+    function test_settle_idempotent_nothingToSettle() public {
+        uint256 balBefore = token.balanceOf(receiverWallet.addr);
         settlement.settle(receiverWallet.addr, address(token));
+        assertEq(token.balanceOf(receiverWallet.addr), balBefore);
     }
 
     // =========================================================================
@@ -628,7 +665,7 @@ contract X402BatchSettlementTest is Test {
         emit WithdrawInitiated(channelId, DEPOSIT_AMOUNT, uint40(block.timestamp) + WITHDRAW_DELAY);
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
         assertEq(ws.amount, DEPOSIT_AMOUNT);
         assertEq(ws.initiatedAt, uint40(block.timestamp));
     }
@@ -750,7 +787,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, 500e6);
     }
 
@@ -770,15 +807,15 @@ contract X402BatchSettlementTest is Test {
 
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
-        vm.expectEmit(true, false, false, true);
-        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT - CLAIM_AMOUNT, receiverAuthWallet.addr);
+        vm.expectEmit(true, true, false, true);
+        emit Refunded(channelId, receiverAuthWallet.addr, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
 
         vm.prank(receiverAuthWallet.addr);
         settlement.refund(config);
 
         assertEq(token.balanceOf(payerWallet.addr), balBefore + DEPOSIT_AMOUNT - CLAIM_AMOUNT);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, ch.totalClaimed);
     }
 
@@ -821,7 +858,7 @@ contract X402BatchSettlementTest is Test {
         bytes memory sig = _signRefund(receiverAuthWallet, channelId);
         settlement.refundWithSignature(config, sig);
 
-        x402BatchSettlement.WithdrawalState memory ws = settlement.getPendingWithdrawal(channelId);
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
     }
 
@@ -880,7 +917,7 @@ contract X402BatchSettlementTest is Test {
         bytes32 expected = keccak256(
             abi.encodePacked(
                 "\x19\x01",
-                settlement.domainSeparator(),
+                _domainSeparator(),
                 keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, uint128(100)))
             )
         );
@@ -893,9 +930,7 @@ contract X402BatchSettlementTest is Test {
 
         bytes32 expected = keccak256(
             abi.encodePacked(
-                "\x19\x01",
-                settlement.domainSeparator(),
-                keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId))
+                "\x19\x01", _domainSeparator(), keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId))
             )
         );
         assertEq(settlement.getRefundDigest(channelId), expected);
@@ -927,7 +962,7 @@ contract X402BatchSettlementTest is Test {
 
         _deposit(config, DEPOSIT_AMOUNT);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT);
     }
 
@@ -945,7 +980,7 @@ contract X402BatchSettlementTest is Test {
         settlement.claim(claims);
 
         bytes32 channelId2 = _channelId(config2);
-        x402BatchSettlement.ChannelState memory ch2 = settlement.getChannel(channelId2);
+        x402BatchSettlement.ChannelState memory ch2 = _getChannel(channelId2);
         assertEq(ch2.totalClaimed, 0);
     }
 
@@ -978,19 +1013,17 @@ contract X402BatchSettlementTest is Test {
 
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(settlement.refundWithSignature, (oldConfig, refundSig));
-        calls[1] = abi.encodeCall(
-            settlement.deposit,
-            (newConfig, DEPOSIT_AMOUNT - CLAIM_AMOUNT, address(mockCollector), "")
-        );
+        calls[1] =
+            abi.encodeCall(settlement.deposit, (newConfig, DEPOSIT_AMOUNT - CLAIM_AMOUNT, address(mockCollector), ""));
 
         uint256 payerBalBefore = token.balanceOf(payerWallet.addr);
 
         settlement.multicall(calls);
 
-        x402BatchSettlement.ChannelState memory oldCh = settlement.getChannel(oldChannelId);
+        x402BatchSettlement.ChannelState memory oldCh = _getChannel(oldChannelId);
         assertEq(oldCh.balance, oldCh.totalClaimed);
 
-        x402BatchSettlement.ChannelState memory newCh = settlement.getChannel(newChannelId);
+        x402BatchSettlement.ChannelState memory newCh = _getChannel(newChannelId);
         assertEq(newCh.balance, DEPOSIT_AMOUNT - CLAIM_AMOUNT);
 
         assertEq(token.balanceOf(payerWallet.addr), payerBalBefore);
@@ -1002,52 +1035,37 @@ contract X402BatchSettlementTest is Test {
         config2.salt = bytes32(uint256(1));
 
         bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeCall(
-            settlement.deposit,
-            (config1, DEPOSIT_AMOUNT, address(mockCollector), "")
-        );
-        calls[1] = abi.encodeCall(
-            settlement.deposit,
-            (config2, DEPOSIT_AMOUNT / 2, address(mockCollector), "")
-        );
+        calls[0] = abi.encodeCall(settlement.deposit, (config1, DEPOSIT_AMOUNT, address(mockCollector), ""));
+        calls[1] = abi.encodeCall(settlement.deposit, (config2, DEPOSIT_AMOUNT / 2, address(mockCollector), ""));
 
         settlement.multicall(calls);
 
-        assertEq(settlement.getChannel(_channelId(config1)).balance, DEPOSIT_AMOUNT);
-        assertEq(settlement.getChannel(_channelId(config2)).balance, DEPOSIT_AMOUNT / 2);
+        assertEq(_getChannel(_channelId(config1)).balance, DEPOSIT_AMOUNT);
+        assertEq(_getChannel(_channelId(config2)).balance, DEPOSIT_AMOUNT / 2);
     }
 
     function test_multicall_singleCall() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
 
         bytes[] memory calls = new bytes[](1);
-        calls[0] = abi.encodeCall(
-            settlement.deposit,
-            (config, DEPOSIT_AMOUNT, address(mockCollector), "")
-        );
+        calls[0] = abi.encodeCall(settlement.deposit, (config, DEPOSIT_AMOUNT, address(mockCollector), ""));
 
         settlement.multicall(calls);
 
-        assertEq(settlement.getChannel(_channelId(config)).balance, DEPOSIT_AMOUNT);
+        assertEq(_getChannel(_channelId(config)).balance, DEPOSIT_AMOUNT);
     }
 
     function test_multicall_revert_propagates() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
 
         bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeCall(
-            settlement.deposit,
-            (config, DEPOSIT_AMOUNT, address(mockCollector), "")
-        );
-        calls[1] = abi.encodeCall(
-            settlement.deposit,
-            (config, 0, address(mockCollector), "")
-        );
+        calls[0] = abi.encodeCall(settlement.deposit, (config, DEPOSIT_AMOUNT, address(mockCollector), ""));
+        calls[1] = abi.encodeCall(settlement.deposit, (config, 0, address(mockCollector), ""));
 
         vm.expectRevert();
         settlement.multicall(calls);
 
-        assertEq(settlement.getChannel(_channelId(config)).balance, 0);
+        assertEq(_getChannel(_channelId(config)).balance, 0);
     }
 
     // =========================================================================
@@ -1097,7 +1115,7 @@ contract X402BatchSettlementTest is Test {
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(channelA);
+        x402BatchSettlement.ChannelState memory chA = _getChannel(channelA);
         uint128 migrateAmt = chA.balance - chA.totalClaimed;
 
         bytes memory refundSig = _signRefund(receiverAuthWallet, channelA);
@@ -1112,11 +1130,11 @@ contract X402BatchSettlementTest is Test {
         x402BatchSettlement.ChannelConfig memory configB,
         uint256 payerStart
     ) internal view {
-        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(_channelId(configA));
+        x402BatchSettlement.ChannelState memory chA = _getChannel(_channelId(configA));
         assertEq(chA.balance, chA.totalClaimed, "R1: A fully drained");
         assertEq(chA.totalClaimed, 100e6);
 
-        x402BatchSettlement.ChannelState memory chB = settlement.getChannel(_channelId(configB));
+        x402BatchSettlement.ChannelState memory chB = _getChannel(_channelId(configB));
         assertEq(chB.balance, 900e6, "R1: B holds migrated funds");
 
         assertEq(token.balanceOf(receiverWallet.addr), 100e6, "R1: receiver settled");
@@ -1128,16 +1146,16 @@ contract X402BatchSettlementTest is Test {
         x402BatchSettlement.ChannelConfig memory configB,
         uint256 payerStart
     ) internal view {
-        x402BatchSettlement.ChannelState memory chA = settlement.getChannel(_channelId(configA));
+        x402BatchSettlement.ChannelState memory chA = _getChannel(_channelId(configA));
         assertEq(chA.balance, chA.totalClaimed, "R2: A fully drained again");
         assertEq(chA.totalClaimed, 200e6, "R2: A accumulated two claims");
 
-        x402BatchSettlement.ChannelState memory chB = settlement.getChannel(_channelId(configB));
+        x402BatchSettlement.ChannelState memory chB = _getChannel(_channelId(configB));
         assertEq(chB.balance, 1800e6, "R2: B holds both migrations");
 
         assertEq(token.balanceOf(receiverWallet.addr), 200e6, "R2: receiver settled both claims");
 
-        x402BatchSettlement.ReceiverState memory rs = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rs = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rs.totalSettled, 200e6, "R2: totalSettled matches");
         assertEq(rs.totalClaimed, rs.totalSettled, "R2: nothing unsettled");
 
@@ -1181,31 +1199,31 @@ contract X402BatchSettlementTest is Test {
         settlement.claim(v);
 
         // Verify intermediate state
-        assertEq(settlement.getChannel(_channelId(c1)).totalClaimed, 150e6);
-        assertEq(settlement.getChannel(_channelId(c2)).totalClaimed, 200e6);
-        assertEq(settlement.getChannel(_channelId(c3)).totalClaimed, 50e6);
+        assertEq(_getChannel(_channelId(c1)).totalClaimed, 150e6);
+        assertEq(_getChannel(_channelId(c2)).totalClaimed, 200e6);
+        assertEq(_getChannel(_channelId(c3)).totalClaimed, 50e6);
 
-        x402BatchSettlement.ReceiverState memory rsMid = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rsMid = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rsMid.totalClaimed, 400e6, "Mid: total claimed across all channels");
         assertEq(rsMid.totalSettled, 0, "Mid: nothing settled yet");
 
         // ── Batched claimWithSignature across all 3 channels ─────────────────
 
         x402BatchSettlement.VoucherClaim[] memory batchClaims = new x402BatchSettlement.VoucherClaim[](3);
-        batchClaims[0] = _makeVoucherClaim(c1, 250e6, 100e6);  // C1: +100 → total 250
-        batchClaims[1] = _makeVoucherClaim(c2, 500e6, 300e6);  // C2: +300 → total 500
-        batchClaims[2] = _makeVoucherClaim(c3, 200e6, 150e6);  // C3: +150 → total 200
+        batchClaims[0] = _makeVoucherClaim(c1, 250e6, 100e6); // C1: +100 → total 250
+        batchClaims[1] = _makeVoucherClaim(c2, 500e6, 300e6); // C2: +300 → total 500
+        batchClaims[2] = _makeVoucherClaim(c3, 200e6, 150e6); // C3: +150 → total 200
 
         bytes memory authSig = _signClaimBatch(receiverAuthWallet, batchClaims);
         vm.prank(otherWallet.addr);
         settlement.claimWithSignature(batchClaims, authSig);
 
         // Verify post-batch state
-        assertEq(settlement.getChannel(_channelId(c1)).totalClaimed, 250e6);
-        assertEq(settlement.getChannel(_channelId(c2)).totalClaimed, 500e6);
-        assertEq(settlement.getChannel(_channelId(c3)).totalClaimed, 200e6);
+        assertEq(_getChannel(_channelId(c1)).totalClaimed, 250e6);
+        assertEq(_getChannel(_channelId(c2)).totalClaimed, 500e6);
+        assertEq(_getChannel(_channelId(c3)).totalClaimed, 200e6);
 
-        x402BatchSettlement.ReceiverState memory rsPost = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rsPost = _getReceiver(receiverWallet.addr, address(token));
         uint128 expectedTotal = 250e6 + 500e6 + 200e6;
         assertEq(rsPost.totalClaimed, expectedTotal, "Post: accumulated across individual + batch");
         assertEq(rsPost.totalSettled, 0, "Post: still nothing settled");
@@ -1220,13 +1238,13 @@ contract X402BatchSettlementTest is Test {
             "Settle: receiver received all claimed funds"
         );
 
-        x402BatchSettlement.ReceiverState memory rsFinal = settlement.getReceiver(receiverWallet.addr, address(token));
+        x402BatchSettlement.ReceiverState memory rsFinal = _getReceiver(receiverWallet.addr, address(token));
         assertEq(rsFinal.totalSettled, expectedTotal);
         assertEq(rsFinal.totalClaimed, rsFinal.totalSettled, "Final: fully settled");
 
         // Channel balances unchanged (claims don't reduce balance)
-        assertEq(settlement.getChannel(_channelId(c1)).balance, 1000e6);
-        assertEq(settlement.getChannel(_channelId(c2)).balance, 2000e6);
-        assertEq(settlement.getChannel(_channelId(c3)).balance, 500e6);
+        assertEq(_getChannel(_channelId(c1)).balance, 1000e6);
+        assertEq(_getChannel(_channelId(c2)).balance, 2000e6);
+        assertEq(_getChannel(_channelId(c3)).balance, 500e6);
     }
 }

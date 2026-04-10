@@ -63,24 +63,18 @@ contract DeployBatchSettlement is Script {
         console2.log("  Deploying x402BatchSettlement");
         console2.log("------------------------------------------------------------");
 
-        _deployCreate2(
-            "x402BatchSettlement",
-            BATCH_SALT,
-            type(x402BatchSettlement).creationCode
-        );
+        _deployCreate2("x402BatchSettlement", BATCH_SALT, type(x402BatchSettlement).creationCode);
     }
 
-    function _deployCollectors(address permit2) internal {
+    function _deployCollectors(
+        address permit2
+    ) internal {
         console2.log("");
         console2.log("------------------------------------------------------------");
         console2.log("  Deploying Deposit Collectors");
         console2.log("------------------------------------------------------------");
 
-        _deployCreate2(
-            "ERC3009DepositCollector",
-            ERC3009_SALT,
-            type(ERC3009DepositCollector).creationCode
-        );
+        _deployCreate2("ERC3009DepositCollector", ERC3009_SALT, type(ERC3009DepositCollector).creationCode);
 
         _deployCreate2(
             "Permit2DepositCollector",
@@ -95,11 +89,7 @@ contract DeployBatchSettlement is Script {
         );
     }
 
-    function _deployCreate2(
-        string memory name,
-        bytes32 salt,
-        bytes memory initCode
-    ) internal {
+    function _deployCreate2(string memory name, bytes32 salt, bytes memory initCode) internal {
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(salt, initCodeHash, CREATE2_DEPLOYER);
 

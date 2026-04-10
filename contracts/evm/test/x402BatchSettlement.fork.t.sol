@@ -81,15 +81,25 @@ contract X402BatchSettlementForkTest is Test {
         });
     }
 
-    function _channelId(x402BatchSettlement.ChannelConfig memory config) internal pure returns (bytes32) {
+    function _channelId(
+        x402BatchSettlement.ChannelConfig memory config
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encode(config));
+    }
+
+    function _getChannel(
+        bytes32 id
+    ) internal view returns (x402BatchSettlement.ChannelState memory ch) {
+        (ch.balance, ch.totalClaimed) = settlement.channels(id);
     }
 
     function _permit2DomainSeparator() internal view returns (bytes32) {
         return keccak256(abi.encode(PERMIT2_DOMAIN_TYPEHASH, keccak256("Permit2"), block.chainid, PERMIT2));
     }
 
-    function _nonce(uint256 salt) internal view returns (uint256) {
+    function _nonce(
+        uint256 salt
+    ) internal view returns (uint256) {
         return uint256(keccak256(abi.encodePacked(block.timestamp, block.number, salt)));
     }
 
@@ -110,17 +120,32 @@ contract X402BatchSettlementForkTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    function _domainSeparator() internal view returns (bytes32) {
+        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            settlement.eip712Domain();
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+    }
+
     function _signVoucher(bytes32 channelId, uint128 maxClaimableAmount) internal view returns (bytes memory) {
-        bytes32 structHash =
-            keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, maxClaimableAmount));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
+        bytes32 structHash = keccak256(abi.encode(settlement.VOUCHER_TYPEHASH(), channelId, maxClaimableAmount));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerAuthKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
-    function _signRefund(bytes32 channelId) internal view returns (bytes memory) {
+    function _signRefund(
+        bytes32 channelId
+    ) internal view returns (bytes memory) {
         bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", settlement.domainSeparator(), structHash));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverAuthKey, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -153,7 +178,7 @@ contract X402BatchSettlementForkTest is Test {
         uint256 deadline = block.timestamp + 3600;
         _depositViaPermit2(config, DEPOSIT_AMOUNT, nonce, deadline);
 
-        x402BatchSettlement.ChannelState memory ch = settlement.getChannel(channelId);
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT);
 
         bytes memory voucherSig = _signVoucher(channelId, CLAIM_AMOUNT);

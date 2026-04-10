@@ -14,12 +14,13 @@ abstract contract Permit2DepositCollectorBase is IDepositCollector {
     string public constant DEPOSIT_WITNESS_TYPE_STRING =
         "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)";
 
-    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH =
-        keccak256("DepositWitness(bytes32 channelId)");
+    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH = keccak256("DepositWitness(bytes32 channelId)");
 
     error InvalidPermit2Address();
 
-    constructor(address _permit2) {
+    constructor(
+        address _permit2
+    ) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         PERMIT2 = ISignatureTransfer(_permit2);
     }
@@ -33,16 +34,11 @@ abstract contract Permit2DepositCollectorBase is IDepositCollector {
         ISignatureTransfer.PermitTransferFrom memory permit,
         bytes memory signature
     ) internal {
-        bytes32 witnessHash = keccak256(
-            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
-        );
+        bytes32 witnessHash = keccak256(abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId));
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: recipient,
-                requestedAmount: amount
-            }),
+            ISignatureTransfer.SignatureTransferDetails({to: recipient, requestedAmount: amount}),
             payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,

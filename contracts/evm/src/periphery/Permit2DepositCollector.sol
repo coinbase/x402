@@ -10,7 +10,9 @@ import {Permit2DepositCollectorBase} from "./Permit2DepositCollectorBase.sol";
 /// @dev Tokens flow directly from payer to settlement via Permit2 (no intermediate hop).
 ///      The payer's Permit2 signature must name this collector as the spender.
 contract Permit2DepositCollector is Permit2DepositCollectorBase {
-    constructor(address _permit2) Permit2DepositCollectorBase(_permit2) {}
+    constructor(
+        address _permit2
+    ) Permit2DepositCollectorBase(_permit2) {}
 
     /// @inheritdoc IDepositCollector
     function collect(
@@ -21,21 +23,9 @@ contract Permit2DepositCollector is Permit2DepositCollectorBase {
         bytes32 channelId,
         bytes calldata collectorData
     ) external override {
-        (
-            ISignatureTransfer.PermitTransferFrom memory permit,
-            bytes memory signature
-        ) = abi.decode(
-                collectorData,
-                (ISignatureTransfer.PermitTransferFrom, bytes)
-            );
+        (ISignatureTransfer.PermitTransferFrom memory permit, bytes memory signature) =
+            abi.decode(collectorData, (ISignatureTransfer.PermitTransferFrom, bytes));
 
-        _executePermit2Transfer(
-            payer,
-            recipient,
-            amount,
-            channelId,
-            permit,
-            signature
-        );
+        _executePermit2Transfer(payer, recipient, amount, channelId, permit, signature);
     }
 }

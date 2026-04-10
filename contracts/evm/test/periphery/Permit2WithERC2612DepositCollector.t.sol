@@ -38,15 +38,11 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         mockPermit2.setShouldActuallyTransfer(true);
     }
 
-    function _makeCollectorData(uint256 amount) internal view returns (bytes memory) {
-        Permit2WithERC2612DepositCollector.EIP2612Permit memory permit2612 =
-            Permit2WithERC2612DepositCollector.EIP2612Permit({
-                value: amount,
-                deadline: block.timestamp + 3600,
-                r: bytes32(0),
-                s: bytes32(0),
-                v: 27
-            });
+    function _makeCollectorData(
+        uint256 amount
+    ) internal view returns (bytes memory) {
+        Permit2WithERC2612DepositCollector.EIP2612Permit memory permit2612 = Permit2WithERC2612DepositCollector
+            .EIP2612Permit({value: amount, deadline: block.timestamp + 3600, r: bytes32(0), s: bytes32(0), v: 27});
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
@@ -117,14 +113,8 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
     }
 
     function test_collect_revert_amountMismatch() public {
-        Permit2WithERC2612DepositCollector.EIP2612Permit memory permit2612 =
-            Permit2WithERC2612DepositCollector.EIP2612Permit({
-                value: AMOUNT + 1,
-                deadline: block.timestamp + 3600,
-                r: bytes32(0),
-                s: bytes32(0),
-                v: 27
-            });
+        Permit2WithERC2612DepositCollector.EIP2612Permit memory permit2612 = Permit2WithERC2612DepositCollector
+            .EIP2612Permit({value: AMOUNT + 1, deadline: block.timestamp + 3600, r: bytes32(0), s: bytes32(0), v: 27});
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),

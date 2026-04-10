@@ -123,7 +123,9 @@ contract ComputeAddress is Script {
      * @notice Computes the CREATE2 address for x402BatchSettlement
      * @param batchSalt The salt to use for x402BatchSettlement
      */
-    function computeBatchAddress(bytes32 batchSalt) public view {
+    function computeBatchAddress(
+        bytes32 batchSalt
+    ) public view {
         console2.log("");
         console2.log("============================================================");
         console2.log("  x402BatchSettlement Address Computation");
@@ -135,8 +137,7 @@ contract ComputeAddress is Script {
         console2.log("  Permit2 (ctor arg):  ", CANONICAL_PERMIT2);
         console2.log("");
 
-        bytes memory initCode =
-            abi.encodePacked(type(x402BatchSettlement).creationCode, abi.encode(CANONICAL_PERMIT2));
+        bytes memory initCode = abi.encodePacked(type(x402BatchSettlement).creationCode, abi.encode(CANONICAL_PERMIT2));
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(batchSalt, initCodeHash, CREATE2_DEPLOYER);
 
