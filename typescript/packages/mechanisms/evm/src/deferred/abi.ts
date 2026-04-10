@@ -146,60 +146,35 @@ export const batchSettlementABI = [
   },
   {
     type: "function",
-    name: "getChannel",
+    name: "channels",
     inputs: [{ name: "channelId", type: "bytes32" }],
     outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "balance", type: "uint128" },
-          { name: "totalClaimed", type: "uint128" },
-        ],
-      },
+      { name: "balance", type: "uint128" },
+      { name: "totalClaimed", type: "uint128" },
     ],
     stateMutability: "view",
   },
   {
     type: "function",
-    name: "getPendingWithdrawal",
+    name: "pendingWithdrawals",
     inputs: [{ name: "channelId", type: "bytes32" }],
     outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "amount", type: "uint128" },
-          { name: "initiatedAt", type: "uint40" },
-        ],
-      },
+      { name: "amount", type: "uint128" },
+      { name: "initiatedAt", type: "uint40" },
     ],
     stateMutability: "view",
   },
   {
     type: "function",
-    name: "getReceiver",
+    name: "receivers",
     inputs: [
       { name: "receiver", type: "address" },
       { name: "token", type: "address" },
     ],
     outputs: [
-      {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "totalClaimed", type: "uint128" },
-          { name: "totalSettled", type: "uint128" },
-        ],
-      },
+      { name: "totalClaimed", type: "uint128" },
+      { name: "totalSettled", type: "uint128" },
     ],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "domainSeparator",
-    inputs: [],
-    outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },
   {

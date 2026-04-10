@@ -1,7 +1,13 @@
 import { getAddress, verifyTypedData as viemVerifyTypedData } from "viem";
 import type { PaymentRequirements } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
-import { BATCH_SETTLEMENT_ADDRESS, BATCH_SETTLEMENT_DOMAIN, voucherTypes } from "../constants";
+import {
+  BATCH_SETTLEMENT_ADDRESS,
+  BATCH_SETTLEMENT_DOMAIN,
+  MIN_WITHDRAW_DELAY,
+  MAX_WITHDRAW_DELAY,
+  voucherTypes,
+} from "../constants";
 import type { ChannelConfig } from "../types";
 import { computeChannelId } from "../utils";
 import * as Errors from "./errors";
@@ -144,6 +150,10 @@ export function validateChannelConfig(
 
   if (extra?.withdrawDelay !== undefined && config.withdrawDelay !== Number(extra.withdrawDelay)) {
     return Errors.ErrWithdrawDelayMismatch;
+  }
+
+  if (config.withdrawDelay < MIN_WITHDRAW_DELAY || config.withdrawDelay > MAX_WITHDRAW_DELAY) {
+    return Errors.ErrWithdrawDelayOutOfRange;
   }
 
   return undefined;

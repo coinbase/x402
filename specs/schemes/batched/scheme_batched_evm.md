@@ -450,18 +450,34 @@ Implementers MUST use the generic `batch-settlement` error codes from [scheme_ba
 
 EVM-specific codes:
 
-| Error Code                                          | Description                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------ |
-| `batch_settlement_evm_channel_not_found`            | No channel with positive balance for the given `channelId`         |
-| `batch_settlement_evm_withdrawal_pending`           | Withdrawal request is pending on this channel                      |
-| `batch_settlement_evm_cumulative_exceeds_balance`   | Voucher `maxClaimableAmount` exceeds onchain balance               |
-| `batch_settlement_evm_withdraw_delay_out_of_range`  | `withdrawDelay` is outside the 15 min – 30 day bounds             |
-| `batch_settlement_stale_cumulative_amount`          | Client voucher base doesn't match server state; corrective 402    |
-| `cooperative_withdraw_not_supported`                 | Server has no receiverAuthorizer signing key for cooperative withdraw |
-| `batch_settlement_evm_channel_id_mismatch`           | `channelConfig` does not hash to the claimed `channelId`             |
-| `batch_settlement_evm_receiver_mismatch`             | `channelConfig.receiver` does not match `paymentRequirements.payTo`  |
-| `batch_settlement_evm_receiver_authorizer_mismatch`  | `channelConfig.receiverAuthorizer` does not match `extra.receiverAuthorizer` |
-| `batch_settlement_evm_withdraw_delay_mismatch`       | `channelConfig.withdrawDelay` does not match `extra.withdrawDelay`   |
+| Error Code                                                    | Description                                                                    |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `batch_settlement_evm_channel_not_found`                      | No channel with positive balance for the given `channelId`                     |
+| `batch_settlement_evm_withdrawal_pending`                     | Withdrawal request is pending on this channel                                  |
+| `batch_settlement_evm_cumulative_exceeds_balance`             | Voucher `maxClaimableAmount` exceeds onchain balance                           |
+| `batch_settlement_evm_cumulative_below_claimed`               | Voucher `maxClaimableAmount` is at or below `totalClaimed`                     |
+| `batch_settlement_evm_withdraw_delay_out_of_range`            | `withdrawDelay` is outside the 15 min – 30 day bounds                         |
+| `batch_settlement_evm_channel_id_mismatch`                    | `channelConfig` does not hash to the claimed `channelId`                       |
+| `batch_settlement_evm_receiver_mismatch`                      | `channelConfig.receiver` does not match `paymentRequirements.payTo`            |
+| `batch_settlement_evm_receiver_authorizer_mismatch`           | `channelConfig.receiverAuthorizer` does not match `extra.receiverAuthorizer`   |
+| `batch_settlement_evm_withdraw_delay_mismatch`                | `channelConfig.withdrawDelay` does not match `extra.withdrawDelay`             |
+| `batch_settlement_evm_token_mismatch`                         | `channelConfig.token` does not match `paymentRequirements.asset`               |
+| `batch_settlement_evm_invalid_voucher_signature`              | Voucher EIP-712 signature verification failed                                  |
+| `batch_settlement_evm_insufficient_balance`                   | Payer token balance is insufficient for the deposit amount                     |
+| `batch_settlement_evm_deposit_transaction_failed`             | Onchain deposit transaction reverted                                          |
+| `batch_settlement_evm_claim_transaction_failed`               | Onchain claim transaction reverted                                            |
+| `batch_settlement_evm_settle_transaction_failed`              | Onchain settle transaction reverted                                           |
+| `batch_settlement_evm_cooperative_withdraw_transaction_failed`| Onchain cooperative withdraw transaction reverted                             |
+| `batch_settlement_evm_invalid_receive_authorization_signature`| ERC-3009 `ReceiveWithAuthorization` signature verification failed              |
+| `batch_settlement_evm_erc3009_authorization_required`         | Deposit payload missing required ERC-3009 authorization                        |
+| `batch_settlement_evm_missing_eip712_domain`                  | Payment requirements missing `name` or `version` for EIP-712 domain           |
+| `batch_settlement_evm_deposit_voucher_mismatch`               | Deposit and voucher channel identifiers do not match                           |
+| `batch_settlement_evm_invalid_payload_type`                   | Payload type is not recognized or not supported                                |
+| `batch_settlement_evm_invalid_scheme`                         | Payload or requirements `scheme` is not `batch-settlement`                     |
+| `batch_settlement_evm_network_mismatch`                       | Payload `network` does not match requirements `network`                        |
+| `batch_settlement_evm_payload_authorization_valid_before`     | ERC-3009 authorization `validBefore` has expired                               |
+| `batch_settlement_evm_payload_authorization_valid_after`      | ERC-3009 authorization `validAfter` is in the future                           |
+| `batch_settlement_stale_cumulative_amount`                    | Client voucher base doesn't match server state; corrective 402                 |
 
 ---
 

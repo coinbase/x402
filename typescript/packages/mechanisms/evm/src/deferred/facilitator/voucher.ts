@@ -5,13 +5,9 @@ import { DeferredVoucherPayload, ChannelConfig } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { getEvmChainId } from "../../utils";
+import { multicall } from "../../multicall";
 import * as Errors from "./errors";
 import { validateChannelConfig, verifyDeferredVoucherTypedData } from "./utils";
-
-type ChannelState = {
-  balance: bigint;
-  totalClaimed: bigint;
-};
 
 /**
  * Verifies a cumulative voucher payload against on-chain channel state.
@@ -62,29 +58,36 @@ export async function verifyVoucher(
     };
   }
 
-  if (getAddress(channelConfig.token) !== getAddress(requirements.asset)) {
-    return { isValid: false, invalidReason: Errors.ErrTokenMismatch, payer: channelConfig.payer };
-  }
-
-  let channel: ChannelState;
-  try {
-    channel = (await signer.readContract({
+  const mcResults = await multicall(signer.readContract.bind(signer), [
+    {
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,
-      functionName: "getChannel",
+      functionName: "channels",
       args: [channelId],
-    })) as ChannelState;
-  } catch {
+    },
+    {
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "pendingWithdrawals",
+      args: [channelId],
+    },
+  ]);
+
+  const [chRes, wdRes] = mcResults;
+  if (chRes.status === "failure" || wdRes.status === "failure") {
     return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
   }
 
-  if (channel.balance === 0n) {
+  const [chBalance, chTotalClaimed] = chRes.result as [bigint, bigint];
+  const [, wdInitiatedAt] = wdRes.result as [bigint, bigint];
+
+  if (chBalance === 0n) {
     return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
   }
 
   const maxClaimableAmount = BigInt(payload.maxClaimableAmount);
 
-  if (maxClaimableAmount > channel.balance) {
+  if (maxClaimableAmount > chBalance) {
     return {
       isValid: false,
       invalidReason: Errors.ErrCumulativeExceedsBalance,
@@ -92,7 +95,7 @@ export async function verifyVoucher(
     };
   }
 
-  if (maxClaimableAmount <= channel.totalClaimed) {
+  if (maxClaimableAmount <= chTotalClaimed) {
     return {
       isValid: false,
       invalidReason: Errors.ErrCumulativeAmountBelowClaimed,
@@ -105,9 +108,9 @@ export async function verifyVoucher(
     payer: channelConfig.payer,
     extra: {
       channelId,
-      balance: channel.balance.toString(),
-      totalClaimed: channel.totalClaimed.toString(),
-      withdrawRequestedAt: 0,
+      balance: chBalance.toString(),
+      totalClaimed: chTotalClaimed.toString(),
+      withdrawRequestedAt: Number(wdInitiatedAt),
     },
   };
 }

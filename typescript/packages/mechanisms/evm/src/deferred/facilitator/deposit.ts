@@ -13,11 +13,6 @@ import {
   verifyDeferredVoucherTypedData,
 } from "./utils";
 
-type ChannelState = {
-  balance: bigint;
-  totalClaimed: bigint;
-};
-
 /**
  * Verifies a deposit payload (ERC-3009 authorization + voucher) without executing any
  * on-chain transaction.
@@ -124,7 +119,7 @@ export async function verifyDeposit(
     {
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,
-      functionName: "getChannel",
+      functionName: "channels",
       args: [voucher.channelId],
     },
     {
@@ -133,29 +128,36 @@ export async function verifyDeposit(
       functionName: "balanceOf",
       args: [getAddress(payer)],
     },
+    {
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "pendingWithdrawals",
+      args: [voucher.channelId],
+    },
   ]);
 
-  const [chRes, balRes] = mcResults;
-  if (chRes.status === "failure" || balRes.status === "failure") {
+  const [chRes, balRes, wdRes] = mcResults;
+  if (chRes.status === "failure" || balRes.status === "failure" || wdRes.status === "failure") {
     return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType, payer };
   }
 
-  const channel = chRes.result as ChannelState;
-  const balance = balRes.result as bigint;
+  const [chBalance, chTotalClaimed] = chRes.result as [bigint, bigint];
+  const payerBalance = balRes.result as bigint;
+  const [, wdInitiatedAt] = wdRes.result as [bigint, bigint];
   const depositAmount = BigInt(deposit.amount);
 
-  if (balance < depositAmount) {
+  if (payerBalance < depositAmount) {
     return { isValid: false, invalidReason: Errors.ErrInsufficientBalance, payer };
   }
 
-  const effectiveBalance = channel.balance + depositAmount;
+  const effectiveBalance = chBalance + depositAmount;
   const maxClaimableAmount = BigInt(voucher.maxClaimableAmount);
 
   if (maxClaimableAmount > effectiveBalance) {
     return { isValid: false, invalidReason: Errors.ErrCumulativeExceedsBalance, payer };
   }
 
-  if (maxClaimableAmount <= channel.totalClaimed) {
+  if (maxClaimableAmount <= chTotalClaimed) {
     return { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer };
   }
 
@@ -164,9 +166,9 @@ export async function verifyDeposit(
     payer,
     extra: {
       channelId: voucher.channelId,
-      balance: channel.balance.toString(),
-      totalClaimed: channel.totalClaimed.toString(),
-      withdrawRequestedAt: 0,
+      balance: chBalance.toString(),
+      totalClaimed: chTotalClaimed.toString(),
+      withdrawRequestedAt: Number(wdInitiatedAt),
     },
   };
 }

@@ -246,18 +246,15 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     const config = this.buildChannelConfig(paymentRequirements);
     const channelId = computeChannelId(config);
 
-    const channel = (await this.signer.readContract({
+    const [chBalance, chTotalClaimed] = (await this.signer.readContract({
       address: BATCH_SETTLEMENT_ADDRESS,
       abi: batchSettlementABI,
-      functionName: "getChannel",
+      functionName: "channels",
       args: [channelId],
-    })) as {
-      balance: bigint;
-      totalClaimed: bigint;
-    };
+    })) as [bigint, bigint];
 
-    const balanceStr = channel.balance.toString();
-    const totalClaimedStr = channel.totalClaimed.toString();
+    const balanceStr = chBalance.toString();
+    const totalClaimedStr = chTotalClaimed.toString();
     const ctx: DeferredClientContext = {
       chargedCumulativeAmount: totalClaimedStr,
       balance: balanceStr,
@@ -334,19 +331,22 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       return false;
     }
 
-    let channel: { balance: bigint; totalClaimed: bigint };
+    let chBalance: bigint;
+    let chTotalClaimed: bigint;
     try {
-      channel = (await this.signer.readContract({
+      const [balance, totalClaimed] = (await this.signer.readContract({
         address: BATCH_SETTLEMENT_ADDRESS,
         abi: batchSettlementABI,
-        functionName: "getChannel",
+        functionName: "channels",
         args: [channelId],
-      })) as { balance: bigint; totalClaimed: bigint };
+      })) as [bigint, bigint];
+      chBalance = balance;
+      chTotalClaimed = totalClaimed;
     } catch {
       return false;
     }
 
-    if (charged < channel.totalClaimed) {
+    if (charged < chTotalClaimed) {
       return false;
     }
 
@@ -377,8 +377,8 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       chargedCumulativeAmount: charged.toString(),
       signedMaxClaimable: signed.toString(),
       signature: sig,
-      balance: channel.balance.toString(),
-      totalClaimed: channel.totalClaimed.toString(),
+      balance: chBalance.toString(),
+      totalClaimed: chTotalClaimed.toString(),
     };
 
     await this.storage.set(channelId.toLowerCase(), ctx);

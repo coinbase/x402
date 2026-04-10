@@ -1,6 +1,12 @@
 /** Deployed address of the x402BatchSettlement contract. */
 export const BATCH_SETTLEMENT_ADDRESS = "0x4020cfaffad9df99f9acc48227c40f80d17a0003" as const;
 
+/** Minimum withdraw delay in seconds (15 minutes), matching the on-chain constant. */
+export const MIN_WITHDRAW_DELAY = 900;
+
+/** Maximum withdraw delay in seconds (30 days), matching the on-chain constant. */
+export const MAX_WITHDRAW_DELAY = 2_592_000;
+
 /** EIP-712 domain fields shared across all batch-settlement typed-data signatures. */
 export const BATCH_SETTLEMENT_DOMAIN = {
   name: "x402 Batch Settlement",
