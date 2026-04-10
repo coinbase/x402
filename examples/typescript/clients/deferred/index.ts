@@ -1,9 +1,5 @@
 import { toClientEvmSigner } from "@x402/evm";
-import {
-  DeferredEvmScheme,
-  FileClientSessionStorage,
-  computeChannelId,
-} from "@x402/evm/deferred/client";
+import { DeferredEvmScheme, FileClientSessionStorage } from "@x402/evm/deferred/client";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
@@ -11,12 +7,6 @@ import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 config();
-
-function prettyPrint(value: unknown): void {
-  const text =
-    typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : String(value);
-  console.log(text);
-}
 
 function formatSeconds(ms: number): string {
   return (ms / 1000).toFixed(3);
@@ -32,6 +22,7 @@ const url = `${baseURL}${endpointPath}`;
 const storageDir = process.env.STORAGE_DIR ?? process.env.STORAGE_DIR_DIR;
 const channelSalt = (process.env.CHANNEL_SALT ??
   "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`;
+const numberOfRequests = Number(process.env.NUMBER_OF_REQUESTS ?? "3");
 
 async function main(): Promise<void> {
   const account = privateKeyToAccount(evmPrivateKey);
@@ -56,9 +47,6 @@ async function main(): Promise<void> {
     ...(storageDir ? { storage: new FileClientSessionStorage({ directory: storageDir }) } : {}),
   });
 
-  console.log("payer:", signer.address);
-  console.log("payerAuthorizer:", voucherSigner?.address ?? signer.address);
-
   const client = new x402Client();
   client.register("eip155:*", deferredScheme);
 
@@ -68,20 +56,15 @@ async function main(): Promise<void> {
   let channelId: string | undefined;
 
   console.log(`Base URL: ${baseURL}, endpoint: ${endpointPath}`);
-  if (voucherSigner) {
-    console.log(
-      `Voucher signer (payerAuthorizer): ${voucherSigner.address} (payer: ${signer.address})\n`,
-    );
-  } else {
-    console.log();
-  }
+  console.log("payer:", signer.address);
+  console.log("payerAuthorizer:", voucherSigner?.address ?? signer.address, "\n");
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < numberOfRequests; i++) {
     const requestT0 = performance.now();
 
-    if (i === 2 && channelId) {
+    if (i === numberOfRequests - 1 && channelId) {
       //console.log(`REQUESTING COOPERATIVE WITHDRAW`);
-      //deferredScheme.requestCooperativeWithdraw(lastChannelId);
+      //deferredScheme.requestCooperativeWithdraw(channelId);
     }
 
     const response = await fetchWithPayment(url, { method: "GET" });

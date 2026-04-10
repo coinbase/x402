@@ -9,7 +9,7 @@ import { toFacilitatorEvmSigner } from "@x402/evm";
 import { DeferredEvmScheme } from "@x402/evm/deferred/facilitator";
 import dotenv from "dotenv";
 import express from "express";
-import { createWalletClient, http, publicActions } from "viem";
+import { createWalletClient, http, nonceManager, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
@@ -29,6 +29,7 @@ const evmRpcUrl = process.env.EVM_RPC_URL;
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
+  { nonceManager },
 );
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
