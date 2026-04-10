@@ -12,12 +12,12 @@ contract MockDepositCollector is IDepositCollector {
     function collect(
         address payer,
         address token,
-        address recipient,
         uint256 amount,
         bytes32,
+        address,
         bytes calldata
     ) external override {
-        IERC20(token).transferFrom(payer, recipient, amount);
+        IERC20(token).transferFrom(payer, msg.sender, amount);
     }
 }
 
@@ -25,12 +25,12 @@ contract MockShortCollector is IDepositCollector {
     function collect(
         address payer,
         address token,
-        address recipient,
         uint256 amount,
         bytes32,
+        address,
         bytes calldata
     ) external override {
-        IERC20(token).transferFrom(payer, recipient, amount / 2);
+        IERC20(token).transferFrom(payer, msg.sender, amount / 2);
     }
 }
 
@@ -167,7 +167,7 @@ contract X402BatchSettlementTest is Test {
                 abi.encode(
                     keccak256(abi.encode(claims[i].voucher.channel)),
                     claims[i].voucher.maxClaimableAmount,
-                    claims[i].claimAmount
+                    claims[i].totalClaimed
                 )
             );
         }
@@ -207,7 +207,7 @@ contract X402BatchSettlementTest is Test {
         return x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: maxClaimableAmount}),
             signature: sig,
-            claimAmount: claimAmount
+            totalClaimed: claimAmount
         });
     }
 
@@ -222,7 +222,7 @@ contract X402BatchSettlementTest is Test {
         return x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: maxClaimableAmount}),
             signature: sig,
-            claimAmount: claimAmount
+            totalClaimed: claimAmount
         });
     }
 
@@ -404,12 +404,12 @@ contract X402BatchSettlementTest is Test {
         _deposit(config, DEPOSIT_AMOUNT);
 
         x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
-        claims[0] = _makeVoucherClaim(config, 200e6, CLAIM_AMOUNT);
+        claims[0] = _makeVoucherClaim(config, 200e6, 100e6);
 
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
 
-        claims[0] = _makeVoucherClaim(config, 200e6, CLAIM_AMOUNT);
+        claims[0] = _makeVoucherClaim(config, 200e6, 200e6);
 
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(claims);
@@ -475,7 +475,7 @@ contract X402BatchSettlementTest is Test {
         claims[0] = x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
             signature: hex"0000",
-            claimAmount: CLAIM_AMOUNT
+            totalClaimed: CLAIM_AMOUNT
         });
 
         vm.prank(receiverAuthWallet.addr);
@@ -498,7 +498,7 @@ contract X402BatchSettlementTest is Test {
         claims[0] = x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
             signature: sig,
-            claimAmount: CLAIM_AMOUNT
+            totalClaimed: CLAIM_AMOUNT
         });
 
         vm.prank(receiverAuthWallet.addr);
@@ -519,7 +519,7 @@ contract X402BatchSettlementTest is Test {
         claims[0] = x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
             signature: sig,
-            claimAmount: CLAIM_AMOUNT
+            totalClaimed: CLAIM_AMOUNT
         });
 
         vm.prank(receiverAuthWallet.addr);
@@ -1093,7 +1093,7 @@ contract X402BatchSettlementTest is Test {
         _assertRound1(configA, configB, payerStart);
 
         // ── Round 2: deposit A again, claim A, migrate A→B, settle ───────────
-        _roundDepositClaimMigrate(configA, configB, 1000e6, 200e6, 100e6);
+        _roundDepositClaimMigrate(configA, configB, 1000e6, 200e6, 200e6);
         settlement.settle(receiverWallet.addr, address(token));
 
         _assertRound2(configA, configB, payerStart);
@@ -1178,13 +1178,13 @@ contract X402BatchSettlementTest is Test {
 
         // ── Individual claims ────────────────────────────────────────────────
 
-        // C1: claim 50, then claim 100 more (total 150)
+        // C1: claim 50, then claim to total 150
         x402BatchSettlement.VoucherClaim[] memory v = new x402BatchSettlement.VoucherClaim[](1);
         v[0] = _makeVoucherClaim(c1, 50e6, 50e6);
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(v);
 
-        v[0] = _makeVoucherClaim(c1, 150e6, 100e6);
+        v[0] = _makeVoucherClaim(c1, 150e6, 150e6);
         vm.prank(receiverAuthWallet.addr);
         settlement.claim(v);
 
@@ -1210,9 +1210,9 @@ contract X402BatchSettlementTest is Test {
         // ── Batched claimWithSignature across all 3 channels ─────────────────
 
         x402BatchSettlement.VoucherClaim[] memory batchClaims = new x402BatchSettlement.VoucherClaim[](3);
-        batchClaims[0] = _makeVoucherClaim(c1, 250e6, 100e6); // C1: +100 → total 250
-        batchClaims[1] = _makeVoucherClaim(c2, 500e6, 300e6); // C2: +300 → total 500
-        batchClaims[2] = _makeVoucherClaim(c3, 200e6, 150e6); // C3: +150 → total 200
+        batchClaims[0] = _makeVoucherClaim(c1, 250e6, 250e6); // C1: total 250 (+100 delta)
+        batchClaims[1] = _makeVoucherClaim(c2, 500e6, 500e6); // C2: total 500 (+300 delta)
+        batchClaims[2] = _makeVoucherClaim(c3, 200e6, 200e6); // C3: total 200 (+150 delta)
 
         bytes memory authSig = _signClaimBatch(receiverAuthWallet, batchClaims);
         vm.prank(otherWallet.addr);

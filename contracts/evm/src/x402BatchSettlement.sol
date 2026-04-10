@@ -55,11 +55,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
         uint128 maxClaimableAmount;
     }
 
-    /// @dev Wraps a Voucher with the payer's signature and the receiverAuthorizer-determined claim amount.
+    /// @dev Wraps a Voucher with the payer's signature and the receiverAuthorizer-determined cumulative claim total.
+    ///      Using a cumulative total (rather than a delta) provides natural replay protection:
+    ///      replaying a voucher after it's been applied is a no-op.
     struct VoucherClaim {
         Voucher voucher;
         bytes signature;
-        uint128 claimAmount;
+        uint128 totalClaimed;
     }
 
     // =========================================================================
@@ -162,9 +164,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
         emit Deposited(channelId, msg.sender, amount, ch.balance);
 
         uint256 balBefore = IERC20(config.token).balanceOf(address(this));
-        IDepositCollector(collector).collect(
-            config.payer, config.token, address(this), amount, channelId, collectorData
-        );
+        IDepositCollector(collector).collect(config.payer, config.token, amount, channelId, msg.sender, collectorData);
         uint256 balAfter = IERC20(config.token).balanceOf(address(this));
         if (balAfter != balBefore + amount) revert DepositCollectionFailed();
     }
@@ -346,11 +346,9 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
         bytes32 channelId = getChannelId(vc.voucher.channel);
         ChannelState storage ch = channels[channelId];
 
-        uint128 newTotalClaimed = ch.totalClaimed + vc.claimAmount;
-        if (newTotalClaimed > vc.voucher.maxClaimableAmount) {
-            revert ClaimExceedsCeiling();
-        }
-        if (newTotalClaimed > ch.balance) revert ClaimExceedsBalance();
+        if (vc.totalClaimed <= ch.totalClaimed) return;
+        if (vc.totalClaimed > vc.voucher.maxClaimableAmount) revert ClaimExceedsCeiling();
+        if (vc.totalClaimed > ch.balance) revert ClaimExceedsBalance();
 
         bytes32 structHash = keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, vc.voucher.maxClaimableAmount));
         bytes32 digest = _hashTypedDataV4(structHash);
@@ -365,10 +363,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
             }
         }
 
-        ch.totalClaimed = newTotalClaimed;
-        receivers[vc.voucher.channel.receiver][vc.voucher.channel.token].totalClaimed += vc.claimAmount;
+        uint128 claimDelta = vc.totalClaimed - ch.totalClaimed;
+        ch.totalClaimed = vc.totalClaimed;
+        receivers[vc.voucher.channel.receiver][vc.voucher.channel.token].totalClaimed += claimDelta;
 
-        emit Claimed(channelId, msg.sender, vc.claimAmount, newTotalClaimed);
+        emit Claimed(channelId, msg.sender, claimDelta, vc.totalClaimed);
     }
 
     function _computeClaimsHash(
@@ -380,7 +379,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuard {
                 abi.encode(
                     getChannelId(voucherClaims[i].voucher.channel),
                     voucherClaims[i].voucher.maxClaimableAmount,
-                    voucherClaims[i].claimAmount
+                    voucherClaims[i].totalClaimed
                 )
             );
         }

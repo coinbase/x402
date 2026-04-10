@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Permit2DepositCollector} from "../../src/periphery/Permit2DepositCollector.sol";
 import {Permit2DepositCollectorBase} from "../../src/periphery/Permit2DepositCollectorBase.sol";
+import {DepositCollector} from "../../src/periphery/DepositCollector.sol";
 import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -15,17 +16,15 @@ contract Permit2DepositCollectorTest is Test {
     MockERC20 public token;
 
     address public payer;
-    address public recipient;
 
     uint256 constant AMOUNT = 1000e6;
 
     function setUp() public {
         mockPermit2 = new MockPermit2();
-        collector = new Permit2DepositCollector(address(mockPermit2));
+        collector = new Permit2DepositCollector(address(this), address(mockPermit2));
         token = new MockERC20("USDC", "USDC", 6);
 
         payer = makeAddr("payer");
-        recipient = makeAddr("recipient");
 
         token.mint(payer, 100_000e6);
 
@@ -40,7 +39,7 @@ contract Permit2DepositCollectorTest is Test {
 
     function test_constructor_revert_zeroPermit2() public {
         vm.expectRevert(Permit2DepositCollectorBase.InvalidPermit2Address.selector);
-        new Permit2DepositCollector(address(0));
+        new Permit2DepositCollector(address(this), address(0));
     }
 
     function test_witnessConstants() public view {
@@ -63,9 +62,9 @@ contract Permit2DepositCollectorTest is Test {
         bytes memory collectorData = abi.encode(permit, signature);
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), recipient, AMOUNT, channelId, collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
 
-        assertEq(token.balanceOf(recipient), AMOUNT);
+        assertEq(token.balanceOf(address(this)), AMOUNT);
         assertEq(token.balanceOf(payer), 100_000e6 - AMOUNT);
     }
 
@@ -79,7 +78,7 @@ contract Permit2DepositCollectorTest is Test {
         bytes memory collectorData = abi.encode(permit, signature);
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), recipient, AMOUNT, channelId, collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
 
         assertEq(token.balanceOf(address(collector)), 0);
     }
@@ -96,9 +95,24 @@ contract Permit2DepositCollectorTest is Test {
         uint256 bitmapBefore = mockPermit2.nonceBitmap(payer, 0);
         assertEq(bitmapBefore, 0);
 
-        collector.collect(payer, address(token), recipient, AMOUNT, keccak256("ch"), collectorData);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
 
         uint256 bitmapAfter = mockPermit2.nonceBitmap(payer, 0);
         assertGt(bitmapAfter, 0);
+    }
+
+    function test_collect_revert_onlySettlement() public {
+        bytes memory collectorData = abi.encode(
+            ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),
+                nonce: 0,
+                deadline: block.timestamp + 3600
+            }),
+            hex"dead"
+        );
+
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(DepositCollector.OnlySettlement.selector);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
     }
 }

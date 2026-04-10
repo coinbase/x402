@@ -27,25 +27,23 @@ contract Permit2WithERC2612DepositCollector is Permit2DepositCollectorBase {
     event EIP2612PermitFailedWithPanic(address indexed token, address indexed owner, uint256 errorCode);
     event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
 
-    constructor(
-        address _permit2
-    ) Permit2DepositCollectorBase(_permit2) {}
+    constructor(address _settlement, address _permit2) Permit2DepositCollectorBase(_settlement, _permit2) {}
 
     /// @inheritdoc IDepositCollector
     function collect(
         address payer,
         address token,
-        address recipient,
         uint256 amount,
         bytes32 channelId,
+        address,
         bytes calldata collectorData
-    ) external override {
+    ) external override onlySettlement {
         (EIP2612Permit memory permit2612, ISignatureTransfer.PermitTransferFrom memory permit, bytes memory signature) =
             abi.decode(collectorData, (EIP2612Permit, ISignatureTransfer.PermitTransferFrom, bytes));
 
         _executeEIP2612Permit(token, payer, permit2612, permit.permitted.amount);
 
-        _executePermit2Transfer(payer, recipient, amount, channelId, permit, signature);
+        _executePermit2Transfer(payer, amount, channelId, permit, signature);
     }
 
     function _executeEIP2612Permit(

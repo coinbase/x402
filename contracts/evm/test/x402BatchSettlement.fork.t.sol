@@ -52,7 +52,7 @@ contract X402BatchSettlementForkTest is Test {
         receiverAuthAddr = vm.addr(receiverAuthKey);
 
         settlement = new x402BatchSettlement();
-        permit2Collector = new Permit2DepositCollector(PERMIT2);
+        permit2Collector = new Permit2DepositCollector(address(settlement), PERMIT2);
         token = new MockERC20("USDC", "USDC", 6);
         token.mint(payer, 100_000e6);
 
@@ -186,7 +186,7 @@ contract X402BatchSettlementForkTest is Test {
         claims[0] = x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
             signature: voucherSig,
-            claimAmount: CLAIM_AMOUNT
+            totalClaimed: CLAIM_AMOUNT
         });
         vm.prank(receiverAuthAddr);
         settlement.claim(claims);
@@ -209,7 +209,7 @@ contract X402BatchSettlementForkTest is Test {
         claims[0] = x402BatchSettlement.VoucherClaim({
             voucher: x402BatchSettlement.Voucher({channel: config, maxClaimableAmount: CLAIM_AMOUNT}),
             signature: voucherSig,
-            claimAmount: CLAIM_AMOUNT
+            totalClaimed: CLAIM_AMOUNT
         });
         vm.prank(receiverAuthAddr);
         settlement.claim(claims);
