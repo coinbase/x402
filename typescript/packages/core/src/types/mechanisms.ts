@@ -3,6 +3,14 @@ import { PaymentRequirements } from "./payments";
 import { PaymentPayload } from "./payments";
 import { Price, Network, AssetAmount } from ".";
 import { FacilitatorExtension } from "./extensions";
+import type {
+  BeforeVerifyHook,
+  AfterVerifyHook,
+  BeforeSettleHook,
+  AfterSettleHook,
+  OnVerifyFailureHook,
+  OnSettleFailureHook,
+} from "../server/x402ResourceServer";
 
 /**
  * Money parser function that converts a numeric amount to an AssetAmount
@@ -128,8 +136,18 @@ export interface SchemeNetworkFacilitator {
   ): Promise<SettleResponse>;
 }
 
+export interface SchemeServerHooks {
+  onBeforeVerify?: BeforeVerifyHook;
+  onAfterVerify?: AfterVerifyHook;
+  onBeforeSettle?: BeforeSettleHook;
+  onAfterSettle?: AfterSettleHook;
+  onVerifyFailure?: OnVerifyFailureHook;
+  onSettleFailure?: OnSettleFailureHook;
+}
+
 export interface SchemeNetworkServer {
   readonly scheme: string;
+  readonly schemeHooks?: SchemeServerHooks;
 
   /**
    * Convert a user-friendly price to the scheme's specific amount and asset format

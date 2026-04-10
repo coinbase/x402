@@ -8,7 +8,7 @@ import type { FacilitatorClient } from "@x402/core/server";
 import type { DeferredVoucherClaim } from "../types";
 import type { DeferredEvmScheme } from "./scheme";
 
-export interface SettlementManagerConfig {
+export interface ChannelManagerConfig {
   scheme: DeferredEvmScheme;
   facilitator: FacilitatorClient;
   receiver: `0x${string}`;
@@ -48,15 +48,15 @@ export interface CooperativeWithdrawResult {
 }
 
 /**
- * Manages the lifecycle of batch claiming, settlement, and cooperative withdrawal for
- * the `batch-settlement` scheme on the server side.
+ * Manages the server-side channel lifecycle for the `batch-settlement` scheme:
+ * batch claiming of vouchers, settlement of claimed funds, and cooperative withdrawal.
  *
  * Provides both manual (`claim()`, `settle()`, `cooperativeWithdraw()`) and automatic
  * (`start()` / `stop()`) modes.  In automatic mode a periodic tick evaluates configurable
- * triggers (interval, idle time, threshold, pending withdrawal) and batches claims/settlements
+ * triggers (interval, idle time, threshold, pending withdrawal) and batches operations
  * accordingly.
  */
-export class DeferredSettlementManager {
+export class DeferredChannelManager {
   private readonly scheme: DeferredEvmScheme;
   private readonly facilitator: FacilitatorClient;
   private readonly receiver: `0x${string}`;
@@ -71,11 +71,11 @@ export class DeferredSettlementManager {
   private autoSettleConfig: AutoSettlementConfig = {};
 
   /**
-   * Creates a new settlement manager.
+   * Creates a new channel manager.
    *
    * @param config - Manager configuration: scheme, facilitator, receiver, token, network.
    */
-  constructor(config: SettlementManagerConfig) {
+  constructor(config: ChannelManagerConfig) {
     this.scheme = config.scheme;
     this.facilitator = config.facilitator;
     this.receiver = config.receiver;
@@ -324,7 +324,7 @@ export class DeferredSettlementManager {
    * @param cfg.claimThreshold - Optional min cumulative claimable amount to trigger a claim.
    * @param cfg.claimOnWithdrawal - Whether pending withdrawals can trigger a claim.
    * @param cfg.settleThreshold - Optional min claimed-not-settled amount to trigger settle.
-   * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link DeferredSettlementManager.claim}.
+   * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link DeferredChannelManager.claim}.
    * @param cfg.cooperativeWithdrawOnIdleSecs - Optional idle seconds before cooperative withdraw for non-zero balances.
    * @param cfg.onClaim - Callback after each successful claim batch.
    * @param cfg.onSettle - Callback after a successful settle.
@@ -573,9 +573,9 @@ export class DeferredSettlementManager {
   }
 
   /**
-   * Builds a minimal {@link PaymentRequirements} for settlement manager operations.
+   * Builds a minimal {@link PaymentRequirements} for channel manager operations.
    *
-   * @returns Requirements describing batch-settlement settle operations for this manager.
+   * @returns Requirements describing batch-settlement operations for this manager.
    */
   private buildPaymentRequirements(): PaymentRequirements {
     return {

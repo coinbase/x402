@@ -220,6 +220,16 @@ export class x402ResourceServer {
       serverByScheme.set(server.scheme, server);
     }
 
+    if (server.schemeHooks) {
+      const h = server.schemeHooks;
+      if (h.onBeforeVerify) this.onBeforeVerify(h.onBeforeVerify);
+      if (h.onAfterVerify) this.onAfterVerify(h.onAfterVerify);
+      if (h.onBeforeSettle) this.onBeforeSettle(h.onBeforeSettle);
+      if (h.onAfterSettle) this.onAfterSettle(h.onAfterSettle);
+      if (h.onVerifyFailure) this.onVerifyFailure(h.onVerifyFailure);
+      if (h.onSettleFailure) this.onSettleFailure(h.onSettleFailure);
+    }
+
     return this;
   }
 

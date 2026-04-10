@@ -1,8 +1,6 @@
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { getDefaultAsset } from "@x402/evm";
 import {
   DeferredEvmScheme,
-  DeferredSettlementManager,
   FileSessionStorage,
 } from "@x402/evm/deferred/server";
 import { paymentMiddleware, setSettlementOverrides, x402ResourceServer } from "@x402/express";
@@ -34,8 +32,6 @@ const receiverAuthorizerSigner = receiverAuthorizerPrivateKey
   ? privateKeyToAccount(receiverAuthorizerPrivateKey)
   : undefined;
 
-const tokenAddress = getDefaultAsset(NETWORK).address as `0x${string}`;
-
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const deferredScheme = new DeferredEvmScheme(evmAddress, {
@@ -46,20 +42,10 @@ const deferredScheme = new DeferredEvmScheme(evmAddress, {
 
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register(NETWORK, deferredScheme)
-  .onBeforeVerify(deferredScheme.lifecycleHooks.onBeforeVerify)
-  .onAfterVerify(deferredScheme.lifecycleHooks.onAfterVerify)
-  .onBeforeSettle(deferredScheme.lifecycleHooks.onBeforeSettle)
-  .onAfterSettle(deferredScheme.lifecycleHooks.onAfterSettle)
 
-const settlement = new DeferredSettlementManager({
-  scheme: deferredScheme,
-  facilitator: facilitatorClient,
-  receiver: evmAddress,
-  token: tokenAddress,
-  network: NETWORK,
-});
+const channelManager = deferredScheme.createChannelManager(facilitatorClient, NETWORK);
 
-// settlement.start({
+// channelManager.start({
 //   tickSecs: 5, // evaluate policies every 5s 
 //   claimIntervalSecs: 10,
 //   claimOnIdleSecs: 30,
@@ -80,7 +66,7 @@ const settlement = new DeferredSettlementManager({
 
 // process.on("SIGINT", async () => {
 //   console.log("Shutting down — flushing pending claims…");
-//   await settlement.stop({ flush: true });
+//   await channelManager.stop({ flush: true });
 //   process.exit(0);
 // });
 

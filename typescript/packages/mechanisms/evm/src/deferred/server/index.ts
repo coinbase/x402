@@ -4,9 +4,9 @@ export { InMemorySessionStorage } from "./storage";
 export type { ChannelSession, SessionStorage } from "./storage";
 export type { FileSessionStorageOptions } from "./fileStorage";
 export { FileSessionStorage } from "./fileStorage";
-export { DeferredSettlementManager } from "./settlement";
+export { DeferredChannelManager } from "./settlement";
 export type {
-  SettlementManagerConfig,
+  ChannelManagerConfig,
   AutoSettlementConfig,
   ClaimResult,
   SettleResult,

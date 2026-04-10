@@ -5,18 +5,13 @@ import {
   PaymentPayload,
   Price,
   SchemeNetworkServer,
+  SchemeServerHooks,
   MoneyParser,
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import type {
-  AfterSettleHook,
-  AfterVerifyHook,
-  BeforeSettleHook,
-  BeforeVerifyHook,
-  SettleContext,
-  VerifyContext,
-} from "@x402/core/server";
+import type { FacilitatorClient, SettleContext, VerifyContext } from "@x402/core/server";
+import { DeferredChannelManager } from "./settlement";
 import { getAddress, encodeAbiParameters, keccak256, concatHex } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { getEvmChainId } from "../../utils";
@@ -62,12 +57,7 @@ export interface DeferredEvmSchemeServerConfig {
  */
 export class DeferredEvmScheme implements SchemeNetworkServer {
   readonly scheme = "batch-settlement";
-  readonly lifecycleHooks: {
-    onBeforeVerify: BeforeVerifyHook;
-    onAfterVerify: AfterVerifyHook;
-    onBeforeSettle: BeforeSettleHook;
-    onAfterSettle: AfterSettleHook;
-  };
+  readonly schemeHooks: SchemeServerHooks;
 
   private moneyParsers: MoneyParser[] = [];
   private readonly storage: SessionStorage;
@@ -87,7 +77,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     this.storage = config?.storage ?? new InMemorySessionStorage();
     this.receiverAuthorizerSigner = config?.receiverAuthorizerSigner;
     this.withdrawDelay = config?.withdrawDelay ?? 900;
-    this.lifecycleHooks = {
+    this.schemeHooks = {
       onBeforeVerify: this.handleBeforeVerify.bind(this),
       onAfterVerify: this.handleAfterVerify.bind(this),
       onBeforeSettle: this.handleBeforeSettle.bind(this),
@@ -215,6 +205,25 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    */
   getReceiverAuthorizerAddress(): `0x${string}` | undefined {
     return this.receiverAuthorizerSigner?.address;
+  }
+
+  /**
+   * Creates a {@link DeferredChannelManager} pre-configured with this scheme's
+   * receiver, default token for the given network, and the provided facilitator.
+   *
+   * @param facilitator - Facilitator client for submitting on-chain claims/settlements.
+   * @param network - CAIP-2 network identifier (e.g. `"eip155:84532"`).
+   * @returns A ready-to-use channel manager.
+   */
+  createChannelManager(facilitator: FacilitatorClient, network: Network): DeferredChannelManager {
+    const token = getDefaultAsset(network).address as `0x${string}`;
+    return new DeferredChannelManager({
+      scheme: this,
+      facilitator,
+      receiver: this.receiverAddress,
+      token,
+      network,
+    });
   }
 
   /**

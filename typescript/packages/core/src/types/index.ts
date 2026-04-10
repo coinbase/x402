@@ -21,6 +21,7 @@ export type {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
   SchemeNetworkServer,
+  SchemeServerHooks,
   MoneyParser,
   PaymentPayloadResult,
   PaymentPayloadContext,
