@@ -26,3 +26,28 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm run test
+
+  test-examples-express:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+          cache-dependency-path: ./examples/typescript
+
+      - name: Install and Test Express Example
+        working-directory: ./examples/typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @x402/express-server-example test
