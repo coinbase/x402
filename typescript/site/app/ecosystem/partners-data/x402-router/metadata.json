@@ -1,0 +1,7 @@
+{
+  "name": "x402 Router",
+  "description": "Natural language orchestration layer for x402 endpoints. Agent describes intent, router selects and pays the right sub-service via x402-fetch. Pure dogfooding architecture.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-router.fly.dev",
+  "category": "Services/Endpoints"
+}
