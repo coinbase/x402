@@ -65,8 +65,14 @@ Networks with default assets configured:
 
 - **Base Mainnet**: `eip155:8453` (USDC)
 - **Base Sepolia**: `eip155:84532` (USDC)
-- **MegaETH Mainnet**: `eip155:4326` (MegaUSD)
+- **Polygon Mainnet**: `eip155:137` (USDC)
+- **Arbitrum One**: `eip155:42161` (USDC)
+- **Arbitrum Sepolia**: `eip155:421614` (USDC)
 - **Monad Mainnet**: `eip155:143` (USDC)
+- **Stable Mainnet**: `eip155:988` (USDT0)
+- **Stable Testnet**: `eip155:2201` (USDT0)
+- **MegaETH Mainnet**: `eip155:4326` (MegaUSD)
+- **Mezo Testnet**: `eip155:31611` (Mezo USD)
 
 To add default asset support for additional chains, see [DEFAULT_ASSETS.md](../../../DEFAULT_ASSETS.md).
 
