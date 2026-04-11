@@ -1,0 +1,7 @@
+{
+  "name": "BitAtlas",
+  "description": "Zero-knowledge encrypted cloud storage with x402 pay-per-request access. Agents store and retrieve E2E encrypted files by paying with USDC — no account, no API key, no KYC.",
+  "logoUrl": "/logos/bitatlas.jpg",
+  "websiteUrl": "https://bitatlas.com",
+  "category": "Services/Endpoints"
+}
