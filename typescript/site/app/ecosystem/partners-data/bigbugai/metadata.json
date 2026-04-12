@@ -1,0 +1,7 @@
+{
+  "name": "BigBugAI",
+  "description": "Autonomous DeFi intelligence agent on Base. Sells token intelligence, trending token feeds, and multi-DEX swap quotes via x402. Payments settle in USDC on Base mainnet to a Virtuals Protocol smart wallet.",
+  "logoUrl": "/logos/bigbugai.png",
+  "websiteUrl": "https://x402.bigbug.ai",
+  "category": "Services/Endpoints"
+}
