@@ -227,11 +227,18 @@ class MockFacilitatorSigner:
     ) -> bool:
         return self.typed_data_valid
 
-    def write_contract(self, address: str, abi: list[dict], function_name: str, *args) -> str:
+    def write_contract(
+        self,
+        address: str,
+        abi: list[dict],
+        function_name: str,
+        *args,
+        gas: int | None = None,
+    ) -> str:
         self.write_calls += 1
         return "0x" + "34" * 32
 
-    def send_transaction(self, to: str, data: bytes) -> str:
+    def send_transaction(self, to: str, data: bytes, *, gas: int | None = None) -> str:
         self.send_calls += 1
         return self.deploy_tx_hash
 

@@ -152,11 +152,18 @@ class MockFacilitatorSigner:
     def verify_typed_data(self, *args: Any, **kwargs: Any) -> bool:
         return self._sig_valid
 
-    def write_contract(self, address: str, abi: list[dict], function_name: str, *args) -> str:
+    def write_contract(
+        self,
+        address: str,
+        abi: list[dict],
+        function_name: str,
+        *args,
+        gas: int | None = None,
+    ) -> str:
         self.write_calls.append((address, function_name, args))
         return "0x" + "ab" * 32
 
-    def send_transaction(self, to: str, data: bytes) -> str:
+    def send_transaction(self, to: str, data: bytes, *, gas: int | None = None) -> str:
         return "0x" + "cd" * 32
 
     def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:

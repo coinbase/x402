@@ -291,11 +291,19 @@ export class x402Facilitator {
 
     // Execute beforeVerify hooks
     for (const hook of this.beforeVerifyHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          return {
+            isValid: false,
+            invalidReason: result.reason,
+          };
+        }
+      } catch (error) {
+        console.error("Error in facilitator beforeVerify hook:", error);
         return {
           isValid: false,
-          invalidReason: result.reason,
+          invalidReason: "before_verify_hook_error",
         };
       }
     }
@@ -348,17 +356,25 @@ export class x402Facilitator {
 
         // Execute onVerifyFailure hooks
         for (const hook of this.onVerifyFailureHooks) {
-          const result = await hook(failureContext);
-          if (result && "recovered" in result && result.recovered) {
-            // If recovered, execute afterVerify hooks with recovered result
-            const recoveredContext: FacilitatorVerifyResultContext = {
-              ...context,
-              result: result.result,
-            };
-            for (const hook of this.afterVerifyHooks) {
-              await hook(recoveredContext);
+          try {
+            const result = await hook(failureContext);
+            if (result && "recovered" in result && result.recovered) {
+              // If recovered, execute afterVerify hooks with recovered result
+              const recoveredContext: FacilitatorVerifyResultContext = {
+                ...context,
+                result: result.result,
+              };
+              for (const afterHook of this.afterVerifyHooks) {
+                try {
+                  await afterHook(recoveredContext);
+                } catch (afterHookError) {
+                  console.error("Error in facilitator afterVerify hook:", afterHookError);
+                }
+              }
+              return result.result;
             }
-            return result.result;
+          } catch (hookError) {
+            console.error("Error in facilitator onVerifyFailure hook:", hookError);
           }
         }
 
@@ -372,7 +388,11 @@ export class x402Facilitator {
       };
 
       for (const hook of this.afterVerifyHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (hookError) {
+          console.error("Error in facilitator afterVerify hook:", hookError);
+        }
       }
 
       return verifyResult;
@@ -384,9 +404,13 @@ export class x402Facilitator {
 
       // Execute onVerifyFailure hooks
       for (const hook of this.onVerifyFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (hookError) {
+          console.error("Error in facilitator onVerifyFailure hook:", hookError);
         }
       }
 
@@ -412,9 +436,19 @@ export class x402Facilitator {
 
     // Execute beforeSettle hooks
     for (const hook of this.beforeSettleHooks) {
-      const result = await hook(context);
-      if (result && "abort" in result && result.abort) {
-        throw new Error(`Settlement aborted: ${result.reason}`);
+      try {
+        const result = await hook(context);
+        if (result && "abort" in result && result.abort) {
+          throw new Error(`Settlement aborted: ${result.reason}`);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Settlement aborted:")) {
+          throw error;
+        }
+        console.error("Error in facilitator beforeSettle hook:", error);
+        throw new Error(
+          `before_settle_hook_error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     }
 
@@ -464,7 +498,11 @@ export class x402Facilitator {
       };
 
       for (const hook of this.afterSettleHooks) {
-        await hook(resultContext);
+        try {
+          await hook(resultContext);
+        } catch (hookError) {
+          console.error("Error in facilitator afterSettle hook:", hookError);
+        }
       }
 
       return settleResult;
@@ -476,9 +514,13 @@ export class x402Facilitator {
 
       // Execute onSettleFailure hooks
       for (const hook of this.onSettleFailureHooks) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (hookError) {
+          console.error("Error in facilitator onSettleFailure hook:", hookError);
         }
       }
 
