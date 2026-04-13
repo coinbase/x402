@@ -38,6 +38,7 @@ from x402.extensions.erc20_approval_gas_sponsoring import (
 from x402.mechanisms.evm import FacilitatorWeb3Signer
 from x402.mechanisms.evm.constants import TX_STATUS_SUCCESS
 from x402.mechanisms.evm.exact import register_exact_evm_facilitator
+from x402.mechanisms.evm.upto import UptoEvmFacilitatorScheme
 from x402.mechanisms.evm.types import TransactionReceipt
 from x402.mechanisms.svm import FacilitatorKeypairSigner
 from x402.mechanisms.svm.exact import register_exact_svm_facilitator
@@ -201,6 +202,9 @@ register_exact_evm_facilitator(
     networks="eip155:84532",  # Base Sepolia
     deploy_erc4337_with_eip6492=True,
 )
+
+# Register upto EVM scheme (V2 only)
+facilitator.register(["eip155:84532"], UptoEvmFacilitatorScheme(evm_signer))
 
 # Register SVM schemes (V1 and V2)
 register_exact_svm_facilitator(

@@ -8,6 +8,7 @@
     "eip2612GasSponsoring",
     "erc20ApprovalGasSponsoring"
   ],
+  "schemes": ["exact", "upto"],
   "evm": { "transferMethods": ["eip3009", "permit2"] },
   "description": "Python Flask server with x402 v2 payment middleware",
   "endpoints": [
@@ -45,6 +46,15 @@
       "transferMethod": "permit2",
       "extensions": ["erc20ApprovalGasSponsoring"],
       "coldstart": true
+    },
+    {
+      "path": "/upto/evm/permit2",
+      "method": "GET",
+      "description": "Protected endpoint requiring upto Permit2 payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm",
+      "transferMethod": "upto",
+      "permit2Direct": true
     },
     {
       "path": "/health",

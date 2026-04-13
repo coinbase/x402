@@ -16,6 +16,7 @@ from x402.http.middleware.fastapi import payment_middleware
 from x402.mechanisms.evm.exact import (
     register_exact_evm_server,
 )
+from x402.mechanisms.evm.upto import UptoEvmServerScheme
 from x402.mechanisms.svm.exact import register_exact_svm_server
 from x402.extensions.bazaar import (
     bazaar_resource_server_extension,
@@ -67,6 +68,7 @@ server = x402ResourceServer(facilitator)
 
 # Register EVM and SVM exact schemes
 register_exact_evm_server(server, EVM_NETWORK)
+server.register(EVM_NETWORK, UptoEvmServerScheme())
 register_exact_svm_server(server, SVM_NETWORK)
 
 # Register Bazaar discovery extension
@@ -175,6 +177,41 @@ routes = {
             **declare_erc20_approval_gas_sponsoring_extension(),
         },
     },
+    "GET /upto/evm/permit2": {
+        "accepts": {
+            "scheme": "upto",
+            "payTo": EVM_ADDRESS,
+            "network": EVM_NETWORK,
+            "price": {
+                "amount": "1000",
+                "asset": EVM_PERMIT2_ASSET,
+                "extra": {
+                    "assetTransferMethod": "permit2",
+                    "name": "USDC",
+                    "version": "2",
+                },
+            },
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Upto endpoint accessed successfully",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                        "method": "upto-permit2",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                            "method": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
+    },
 }
 
 
@@ -235,6 +272,19 @@ async def protected_permit2_erc20_endpoint() -> Dict[str, Any]:
         "message": "Permit2+ERC20Approval endpoint accessed successfully",
         "timestamp": "2024-01-01T00:00:00Z",
         "method": "permit2+erc20approval",
+    }
+
+
+@app.get("/upto/evm/permit2")
+async def protected_upto_permit2_endpoint() -> Dict[str, Any]:
+    """Protected endpoint that requires upto Permit2 payment."""
+    if shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server shutting down")
+
+    return {
+        "message": "Upto endpoint accessed successfully",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "method": "upto-permit2",
     }
 
 
