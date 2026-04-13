@@ -100,6 +100,8 @@ app.get("/api/generate", (req, res) => {
   const chargedDollars = (maxDollars * chargedPercent) / 100;
   const chargedPrice = `$${String(Math.round(chargedDollars * 1e6) / 1e6)}`;
 
+  console.log("chargedPrice", chargedPrice);
+
   res.json({
     result: "Here is your generated text...",
     usage: {

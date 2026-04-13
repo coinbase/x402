@@ -74,7 +74,9 @@ async function main(): Promise<void> {
       console.log(`Request ${i + 1} — RESPONSE`);
       console.log(result.body);
       console.log(JSON.stringify(result.settleResponse, null, 2));
-      if (result.settleResponse.extra) channelId = result.settleResponse.extra.channelId;
+      if (result.settleResponse.extra && typeof result.settleResponse.extra.channelId === "string") {
+        channelId = result.settleResponse.extra.channelId;
+      }
     }
     console.log(
       `Request ${i + 1} — completed in ${formatSeconds(performance.now() - requestT0)}s\n`,
