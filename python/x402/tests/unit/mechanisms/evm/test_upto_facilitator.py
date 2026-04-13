@@ -229,9 +229,7 @@ class TestVerify:
 
     def test_rejects_invalid_spender(self):
         facilitator = self._make_facilitator()
-        auth = make_upto_permit2_authorization(
-            spender="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-        )
+        auth = make_upto_permit2_authorization(spender="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
         payload = make_payment_payload(payload_dict=make_upto_payload_dict(auth))
         result = facilitator.verify(payload, make_requirements())
         assert result.is_valid is False
@@ -283,9 +281,7 @@ class TestVerify:
 
     def test_rejects_token_mismatch(self):
         facilitator = self._make_facilitator()
-        auth = make_upto_permit2_authorization(
-            token="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-        )
+        auth = make_upto_permit2_authorization(token="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
         payload = make_payment_payload(payload_dict=make_upto_payload_dict(auth))
         result = facilitator.verify(payload, make_requirements())
         assert result.is_valid is False
@@ -307,7 +303,9 @@ class TestVerify:
         facilitator = self._make_facilitator()
         payload = PaymentPayload(
             x402_version=2,
-            resource=ResourceInfo(url="http://test", description="test", mime_type="application/json"),
+            resource=ResourceInfo(
+                url="http://test", description="test", mime_type="application/json"
+            ),
             accepted=PaymentRequirements(
                 scheme="upto",
                 network=NETWORK,
@@ -372,9 +370,7 @@ class TestSettle:
             "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
             return_value=True,
         ):
-            result = facilitator.settle(
-                make_payment_payload(), make_requirements(amount="0")
-            )
+            result = facilitator.settle(make_payment_payload(), make_requirements(amount="0"))
 
         assert result.success is True
         assert result.transaction == ""
@@ -392,9 +388,7 @@ class TestSettle:
             "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
             return_value=True,
         ):
-            result = facilitator.settle(
-                make_payment_payload(), make_requirements(amount="2000")
-            )
+            result = facilitator.settle(make_payment_payload(), make_requirements(amount="2000"))
 
         assert result.success is False
         assert result.error_reason == ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT
@@ -429,9 +423,7 @@ class TestSettle:
             "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
             return_value=True,
         ):
-            result = facilitator.settle(
-                make_payment_payload(), make_requirements(amount="500")
-            )
+            result = facilitator.settle(make_payment_payload(), make_requirements(amount="500"))
 
         assert result.success is True
         assert result.amount == "500"
@@ -448,9 +440,7 @@ class TestSettle:
             "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
             return_value=True,
         ):
-            result = facilitator.settle(
-                make_payment_payload(), make_requirements(amount=AMOUNT)
-            )
+            result = facilitator.settle(make_payment_payload(), make_requirements(amount=AMOUNT))
 
         assert result.success is True
         assert result.amount == AMOUNT

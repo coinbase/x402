@@ -28,8 +28,12 @@ from x402.mechanisms.evm.exact import (
     ExactEvmSchemeConfig,
     ExactEvmServerScheme,
 )
-from x402.mechanisms.evm.upto import UptoEvmClientScheme, UptoEvmFacilitatorScheme, UptoEvmServerScheme
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
+from x402.mechanisms.evm.upto import (
+    UptoEvmClientScheme,
+    UptoEvmFacilitatorScheme,
+    UptoEvmServerScheme,
+)
 from x402.schemas import (
     PaymentPayload,
     PaymentRequirements,

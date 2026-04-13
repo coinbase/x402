@@ -24,9 +24,7 @@ from ....schemas import (  # noqa: E402
 )
 from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
-    ERC20_ALLOWANCE_ABI,
     ERR_INSUFFICIENT_BALANCE,
-    ERR_PERMIT2_ALLOWANCE_REQUIRED,
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
     ERR_PERMIT2_INVALID_SIGNATURE,
@@ -47,6 +45,11 @@ from ..constants import (  # noqa: E402
     X402_UPTO_PERMIT2_PROXY_ADDRESS,
     X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
 )
+
+# Reuse exact's allowance verification and settle error mapping
+from ..exact.permit2_utils import (  # noqa: E402
+    _verify_permit2_allowance,
+)
 from ..signer import FacilitatorEvmSigner  # noqa: E402
 from ..types import (  # noqa: E402
     TypedDataField,
@@ -56,11 +59,6 @@ from ..utils import (  # noqa: E402
     get_evm_chain_id,
     hex_to_bytes,
     normalize_address,
-)
-
-# Reuse exact's allowance verification and settle error mapping
-from ..exact.permit2_utils import (  # noqa: E402
-    _verify_permit2_allowance,
 )
 
 
@@ -167,9 +165,7 @@ def verify_upto_permit2(
 
     # 7. validAfter check
     if valid_after_val > now:
-        return VerifyResponse(
-            is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer
-        )
+        return VerifyResponse(is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer)
 
     # 8. Amount check (permitted.amount == requirements.amount)
     if amount_val != int(requirements.amount):
@@ -181,9 +177,7 @@ def verify_upto_permit2(
 
     # 9. Token check
     try:
-        permitted_token = normalize_address(
-            permit2_payload.permit2_authorization.permitted.token
-        )
+        permitted_token = normalize_address(permit2_payload.permit2_authorization.permitted.token)
     except Exception:
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_TOKEN_MISMATCH, payer=payer

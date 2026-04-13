@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from x402.mechanisms.evm.constants import X402_UPTO_PERMIT2_PROXY_ADDRESS
 from x402.mechanisms.evm.types import (
