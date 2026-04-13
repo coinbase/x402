@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## [2.7.0] - 2026-04-13
+
+### Added
+
+- Add optional `extra.memo` support to SVM exact scheme. When present, the client uses the seller-provided memo as Memo instruction data instead of a random nonce, and the facilitator verifies the memo content matches. ([#1682](https://github.com/x402-foundation/x402/pull/1682))
+
+
 ## [2.6.0] - 2026-04-02
 
 ### Fixed
