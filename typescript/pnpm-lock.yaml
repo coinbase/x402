@@ -292,7 +292,7 @@ importers:
         specifier: workspace:~
         version: link:../../extensions
       '@x402/paywall':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../paywall
     devDependencies:
       '@eslint/js':
@@ -1192,7 +1192,7 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1(got@11.8.6)
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:~
         version: link:../../core
     devDependencies:
       '@eslint/js':
@@ -1247,7 +1247,7 @@ importers:
         specifier: 10.0.0-alpha.46
         version: 10.0.0-alpha.46
       '@x402/core':
-        specifier: workspace:^
+        specifier: workspace:~
         version: link:../../core
     devDependencies:
       '@eslint/js':
@@ -1360,7 +1360,7 @@ importers:
         specifier: ^14.6.1
         version: 14.6.1
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:~
         version: link:../../core
     devDependencies:
       '@eslint/js':
