@@ -1,0 +1,7 @@
+{
+  "name": "x402 Sentinel",
+  "description": "Quality verification service for x402 endpoints. Monitors 42+ services across 10 categories, provides quality scores (0-100) based on schema validation, temporal consistency, cross-reference, and LLM judge. Free catalog and badge endpoints. Paid deep scans.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-sentinel.fly.dev",
+  "category": "Infrastructure & Tooling"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "x402 Domain Check",
+  "description": "Paid domain availability API for AI agents. RDAP + WHOIS + DNS layered lookup across 1200+ TLDs. $0.01 USDC per query on Base. Returns availability, registrar, and expiry data. Inconclusive lookups are not charged.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-domain-check.fly.dev",
+  "category": "Services/Endpoints"
+}

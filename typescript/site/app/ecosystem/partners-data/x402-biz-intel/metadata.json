@@ -1,0 +1,7 @@
+{
+  "name": "x402 Czech Biz Intel",
+  "description": "Czech company due diligence API for AI agents. Returns structured data from ARES + ISIR (insolvency register) by IČO or company name. $0.02 USDC per query on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-biz-intel.fly.dev",
+  "category": "Services/Endpoints"
+}
