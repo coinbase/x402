@@ -23,28 +23,28 @@ There are pre-configured examples available in the x402 repo for both [Node.js](
     Install the [x402 Express middleware package](https://www.npmjs.com/package/@x402/express).
 
     ```bash
-    npm install @x402/express @x402/core @x402/evm @x402/svm
+    npm install @x402/express @x402/core @x402/evm @x402/svm @x402/avm
     ```
   </Tab>
   <Tab title="Next.js">
     Install the [x402 Next.js middleware package](https://www.npmjs.com/package/@x402/next).
 
     ```bash
-    npm install @x402/next @x402/core @x402/evm @x402/svm
+    npm install @x402/next @x402/core @x402/evm @x402/svm @x402/avm
     ```
   </Tab>
   <Tab title="Hono">
     Install the [x402 Hono middleware package](https://www.npmjs.com/package/@x402/hono).
 
     ```bash
-    npm install @x402/hono @x402/core @x402/evm @x402/svm
+    npm install @x402/hono @x402/core @x402/evm @x402/svm @x402/avm
     ```
   </Tab>
   <Tab title="Fastify">
     Install the [x402 Fastify middleware package](https://www.npmjs.com/package/@x402/fastify).
 
     ```bash
-    npm install @x402/fastify @x402/core @x402/evm @x402/svm
+    npm install @x402/fastify @x402/core @x402/evm @x402/svm @x402/avm
     ```
   </Tab>
   <Tab title="Go (Gin)">
@@ -101,6 +101,7 @@ Integrate the payment middleware into your application. You will need to provide
     import { paymentMiddleware, x402ResourceServer } from "@x402/express";
     import { ExactEvmScheme } from "@x402/evm/exact/server";
     import { ExactSvmScheme } from "@x402/svm/exact/server";
+    import { ExactAvmScheme } from "@x402/avm/exact/server";
     import { HTTPFacilitatorClient } from "@x402/core/server";
 
     const app = express();
@@ -108,6 +109,7 @@ Integrate the payment middleware into your application. You will need to provide
     // Your receiving wallet addresses
     const evmAddress = "0xYourEvmAddress";
     const svmAddress = "YourSolanaAddress";
+    const avmAddress = "YourAlgorandAddress";
 
     // Create facilitator client (testnet)
     const facilitatorClient = new HTTPFacilitatorClient({
@@ -131,6 +133,12 @@ Integrate the payment middleware into your application. You will need to provide
                 network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet
                 payTo: svmAddress,
               },
+              {
+                scheme: "exact",
+                price: "$0.001",
+                network: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", // Algorand Testnet
+                payTo: avmAddress,
+              },
             ],
             description: "Weather data",
             mimeType: "application/json",
@@ -138,7 +146,8 @@ Integrate the payment middleware into your application. You will need to provide
         },
         new x402ResourceServer(facilitatorClient)
           .register("eip155:84532", new ExactEvmScheme())
-          .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
+          .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme())
+          .register("algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=", new ExactAvmScheme()),
       ),
     );
 
