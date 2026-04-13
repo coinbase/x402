@@ -1,0 +1,7 @@
+{
+  "name": "Checkpoint402",
+  "description": "Adversarial AI output verification service. Any agent sends its output + original task, gets back a trust score (0-100), hallucination detection, logic gap analysis, and fix suggestions. Uses Claude as an adversarial critic to find errors before they reach humans. $0.01 USDC per verification on Base via x402.",
+  "logoUrl": "",
+  "websiteUrl": "https://checkpoint402.itaeui12.workers.dev",
+  "category": "Services/Endpoints"
+}
