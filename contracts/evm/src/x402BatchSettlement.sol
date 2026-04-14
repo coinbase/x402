@@ -164,6 +164,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error ClaimExceedsBalance();
     error WithdrawalAlreadyPending();
     error WithdrawalNotPending();
+    error NotAuthorizedToFinalizeWithdraw();
     error WithdrawDelayNotElapsed();
     error NothingToWithdraw();
     error WithdrawDelayOutOfRange();
@@ -320,10 +321,17 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     /// @notice Finalize withdrawal after delay has elapsed.
-    ///         Anyone can submit.
+    ///         Caller must be `config.payer` or `config.payerAuthorizer`.
     function finalizeWithdraw(
         ChannelConfig calldata config
     ) external nonReentrant {
+        if (
+            msg.sender != config.payer &&
+            msg.sender != config.payerAuthorizer
+        ) {
+            revert NotAuthorizedToFinalizeWithdraw();
+        }
+
         bytes32 channelId = getChannelId(config);
         WithdrawalState storage ws = pendingWithdrawals[channelId];
 
