@@ -88,7 +88,9 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         keccak256("Voucher(bytes32 channelId,uint128 maxClaimableAmount)");
 
     bytes32 public constant REFUND_TYPEHASH =
-        keccak256("Refund(bytes32 channelId,uint256 nonce)");
+        keccak256(
+            "Refund(bytes32 channelId,uint256 nonce,uint128 amount)"
+        );
 
     /// @dev EIP-712 entry for one row in a signed claim batch (mirrors on-chain `VoucherClaim` fields used for authorization).
     bytes32 public constant CLAIM_ENTRY_TYPEHASH =
@@ -172,6 +174,8 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error DepositCollectionFailed();
     error InvalidCollector();
     error InvalidRefundNonce();
+    error ZeroRefund();
+    error RefundExceedsAvailable();
 
     // =========================================================================
     // Constructor
@@ -358,25 +362,30 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
     }
 
-    /// @notice Instant refund called by the receiverAuthorizer.
-    function refund(ChannelConfig calldata config) external nonReentrant {
+    /// @notice Cooperative refund to the payer. Only `receiverAuthorizer` may call.
+    /// @param amount Must not exceed `balance - totalClaimed` for the channel; use the full available amount for a total refund.
+    function refund(
+        ChannelConfig calldata config,
+        uint128 amount
+    ) external nonReentrant {
         if (msg.sender != config.receiverAuthorizer) {
             revert NotReceiverAuthorizer();
         }
-        _executeRefund(config);
+        _executeRefund(config, amount);
     }
 
-    /// @notice Instant refund. Anyone can submit with a signature authorized by the receiverAuthorizer.
-    /// @param nonce Must equal `refundNonce(channelId)` for this channel; incremented after each refund.
+    /// @notice Same as `refund`, but anyone may submit a signature from `receiverAuthorizer` authorizing `amount` for `nonce`.
+    /// @param nonce Must equal `refundNonce(channelId)`; incremented after each successful refund.
     function refundWithSignature(
         ChannelConfig calldata config,
+        uint128 amount,
         uint256 nonce,
         bytes calldata receiverAuthorizerSignature
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
         if (nonce != refundNonce[channelId]) revert InvalidRefundNonce();
         bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce))
+            keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount))
         );
         if (
             !SignatureChecker.isValidSignatureNow(
@@ -387,7 +396,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         ) {
             revert InvalidSignature();
         }
-        _executeRefund(config);
+        _executeRefund(config, amount);
     }
 
     // =========================================================================
@@ -414,11 +423,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
     function getRefundDigest(
         bytes32 channelId,
-        uint256 nonce
+        uint256 nonce,
+        uint128 amount
     ) external view returns (bytes32) {
         return
             _hashTypedDataV4(
-                keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce))
+                keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount))
             );
     }
 
@@ -527,18 +537,23 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         return keccak256(packed);
     }
 
-    function _executeRefund(ChannelConfig calldata config) internal {
+    function _executeRefund(
+        ChannelConfig calldata config,
+        uint128 amount
+    ) internal {
+        if (amount == 0) revert ZeroRefund();
+
         bytes32 channelId = getChannelId(config);
         ChannelState storage ch = channels[channelId];
-        uint128 refundAmount = ch.balance - ch.totalClaimed;
-        ch.balance = ch.totalClaimed;
+        uint128 available = ch.balance - ch.totalClaimed;
+        if (amount > available) revert RefundExceedsAvailable();
+
+        ch.balance -= amount;
 
         _clearPendingWithdrawal(channelId);
-        emit Refunded(channelId, msg.sender, refundAmount);
+        emit Refunded(channelId, msg.sender, amount);
 
-        if (refundAmount > 0) {
-            IERC20(config.token).safeTransfer(config.payer, refundAmount);
-        }
+        IERC20(config.token).safeTransfer(config.payer, amount);
 
         unchecked {
             refundNonce[channelId]++;
