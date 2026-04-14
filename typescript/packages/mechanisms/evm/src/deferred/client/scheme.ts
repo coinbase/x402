@@ -102,14 +102,6 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   readonly scheme = "batch-settlement";
 
   readonly schemeHooks: SchemeClientHooks = {
-    onBeforePaymentCreation: async ({ selectedRequirements }) => {
-      if (selectedRequirements.scheme !== "batch-settlement") return;
-      const config = this.buildChannelConfig(selectedRequirements);
-      const channelId = computeChannelId(config);
-      if (!(await this.hasSession(channelId))) {
-        await this.recoverSession(selectedRequirements);
-      }
-    },
 
     onPaymentResponse: async ctx => {
       if (ctx.settleResponse) {

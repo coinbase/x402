@@ -1,4 +1,5 @@
-import { readdir, readFile, unlink } from "node:fs/promises";
+import { open, readdir, readFile, unlink } from "node:fs/promises";
+import { constants } from "node:fs";
 import { join } from "node:path";
 
 import { writeJsonAtomic } from "../storage-utils";
@@ -104,6 +105,50 @@ export class FileSessionStorage implements SessionStorage {
       }
     }
     return sessions.sort((a, b) => a.channelId.localeCompare(b.channelId));
+  }
+
+  /**
+   * Atomically updates a session only if the current `chargedCumulativeAmount` matches
+   * `expectedCharged`. Uses an exclusive lockfile (`O_CREAT | O_EXCL`) so that exactly
+   * one caller can hold the lock — others get `EEXIST` immediately. No TOCTOU window.
+   *
+   * @param channelId - The channel identifier.
+   * @param expectedCharged - Expected current `chargedCumulativeAmount`.
+   * @param session - The new session to store if the check passes.
+   * @returns `true` if the swap succeeded, `false` if the lock was held or the value changed.
+   */
+  async compareAndSet(
+    channelId: string,
+    expectedCharged: string,
+    session: ChannelSession,
+  ): Promise<boolean> {
+    const lockPath = this.filePath(channelId) + ".lock";
+    let lockHandle;
+    try {
+      lockHandle = await open(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") return false;
+      throw err;
+    }
+
+    try {
+      const path = this.filePath(channelId);
+      try {
+        const raw = await readFile(path, "utf8");
+        const current = JSON.parse(raw) as ChannelSession;
+        if (current.chargedCumulativeAmount !== expectedCharged) {
+          return false;
+        }
+      } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT") throw err;
+      }
+      await writeJsonAtomic(path, session);
+      return true;
+    } finally {
+      await lockHandle.close();
+      await unlink(lockPath).catch(() => {});
+    }
   }
 
   /**

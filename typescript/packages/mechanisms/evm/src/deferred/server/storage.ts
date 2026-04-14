@@ -18,6 +18,11 @@ export interface SessionStorage {
   set(channelId: string, session: ChannelSession): Promise<void>;
   delete(channelId: string): Promise<void>;
   list(): Promise<ChannelSession[]>;
+  compareAndSet(
+    channelId: string,
+    expectedCharged: string,
+    session: ChannelSession,
+  ): Promise<boolean>;
 }
 
 /**
@@ -62,5 +67,29 @@ export class InMemorySessionStorage implements SessionStorage {
    */
   async list(): Promise<ChannelSession[]> {
     return [...this.sessions.values()];
+  }
+
+  /**
+   * Atomically updates a session only if the current `chargedCumulativeAmount` matches
+   * `expectedCharged`. All Map operations run synchronously within the async body,
+   * so no concurrent microtask can interleave between the read and write.
+   *
+   * @param channelId - The channel identifier.
+   * @param expectedChargedCumulativeAmount - Expected current `chargedCumulativeAmount`.
+   * @param session - The new session to store if the check passes.
+   * @returns `true` if the swap succeeded, `false` if the value changed underneath.
+   */
+  async compareAndSet(
+    channelId: string,
+    expectedCharged: string,
+    session: ChannelSession,
+  ): Promise<boolean> {
+    const key = channelId.toLowerCase();
+    const current = this.sessions.get(key);
+    if (current && current.chargedCumulativeAmount !== expectedCharged) {
+      return false;
+    }
+    this.sessions.set(key, session);
+    return true;
   }
 }

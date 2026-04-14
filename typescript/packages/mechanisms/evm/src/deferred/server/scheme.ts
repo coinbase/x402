@@ -481,7 +481,11 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       withdrawRequestedAt,
       lastRequestTimestamp: Date.now(),
     };
-    await this.storage.set(channelId, session);
+    await this.storage.compareAndSet(
+      channelId,
+      prev?.chargedCumulativeAmount ?? "0",
+      session,
+    );
   }
 
   /**
@@ -578,6 +582,32 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       return;
     }
 
+    const updatedSession: ChannelSession = {
+      channelId,
+      channelConfig: session.channelConfig,
+      payer: session.payer,
+      chargedCumulativeAmount: newCharged.toString(),
+      signedMaxClaimable: raw.maxClaimableAmount as string,
+      signature: raw.signature as `0x${string}`,
+      balance: session.balance,
+      totalClaimed: session.totalClaimed,
+      withdrawRequestedAt: session.withdrawRequestedAt,
+      lastRequestTimestamp: Date.now(),
+    };
+
+    const swapped = await this.storage.compareAndSet(
+      channelId,
+      session.chargedCumulativeAmount,
+      updatedSession,
+    );
+    if (!swapped) {
+      return {
+        abort: true,
+        reason: "deferred_channel_busy",
+        message: "Concurrent request modified channel state",
+      };
+    }
+
     return {
       skip: true,
       result: {
@@ -645,56 +675,6 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     }
 
     if (isDeferredVoucherPayload(raw)) {
-      const channelId = raw.channelId as string;
-      const ex = result.extra ?? {};
-      const charged =
-        typeof ex.chargedCumulativeAmount === "string"
-          ? ex.chargedCumulativeAmount
-          : typeof ex.chargedCumulativeAmount === "number"
-            ? String(ex.chargedCumulativeAmount)
-            : (raw.maxClaimableAmount as string);
-
-      const balance =
-        typeof ex.balance === "string"
-          ? ex.balance
-          : typeof ex.balance === "number"
-            ? String(ex.balance)
-            : undefined;
-      const totalClaimed =
-        typeof ex.totalClaimed === "string"
-          ? ex.totalClaimed
-          : typeof ex.totalClaimed === "number"
-            ? String(ex.totalClaimed)
-            : undefined;
-      const withdrawRequestedAt =
-        typeof ex.withdrawRequestedAt === "number"
-          ? ex.withdrawRequestedAt
-          : typeof ex.withdrawRequestedAt === "string"
-            ? parseInt(ex.withdrawRequestedAt, 10)
-            : undefined;
-
-      const prev = await this.storage.get(channelId);
-      const voucherConfig = (raw.channelConfig as ChannelConfig | undefined) ?? prev?.channelConfig;
-      if (!voucherConfig) {
-        return;
-      }
-      const session: ChannelSession = {
-        channelId,
-        channelConfig: voucherConfig,
-        payer:
-          voucherConfig.payer?.toLowerCase() ?? prev?.payer ?? (result.payer ?? "").toLowerCase(),
-        chargedCumulativeAmount: charged,
-        signedMaxClaimable: raw.maxClaimableAmount as string,
-        signature: raw.signature as `0x${string}`,
-        balance: balance ?? prev?.balance ?? "0",
-        totalClaimed: totalClaimed ?? prev?.totalClaimed ?? "0",
-        withdrawRequestedAt:
-          withdrawRequestedAt !== undefined && !Number.isNaN(withdrawRequestedAt)
-            ? withdrawRequestedAt
-            : (prev?.withdrawRequestedAt ?? 0),
-        lastRequestTimestamp: Date.now(),
-      };
-      await this.storage.set(channelId, session);
       return;
     }
 
