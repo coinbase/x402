@@ -23,6 +23,8 @@ import {IDepositCollector} from "./interfaces/IDepositCollector.sol";
 ///      `channelId = keccak256(abi.encode(channelConfig))`.
 ///      Deployed at the same address across all supported EVM chains using CREATE2.
 ///      Uses {ReentrancyGuardTransient} (EIP-1153); deploy only on chains with transient storage support.
+///      Fee-On-Transfer and rebasing tokens are not recommended for this protocol and are not guaranteed
+///      to work as other tokens.
 /// @author x402 Protocol
 contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
