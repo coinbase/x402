@@ -23,7 +23,7 @@ abstract contract Permit2DepositCollectorBase is DepositCollector {
         PERMIT2 = ISignatureTransfer(_permit2);
     }
 
-    /// @dev Execute a Permit2 witness transfer from payer directly to the settlement contract (msg.sender).
+    /// @dev Execute a Permit2 witness transfer from payer directly to the settlement singleton.
     function _executePermit2Transfer(
         address payer,
         uint256 amount,
@@ -35,7 +35,7 @@ abstract contract Permit2DepositCollectorBase is DepositCollector {
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({to: msg.sender, requestedAmount: amount}),
+            ISignatureTransfer.SignatureTransferDetails({to: address(settlement), requestedAmount: amount}),
             payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,
