@@ -256,7 +256,7 @@ The function signatures follow the same pattern as `settle()` for each variant.
 - **Immutable:** No upgrade mechanism, no owner, no admin functions
 - **No custody:** Contracts never hold tokens
 - **Destination locked:** Witness pattern enforces payTo address
-- **Reentrancy protected:** Uses OpenZeppelin's ReentrancyGuard
+- **Reentrancy protected:** Uses OpenZeppelin's `ReentrancyGuardTransient`
 - **Deterministic:** Same address on all chains via CREATE2
 
 ## Coverage
