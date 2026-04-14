@@ -24,20 +24,25 @@ from ....schemas import (  # noqa: E402
 )
 from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
-    ERR_FAILED_TO_GET_NETWORK_CONFIG,
-    ERR_INSUFFICIENT_BALANCE,
+    ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
+    ERR_PERMIT2_INSUFFICIENT_BALANCE,
+    ERR_PERMIT2_INVALID_DESTINATION,
+    ERR_PERMIT2_INVALID_OWNER,
     ERR_PERMIT2_INVALID_SIGNATURE,
     ERR_PERMIT2_INVALID_SPENDER,
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
-    ERR_TRANSACTION_FAILED,
+    ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED,
     ERR_UPTO_FACILITATOR_MISMATCH,
+    ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG,
     ERR_UPTO_INVALID_SCHEME,
     ERR_UPTO_NETWORK_MISMATCH,
     ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT,
+    ERR_UPTO_TRANSACTION_FAILED,
+    ERR_UPTO_UNAUTHORIZED_FACILITATOR,
     PERMIT2_ADDRESS,
     SCHEME_UPTO,
     TX_STATUS_SUCCESS,
@@ -101,7 +106,7 @@ def verify_upto_permit2(
         chain_id = get_evm_chain_id(str(requirements.network))
     except Exception:
         return VerifyResponse(
-            is_valid=False, invalid_reason=ERR_FAILED_TO_GET_NETWORK_CONFIG, payer=payer
+            is_valid=False, invalid_reason=ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG, payer=payer
         )
     token_address = normalize_address(requirements.asset)
 
@@ -222,6 +227,10 @@ def verify_upto_permit2(
             is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
         )
 
+    # If simulation is disabled, skip allowance/balance/simulation checks (matches Go/TS).
+    if not simulate:
+        return VerifyResponse(is_valid=True, payer=payer)
+
     # 11. Allowance check (reuses exact's implementation which handles extension fallbacks)
     allowance_result = _verify_permit2_allowance(
         signer, payload, requirements, payer, token_address, context
@@ -234,23 +243,22 @@ def verify_upto_permit2(
         balance = signer.read_contract(token_address, BALANCE_OF_ABI, "balanceOf", payer)
         if int(balance) < int(requirements.amount):
             return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INSUFFICIENT_BALANCE, payer=payer
+                is_valid=False, invalid_reason=ERR_PERMIT2_INSUFFICIENT_BALANCE, payer=payer
             )
     except Exception:
         return VerifyResponse(is_valid=False, invalid_reason="balance_check_failed", payer=payer)
 
-    if simulate:
-        simulation_result = _simulate_upto_verification(
-            signer,
-            payload,
-            requirements,
-            permit2_payload,
-            token_address,
-            payer,
-            context,
-        )
-        if simulation_result is not None:
-            return simulation_result
+    simulation_result = _simulate_upto_verification(
+        signer,
+        payload,
+        requirements,
+        permit2_payload,
+        token_address,
+        payer,
+        context,
+    )
+    if simulation_result is not None:
+        return simulation_result
 
     return VerifyResponse(is_valid=True, payer=payer)
 
@@ -332,7 +340,7 @@ def _diagnose_upto_simulation_failure(
     try:
         balance = signer.read_contract(token_address, BALANCE_OF_ABI, "balanceOf", payer)
         if int(balance) < int(requirements.amount):
-            return ERR_INSUFFICIENT_BALANCE
+            return ERR_PERMIT2_INSUFFICIENT_BALANCE
     except Exception:
         return "balance_check_failed"
 
@@ -342,7 +350,7 @@ def _diagnose_upto_simulation_failure(
     if allowance_result is not None:
         return allowance_result.invalid_reason
 
-    return ERR_TRANSACTION_FAILED
+    return ERR_UPTO_TRANSACTION_FAILED
 
 
 def _simulate_upto_verification(
@@ -608,7 +616,7 @@ def _settle_upto_direct(
         if receipt.status != TX_STATUS_SUCCESS:
             return SettleResponse(
                 success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
+                error_reason=ERR_UPTO_TRANSACTION_FAILED,
                 transaction=tx_hash,
                 network=network,
                 payer=payer,
@@ -676,7 +684,7 @@ def _settle_upto_with_eip2612(
         if receipt.status != TX_STATUS_SUCCESS:
             return SettleResponse(
                 success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
+                error_reason=ERR_UPTO_TRANSACTION_FAILED,
                 transaction=tx_hash,
                 network=network,
                 payer=payer,
@@ -729,7 +737,7 @@ def _settle_upto_with_erc20_approval(
         if receipt.status != TX_STATUS_SUCCESS:
             return SettleResponse(
                 success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
+                error_reason=ERR_UPTO_TRANSACTION_FAILED,
                 transaction=settle_tx_hash,
                 network=network,
                 payer=payer,
@@ -806,17 +814,18 @@ def _verify_upto_permit2_signature(
 def _map_upto_settle_error(error: Exception, network: str, payer: str) -> SettleResponse:
     """Map contract revert errors to structured SettleResponse."""
     error_msg = str(error)
-    error_reason = ERR_TRANSACTION_FAILED
     if "Permit2612AmountMismatch" in error_msg:
         error_reason = "permit2_2612_amount_mismatch"
+    elif "InvalidAmount" in error_msg:
+        error_reason = "permit2_invalid_amount"
     elif "AmountExceedsPermitted" in error_msg:
-        error_reason = ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT
+        error_reason = ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED
     elif "UnauthorizedFacilitator" in error_msg:
-        error_reason = ERR_UPTO_FACILITATOR_MISMATCH
+        error_reason = ERR_UPTO_UNAUTHORIZED_FACILITATOR
     elif "InvalidDestination" in error_msg:
-        error_reason = "invalid_permit2_destination"
+        error_reason = ERR_PERMIT2_INVALID_DESTINATION
     elif "InvalidOwner" in error_msg:
-        error_reason = "invalid_permit2_owner"
+        error_reason = ERR_PERMIT2_INVALID_OWNER
     elif "PaymentTooEarly" in error_msg:
         error_reason = "permit2_payment_too_early"
     elif "InvalidSignature" in error_msg or "SignatureExpired" in error_msg:
@@ -824,7 +833,9 @@ def _map_upto_settle_error(error: Exception, network: str, payer: str) -> Settle
     elif "InvalidNonce" in error_msg:
         error_reason = "permit2_invalid_nonce"
     elif "erc20_approval_tx_failed" in error_msg:
-        error_reason = "erc20_approval_tx_failed"
+        error_reason = ERR_ERC20_APPROVAL_BROADCAST_FAILED
+    else:
+        error_reason = ERR_UPTO_TRANSACTION_FAILED
 
     return SettleResponse(
         success=False,

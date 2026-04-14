@@ -342,16 +342,24 @@ ERR_PERMIT2_INVALID_SPENDER = "invalid_permit2_spender"
 ERR_PERMIT2_RECIPIENT_MISMATCH = "invalid_permit2_recipient_mismatch"
 ERR_PERMIT2_DEADLINE_EXPIRED = "permit2_deadline_expired"
 ERR_PERMIT2_NOT_YET_VALID = "permit2_not_yet_valid"
-ERR_PERMIT2_AMOUNT_MISMATCH = "invalid_exact_evm_payload_amount_mismatch"
+ERR_PERMIT2_AMOUNT_MISMATCH = "permit2_amount_mismatch"
 ERR_PERMIT2_TOKEN_MISMATCH = "permit2_token_mismatch"
 ERR_PERMIT2_INVALID_SIGNATURE = "invalid_permit2_signature"
 ERR_PERMIT2_ALLOWANCE_REQUIRED = "permit2_allowance_required"
+ERR_PERMIT2_INSUFFICIENT_BALANCE = "permit2_insufficient_balance"
+ERR_PERMIT2_INVALID_DESTINATION = "permit2_invalid_destination"
+ERR_PERMIT2_INVALID_OWNER = "permit2_invalid_owner"
 
 # Upto-specific error codes
 ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT = "invalid_upto_evm_payload_settlement_exceeds_amount"
-ERR_UPTO_FACILITATOR_MISMATCH = "invalid_upto_evm_facilitator_mismatch"
-ERR_UPTO_INVALID_SCHEME = "invalid_upto_scheme"
-ERR_UPTO_NETWORK_MISMATCH = "invalid_upto_network_mismatch"
+ERR_UPTO_FACILITATOR_MISMATCH = "upto_facilitator_mismatch"
+ERR_UPTO_INVALID_SCHEME = "invalid_upto_evm_scheme"
+ERR_UPTO_NETWORK_MISMATCH = "invalid_upto_evm_network_mismatch"
+ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED = "upto_amount_exceeds_permitted"
+ERR_UPTO_UNAUTHORIZED_FACILITATOR = "upto_unauthorized_facilitator"
+ERR_UPTO_TRANSACTION_FAILED = "invalid_upto_evm_transaction_failed"
+ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG = "invalid_upto_evm_failed_to_get_network_config"
+ERR_ERC20_APPROVAL_BROADCAST_FAILED = "erc20_approval_broadcast_failed"
 
 
 class _AssetInfoRequired(TypedDict):

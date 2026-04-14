@@ -9,6 +9,7 @@ from x402.mechanisms.evm import get_network_config
 from x402.mechanisms.evm.constants import (
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
+    ERR_PERMIT2_INSUFFICIENT_BALANCE,
     ERR_PERMIT2_INVALID_SPENDER,
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
@@ -17,6 +18,7 @@ from x402.mechanisms.evm.constants import (
     ERR_UPTO_INVALID_SCHEME,
     ERR_UPTO_NETWORK_MISMATCH,
     ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT,
+    ERR_UPTO_TRANSACTION_FAILED,
     X402_UPTO_PERMIT2_PROXY_ADDRESS,
 )
 from x402.mechanisms.evm.types import (
@@ -203,6 +205,19 @@ class TestGetExtra:
         facilitator = UptoEvmFacilitatorScheme(signer)
         assert facilitator.get_extra(NETWORK) is None
 
+    def test_returns_one_of_multiple_addresses(self):
+        """get_extra picks randomly from multiple addresses (matches Go/TS behavior)."""
+        addr2 = "0x2222222222222222222222222222222222222222"
+        addresses = [FACILITATOR, addr2]
+        signer = MockFacilitatorSigner(addresses=addresses)
+        facilitator = UptoEvmFacilitatorScheme(signer)
+        seen = set()
+        for _ in range(50):
+            extra = facilitator.get_extra(NETWORK)
+            assert extra is not None
+            seen.add(extra["facilitatorAddress"])
+        assert seen == set(addresses), "get_extra should select from all addresses"
+
 
 class TestGetSigners:
     def test_returns_signer_addresses(self):
@@ -307,6 +322,22 @@ class TestVerify:
         assert result.is_valid is True
         assert result.payer == PAYER
 
+    def test_verify_skips_allowance_and_simulation_when_simulate_false(self):
+        """simulate=False must return valid after signature check, matching Go/TS behavior."""
+        from unittest.mock import patch
+
+        from x402.mechanisms.evm.upto.permit2_utils import verify_upto_permit2
+
+        signer = MockFacilitatorSigner(sig_valid=True, allowance=0, balance=0, simulate_ok=False)
+        payload = make_payment_payload()
+        requirements = make_requirements()
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = verify_upto_permit2(signer, payload, requirements, simulate=False)
+        assert result.is_valid is True
+
     def test_rejects_unsupported_payload_type(self):
         facilitator = self._make_facilitator()
         payload = PaymentPayload(
@@ -402,7 +433,9 @@ class TestSettle:
         assert result.error_reason == ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT
 
     def test_settle_fails_if_verify_fails(self):
-        facilitator = self._make_facilitator(allowance=0)
+        # Use an invalid signature with no deployed contract code so that
+        # verify always rejects (signature check runs regardless of simulate mode).
+        facilitator = self._make_facilitator(sig_valid=False)
         result = facilitator.settle(make_payment_payload(), make_requirements())
         assert result.success is False
 
@@ -468,7 +501,7 @@ class TestSettle:
             result = facilitator.settle(make_payment_payload(), make_requirements())
 
         assert result.success is False
-        assert result.error_reason == "transaction_failed"
+        assert result.error_reason == ERR_UPTO_TRANSACTION_FAILED
 
 
 class TestVerifyEdgeCases:
@@ -507,7 +540,7 @@ class TestVerifyEdgeCases:
         ):
             result = facilitator.verify(make_payment_payload(), make_requirements())
         assert result.is_valid is False
-        assert result.invalid_reason == "invalid_exact_evm_insufficient_balance"
+        assert result.invalid_reason == ERR_PERMIT2_INSUFFICIENT_BALANCE
 
     def test_rejects_insufficient_allowance(self):
         from unittest.mock import patch
@@ -554,4 +587,47 @@ class TestVerifyEdgeCases:
             result = facilitator.verify(make_payment_payload(), make_requirements())
 
         assert result.is_valid is False
-        assert result.invalid_reason == "transaction_failed"
+        assert result.invalid_reason == ERR_UPTO_TRANSACTION_FAILED
+
+
+class TestMapUptoSettleError:
+    """Verify _map_upto_settle_error produces canonical Go/TS-parity error codes."""
+
+    def _call(self, msg: str) -> str:
+        from x402.mechanisms.evm.upto.permit2_utils import _map_upto_settle_error
+
+        resp = _map_upto_settle_error(RuntimeError(msg), "eip155:8453", PAYER)
+        return resp.error_reason
+
+    def test_amount_exceeds_permitted(self):
+        assert self._call("execution reverted: AmountExceedsPermitted") == "upto_amount_exceeds_permitted"
+
+    def test_unauthorized_facilitator(self):
+        assert self._call("execution reverted: UnauthorizedFacilitator") == "upto_unauthorized_facilitator"
+
+    def test_invalid_destination(self):
+        assert self._call("execution reverted: InvalidDestination") == "permit2_invalid_destination"
+
+    def test_invalid_owner(self):
+        assert self._call("execution reverted: InvalidOwner") == "permit2_invalid_owner"
+
+    def test_payment_too_early(self):
+        assert self._call("execution reverted: PaymentTooEarly") == "permit2_payment_too_early"
+
+    def test_invalid_signature(self):
+        assert self._call("execution reverted: InvalidSignature") == "invalid_permit2_signature"
+
+    def test_signature_expired(self):
+        assert self._call("execution reverted: SignatureExpired") == "invalid_permit2_signature"
+
+    def test_invalid_nonce(self):
+        assert self._call("execution reverted: InvalidNonce") == "permit2_invalid_nonce"
+
+    def test_permit2612_amount_mismatch(self):
+        assert self._call("execution reverted: Permit2612AmountMismatch") == "permit2_2612_amount_mismatch"
+
+    def test_erc20_approval_broadcast_failed(self):
+        assert self._call("erc20_approval_tx_failed: 0xabc") == "erc20_approval_broadcast_failed"
+
+    def test_default_maps_to_upto_transaction_failed(self):
+        assert self._call("some unknown revert") == "invalid_upto_evm_transaction_failed"

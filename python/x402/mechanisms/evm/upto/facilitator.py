@@ -1,5 +1,6 @@
 """EVM facilitator implementation for the Upto payment scheme."""
 
+import random
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,7 +48,7 @@ class UptoEvmScheme:
         addresses = self._signer.get_addresses()
         if not addresses:
             return None
-        return {"facilitatorAddress": addresses[0]}
+        return {"facilitatorAddress": random.choice(addresses)}
 
     def get_signers(self, network: Network) -> list[str]:
         return self._signer.get_addresses()
