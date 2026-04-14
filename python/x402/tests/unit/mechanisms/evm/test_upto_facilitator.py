@@ -600,10 +600,16 @@ class TestMapUptoSettleError:
         return resp.error_reason
 
     def test_amount_exceeds_permitted(self):
-        assert self._call("execution reverted: AmountExceedsPermitted") == "upto_amount_exceeds_permitted"
+        assert (
+            self._call("execution reverted: AmountExceedsPermitted")
+            == "upto_amount_exceeds_permitted"
+        )
 
     def test_unauthorized_facilitator(self):
-        assert self._call("execution reverted: UnauthorizedFacilitator") == "upto_unauthorized_facilitator"
+        assert (
+            self._call("execution reverted: UnauthorizedFacilitator")
+            == "upto_unauthorized_facilitator"
+        )
 
     def test_invalid_destination(self):
         assert self._call("execution reverted: InvalidDestination") == "permit2_invalid_destination"
@@ -624,7 +630,10 @@ class TestMapUptoSettleError:
         assert self._call("execution reverted: InvalidNonce") == "permit2_invalid_nonce"
 
     def test_permit2612_amount_mismatch(self):
-        assert self._call("execution reverted: Permit2612AmountMismatch") == "permit2_2612_amount_mismatch"
+        assert (
+            self._call("execution reverted: Permit2612AmountMismatch")
+            == "permit2_2612_amount_mismatch"
+        )
 
     def test_erc20_approval_broadcast_failed(self):
         assert self._call("erc20_approval_tx_failed: 0xabc") == "erc20_approval_broadcast_failed"
