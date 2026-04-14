@@ -11,7 +11,7 @@ import {IERC3009} from "../interfaces/IERC3009.sol";
 /// @title ERC3009DepositCollector
 /// @notice Deposit collector that uses ERC-3009 receiveWithAuthorization for gasless token collection.
 /// @dev ERC-3009 requires msg.sender == to, so this collector receives tokens first, then forwards
-///      them to the settlement contract (msg.sender). This incurs an extra transfer (~30k gas overhead).
+///      to the settlement singleton. Nonce is keccak256(abi.encode(channelId, salt)) with salt in collectorData.
 contract ERC3009DepositCollector is DepositCollector {
     using SafeERC20 for IERC20;
 
@@ -24,17 +24,19 @@ contract ERC3009DepositCollector is DepositCollector {
         address payer,
         address token,
         uint256 amount,
-        bytes32,
+        bytes32 channelId,
         address,
         bytes calldata collectorData
     ) external override onlySettlement {
-        (uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes memory signature) =
-            abi.decode(collectorData, (uint256, uint256, bytes32, bytes));
+        (uint256 validAfter, uint256 validBefore, uint256 salt, bytes memory signature) =
+            abi.decode(collectorData, (uint256, uint256, uint256, bytes));
+
+        bytes32 expectedNonce = keccak256(abi.encode(channelId, salt));
 
         IERC3009(token).receiveWithAuthorization(
-            payer, address(this), amount, validAfter, validBefore, nonce, signature
+            payer, address(this), amount, validAfter, validBefore, expectedNonce, signature
         );
 
-        IERC20(token).safeTransfer(msg.sender, amount);
+        IERC20(token).safeTransfer(address(settlement), amount);
     }
 }
