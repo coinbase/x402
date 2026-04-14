@@ -90,8 +90,17 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     bytes32 public constant REFUND_TYPEHASH =
         keccak256("Refund(bytes32 channelId,uint256 nonce)");
 
+    /// @dev EIP-712 entry for one row in a signed claim batch (mirrors on-chain `VoucherClaim` fields used for authorization).
+    bytes32 public constant CLAIM_ENTRY_TYPEHASH =
+        keccak256(
+            "ClaimEntry(bytes32 channelId,uint128 maxClaimableAmount,uint128 totalClaimed)"
+        );
+
+    /// @dev Full nested EIP-712 type so wallets can render `ClaimEntry[]` for user review.
     bytes32 public constant CLAIM_BATCH_TYPEHASH =
-        keccak256("ClaimBatch(bytes32 claimsHash)");
+        keccak256(
+            "ClaimBatch(ClaimEntry[] claims)ClaimEntry(bytes32 channelId,uint128 maxClaimableAmount,uint128 totalClaimed)"
+        );
 
     // =========================================================================
     // Storage
@@ -251,10 +260,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
             .channel
             .receiverAuthorizer;
 
-        bytes32 claimsHash = _computeClaimsHash(voucherClaims);
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, claimsHash))
-        );
+        bytes32 digest = _hashTypedDataV4(_claimBatchStructHash(voucherClaims));
         if (
             !SignatureChecker.isValidSignatureNow(
                 authorizer,
@@ -411,11 +417,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     function getClaimBatchDigest(
         VoucherClaim[] calldata voucherClaims
     ) external view returns (bytes32) {
-        bytes32 claimsHash = _computeClaimsHash(voucherClaims);
-        return
-            _hashTypedDataV4(
-                keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, claimsHash))
-            );
+        return _hashTypedDataV4(_claimBatchStructHash(voucherClaims));
     }
 
     // =========================================================================
@@ -477,20 +479,44 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         emit Claimed(channelId, msg.sender, claimDelta, vc.totalClaimed);
     }
 
-    function _computeClaimsHash(
+    /// @dev EIP-712 `hashStruct(ClaimBatch)` for the given claims (see `CLAIM_BATCH_TYPEHASH` / `CLAIM_ENTRY_TYPEHASH`).
+    function _claimBatchStructHash(
         VoucherClaim[] calldata voucherClaims
     ) internal pure returns (bytes32) {
-        bytes32[] memory hashes = new bytes32[](voucherClaims.length);
-        for (uint256 i = 0; i < voucherClaims.length; ++i) {
-            hashes[i] = keccak256(
+        return
+            keccak256(
                 abi.encode(
-                    getChannelId(voucherClaims[i].voucher.channel),
+                    CLAIM_BATCH_TYPEHASH,
+                    _claimEntriesRootHash(voucherClaims)
+                )
+            );
+    }
+
+    /// @dev EIP-712 encoding for `ClaimEntry[]`: `keccak256(abi.encodePacked(hashStruct(entry), ...))`.
+    function _claimEntriesRootHash(
+        VoucherClaim[] calldata voucherClaims
+    ) internal pure returns (bytes32) {
+        uint256 n = voucherClaims.length;
+        if (n == 0) {
+            return keccak256("");
+        }
+        bytes32[] memory entryHashes = new bytes32[](n);
+        for (uint256 i = 0; i < n; ++i) {
+            bytes32 channelId = getChannelId(voucherClaims[i].voucher.channel);
+            entryHashes[i] = keccak256(
+                abi.encode(
+                    CLAIM_ENTRY_TYPEHASH,
+                    channelId,
                     voucherClaims[i].voucher.maxClaimableAmount,
                     voucherClaims[i].totalClaimed
                 )
             );
         }
-        return keccak256(abi.encodePacked(hashes));
+        bytes memory packed;
+        for (uint256 j = 0; j < n; ++j) {
+            packed = abi.encodePacked(packed, entryHashes[j]);
+        }
+        return keccak256(packed);
     }
 
     function _executeRefund(ChannelConfig calldata config) internal {
