@@ -34,10 +34,8 @@ class UptoEvmScheme:
 
     def get_asset_decimals(self, _asset: str, network: Network) -> int:
         try:
-            config = get_network_config(str(network))
-            default = config.get("default_asset")
-            if default:
-                return default.get("decimals", 6)
+            asset_info = get_asset_info(str(network), _asset)
+            return asset_info["decimals"]
         except ValueError:
             pass
         return 6
@@ -103,10 +101,24 @@ class UptoEvmScheme:
         # Upto always uses Permit2
         requirements.extra["assetTransferMethod"] = "permit2"
 
-        # Copy facilitatorAddress from supportedKind.extra if available
+        if asset_info is not None:
+            requirements.extra.setdefault("name", asset_info.get("name"))
+            requirements.extra.setdefault("version", asset_info.get("version"))
+
+        # Copy facilitatorAddress from supportedKind.extra (required for upto)
         kind_extra = supported_kind.extra or {}
-        if kind_extra.get("facilitatorAddress"):
-            requirements.extra["facilitatorAddress"] = kind_extra["facilitatorAddress"]
+        facilitator_address = kind_extra.get("facilitatorAddress")
+        if not facilitator_address:
+            raise ValueError(
+                "upto scheme requires facilitatorAddress in supported kinds. "
+                "Ensure facilitator get_extra() returns facilitatorAddress."
+            )
+        requirements.extra["facilitatorAddress"] = facilitator_address
+
+        # Copy extension data declared by the facilitator.
+        for key in extension_keys:
+            if key in kind_extra:
+                requirements.extra[key] = kind_extra[key]
 
         return requirements
 

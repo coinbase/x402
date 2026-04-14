@@ -24,6 +24,7 @@ from ....schemas import (  # noqa: E402
 )
 from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
+    ERR_FAILED_TO_GET_NETWORK_CONFIG,
     ERR_INSUFFICIENT_BALANCE,
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
@@ -67,6 +68,7 @@ def verify_upto_permit2(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
     context: FacilitatorContext | None = None,
+    simulate: bool = True,
 ) -> VerifyResponse:
     """Verify an upto Permit2 payment payload.
 
@@ -95,7 +97,12 @@ def verify_upto_permit2(
     if payload.accepted.network != requirements.network:
         return VerifyResponse(is_valid=False, invalid_reason=ERR_UPTO_NETWORK_MISMATCH, payer=payer)
 
-    chain_id = get_evm_chain_id(str(requirements.network))
+    try:
+        chain_id = get_evm_chain_id(str(requirements.network))
+    except Exception:
+        return VerifyResponse(
+            is_valid=False, invalid_reason=ERR_FAILED_TO_GET_NETWORK_CONFIG, payer=payer
+        )
     token_address = normalize_address(requirements.asset)
 
     # 3. Spender check
@@ -152,6 +159,7 @@ def verify_upto_permit2(
         deadline_val = int(permit2_payload.permit2_authorization.deadline)
         valid_after_val = int(permit2_payload.permit2_authorization.witness.valid_after)
         amount_val = int(permit2_payload.permit2_authorization.permitted.amount)
+        required_amount = int(requirements.amount)
     except (ValueError, TypeError):
         return VerifyResponse(
             is_valid=False, invalid_reason="invalid_permit2_payload_format", payer=payer
@@ -168,7 +176,7 @@ def verify_upto_permit2(
         return VerifyResponse(is_valid=False, invalid_reason=ERR_PERMIT2_NOT_YET_VALID, payer=payer)
 
     # 8. Amount check (permitted.amount == requirements.amount)
-    if amount_val != int(requirements.amount):
+    if amount_val != required_amount:
         return VerifyResponse(
             is_valid=False,
             invalid_reason=ERR_PERMIT2_AMOUNT_MISMATCH,
@@ -204,9 +212,11 @@ def verify_upto_permit2(
             sig_bytes,
         )
         if not is_valid_sig:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
-            )
+            code = signer.get_code(payer)
+            if len(code) == 0:
+                return VerifyResponse(
+                    is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
+                )
     except Exception:
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_PERMIT2_INVALID_SIGNATURE, payer=payer
@@ -229,7 +239,214 @@ def verify_upto_permit2(
     except Exception:
         return VerifyResponse(is_valid=False, invalid_reason="balance_check_failed", payer=payer)
 
+    if simulate:
+        simulation_result = _simulate_upto_verification(
+            signer,
+            payload,
+            requirements,
+            permit2_payload,
+            token_address,
+            payer,
+            context,
+        )
+        if simulation_result is not None:
+            return simulation_result
+
     return VerifyResponse(is_valid=True, payer=payer)
+
+
+def _simulate_upto_settle(
+    signer: FacilitatorEvmSigner,
+    permit2_payload: UptoPermit2Payload,
+    settlement_amount: int,
+) -> bool:
+    """Simulate x402UptoPermit2Proxy.settle(...) via eth_call."""
+    try:
+        permit_tuple, amount, owner_addr, witness_tuple, sig_bytes = (
+            _build_upto_permit2_settle_args(permit2_payload, settlement_amount)
+        )
+        signer.read_contract(
+            X402_UPTO_PERMIT2_PROXY_ADDRESS,
+            X402_UPTO_PERMIT2_PROXY_ABI,
+            "settle",
+            permit_tuple,
+            amount,
+            owner_addr,
+            witness_tuple,
+            sig_bytes,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _simulate_upto_settle_with_eip2612(
+    signer: FacilitatorEvmSigner,
+    permit2_payload: UptoPermit2Payload,
+    eip2612_info: Any,
+    settlement_amount: int,
+) -> bool:
+    """Simulate x402UptoPermit2Proxy.settleWithPermit(...) via eth_call."""
+    try:
+        permit_tuple, amount, owner_addr, witness_tuple, sig_bytes = (
+            _build_upto_permit2_settle_args(permit2_payload, settlement_amount)
+        )
+        sig_raw = hex_to_bytes(eip2612_info.signature)
+        if len(sig_raw) != 65:
+            return False
+        r = sig_raw[:32]
+        s = sig_raw[32:64]
+        v = sig_raw[64]
+        permit2612_tuple = (
+            int(eip2612_info.amount),
+            int(eip2612_info.deadline),
+            r,
+            s,
+            v,
+        )
+        signer.read_contract(
+            X402_UPTO_PERMIT2_PROXY_ADDRESS,
+            X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
+            "settleWithPermit",
+            permit2612_tuple,
+            permit_tuple,
+            amount,
+            owner_addr,
+            witness_tuple,
+            sig_bytes,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _diagnose_upto_simulation_failure(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    token_address: str,
+    payer: str,
+    context: FacilitatorContext | None,
+) -> str:
+    """Map failed settlement simulation to the most useful invalid reason."""
+    try:
+        balance = signer.read_contract(token_address, BALANCE_OF_ABI, "balanceOf", payer)
+        if int(balance) < int(requirements.amount):
+            return ERR_INSUFFICIENT_BALANCE
+    except Exception:
+        return "balance_check_failed"
+
+    allowance_result = _verify_permit2_allowance(
+        signer, payload, requirements, payer, token_address, context
+    )
+    if allowance_result is not None:
+        return allowance_result.invalid_reason
+
+    return ERR_TRANSACTION_FAILED
+
+
+def _simulate_upto_verification(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    permit2_payload: UptoPermit2Payload,
+    token_address: str,
+    payer: str,
+    context: FacilitatorContext | None,
+) -> VerifyResponse | None:
+    """Run settle-path simulations during verify for parity with Go/TS."""
+    from ....extensions.eip2612_gas_sponsoring import (
+        extract_eip2612_gas_sponsoring_info,
+        validate_eip2612_permit_for_payment,
+    )
+    from ....extensions.erc20_approval_gas_sponsoring import (
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
+        Erc20ApprovalFacilitatorExtension,
+        WriteContractCall,
+        extract_erc20_approval_gas_sponsoring_info,
+        validate_erc20_approval_for_payment,
+    )
+
+    settlement_amount = int(requirements.amount)
+
+    eip2612_info = extract_eip2612_gas_sponsoring_info(payload)
+    if eip2612_info is not None:
+        reason = validate_eip2612_permit_for_payment(eip2612_info, payer, token_address)
+        if reason:
+            return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
+        if not _simulate_upto_settle_with_eip2612(
+            signer, permit2_payload, eip2612_info, settlement_amount
+        ):
+            return VerifyResponse(
+                is_valid=False,
+                invalid_reason=_diagnose_upto_simulation_failure(
+                    signer, payload, requirements, token_address, payer, context
+                ),
+                payer=payer,
+            )
+        return None
+
+    erc20_info = extract_erc20_approval_gas_sponsoring_info(payload)
+    if erc20_info is not None and context is not None:
+        ext = context.get_extension(ERC20_APPROVAL_GAS_SPONSORING_KEY)
+        if isinstance(ext, Erc20ApprovalFacilitatorExtension):
+            reason, _msg = validate_erc20_approval_for_payment(erc20_info, payer, token_address)
+            if reason:
+                return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
+
+            extension_signer = ext.resolve_signer(str(payload.accepted.network))
+            simulate_transactions = (
+                getattr(extension_signer, "simulate_transactions", None)
+                if extension_signer is not None
+                else None
+            )
+            if callable(simulate_transactions):
+                try:
+                    permit_tuple, amount, owner_addr, witness_tuple, sig_bytes = (
+                        _build_upto_permit2_settle_args(permit2_payload, settlement_amount)
+                    )
+                    simulated_ok = bool(
+                        simulate_transactions(
+                            [
+                                erc20_info.signed_transaction,
+                                WriteContractCall(
+                                    address=X402_UPTO_PERMIT2_PROXY_ADDRESS,
+                                    abi=X402_UPTO_PERMIT2_PROXY_ABI,
+                                    function="settle",
+                                    args=[
+                                        permit_tuple,
+                                        amount,
+                                        owner_addr,
+                                        witness_tuple,
+                                        sig_bytes,
+                                    ],
+                                ),
+                            ]
+                        )
+                    )
+                except Exception:
+                    simulated_ok = False
+                if not simulated_ok:
+                    return VerifyResponse(
+                        is_valid=False,
+                        invalid_reason=_diagnose_upto_simulation_failure(
+                            signer, payload, requirements, token_address, payer, context
+                        ),
+                        payer=payer,
+                    )
+            # Without extension simulation support, allowance/field checks are the best check.
+            return None
+
+    if not _simulate_upto_settle(signer, permit2_payload, settlement_amount):
+        return VerifyResponse(
+            is_valid=False,
+            invalid_reason=_diagnose_upto_simulation_failure(
+                signer, payload, requirements, token_address, payer, context
+            ),
+            payer=payer,
+        )
+
+    return None
 
 
 def settle_upto_permit2(
@@ -237,6 +454,7 @@ def settle_upto_permit2(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
     context: FacilitatorContext | None = None,
+    simulate_in_settle: bool = False,
 ) -> SettleResponse:
     """Settle an upto Permit2 payment on-chain.
 
@@ -253,7 +471,16 @@ def settle_upto_permit2(
     permit2_payload = UptoPermit2Payload.from_dict(payload.payload)
     payer = permit2_payload.permit2_authorization.from_address
     network = str(requirements.network)
-    settlement_amount = int(requirements.amount)
+    try:
+        settlement_amount = int(requirements.amount)
+    except (ValueError, TypeError):
+        return SettleResponse(
+            success=False,
+            error_reason="invalid_permit2_payload_format",
+            network=network,
+            payer=payer,
+            transaction="",
+        )
 
     # Re-verify with permitted.amount (the authorized max), not the settlement amount
     verify_requirements = PaymentRequirements(
@@ -266,7 +493,13 @@ def settle_upto_permit2(
         extra=requirements.extra,
     )
 
-    verify_result = verify_upto_permit2(signer, payload, verify_requirements, context)
+    verify_result = verify_upto_permit2(
+        signer,
+        payload,
+        verify_requirements,
+        context,
+        simulate=simulate_in_settle,
+    )
     if not verify_result.is_valid:
         return SettleResponse(
             success=False,

@@ -26,7 +26,7 @@ from x402.mechanisms.evm.types import (
     UptoPermit2Payload,
     UptoPermit2Witness,
 )
-from x402.mechanisms.evm.upto import UptoEvmFacilitatorScheme
+from x402.mechanisms.evm.upto import UptoEvmFacilitatorScheme, UptoEvmSchemeConfig
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
 
 NETWORK = "eip155:8453"
@@ -131,12 +131,16 @@ class MockFacilitatorSigner:
         allowance: int = int(AMOUNT) * 2,
         balance: int = int(AMOUNT) * 10,
         tx_success: bool = True,
+        simulate_ok: bool = True,
+        code: bytes = b"",
     ):
         self._addresses = addresses or [FACILITATOR]
         self._sig_valid = sig_valid
         self._allowance = allowance
         self._balance = balance
         self._tx_success = tx_success
+        self._simulate_ok = simulate_ok
+        self._code = code
         self.write_calls: list[tuple] = []
 
     def get_addresses(self) -> list[str]:
@@ -147,6 +151,10 @@ class MockFacilitatorSigner:
             return self._allowance
         if function_name == "balanceOf":
             return self._balance
+        if function_name in {"settle", "settleWithPermit"}:
+            if self._simulate_ok:
+                return None
+            raise RuntimeError("simulation failed")
         raise AssertionError(f"unexpected read_contract: {function_name}")
 
     def verify_typed_data(self, *args: Any, **kwargs: Any) -> bool:
@@ -170,7 +178,7 @@ class MockFacilitatorSigner:
         return 8453
 
     def get_code(self, address: str) -> bytes:
-        return b""
+        return self._code
 
 
 class TestUptoEvmSchemeConstructor:
@@ -445,6 +453,23 @@ class TestSettle:
         assert result.success is True
         assert result.amount == AMOUNT
 
+    def test_settle_respects_simulate_in_settle_config(self):
+        from unittest.mock import patch
+
+        signer = MockFacilitatorSigner(sig_valid=True, simulate_ok=False)
+        facilitator = UptoEvmFacilitatorScheme(
+            signer, config=UptoEvmSchemeConfig(simulate_in_settle=True)
+        )
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == "transaction_failed"
+
 
 class TestVerifyEdgeCases:
     def _make_facilitator(self, **kwargs) -> UptoEvmFacilitatorScheme:
@@ -505,3 +530,28 @@ class TestVerifyEdgeCases:
         )
         assert result.is_valid is False
         assert result.invalid_reason == ERR_UPTO_INVALID_SCHEME
+
+    def test_accepts_contract_wallet_when_simulation_succeeds(self):
+        from unittest.mock import patch
+
+        facilitator = self._make_facilitator(sig_valid=False, code=b"\x01", simulate_ok=True)
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=False,
+        ):
+            result = facilitator.verify(make_payment_payload(), make_requirements())
+
+        assert result.is_valid is True
+
+    def test_rejects_when_upto_settle_simulation_fails(self):
+        from unittest.mock import patch
+
+        facilitator = self._make_facilitator(sig_valid=True, simulate_ok=False)
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.verify(make_payment_payload(), make_requirements())
+
+        assert result.is_valid is False
+        assert result.invalid_reason == "transaction_failed"

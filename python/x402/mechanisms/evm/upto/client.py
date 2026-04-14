@@ -212,6 +212,11 @@ def _create_upto_permit2_payload(
     nonce = create_permit2_nonce()
     valid_after = str(now - 600)
     deadline = str(now + (requirements.max_timeout_seconds or 3600))
+    if int(deadline) <= int(valid_after):
+        raise ValueError(
+            f"Invalid time window: deadline ({deadline}) must be after validAfter ({valid_after}). "
+            f"Check that max_timeout_seconds ({requirements.max_timeout_seconds}) is positive."
+        )
 
     permit2_authorization = UptoPermit2Authorization(
         from_address=signer.address,

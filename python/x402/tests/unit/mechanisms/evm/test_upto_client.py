@@ -101,6 +101,19 @@ class TestCreatePaymentPayload:
         assert "facilitator" in witness
         assert "validAfter" in witness
 
+    def test_rejects_non_positive_timeout_window(self):
+        import pytest
+
+        account = Account.create()
+        signer = EthAccountSigner(account)
+        client = UptoEvmClientScheme(signer)
+
+        requirements = make_upto_requirements()
+        requirements.max_timeout_seconds = -1000
+
+        with pytest.raises(ValueError, match="Invalid time window"):
+            client.create_payment_payload(requirements)
+
 
 class TestLocalAccountAutoWrap:
     def test_should_auto_wrap_local_account(self):

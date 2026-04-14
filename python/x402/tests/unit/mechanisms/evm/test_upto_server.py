@@ -74,6 +74,8 @@ class TestEnhancePaymentRequirements:
         assert result.extra is not None
         assert result.extra["assetTransferMethod"] == "permit2"
         assert result.extra["facilitatorAddress"] == FACILITATOR
+        assert result.extra["name"]
+        assert result.extra["version"]
 
     def test_should_convert_decimal_amounts_to_smallest_unit(self):
         server = UptoEvmServerScheme()
@@ -93,7 +95,7 @@ class TestEnhancePaymentRequirements:
             x402_version=2,
             scheme="upto",
             network=network,
-            extra={},
+            extra={"facilitatorAddress": FACILITATOR},
         )
 
         result = server.enhance_payment_requirements(requirements, supported_kind, [])
@@ -117,13 +119,63 @@ class TestEnhancePaymentRequirements:
             x402_version=2,
             scheme="upto",
             network=network,
-            extra={},
+            extra={"facilitatorAddress": FACILITATOR},
         )
 
         result = server.enhance_payment_requirements(requirements, supported_kind, [])
 
         config = get_network_config(network)
         assert result.asset == config["default_asset"]["address"]
+
+    def test_should_copy_extension_keys_from_supported_kind_extra(self):
+        server = UptoEvmServerScheme()
+        network = "eip155:8453"
+        requirements = PaymentRequirements(
+            scheme="upto",
+            network=network,
+            asset=get_network_config(network)["default_asset"]["address"],
+            amount="100000",
+            pay_to="0x1234567890123456789012345678901234567890",
+            max_timeout_seconds=3600,
+            extra={},
+        )
+        supported_kind = SupportedKind(
+            x402_version=2,
+            scheme="upto",
+            network=network,
+            extra={
+                "facilitatorAddress": FACILITATOR,
+                "erc20ApprovalGasSponsoring": {"version": "1"},
+            },
+        )
+
+        result = server.enhance_payment_requirements(
+            requirements, supported_kind, ["erc20ApprovalGasSponsoring"]
+        )
+        assert result.extra is not None
+        assert result.extra["erc20ApprovalGasSponsoring"] == {"version": "1"}
+
+    def test_should_fail_without_facilitator_address(self):
+        server = UptoEvmServerScheme()
+        network = "eip155:8453"
+        requirements = PaymentRequirements(
+            scheme="upto",
+            network=network,
+            asset=get_network_config(network)["default_asset"]["address"],
+            amount="100000",
+            pay_to="0x1234567890123456789012345678901234567890",
+            max_timeout_seconds=3600,
+            extra={},
+        )
+        supported_kind = SupportedKind(
+            x402_version=2,
+            scheme="upto",
+            network=network,
+            extra={},
+        )
+
+        with pytest.raises(ValueError, match="facilitatorAddress"):
+            server.enhance_payment_requirements(requirements, supported_kind, [])
 
 
 class TestRegisterMoneyParser:
