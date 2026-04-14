@@ -12,6 +12,8 @@ import {Permit2DepositCollectorBase} from "./Permit2DepositCollectorBase.sol";
 /// @dev Enables a single-tx deposit for tokens that implement EIP-2612, without requiring the payer
 ///      to have previously approved Permit2. The EIP-2612 permit call is soft-fail (try/catch) so that
 ///      pre-existing approvals or replayed permits don't revert the entire deposit.
+///      `collectorData` is `abi.encode(EIP2612Permit, nonce, deadline, signature)`; token and amount for
+///      Permit2 are taken from `collect` and must match the signed PermitTransferFrom.
 contract Permit2WithERC2612DepositCollector is Permit2DepositCollectorBase {
     struct EIP2612Permit {
         uint256 value;
@@ -38,10 +40,16 @@ contract Permit2WithERC2612DepositCollector is Permit2DepositCollectorBase {
         address,
         bytes calldata collectorData
     ) external override onlySettlement {
-        (EIP2612Permit memory permit2612, ISignatureTransfer.PermitTransferFrom memory permit, bytes memory signature) =
-            abi.decode(collectorData, (EIP2612Permit, ISignatureTransfer.PermitTransferFrom, bytes));
+        (EIP2612Permit memory permit2612, uint256 nonce, uint256 deadline, bytes memory signature) =
+            abi.decode(collectorData, (EIP2612Permit, uint256, uint256, bytes));
 
-        _executeEIP2612Permit(token, payer, permit2612, permit.permitted.amount);
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: token, amount: amount}),
+            nonce: nonce,
+            deadline: deadline
+        });
+
+        _executeEIP2612Permit(token, payer, permit2612, amount);
 
         _executePermit2Transfer(payer, amount, channelId, permit, signature);
     }
