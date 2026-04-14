@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import {Script, console2} from "forge-std/Script.sol";
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 import {Permit2DepositCollector} from "../src/periphery/Permit2DepositCollector.sol";
-import {Permit2WithERC2612DepositCollector} from "../src/periphery/Permit2WithERC2612DepositCollector.sol";
 import {ERC3009DepositCollector} from "../src/periphery/ERC3009DepositCollector.sol";
 
 /// @title DeployBatchSettlement
@@ -24,7 +23,6 @@ contract DeployBatchSettlement is Script {
     bytes32 constant BATCH_SALT = 0x3ae0178c98d9f45c37d2b84ff96b0b02268269ea699dfbcb47374a79ef0156b0;
     bytes32 constant ERC3009_SALT = 0xb2ec2379b202aede0729d830e1d0d267773fc2cac72c62f3225e29664737db12;
     bytes32 constant PERMIT2_COLLECTOR_SALT = 0x111b85d49160296fc0fb956a78308c07197adb99d9bba5901e94e7c4929ec8e2;
-    bytes32 constant PERMIT2_ERC2612_SALT = 0x785692bab508580f81a234bd806b3044ef4da86fd9aaeb281f107bd49ed11859;
 
     function run() public {
         address permit2 = vm.envOr("PERMIT2_ADDRESS", CANONICAL_PERMIT2);
@@ -80,12 +78,6 @@ contract DeployBatchSettlement is Script {
             "Permit2DepositCollector",
             PERMIT2_COLLECTOR_SALT,
             abi.encodePacked(type(Permit2DepositCollector).creationCode, abi.encode(permit2))
-        );
-
-        _deployCreate2(
-            "Permit2WithERC2612DepositCollector",
-            PERMIT2_ERC2612_SALT,
-            abi.encodePacked(type(Permit2WithERC2612DepositCollector).creationCode, abi.encode(permit2))
         );
     }
 
