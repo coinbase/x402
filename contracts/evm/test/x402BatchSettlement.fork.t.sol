@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
 import {Permit2DepositCollector} from "../src/periphery/Permit2DepositCollector.sol";
-import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @title X402BatchSettlementForkTest
@@ -141,10 +140,8 @@ contract X402BatchSettlementForkTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function _signRefund(
-        bytes32 channelId
-    ) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId));
+    function _signRefund(bytes32 channelId, uint256 refundNonce, uint128 amount) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(settlement.REFUND_TYPEHASH(), channelId, refundNonce, amount));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(receiverAuthKey, digest);
         return abi.encodePacked(r, s, v);
@@ -153,16 +150,11 @@ contract X402BatchSettlementForkTest is Test {
     function _depositViaPermit2(
         x402BatchSettlement.ChannelConfig memory config,
         uint128 amount,
-        uint256 nonce,
+        uint256 permitNonce,
         uint256 deadline
     ) internal {
-        bytes memory depositSig = _signPermit2Deposit(config, amount, nonce, deadline);
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
-            nonce: nonce,
-            deadline: deadline
-        });
-        bytes memory collectorData = abi.encode(permit, depositSig);
+        bytes memory depositSig = _signPermit2Deposit(config, amount, permitNonce, deadline);
+        bytes memory collectorData = abi.encode(permitNonce, deadline, depositSig, bytes(""));
         settlement.deposit(config, amount, address(permit2Collector), collectorData);
     }
 
@@ -214,11 +206,12 @@ contract X402BatchSettlementForkTest is Test {
         vm.prank(receiverAuthAddr);
         settlement.claim(claims);
 
-        bytes memory refundSig = _signRefund(channelId);
+        uint128 refundAmt = DEPOSIT_AMOUNT - CLAIM_AMOUNT;
+        bytes memory refundSig = _signRefund(channelId, 0, refundAmt);
         uint256 payerBalBefore = token.balanceOf(payer);
-        settlement.refundWithSignature(config, refundSig);
+        settlement.refundWithSignature(config, refundAmt, 0, refundSig);
 
-        assertEq(token.balanceOf(payer), payerBalBefore + (DEPOSIT_AMOUNT - CLAIM_AMOUNT));
+        assertEq(token.balanceOf(payer), payerBalBefore + refundAmt);
     }
 
     function test_fork_tamperedWitness_reverts() public onlyFork {
@@ -231,12 +224,7 @@ contract X402BatchSettlementForkTest is Test {
         uint256 deadline = block.timestamp + 3600;
         bytes memory depositSig = _signPermit2Deposit(config, DEPOSIT_AMOUNT, nonce, deadline);
 
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: DEPOSIT_AMOUNT}),
-            nonce: nonce,
-            deadline: deadline
-        });
-        bytes memory collectorData = abi.encode(permit, depositSig);
+        bytes memory collectorData = abi.encode(nonce, deadline, depositSig, bytes(""));
 
         vm.expectRevert();
         settlement.deposit(tamperedConfig, DEPOSIT_AMOUNT, address(permit2Collector), collectorData);

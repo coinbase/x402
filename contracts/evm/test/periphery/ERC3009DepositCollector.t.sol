@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC3009DepositCollector} from "../../src/periphery/ERC3009DepositCollector.sol";
 import {DepositCollector} from "../../src/periphery/DepositCollector.sol";
 import {MockERC3009Token} from "../mocks/MockERC3009Token.sol";
@@ -27,10 +26,10 @@ contract ERC3009DepositCollectorTest is Test {
     function test_collect_success() public {
         uint256 validAfter = 0;
         uint256 validBefore = block.timestamp + 3600;
-        bytes32 nonce = bytes32(uint256(1));
+        uint256 salt = 1;
         bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
 
-        bytes memory collectorData = abi.encode(validAfter, validBefore, nonce, signature);
+        bytes memory collectorData = abi.encode(validAfter, validBefore, salt, signature);
 
         collector.collect(payer, address(token), AMOUNT, bytes32(0), address(this), collectorData);
 
@@ -42,7 +41,7 @@ contract ERC3009DepositCollectorTest is Test {
         bytes memory collectorData = abi.encode(
             uint256(0),
             uint256(block.timestamp + 3600),
-            bytes32(uint256(42)),
+            uint256(42),
             abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27))
         );
 
@@ -59,7 +58,7 @@ contract ERC3009DepositCollectorTest is Test {
         bytes memory collectorData = abi.encode(
             uint256(0),
             uint256(block.timestamp + 3600),
-            bytes32(uint256(100)),
+            uint256(100),
             abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27))
         );
 
@@ -68,8 +67,7 @@ contract ERC3009DepositCollectorTest is Test {
     }
 
     function test_collect_revert_onlySettlement() public {
-        bytes memory collectorData =
-            abi.encode(uint256(0), uint256(block.timestamp + 3600), bytes32(uint256(1)), hex"dead");
+        bytes memory collectorData = abi.encode(uint256(0), uint256(block.timestamp + 3600), uint256(1), hex"dead");
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlySettlement.selector);

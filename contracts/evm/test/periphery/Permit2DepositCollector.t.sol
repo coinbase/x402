@@ -2,11 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Permit2DepositCollector} from "../../src/periphery/Permit2DepositCollector.sol";
-import {Permit2DepositCollectorBase} from "../../src/periphery/Permit2DepositCollectorBase.sol";
 import {DepositCollector} from "../../src/periphery/DepositCollector.sol";
-import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -33,13 +30,26 @@ contract Permit2DepositCollectorTest is Test {
         mockPermit2.setShouldActuallyTransfer(true);
     }
 
+    function _collectorData(
+        uint256 nonce,
+        uint256 deadline,
+        bytes memory signature
+    ) internal pure returns (bytes memory) {
+        return abi.encode(nonce, deadline, signature, bytes(""));
+    }
+
     function test_constructor_setsPermit2() public view {
         assertEq(address(collector.PERMIT2()), address(mockPermit2));
     }
 
     function test_constructor_revert_zeroPermit2() public {
-        vm.expectRevert(Permit2DepositCollectorBase.InvalidPermit2Address.selector);
+        vm.expectRevert(Permit2DepositCollector.InvalidPermit2Address.selector);
         new Permit2DepositCollector(address(this), address(0));
+    }
+
+    function test_constructor_revert_zeroSettlement() public {
+        vm.expectRevert(DepositCollector.InvalidSettlementAddress.selector);
+        new Permit2DepositCollector(address(0), address(mockPermit2));
     }
 
     function test_witnessConstants() public view {
@@ -53,13 +63,8 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_collect_success() public {
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),
-            nonce: 0,
-            deadline: block.timestamp + 3600
-        });
         bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = abi.encode(permit, signature);
+        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
 
         bytes32 channelId = keccak256("test-channel");
         collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
@@ -69,13 +74,8 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_collect_directTransfer_noHop() public {
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),
-            nonce: 0,
-            deadline: block.timestamp + 3600
-        });
         bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = abi.encode(permit, signature);
+        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
 
         bytes32 channelId = keccak256("test-channel");
         collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
@@ -84,13 +84,8 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_collect_consumesNonce() public {
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),
-            nonce: 42,
-            deadline: block.timestamp + 3600
-        });
         bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = abi.encode(permit, signature);
+        bytes memory collectorData = _collectorData(42, block.timestamp + 3600, signature);
 
         uint256 bitmapBefore = mockPermit2.nonceBitmap(payer, 0);
         assertEq(bitmapBefore, 0);
@@ -102,14 +97,7 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_collect_revert_onlySettlement() public {
-        bytes memory collectorData = abi.encode(
-            ISignatureTransfer.PermitTransferFrom({
-                permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: AMOUNT}),
-                nonce: 0,
-                deadline: block.timestamp + 3600
-            }),
-            hex"dead"
-        );
+        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, hex"dead");
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlySettlement.selector);

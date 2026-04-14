@@ -21,34 +21,18 @@ contract Permit2DepositCollector is DepositCollector {
     string public constant DEPOSIT_WITNESS_TYPE_STRING =
         "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)";
 
-    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH =
-        keccak256("DepositWitness(bytes32 channelId)");
+    bytes32 public constant DEPOSIT_WITNESS_TYPEHASH = keccak256("DepositWitness(bytes32 channelId)");
 
     error InvalidPermit2Address();
 
     /// @dev Signed EIP-2612 `value` must equal `collect` `amount` when the optional permit segment is used.
     error Permit2612AmountMismatch();
 
-    event EIP2612PermitFailedWithReason(
-        address indexed token,
-        address indexed owner,
-        string reason
-    );
-    event EIP2612PermitFailedWithPanic(
-        address indexed token,
-        address indexed owner,
-        uint256 errorCode
-    );
-    event EIP2612PermitFailedWithData(
-        address indexed token,
-        address indexed owner,
-        bytes data
-    );
+    event EIP2612PermitFailedWithReason(address indexed token, address indexed owner, string reason);
+    event EIP2612PermitFailedWithPanic(address indexed token, address indexed owner, uint256 errorCode);
+    event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
 
-    constructor(
-        address _settlement,
-        address _permit2
-    ) DepositCollector(_settlement) {
+    constructor(address _settlement, address _permit2) DepositCollector(_settlement) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         PERMIT2 = ISignatureTransfer(_permit2);
     }
@@ -62,26 +46,18 @@ contract Permit2DepositCollector is DepositCollector {
         address,
         bytes calldata collectorData
     ) external override onlySettlement {
-        (
-            uint256 nonce,
-            uint256 deadline,
-            bytes memory permit2Signature,
-            bytes memory eip2612PermitData
-        ) = abi.decode(collectorData, (uint256, uint256, bytes, bytes));
+        (uint256 nonce, uint256 deadline, bytes memory permit2Signature, bytes memory eip2612PermitData) =
+            abi.decode(collectorData, (uint256, uint256, bytes, bytes));
 
         if (eip2612PermitData.length > 0) {
             _tryEip2612Permit(payer, token, amount, eip2612PermitData);
         }
 
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer
-            .PermitTransferFrom({
-                permitted: ISignatureTransfer.TokenPermissions({
-                    token: token,
-                    amount: amount
-                }),
-                nonce: nonce,
-                deadline: deadline
-            });
+        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+            permitted: ISignatureTransfer.TokenPermissions({token: token, amount: amount}),
+            nonce: nonce,
+            deadline: deadline
+        });
 
         _executePermit2Transfer(payer, amount, channelId, permit, permit2Signature);
     }
@@ -94,16 +70,11 @@ contract Permit2DepositCollector is DepositCollector {
         ISignatureTransfer.PermitTransferFrom memory permit,
         bytes memory signature
     ) internal {
-        bytes32 witnessHash = keccak256(
-            abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId)
-        );
+        bytes32 witnessHash = keccak256(abi.encode(DEPOSIT_WITNESS_TYPEHASH, channelId));
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: address(settlement),
-                requestedAmount: amount
-            }),
+            ISignatureTransfer.SignatureTransferDetails({to: address(settlement), requestedAmount: amount}),
             payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,
@@ -111,35 +82,13 @@ contract Permit2DepositCollector is DepositCollector {
         );
     }
 
-    function _tryEip2612Permit(
-        address payer,
-        address token,
-        uint256 amount,
-        bytes memory eip2612PermitData
-    ) private {
-        (
-            uint256 permitValue,
-            uint256 permitDeadline,
-            uint8 v,
-            bytes32 r,
-            bytes32 s
-        ) = abi.decode(
-                eip2612PermitData,
-                (uint256, uint256, uint8, bytes32, bytes32)
-            );
+    function _tryEip2612Permit(address payer, address token, uint256 amount, bytes memory eip2612PermitData) private {
+        (uint256 permitValue, uint256 permitDeadline, uint8 v, bytes32 r, bytes32 s) =
+            abi.decode(eip2612PermitData, (uint256, uint256, uint8, bytes32, bytes32));
         if (permitValue != amount) revert Permit2612AmountMismatch();
 
-        try
-            IERC20Permit(token).permit(
-                payer,
-                address(PERMIT2),
-                permitValue,
-                permitDeadline,
-                v,
-                r,
-                s
-            )
-        {} catch Error(string memory reason) {
+        try IERC20Permit(token).permit(payer, address(PERMIT2), permitValue, permitDeadline, v, r, s) {}
+        catch Error(string memory reason) {
             emit EIP2612PermitFailedWithReason(token, payer, reason);
         } catch Panic(uint256 code) {
             emit EIP2612PermitFailedWithPanic(token, payer, code);
