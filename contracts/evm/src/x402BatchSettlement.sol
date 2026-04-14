@@ -88,7 +88,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         keccak256("Voucher(bytes32 channelId,uint128 maxClaimableAmount)");
 
     bytes32 public constant REFUND_TYPEHASH =
-        keccak256("Refund(bytes32 channelId)");
+        keccak256("Refund(bytes32 channelId,uint256 nonce)");
 
     bytes32 public constant CLAIM_BATCH_TYPEHASH =
         keccak256("ClaimBatch(bytes32 claimsHash)");
@@ -98,6 +98,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // =========================================================================
 
     mapping(bytes32 channelId => ChannelState) public channels;
+    mapping(bytes32 channelId => uint256) public refundNonce;
     mapping(bytes32 channelId => WithdrawalState) public pendingWithdrawals;
     mapping(address receiver => mapping(address token => ReceiverState))
         public receivers;
@@ -160,6 +161,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error EmptyBatch();
     error DepositCollectionFailed();
     error InvalidCollector();
+    error InvalidRefundNonce();
 
     // =========================================================================
     // Constructor
@@ -351,13 +353,16 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     /// @notice Instant refund. Anyone can submit with a signature authorized by the receiverAuthorizer.
+    /// @param nonce Must equal `refundNonce(channelId)` for this channel; incremented after each refund.
     function refundWithSignature(
         ChannelConfig calldata config,
+        uint256 nonce,
         bytes calldata receiverAuthorizerSignature
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
+        if (nonce != refundNonce[channelId]) revert InvalidRefundNonce();
         bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(REFUND_TYPEHASH, channelId))
+            keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce))
         );
         if (
             !SignatureChecker.isValidSignatureNow(
@@ -394,10 +399,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     function getRefundDigest(
-        bytes32 channelId
+        bytes32 channelId,
+        uint256 nonce
     ) external view returns (bytes32) {
         return
-            _hashTypedDataV4(keccak256(abi.encode(REFUND_TYPEHASH, channelId)));
+            _hashTypedDataV4(
+                keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce))
+            );
     }
 
     function getClaimBatchDigest(
@@ -496,6 +504,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         if (refundAmount > 0) {
             IERC20(config.token).safeTransfer(config.payer, refundAmount);
+        }
+
+        unchecked {
+            refundNonce[channelId]++;
         }
     }
 
