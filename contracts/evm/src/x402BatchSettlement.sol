@@ -349,10 +349,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Internal Helpers
     // =========================================================================
 
-    function _isReceiverSide(
-        address sender,
-        ChannelConfig calldata config
-    ) internal pure returns (bool) {
+    function _isReceiverSide(address sender, ChannelConfig calldata config) internal pure returns (bool) {
         return sender == config.receiverAuthorizer || sender == config.receiver;
     }
 

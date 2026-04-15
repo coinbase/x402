@@ -71,10 +71,7 @@ contract DeployBatchSettlement is Script {
         _deployCreate2("x402BatchSettlement", BATCH_SALT, type(x402BatchSettlement).creationCode);
     }
 
-    function _deployCollectors(
-        address permit2,
-        address settlement
-    ) internal {
+    function _deployCollectors(address permit2, address settlement) internal {
         console2.log("");
         console2.log("------------------------------------------------------------");
         console2.log("  Deploying Deposit Collectors");
