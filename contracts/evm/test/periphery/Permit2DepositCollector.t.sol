@@ -38,7 +38,8 @@ contract Permit2DepositCollectorTest is Test {
         return abi.encode(nonce, deadline, signature, bytes(""));
     }
 
-    function test_constructor_setsPermit2() public view {
+    function test_constructor_setsSettlementAndPermit2() public view {
+        assertEq(collector.settlement(), address(this));
         assertEq(address(collector.PERMIT2()), address(mockPermit2));
     }
 

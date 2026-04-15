@@ -74,7 +74,7 @@ contract Permit2DepositCollector is DepositCollector {
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(settlement), requestedAmount: amount}),
+            ISignatureTransfer.SignatureTransferDetails({to: settlement, requestedAmount: amount}),
             payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,

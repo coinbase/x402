@@ -37,6 +37,6 @@ contract ERC3009DepositCollector is DepositCollector {
             payer, address(this), amount, validAfter, validBefore, expectedNonce, signature
         );
 
-        IERC20(token).safeTransfer(address(settlement), amount);
+        IERC20(token).safeTransfer(settlement, amount);
     }
 }
