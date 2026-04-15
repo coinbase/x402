@@ -47,12 +47,19 @@ contract DeployBatchSettlement is Script {
             console2.log("CREATE2 deployer verified");
         }
 
+        address settlement = _expectedBatchAddress();
         _deploySettlement();
-        _deployCollectors(permit2);
+        _deployCollectors(permit2, settlement);
 
         console2.log("");
         console2.log("Deployment complete!");
         console2.log("");
+    }
+
+    /// @dev CREATE2 address for batch; must match collectors' constructor `settlement` argument.
+    function _expectedBatchAddress() internal pure returns (address) {
+        bytes memory initCode = type(x402BatchSettlement).creationCode;
+        return _computeCreate2Addr(BATCH_SALT, keccak256(initCode), CREATE2_DEPLOYER);
     }
 
     function _deploySettlement() internal {
@@ -65,19 +72,25 @@ contract DeployBatchSettlement is Script {
     }
 
     function _deployCollectors(
-        address permit2
+        address permit2,
+        address settlement
     ) internal {
         console2.log("");
         console2.log("------------------------------------------------------------");
         console2.log("  Deploying Deposit Collectors");
         console2.log("------------------------------------------------------------");
+        console2.log("  Settlement (immutable arg):", settlement);
 
-        _deployCreate2("ERC3009DepositCollector", ERC3009_SALT, type(ERC3009DepositCollector).creationCode);
+        _deployCreate2(
+            "ERC3009DepositCollector",
+            ERC3009_SALT,
+            abi.encodePacked(type(ERC3009DepositCollector).creationCode, abi.encode(settlement))
+        );
 
         _deployCreate2(
             "Permit2DepositCollector",
             PERMIT2_COLLECTOR_SALT,
-            abi.encodePacked(type(Permit2DepositCollector).creationCode, abi.encode(permit2))
+            abi.encodePacked(type(Permit2DepositCollector).creationCode, abi.encode(settlement, permit2))
         );
     }
 

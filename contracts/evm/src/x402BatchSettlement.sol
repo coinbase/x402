@@ -121,6 +121,8 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error DepositOverflow();
     error InvalidSignature();
     error NotReceiverAuthorizer();
+    error NotAuthorizedToClaim();
+    error NotAuthorizedToRefund();
     error ClaimExceedsCeiling();
     error ClaimExceedsBalance();
     error WithdrawalAlreadyPending();
@@ -186,15 +188,16 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // =========================================================================
 
     /// @notice Batch-validate voucher claims and update channel accounting.
-    ///         Caller must be the receiverAuthorizer for every claim in the batch.
+    ///         For each row, caller must be `receiverAuthorizer` or `receiver` on that row's channel.
     function claim(
         VoucherClaim[] calldata voucherClaims
     ) external nonReentrant {
         if (voucherClaims.length == 0) revert EmptyBatch();
 
         for (uint256 i = 0; i < voucherClaims.length; ++i) {
-            if (msg.sender != voucherClaims[i].voucher.channel.receiverAuthorizer) {
-                revert NotReceiverAuthorizer();
+            ChannelConfig calldata c = voucherClaims[i].voucher.channel;
+            if (!_isReceiverSide(msg.sender, c)) {
+                revert NotAuthorizedToClaim();
             }
             _processVoucherClaim(voucherClaims[i]);
         }
@@ -291,11 +294,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
     }
 
-    /// @notice Cooperative refund to the payer. Only `receiverAuthorizer` may call.
+    /// @notice Cooperative refund to the payer. `receiverAuthorizer` or `receiver` may call.
     /// @param amount Requested refund; capped to unclaimed escrow `balance - totalClaimed`. No-ops if capped amount is zero.
     function refund(ChannelConfig calldata config, uint128 amount) external nonReentrant {
-        if (msg.sender != config.receiverAuthorizer) {
-            revert NotReceiverAuthorizer();
+        if (!_isReceiverSide(msg.sender, config)) {
+            revert NotAuthorizedToRefund();
         }
         _executeRefund(config, amount);
     }
@@ -345,6 +348,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // =========================================================================
     // Internal Helpers
     // =========================================================================
+
+    function _isReceiverSide(
+        address sender,
+        ChannelConfig calldata config
+    ) internal pure returns (bool) {
+        return sender == config.receiverAuthorizer || sender == config.receiver;
+    }
 
     function _validateConfig(
         ChannelConfig calldata config

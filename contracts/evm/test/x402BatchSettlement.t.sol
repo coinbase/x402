@@ -437,7 +437,7 @@ contract X402BatchSettlementTest is Test {
         assertEq(ch.totalClaimed, 200e6);
     }
 
-    function test_claim_revert_notReceiverAuthorizer() public {
+    function test_claim_revert_notAuthorized() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _deposit(config, DEPOSIT_AMOUNT);
 
@@ -445,8 +445,26 @@ contract X402BatchSettlementTest is Test {
         claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
 
         vm.prank(otherWallet.addr);
-        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        vm.expectRevert(x402BatchSettlement.NotAuthorizedToClaim.selector);
         settlement.claim(claims);
+    }
+
+    function test_claim_success_asReceiver() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        vm.expectEmit(true, true, false, true);
+        emit Claimed(channelId, receiverWallet.addr, CLAIM_AMOUNT, CLAIM_AMOUNT);
+
+        vm.prank(receiverWallet.addr);
+        settlement.claim(claims);
+
+        x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
+        assertEq(ch.totalClaimed, CLAIM_AMOUNT);
     }
 
     function test_claim_revert_exceedsCeiling() public {
@@ -854,13 +872,35 @@ contract X402BatchSettlementTest is Test {
         assertEq(ch.balance, ch.totalClaimed);
     }
 
-    function test_refund_revert_notReceiverAuthorizer() public {
+    function test_refund_revert_notAuthorized() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         _deposit(config, DEPOSIT_AMOUNT);
 
         vm.prank(otherWallet.addr);
-        vm.expectRevert(x402BatchSettlement.NotReceiverAuthorizer.selector);
+        vm.expectRevert(x402BatchSettlement.NotAuthorizedToRefund.selector);
         settlement.refund(config, 1);
+    }
+
+    function test_refund_directCall_asReceiver() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        uint256 balBefore = token.balanceOf(payerWallet.addr);
+        uint128 refundAmt = DEPOSIT_AMOUNT - CLAIM_AMOUNT;
+
+        vm.expectEmit(true, true, false, true);
+        emit Refunded(channelId, receiverWallet.addr, refundAmt);
+
+        vm.prank(receiverWallet.addr);
+        settlement.refund(config, refundAmt);
+
+        assertEq(token.balanceOf(payerWallet.addr), balBefore + refundAmt);
     }
 
     function test_refundWithSignature_success() public {

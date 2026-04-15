@@ -24,8 +24,8 @@ Default: `eip3009` if `extra.assetTransferMethod` is omitted.
 2. **Cumulative Vouchers**: Each voucher carries a `maxClaimableAmount` representing the cumulative ceiling the client authorizes. No nonce — replay protection comes from the cumulative model (`totalClaimed` only increases).
 3. **Capital-Backed Escrow**: Clients deposit funds into an onchain channel before consuming resources. The deposit is refundable (unclaimed remainder returns on withdrawal) and can be topped up.
 4. **Dual-Mode Payer Authorization**: If `payerAuthorizer != address(0)`, vouchers are verified via ECDSA recovery against the committed EOA (fast, stateless, no RPC needed). If `payerAuthorizer == address(0)`, vouchers are verified via `SignatureChecker` against `payer` (supports EIP-1271 smart wallets, requires RPC).
-5. **Receiver Authorizer**: The `receiverAuthorizer` address controls claim authorization and cooperative refunds. Can be an EOA or an EIP-1271 contract (e.g., `ClaimAuthorizer` for key rotation).
-6. **Cooperative refund (`refund` / `refundWithSignature`)**: Two paths aligned with `initiateWithdraw` — both take an explicit **`amount`** (partial or full; capped by onchain `balance - totalClaimed`). **`refund(config, amount)`** when `msg.sender == receiverAuthorizer`. **`refundWithSignature(config, amount, nonce, sig)`** when anyone relays a signature from `receiverAuthorizer` over EIP-712 `Refund(channelId, nonce, amount)`; `nonce` must match onchain `refundNonce(channelId)` and increments after each successful refund. Supports EOA and EIP-1271 authorizers.
+5. **Receiver side**: Direct **`claim`** and cooperative **`refund`** may be submitted by **`receiverAuthorizer`** or **`receiver`**. **`claimWithSignature`** / **`refundWithSignature`** still use signatures from **`receiverAuthorizer`** (anyone may relay). `receiverAuthorizer` can be an EOA or an EIP-1271 contract (e.g., `ClaimAuthorizer` for key rotation).
+6. **Cooperative refund (`refund` / `refundWithSignature`)**: Two paths aligned with `initiateWithdraw` — both take an explicit **`amount`** (partial or full; capped by onchain `balance - totalClaimed`). **`refund(config, amount)`** when `msg.sender` is **`receiverAuthorizer`** or **`receiver`**. **`refundWithSignature(config, amount, nonce, sig)`** when anyone relays a signature from `receiverAuthorizer` over EIP-712 `Refund(channelId, nonce, amount)`; `nonce` must match onchain `refundNonce(channelId)` and increments after each successful refund. Supports EOA and EIP-1271 authorizers.
 
 ---
 
@@ -38,7 +38,7 @@ struct ChannelConfig {
     address payer;              // Client wallet (EOA or smart wallet)
     address payerAuthorizer;    // EOA for voucher signing, or address(0) for EIP-1271 via payer
     address receiver;           // Server's payment destination (EOA or routing contract)
-    address receiverAuthorizer; // Controls claims, cooperative refunds
+    address receiverAuthorizer; // EIP-712 claims/refunds; with receiver, may call claim/refund directly
     address token;              // ERC-20 payment token
     uint40  withdrawDelay;      // Seconds before timed withdrawal completes (15 min – 30 days)
     bytes32 salt;               // Differentiates channels with identical parameters
@@ -50,7 +50,7 @@ struct ChannelConfig {
 | `payer`              | The client. Deposits funds, initiates withdrawal requests. Can be a smart wallet. |
 | `payerAuthorizer`    | If non-zero: EOA that signs vouchers, enabling stateless off-chain verification. If `address(0)`: vouchers are verified against `payer` via `SignatureChecker` (supports EIP-1271). |
 | `receiver`           | Where claimed funds are transferred on `settle()`. Can be an EOA or a routing contract (e.g., `PaymentRouter`, `PaymentSplitter`). |
-| `receiverAuthorizer` | The address that authorizes claims (direct call or signature) and cooperative refunds (`refund` / `refundWithSignature`). Can be an EOA or EIP-1271 contract (e.g., `ClaimAuthorizer`). Must not be `address(0)`. |
+| `receiverAuthorizer` | Authorizes **`claimWithSignature`** / **`refundWithSignature`** (EIP-712); with **`receiver`**, also allowed to call **`claim`** and **`refund`** directly. Can be an EOA or EIP-1271 contract (e.g., `ClaimAuthorizer`). Must not be `address(0)`. |
 | `token`              | The ERC-20 token for this channel. |
 | `withdrawDelay`      | Grace period for timed withdrawals. Gives the server time to claim outstanding vouchers. Protocol-enforced bounds: 15 minutes minimum, 30 days maximum. |
 | `salt`               | Allows multiple channels with otherwise identical parameters. |
@@ -252,11 +252,11 @@ When the server receives a voucher with `withdraw: true`:
 4. Submit **`claimWithSignature(claims, claimSig)`** then **`refundWithSignature(config, amount, nonce, refundSig)`** (order matters: claims first if they increase `totalClaimed`).
 5. On success, the chain increments `refundNonce`; mirror it in server state and reset session fields as needed.
 
-**Path B — Direct-call path (`refund`, facilitator is `receiverAuthorizer`):**
+**Path B — Direct-call path (`refund`, facilitator is `receiverAuthorizer` or `receiver`):**
 
 1. Update `chargedCumulativeAmount` as with a normal voucher.
 2. Build voucher claims with **`totalClaimed`** equal to the new cumulative committed total.
-3. The facilitator calls **`claim(claims)`** then **`refund(config, amount)`** as `msg.sender`.
+3. The facilitator calls **`claim(claims)`** then **`refund(config, amount)`** as `msg.sender` (**`receiverAuthorizer`** or **`receiver`**).
 4. On success, mirror the updated onchain **`refundNonce`** (incremented after every successful refund, direct or signed).
 
 ---
@@ -293,7 +293,7 @@ Verifies a payment payload. Returns the onchain channel snapshot:
 | `"claim"`               | Server batches voucher claims    | Validate vouchers, update accounting (no transfer)     |
 | `"claimWithSignature"`  | Claim via receiverAuthorizer sig | Same as `claim`; nested EIP-712 `ClaimBatch`          |
 | `"settle"`              | Server transfers earned funds    | Transfer unsettled amount to receiver                  |
-| `"refund"`              | Cooperative refund (direct)      | `refund(config, amount)` — caller must be `receiverAuthorizer`; **partial or full** refund to payer |
+| `"refund"`              | Cooperative refund (direct)      | `refund(config, amount)` — caller must be `receiverAuthorizer` or `receiver`; **partial or full** refund to payer |
 | `"refundWithSignature"` | Cooperative refund (signed)      | `refundWithSignature(config, amount, nonce, sig)` — `Refund` digest + nonce replay protection |
 
 **Response:**
@@ -355,7 +355,7 @@ If the check fails, reject with `batch_settlement_stale_cumulative_amount` and r
 
 ## Claim & Settlement Strategy
 
-**`claim(VoucherClaim[])`** validates payer voucher signatures and updates accounting across multiple channels in a single transaction. No token transfer occurs. The committed cumulative total is **`totalClaimed`** (receiver authorizer–determined, `≤ maxClaimableAmount`). Caller must be the `receiverAuthorizer`.
+**`claim(VoucherClaim[])`** validates payer voucher signatures and updates accounting across multiple channels in a single transaction. No token transfer occurs. The committed cumulative total is **`totalClaimed`** (receiver authorizer–determined, `≤ maxClaimableAmount`). Caller must be **`receiverAuthorizer`** or **`receiver`** for each row's channel.
 
 **`claimWithSignature(VoucherClaim[], bytes)`** performs the same accounting but accepts an off-chain `receiverAuthorizer` signature over EIP-712 **`ClaimBatch`** / **`ClaimEntry`** (see above). Anyone can submit the transaction.
 
@@ -390,9 +390,9 @@ The `batch-settlement` scheme operates under the following trust assumptions:
 
 1. **Client trusts server for claim amounts**: The client signs `maxClaimableAmount` (a ceiling). The `receiverAuthorizer` determines the actual **`totalClaimed`** onchain within that bound. Over-claiming is a trust violation, not a protocol violation. The client's risk is bounded by `maxClaimableAmount - totalClaimed`.
 
-2. **ReceiverAuthorizer is server-controlled**: The `receiverAuthorizer` is committed in the `ChannelConfig` and jointly agreed upon by client and server. It controls claim authorization and cooperative refunds. It can be an EOA, a hot wallet, or an EIP-1271 contract like `ClaimAuthorizer` for key rotation.
+2. **ReceiverAuthorizer is server-controlled**: The `receiverAuthorizer` is committed in the `ChannelConfig` and jointly agreed upon by client and server. It authorizes **`claimWithSignature`** / **`refundWithSignature`** and, together with **`receiver`**, may call **`claim`** / **`refund`** directly. It can be an EOA, a hot wallet, or an EIP-1271 contract like `ClaimAuthorizer` for key rotation.
 
-3. **Receiver authorizes cooperative refunds**: The `receiverAuthorizer` (not the receiver itself) authorizes refunds to the payer — either as `msg.sender` via **`refund(config, amount)`** or via off-chain signature through **`refundWithSignature(config, amount, nonce, sig)`** (EIP-712 **`Refund`** binds **`amount`**; **`nonce`** replays are prevented per channel). This ensures the server's authorized agent decides how much unclaimed balance to return. Supports EIP-1271 for smart contract authorizers.
+3. **Receiver side authorizes cooperative refunds**: **`refund(config, amount)`** accepts **`msg.sender == receiverAuthorizer`** or **`msg.sender == receiver`**. **`refundWithSignature`** still requires an EIP-712 signature from **`receiverAuthorizer`** (anyone may relay). **`Refund`** binds **`amount`**; **`nonce`** replays are prevented per channel. Supports EIP-1271 for smart contract authorizers.
 
 4. **Incremental signing bounds risk**: The SDK signs `maxClaimableAmount = chargedSoFar + oneRequestMax` for each request. The gap between actual consumption and the authorized ceiling is at most one request's price.
 
@@ -478,7 +478,7 @@ EVM-specific codes:
 1. **Capital risk**: Clients bear risk up to their `maxClaimableAmount` ceiling. Servers bear risk of unclaimed vouchers during the withdrawal delay.
 2. **Withdrawal delay**: Bounds (15 min – 30 day) prevent unreasonable delays that trap funds. Cooperative **`refund`** provides an immediate return of unclaimed balance when the server cooperates; otherwise the payer uses timed **`initiateWithdraw` / `finalizeWithdraw`**.
 3. **Dual-mode payer verification**: When `payerAuthorizer` is set, vouchers are verified statelessly via ECDSA — no RPC required. When `payerAuthorizer == address(0)`, verification falls back to `SignatureChecker` against `payer`, supporting EIP-1271 smart wallets at the cost of an RPC call.
-4. **ReceiverAuthorizer commitment**: The `receiverAuthorizer` is committed in `ChannelConfig` and gated by `msg.sender` (for `claim` and **`refund`**) or signature verification (for **`claimWithSignature`** and **`refundWithSignature`**). This prevents unauthorized claim or refund operations.
+4. **Receiver-side commitment**: For direct **`claim`** and **`refund`**, `msg.sender` must be **`receiverAuthorizer`** or **`receiver`**. For **`claimWithSignature`** and **`refundWithSignature`**, signatures are verified against **`receiverAuthorizer`**.
 5. **Cumulative replay protection**: Without nonces, the cumulative model ensures `totalClaimed` only increases. Old vouchers with lower ceilings are naturally superseded. The client's risk gap is bounded by incremental signing.
 6. **Cross-function replay prevention**: **`Voucher`**, **`Refund`**, and **`ClaimBatch`** use distinct EIP-712 type hashes; **`Refund`** additionally scopes replay with a per-channel **`nonce`**.
 
@@ -504,6 +504,7 @@ The Canonical Permit2 contract address can be found at [https://docs.uniswap.org
 
 | Version | Date       | Changes                                                              | Author         |
 | ------- | ---------- | -------------------------------------------------------------------- | -------------- |
+| v0.10   | 2026-04-14 | Direct **`claim`** / **`refund`**: `msg.sender` may be **`receiver`** or **`receiverAuthorizer`** (unchanged: **`claimWithSignature`** / **`refundWithSignature`** verify **`receiverAuthorizer`** only) | @CarsonRoscoe  |
 | v0.9    | 2026-04-14 | Align doc with `x402BatchSettlement`: nested EIP-712 **`ClaimBatch`/`ClaimEntry`**; **`Refund(channelId, nonce, amount)`** + **`refund`/`refundWithSignature`** (partial/full cooperative refund); **`finalizeWithdraw`** caller = `payer` or `payerAuthorizer`; `VoucherClaim.totalClaimed`; deposit collectors in-repo; deposits do not cancel pending withdraw; facilitator/`refundNonce` notes | @CarsonRoscoe  |
 | v0.9    | 2026-04-09 | `finalizeWithdraw` permissionless after delay; removed `finalizeWithdrawWithSignature`, `FinalizeWithdraw` EIP-712 type and `getFinalizeWithdrawDigest`; Dual-path cooperative withdraw: `cooperativeWithdraw(config)` msg.sender-gated + `cooperativeWithdrawWithSignature(config, sig)` signature-based; Voucher payload now includes `channelConfig` | @phdargen      |
 | v0.8    | 2026-04-08 | Dual-authorizer model: `payerAuthorizer` (EOA or address(0) for EIP-1271), `receiverAuthorizer` replaces `facilitator`, `claimWithSignature` and `finalizeWithdrawWithSignature`, removed migration helper, added `ClaimAuthorizer` periphery, removed EIP-1271 from PaymentRouter/PaymentSplitter | @CarsonRoscoe  |
