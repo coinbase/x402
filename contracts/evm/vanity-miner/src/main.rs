@@ -42,7 +42,7 @@ const UPTO_INIT_CODE_HASH: [u8; 32] =
     hex_literal::hex!("74f7a29cbc3c55f87cdef7f7c551643189e8bb62eed9de67753aebc402b83797");
 // x402BatchSettlement — keccak256(type(x402BatchSettlement).creationCode) after `forge build`
 const BATCH_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("620429d3bed0da56970eb25421ce49759723ca9c3192a0eb85b8ef6f0ade5118");
+    hex_literal::hex!("ade7298dacf80f25fde37c50998b6bc928858bf0bba561d3eb3daaecb61e5fd5");
 
 fn keccak256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Keccak::v256();

@@ -25,6 +25,14 @@ Both contracts:
 | x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
 | x402UptoPermit2Proxy | `0x4020a4f3b7b90CCA423b9FabCC0CE57c6c240002` |
 
+**Batch settlement (CREATE2 vanity `0x4020…`)**
+
+| Contract | Address |
+|----------|---------|
+| x402BatchSettlement | `0x4020e07E964De72a79367828c9C6140fcaE00003` |
+| ERC3009DepositCollector | `0x402064ac4dA4f510EeC7D71fDc23A7D47fb10004` |
+| Permit2DepositCollector | `0x4020F3A787c115F846002A407E42264A90950005` |
+
 ### Current Deployments
 
 | Chain | Exact | Upto |
@@ -162,24 +170,82 @@ forge test --match-contract X402UptoPermit2ProxyForkTest --fork-url $BASE_SEPOLI
 
 ## Vanity Address Mining
 
-Both contracts use vanity addresses with prefix `0x4020` and suffix `0001` (Exact) or `0002` (Upto).
+Permit2 proxies use prefix `0x4020` and suffix `…0001` (Exact) or `…0002` (Upto).
 
-The vanity miner is only needed if the contract source code changes (which changes the
-initCodeHash and invalidates existing salts). To re-mine:
+**Batch settlement stack** (`x402BatchSettlement`, `ERC3009DepositCollector`, `Permit2DepositCollector`) uses the same prefix with suffixes `…0003`, `…0004`, and `…0005` respectively. The two deposit collectors take the batch settlement contract address in their constructors, so their CREATE2 `initCode` (and thus the mined salt) **depends on the batch contract address**. Mine **batch first**, then collectors: use `batch-stack` (see below).
+
+After any contract change, refresh embedded creation bytecode used by the miner:
+
+```bash
+cd contracts/evm
+forge build
+mkdir -p vanity-miner/bytecode
+forge inspect ERC3009DepositCollector bytecode | sed 's/^0x//' > vanity-miner/bytecode/erc3009_creation.hex
+forge inspect Permit2DepositCollector bytecode | sed 's/^0x//' > vanity-miner/bytecode/permit2_creation.hex
+```
+
+Update `BATCH_INIT_CODE_HASH` in `vanity-miner/src/main.rs` to `cast keccak $(forge inspect x402BatchSettlement bytecode)` (with `0x` prefix in the constant).
 
 ```bash
 cd vanity-miner
 
-# Mine both contracts
-cargo run --release
+# Permit2 proxies only (Exact + Upto)
+cargo run --release -- proxies
 
-# Mine only one
+# Single proxy
 cargo run --release -- exact
 cargo run --release -- upto
+
+# Batch settlement only (...0003); update BATCH_INIT_CODE_HASH first if batch bytecode changed
+cargo run --release -- batch
+
+# Full pipeline: batch (...0003) then ERC3009 (...0004) then Permit2DepositCollector (...0005)
+cargo run --release -- batch-stack
+
+# If you already have a batch address, mine one collector (set BATCH_ADDRESS=0x...)
+cargo run --release -- erc3009
+cargo run --release -- permit2-collector
 ```
 
-After mining, update the salt constants in `script/Deploy.s.sol` and `script/ComputeAddress.s.sol`,
-and the init code hashes in `vanity-miner/src/main.rs`.
+After mining, update salt constants in `script/Deploy.s.sol` / `script/ComputeAddress.s.sol` (proxies) or `script/DeployBatchSettlement.s.sol` (batch stack), and init code hashes in `vanity-miner/src/main.rs` as needed.
+
+### Preview CREATE2 addresses (no RPC)
+
+Proxies (default salts):
+
+```bash
+forge script script/ComputeAddress.s.sol
+```
+
+Batch stack (pass the three salts and Permit2 address used in the collector constructor):
+
+```bash
+forge script script/ComputeAddress.s.sol --sig "computeBatchStack(bytes32,bytes32,bytes32,address)" \
+  <BATCH_SALT> <ERC3009_SALT> <PERMIT2_COLLECTOR_SALT> 0x000000000022D473030F116dDEE9F6B43aC78BA3
+```
+
+### Deploy batch stack (e.g. Base Sepolia)
+
+Prerequisites: [Permit2](https://github.com/Uniswap/permit2) at `0x000000000022D473030F116dDEE9F6B43aC78BA3`, Arachnid [CREATE2 deployer](https://github.com/Arachnid/deterministic-deployment-proxy) at `0x4e59b44847b379578588920cA78FbF26c0B4956C`, Cancun-compatible chain (transient storage), and ETH for gas.
+
+```bash
+export PRIVATE_KEY="..."
+forge script script/DeployBatchSettlement.s.sol \
+  --rpc-url https://sepolia.base.org \
+  --broadcast \
+  --verify
+```
+
+If `--verify` fails, verify manually (constructor args match deployment `initCode`):
+
+```bash
+forge verify-contract <ADDR> ERC3009DepositCollector --chain base-sepolia \
+  --constructor-args $(cast abi-encode "constructor(address)" <SETTLEMENT>)
+forge verify-contract <ADDR> Permit2DepositCollector --chain base-sepolia \
+  --constructor-args $(cast abi-encode "constructor(address,address)" <SETTLEMENT> 0x000000000022D473030F116dDEE9F6B43aC78BA3)
+```
+
+`x402BatchSettlement` has no constructor arguments beyond the EIP-712 parent (empty user ctor).
 
 ## Deterministic Build Configuration
 
@@ -208,13 +274,15 @@ src/
     └── ISignatureTransfer.sol # Permit2 SignatureTransfer interface
 
 script/
-├── Deploy.s.sol               # CREATE2 deployment for both contracts
-├── ComputeAddress.s.sol       # Address computation (no RPC needed)
+├── Deploy.s.sol                  # CREATE2 deployment for Permit2 proxy pair
+├── DeployBatchSettlement.s.sol   # CREATE2: batch settlement + deposit collectors
+├── ComputeAddress.s.sol          # Address computation (no RPC needed)
 └── data/
     └── exact-proxy-initcode.hex  # Pre-built initCode for Exact proxy
 
 vanity-miner/                  # Rust-based vanity address miner
-└── src/main.rs
+├── src/main.rs
+└── bytecode/                  # ERC3009 / Permit2 collector creation hex (refresh from forge)
 ```
 
 ## Key Functions
