@@ -7,6 +7,7 @@ import type {
 import type { FacilitatorClient } from "@x402/core/server";
 import type { BatchedVoucherClaim } from "../types";
 import type { BatchedEvmScheme } from "./scheme";
+import { computeChannelId } from "../utils";
 
 export interface ChannelManagerConfig {
   scheme: BatchedEvmScheme;
@@ -68,6 +69,7 @@ export class BatchedChannelManager {
   private lastSettleTime = 0;
   private pendingSettle = false;
   private running = false;
+  private tickInProgress = false;
   private autoSettleConfig: AutoSettlementConfig = {};
 
   /**
@@ -357,46 +359,51 @@ export class BatchedChannelManager {
     onRefund?: (result: RefundResult) => void;
     onError?: (error: unknown) => void;
   }): Promise<void> {
-    if (!this.running) {
+    if (!this.running || this.tickInProgress) {
       return;
     }
 
+    this.tickInProgress = true;
     try {
-      const shouldClaim = await this.evaluateClaimTriggers(cfg);
-      if (shouldClaim) {
-        const results = await this.claim({ maxClaimsPerBatch: cfg.maxClaimsPerBatch });
-        this.lastClaimTime = Date.now();
-        for (const r of results) {
-          cfg.onClaim?.(r);
-        }
-      }
-    } catch (err) {
-      cfg.onError?.(err);
-    }
-
-    try {
-      const shouldSettle = await this.evaluateSettleTriggers(cfg);
-      if (shouldSettle) {
-        const result = await this.settle();
-        this.lastSettleTime = Date.now();
-        cfg.onSettle?.(result);
-      }
-    } catch (err) {
-      cfg.onError?.(err);
-    }
-
-    if (cfg.refundOnIdleSecs !== undefined) {
       try {
-        const idleChannels = await this.getIdleChannelsForRefund(cfg.refundOnIdleSecs);
-        if (idleChannels.length > 0) {
-          const result = await this.refund(idleChannels);
-          if (result.channels.length > 0) {
-            cfg.onRefund?.(result);
+        const shouldClaim = await this.evaluateClaimTriggers(cfg);
+        if (shouldClaim) {
+          const results = await this.claim({ maxClaimsPerBatch: cfg.maxClaimsPerBatch });
+          this.lastClaimTime = Date.now();
+          for (const r of results) {
+            cfg.onClaim?.(r);
           }
         }
       } catch (err) {
         cfg.onError?.(err);
       }
+
+      try {
+        const shouldSettle = await this.evaluateSettleTriggers(cfg);
+        if (shouldSettle) {
+          const result = await this.settle();
+          this.lastSettleTime = Date.now();
+          cfg.onSettle?.(result);
+        }
+      } catch (err) {
+        cfg.onError?.(err);
+      }
+
+      if (cfg.refundOnIdleSecs !== undefined) {
+        try {
+          const idleChannels = await this.getIdleChannelsForRefund(cfg.refundOnIdleSecs);
+          if (idleChannels.length > 0) {
+            const result = await this.refund(idleChannels);
+            if (result.channels.length > 0) {
+              cfg.onRefund?.(result);
+            }
+          }
+        } catch (err) {
+          cfg.onError?.(err);
+        }
+      }
+    } finally {
+      this.tickInProgress = false;
     }
   }
 
@@ -599,16 +606,25 @@ export class BatchedChannelManager {
   }
 
   /**
-   * Updates session records after a successful claim submission.
-   *
-   * @param claims - Claims that were included in the successful batch (reserved for future use).
+   * Updates session records after a successful claim submission so that
+   * `getClaimableVouchers` no longer returns already-claimed vouchers.
    */
   private async updateClaimedSessions(claims: BatchedVoucherClaim[]): Promise<void> {
     const storage = this.scheme.getStorage();
     for (const claim of claims) {
-      const channelId = claim.voucher.channel?.payer ? undefined : undefined;
-      void channelId;
+      const channelId = computeChannelId(claim.voucher.channel);
+      const session = await storage.get(channelId);
+      if (!session) {
+        continue;
+      }
+      const claimedAmount = BigInt(claim.totalClaimed);
+      if (claimedAmount <= BigInt(session.totalClaimed)) {
+        continue;
+      }
+      await storage.set(channelId, {
+        ...session,
+        totalClaimed: claimedAmount.toString(),
+      });
     }
-    void storage;
   }
 }

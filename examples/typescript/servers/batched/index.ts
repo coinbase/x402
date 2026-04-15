@@ -43,30 +43,28 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWOR
 
 const channelManager = batchedScheme.createChannelManager(facilitatorClient, NETWORK);
 
-// channelManager.start({
-//   tickSecs: 5, // evaluate policies every 5s
-//   claimIntervalSecs: 10,
-//   claimOnIdleSecs: 30,
-//   claimOnWithdrawal: true,
-//   settleIntervalSecs: 20,
-//   settleThreshold: "1000000",
-//   maxClaimsPerBatch: 50,
-//   refundOnIdleSecs: 30,
-//   refundOnShutdown: true,
-//   onClaim: (r: { vouchers: number; transaction: string }) =>
-//     console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
-//   onSettle: (r: { transaction: string }) =>
-//     console.log(`Settled to ${evmAddress} (tx: ${r.transaction})`),
-//   onRefund: (r: { channels: string[]; transaction: string }) =>
-//     console.log(`Refund for ${r.channels.length} channel(s) (tx: ${r.transaction})`),
-//   onError: (e: unknown) => console.error("Settlement error:", e),
-// });
+channelManager.start({
+  tickSecs: 5, // evaluate policies every 5s
+  claimIntervalSecs: 10,
+  claimOnWithdrawal: true,
+  maxClaimsPerBatch: 50,
+  settleIntervalSecs: 20,
+  refundOnIdleSecs: 30,
+  refundOnShutdown: true,
+  onClaim: (r: { vouchers: number; transaction: string }) =>
+    console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
+  onSettle: (r: { transaction: string }) =>
+    console.log(`Settled to ${evmAddress} (tx: ${r.transaction})`),
+  onRefund: (r: { channels: string[]; transaction: string }) =>
+    console.log(`Refund for ${r.channels.length} channel(s) (tx: ${r.transaction})`),
+  onError: (e: unknown) => console.error("Settlement error:", e),
+});
 
-// process.on("SIGINT", async () => {
-//   console.log("Shutting down — flushing pending claims…");
-//   await channelManager.stop({ flush: true });
-//   process.exit(0);
-// });
+process.on("SIGINT", async () => {
+  console.log("Shutting down — flushing pending claims…");
+  await channelManager.stop({ flush: true });
+  process.exit(0);
+});
 
 const app = express();
 

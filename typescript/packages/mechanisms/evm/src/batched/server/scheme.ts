@@ -11,7 +11,7 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import type { FacilitatorClient, SettleContext, VerifyContext } from "@x402/core/server";
-import { BatchedChannelManager } from "./settlement";
+import { BatchedChannelManager } from "./channelManager";
 import { getAddress } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { getEvmChainId } from "../../utils";

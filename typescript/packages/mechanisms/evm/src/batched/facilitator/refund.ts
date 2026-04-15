@@ -1,12 +1,12 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
-import { getAddress } from "viem";
+import { encodeFunctionData, getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { BatchedRefundPayload, BatchedRefundWithSignaturePayload, ChannelState } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { computeChannelId } from "../utils";
 import * as Errors from "./errors";
-import { executeClaim, executeClaimWithSignature } from "./claim";
+import { buildVoucherClaimArgs } from "./claim";
 import { readChannelState } from "./utils";
 
 /**
@@ -66,9 +66,8 @@ function buildConfigTuple(config: BatchedRefundPayload["config"]) {
 /**
  * Executes a cooperative refund via msg.sender path (facilitator IS the receiverAuthorizer or receiver).
  *
- * If `payload.claims` is non-empty, outstanding vouchers are claimed first via
- * {@link executeClaim}.  Then the specified amount is returned to the payer through
- * `refund(config, amount)`.
+ * If `payload.claims` is non-empty, outstanding vouchers are claimed atomically with the
+ * refund via the contract's `multicall`. Otherwise, a single `refund` call is made.
  *
  * @param signer - Facilitator signer used to submit the on-chain transactions.
  * @param payload - Refund payload (ChannelConfig + amount + claims, no signature).
@@ -85,24 +84,37 @@ export async function executeRefund(
   try {
     const channelId = computeChannelId(payload.config);
     const preState = await readChannelState(signer, channelId);
+    const contractAddr = getAddress(BATCH_SETTLEMENT_ADDRESS);
 
-    if (payload.claims.length > 0) {
-      const claimResult = await executeClaim(
-        signer,
-        { settleAction: "claim", claims: payload.claims },
-        requirements,
-      );
-      if (!claimResult.success) {
-        return claimResult;
-      }
-    }
-
-    const tx = await signer.writeContract({
-      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+    const refundCalldata = encodeFunctionData({
       abi: batchSettlementABI,
       functionName: "refund",
       args: [buildConfigTuple(payload.config), BigInt(payload.amount)],
     });
+
+    let tx: `0x${string}`;
+
+    if (payload.claims.length > 0) {
+      const claimCalldata = encodeFunctionData({
+        abi: batchSettlementABI,
+        functionName: "claim",
+        args: [buildVoucherClaimArgs(payload.claims)],
+      });
+
+      tx = await signer.writeContract({
+        address: contractAddr,
+        abi: batchSettlementABI,
+        functionName: "multicall",
+        args: [[claimCalldata, refundCalldata]],
+      });
+    } else {
+      tx = await signer.writeContract({
+        address: contractAddr,
+        abi: batchSettlementABI,
+        functionName: "refund",
+        args: [buildConfigTuple(payload.config), BigInt(payload.amount)],
+      });
+    }
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
     if (receipt.status !== "success") {
@@ -135,11 +147,9 @@ export async function executeRefund(
 /**
  * Executes a cooperative refund via signature path (server IS the receiverAuthorizer).
  *
- * If `payload.claims` is non-empty:
- * - If `claimAuthorizerSignature` is present, uses `claimWithSignature`
- * - Otherwise, falls back to msg.sender-gated `claim`
- *
- * Then calls `refundWithSignature(config, amount, nonce, receiverAuthorizerSignature)`.
+ * If `payload.claims` is non-empty, the claim and refund are batched atomically via
+ * the contract's `multicall`. The claim variant is chosen based on whether
+ * `claimAuthorizerSignature` is present (`claimWithSignature`) or absent (`claim`).
  *
  * @param signer - Facilitator signer used to submit the on-chain transactions.
  * @param payload - Refund payload with receiverAuthorizer signature, amount, and nonce.
@@ -156,35 +166,9 @@ export async function executeRefundWithSignature(
   try {
     const channelId = computeChannelId(payload.config);
     const preState = await readChannelState(signer, channelId);
+    const contractAddr = getAddress(BATCH_SETTLEMENT_ADDRESS);
 
-    if (payload.claims.length > 0) {
-      if (payload.claimAuthorizerSignature) {
-        const claimResult = await executeClaimWithSignature(
-          signer,
-          {
-            settleAction: "claimWithSignature",
-            claims: payload.claims,
-            authorizerSignature: payload.claimAuthorizerSignature,
-          },
-          requirements,
-        );
-        if (!claimResult.success) {
-          return claimResult;
-        }
-      } else {
-        const claimResult = await executeClaim(
-          signer,
-          { settleAction: "claim", claims: payload.claims },
-          requirements,
-        );
-        if (!claimResult.success) {
-          return claimResult;
-        }
-      }
-    }
-
-    const tx = await signer.writeContract({
-      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+    const refundCalldata = encodeFunctionData({
       abi: batchSettlementABI,
       functionName: "refundWithSignature",
       args: [
@@ -194,6 +178,41 @@ export async function executeRefundWithSignature(
         payload.receiverAuthorizerSignature,
       ],
     });
+
+    let tx: `0x${string}`;
+
+    if (payload.claims.length > 0) {
+      const claimCalldata = payload.claimAuthorizerSignature
+        ? encodeFunctionData({
+            abi: batchSettlementABI,
+            functionName: "claimWithSignature",
+            args: [buildVoucherClaimArgs(payload.claims), payload.claimAuthorizerSignature],
+          })
+        : encodeFunctionData({
+            abi: batchSettlementABI,
+            functionName: "claim",
+            args: [buildVoucherClaimArgs(payload.claims)],
+          });
+
+      tx = await signer.writeContract({
+        address: contractAddr,
+        abi: batchSettlementABI,
+        functionName: "multicall",
+        args: [[claimCalldata, refundCalldata]],
+      });
+    } else {
+      tx = await signer.writeContract({
+        address: contractAddr,
+        abi: batchSettlementABI,
+        functionName: "refundWithSignature",
+        args: [
+          buildConfigTuple(payload.config),
+          BigInt(payload.amount),
+          BigInt(payload.nonce),
+          payload.receiverAuthorizerSignature,
+        ],
+      });
+    }
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
     if (receipt.status !== "success") {

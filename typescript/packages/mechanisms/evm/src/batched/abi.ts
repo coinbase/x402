@@ -28,6 +28,13 @@ const voucherClaimComponents = [
 export const batchSettlementABI = [
   {
     type: "function",
+    name: "multicall",
+    inputs: [{ name: "data", type: "bytes[]" }],
+    outputs: [{ name: "results", type: "bytes[]" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "deposit",
     inputs: [
       { name: "config", type: "tuple", components: channelConfigComponents },

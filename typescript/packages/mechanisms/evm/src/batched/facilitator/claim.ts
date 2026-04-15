@@ -13,7 +13,7 @@ import * as Errors from "./errors";
  * @param claims - Typed voucher claims with channel config, amounts, and signatures.
  * @returns Contract-ready VoucherClaim argument array.
  */
-function buildVoucherClaimArgs(claims: BatchedClaimPayload["claims"]) {
+export function buildVoucherClaimArgs(claims: BatchedClaimPayload["claims"]) {
   return claims.map(c => ({
     voucher: {
       channel: {
