@@ -1,6 +1,7 @@
 import { getAddress, verifyTypedData as viemVerifyTypedData } from "viem";
 import type { PaymentRequirements } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
+import { multicall } from "../../multicall";
 import {
   BATCH_SETTLEMENT_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
@@ -8,7 +9,8 @@ import {
   MAX_WITHDRAW_DELAY,
   voucherTypes,
 } from "../constants";
-import type { ChannelConfig } from "../types";
+import { batchSettlementABI } from "../abi";
+import type { ChannelConfig, ChannelState } from "../types";
 import { computeChannelId } from "../utils";
 import * as Errors from "./errors";
 
@@ -157,4 +159,40 @@ export function validateChannelConfig(
   }
 
   return undefined;
+}
+
+/**
+ * Reads on-chain channel state via a 3-call multicall:
+ * `channels(channelId)`, `pendingWithdrawals(channelId)`, `refundNonce(channelId)`.
+ *
+ * @param signer - Facilitator signer for on-chain reads.
+ * @param channelId - The `bytes32` channel id.
+ * @returns Fresh {@link ChannelState}, or `null` if any call fails.
+ */
+export async function readChannelState(
+  signer: FacilitatorEvmSigner,
+  channelId: `0x${string}`,
+): Promise<ChannelState | null> {
+  const target = getAddress(BATCH_SETTLEMENT_ADDRESS);
+  const mcResults = await multicall(signer.readContract.bind(signer), [
+    { address: target, abi: batchSettlementABI, functionName: "channels", args: [channelId] },
+    {
+      address: target,
+      abi: batchSettlementABI,
+      functionName: "pendingWithdrawals",
+      args: [channelId],
+    },
+    { address: target, abi: batchSettlementABI, functionName: "refundNonce", args: [channelId] },
+  ]);
+
+  const [chRes, wdRes, rnRes] = mcResults;
+  if (chRes.status === "failure" || wdRes.status === "failure" || rnRes.status === "failure") {
+    return null;
+  }
+
+  const [balance, totalClaimed] = chRes.result as [bigint, bigint];
+  const [, wdInitiatedAt] = wdRes.result as [bigint, bigint];
+  const refundNonce = rnRes.result as bigint;
+
+  return { balance, totalClaimed, withdrawRequestedAt: Number(wdInitiatedAt), refundNonce };
 }

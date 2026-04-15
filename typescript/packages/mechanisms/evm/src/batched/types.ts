@@ -1,3 +1,10 @@
+export type ChannelState = {
+  balance: bigint;
+  totalClaimed: bigint;
+  withdrawRequestedAt: number;
+  refundNonce: bigint;
+};
+
 export type ChannelConfig = {
   payer: `0x${string}`;
   payerAuthorizer: `0x${string}`;
@@ -25,6 +32,7 @@ export type BatchedDepositPayload = {
     };
   };
   voucher: BatchedVoucherFields;
+  responseExtra?: { chargedCumulativeAmount: string };
 };
 
 export type BatchedVoucherPayload = {
@@ -46,6 +54,16 @@ export type BatchedVoucherClaim = {
   };
   signature: `0x${string}`;
   totalClaimed: string;
+};
+
+export type BatchedPaymentResponseExtra = {
+  channelId: `0x${string}`;
+  chargedCumulativeAmount: string;
+  balance: string;
+  totalClaimed: string;
+  withdrawRequestedAt: number;
+  refundNonce: string;
+  refund?: true;
 };
 
 export type BatchedClaimPayload = {
@@ -75,6 +93,7 @@ export type BatchedRefundPayload = {
   config: ChannelConfig;
   amount: string;
   claims: BatchedVoucherClaim[];
+  responseExtra?: BatchedPaymentResponseExtra;
 };
 
 export type BatchedRefundWithSignaturePayload = {
@@ -85,6 +104,7 @@ export type BatchedRefundWithSignaturePayload = {
   claims: BatchedVoucherClaim[];
   receiverAuthorizerSignature: `0x${string}`;
   claimAuthorizerSignature?: `0x${string}`;
+  responseExtra?: BatchedPaymentResponseExtra;
 };
 
 export type BatchedPayload = BatchedDepositPayload | BatchedVoucherPayload;

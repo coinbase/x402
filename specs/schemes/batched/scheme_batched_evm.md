@@ -307,6 +307,7 @@ Verifies a payment payload. Returns the onchain channel snapshot:
   "amount": "700",
   "extra": {
     "channelId": "0xabc123...",
+    "chargedCumulativeAmount": "3200",
     "balance": "100000",
     "totalClaimed": "3200",
     "withdrawRequestedAt": 0,

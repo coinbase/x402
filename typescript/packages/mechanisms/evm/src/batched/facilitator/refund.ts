@@ -1,11 +1,49 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { BatchedRefundPayload, BatchedRefundWithSignaturePayload } from "../types";
+import { BatchedRefundPayload, BatchedRefundWithSignaturePayload, ChannelState } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
+import { computeChannelId } from "../utils";
 import * as Errors from "./errors";
 import { executeClaim, executeClaimWithSignature } from "./claim";
+import { readChannelState } from "./utils";
+
+/**
+ * Builds `responseExtra` fields for a refund settlement after applying the refund amount to channel state.
+ *
+ * @param payload - Refund payload containing claims, amount, and optional prior `responseExtra`.
+ * @param channelId - Canonical channel id for the refund.
+ * @param preState - On-chain channel state before this refund, or null if unknown.
+ * @returns Extra fields (`channelId`, balances, `totalClaimed`, `refundNonce`, etc.) for the settlement response.
+ */
+function buildRefundExtra(
+  payload: BatchedRefundPayload | BatchedRefundWithSignaturePayload,
+  channelId: `0x${string}`,
+  preState: ChannelState | null,
+): Record<string, unknown> {
+  const preTotalClaimed = preState?.totalClaimed ?? 0n;
+  const preBalance = preState?.balance ?? 0n;
+
+  const lastClaimTotal =
+    payload.claims.length > 0
+      ? BigInt(payload.claims[payload.claims.length - 1].totalClaimed)
+      : preTotalClaimed;
+  const postClaimTotalClaimed = lastClaimTotal > preTotalClaimed ? lastClaimTotal : preTotalClaimed;
+
+  const available = preBalance - postClaimTotalClaimed;
+  const requestedAmount = BigInt(payload.amount);
+  const actualRefund = requestedAmount > available ? available : requestedAmount;
+
+  return {
+    channelId,
+    chargedCumulativeAmount: payload.responseExtra?.chargedCumulativeAmount ?? "0",
+    balance: (preBalance - actualRefund).toString(),
+    totalClaimed: postClaimTotalClaimed.toString(),
+    withdrawRequestedAt: 0,
+    refundNonce: String((preState?.refundNonce ?? 0n) + 1n),
+  };
+}
 
 /**
  * Normalizes channel config fields to checksummed addresses for the batch settlement contract.
@@ -45,6 +83,9 @@ export async function executeRefund(
   const network = requirements.network;
 
   try {
+    const channelId = computeChannelId(payload.config);
+    const preState = await readChannelState(signer, channelId);
+
     if (payload.claims.length > 0) {
       const claimResult = await executeClaim(
         signer,
@@ -77,7 +118,9 @@ export async function executeRefund(
       success: true,
       transaction: tx,
       network,
+      payer: payload.config.payer,
       amount: requirements.amount,
+      extra: buildRefundExtra(payload, channelId, preState),
     };
   } catch {
     return {
@@ -111,6 +154,9 @@ export async function executeRefundWithSignature(
   const network = requirements.network;
 
   try {
+    const channelId = computeChannelId(payload.config);
+    const preState = await readChannelState(signer, channelId);
+
     if (payload.claims.length > 0) {
       if (payload.claimAuthorizerSignature) {
         const claimResult = await executeClaimWithSignature(
@@ -163,7 +209,9 @@ export async function executeRefundWithSignature(
       success: true,
       transaction: tx,
       network,
+      payer: payload.config.payer,
       amount: requirements.amount,
+      extra: buildRefundExtra(payload, channelId, preState),
     };
   } catch {
     return {

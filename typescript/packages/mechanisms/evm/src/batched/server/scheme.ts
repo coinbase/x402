@@ -21,7 +21,13 @@ import {
   isBatchedRefundPayload,
   isBatchedRefundWithSignaturePayload,
 } from "../types";
-import type { ChannelConfig, BatchedVoucherClaim } from "../types";
+import type {
+  ChannelConfig,
+  BatchedPaymentResponseExtra,
+  BatchedVoucherClaim,
+  BatchedRefundPayload,
+  BatchedRefundWithSignaturePayload,
+} from "../types";
 import {
   BATCH_SETTLEMENT_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
@@ -45,6 +51,85 @@ export interface BatchedEvmSchemeServerConfig {
   storage?: SessionStorage;
   receiverAuthorizerSigner?: AuthorizerSigner;
   withdrawDelay?: number;
+}
+
+/**
+ * Builds the payment `responseExtra` snapshot after a refund is applied to the session.
+ *
+ * @param session - Current channel session before the refund.
+ * @param payload - Refund payload (amount and claims) used to compute post-refund totals.
+ * @returns `BatchedPaymentResponseExtra` reflecting updated balance and refund nonce.
+ */
+function buildRefundResponseSnapshot(
+  session: ChannelSession,
+  payload: BatchedRefundPayload | BatchedRefundWithSignaturePayload,
+): BatchedPaymentResponseExtra {
+  const finalClaimed =
+    payload.claims[payload.claims.length - 1]?.totalClaimed ?? session.chargedCumulativeAmount;
+
+  return {
+    channelId: computeChannelId(payload.config),
+    chargedCumulativeAmount: finalClaimed,
+    balance: (BigInt(session.balance) - BigInt(payload.amount)).toString(),
+    totalClaimed: payload.claims[payload.claims.length - 1]?.totalClaimed ?? session.totalClaimed,
+    withdrawRequestedAt: 0,
+    refundNonce: String(session.refundNonce + 1),
+  };
+}
+
+/**
+ * Returns a zeroed `responseExtra` snapshot for a channel with no prior session data.
+ *
+ * @param channelId - Channel id to attach to the snapshot.
+ * @returns Default extra fields with zero balances and nonce.
+ */
+function emptyResponseSnapshot(channelId: `0x${string}`): BatchedPaymentResponseExtra {
+  return {
+    channelId,
+    chargedCumulativeAmount: "0",
+    balance: "0",
+    totalClaimed: "0",
+    withdrawRequestedAt: 0,
+    refundNonce: "0",
+  };
+}
+
+/**
+ * Reads a string value from optional payment `extra`, with a fallback when missing or invalid.
+ *
+ * @param extra - Optional `responseExtra` or similar record.
+ * @param key - Key on `BatchedPaymentResponseExtra` to read.
+ * @param fallback - Value returned when the entry is absent or not coercible to string.
+ * @returns String representation of the value, or `fallback`.
+ */
+function readExtraString(
+  extra: Record<string, unknown> | undefined,
+  key: keyof BatchedPaymentResponseExtra,
+  fallback: string,
+): string {
+  const value = extra?.[key];
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return fallback;
+}
+
+/**
+ * Reads a numeric value from optional payment `extra`, with a fallback when missing or invalid.
+ *
+ * @param extra - Optional `responseExtra` or similar record.
+ * @param key - Key on `BatchedPaymentResponseExtra` to read.
+ * @param fallback - Value returned when the entry is absent or not parseable as a number.
+ * @returns Parsed number, or `fallback`.
+ */
+function readExtraNumber(
+  extra: Record<string, unknown> | undefined,
+  key: keyof BatchedPaymentResponseExtra,
+  fallback: number,
+): number {
+  const value = extra?.[key];
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return parseInt(value, 10) || fallback;
+  return fallback;
 }
 
 /**
@@ -513,6 +598,16 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
+
+    if (isBatchedDepositPayload(raw)) {
+      const channelId = raw.voucher.channelId as string;
+      const session = await this.storage.get(channelId);
+      const prevCharged = BigInt(session?.chargedCumulativeAmount ?? "0");
+      const newCharged = (prevCharged + BigInt(requirements.amount)).toString();
+      (raw as Record<string, unknown>).responseExtra = { chargedCumulativeAmount: newCharged };
+      return;
+    }
+
     if (!isBatchedVoucherPayload(raw)) {
       return;
     }
@@ -556,6 +651,14 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
 
       if (this.receiverAuthorizerSigner) {
         const nonce = String(session.refundNonce ?? 0);
+        const responseExtra = buildRefundResponseSnapshot(session, {
+          settleAction: "refundWithSignature",
+          config,
+          amount: refundAmount,
+          nonce,
+          claims: [claimEntry],
+          receiverAuthorizerSignature: "0x0",
+        });
 
         const authorizerSignature = await this.signRefund(
           channelId as `0x${string}`,
@@ -577,13 +680,22 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
           claims: [claimEntry],
           receiverAuthorizerSignature: authorizerSignature,
           claimAuthorizerSignature,
+          responseExtra,
         };
       } else {
+        const responseExtra = buildRefundResponseSnapshot(session, {
+          settleAction: "refund",
+          config,
+          amount: refundAmount,
+          claims: [claimEntry],
+        });
+
         (paymentPayload as { payload: unknown }).payload = {
           settleAction: "refund",
           config,
           amount: refundAmount,
           claims: [claimEntry],
+          responseExtra,
         };
       }
 
@@ -627,11 +739,12 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         payer: session.payer as `0x${string}`,
         amount: requirements.amount,
         extra: {
-          chargedCumulativeAmount: newCharged.toString(),
           channelId,
+          chargedCumulativeAmount: newCharged.toString(),
           balance: session.balance,
           totalClaimed: session.totalClaimed,
           withdrawRequestedAt: session.withdrawRequestedAt,
+          refundNonce: String(session.refundNonce),
         },
       },
     };
@@ -662,22 +775,38 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
     const raw = paymentPayload.payload as Record<string, unknown>;
 
     if (isBatchedRefundWithSignaturePayload(raw) || isBatchedRefundPayload(raw)) {
-      const channelId =
-        typeof (raw.config as Record<string, unknown>)?.payer === "string"
-          ? (result.extra as Record<string, unknown>)?.channelId
-          : undefined;
-      const channelIdStr =
-        typeof channelId === "string" ? channelId : raw.claims ? undefined : undefined;
+      const refundPayload = raw as BatchedRefundPayload | BatchedRefundWithSignaturePayload;
+      const channelId = computeChannelId(refundPayload.config);
+      const prevSession = await this.storage.get(channelId);
+      const fallback =
+        prevSession?.channelId !== undefined
+          ? buildRefundResponseSnapshot(prevSession, refundPayload)
+          : (refundPayload.responseExtra ?? emptyResponseSnapshot(channelId));
 
-      if (channelIdStr) {
-        this.pendingRefundChannels.delete(channelIdStr.toLowerCase());
-        await this.storage.delete(channelIdStr);
-      }
-
+      const extra = result.extra as Record<string, unknown> | undefined;
       result.extra = {
-        ...result.extra,
+        channelId:
+          typeof extra?.channelId === "string" && extra.channelId
+            ? extra.channelId
+            : fallback.channelId,
+        chargedCumulativeAmount: readExtraString(
+          extra,
+          "chargedCumulativeAmount",
+          fallback.chargedCumulativeAmount,
+        ),
+        balance: readExtraString(extra, "balance", fallback.balance),
+        totalClaimed: readExtraString(extra, "totalClaimed", fallback.totalClaimed),
+        withdrawRequestedAt: readExtraNumber(
+          extra,
+          "withdrawRequestedAt",
+          fallback.withdrawRequestedAt,
+        ),
+        refundNonce: readExtraString(extra, "refundNonce", fallback.refundNonce),
         refund: true,
       };
+
+      this.pendingRefundChannels.delete(channelId.toLowerCase());
+      await this.storage.delete(channelId);
       return;
     }
 
@@ -688,31 +817,6 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
     if (isBatchedDepositPayload(raw)) {
       const channelId = (raw.voucher as Record<string, unknown>).channelId as string;
       const ex = result.extra ?? {};
-      const balanceSnap =
-        typeof ex.balance === "string"
-          ? ex.balance
-          : typeof ex.balance === "number"
-            ? String(ex.balance)
-            : "0";
-      const totalClaimedSnap =
-        typeof ex.totalClaimed === "string"
-          ? ex.totalClaimed
-          : typeof ex.totalClaimed === "number"
-            ? String(ex.totalClaimed)
-            : "0";
-      const withdrawAtSnap =
-        typeof ex.withdrawRequestedAt === "number"
-          ? ex.withdrawRequestedAt
-          : typeof ex.withdrawRequestedAt === "string"
-            ? parseInt(ex.withdrawRequestedAt, 10) || 0
-            : 0;
-      const refundNonceSnap =
-        typeof ex.refundNonce === "string"
-          ? parseInt(ex.refundNonce, 10) || 0
-          : typeof ex.refundNonce === "number"
-            ? ex.refundNonce
-            : 0;
-
       const prevSession = await this.storage.get(channelId);
       const depositConfig = (raw.deposit as Record<string, unknown>)?.channelConfig as
         | ChannelConfig
@@ -727,6 +831,28 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       const signedMaxClaimable = (raw.voucher as Record<string, unknown>)
         .maxClaimableAmount as string;
       const payer = resolvedConfig.payer ?? result.payer ?? "";
+      const depositAmount = (raw.deposit as Record<string, unknown>).amount as string;
+      const fallback: BatchedPaymentResponseExtra = {
+        channelId: channelId as `0x${string}`,
+        chargedCumulativeAmount: chargedActual,
+        balance: (BigInt(prevSession?.balance ?? "0") + BigInt(depositAmount)).toString(),
+        totalClaimed: prevSession?.totalClaimed ?? "0",
+        withdrawRequestedAt: prevSession?.withdrawRequestedAt ?? 0,
+        refundNonce: String(prevSession?.refundNonce ?? 0),
+      };
+      const responseExtra = {
+        channelId:
+          typeof ex.channelId === "string" && ex.channelId ? ex.channelId : fallback.channelId,
+        chargedCumulativeAmount: chargedActual,
+        balance: readExtraString(ex, "balance", fallback.balance),
+        totalClaimed: readExtraString(ex, "totalClaimed", fallback.totalClaimed),
+        withdrawRequestedAt: readExtraNumber(
+          ex,
+          "withdrawRequestedAt",
+          fallback.withdrawRequestedAt,
+        ),
+        refundNonce: readExtraString(ex, "refundNonce", fallback.refundNonce),
+      };
 
       const session: ChannelSession = {
         channelId,
@@ -735,18 +861,14 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         chargedCumulativeAmount: chargedActual,
         signedMaxClaimable,
         signature: (raw.voucher as Record<string, unknown>).signature as `0x${string}`,
-        balance: balanceSnap,
-        totalClaimed: totalClaimedSnap,
-        withdrawRequestedAt: withdrawAtSnap,
-        refundNonce: refundNonceSnap,
+        balance: responseExtra.balance,
+        totalClaimed: responseExtra.totalClaimed,
+        withdrawRequestedAt: responseExtra.withdrawRequestedAt,
+        refundNonce: parseInt(responseExtra.refundNonce, 10) || 0,
         lastRequestTimestamp: Date.now(),
       };
       await this.storage.set(channelId, session);
-      result.extra = {
-        ...ex,
-        channelId,
-        chargedCumulativeAmount: chargedActual,
-      };
+      result.extra = responseExtra;
     }
   }
 
