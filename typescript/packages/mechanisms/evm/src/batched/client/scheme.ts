@@ -229,7 +229,7 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
 
     const key = channelId.toLowerCase();
 
-    if (extra.cooperativeWithdraw === true) {
+    if (extra.refund === true) {
       await this.storage.delete(key);
       return;
     }
@@ -251,11 +251,11 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
   }
 
   /**
-   * Flags a channel for cooperative withdrawal on the next voucher request.
+   * Flags a channel for cooperative refund on the next voucher request.
    *
-   * @param channelId - The channel to request withdrawal for.
+   * @param channelId - The channel to request refund for.
    */
-  requestCooperativeWithdraw(channelId: string): void {
+  requestRefund(channelId: string): void {
     this.pendingWithdraw.add(channelId.toLowerCase());
   }
 

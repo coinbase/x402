@@ -11,7 +11,7 @@ export type ChannelConfig = {
 export type BatchedErc3009Authorization = {
   validAfter: string;
   validBefore: string;
-  nonce: `0x${string}`;
+  salt: `0x${string}`;
   signature: `0x${string}`;
 };
 
@@ -45,7 +45,7 @@ export type BatchedVoucherClaim = {
     maxClaimableAmount: string;
   };
   signature: `0x${string}`;
-  claimAmount: string;
+  totalClaimed: string;
 };
 
 export type BatchedClaimPayload = {
@@ -70,15 +70,18 @@ export type BatchedDepositSettlePayload = {
   deposit: BatchedDepositPayload["deposit"];
 };
 
-export type BatchedCooperativeWithdrawPayload = {
-  settleAction: "cooperativeWithdraw";
+export type BatchedRefundPayload = {
+  settleAction: "refund";
   config: ChannelConfig;
+  amount: string;
   claims: BatchedVoucherClaim[];
 };
 
-export type BatchedCooperativeWithdrawWithSignaturePayload = {
-  settleAction: "cooperativeWithdrawWithSignature";
+export type BatchedRefundWithSignaturePayload = {
+  settleAction: "refundWithSignature";
   config: ChannelConfig;
+  amount: string;
+  nonce: string;
   claims: BatchedVoucherClaim[];
   receiverAuthorizerSignature: `0x${string}`;
   claimAuthorizerSignature?: `0x${string}`;
@@ -91,8 +94,8 @@ export type BatchedSettlePayload =
   | BatchedClaimPayload
   | BatchedClaimWithSignaturePayload
   | BatchedSettleActionPayload
-  | BatchedCooperativeWithdrawPayload
-  | BatchedCooperativeWithdrawWithSignaturePayload;
+  | BatchedRefundPayload
+  | BatchedRefundWithSignaturePayload;
 
 /**
  * Type guard for a batched deposit payload (deposit + voucher).
@@ -165,34 +168,33 @@ export function isBatchedSettleActionPayload(
 }
 
 /**
- * Type guard for a msg.sender-gated cooperative withdraw settle payload
- * (facilitator IS the receiverAuthorizer).
+ * Type guard for a msg.sender-gated refund settle payload
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link BatchedCooperativeWithdrawPayload}.
+ * @returns True if the object matches {@link BatchedRefundPayload}.
  */
-export function isBatchedCooperativeWithdrawPayload(
+export function isBatchedRefundPayload(
   payload: Record<string, unknown>,
-): payload is BatchedCooperativeWithdrawPayload {
+): payload is BatchedRefundPayload {
   return (
-    payload.settleAction === "cooperativeWithdraw" &&
+    payload.settleAction === "refund" &&
     "config" in payload &&
     !("receiverAuthorizerSignature" in payload)
   );
 }
 
 /**
- * Type guard for a signature-based cooperative withdraw settle payload
+ * Type guard for a signature-based refund settle payload
  * (server IS the receiverAuthorizer, signs off-chain).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link BatchedCooperativeWithdrawWithSignaturePayload}.
+ * @returns True if the object matches {@link BatchedRefundWithSignaturePayload}.
  */
-export function isBatchedCooperativeWithdrawWithSignaturePayload(
+export function isBatchedRefundWithSignaturePayload(
   payload: Record<string, unknown>,
-): payload is BatchedCooperativeWithdrawWithSignaturePayload {
+): payload is BatchedRefundWithSignaturePayload {
   return (
-    payload.settleAction === "cooperativeWithdrawWithSignature" &&
+    payload.settleAction === "refundWithSignature" &&
     "config" in payload &&
     "receiverAuthorizerSignature" in payload
   );

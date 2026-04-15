@@ -10,6 +10,7 @@ export interface ChannelSession {
   balance: string;
   totalClaimed: string;
   withdrawRequestedAt: number;
+  refundNonce: number;
   lastRequestTimestamp: number;
 }
 

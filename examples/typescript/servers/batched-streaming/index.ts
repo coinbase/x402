@@ -151,7 +151,7 @@ app.get("/llm/stream", async (req, res) => {
   const paymentHeader =
     req.headers["payment-signature"];
   if (!paymentHeader || typeof paymentHeader !== "string") {
-    logVerbose(`\n ${colorizeRed("[payment-required]")} ${req.originalUrl}`);
+    logVerbose(`\n${colorizeRed("[payment-required]")} ${req.originalUrl}`);
     const paymentRequired = await resourceServer.createPaymentRequiredResponse(
       requirements,
       {

@@ -1,9 +1,13 @@
 import { PaymentRequirements, VerifyResponse, SettleResponse } from "@x402/core/types";
-import { getAddress } from "viem";
+import { getAddress, encodeAbiParameters, keccak256 } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { BatchedDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
-import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
+import {
+  BATCH_SETTLEMENT_ADDRESS,
+  ERC3009_DEPOSIT_COLLECTOR_ADDRESS,
+  receiveAuthorizationTypes,
+} from "../constants";
 import { getEvmChainId } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "./errors";
@@ -70,6 +74,13 @@ export async function verifyDeposit(
     return { isValid: false, invalidReason: timeInvalid, payer };
   }
 
+  const erc3009Nonce = keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "uint256" }],
+      [voucher.channelId, BigInt(auth.salt)],
+    ),
+  );
+
   let receiveAuthOk = false;
   try {
     receiveAuthOk = await signer.verifyTypedData({
@@ -84,11 +95,11 @@ export async function verifyDeposit(
       primaryType: "ReceiveWithAuthorization",
       message: {
         from: getAddress(payer),
-        to: getAddress(BATCH_SETTLEMENT_ADDRESS),
+        to: getAddress(ERC3009_DEPOSIT_COLLECTOR_ADDRESS),
         value: BigInt(deposit.amount),
         validAfter,
         validBefore,
-        nonce: auth.nonce,
+        nonce: erc3009Nonce,
       },
       signature: auth.signature,
     });
@@ -134,16 +145,28 @@ export async function verifyDeposit(
       functionName: "pendingWithdrawals",
       args: [voucher.channelId],
     },
+    {
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "refundNonce",
+      args: [voucher.channelId],
+    },
   ]);
 
-  const [chRes, balRes, wdRes] = mcResults;
-  if (chRes.status === "failure" || balRes.status === "failure" || wdRes.status === "failure") {
+  const [chRes, balRes, wdRes, rnRes] = mcResults;
+  if (
+    chRes.status === "failure" ||
+    balRes.status === "failure" ||
+    wdRes.status === "failure" ||
+    rnRes.status === "failure"
+  ) {
     return { isValid: false, invalidReason: Errors.ErrInvalidPayloadType, payer };
   }
 
   const [chBalance, chTotalClaimed] = chRes.result as [bigint, bigint];
   const payerBalance = balRes.result as bigint;
   const [, wdInitiatedAt] = wdRes.result as [bigint, bigint];
+  const refundNonceVal = rnRes.result as bigint;
   const depositAmount = BigInt(deposit.amount);
 
   if (payerBalance < depositAmount) {
@@ -169,13 +192,14 @@ export async function verifyDeposit(
       balance: chBalance.toString(),
       totalClaimed: chTotalClaimed.toString(),
       withdrawRequestedAt: Number(wdInitiatedAt),
+      refundNonce: refundNonceVal.toString(),
     },
   };
 }
 
 /**
- * Executes an ERC-3009 deposit on-chain by calling `depositWithERC3009` on the
- * batched contract.
+ * Executes an ERC-3009 deposit on-chain by calling `deposit` with the
+ * ERC3009DepositCollector on the batched contract.
  *
  * The deposit is first verified via {@link verifyDeposit}; if invalid the returned
  * {@link SettleResponse} will have `success: false` with the verification reason.
@@ -228,17 +252,21 @@ export async function settleDeposit(
       salt: config.salt,
     };
 
+    const salt = BigInt(auth.salt);
+    const collectorData = encodeAbiParameters(
+      [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }],
+      [BigInt(auth.validAfter), BigInt(auth.validBefore), salt, auth.signature],
+    );
+
     const tx = await signer.writeContract({
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,
-      functionName: "depositWithERC3009",
+      functionName: "deposit",
       args: [
         configTuple,
         BigInt(deposit.amount),
-        BigInt(auth.validAfter),
-        BigInt(auth.validBefore),
-        auth.nonce,
-        auth.signature,
+        getAddress(ERC3009_DEPOSIT_COLLECTOR_ADDRESS),
+        collectorData,
       ],
     });
 

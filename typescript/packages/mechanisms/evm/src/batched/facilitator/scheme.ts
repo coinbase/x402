@@ -14,32 +14,29 @@ import {
   BatchedClaimWithSignaturePayload,
   BatchedSettleActionPayload,
   BatchedDepositSettlePayload,
-  BatchedCooperativeWithdrawPayload,
-  BatchedCooperativeWithdrawWithSignaturePayload,
+  BatchedRefundPayload,
+  BatchedRefundWithSignaturePayload,
   isBatchedDepositPayload,
   isBatchedVoucherPayload,
   isBatchedClaimPayload,
   isBatchedClaimWithSignaturePayload,
   isBatchedSettleActionPayload,
   isBatchedDepositSettlePayload,
-  isBatchedCooperativeWithdrawPayload,
-  isBatchedCooperativeWithdrawWithSignaturePayload,
+  isBatchedRefundPayload,
+  isBatchedRefundWithSignaturePayload,
 } from "../types";
 import { verifyDeposit, settleDeposit } from "./deposit";
 import { verifyVoucher } from "./voucher";
 import { executeClaim, executeClaimWithSignature } from "./claim";
 import { executeSettle } from "./settle";
-import {
-  executeCooperativeWithdraw,
-  executeCooperativeWithdrawWithSignature,
-} from "./cooperativeWithdraw";
+import { executeRefund, executeRefundWithSignature } from "./refund";
 import * as Errors from "./errors";
 
 /**
  * Facilitator-side implementation of the `batched` scheme for EVM networks.
  *
  * Routes incoming verify/settle requests to the appropriate handler based on payload
- * type (deposit, voucher, claim, claimWithSignature, settle, cooperativeWithdraw).
+ * type (deposit, voucher, claim, claimWithSignature, settle, refund).
  */
 export class BatchedEvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "batched";
@@ -120,12 +117,12 @@ export class BatchedEvmScheme implements SchemeNetworkFacilitator {
    * Executes settlement for a payment payload.
    *
    * Dispatches to the correct handler based on payload settle action:
-   * - `deposit` → on-chain `depositWithERC3009`
+   * - `deposit` → on-chain `deposit(config, amount, collector, collectorData)`
    * - `claim` → on-chain `claim(VoucherClaim[])`
    * - `claimWithSignature` → on-chain `claimWithSignature(VoucherClaim[], bytes)`
    * - `settle` → on-chain `settle(receiver, token)`
-   * - `cooperativeWithdraw` → optional claim + onchain `cooperativeWithdraw` (msg.sender-gated)
-   * - `cooperativeWithdrawWithSignature` → optional claim + onchain `cooperativeWithdrawWithSignature`
+   * - `refund` → optional claim + onchain `refund(config, amount)` (msg.sender-gated)
+   * - `refundWithSignature` → optional claim + onchain `refundWithSignature(config, amount, nonce, sig)`
    *
    * @param payload - The x402 payment payload envelope.
    * @param requirements - Server payment requirements.
@@ -165,18 +162,18 @@ export class BatchedEvmScheme implements SchemeNetworkFacilitator {
       );
     }
 
-    if (isBatchedCooperativeWithdrawWithSignaturePayload(rawPayload)) {
-      return executeCooperativeWithdrawWithSignature(
+    if (isBatchedRefundWithSignaturePayload(rawPayload)) {
+      return executeRefundWithSignature(
         this.signer,
-        rawPayload as unknown as BatchedCooperativeWithdrawWithSignaturePayload,
+        rawPayload as unknown as BatchedRefundWithSignaturePayload,
         requirements,
       );
     }
 
-    if (isBatchedCooperativeWithdrawPayload(rawPayload)) {
-      return executeCooperativeWithdraw(
+    if (isBatchedRefundPayload(rawPayload)) {
+      return executeRefund(
         this.signer,
-        rawPayload as unknown as BatchedCooperativeWithdrawPayload,
+        rawPayload as unknown as BatchedRefundPayload,
         requirements,
       );
     }

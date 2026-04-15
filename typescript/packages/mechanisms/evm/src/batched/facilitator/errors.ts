@@ -20,8 +20,7 @@ export const ErrInvalidReceiveAuthorizationSignature =
   "batch_settlement_evm_invalid_receive_authorization_signature";
 export const ErrErc3009AuthorizationRequired =
   "batch_settlement_evm_erc3009_authorization_required";
-export const ErrCooperativeWithdrawTransactionFailed =
-  "batch_settlement_evm_cooperative_withdraw_transaction_failed";
+export const ErrRefundTransactionFailed = "batch_settlement_evm_refund_transaction_failed";
 export const ErrInvalidPayloadType = "batch_settlement_evm_invalid_payload_type";
 export const ErrWithdrawDelayOutOfRange = "batch_settlement_evm_withdraw_delay_out_of_range";
 export const ErrChannelIdMismatch = "batch_settlement_evm_channel_id_mismatch";

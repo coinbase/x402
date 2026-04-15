@@ -71,15 +71,22 @@ export async function verifyVoucher(
       functionName: "pendingWithdrawals",
       args: [channelId],
     },
+    {
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "refundNonce",
+      args: [channelId],
+    },
   ]);
 
-  const [chRes, wdRes] = mcResults;
-  if (chRes.status === "failure" || wdRes.status === "failure") {
+  const [chRes, wdRes, rnRes] = mcResults;
+  if (chRes.status === "failure" || wdRes.status === "failure" || rnRes.status === "failure") {
     return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
   }
 
   const [chBalance, chTotalClaimed] = chRes.result as [bigint, bigint];
   const [, wdInitiatedAt] = wdRes.result as [bigint, bigint];
+  const refundNonceVal = rnRes.result as bigint;
 
   if (chBalance === 0n) {
     return { isValid: false, invalidReason: Errors.ErrChannelNotFound, payer: channelConfig.payer };
@@ -111,6 +118,7 @@ export async function verifyVoucher(
       balance: chBalance.toString(),
       totalClaimed: chTotalClaimed.toString(),
       withdrawRequestedAt: Number(wdInitiatedAt),
+      refundNonce: refundNonceVal.toString(),
     },
   };
 }

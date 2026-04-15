@@ -1,8 +1,8 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
-import { getAddress } from "viem";
+import { getAddress, encodeAbiParameters, keccak256 } from "viem";
 import { ClientEvmSigner } from "../../signer";
 import { ChannelConfig, BatchedDepositPayload } from "../types";
-import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
+import { ERC3009_DEPOSIT_COLLECTOR_ADDRESS, receiveAuthorizationTypes } from "../constants";
 import { createNonce, getEvmChainId } from "../../utils";
 import { signVoucher } from "./voucher";
 import { computeChannelId } from "../utils";
@@ -32,7 +32,7 @@ export async function createBatchedEIP3009DepositPayload(
   maxClaimableAmount: string,
   voucherSigner?: ClientEvmSigner,
 ): Promise<PaymentPayloadResult> {
-  const nonce = createNonce();
+  const salt = createNonce();
   const now = Math.floor(Date.now() / 1000);
   const chainId = getEvmChainId(paymentRequirements.network);
 
@@ -43,6 +43,12 @@ export async function createBatchedEIP3009DepositPayload(
   }
 
   const { name, version } = paymentRequirements.extra;
+
+  const channelId = computeChannelId(channelConfig);
+
+  const erc3009Nonce = keccak256(
+    encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [channelId, BigInt(salt)]),
+  );
 
   const signature = await signer.signTypedData({
     domain: {
@@ -55,15 +61,14 @@ export async function createBatchedEIP3009DepositPayload(
     primaryType: "ReceiveWithAuthorization",
     message: {
       from: getAddress(signer.address),
-      to: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      to: getAddress(ERC3009_DEPOSIT_COLLECTOR_ADDRESS),
       value: BigInt(depositAmount),
       validAfter: BigInt(now - 600),
       validBefore: BigInt(now + paymentRequirements.maxTimeoutSeconds),
-      nonce,
+      nonce: erc3009Nonce,
     },
   });
 
-  const channelId = computeChannelId(channelConfig);
   const vSigner = voucherSigner ?? signer;
   const voucher = await signVoucher(
     vSigner,
@@ -81,7 +86,7 @@ export async function createBatchedEIP3009DepositPayload(
         erc3009Authorization: {
           validAfter: (now - 600).toString(),
           validBefore: (now + paymentRequirements.maxTimeoutSeconds).toString(),
-          nonce,
+          salt,
           signature,
         },
       },

@@ -10,5 +10,5 @@ export type {
   AutoSettlementConfig,
   ClaimResult,
   SettleResult,
-  CooperativeWithdrawResult,
+  RefundResult,
 } from "./settlement";

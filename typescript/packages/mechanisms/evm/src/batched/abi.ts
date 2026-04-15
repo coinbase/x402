@@ -22,7 +22,7 @@ const voucherClaimComponents = [
     ],
   },
   { name: "signature", type: "bytes" },
-  { name: "claimAmount", type: "uint128" },
+  { name: "totalClaimed", type: "uint128" },
 ] as const;
 
 export const batchSettlementABI = [
@@ -32,46 +32,8 @@ export const batchSettlementABI = [
     inputs: [
       { name: "config", type: "tuple", components: channelConfigComponents },
       { name: "amount", type: "uint128" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "depositWithERC3009",
-    inputs: [
-      { name: "config", type: "tuple", components: channelConfigComponents },
-      { name: "amount", type: "uint128" },
-      { name: "validAfter", type: "uint256" },
-      { name: "validBefore", type: "uint256" },
-      { name: "nonce", type: "bytes32" },
-      { name: "signature", type: "bytes" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "depositWithPermit2",
-    inputs: [
-      { name: "config", type: "tuple", components: channelConfigComponents },
-      {
-        name: "permit",
-        type: "tuple",
-        components: [
-          {
-            name: "permitted",
-            type: "tuple",
-            components: [
-              { name: "token", type: "address" },
-              { name: "amount", type: "uint256" },
-            ],
-          },
-          { name: "nonce", type: "uint256" },
-          { name: "deadline", type: "uint256" },
-        ],
-      },
-      { name: "signature", type: "bytes" },
+      { name: "collector", type: "address" },
+      { name: "collectorData", type: "bytes" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -122,16 +84,21 @@ export const batchSettlementABI = [
   },
   {
     type: "function",
-    name: "cooperativeWithdraw",
-    inputs: [{ name: "config", type: "tuple", components: channelConfigComponents }],
+    name: "refund",
+    inputs: [
+      { name: "config", type: "tuple", components: channelConfigComponents },
+      { name: "amount", type: "uint128" },
+    ],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "cooperativeWithdrawWithSignature",
+    name: "refundWithSignature",
     inputs: [
       { name: "config", type: "tuple", components: channelConfigComponents },
+      { name: "amount", type: "uint128" },
+      { name: "nonce", type: "uint256" },
       { name: "receiverAuthorizerSignature", type: "bytes" },
     ],
     outputs: [],
@@ -189,9 +156,20 @@ export const batchSettlementABI = [
   },
   {
     type: "function",
-    name: "getCooperativeWithdrawDigest",
-    inputs: [{ name: "channelId", type: "bytes32" }],
+    name: "getRefundDigest",
+    inputs: [
+      { name: "channelId", type: "bytes32" },
+      { name: "nonce", type: "uint256" },
+      { name: "amount", type: "uint128" },
+    ],
     outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "refundNonce",
+    inputs: [{ name: "channelId", type: "bytes32" }],
+    outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   {

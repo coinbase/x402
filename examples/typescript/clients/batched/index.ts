@@ -23,6 +23,7 @@ const storageDir = process.env.STORAGE_DIR ?? process.env.STORAGE_DIR_DIR;
 const channelSalt = (process.env.CHANNEL_SALT ??
   "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`;
 const numberOfRequests = Number(process.env.NUMBER_OF_REQUESTS ?? "3");
+const refundOnLastRequest = process.env.REFUND_ON_LAST_REQUEST === "true";
 
 async function main(): Promise<void> {
   const account = privateKeyToAccount(evmPrivateKey);
@@ -62,9 +63,9 @@ async function main(): Promise<void> {
   for (let i = 0; i < numberOfRequests; i++) {
     const requestT0 = performance.now();
 
-    if (i === numberOfRequests - 1 && channelId) {
-      //console.log(`REQUESTING COOPERATIVE WITHDRAW`);
-      //batchedScheme.requestCooperativeWithdraw(channelId);
+    if (refundOnLastRequest && i === numberOfRequests - 1 && channelId) {
+      console.log(`REQUESTING REFUND`);
+      batchedScheme.requestRefund(channelId);
     }
 
     const response = await fetchWithPayment(url, { method: "GET" });

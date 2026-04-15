@@ -1,10 +1,7 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import {
-  BatchedCooperativeWithdrawPayload,
-  BatchedCooperativeWithdrawWithSignaturePayload,
-} from "../types";
+import { BatchedRefundPayload, BatchedRefundWithSignaturePayload } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
@@ -13,10 +10,10 @@ import { executeClaim, executeClaimWithSignature } from "./claim";
 /**
  * Normalizes channel config fields to checksummed addresses for the batch settlement contract.
  *
- * @param config - Channel configuration from the cooperative withdraw payload.
- * @returns Arguments object suitable for `cooperativeWithdraw` on the settlement contract.
+ * @param config - Channel configuration from the refund payload.
+ * @returns Arguments object suitable for `refund` on the settlement contract.
  */
-function buildConfigTuple(config: BatchedCooperativeWithdrawPayload["config"]) {
+function buildConfigTuple(config: BatchedRefundPayload["config"]) {
   return {
     payer: getAddress(config.payer),
     payerAuthorizer: getAddress(config.payerAuthorizer),
@@ -29,20 +26,20 @@ function buildConfigTuple(config: BatchedCooperativeWithdrawPayload["config"]) {
 }
 
 /**
- * Executes a cooperative withdrawal via msg.sender path (facilitator IS the receiverAuthorizer).
+ * Executes a cooperative refund via msg.sender path (facilitator IS the receiverAuthorizer or receiver).
  *
  * If `payload.claims` is non-empty, outstanding vouchers are claimed first via
- * {@link executeClaim}.  Then the channel balance is returned to the payer through
- * `cooperativeWithdraw(config)`.
+ * {@link executeClaim}.  Then the specified amount is returned to the payer through
+ * `refund(config, amount)`.
  *
  * @param signer - Facilitator signer used to submit the on-chain transactions.
- * @param payload - Cooperative withdraw payload (ChannelConfig + claims, no signature).
+ * @param payload - Refund payload (ChannelConfig + amount + claims, no signature).
  * @param requirements - Payment requirements for network identification.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
-export async function executeCooperativeWithdraw(
+export async function executeRefund(
   signer: FacilitatorEvmSigner,
-  payload: BatchedCooperativeWithdrawPayload,
+  payload: BatchedRefundPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
@@ -62,15 +59,15 @@ export async function executeCooperativeWithdraw(
     const tx = await signer.writeContract({
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,
-      functionName: "cooperativeWithdraw",
-      args: [buildConfigTuple(payload.config)],
+      functionName: "refund",
+      args: [buildConfigTuple(payload.config), BigInt(payload.amount)],
     });
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
     if (receipt.status !== "success") {
       return {
         success: false,
-        errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+        errorReason: Errors.ErrRefundTransactionFailed,
         transaction: tx,
         network,
       };
@@ -85,7 +82,7 @@ export async function executeCooperativeWithdraw(
   } catch {
     return {
       success: false,
-      errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+      errorReason: Errors.ErrRefundTransactionFailed,
       transaction: "",
       network,
     };
@@ -93,22 +90,22 @@ export async function executeCooperativeWithdraw(
 }
 
 /**
- * Executes a cooperative withdrawal via signature path (server IS the receiverAuthorizer).
+ * Executes a cooperative refund via signature path (server IS the receiverAuthorizer).
  *
  * If `payload.claims` is non-empty:
  * - If `claimAuthorizerSignature` is present, uses `claimWithSignature`
  * - Otherwise, falls back to msg.sender-gated `claim`
  *
- * Then calls `cooperativeWithdrawWithSignature(config, receiverAuthorizerSignature)`.
+ * Then calls `refundWithSignature(config, amount, nonce, receiverAuthorizerSignature)`.
  *
  * @param signer - Facilitator signer used to submit the on-chain transactions.
- * @param payload - Cooperative withdraw payload with receiverAuthorizer signature.
+ * @param payload - Refund payload with receiverAuthorizer signature, amount, and nonce.
  * @param requirements - Payment requirements for network identification.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
-export async function executeCooperativeWithdrawWithSignature(
+export async function executeRefundWithSignature(
   signer: FacilitatorEvmSigner,
-  payload: BatchedCooperativeWithdrawWithSignaturePayload,
+  payload: BatchedRefundWithSignaturePayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
@@ -143,15 +140,20 @@ export async function executeCooperativeWithdrawWithSignature(
     const tx = await signer.writeContract({
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,
-      functionName: "cooperativeWithdrawWithSignature",
-      args: [buildConfigTuple(payload.config), payload.receiverAuthorizerSignature],
+      functionName: "refundWithSignature",
+      args: [
+        buildConfigTuple(payload.config),
+        BigInt(payload.amount),
+        BigInt(payload.nonce),
+        payload.receiverAuthorizerSignature,
+      ],
     });
 
     const receipt = await signer.waitForTransactionReceipt({ hash: tx });
     if (receipt.status !== "success") {
       return {
         success: false,
-        errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+        errorReason: Errors.ErrRefundTransactionFailed,
         transaction: tx,
         network,
       };
@@ -166,7 +168,7 @@ export async function executeCooperativeWithdrawWithSignature(
   } catch {
     return {
       success: false,
-      errorReason: Errors.ErrCooperativeWithdrawTransactionFailed,
+      errorReason: Errors.ErrRefundTransactionFailed,
       transaction: "",
       network,
     };

@@ -1,5 +1,9 @@
 /** Deployed address of the x402BatchSettlement contract. */
-export const BATCH_SETTLEMENT_ADDRESS = "0x4020cfaffad9df99f9acc48227c40f80d17a0003" as const;
+export const BATCH_SETTLEMENT_ADDRESS = "0x4020e07E964De72a79367828c9C6140fcaE00003" as const;
+
+/** Deployed address of the ERC3009DepositCollector contract. */
+export const ERC3009_DEPOSIT_COLLECTOR_ADDRESS =
+  "0x402064ac4dA4f510EeC7D71fDc23A7D47fb10004" as const;
 
 /** Minimum withdraw delay in seconds (15 minutes), matching the on-chain constant. */
 export const MIN_WITHDRAW_DELAY = 900;
@@ -21,14 +25,23 @@ export const voucherTypes = {
   ],
 } as const;
 
-/** EIP-712 type definition for cooperative withdrawal: `CooperativeWithdraw(bytes32 channelId)`. */
-export const cooperativeWithdrawTypes = {
-  CooperativeWithdraw: [{ name: "channelId", type: "bytes32" }],
+/** EIP-712 type definition for cooperative refund: `Refund(bytes32 channelId, uint256 nonce, uint128 amount)`. */
+export const refundTypes = {
+  Refund: [
+    { name: "channelId", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "amount", type: "uint128" },
+  ],
 } as const;
 
-/** EIP-712 type definition for a receiver-authorizer claim batch: `ClaimBatch(bytes32 claimsHash)`. */
+/** EIP-712 type definitions for a receiver-authorizer claim batch (nested ClaimEntry). */
 export const claimBatchTypes = {
-  ClaimBatch: [{ name: "claimsHash", type: "bytes32" }],
+  ClaimBatch: [{ name: "claims", type: "ClaimEntry[]" }],
+  ClaimEntry: [
+    { name: "channelId", type: "bytes32" },
+    { name: "maxClaimableAmount", type: "uint128" },
+    { name: "totalClaimed", type: "uint128" },
+  ],
 } as const;
 
 /** EIP-712 type definition for ERC-3009 `ReceiveWithAuthorization` (used for gasless deposits). */

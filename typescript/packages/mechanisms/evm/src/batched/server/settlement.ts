@@ -25,11 +25,11 @@ export interface AutoSettlementConfig {
   settleThreshold?: string;
   maxClaimsPerBatch?: number;
   tickSecs?: number;
-  cooperativeWithdrawOnIdleSecs?: number;
-  cooperativeWithdrawOnShutdown?: boolean;
+  refundOnIdleSecs?: number;
+  refundOnShutdown?: boolean;
   onClaim?: (result: ClaimResult) => void;
   onSettle?: (result: SettleResult) => void;
-  onCooperativeWithdraw?: (result: CooperativeWithdrawResult) => void;
+  onRefund?: (result: RefundResult) => void;
   onError?: (error: unknown) => void;
 }
 
@@ -42,7 +42,7 @@ export interface SettleResult {
   transaction: string;
 }
 
-export interface CooperativeWithdrawResult {
+export interface RefundResult {
   channels: string[];
   transaction: string;
 }
@@ -51,7 +51,7 @@ export interface CooperativeWithdrawResult {
  * Manages the server-side channel lifecycle for the `batched` scheme:
  * batch claiming of vouchers, settlement of claimed funds, and cooperative withdrawal.
  *
- * Provides both manual (`claim()`, `settle()`, `cooperativeWithdraw()`) and automatic
+ * Provides both manual (`claim()`, `settle()`, `refund()`) and automatic
  * (`start()` / `stop()`) modes.  In automatic mode a periodic tick evaluates configurable
  * triggers (interval, idle time, threshold, pending withdrawal) and batches operations
  * accordingly.
@@ -155,13 +155,13 @@ export class BatchedChannelManager {
   }
 
   /**
-   * Initiates a cooperative withdrawal for one or more channels, optionally claiming
+   * Initiates a cooperative refund for one or more channels, optionally claiming
    * outstanding vouchers first.
    *
-   * @param channelIds - Specific channels to withdraw; defaults to all sessions.
-   * @returns Result with the list of withdrawn channels and the transaction hash.
+   * @param channelIds - Specific channels to refund; defaults to all sessions.
+   * @returns Result with the list of refunded channels and the transaction hash.
    */
-  async cooperativeWithdraw(channelIds?: string[]): Promise<CooperativeWithdrawResult> {
+  async refund(channelIds?: string[]): Promise<RefundResult> {
     const storage = this.scheme.getStorage();
     const sessions = await storage.list();
 
@@ -182,7 +182,7 @@ export class BatchedChannelManager {
             maxClaimableAmount: s.signedMaxClaimable,
           },
           signature: s.signature as `0x${string}`,
-          claimAmount: s.chargedCumulativeAmount,
+          totalClaimed: s.chargedCumulativeAmount,
         });
       }
     }
@@ -191,11 +191,19 @@ export class BatchedChannelManager {
     const config = firstTarget.channelConfig;
     const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
 
+    const refundAmount = (
+      BigInt(firstTarget.balance) - BigInt(firstTarget.chargedCumulativeAmount)
+    ).toString();
+
     let paymentPayload: PaymentPayload;
 
     if (hasAuthorizerSigner) {
-      const authSig = await this.scheme.signCooperativeWithdraw(
+      const nonce = String(firstTarget.refundNonce ?? 0);
+
+      const authSig = await this.scheme.signRefund(
         firstTarget.channelId as `0x${string}`,
+        refundAmount,
+        nonce,
         this.network,
       );
 
@@ -208,8 +216,10 @@ export class BatchedChannelManager {
         x402Version: 2,
         accepted: this.buildPaymentRequirements(),
         payload: {
-          settleAction: "cooperativeWithdrawWithSignature",
+          settleAction: "refundWithSignature",
           config,
+          amount: refundAmount,
+          nonce,
           claims,
           receiverAuthorizerSignature: authSig,
           ...(claimAuthorizerSignature ? { claimAuthorizerSignature } : {}),
@@ -220,8 +230,9 @@ export class BatchedChannelManager {
         x402Version: 2,
         accepted: this.buildPaymentRequirements(),
         payload: {
-          settleAction: "cooperativeWithdraw",
+          settleAction: "refund",
           config,
+          amount: refundAmount,
           claims,
         },
       };
@@ -230,7 +241,7 @@ export class BatchedChannelManager {
     const response = await this.facilitator.settle(paymentPayload, this.buildPaymentRequirements());
     if (!response.success) {
       throw new Error(
-        `CooperativeWithdraw failed: ${response.errorReason ?? "unknown"} — ${response.errorMessage ?? ""}`,
+        `Refund failed: ${response.errorReason ?? "unknown"} — ${response.errorMessage ?? ""}`,
       );
     }
 
@@ -276,10 +287,10 @@ export class BatchedChannelManager {
         claimOnWithdrawal,
         settleThreshold: config.settleThreshold,
         maxClaimsPerBatch,
-        cooperativeWithdrawOnIdleSecs: config.cooperativeWithdrawOnIdleSecs,
+        refundOnIdleSecs: config.refundOnIdleSecs,
         onClaim: config.onClaim,
         onSettle: config.onSettle,
-        onCooperativeWithdraw: config.onCooperativeWithdraw,
+        onRefund: config.onRefund,
         onError: config.onError,
       });
     }, tickMs);
@@ -300,11 +311,11 @@ export class BatchedChannelManager {
     }
     if (opts?.flush) {
       await this.claimAndSettle();
-      if (this.autoSettleConfig.cooperativeWithdrawOnShutdown) {
+      if (this.autoSettleConfig.refundOnShutdown) {
         try {
-          const result = await this.cooperativeWithdraw();
+          const result = await this.refund();
           if (result.channels.length > 0) {
-            this.autoSettleConfig.onCooperativeWithdraw?.(result);
+            this.autoSettleConfig.onRefund?.(result);
           }
         } catch (err) {
           this.autoSettleConfig.onError?.(err);
@@ -325,10 +336,10 @@ export class BatchedChannelManager {
    * @param cfg.claimOnWithdrawal - Whether pending withdrawals can trigger a claim.
    * @param cfg.settleThreshold - Optional min claimed-not-settled amount to trigger settle.
    * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link BatchedChannelManager.claim}.
-   * @param cfg.cooperativeWithdrawOnIdleSecs - Optional idle seconds before cooperative withdraw for non-zero balances.
+   * @param cfg.refundOnIdleSecs - Optional idle seconds before cooperative refund for non-zero balances.
    * @param cfg.onClaim - Callback after each successful claim batch.
    * @param cfg.onSettle - Callback after a successful settle.
-   * @param cfg.onCooperativeWithdraw - Callback after a cooperative withdraw with channels.
+   * @param cfg.onRefund - Callback after a cooperative refund with channels.
    * @param cfg.onError - Callback on errors inside the tick.
    * @returns Resolves when this tick's work finishes (no return value).
    */
@@ -340,10 +351,10 @@ export class BatchedChannelManager {
     claimOnWithdrawal: boolean;
     settleThreshold?: string;
     maxClaimsPerBatch: number;
-    cooperativeWithdrawOnIdleSecs?: number;
+    refundOnIdleSecs?: number;
     onClaim?: (result: ClaimResult) => void;
     onSettle?: (result: SettleResult) => void;
-    onCooperativeWithdraw?: (result: CooperativeWithdrawResult) => void;
+    onRefund?: (result: RefundResult) => void;
     onError?: (error: unknown) => void;
   }): Promise<void> {
     if (!this.running) {
@@ -374,15 +385,13 @@ export class BatchedChannelManager {
       cfg.onError?.(err);
     }
 
-    if (cfg.cooperativeWithdrawOnIdleSecs !== undefined) {
+    if (cfg.refundOnIdleSecs !== undefined) {
       try {
-        const idleChannels = await this.getIdleChannelsForCooperativeWithdraw(
-          cfg.cooperativeWithdrawOnIdleSecs,
-        );
+        const idleChannels = await this.getIdleChannelsForRefund(cfg.refundOnIdleSecs);
         if (idleChannels.length > 0) {
-          const result = await this.cooperativeWithdraw(idleChannels);
+          const result = await this.refund(idleChannels);
           if (result.channels.length > 0) {
-            cfg.onCooperativeWithdraw?.(result);
+            cfg.onRefund?.(result);
           }
         }
       } catch (err) {
@@ -425,7 +434,7 @@ export class BatchedChannelManager {
 
     if (cfg.claimThreshold !== undefined) {
       const allClaims = await this.scheme.getClaimableVouchers();
-      const total = allClaims.reduce((sum, c) => sum + BigInt(c.claimAmount), 0n);
+      const total = allClaims.reduce((sum, c) => sum + BigInt(c.totalClaimed), 0n);
       if (total > BigInt(cfg.claimThreshold)) {
         return true;
       }
@@ -484,12 +493,12 @@ export class BatchedChannelManager {
 
   /**
    * Returns channel ids that have been idle longer than `idleSecs` and still have
-   * a non-zero balance (candidates for cooperative withdrawal).
+   * a non-zero balance (candidates for cooperative refund).
    *
    * @param idleSecs - Minimum seconds since last request for a session to count as idle.
    * @returns Channel ids meeting the idle and balance criteria.
    */
-  private async getIdleChannelsForCooperativeWithdraw(idleSecs: number): Promise<string[]> {
+  private async getIdleChannelsForRefund(idleSecs: number): Promise<string[]> {
     const storage = this.scheme.getStorage();
     const sessions = await storage.list();
     const now = Date.now();

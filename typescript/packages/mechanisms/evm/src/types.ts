@@ -120,8 +120,8 @@ export type {
   BatchedClaimWithSignaturePayload,
   BatchedSettleActionPayload,
   BatchedDepositSettlePayload,
-  BatchedCooperativeWithdrawPayload,
-  BatchedCooperativeWithdrawWithSignaturePayload,
+  BatchedRefundPayload,
+  BatchedRefundWithSignaturePayload,
   BatchedVoucherClaim,
   BatchedPayload,
   BatchedSettlePayload,
@@ -133,8 +133,8 @@ export {
   isBatchedClaimWithSignaturePayload,
   isBatchedSettleActionPayload,
   isBatchedDepositSettlePayload,
-  isBatchedCooperativeWithdrawPayload,
-  isBatchedCooperativeWithdrawWithSignaturePayload,
+  isBatchedRefundPayload,
+  isBatchedRefundWithSignaturePayload,
 } from "./batched/types";
 
 /**

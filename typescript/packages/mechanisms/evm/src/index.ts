@@ -50,8 +50,8 @@ export type {
   BatchedClaimWithSignaturePayload,
   BatchedSettleActionPayload,
   BatchedDepositSettlePayload,
-  BatchedCooperativeWithdrawPayload,
-  BatchedCooperativeWithdrawWithSignaturePayload,
+  BatchedRefundPayload,
+  BatchedRefundWithSignaturePayload,
   BatchedVoucherClaim,
   BatchedPayload,
   BatchedSettlePayload,
@@ -63,16 +63,17 @@ export {
   isBatchedClaimWithSignaturePayload,
   isBatchedSettleActionPayload,
   isBatchedDepositSettlePayload,
-  isBatchedCooperativeWithdrawPayload,
-  isBatchedCooperativeWithdrawWithSignaturePayload,
+  isBatchedRefundPayload,
+  isBatchedRefundWithSignaturePayload,
 } from "./types";
 
 // Batch-settlement constants
 export {
   BATCH_SETTLEMENT_ADDRESS,
+  ERC3009_DEPOSIT_COLLECTOR_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
   voucherTypes,
-  cooperativeWithdrawTypes,
+  refundTypes,
   claimBatchTypes,
 } from "./batched/constants";
 

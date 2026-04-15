@@ -12,20 +12,20 @@ import {
 } from "@x402/core/types";
 import type { FacilitatorClient, SettleContext, VerifyContext } from "@x402/core/server";
 import { BatchedChannelManager } from "./settlement";
-import { getAddress, encodeAbiParameters, keccak256, concatHex } from "viem";
+import { getAddress } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { getEvmChainId } from "../../utils";
 import {
   isBatchedDepositPayload,
   isBatchedVoucherPayload,
-  isBatchedCooperativeWithdrawPayload,
-  isBatchedCooperativeWithdrawWithSignaturePayload,
+  isBatchedRefundPayload,
+  isBatchedRefundWithSignaturePayload,
 } from "../types";
 import type { ChannelConfig, BatchedVoucherClaim } from "../types";
 import {
   BATCH_SETTLEMENT_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
-  cooperativeWithdrawTypes,
+  refundTypes,
   claimBatchTypes,
 } from "../constants";
 import { computeChannelId } from "../utils";
@@ -60,7 +60,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
   private readonly receiverAuthorizerSigner: AuthorizerSigner | undefined;
   private readonly receiverAddress: `0x${string}`;
   private readonly withdrawDelay: number;
-  private pendingCooperativeWithdrawChannels = new Set<string>();
+  private pendingRefundChannels = new Set<string>();
 
   /**
    * Constructs a batched server scheme.
@@ -254,7 +254,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
           maxClaimableAmount: s.signedMaxClaimable,
         },
         signature: s.signature as `0x${string}`,
-        claimAmount: s.chargedCumulativeAmount,
+        totalClaimed: s.chargedCumulativeAmount,
       });
     }
 
@@ -272,14 +272,21 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Produces a `CooperativeWithdraw` EIP-712 signature from the receiver-authorizer signer,
-   * permitting the payer to immediately withdraw remaining channel funds.
+   * Produces a `Refund` EIP-712 signature from the receiver-authorizer signer,
+   * permitting the payer to receive a cooperative refund of the specified amount.
    *
-   * @param channelId - The channel to authorize withdrawal for.
+   * @param channelId - The channel to authorize refund for.
+   * @param amount - Refund amount (capped to unclaimed escrow on-chain).
+   * @param nonce - Must match on-chain `refundNonce(channelId)`.
    * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
-   * @returns The receiver-authorizer's EIP-712 signature over `CooperativeWithdraw(channelId)`.
+   * @returns The receiver-authorizer's EIP-712 signature over `Refund(channelId, nonce, amount)`.
    */
-  async signCooperativeWithdraw(channelId: `0x${string}`, network: string): Promise<`0x${string}`> {
+  async signRefund(
+    channelId: `0x${string}`,
+    amount: string,
+    nonce: string,
+    network: string,
+  ): Promise<`0x${string}`> {
     if (!this.receiverAuthorizerSigner) {
       throw new Error("receiverAuthorizerSigner is not configured");
     }
@@ -292,13 +299,12 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         chainId,
         verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
       },
-      types: cooperativeWithdrawTypes as unknown as Record<
-        string,
-        Array<{ name: string; type: string }>
-      >,
-      primaryType: "CooperativeWithdraw",
+      types: refundTypes as unknown as Record<string, Array<{ name: string; type: string }>>,
+      primaryType: "Refund",
       message: {
         channelId,
+        nonce: BigInt(nonce),
+        amount: BigInt(amount),
       },
     });
   }
@@ -310,7 +316,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
    *
    * @param claims - The voucher claims to authorize.
    * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
-   * @returns The receiver-authorizer's EIP-712 signature over `ClaimBatch(claimsHash)`.
+   * @returns The receiver-authorizer's EIP-712 signature over `ClaimBatch(ClaimEntry[] claims)`.
    */
   async signClaimBatch(claims: BatchedVoucherClaim[], network: string): Promise<`0x${string}`> {
     if (!this.receiverAuthorizerSigner) {
@@ -319,16 +325,11 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
 
     const chainId = getEvmChainId(network);
 
-    const hashes = claims.map(c => {
-      const channelId = computeChannelId(c.voucher.channel);
-      return keccak256(
-        encodeAbiParameters(
-          [{ type: "bytes32" }, { type: "uint128" }, { type: "uint128" }],
-          [channelId, BigInt(c.voucher.maxClaimableAmount), BigInt(c.claimAmount)],
-        ),
-      );
-    });
-    const claimsHash = keccak256(concatHex(hashes));
+    const claimEntries = claims.map(c => ({
+      channelId: computeChannelId(c.voucher.channel),
+      maxClaimableAmount: BigInt(c.voucher.maxClaimableAmount),
+      totalClaimed: BigInt(c.totalClaimed),
+    }));
 
     return this.receiverAuthorizerSigner.signTypedData({
       domain: {
@@ -339,7 +340,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       types: claimBatchTypes as unknown as Record<string, Array<{ name: string; type: string }>>,
       primaryType: "ClaimBatch",
       message: {
-        claimsHash,
+        claims: claimEntries,
       },
     });
   }
@@ -459,6 +460,12 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         : typeof ex.withdrawRequestedAt === "string"
           ? parseInt(ex.withdrawRequestedAt, 10) || 0
           : 0;
+    const refundNonce =
+      typeof ex.refundNonce === "string"
+        ? parseInt(ex.refundNonce, 10) || 0
+        : typeof ex.refundNonce === "number"
+          ? ex.refundNonce
+          : 0;
 
     const prev = await this.storage.get(channelId);
     const resolvedConfig = channelConfig ?? prev?.channelConfig;
@@ -475,6 +482,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       balance,
       totalClaimed,
       withdrawRequestedAt,
+      refundNonce,
       lastRequestTimestamp: Date.now(),
     };
     await this.storage.compareAndSet(channelId, prev?.chargedCumulativeAmount ?? "0", session);
@@ -486,7 +494,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
    * For voucher payloads the server does NOT trigger an onchain settle.  Instead, it
    * increments the local `chargedCumulativeAmount` and returns a `skip` result so the
    * middleware responds immediately.  If the client requests a
-   * cooperative withdrawal, the payload is rewritten to a `cooperativeWithdraw` settle
+   * cooperative refund, the payload is rewritten to a `refund` settle
    * action that the facilitator will execute onchain.
    *
    * @param ctx - Settle lifecycle context (payload and requirements).
@@ -541,12 +549,18 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
           maxClaimableAmount: raw.maxClaimableAmount as string,
         },
         signature: raw.signature as `0x${string}`,
-        claimAmount: newCharged.toString(),
+        totalClaimed: newCharged.toString(),
       };
 
+      const refundAmount = (BigInt(session.balance) - newCharged).toString();
+
       if (this.receiverAuthorizerSigner) {
-        const authorizerSignature = await this.signCooperativeWithdraw(
+        const nonce = String(session.refundNonce ?? 0);
+
+        const authorizerSignature = await this.signRefund(
           channelId as `0x${string}`,
+          refundAmount,
+          nonce,
           requirements.network,
         );
 
@@ -556,21 +570,24 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         );
 
         (paymentPayload as { payload: unknown }).payload = {
-          settleAction: "cooperativeWithdrawWithSignature",
+          settleAction: "refundWithSignature",
           config,
+          amount: refundAmount,
+          nonce,
           claims: [claimEntry],
           receiverAuthorizerSignature: authorizerSignature,
           claimAuthorizerSignature,
         };
       } else {
         (paymentPayload as { payload: unknown }).payload = {
-          settleAction: "cooperativeWithdraw",
+          settleAction: "refund",
           config,
+          amount: refundAmount,
           claims: [claimEntry],
         };
       }
 
-      this.pendingCooperativeWithdrawChannels.add(channelId.toLowerCase());
+      this.pendingRefundChannels.add(channelId.toLowerCase());
       return;
     }
 
@@ -584,6 +601,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       balance: session.balance,
       totalClaimed: session.totalClaimed,
       withdrawRequestedAt: session.withdrawRequestedAt,
+      refundNonce: session.refundNonce,
       lastRequestTimestamp: Date.now(),
     };
 
@@ -643,10 +661,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
 
     const raw = paymentPayload.payload as Record<string, unknown>;
 
-    if (
-      isBatchedCooperativeWithdrawWithSignaturePayload(raw) ||
-      isBatchedCooperativeWithdrawPayload(raw)
-    ) {
+    if (isBatchedRefundWithSignaturePayload(raw) || isBatchedRefundPayload(raw)) {
       const channelId =
         typeof (raw.config as Record<string, unknown>)?.payer === "string"
           ? (result.extra as Record<string, unknown>)?.channelId
@@ -655,13 +670,13 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         typeof channelId === "string" ? channelId : raw.claims ? undefined : undefined;
 
       if (channelIdStr) {
-        this.pendingCooperativeWithdrawChannels.delete(channelIdStr.toLowerCase());
+        this.pendingRefundChannels.delete(channelIdStr.toLowerCase());
         await this.storage.delete(channelIdStr);
       }
 
       result.extra = {
         ...result.extra,
-        cooperativeWithdraw: true,
+        refund: true,
       };
       return;
     }
@@ -691,6 +706,12 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
           : typeof ex.withdrawRequestedAt === "string"
             ? parseInt(ex.withdrawRequestedAt, 10) || 0
             : 0;
+      const refundNonceSnap =
+        typeof ex.refundNonce === "string"
+          ? parseInt(ex.refundNonce, 10) || 0
+          : typeof ex.refundNonce === "number"
+            ? ex.refundNonce
+            : 0;
 
       const prevSession = await this.storage.get(channelId);
       const depositConfig = (raw.deposit as Record<string, unknown>)?.channelConfig as
@@ -717,6 +738,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
         balance: balanceSnap,
         totalClaimed: totalClaimedSnap,
         withdrawRequestedAt: withdrawAtSnap,
+        refundNonce: refundNonceSnap,
         lastRequestTimestamp: Date.now(),
       };
       await this.storage.set(channelId, session);

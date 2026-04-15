@@ -28,7 +28,7 @@ function buildVoucherClaimArgs(claims: BatchedClaimPayload["claims"]) {
       maxClaimableAmount: BigInt(c.voucher.maxClaimableAmount),
     },
     signature: c.signature,
-    claimAmount: BigInt(c.claimAmount),
+    totalClaimed: BigInt(c.totalClaimed),
   }));
 }
 
