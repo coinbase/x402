@@ -20,10 +20,10 @@ contract DeployBatchSettlement is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer (same on all EVM chains)
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    /// @dev Vanity mined (batch-stack): settlement ...0003, ERC3009 ...0004, Permit2 collector ...0005
+    /// @dev Vanity mined (`cargo run --release -- batch-stack`): batch ...0003, ERC3009 ...0004, Permit2 ...0005
     bytes32 constant BATCH_SALT = 0x000000000000000000000000000000000000000000000000800000000168fe19;
-    bytes32 constant ERC3009_SALT = 0x0000000000000000000000000000000000000000000000003800000002f06f9b;
-    bytes32 constant PERMIT2_COLLECTOR_SALT = 0x0000000000000000000000000000000000000000000000004e0000000addb382;
+    bytes32 constant ERC3009_SALT = 0x000000000000000000000000000000000000000000000000980000002968ae10;
+    bytes32 constant PERMIT2_COLLECTOR_SALT = 0x00000000000000000000000000000000000000000000000004000000369215a5;
 
     function run() public {
         address permit2 = vm.envOr("PERMIT2_ADDRESS", CANONICAL_PERMIT2);

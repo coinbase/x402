@@ -30,8 +30,10 @@ Both contracts:
 | Contract | Address |
 |----------|---------|
 | x402BatchSettlement | `0x4020ECC20B68d2A308931DA9ee1e016833860003` |
-| ERC3009DepositCollector | `0x4020a59826CB594BB9cE6d9DC48BE99674C00004` |
-| Permit2DepositCollector | `0x4020A4E9E164BCcA629FE0bEBbdDAF42768A0005` |
+| ERC3009DepositCollector | `0x40205cf31B2027ce5AfbD9EEbC167B8e0fB40004` |
+| Permit2DepositCollector | `0x40200a262E9A5A824A38Bc5A59cedbC20CF10005` |
+
+> Re-mine collectors (`cargo run --release -- batch-stack`) whenever `ERC3009DepositCollector` / `Permit2DepositCollector` bytecode changes; salts live in `script/DeployBatchSettlement.s.sol`.
 
 ### Current Deployments
 
