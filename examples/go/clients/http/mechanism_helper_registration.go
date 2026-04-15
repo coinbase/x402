@@ -19,19 +19,25 @@ import (
  * all networks of a particular type with the same signer.
  */
 
-func createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey string) (*x402.X402Client, error) {
+func createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey, evmRpcURL string) (*x402.X402Client, error) {
 	// Create signers from private keys
 	evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(evmPrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
+	// Optional RPC config enables gas sponsoring extensions (EIP-2612 / ERC-20 approval)
+	var rpcConfig *exactevm.ExactEvmSchemeConfig
+	if evmRpcURL != "" {
+		rpcConfig = &exactevm.ExactEvmSchemeConfig{RPCURL: evmRpcURL}
+	}
+
 	// Start with a new client
 	client := x402.Newx402Client()
 
 	// Register EVM schemes for all EVM networks using wildcard
-	client.Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner, nil))
-	client.Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner, nil))
+	client.Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner, rpcConfig))
+	client.Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner, rpcConfig))
 
 	// Register SVM scheme if key is provided
 	if svmPrivateKey != "" {

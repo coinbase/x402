@@ -8,6 +8,7 @@
     "dev": "tsx all_networks.ts",
     "dev:all-networks": "tsx all_networks.ts",
     "dev:bazaar": "tsx bazaar.ts",
+    "dev:gas-extensions": "tsx gas_extensions.ts",
     "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",

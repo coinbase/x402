@@ -9,67 +9,43 @@ import (
 
 	"github.com/gin-gonic/gin"
 	x402 "github.com/x402-foundation/x402/go"
+	eip2612gassponsor "github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
 	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/facilitator"
 	uptoevm "github.com/x402-foundation/x402/go/mechanisms/evm/upto/facilitator"
-	svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/facilitator"
 )
 
 /**
- * All Networks Facilitator Example
+ * Gas extensions facilitator example (exact + upto)
  *
- * Demonstrates how to create a facilitator that supports all available networks with
- * optional chain configuration via environment variables.
+ * Registers `exact` and `upto` on Base Sepolia and advertises both Permit2 gas-sponsoring
+ * extensions: EIP-2612 and ERC-20 approve (tokens without EIP-2612).
  *
- * New chain support should be added here in alphabetic order by network prefix
- * (e.g., "eip155" before "solana").
+ * Requires EVM_PRIVATE_KEY with Base Sepolia ETH for settlement and for broadcasting
+ * client-supplied approval transactions when those extensions are used.
  */
 
-const (
-	defaultPort = "4022"
-)
+func runGasExtensionsExample(evmPrivateKey string) error {
+	evmNetwork := x402.Network("eip155:84532")
 
-func runAllNetworksExample(evmPrivateKey, svmPrivateKey string) error {
-	// Network configuration
-	evmNetwork := x402.Network("eip155:84532")                            // Base Sepolia
-	svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") // Solana Devnet
-
-	// Initialize signers based on available keys
-	var evmSigner *facilitatorEvmSigner
-	var svmSigner *facilitatorSvmSigner
-	var err error
-
-	if evmPrivateKey != "" {
-		evmSigner, err = newFacilitatorEvmSigner(evmPrivateKey, DefaultEvmRPC)
-		if err != nil {
-			return fmt.Errorf("failed to create EVM signer: %w", err)
-		}
+	evmSigner, err := newFacilitatorEvmSigner(evmPrivateKey, DefaultEvmRPC)
+	if err != nil {
+		return fmt.Errorf("failed to create EVM signer: %w", err)
 	}
 
-	if svmPrivateKey != "" {
-		svmSigner, err = newFacilitatorSvmSigner(svmPrivateKey, DefaultSvmRPC)
-		if err != nil {
-			return fmt.Errorf("failed to create SVM signer: %w", err)
-		}
-	}
-
-	// Create facilitator
 	facilitator := x402.Newx402Facilitator()
 
-	// Register EVM scheme if signer is available (only explicitly specified networks)
-	if evmSigner != nil {
-		evmConfig := &evm.ExactEvmSchemeConfig{
-			DeployERC4337WithEIP6492: true,
-		}
-		facilitator.Register([]x402.Network{evmNetwork}, evm.NewExactEvmScheme(evmSigner, evmConfig))
-		facilitator.Register([]x402.Network{evmNetwork}, uptoevm.NewUptoEvmScheme(evmSigner, nil))
+	evmConfig := &evm.ExactEvmSchemeConfig{
+		DeployERC4337WithEIP6492: true,
 	}
+	facilitator.Register([]x402.Network{evmNetwork}, evm.NewExactEvmScheme(evmSigner, evmConfig))
+	facilitator.Register([]x402.Network{evmNetwork}, uptoevm.NewUptoEvmScheme(evmSigner, nil))
 
-	// Register SVM scheme if signer is available (only explicitly specified networks)
-	if svmSigner != nil {
-		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))
-	}
+	facilitator.RegisterExtension(eip2612gassponsor.EIP2612GasSponsoring)
+	facilitator.RegisterExtension(&erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
+		Signer: newErc20ApprovalGasSponsorSigner(evmSigner),
+	})
 
-	// Add lifecycle hooks
 	facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
 		fmt.Printf("✅ Payment verified\n")
 		return nil
@@ -80,23 +56,19 @@ func runAllNetworksExample(evmPrivateKey, svmPrivateKey string) error {
 		return nil
 	})
 
-	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	// Supported endpoint
 	r.GET("/supported", func(c *gin.Context) {
 		supported := facilitator.GetSupported()
 		c.JSON(http.StatusOK, supported)
 	})
 
-	// Health endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Verify endpoint
 	r.POST("/verify", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 		defer cancel()
@@ -120,7 +92,6 @@ func runAllNetworksExample(evmPrivateKey, svmPrivateKey string) error {
 		c.JSON(http.StatusOK, result)
 	})
 
-	// Settle endpoint
 	r.POST("/settle", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 		defer cancel()
@@ -144,14 +115,9 @@ func runAllNetworksExample(evmPrivateKey, svmPrivateKey string) error {
 		c.JSON(http.StatusOK, result)
 	})
 
-	// Print startup info
-	fmt.Printf("🚀 All Networks Facilitator listening on http://localhost:%s\n", defaultPort)
-	if evmSigner != nil {
-		fmt.Printf("   EVM: %s on %s\n", evmSigner.GetAddresses()[0], evmNetwork)
-	}
-	if svmSigner != nil {
-		fmt.Printf("   SVM: %s on %s\n", svmSigner.GetAddresses(context.Background(), string(svmNetwork))[0], svmNetwork)
-	}
+	fmt.Printf("🚀 Gas extensions facilitator (exact + upto) listening on http://localhost:%s\n", defaultPort)
+	fmt.Printf("   Extensions: eip2612GasSponsoring, erc20ApprovalGasSponsoring\n")
+	fmt.Printf("   EVM: %s on %s\n", evmSigner.GetAddresses()[0], evmNetwork)
 	fmt.Println()
 
 	return r.Run(":" + defaultPort)

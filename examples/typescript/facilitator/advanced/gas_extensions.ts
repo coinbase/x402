@@ -1,5 +1,14 @@
-import { base58 } from "@scure/base";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
+/**
+ * Permit2 gas sponsorship facilitator example (`exact` + `upto`)
+ *
+ * Registers both `exact` and `upto` EVM schemes on Base Sepolia and advertises the two
+ * gas-sponsoring extensions: EIP-2612 permits and ERC-20 `approve` transactions (tokens
+ * without EIP-2612). Both schemes use Permit2 paths that can pair with these extensions.
+ *
+ * Requires `EVM_PRIVATE_KEY` with Base Sepolia ETH for settlement and for broadcasting
+ * client-supplied approval transactions when those extensions are used.
+ */
+
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   PaymentPayload,
@@ -10,8 +19,10 @@ import {
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { UptoEvmScheme } from "@x402/evm/upto/facilitator";
-import { toFacilitatorSvmSigner } from "@x402/svm";
-import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import {
+  EIP2612_GAS_SPONSORING,
+  createErc20ApprovalGasSponsoringExtension,
+} from "@x402/extensions";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
@@ -20,40 +31,24 @@ import { baseSepolia } from "viem/chains";
 
 dotenv.config();
 
-// Configuration
 const PORT = process.env.PORT || "4022";
+const EVM_NETWORK = "eip155:84532";
 
-// Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
   console.error("❌ EVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
 
-if (!process.env.SVM_PRIVATE_KEY) {
-  console.error("❌ SVM_PRIVATE_KEY environment variable is required");
-  process.exit(1);
-}
-
-// Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
 );
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-// Initialize the SVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(
-  base58.decode(process.env.SVM_PRIVATE_KEY as string),
-);
-console.info(`SVM Facilitator account: ${svmAccount.address}`);
-
-// Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
   account: evmAccount,
   chain: baseSepolia,
   transport: http(),
 }).extend(publicActions);
-
-// Initialize the x402 Facilitator with EVM and SVM support
 
 const evmSigner = toFacilitatorEvmSigner({
   getCode: (args: { address: `0x${string}` }) => viemClient.getCode(args),
@@ -93,9 +88,6 @@ const evmSigner = toFacilitatorEvmSigner({
     viemClient.waitForTransactionReceipt(args),
 });
 
-// Facilitator can now handle all Solana networks with automatic RPC creation
-const svmSigner = toFacilitatorSvmSigner(svmAccount);
-
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     console.log("Before verify", context);
@@ -116,27 +108,43 @@ const facilitator = new x402Facilitator()
     console.log("Settle failure", context);
   });
 
-// Register EVM and SVM schemes
 facilitator.register(
-  "eip155:84532",
+  EVM_NETWORK,
   new ExactEvmScheme(evmSigner, { deployERC4337WithEIP6492: true }),
-); // Base Sepolia
-facilitator.register("eip155:84532", new UptoEvmScheme(evmSigner));
-facilitator.register(
-  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-  new ExactSvmScheme(svmSigner),
-); // Devnet
+);
+facilitator.register(EVM_NETWORK, new UptoEvmScheme(evmSigner));
 
-// Initialize Express app
+const erc20ApprovalSigner = {
+  ...evmSigner,
+  sendTransactions: async (
+    transactions: (`0x${string}` | { to: `0x${string}`; data: `0x${string}`; gas?: bigint })[],
+  ): Promise<`0x${string}`[]> => {
+    const hashes: `0x${string}`[] = [];
+    for (const tx of transactions) {
+      let hash: `0x${string}`;
+      if (typeof tx === "string") {
+        hash = await viemClient.sendRawTransaction({ serializedTransaction: tx });
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        hash = await viemClient.sendTransaction(tx as any);
+      }
+      const receipt = await viemClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        throw new Error(`transaction_failed: ${hash}`);
+      }
+      hashes.push(hash);
+    }
+    return hashes;
+  },
+};
+
+facilitator
+  .registerExtension(EIP2612_GAS_SPONSORING)
+  .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner));
+
 const app = express();
 app.use(express.json());
 
-/**
- * POST /verify
- * Verify a payment against requirements
- *
- * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
- */
 app.post("/verify", async (req, res) => {
   try {
     const { paymentPayload, paymentRequirements } = req.body as {
@@ -150,9 +158,6 @@ app.post("/verify", async (req, res) => {
       });
     }
 
-    // Hooks will automatically:
-    // - Track verified payment (onAfterVerify)
-    // - Extract and catalog discovery info (onAfterVerify)
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload,
       paymentRequirements,
@@ -167,12 +172,6 @@ app.post("/verify", async (req, res) => {
   }
 });
 
-/**
- * POST /settle
- * Settle a payment on-chain
- *
- * Note: Verification validation and cleanup are handled by lifecycle hooks
- */
 app.post("/settle", async (req, res) => {
   try {
     const { paymentPayload, paymentRequirements } = req.body;
@@ -183,10 +182,6 @@ app.post("/settle", async (req, res) => {
       });
     }
 
-    // Hooks will automatically:
-    // - Validate payment was verified (onBeforeSettle - will abort if not)
-    // - Check verification timeout (onBeforeSettle)
-    // - Clean up tracking (onAfterSettle / onSettleFailure)
     const response: SettleResponse = await facilitator.settle(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
@@ -196,12 +191,10 @@ app.post("/settle", async (req, res) => {
   } catch (error) {
     console.error("Settle error:", error);
 
-    // Check if this was an abort from hook
     if (
       error instanceof Error &&
       error.message.includes("Settlement aborted:")
     ) {
-      // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,
         errorReason: error.message.replace("Settlement aborted: ", ""),
@@ -215,10 +208,6 @@ app.post("/settle", async (req, res) => {
   }
 });
 
-/**
- * GET /supported
- * Get supported payment kinds and extensions
- */
 app.get("/supported", async (req, res) => {
   try {
     const response = facilitator.getSupported();
@@ -231,8 +220,16 @@ app.get("/supported", async (req, res) => {
   }
 });
 
-// Start the server
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.listen(parseInt(PORT), () => {
-  console.log(`🚀 Facilitator listening on http://localhost:${PORT}`);
+  console.log(
+    `🚀 Gas extensions facilitator (exact + upto) listening on http://localhost:${PORT}`,
+  );
+  console.log(
+    `   Extensions: eip2612GasSponsoring, erc20ApprovalGasSponsoring`,
+  );
   console.log();
 });

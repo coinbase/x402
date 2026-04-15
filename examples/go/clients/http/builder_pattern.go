@@ -19,19 +19,25 @@ import (
  * which signers and schemes.
  */
 
-func createBuilderPatternClient(evmPrivateKey, svmPrivateKey string) (*x402.X402Client, error) {
+func createBuilderPatternClient(evmPrivateKey, svmPrivateKey, evmRpcURL string) (*x402.X402Client, error) {
 	// Create signers from private keys
 	evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(evmPrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
+	// Optional RPC config enables gas sponsoring extensions (EIP-2612 / ERC-20 approval)
+	var rpcConfig *exactevm.ExactEvmSchemeConfig
+	if evmRpcURL != "" {
+		rpcConfig = &exactevm.ExactEvmSchemeConfig{RPCURL: evmRpcURL}
+	}
+
 	// Create client and register schemes using builder pattern
 	client := x402.Newx402Client()
 
 	// Register EVM schemes for all EVM networks
-	client.Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner, nil))
-	client.Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner, nil))
+	client.Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner, rpcConfig))
+	client.Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner, rpcConfig))
 
 	// You can also register specific networks for fine-grained control
 	// For example, use a different signer for Ethereum mainnet:
