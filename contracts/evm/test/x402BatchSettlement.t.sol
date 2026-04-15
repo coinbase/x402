@@ -56,7 +56,7 @@ contract X402BatchSettlementTest is Test {
     event Settled(address indexed receiver, address indexed token, address indexed sender, uint128 amount);
     event Refunded(bytes32 indexed channelId, address indexed sender, uint128 amount);
     event WithdrawInitiated(bytes32 indexed channelId, uint128 amount, uint40 finalizeAfter);
-    event WithdrawFinalized(bytes32 indexed channelId, uint128 amount, address sender);
+    event WithdrawFinalized(bytes32 indexed channelId, address indexed sender, uint128 amount);
 
     function setUp() public {
         vm.warp(1_000_000);
@@ -761,8 +761,8 @@ contract X402BatchSettlementTest is Test {
 
         uint256 balBefore = token.balanceOf(payerWallet.addr);
 
-        vm.expectEmit(true, false, false, true);
-        emit WithdrawFinalized(channelId, DEPOSIT_AMOUNT, payerWallet.addr);
+        vm.expectEmit(true, true, false, true);
+        emit WithdrawFinalized(channelId, payerWallet.addr, DEPOSIT_AMOUNT);
 
         vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);

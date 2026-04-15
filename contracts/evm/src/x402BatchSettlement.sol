@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import {IDepositCollector} from "./interfaces/IDepositCollector.sol";
 
 /// @title x402BatchSettlement
 /// @notice Stateless unidirectional payment channel contract for the x402 `batch-settlement` scheme on EVM.
-/// @dev Channel identity is derived from an immutable ChannelConfig struct:
+///
+/// @dev Channel identity is derived from an immutable `ChannelConfig`:
 ///      `channelId = keccak256(abi.encode(channelConfig))`.
-///      Deployed at the same address across all supported EVM chains using CREATE2.
-///      Uses {ReentrancyGuardTransient} (EIP-1153); deploy only on chains with transient storage support.
-///      Fee-On-Transfer and rebasing tokens are not recommended for this protocol and are not guaranteed
-///      to work as other tokens.
-/// @author x402 Protocol
+///      Deploy at the same address on every chain via CREATE2.
+///      Uses `ReentrancyGuardTransient` (EIP-1153); deploy only where transient storage is supported.
+///      Fee-on-transfer and rebasing tokens are not recommended and are not guaranteed to behave like standard ERC-20s.
+///
+/// @author Coinbase
 contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
@@ -27,6 +28,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Structs
     // =========================================================================
 
+    /// @notice Immutable channel parameters; hashed to form `channelId`.
     struct ChannelConfig {
         address payer;
         address payerAuthorizer;
@@ -37,30 +39,35 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         bytes32 salt;
     }
 
+    /// @notice Per-channel escrow and claim totals.
     struct ChannelState {
         uint128 balance;
         uint128 totalClaimed;
     }
 
+    /// @notice In-flight timed withdrawal for a channel.
     struct WithdrawalState {
         uint128 amount;
+        /// @dev Timestamp (seconds) when the withdrawal was started; zero if none pending.
         uint40 initiatedAt;
     }
 
+    /// @notice Per-receiver, per-token aggregates for settlement sweeps.
     struct ReceiverState {
         uint128 totalClaimed;
         uint128 totalSettled;
     }
 
-    /// @dev The payer-signed data. Does not include claimAmount or signature.
+    /// @notice Payer-signed authorization data (no signature field here; that lives on `VoucherClaim`).
     struct Voucher {
         ChannelConfig channel;
         uint128 maxClaimableAmount;
     }
 
-    /// @dev Wraps a Voucher with the payer's signature and the receiverAuthorizer-determined cumulative claim total.
-    ///      Using a cumulative total (rather than a delta) provides natural replay protection:
-    ///      replaying a voucher after it's been applied is a no-op.
+    /// @notice One signed voucher row plus the cumulative amount the receiver side is claiming.
+    ///
+    /// @dev Cumulative `totalClaimed` (not a delta) gives replay protection: replaying an old voucher after it
+    ///      was applied is a no-op.
     struct VoucherClaim {
         Voucher voucher;
         bytes signature;
@@ -104,17 +111,32 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Events
     // =========================================================================
 
+    /// @notice Emitted the first time a channel receives escrowed balance.
     event ChannelCreated(bytes32 indexed channelId, ChannelConfig config);
+
+    /// @notice Emitted after a successful deposit into a channel.
     event Deposited(bytes32 indexed channelId, address indexed sender, uint128 amount, uint128 newBalance);
+
+    /// @notice Emitted when the receiver side increases the cumulative claimed amount for a channel.
     event Claimed(bytes32 indexed channelId, address indexed sender, uint128 claimAmount, uint128 newTotalClaimed);
+
+    /// @notice Emitted when claimed funds are transferred to the receiver during settlement.
     event Settled(address indexed receiver, address indexed token, address indexed sender, uint128 amount);
+
+    /// @notice Emitted when escrowed funds are refunded to the payer.
     event Refunded(bytes32 indexed channelId, address indexed sender, uint128 amount);
+
+    /// @notice Emitted when a timed withdrawal is started.
     event WithdrawInitiated(bytes32 indexed channelId, uint128 amount, uint40 finalizeAfter);
-    event WithdrawFinalized(bytes32 indexed channelId, uint128 amount, address sender);
+
+    /// @notice Emitted when a timed withdrawal completes and funds move to the payer.
+    event WithdrawFinalized(bytes32 indexed channelId, address indexed sender, uint128 amount);
 
     // =========================================================================
     // Errors
     // =========================================================================
+
+    /// @dev Errors use CapWords naming.
 
     error InvalidChannel();
     error ZeroDeposit();
@@ -141,38 +163,46 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Constructor
     // =========================================================================
 
+    /// @notice Sets the EIP-712 domain for vouchers, refunds, and claim batches.
     constructor() EIP712("x402 Batch Settlement", "1") {}
 
     // =========================================================================
     // Deposits
     // =========================================================================
 
-    /// @notice Deposit tokens into a channel using a pluggable collector.
-    /// @dev The collector handles the token transfer mechanics. This function verifies
-    ///      actual token receipt via balance checks (checks-effects-interactions with post-check).
-    /// @param config The immutable channel configuration
-    /// @param amount The exact amount of tokens to deposit
-    /// @param collector The deposit collector contract address
-    /// @param collectorData Opaque bytes forwarded to the collector (signatures, nonces, etc.)
+    /// @notice Deposits tokens into a channel using a pluggable collector.
+    ///
+    /// @dev The collector executes the pull; this function checks the contract's token balance increased
+    ///      by `amount` after the call (post-condition) to detect fee-on-transfer or failed pulls.
+    ///
+    /// @param config The immutable channel configuration.
+    /// @param amount The exact amount of tokens to deposit.
+    /// @param collector The deposit collector contract address.
+    /// @param collectorData Opaque bytes forwarded to the collector (signatures, nonces, etc.).
     function deposit(
         ChannelConfig calldata config,
         uint128 amount,
         address collector,
         bytes calldata collectorData
     ) external nonReentrant {
-        _validateConfig(config);
+        if (config.payer == address(0)) revert InvalidChannel();
+        if (config.receiver == address(0)) revert InvalidChannel();
+        if (config.receiverAuthorizer == address(0)) revert InvalidChannel();
+        if (config.token == address(0)) revert InvalidChannel();
+        if (config.withdrawDelay < MIN_WITHDRAW_DELAY || config.withdrawDelay > MAX_WITHDRAW_DELAY) {
+            revert WithdrawDelayOutOfRange();
+        }
         if (amount == 0) revert ZeroDeposit();
         if (collector == address(0)) revert InvalidCollector();
 
         bytes32 channelId = getChannelId(config);
         ChannelState storage ch = channels[channelId];
 
-        bool isNew = ch.balance == 0 && ch.totalClaimed == 0;
-
         if (amount > type(uint128).max - ch.balance) revert DepositOverflow();
         ch.balance += amount;
 
-        if (isNew) {
+        // First deposit on this channel (escrow was empty before this deposit)
+        if (ch.balance == amount && ch.totalClaimed == 0) {
             emit ChannelCreated(channelId, config);
         }
         emit Deposited(channelId, msg.sender, amount, ch.balance);
@@ -187,8 +217,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Claim & Settle
     // =========================================================================
 
-    /// @notice Batch-validate voucher claims and update channel accounting.
-    ///         For each row, caller must be `receiverAuthorizer` or `receiver` on that row's channel.
+    /// @notice Applies a batch of voucher claims and updates channel accounting.
+    ///
+    /// @param voucherClaims Signed voucher rows with cumulative claim totals.
+    ///
+    /// @dev For each row, `msg.sender` must be `receiverAuthorizer` or `receiver` for that row's channel.
     function claim(
         VoucherClaim[] calldata voucherClaims
     ) external nonReentrant {
@@ -203,8 +236,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
     }
 
-    /// @notice Batch-validate voucher claims with an off-chain receiverAuthorizer signature.
-    ///         Anyone can submit. All claims must reference the same receiverAuthorizer.
+    /// @notice Applies voucher claims authorized by a `receiverAuthorizer` EIP-712 signature over the batch.
+    ///
+    /// @param voucherClaims Claim rows for channels sharing the same `receiverAuthorizer`.
+    /// @param authorizerSignature Signature from `receiverAuthorizer` over `getClaimBatchDigest(voucherClaims)`.
+    ///
+    /// @dev Callable by anyone (relay-friendly). All rows must match the same `receiverAuthorizer`.
     function claimWithSignature(
         VoucherClaim[] calldata voucherClaims,
         bytes calldata authorizerSignature
@@ -213,7 +250,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         address authorizer = voucherClaims[0].voucher.channel.receiverAuthorizer;
 
-        bytes32 digest = _hashTypedDataV4(_claimBatchStructHash(voucherClaims));
+        bytes32 digest = getClaimBatchDigest(voucherClaims);
         if (!SignatureChecker.isValidSignatureNow(authorizer, digest, authorizerSignature)) {
             revert InvalidSignature();
         }
@@ -226,7 +263,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
     }
 
-    /// @notice Transfer all claimed-but-unsettled funds to the receiver. Permissionless.
+    /// @notice Transfers claimed-but-not-yet-settled tokens to the receiver for a `(receiver, token)` pair.
+    ///
+    /// @param receiver The receiver address whose pending settlement is swept.
+    /// @param token The ERC-20 token to transfer.
+    ///
+    /// @dev Permissionless: typically called by the receiver or a facilitator.
     function settle(address receiver, address token) external nonReentrant {
         ReceiverState storage rs = receivers[receiver][token];
         uint128 amount = rs.totalClaimed - rs.totalSettled;
@@ -243,7 +285,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Withdrawal Flow
     // =========================================================================
 
-    /// @notice Start the withdrawal countdown. Only `config.payer` or `config.payerAuthorizer` may call.
+    /// @notice Starts the payer-side timed withdrawal window for unclaimed escrow.
+    ///
+    /// @param config The channel configuration.
+    /// @param amount The gross amount requested; may be capped on finalization.
+    ///
+    /// @dev Only `config.payer` or `config.payerAuthorizer` may call. Reverts if a withdrawal is already pending.
     function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external {
         if (msg.sender != config.payer && msg.sender != config.payerAuthorizer) {
             revert InvalidChannel();
@@ -262,8 +309,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         emit WithdrawInitiated(channelId, amount, finalizeAfter);
     }
 
-    /// @notice Finalize withdrawal after delay has elapsed.
-    ///         Caller must be `config.payer` or `config.payerAuthorizer`.
+    /// @notice Finalizes a pending withdrawal after `withdrawDelay` and sends tokens to the payer.
+    ///
+    /// @param config The channel configuration.
+    ///
+    /// @dev Only `config.payer` or `config.payerAuthorizer` may call. Amount may be capped by available escrow.
     function finalizeWithdraw(
         ChannelConfig calldata config
     ) external nonReentrant {
@@ -287,15 +337,19 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         ws.initiatedAt = 0;
         ch.balance -= withdrawAmount;
 
-        emit WithdrawFinalized(channelId, withdrawAmount, msg.sender);
+        emit WithdrawFinalized(channelId, msg.sender, withdrawAmount);
 
         if (withdrawAmount > 0) {
             IERC20(config.token).safeTransfer(config.payer, withdrawAmount);
         }
     }
 
-    /// @notice Cooperative refund to the payer. `receiverAuthorizer` or `receiver` may call.
-    /// @param amount Requested refund; capped to unclaimed escrow `balance - totalClaimed`. No-ops if capped amount is zero.
+    /// @notice Cooperative refund of unclaimed escrow to the payer.
+    ///
+    /// @param config The channel configuration.
+    /// @param amount Requested refund; capped to `balance - totalClaimed`. No-ops if the capped amount is zero.
+    ///
+    /// @dev Only `receiverAuthorizer` or `receiver` may call.
     function refund(ChannelConfig calldata config, uint128 amount) external nonReentrant {
         if (!_isReceiverSide(msg.sender, config)) {
             revert NotAuthorizedToRefund();
@@ -303,9 +357,14 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         _executeRefund(config, amount);
     }
 
-    /// @notice Same as `refund`, but anyone may submit a signature from `receiverAuthorizer` authorizing `amount` for `nonce`.
-    /// @param amount Requested refund in the signature; capped to unclaimed escrow like `refund`. No-ops if capped amount is zero (nonce not consumed).
-    /// @param nonce Must equal `refundNonce(channelId)`; incremented after each successful refund.
+    /// @notice Refunds unclaimed escrow to the payer using an EIP-712 `Refund` signature from `receiverAuthorizer`.
+    ///
+    /// @param config The channel configuration.
+    /// @param amount The amount in the signature; capped like `refund`. No-op if capped amount is zero (nonce unchanged).
+    /// @param nonce Must equal `refundNonce(channelId)` for the channel; incremented after each successful refund.
+    /// @param receiverAuthorizerSignature EIP-712 signature from `receiverAuthorizer` over the refund digest.
+    ///
+    /// @dev Callable by anyone (relay-friendly).
     function refundWithSignature(
         ChannelConfig calldata config,
         uint128 amount,
@@ -325,46 +384,78 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // View Functions
     // =========================================================================
 
+    /// @notice Returns the canonical `channelId` for a channel configuration.
+    ///
+    /// @param config The channel configuration to hash.
+    ///
+    /// @return The `keccak256(abi.encode(config))` channel id.
     function getChannelId(
         ChannelConfig calldata config
     ) public pure returns (bytes32) {
         return keccak256(abi.encode(config));
     }
 
+    /// @notice EIP-712 digest for a `Voucher` with the given `channelId` and `maxClaimableAmount`.
+    ///
+    /// @param channelId The channel identifier.
+    /// @param maxClaimableAmount The ceiling encoded in the voucher.
+    ///
+    /// @return The typed data hash signers use for payer authorization.
     function getVoucherDigest(bytes32 channelId, uint128 maxClaimableAmount) external view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, maxClaimableAmount)));
     }
 
+    /// @notice EIP-712 digest for a cooperative `Refund` authorization.
+    ///
+    /// @param channelId The channel identifier.
+    /// @param nonce The refund nonce (must match on-chain `refundNonce`).
+    /// @param amount The signed refund amount.
+    ///
+    /// @return The typed data hash for `receiverAuthorizer` to sign.
     function getRefundDigest(bytes32 channelId, uint256 nonce, uint128 amount) external view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount)));
     }
 
+    /// @notice EIP-712 digest for the signed `ClaimBatch` (used by `claimWithSignature` and off-chain signing).
+    ///
+    /// @param voucherClaims The claim rows hashed into the batch.
+    ///
+    /// @return The typed data hash `receiverAuthorizer` signs for the batch.
     function getClaimBatchDigest(
         VoucherClaim[] calldata voucherClaims
-    ) external view returns (bytes32) {
-        return _hashTypedDataV4(_claimBatchStructHash(voucherClaims));
+    ) public view returns (bytes32) {
+        uint256 n = voucherClaims.length;
+        bytes32 entriesRoot;
+        if (n == 0) {
+            entriesRoot = keccak256("");
+        } else {
+            bytes32[] memory entryHashes = new bytes32[](n);
+            for (uint256 i = 0; i < n; ++i) {
+                bytes32 cid = getChannelId(voucherClaims[i].voucher.channel);
+                entryHashes[i] = keccak256(
+                    abi.encode(
+                        CLAIM_ENTRY_TYPEHASH,
+                        cid,
+                        voucherClaims[i].voucher.maxClaimableAmount,
+                        voucherClaims[i].totalClaimed
+                    )
+                );
+            }
+            entriesRoot = keccak256(abi.encodePacked(entryHashes));
+        }
+        return _hashTypedDataV4(keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, entriesRoot)));
     }
 
     // =========================================================================
     // Internal Helpers
     // =========================================================================
 
+    /// @dev True if `sender` may submit a claim for this channel (`receiver` or `receiverAuthorizer`).
     function _isReceiverSide(address sender, ChannelConfig calldata config) internal pure returns (bool) {
         return sender == config.receiverAuthorizer || sender == config.receiver;
     }
 
-    function _validateConfig(
-        ChannelConfig calldata config
-    ) internal pure {
-        if (config.payer == address(0)) revert InvalidChannel();
-        if (config.receiver == address(0)) revert InvalidChannel();
-        if (config.receiverAuthorizer == address(0)) revert InvalidChannel();
-        if (config.token == address(0)) revert InvalidChannel();
-        if (config.withdrawDelay < MIN_WITHDRAW_DELAY || config.withdrawDelay > MAX_WITHDRAW_DELAY) {
-            revert WithdrawDelayOutOfRange();
-        }
-    }
-
+    /// @dev Validates the payer signature, updates `channels` and `receivers`, and emits `Claimed`.
     function _processVoucherClaim(
         VoucherClaim calldata vc
     ) internal {
@@ -397,36 +488,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         emit Claimed(channelId, msg.sender, claimDelta, vc.totalClaimed);
     }
 
-    /// @dev EIP-712 `hashStruct(ClaimBatch)` for the given claims (see `CLAIM_BATCH_TYPEHASH` / `CLAIM_ENTRY_TYPEHASH`).
-    function _claimBatchStructHash(
-        VoucherClaim[] calldata voucherClaims
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(CLAIM_BATCH_TYPEHASH, _claimEntriesRootHash(voucherClaims)));
-    }
-
-    /// @dev EIP-712 encoding for `ClaimEntry[]`: `keccak256(abi.encodePacked(hashStruct(entry), ...))`.
-    function _claimEntriesRootHash(
-        VoucherClaim[] calldata voucherClaims
-    ) internal pure returns (bytes32) {
-        uint256 n = voucherClaims.length;
-        if (n == 0) {
-            return keccak256("");
-        }
-        bytes32[] memory entryHashes = new bytes32[](n);
-        for (uint256 i = 0; i < n; ++i) {
-            bytes32 channelId = getChannelId(voucherClaims[i].voucher.channel);
-            entryHashes[i] = keccak256(
-                abi.encode(
-                    CLAIM_ENTRY_TYPEHASH,
-                    channelId,
-                    voucherClaims[i].voucher.maxClaimableAmount,
-                    voucherClaims[i].totalClaimed
-                )
-            );
-        }
-        return keccak256(abi.encodePacked(entryHashes));
-    }
-
+    /// @dev Caps refund to available unclaimed escrow, clears any pending withdrawal, transfers to payer, bumps `refundNonce`.
     function _executeRefund(ChannelConfig calldata config, uint128 amount) internal {
         if (amount == 0) revert ZeroRefund();
 
@@ -438,23 +500,18 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         ch.balance -= refundAmount;
 
-        _clearPendingWithdrawal(channelId);
+        WithdrawalState storage pws = pendingWithdrawals[channelId];
+        if (pws.initiatedAt != 0) {
+            pws.amount = 0;
+            pws.initiatedAt = 0;
+        }
+
         emit Refunded(channelId, msg.sender, refundAmount);
 
         IERC20(config.token).safeTransfer(config.payer, refundAmount);
 
         unchecked {
             refundNonce[channelId]++;
-        }
-    }
-
-    function _clearPendingWithdrawal(
-        bytes32 channelId
-    ) internal {
-        WithdrawalState storage ws = pendingWithdrawals[channelId];
-        if (ws.initiatedAt != 0) {
-            ws.amount = 0;
-            ws.initiatedAt = 0;
         }
     }
 }

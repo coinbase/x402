@@ -191,8 +191,7 @@ contract ComputeAddress is Script {
         _logDeployed(settlement);
         console2.log("");
 
-        bytes memory ercInit =
-            abi.encodePacked(type(ERC3009DepositCollector).creationCode, abi.encode(settlement));
+        bytes memory ercInit = abi.encodePacked(type(ERC3009DepositCollector).creationCode, abi.encode(settlement));
         bytes32 ercHash = keccak256(ercInit);
         address ercAddr = _computeCreate2Addr(erc3009Salt, ercHash, CREATE2_DEPLOYER);
 
@@ -220,7 +219,9 @@ contract ComputeAddress is Script {
         console2.log("");
     }
 
-    function _logDeployed(address a) private view {
+    function _logDeployed(
+        address a
+    ) private view {
         if (block.chainid != 0 && a.code.length > 0) {
             console2.log("  Status: DEPLOYED");
         } else {
