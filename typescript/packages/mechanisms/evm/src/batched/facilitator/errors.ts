@@ -1,4 +1,4 @@
-/** Facilitator error codes for the batch-settlement EVM scheme. */
+/** Facilitator error codes for the batched EVM scheme. */
 
 export const ErrChannelNotFound = "batch_settlement_evm_channel_not_found";
 export const ErrWithdrawalPending = "batch_settlement_evm_withdrawal_pending";

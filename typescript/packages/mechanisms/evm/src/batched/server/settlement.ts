@@ -5,11 +5,11 @@ import type {
   SettleResponse,
 } from "@x402/core/types";
 import type { FacilitatorClient } from "@x402/core/server";
-import type { DeferredVoucherClaim } from "../types";
-import type { DeferredEvmScheme } from "./scheme";
+import type { BatchedVoucherClaim } from "../types";
+import type { BatchedEvmScheme } from "./scheme";
 
 export interface ChannelManagerConfig {
-  scheme: DeferredEvmScheme;
+  scheme: BatchedEvmScheme;
   facilitator: FacilitatorClient;
   receiver: `0x${string}`;
   token: `0x${string}`;
@@ -48,7 +48,7 @@ export interface CooperativeWithdrawResult {
 }
 
 /**
- * Manages the server-side channel lifecycle for the `batch-settlement` scheme:
+ * Manages the server-side channel lifecycle for the `batched` scheme:
  * batch claiming of vouchers, settlement of claimed funds, and cooperative withdrawal.
  *
  * Provides both manual (`claim()`, `settle()`, `cooperativeWithdraw()`) and automatic
@@ -56,8 +56,8 @@ export interface CooperativeWithdrawResult {
  * triggers (interval, idle time, threshold, pending withdrawal) and batches operations
  * accordingly.
  */
-export class DeferredChannelManager {
-  private readonly scheme: DeferredEvmScheme;
+export class BatchedChannelManager {
+  private readonly scheme: BatchedEvmScheme;
   private readonly facilitator: FacilitatorClient;
   private readonly receiver: `0x${string}`;
   private readonly token: `0x${string}`;
@@ -173,7 +173,7 @@ export class DeferredChannelManager {
       return { channels: [], transaction: "" };
     }
 
-    const claims: DeferredVoucherClaim[] = [];
+    const claims: BatchedVoucherClaim[] = [];
     for (const s of targets) {
       if (BigInt(s.chargedCumulativeAmount) > BigInt(s.totalClaimed)) {
         claims.push({
@@ -320,11 +320,11 @@ export class DeferredChannelManager {
    * @param cfg - Resolved auto-settlement options for this tick.
    * @param cfg.claimIntervalMs - Minimum milliseconds between automatic claim rounds.
    * @param cfg.settleIntervalMs - Minimum milliseconds between automatic settle rounds.
-   * @param cfg.claimOnIdleSecs - Optional idle threshold to trigger claims (see {@link DeferredEvmScheme.getClaimableVouchers}).
+   * @param cfg.claimOnIdleSecs - Optional idle threshold to trigger claims (see {@link BatchedEvmScheme.getClaimableVouchers}).
    * @param cfg.claimThreshold - Optional min cumulative claimable amount to trigger a claim.
    * @param cfg.claimOnWithdrawal - Whether pending withdrawals can trigger a claim.
    * @param cfg.settleThreshold - Optional min claimed-not-settled amount to trigger settle.
-   * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link DeferredChannelManager.claim}.
+   * @param cfg.maxClaimsPerBatch - Voucher batch size passed to {@link BatchedChannelManager.claim}.
    * @param cfg.cooperativeWithdrawOnIdleSecs - Optional idle seconds before cooperative withdraw for non-zero balances.
    * @param cfg.onClaim - Callback after each successful claim batch.
    * @param cfg.onSettle - Callback after a successful settle.
@@ -514,7 +514,7 @@ export class DeferredChannelManager {
    * @param claims - Voucher claims to send in one `settleAction: "claim"` payload.
    * @returns Per-batch claim summary (count and transaction hash).
    */
-  private async submitClaim(claims: DeferredVoucherClaim[]): Promise<ClaimResult> {
+  private async submitClaim(claims: BatchedVoucherClaim[]): Promise<ClaimResult> {
     const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
 
     let paymentPayload: PaymentPayload;
@@ -575,11 +575,11 @@ export class DeferredChannelManager {
   /**
    * Builds a minimal {@link PaymentRequirements} for channel manager operations.
    *
-   * @returns Requirements describing batch-settlement operations for this manager.
+   * @returns Requirements describing batched operations for this manager.
    */
   private buildPaymentRequirements(): PaymentRequirements {
     return {
-      scheme: "batch-settlement",
+      scheme: "batched",
       network: this.network,
       asset: this.token,
       amount: "0",
@@ -594,7 +594,7 @@ export class DeferredChannelManager {
    *
    * @param claims - Claims that were included in the successful batch (reserved for future use).
    */
-  private async updateClaimedSessions(claims: DeferredVoucherClaim[]): Promise<void> {
+  private async updateClaimedSessions(claims: BatchedVoucherClaim[]): Promise<void> {
     const storage = this.scheme.getStorage();
     for (const claim of claims) {
       const channelId = claim.voucher.channel?.payer ? undefined : undefined;

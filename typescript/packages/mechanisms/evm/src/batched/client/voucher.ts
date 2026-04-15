@@ -1,7 +1,7 @@
 import { getAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
 import { BATCH_SETTLEMENT_ADDRESS, BATCH_SETTLEMENT_DOMAIN, voucherTypes } from "../constants";
-import { DeferredVoucherFields } from "../types";
+import { BatchedVoucherFields } from "../types";
 import { getEvmChainId } from "../../utils";
 
 /**
@@ -9,7 +9,7 @@ import { getEvmChainId } from "../../utils";
  *
  * The voucher authorises the receiver to claim up to `maxClaimableAmount` from the
  * channel identified by `channelId`.  The signature covers the EIP-712 `Voucher` struct
- * under the batch-settlement domain.
+ * under the batched domain.
  *
  * @param signer - Client wallet used to produce the EIP-712 signature.
  * @param channelId - Identifier of the payment channel (`keccak256(abi.encode(ChannelConfig))`).
@@ -22,7 +22,7 @@ export async function signVoucher(
   channelId: `0x${string}`,
   maxClaimableAmount: string,
   network: string,
-): Promise<DeferredVoucherFields> {
+): Promise<BatchedVoucherFields> {
   const chainId = getEvmChainId(network);
 
   const signature = await signer.signTypedData({

@@ -1,5 +1,5 @@
 import { toClientEvmSigner } from "@x402/evm";
-import { DeferredEvmScheme, FileClientSessionStorage } from "@x402/evm/deferred/client";
+import { BatchedEvmScheme, FileClientSessionStorage } from "@x402/evm/batched/client";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   // can process them in parallel — it serialises per channel, not globally.
   const channels = Array.from({ length: CONCURRENCY }, (_, i) => {
     const salt = saltAdd(baseSalt, i);
-    const scheme = new DeferredEvmScheme(signer, {
+    const scheme = new BatchedEvmScheme(signer, {
       depositPolicy: { maxDeposit: "1000000", depositMultiplier: 5 },
       salt,
       ...(voucherSigner ? { voucherSigner } : {}),

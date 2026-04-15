@@ -1,2 +1,2 @@
-export { DeferredEvmScheme } from "./client/scheme";
+export { BatchedEvmScheme } from "./client/scheme";
 export { computeChannelId } from "./utils";

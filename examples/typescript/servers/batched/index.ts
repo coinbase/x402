@@ -1,5 +1,5 @@
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { DeferredEvmScheme, FileSessionStorage } from "@x402/evm/deferred/server";
+import { BatchedEvmScheme, FileSessionStorage } from "@x402/evm/batched/server";
 import { paymentMiddleware, setSettlementOverrides, x402ResourceServer } from "@x402/express";
 import { config } from "dotenv";
 import express from "express";
@@ -33,15 +33,15 @@ const receiverAuthorizerSigner = receiverAuthorizerPrivateKey
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const deferredScheme = new DeferredEvmScheme(evmAddress, {
+const batchedScheme = new BatchedEvmScheme(evmAddress, {
   ...(receiverAuthorizerSigner ? { receiverAuthorizerSigner } : {}),
   withdrawDelay,
   ...(storageDir ? { storage: new FileSessionStorage({ directory: storageDir }) } : {}),
 });
 
-const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWORK, deferredScheme);
+const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWORK, batchedScheme);
 
-const channelManager = deferredScheme.createChannelManager(facilitatorClient, NETWORK);
+const channelManager = batchedScheme.createChannelManager(facilitatorClient, NETWORK);
 
 // channelManager.start({
 //   tickSecs: 5, // evaluate policies every 5s
@@ -78,7 +78,7 @@ app.use(
     {
       "GET /api/generate": {
         accepts: {
-          scheme: "batch-settlement",
+          scheme: "batched",
           price: maxPrice,
           network: NETWORK,
           payTo: evmAddress,

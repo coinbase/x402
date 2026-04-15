@@ -12,9 +12,9 @@ const baseConfig = {
     "upto/client/index": "src/upto/client/index.ts",
     "upto/server/index": "src/upto/server/index.ts",
     "upto/facilitator/index": "src/upto/facilitator/index.ts",
-    "deferred/client/index": "src/deferred/client/index.ts",
-    "deferred/server/index": "src/deferred/server/index.ts",
-    "deferred/facilitator/index": "src/deferred/facilitator/index.ts",
+    "batched/client/index": "src/batched/client/index.ts",
+    "batched/server/index": "src/batched/server/index.ts",
+    "batched/facilitator/index": "src/batched/facilitator/index.ts",
   },
   dts: {
     resolve: true,

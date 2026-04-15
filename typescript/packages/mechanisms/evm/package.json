@@ -150,34 +150,34 @@
         "default": "./dist/cjs/upto/facilitator/index.js"
       }
     },
-    "./deferred/client": {
+    "./batched/client": {
       "import": {
-        "types": "./dist/esm/deferred/client/index.d.mts",
-        "default": "./dist/esm/deferred/client/index.mjs"
+        "types": "./dist/esm/batched/client/index.d.mts",
+        "default": "./dist/esm/batched/client/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/deferred/client/index.d.ts",
-        "default": "./dist/cjs/deferred/client/index.js"
+        "types": "./dist/cjs/batched/client/index.d.ts",
+        "default": "./dist/cjs/batched/client/index.js"
       }
     },
-    "./deferred/server": {
+    "./batched/server": {
       "import": {
-        "types": "./dist/esm/deferred/server/index.d.mts",
-        "default": "./dist/esm/deferred/server/index.mjs"
+        "types": "./dist/esm/batched/server/index.d.mts",
+        "default": "./dist/esm/batched/server/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/deferred/server/index.d.ts",
-        "default": "./dist/cjs/deferred/server/index.js"
+        "types": "./dist/cjs/batched/server/index.d.ts",
+        "default": "./dist/cjs/batched/server/index.js"
       }
     },
-    "./deferred/facilitator": {
+    "./batched/facilitator": {
       "import": {
-        "types": "./dist/esm/deferred/facilitator/index.d.mts",
-        "default": "./dist/esm/deferred/facilitator/index.mjs"
+        "types": "./dist/esm/batched/facilitator/index.d.mts",
+        "default": "./dist/esm/batched/facilitator/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/deferred/facilitator/index.d.ts",
-        "default": "./dist/cjs/deferred/facilitator/index.js"
+        "types": "./dist/cjs/batched/facilitator/index.d.ts",
+        "default": "./dist/cjs/batched/facilitator/index.js"
       }
     }
   },

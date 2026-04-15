@@ -108,7 +108,7 @@ export function getHeaderValue(
 export function formatIndentedJson(value: unknown): string {
   return JSON.stringify(value, null, 2)
     .split("\n")
-    .map(line => `  ${line}`)
+    .map((line) => `  ${line}`)
     .join("\n");
 }
 
@@ -134,7 +134,9 @@ export function streamRequest(
   });
 }
 
-export async function readNodeResponseText(response: IncomingMessage): Promise<string> {
+export async function readNodeResponseText(
+  response: IncomingMessage,
+): Promise<string> {
   const chunks: Buffer[] = [];
 
   for await (const chunk of response) {

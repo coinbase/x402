@@ -1,7 +1,7 @@
 import { PaymentRequirements, PaymentPayloadResult } from "@x402/core/types";
 import { getAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
-import { ChannelConfig, DeferredDepositPayload } from "../types";
+import { ChannelConfig, BatchedDepositPayload } from "../types";
 import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
 import { createNonce, getEvmChainId } from "../../utils";
 import { signVoucher } from "./voucher";
@@ -23,7 +23,7 @@ import { computeChannelId } from "../utils";
  * @param voucherSigner - Optional key that signs the voucher; defaults to `signer` (same as payer).
  * @returns A {@link PaymentPayloadResult} containing the signed deposit + voucher payload.
  */
-export async function createDeferredEIP3009DepositPayload(
+export async function createBatchedEIP3009DepositPayload(
   signer: ClientEvmSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
@@ -72,7 +72,7 @@ export async function createDeferredEIP3009DepositPayload(
     paymentRequirements.network,
   );
 
-  const payload: DeferredDepositPayload = {
+  const payload: BatchedDepositPayload = {
     type: "deposit",
     deposit: {
       channelConfig,

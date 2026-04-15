@@ -2,8 +2,8 @@ import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import {
-  DeferredCooperativeWithdrawPayload,
-  DeferredCooperativeWithdrawWithSignaturePayload,
+  BatchedCooperativeWithdrawPayload,
+  BatchedCooperativeWithdrawWithSignaturePayload,
 } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
@@ -16,7 +16,7 @@ import { executeClaim, executeClaimWithSignature } from "./claim";
  * @param config - Channel configuration from the cooperative withdraw payload.
  * @returns Arguments object suitable for `cooperativeWithdraw` on the settlement contract.
  */
-function buildConfigTuple(config: DeferredCooperativeWithdrawPayload["config"]) {
+function buildConfigTuple(config: BatchedCooperativeWithdrawPayload["config"]) {
   return {
     payer: getAddress(config.payer),
     payerAuthorizer: getAddress(config.payerAuthorizer),
@@ -42,7 +42,7 @@ function buildConfigTuple(config: DeferredCooperativeWithdrawPayload["config"]) 
  */
 export async function executeCooperativeWithdraw(
   signer: FacilitatorEvmSigner,
-  payload: DeferredCooperativeWithdrawPayload,
+  payload: BatchedCooperativeWithdrawPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
@@ -108,7 +108,7 @@ export async function executeCooperativeWithdraw(
  */
 export async function executeCooperativeWithdrawWithSignature(
   signer: FacilitatorEvmSigner,
-  payload: DeferredCooperativeWithdrawWithSignaturePayload,
+  payload: BatchedCooperativeWithdrawWithSignaturePayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;

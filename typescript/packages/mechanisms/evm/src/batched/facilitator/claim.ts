@@ -1,19 +1,19 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredClaimPayload, DeferredClaimWithSignaturePayload } from "../types";
+import { BatchedClaimPayload, BatchedClaimWithSignaturePayload } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
 
 /**
- * Converts an array of {@link DeferredVoucherClaim} into the on-chain tuple format
+ * Converts an array of {@link BatchedVoucherClaim} into the on-chain tuple format
  * expected by the contract's `claim()` and `claimWithSignature()` functions.
  *
  * @param claims - Typed voucher claims with channel config, amounts, and signatures.
  * @returns Contract-ready VoucherClaim argument array.
  */
-function buildVoucherClaimArgs(claims: DeferredClaimPayload["claims"]) {
+function buildVoucherClaimArgs(claims: BatchedClaimPayload["claims"]) {
   return claims.map(c => ({
     voucher: {
       channel: {
@@ -44,7 +44,7 @@ function buildVoucherClaimArgs(claims: DeferredClaimPayload["claims"]) {
  */
 export async function executeClaim(
   signer: FacilitatorEvmSigner,
-  payload: DeferredClaimPayload,
+  payload: BatchedClaimPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
@@ -99,7 +99,7 @@ export async function executeClaim(
  */
 export async function executeClaimWithSignature(
   signer: FacilitatorEvmSigner,
-  payload: DeferredClaimWithSignaturePayload,
+  payload: BatchedClaimWithSignaturePayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;

@@ -8,38 +8,38 @@ export type ChannelConfig = {
   salt: `0x${string}`;
 };
 
-export type DeferredErc3009Authorization = {
+export type BatchedErc3009Authorization = {
   validAfter: string;
   validBefore: string;
   nonce: `0x${string}`;
   signature: `0x${string}`;
 };
 
-export type DeferredDepositPayload = {
+export type BatchedDepositPayload = {
   type: "deposit";
   deposit: {
     channelConfig: ChannelConfig;
     amount: string;
     authorization: {
-      erc3009Authorization?: DeferredErc3009Authorization;
+      erc3009Authorization?: BatchedErc3009Authorization;
     };
   };
-  voucher: DeferredVoucherFields;
+  voucher: BatchedVoucherFields;
 };
 
-export type DeferredVoucherPayload = {
+export type BatchedVoucherPayload = {
   type: "voucher";
   channelConfig: ChannelConfig;
-} & DeferredVoucherFields;
+} & BatchedVoucherFields;
 
-export type DeferredVoucherFields = {
+export type BatchedVoucherFields = {
   channelId: `0x${string}`;
   maxClaimableAmount: string;
   signature: `0x${string}`;
   withdraw?: boolean;
 };
 
-export type DeferredVoucherClaim = {
+export type BatchedVoucherClaim = {
   voucher: {
     channel: ChannelConfig;
     maxClaimableAmount: string;
@@ -48,73 +48,73 @@ export type DeferredVoucherClaim = {
   claimAmount: string;
 };
 
-export type DeferredClaimPayload = {
+export type BatchedClaimPayload = {
   settleAction: "claim";
-  claims: DeferredVoucherClaim[];
+  claims: BatchedVoucherClaim[];
 };
 
-export type DeferredClaimWithSignaturePayload = {
+export type BatchedClaimWithSignaturePayload = {
   settleAction: "claimWithSignature";
-  claims: DeferredVoucherClaim[];
+  claims: BatchedVoucherClaim[];
   authorizerSignature: `0x${string}`;
 };
 
-export type DeferredSettleActionPayload = {
+export type BatchedSettleActionPayload = {
   settleAction: "settle";
   receiver: `0x${string}`;
   token: `0x${string}`;
 };
 
-export type DeferredDepositSettlePayload = {
+export type BatchedDepositSettlePayload = {
   settleAction: "deposit";
-  deposit: DeferredDepositPayload["deposit"];
+  deposit: BatchedDepositPayload["deposit"];
 };
 
-export type DeferredCooperativeWithdrawPayload = {
+export type BatchedCooperativeWithdrawPayload = {
   settleAction: "cooperativeWithdraw";
   config: ChannelConfig;
-  claims: DeferredVoucherClaim[];
+  claims: BatchedVoucherClaim[];
 };
 
-export type DeferredCooperativeWithdrawWithSignaturePayload = {
+export type BatchedCooperativeWithdrawWithSignaturePayload = {
   settleAction: "cooperativeWithdrawWithSignature";
   config: ChannelConfig;
-  claims: DeferredVoucherClaim[];
+  claims: BatchedVoucherClaim[];
   receiverAuthorizerSignature: `0x${string}`;
   claimAuthorizerSignature?: `0x${string}`;
 };
 
-export type DeferredPayload = DeferredDepositPayload | DeferredVoucherPayload;
+export type BatchedPayload = BatchedDepositPayload | BatchedVoucherPayload;
 
-export type DeferredSettlePayload =
-  | DeferredDepositSettlePayload
-  | DeferredClaimPayload
-  | DeferredClaimWithSignaturePayload
-  | DeferredSettleActionPayload
-  | DeferredCooperativeWithdrawPayload
-  | DeferredCooperativeWithdrawWithSignaturePayload;
+export type BatchedSettlePayload =
+  | BatchedDepositSettlePayload
+  | BatchedClaimPayload
+  | BatchedClaimWithSignaturePayload
+  | BatchedSettleActionPayload
+  | BatchedCooperativeWithdrawPayload
+  | BatchedCooperativeWithdrawWithSignaturePayload;
 
 /**
- * Type guard for a batch-settlement deposit payload (deposit + voucher).
+ * Type guard for a batched deposit payload (deposit + voucher).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredDepositPayload}.
+ * @returns True if the object matches {@link BatchedDepositPayload}.
  */
-export function isDeferredDepositPayload(
+export function isBatchedDepositPayload(
   payload: Record<string, unknown>,
-): payload is DeferredDepositPayload {
+): payload is BatchedDepositPayload {
   return payload.type === "deposit" && "deposit" in payload && "voucher" in payload;
 }
 
 /**
- * Type guard for a batch-settlement voucher-only payload.
+ * Type guard for a batched voucher-only payload.
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredVoucherPayload}.
+ * @returns True if the object matches {@link BatchedVoucherPayload}.
  */
-export function isDeferredVoucherPayload(
+export function isBatchedVoucherPayload(
   payload: Record<string, unknown>,
-): payload is DeferredVoucherPayload {
+): payload is BatchedVoucherPayload {
   return (
     payload.type === "voucher" &&
     "channelConfig" in payload &&
@@ -128,11 +128,11 @@ export function isDeferredVoucherPayload(
  * Type guard for a batch claim settle payload (facilitator calls `claim()`).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredClaimPayload}.
+ * @returns True if the object matches {@link BatchedClaimPayload}.
  */
-export function isDeferredClaimPayload(
+export function isBatchedClaimPayload(
   payload: Record<string, unknown>,
-): payload is DeferredClaimPayload {
+): payload is BatchedClaimPayload {
   return payload.settleAction === "claim" && "claims" in payload;
 }
 
@@ -140,11 +140,11 @@ export function isDeferredClaimPayload(
  * Type guard for a claim-with-signature settle payload (facilitator calls `claimWithSignature()`).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredClaimWithSignaturePayload}.
+ * @returns True if the object matches {@link BatchedClaimWithSignaturePayload}.
  */
-export function isDeferredClaimWithSignaturePayload(
+export function isBatchedClaimWithSignaturePayload(
   payload: Record<string, unknown>,
-): payload is DeferredClaimWithSignaturePayload {
+): payload is BatchedClaimWithSignaturePayload {
   return (
     payload.settleAction === "claimWithSignature" &&
     "claims" in payload &&
@@ -156,11 +156,11 @@ export function isDeferredClaimWithSignaturePayload(
  * Type guard for a settle action payload (transfers claimed funds to receiver).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredSettleActionPayload}.
+ * @returns True if the object matches {@link BatchedSettleActionPayload}.
  */
-export function isDeferredSettleActionPayload(
+export function isBatchedSettleActionPayload(
   payload: Record<string, unknown>,
-): payload is DeferredSettleActionPayload {
+): payload is BatchedSettleActionPayload {
   return payload.settleAction === "settle" && "receiver" in payload && "token" in payload;
 }
 
@@ -169,11 +169,11 @@ export function isDeferredSettleActionPayload(
  * (facilitator IS the receiverAuthorizer).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredCooperativeWithdrawPayload}.
+ * @returns True if the object matches {@link BatchedCooperativeWithdrawPayload}.
  */
-export function isDeferredCooperativeWithdrawPayload(
+export function isBatchedCooperativeWithdrawPayload(
   payload: Record<string, unknown>,
-): payload is DeferredCooperativeWithdrawPayload {
+): payload is BatchedCooperativeWithdrawPayload {
   return (
     payload.settleAction === "cooperativeWithdraw" &&
     "config" in payload &&
@@ -186,11 +186,11 @@ export function isDeferredCooperativeWithdrawPayload(
  * (server IS the receiverAuthorizer, signs off-chain).
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredCooperativeWithdrawWithSignaturePayload}.
+ * @returns True if the object matches {@link BatchedCooperativeWithdrawWithSignaturePayload}.
  */
-export function isDeferredCooperativeWithdrawWithSignaturePayload(
+export function isBatchedCooperativeWithdrawWithSignaturePayload(
   payload: Record<string, unknown>,
-): payload is DeferredCooperativeWithdrawWithSignaturePayload {
+): payload is BatchedCooperativeWithdrawWithSignaturePayload {
   return (
     payload.settleAction === "cooperativeWithdrawWithSignature" &&
     "config" in payload &&
@@ -202,10 +202,10 @@ export function isDeferredCooperativeWithdrawWithSignaturePayload(
  * Type guard for a deposit-only settle envelope.
  *
  * @param payload - The raw payload object.
- * @returns True if the object matches {@link DeferredDepositSettlePayload}.
+ * @returns True if the object matches {@link BatchedDepositSettlePayload}.
  */
-export function isDeferredDepositSettlePayload(
+export function isBatchedDepositSettlePayload(
   payload: Record<string, unknown>,
-): payload is DeferredDepositSettlePayload {
+): payload is BatchedDepositSettlePayload {
   return payload.settleAction === "deposit" && "deposit" in payload;
 }

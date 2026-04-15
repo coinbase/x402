@@ -1,7 +1,7 @@
 /**
  * Client-side channel session fields mirrored from PAYMENT-RESPONSE / recovery flows.
  */
-export interface DeferredClientContext {
+export interface BatchedClientContext {
   /** Current cumulative amount charged by the server for this channel */
   chargedCumulativeAmount?: string;
   /** Current on-chain channel balance */
@@ -17,8 +17,8 @@ export interface DeferredClientContext {
 }
 
 export interface ClientSessionStorage {
-  get(key: string): Promise<DeferredClientContext | undefined>;
-  set(key: string, context: DeferredClientContext): Promise<void>;
+  get(key: string): Promise<BatchedClientContext | undefined>;
+  set(key: string, context: BatchedClientContext): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
@@ -26,7 +26,7 @@ export interface ClientSessionStorage {
  * Default in-memory {@link ClientSessionStorage} (sessions do not survive process restart).
  */
 export class InMemoryClientSessionStorage implements ClientSessionStorage {
-  private sessions = new Map<string, DeferredClientContext>();
+  private sessions = new Map<string, BatchedClientContext>();
 
   /**
    * Returns the session for `key` if present.
@@ -34,7 +34,7 @@ export class InMemoryClientSessionStorage implements ClientSessionStorage {
    * @param key - Session storage key (channelId).
    * @returns Persisted context or undefined.
    */
-  async get(key: string): Promise<DeferredClientContext | undefined> {
+  async get(key: string): Promise<BatchedClientContext | undefined> {
     return this.sessions.get(key);
   }
 
@@ -45,7 +45,7 @@ export class InMemoryClientSessionStorage implements ClientSessionStorage {
    * @param context - Channel fields to persist.
    * @returns Resolves when stored.
    */
-  async set(key: string, context: DeferredClientContext): Promise<void> {
+  async set(key: string, context: BatchedClientContext): Promise<void> {
     this.sessions.set(key, context);
   }
 

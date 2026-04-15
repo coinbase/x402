@@ -2,7 +2,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { writeJsonAtomic } from "../storage-utils";
-import type { ClientSessionStorage, DeferredClientContext } from "./storage";
+import type { ClientSessionStorage, BatchedClientContext } from "./storage";
 
 export interface FileClientSessionStorageOptions {
   /** Root directory; sessions are stored under `{directory}/client/{channelId}.json`. */
@@ -10,7 +10,7 @@ export interface FileClientSessionStorageOptions {
 }
 
 /**
- * Node.js file-backed {@link ClientSessionStorage} for the batch-settlement client scheme.
+ * Node.js file-backed {@link ClientSessionStorage} for the batched client scheme.
  * Each channel's context is persisted as `{root}/client/{channelId}.json` so that sessions
  * survive process restarts.
  */
@@ -32,11 +32,11 @@ export class FileClientSessionStorage implements ClientSessionStorage {
    * @param key - Channel storage key (typically a lowercased channelId).
    * @returns Parsed context or `undefined` when the file is missing.
    */
-  async get(key: string): Promise<DeferredClientContext | undefined> {
+  async get(key: string): Promise<BatchedClientContext | undefined> {
     const path = this.filePath(key);
     try {
       const raw = await readFile(path, "utf8");
-      return JSON.parse(raw) as DeferredClientContext;
+      return JSON.parse(raw) as BatchedClientContext;
     } catch (err: unknown) {
       const code =
         err && typeof err === "object" && "code" in err
@@ -53,7 +53,7 @@ export class FileClientSessionStorage implements ClientSessionStorage {
    * @param key - Channel storage key.
    * @param context - Context record to write.
    */
-  async set(key: string, context: DeferredClientContext): Promise<void> {
+  async set(key: string, context: BatchedClientContext): Promise<void> {
     await writeJsonAtomic(this.filePath(key), context);
   }
 

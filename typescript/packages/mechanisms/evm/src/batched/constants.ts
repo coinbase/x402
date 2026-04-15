@@ -7,7 +7,7 @@ export const MIN_WITHDRAW_DELAY = 900;
 /** Maximum withdraw delay in seconds (30 days), matching the on-chain constant. */
 export const MAX_WITHDRAW_DELAY = 2_592_000;
 
-/** EIP-712 domain fields shared across all batch-settlement typed-data signatures. */
+/** EIP-712 domain fields shared across all batched typed-data signatures. */
 export const BATCH_SETTLEMENT_DOMAIN = {
   name: "x402 Batch Settlement",
   version: "1",

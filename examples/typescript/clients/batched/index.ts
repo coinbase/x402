@@ -1,5 +1,5 @@
 import { toClientEvmSigner } from "@x402/evm";
-import { DeferredEvmScheme, FileClientSessionStorage } from "@x402/evm/deferred/client";
+import { BatchedEvmScheme, FileClientSessionStorage } from "@x402/evm/batched/client";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
       ? toClientEvmSigner(privateKeyToAccount(evmVoucherSignerPrivateKey))
       : undefined;
 
-  const deferredScheme = new DeferredEvmScheme(signer, {
+  const batchedScheme = new BatchedEvmScheme(signer, {
     depositPolicy: {
       maxDeposit: "1000000",
       depositMultiplier: 5,
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   });
 
   const client = new x402Client();
-  client.register("eip155:*", deferredScheme);
+  client.register("eip155:*", batchedScheme);
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
   const httpClient = new x402HTTPClient(client);
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
 
     if (i === numberOfRequests - 1 && channelId) {
       //console.log(`REQUESTING COOPERATIVE WITHDRAW`);
-      //deferredScheme.requestCooperativeWithdraw(channelId);
+      //batchedScheme.requestCooperativeWithdraw(channelId);
     }
 
     const response = await fetchWithPayment(url, { method: "GET" });
@@ -74,7 +74,10 @@ async function main(): Promise<void> {
       console.log(`Request ${i + 1} — RESPONSE`);
       console.log(result.body);
       console.log(JSON.stringify(result.settleResponse, null, 2));
-      if (result.settleResponse.extra && typeof result.settleResponse.extra.channelId === "string") {
+      if (
+        result.settleResponse.extra &&
+        typeof result.settleResponse.extra.channelId === "string"
+      ) {
         channelId = result.settleResponse.extra.channelId;
       }
     }

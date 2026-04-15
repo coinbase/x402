@@ -1,13 +1,13 @@
 import { PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredVoucherPayload, ChannelConfig } from "../types";
+import { BatchedVoucherPayload, ChannelConfig } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { getEvmChainId } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "./errors";
-import { validateChannelConfig, verifyDeferredVoucherTypedData } from "./utils";
+import { validateChannelConfig, verifyBatchedVoucherTypedData } from "./utils";
 
 /**
  * Verifies a cumulative voucher payload against on-chain channel state.
@@ -27,7 +27,7 @@ import { validateChannelConfig, verifyDeferredVoucherTypedData } from "./utils";
  */
 export async function verifyVoucher(
   signer: FacilitatorEvmSigner,
-  payload: DeferredVoucherPayload,
+  payload: BatchedVoucherPayload,
   requirements: PaymentRequirements,
   channelConfig: ChannelConfig,
 ): Promise<VerifyResponse> {
@@ -39,7 +39,7 @@ export async function verifyVoucher(
     return { isValid: false, invalidReason: configErr, payer: channelConfig.payer };
   }
 
-  const voucherOk = await verifyDeferredVoucherTypedData(
+  const voucherOk = await verifyBatchedVoucherTypedData(
     signer,
     {
       channelId,

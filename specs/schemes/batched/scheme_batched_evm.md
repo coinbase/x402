@@ -1,8 +1,8 @@
-# Scheme: `batch-settlement` on `EVM`
+# Scheme: `batched` on `EVM`
 
 ## Summary
 
-The `batch-settlement` scheme on EVM is a **capital-backed** network binding using stateless unidirectional payment channels. Clients deposit funds into onchain channels and sign off-chain cumulative vouchers per request. The server accumulates vouchers and batch-claims them onchain at its discretion; claimed funds are transferred to the receiver via a separate settle operation.
+The `batched` scheme on EVM is a **capital-backed** network binding using stateless unidirectional payment channels. Clients deposit funds into onchain channels and sign off-chain cumulative vouchers per request. The server accumulates vouchers and batch-claims them onchain at its discretion; claimed funds are transferred to the receiver via a separate settle operation.
 
 Channel identity is derived from an immutable `ChannelConfig` struct: `channelId = keccak256(abi.encode(channelConfig))`. There is no onchain registry — all channel parameters are committed at creation and cannot be changed. To modify any parameter (e.g., rotate a signer), the client withdraws from the old channel and deposits into a new one.
 
@@ -95,7 +95,7 @@ The 402 response contains pricing terms and the server's channel parameters. The
 
 ```json
 {
-  "scheme": "batch-settlement",
+  "scheme": "batched",
   "network": "eip155:8453",
   "amount": "100000",
   "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -137,7 +137,7 @@ The `deposit.authorization` field contains the token transfer authorization — 
 {
   "x402Version": 2,
   "accepted": {
-    "scheme": "batch-settlement",
+    "scheme": "batched",
     "network": "eip155:8453",
     "amount": "1000",
     "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -311,7 +311,7 @@ Verifies a payment payload. Returns the onchain channel snapshot:
 ```json
 {
   "kinds": [
-    { "x402Version": 2, "scheme": "batch-settlement", "network": "eip155:8453" }
+    { "x402Version": 2, "scheme": "batched", "network": "eip155:8453" }
   ]
 }
 ```
@@ -376,7 +376,7 @@ The server MUST claim all outstanding vouchers before the withdraw delay elapses
 
 ## Trust Model
 
-The `batch-settlement` scheme operates under the following trust assumptions:
+The `batched` scheme operates under the following trust assumptions:
 
 1. **Client trusts server for claim amounts**: The client signs `maxClaimableAmount` (a ceiling). The `receiverAuthorizer` determines the actual `claimAmount` within that bound. Over-claiming is a trust violation, not a protocol violation. The client's risk is bounded by `maxClaimableAmount - totalClaimed`.
 
@@ -446,7 +446,7 @@ An EIP-1271 contract used as `ChannelConfig.receiverAuthorizer`. Allows servers 
 
 ## Error Codes
 
-Implementers MUST use the generic `batch-settlement` error codes from [scheme_batch_settlement.md](./scheme_batch_settlement.md#error-codes) when applicable.
+Implementers MUST use the generic `batched` error codes from [scheme_batch_settlement.md](./scheme_batch_settlement.md#error-codes) when applicable.
 
 EVM-specific codes:
 
@@ -473,7 +473,7 @@ EVM-specific codes:
 | `batch_settlement_evm_missing_eip712_domain`                  | Payment requirements missing `name` or `version` for EIP-712 domain           |
 | `batch_settlement_evm_deposit_voucher_mismatch`               | Deposit and voucher channel identifiers do not match                           |
 | `batch_settlement_evm_invalid_payload_type`                   | Payload type is not recognized or not supported                                |
-| `batch_settlement_evm_invalid_scheme`                         | Payload or requirements `scheme` is not `batch-settlement`                     |
+| `batch_settlement_evm_invalid_scheme`                         | Payload or requirements `scheme` is not `batched`                     |
 | `batch_settlement_evm_network_mismatch`                       | Payload `network` does not match requirements `network`                        |
 | `batch_settlement_evm_payload_authorization_valid_before`     | ERC-3009 authorization `validBefore` has expired                               |
 | `batch_settlement_evm_payload_authorization_valid_after`      | ERC-3009 authorization `validAfter` is in the future                           |
@@ -517,7 +517,7 @@ The Canonical Permit2 contract address can be found at [https://docs.uniswap.org
 | v1.2    | 2026-04-09 | `finalizeWithdraw` permissionless after delay; removed `finalizeWithdrawWithSignature`, `FinalizeWithdraw` EIP-712 type and `getFinalizeWithdrawDigest`; Dual-path cooperative withdraw: `cooperativeWithdraw(config)` msg.sender-gated + `cooperativeWithdrawWithSignature(config, sig)` signature-based; Voucher payload now includes `channelConfig` | @phdargen      |
 | v1.1    | 2026-04-08 | Dual-authorizer model: `payerAuthorizer` (EOA or address(0) for EIP-1271), `receiverAuthorizer` replaces `facilitator`, `claimWithSignature` and `finalizeWithdrawWithSignature`, removed migration helper, added `ClaimAuthorizer` periphery, removed EIP-1271 from PaymentRouter/PaymentSplitter | @CarsonRoscoe  |
 | v1.0    | 2026-04-08 | Stateless channel-config model: immutable ChannelConfig, 2 typehashes, nonce-less cumulative vouchers, committed facilitator, cooperative withdraw via receiver signature, channel migration, EIP-1271 for non-voucher ops | @CarsonRoscoe  |
-| v0.6    | 2026-04-07 | Multi-token subchannels, client signer delegation, withdrawWindow bounds, replay-protected requestWithdrawalFor, renamed to `batch-settlement` | @CarsonRoscoe  |
+| v0.6    | 2026-04-07 | Multi-token subchannels, client signer delegation, withdrawWindow bounds, replay-protected requestWithdrawalFor, renamed to `batched` | @CarsonRoscoe  |
 | v0.5    | 2026-04-02 | Add cooperativeWithdraw                                              | @phdargen      |
 | v0.4    | 2026-03-31 | Service registry + subchannel architecture                           | @CarsonRoscoe  |
 | v0.3    | 2026-03-31 | Add voucherId for concurrency                                        | @phdargen      |

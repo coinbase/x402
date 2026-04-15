@@ -6,7 +6,7 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { DeferredEvmScheme } from "@x402/evm/deferred/facilitator";
+import { BatchedEvmScheme } from "@x402/evm/batched/facilitator";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, nonceManager, publicActions } from "viem";
@@ -99,8 +99,8 @@ const facilitator = new x402Facilitator()
     console.log("Settle failure", context);
   });
 
-// Register EVM schemes (deferred: deposit / voucher / claim / settle)
-facilitator.register("eip155:84532", new DeferredEvmScheme(evmSigner)); // Base Sepolia
+// Register EVM schemes (batched: deposit / voucher / claim / settle)
+facilitator.register("eip155:84532", new BatchedEvmScheme(evmSigner)); // Base Sepolia
 
 // Initialize Express app
 const app = express();

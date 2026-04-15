@@ -11,7 +11,7 @@ export interface FileSessionStorageOptions {
 }
 
 /**
- * Node.js file-backed {@link SessionStorage} for the batch-settlement server scheme.
+ * Node.js file-backed {@link SessionStorage} for the batched server scheme.
  */
 export class FileSessionStorage implements SessionStorage {
   private readonly root: string;

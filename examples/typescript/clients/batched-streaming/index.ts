@@ -1,11 +1,14 @@
 import { toClientEvmSigner } from "@x402/evm";
 import {
-  DeferredEvmScheme,
+  BatchedEvmScheme,
   FileClientSessionStorage,
   computeChannelId,
-} from "@x402/evm/deferred/client";
+} from "@x402/evm/batched/client";
 import { x402Client, x402HTTPClient } from "@x402/fetch";
-import { decodePaymentResponseHeader, encodePaymentSignatureHeader } from "@x402/core/http";
+import {
+  decodePaymentResponseHeader,
+  encodePaymentSignatureHeader,
+} from "@x402/core/http";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import type { ChannelConfig } from "@x402/evm";
 import { config } from "dotenv";
@@ -29,15 +32,17 @@ config();
 // ---------------------------------------------------------------------------
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
-const evmVoucherSignerPrivateKey = process.env.EVM_VOUCHER_SIGNER_PRIVATE_KEY as
-  | `0x${string}`
-  | undefined;
+const evmVoucherSignerPrivateKey = process.env
+  .EVM_VOUCHER_SIGNER_PRIVATE_KEY as `0x${string}` | undefined;
 const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 const channelSalt = (process.env.CHANNEL_SALT ??
   "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`;
 const storageDir = process.env.STORAGE_DIR;
 const cliOptions = parseClientCliOptions(process.argv.slice(2));
-const prompt = cliOptions.prompt ?? process.env.PROMPT ?? "Tell me a fun fact about payments.";
+const prompt =
+  cliOptions.prompt ??
+  process.env.PROMPT ??
+  "Tell me a fun fact about payments.";
 const verbose = cliOptions.verbose || isTruthyEnvFlag(process.env.VERBOSE);
 const depositPolicy = {
   maxDeposit: "1000000",
@@ -49,7 +54,10 @@ const depositPolicy = {
 // ---------------------------------------------------------------------------
 
 const account = privateKeyToAccount(evmPrivateKey);
-const publicClient = createPublicClient({ chain: baseSepolia, transport: http() });
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
 const signer = toClientEvmSigner(account, publicClient);
 
 const voucherSigner = evmVoucherSignerPrivateKey
@@ -58,15 +66,17 @@ const voucherSigner = evmVoucherSignerPrivateKey
 
 const effectiveVoucherSigner = voucherSigner ?? signer;
 
-const deferredScheme = new DeferredEvmScheme(signer, {
+const batchedScheme = new BatchedEvmScheme(signer, {
   depositPolicy,
   salt: channelSalt,
   ...(voucherSigner ? { voucherSigner } : {}),
-  ...(storageDir ? { storage: new FileClientSessionStorage({ directory: storageDir }) } : {}),
+  ...(storageDir
+    ? { storage: new FileClientSessionStorage({ directory: storageDir }) }
+    : {}),
 });
 
 const client = new x402Client();
-client.register("eip155:*", deferredScheme);
+client.register("eip155:*", batchedScheme);
 
 const httpClient = new x402HTTPClient(client);
 
@@ -105,11 +115,13 @@ async function main(): Promise<void> {
 
   // Create payment payload (handles deposit + first voucher automatically)
   const paymentPayload = await httpClient.createPaymentPayload(paymentRequired);
-  const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
+  const paymentHeaders =
+    httpClient.encodePaymentSignatureHeader(paymentPayload);
 
   // Derive channel info for later voucher renewal
   const requirements: PaymentRequirements = paymentPayload.accepted;
-  const channelConfig: ChannelConfig = deferredScheme.buildChannelConfig(requirements);
+  const channelConfig: ChannelConfig =
+    batchedScheme.buildChannelConfig(requirements);
   const channelId = computeChannelId(channelConfig);
   console.log(`Channel: ${channelId}\n`);
 
@@ -156,7 +168,7 @@ async function main(): Promise<void> {
           `\n  [voucher-needed] charged=${chargedCumulativeAmount} balance=${balance} next=${nextMaxClaimableAmount}`,
         );
 
-        await deferredScheme.processSettleResponse({
+        await batchedScheme.processSettleResponse({
           success: true,
           transaction: "",
           network: requirements.network,
@@ -169,7 +181,7 @@ async function main(): Promise<void> {
           },
         });
 
-        const nextPayment = await deferredScheme.createPaymentPayload(
+        const nextPayment = await batchedScheme.createPaymentPayload(
           paymentPayload.x402Version,
           requirements,
         );
@@ -178,14 +190,19 @@ async function main(): Promise<void> {
           accepted: requirements,
           payload: nextPayment.payload,
         };
-        const toppedUp = (renewalPayload.payload as Record<string, unknown>).type === "deposit";
+        const toppedUp =
+          (renewalPayload.payload as Record<string, unknown>).type ===
+          "deposit";
 
         // POST to the side-channel endpoint
         const encoded = encodePaymentSignatureHeader(renewalPayload);
         const renewURL = `${baseURL}${voucherEndpoint}`;
         const renewResponse = await fetch(renewURL, {
           method: "POST",
-          headers: { "PAYMENT-SIGNATURE": encoded, "Content-Type": "application/json" },
+          headers: {
+            "PAYMENT-SIGNATURE": encoded,
+            "Content-Type": "application/json",
+          },
         });
 
         if (!renewResponse.ok) {
@@ -199,14 +216,18 @@ async function main(): Promise<void> {
       }
 
       case "x402-voucher-accepted": {
-        const { channelId: acceptedChannelId, newChargedCumulativeAmount, balance, toppedUp } =
-          JSON.parse(data) as {
-            channelId: string;
-            newChargedCumulativeAmount: string;
-            balance: string;
-            toppedUp: boolean;
-          };
-        await deferredScheme.processSettleResponse({
+        const {
+          channelId: acceptedChannelId,
+          newChargedCumulativeAmount,
+          balance,
+          toppedUp,
+        } = JSON.parse(data) as {
+          channelId: string;
+          newChargedCumulativeAmount: string;
+          balance: string;
+          toppedUp: boolean;
+        };
+        await batchedScheme.processSettleResponse({
           success: true,
           transaction: "",
           network: requirements.network,
@@ -235,7 +256,7 @@ async function main(): Promise<void> {
         );
 
         // Sync local session state
-        await deferredScheme.processSettleResponse({
+        await batchedScheme.processSettleResponse({
           success: true,
           transaction: "",
           network: requirements.network,
@@ -250,7 +271,10 @@ async function main(): Promise<void> {
       }
 
       case "x402-error": {
-        const { code, message } = JSON.parse(data) as { code: string; message: string };
+        const { code, message } = JSON.parse(data) as {
+          code: string;
+          message: string;
+        };
         console.error(`\n  [ERROR] ${code}: ${message}`);
         break;
       }
@@ -269,8 +293,10 @@ async function main(): Promise<void> {
     getHeaderValue(paid.headers, "payment-response");
   if (paymentResponseHeader) {
     const paymentResponse = decodePaymentResponseHeader(paymentResponseHeader);
-    console.log(`\n\n[PAYMENT-RESPONSE]\n${formatIndentedJson(paymentResponse)}`);
-    await deferredScheme.processSettleResponse(paymentResponse);
+    console.log(
+      `\n\n[PAYMENT-RESPONSE]\n${formatIndentedJson(paymentResponse)}`,
+    );
+    await batchedScheme.processSettleResponse(paymentResponse);
   }
 
   console.log("\n\n--- Summary ---");
@@ -278,7 +304,7 @@ async function main(): Promise<void> {
   console.log(`Vouchers sent: ${vouchersSent}`);
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error(error?.response?.data?.error ?? error);
   process.exit(1);
 });

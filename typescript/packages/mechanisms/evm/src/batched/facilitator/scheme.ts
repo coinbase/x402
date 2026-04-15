@@ -8,22 +8,22 @@ import {
 } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
 import {
-  DeferredDepositPayload,
-  DeferredVoucherPayload,
-  DeferredClaimPayload,
-  DeferredClaimWithSignaturePayload,
-  DeferredSettleActionPayload,
-  DeferredDepositSettlePayload,
-  DeferredCooperativeWithdrawPayload,
-  DeferredCooperativeWithdrawWithSignaturePayload,
-  isDeferredDepositPayload,
-  isDeferredVoucherPayload,
-  isDeferredClaimPayload,
-  isDeferredClaimWithSignaturePayload,
-  isDeferredSettleActionPayload,
-  isDeferredDepositSettlePayload,
-  isDeferredCooperativeWithdrawPayload,
-  isDeferredCooperativeWithdrawWithSignaturePayload,
+  BatchedDepositPayload,
+  BatchedVoucherPayload,
+  BatchedClaimPayload,
+  BatchedClaimWithSignaturePayload,
+  BatchedSettleActionPayload,
+  BatchedDepositSettlePayload,
+  BatchedCooperativeWithdrawPayload,
+  BatchedCooperativeWithdrawWithSignaturePayload,
+  isBatchedDepositPayload,
+  isBatchedVoucherPayload,
+  isBatchedClaimPayload,
+  isBatchedClaimWithSignaturePayload,
+  isBatchedSettleActionPayload,
+  isBatchedDepositSettlePayload,
+  isBatchedCooperativeWithdrawPayload,
+  isBatchedCooperativeWithdrawWithSignaturePayload,
 } from "../types";
 import { verifyDeposit, settleDeposit } from "./deposit";
 import { verifyVoucher } from "./voucher";
@@ -36,17 +36,17 @@ import {
 import * as Errors from "./errors";
 
 /**
- * Facilitator-side implementation of the `batch-settlement` scheme for EVM networks.
+ * Facilitator-side implementation of the `batched` scheme for EVM networks.
  *
  * Routes incoming verify/settle requests to the appropriate handler based on payload
  * type (deposit, voucher, claim, claimWithSignature, settle, cooperativeWithdraw).
  */
-export class DeferredEvmScheme implements SchemeNetworkFacilitator {
-  readonly scheme = "batch-settlement";
+export class BatchedEvmScheme implements SchemeNetworkFacilitator {
+  readonly scheme = "batched";
   readonly caipFamily = "eip155:*";
 
   /**
-   * Creates a facilitator scheme for verifying and settling deferred batch-settlement payments.
+   * Creates a facilitator scheme for verifying and settling batched payments.
    *
    * @param signer - Facilitator EVM signer used for on-chain reads, writes, and signature verification.
    */
@@ -96,10 +96,7 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload as Record<string, unknown>;
 
-    if (
-      payload.accepted.scheme !== "batch-settlement" ||
-      requirements.scheme !== "batch-settlement"
-    ) {
+    if (payload.accepted.scheme !== "batched" || requirements.scheme !== "batched") {
       return { isValid: false, invalidReason: Errors.ErrInvalidScheme };
     }
 
@@ -107,12 +104,12 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
       return { isValid: false, invalidReason: Errors.ErrNetworkMismatch };
     }
 
-    if (isDeferredDepositPayload(rawPayload)) {
-      return verifyDeposit(this.signer, rawPayload as DeferredDepositPayload, requirements);
+    if (isBatchedDepositPayload(rawPayload)) {
+      return verifyDeposit(this.signer, rawPayload as BatchedDepositPayload, requirements);
     }
 
-    if (isDeferredVoucherPayload(rawPayload)) {
-      const voucherPayload = rawPayload as unknown as DeferredVoucherPayload;
+    if (isBatchedVoucherPayload(rawPayload)) {
+      const voucherPayload = rawPayload as unknown as BatchedVoucherPayload;
       return verifyVoucher(this.signer, voucherPayload, requirements, voucherPayload.channelConfig);
     }
 
@@ -142,52 +139,52 @@ export class DeferredEvmScheme implements SchemeNetworkFacilitator {
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload as Record<string, unknown>;
 
-    if (isDeferredDepositPayload(rawPayload)) {
-      return settleDeposit(this.signer, rawPayload as DeferredDepositPayload, requirements);
+    if (isBatchedDepositPayload(rawPayload)) {
+      return settleDeposit(this.signer, rawPayload as BatchedDepositPayload, requirements);
     }
 
-    if (isDeferredDepositSettlePayload(rawPayload)) {
-      const dsPayload = rawPayload as unknown as DeferredDepositSettlePayload;
+    if (isBatchedDepositSettlePayload(rawPayload)) {
+      const dsPayload = rawPayload as unknown as BatchedDepositSettlePayload;
       const depositPayload = {
         type: "deposit" as const,
         deposit: dsPayload.deposit,
         voucher: undefined as never,
-      } as unknown as DeferredDepositPayload;
+      } as unknown as BatchedDepositPayload;
       return settleDeposit(this.signer, depositPayload, requirements);
     }
 
-    if (isDeferredClaimPayload(rawPayload)) {
-      return executeClaim(this.signer, rawPayload as unknown as DeferredClaimPayload, requirements);
+    if (isBatchedClaimPayload(rawPayload)) {
+      return executeClaim(this.signer, rawPayload as unknown as BatchedClaimPayload, requirements);
     }
 
-    if (isDeferredClaimWithSignaturePayload(rawPayload)) {
+    if (isBatchedClaimWithSignaturePayload(rawPayload)) {
       return executeClaimWithSignature(
         this.signer,
-        rawPayload as unknown as DeferredClaimWithSignaturePayload,
+        rawPayload as unknown as BatchedClaimWithSignaturePayload,
         requirements,
       );
     }
 
-    if (isDeferredCooperativeWithdrawWithSignaturePayload(rawPayload)) {
+    if (isBatchedCooperativeWithdrawWithSignaturePayload(rawPayload)) {
       return executeCooperativeWithdrawWithSignature(
         this.signer,
-        rawPayload as unknown as DeferredCooperativeWithdrawWithSignaturePayload,
+        rawPayload as unknown as BatchedCooperativeWithdrawWithSignaturePayload,
         requirements,
       );
     }
 
-    if (isDeferredCooperativeWithdrawPayload(rawPayload)) {
+    if (isBatchedCooperativeWithdrawPayload(rawPayload)) {
       return executeCooperativeWithdraw(
         this.signer,
-        rawPayload as unknown as DeferredCooperativeWithdrawPayload,
+        rawPayload as unknown as BatchedCooperativeWithdrawPayload,
         requirements,
       );
     }
 
-    if (isDeferredSettleActionPayload(rawPayload)) {
+    if (isBatchedSettleActionPayload(rawPayload)) {
       return executeSettle(
         this.signer,
-        rawPayload as unknown as DeferredSettleActionPayload,
+        rawPayload as unknown as BatchedSettleActionPayload,
         requirements,
       );
     }

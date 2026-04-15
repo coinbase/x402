@@ -109,33 +109,33 @@ export type UptoPermit2Payload = {
   };
 };
 
-// Deferred / batch-settlement types
+// Batched EVM scheme payload types (scheme id: "batched")
 export type {
   ChannelConfig,
-  DeferredDepositPayload,
-  DeferredVoucherPayload,
-  DeferredVoucherFields,
-  DeferredErc3009Authorization,
-  DeferredClaimPayload,
-  DeferredClaimWithSignaturePayload,
-  DeferredSettleActionPayload,
-  DeferredDepositSettlePayload,
-  DeferredCooperativeWithdrawPayload,
-  DeferredCooperativeWithdrawWithSignaturePayload,
-  DeferredVoucherClaim,
-  DeferredPayload,
-  DeferredSettlePayload,
-} from "./deferred/types";
+  BatchedDepositPayload,
+  BatchedVoucherPayload,
+  BatchedVoucherFields,
+  BatchedErc3009Authorization,
+  BatchedClaimPayload,
+  BatchedClaimWithSignaturePayload,
+  BatchedSettleActionPayload,
+  BatchedDepositSettlePayload,
+  BatchedCooperativeWithdrawPayload,
+  BatchedCooperativeWithdrawWithSignaturePayload,
+  BatchedVoucherClaim,
+  BatchedPayload,
+  BatchedSettlePayload,
+} from "./batched/types";
 export {
-  isDeferredDepositPayload,
-  isDeferredVoucherPayload,
-  isDeferredClaimPayload,
-  isDeferredClaimWithSignaturePayload,
-  isDeferredSettleActionPayload,
-  isDeferredDepositSettlePayload,
-  isDeferredCooperativeWithdrawPayload,
-  isDeferredCooperativeWithdrawWithSignaturePayload,
-} from "./deferred/types";
+  isBatchedDepositPayload,
+  isBatchedVoucherPayload,
+  isBatchedClaimPayload,
+  isBatchedClaimWithSignaturePayload,
+  isBatchedSettleActionPayload,
+  isBatchedDepositSettlePayload,
+  isBatchedCooperativeWithdrawPayload,
+  isBatchedCooperativeWithdrawWithSignaturePayload,
+} from "./batched/types";
 
 /**
  * Type guard to check if a payload is an upto Permit2 payload.

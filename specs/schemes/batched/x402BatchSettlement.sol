@@ -12,7 +12,7 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 import {IERC3009} from "./interfaces/IERC3009.sol";
 
 /// @title x402BatchSettlement
-/// @notice Stateless unidirectional payment channel contract for the x402 `batch-settlement` scheme on EVM.
+/// @notice Stateless unidirectional payment channel contract for the x402 `batched` scheme on EVM.
 /// @dev Channel identity is derived from an immutable ChannelConfig struct:
 ///      `channelId = keccak256(abi.encode(channelConfig))`.
 ///      Deployed at the same address across all supported EVM chains using CREATE2.

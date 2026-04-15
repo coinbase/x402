@@ -12,22 +12,22 @@ import { getAddress, recoverTypedDataAddress } from "viem";
 import { ClientEvmSigner } from "../../signer";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS, BATCH_SETTLEMENT_DOMAIN, voucherTypes } from "../constants";
-import { ChannelConfig, DeferredVoucherPayload } from "../types";
+import { ChannelConfig, BatchedVoucherPayload } from "../types";
 import { getEvmChainId } from "../../utils";
-import { createDeferredEIP3009DepositPayload } from "./eip3009";
+import { createBatchedEIP3009DepositPayload } from "./eip3009";
 import { ClientSessionStorage, InMemoryClientSessionStorage } from "./storage";
-import type { DeferredClientContext } from "./storage";
+import type { BatchedClientContext } from "./storage";
 import { signVoucher } from "./voucher";
 import { computeChannelId } from "../utils";
 
-export interface DeferredDepositPolicy {
+export interface BatchedDepositPolicy {
   depositMultiplier?: number;
   maxDeposit?: string;
   autoTopUp?: boolean;
 }
 
-export interface DeferredEvmSchemeOptions {
-  depositPolicy?: DeferredDepositPolicy;
+export interface BatchedEvmSchemeOptions {
+  depositPolicy?: BatchedDepositPolicy;
   storage?: ClientSessionStorage;
   salt?: `0x${string}`;
   payerAuthorizer?: `0x${string}`;
@@ -35,17 +35,17 @@ export interface DeferredEvmSchemeOptions {
   voucherSigner?: ClientEvmSigner;
 }
 
-export type { DeferredClientContext } from "./storage";
+export type { BatchedClientContext } from "./storage";
 
 /**
  * Discriminates a full options object from a bare deposit-policy object.
  *
  * @param o - Constructor argument that may be options, deposit policy only, or undefined.
- * @returns `true` when `o` is a {@link DeferredEvmSchemeOptions} object.
+ * @returns `true` when `o` is a {@link BatchedEvmSchemeOptions} object.
  */
-function isDeferredEvmSchemeOptions(
-  o: DeferredEvmSchemeOptions | DeferredDepositPolicy | undefined,
-): o is DeferredEvmSchemeOptions {
+function isBatchedEvmSchemeOptions(
+  o: BatchedEvmSchemeOptions | BatchedDepositPolicy | undefined,
+): o is BatchedEvmSchemeOptions {
   return (
     o !== undefined &&
     typeof o === "object" &&
@@ -63,8 +63,8 @@ function isDeferredEvmSchemeOptions(
  * @param second - Optional second constructor argument (options or deposit policy).
  * @returns Resolved storage, salt, deposit policy, and optional payer authorizer.
  */
-function resolveClientOptions(second?: DeferredEvmSchemeOptions | DeferredDepositPolicy): {
-  depositPolicy?: DeferredDepositPolicy;
+function resolveClientOptions(second?: BatchedEvmSchemeOptions | BatchedDepositPolicy): {
+  depositPolicy?: BatchedDepositPolicy;
   storage: ClientSessionStorage;
   salt: `0x${string}`;
   payerAuthorizer?: `0x${string}`;
@@ -75,7 +75,7 @@ function resolveClientOptions(second?: DeferredEvmSchemeOptions | DeferredDeposi
   if (second === undefined) {
     return { storage: new InMemoryClientSessionStorage(), salt: defaultSalt };
   }
-  if (isDeferredEvmSchemeOptions(second)) {
+  if (isBatchedEvmSchemeOptions(second)) {
     return {
       storage: second.storage ?? new InMemoryClientSessionStorage(),
       depositPolicy: second.depositPolicy,
@@ -92,17 +92,16 @@ function resolveClientOptions(second?: DeferredEvmSchemeOptions | DeferredDeposi
 }
 
 /**
- * Client-side implementation of the `batch-settlement` scheme for EVM networks.
+ * Client-side implementation of the `batched` scheme for EVM networks.
  *
  * Builds payment payloads (deposit + voucher or voucher-only), processes server responses
  * to update local session state, handles corrective 402 resynchronisation, and supports
  * on-demand cooperative withdrawal requests.
  */
-export class DeferredEvmScheme implements SchemeNetworkClient {
-  readonly scheme = "batch-settlement";
+export class BatchedEvmScheme implements SchemeNetworkClient {
+  readonly scheme = "batched";
 
   readonly schemeHooks: SchemeClientHooks = {
-
     onPaymentResponse: async ctx => {
       if (ctx.settleResponse) {
         await this.processSettleResponse(ctx.settleResponse);
@@ -117,21 +116,21 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   };
 
   private readonly storage: ClientSessionStorage;
-  private readonly depositPolicy: DeferredDepositPolicy | undefined;
+  private readonly depositPolicy: BatchedDepositPolicy | undefined;
   private readonly salt: `0x${string}`;
   private readonly payerAuthorizer: `0x${string}` | undefined;
   private readonly voucherSigner: ClientEvmSigner | undefined;
   private pendingWithdraw = new Set<string>();
 
   /**
-   * Constructs a batch-settlement client scheme.
+   * Constructs a batched client scheme.
    *
    * @param signer - Client EVM wallet used for signing vouchers and ERC-3009 authorizations.
    * @param optionsOrPolicy - Either a full options object or a bare deposit-policy.
    */
   constructor(
     private readonly signer: ClientEvmSigner,
-    optionsOrPolicy?: DeferredEvmSchemeOptions | DeferredDepositPolicy,
+    optionsOrPolicy?: BatchedEvmSchemeOptions | BatchedDepositPolicy,
   ) {
     const { storage, depositPolicy, salt, payerAuthorizer, voucherSigner } =
       resolveClientOptions(optionsOrPolicy);
@@ -236,7 +235,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     }
 
     const prev = await this.storage.get(key);
-    const next: DeferredClientContext = { ...(prev ?? {}) };
+    const next: BatchedClientContext = { ...(prev ?? {}) };
 
     if (extra.chargedCumulativeAmount !== undefined) {
       next.chargedCumulativeAmount = String(extra.chargedCumulativeAmount);
@@ -266,7 +265,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
    * @param paymentRequirements - Server payment requirements used to derive the ChannelConfig.
    * @returns The recovered client context.
    */
-  async recoverSession(paymentRequirements: PaymentRequirements): Promise<DeferredClientContext> {
+  async recoverSession(paymentRequirements: PaymentRequirements): Promise<BatchedClientContext> {
     if (!this.signer.readContract) {
       throw new Error("recoverSession requires ClientEvmSigner.readContract");
     }
@@ -283,7 +282,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
 
     const balanceStr = chBalance.toString();
     const totalClaimedStr = chTotalClaimed.toString();
-    const ctx: DeferredClientContext = {
+    const ctx: BatchedClientContext = {
       chargedCumulativeAmount: totalClaimedStr,
       balance: balanceStr,
       totalClaimed: totalClaimedStr,
@@ -309,7 +308,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
    * @param channelId - The channel identifier.
    * @returns Stored context or `undefined`.
    */
-  async getSession(channelId: string): Promise<DeferredClientContext | undefined> {
+  async getSession(channelId: string): Promise<BatchedClientContext | undefined> {
     return this.storage.get(channelId.toLowerCase());
   }
 
@@ -331,7 +330,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
 
     const accept = paymentRequired.accepts.find(
       a =>
-        a.scheme === "batch-settlement" &&
+        a.scheme === "batched" &&
         a.extra?.chargedCumulativeAmount !== undefined &&
         a.extra?.signedMaxClaimable !== undefined &&
         a.extra?.signature !== undefined,
@@ -401,7 +400,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       return false;
     }
 
-    const ctx: DeferredClientContext = {
+    const ctx: BatchedClientContext = {
       chargedCumulativeAmount: charged.toString(),
       signedMaxClaimable: signed.toString(),
       signature: sig,
@@ -414,7 +413,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
   }
 
   /**
-   * Creates the payment payload for a batch-settlement request.
+   * Creates the payment payload for a batched request.
    *
    * If the channel has no on-chain deposit (or needs a top-up), builds an ERC-3009 deposit
    * payload bundled with a voucher.  Otherwise, signs and returns a voucher-only payload.
@@ -437,28 +436,28 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
     const channelId = computeChannelId(config);
     const key = channelId.toLowerCase();
 
-    let deferredCtx = await this.storage.get(key);
-    if (deferredCtx === undefined && this.signer.readContract) {
-      deferredCtx = await this.recoverSession(paymentRequirements);
+    let batchedCtx = await this.storage.get(key);
+    if (batchedCtx === undefined && this.signer.readContract) {
+      batchedCtx = await this.recoverSession(paymentRequirements);
     }
-    deferredCtx = deferredCtx ?? {};
+    batchedCtx = batchedCtx ?? {};
 
-    const needsInitialDeposit = !deferredCtx.balance || deferredCtx.balance === "0";
+    const needsInitialDeposit = !batchedCtx.balance || batchedCtx.balance === "0";
 
-    const baseCumulative = BigInt(deferredCtx.chargedCumulativeAmount ?? "0");
+    const baseCumulative = BigInt(batchedCtx.chargedCumulativeAmount ?? "0");
     const requestAmount = BigInt(paymentRequirements.amount);
     const maxClaimableAmount = (baseCumulative + requestAmount).toString();
 
     const autoTopUp = this.depositPolicy?.autoTopUp !== false;
-    const currentBalance = BigInt(deferredCtx.balance ?? "0");
+    const currentBalance = BigInt(batchedCtx.balance ?? "0");
     const needsTopUp =
       autoTopUp && !needsInitialDeposit && BigInt(maxClaimableAmount) > currentBalance;
 
     if (needsInitialDeposit || needsTopUp) {
       const depositAmount = needsInitialDeposit
-        ? (deferredCtx.depositAmount ?? this.depositAmountForRequest(requestAmount))
+        ? (batchedCtx.depositAmount ?? this.depositAmountForRequest(requestAmount))
         : this.depositAmountForRequest(requestAmount);
-      return createDeferredEIP3009DepositPayload(
+      return createBatchedEIP3009DepositPayload(
         this.signer,
         x402Version,
         paymentRequirements,
@@ -482,7 +481,7 @@ export class DeferredEvmScheme implements SchemeNetworkClient {
       this.pendingWithdraw.delete(channelId.toLowerCase());
     }
 
-    const payload: DeferredVoucherPayload = {
+    const payload: BatchedVoucherPayload = {
       type: "voucher",
       channelConfig: config,
       ...voucher,

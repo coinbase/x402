@@ -1,6 +1,6 @@
 import type { PaymentPayload, SettleResponse } from "@x402/core/types";
-import { isDeferredDepositPayload, isDeferredVoucherPayload } from "@x402/evm";
-import type { DeferredEvmScheme } from "@x402/evm/deferred/server";
+import { isBatchedDepositPayload, isBatchedVoucherPayload } from "@x402/evm";
+import type { BatchedEvmScheme } from "@x402/evm/batched/server";
 import type express from "express";
 
 export type ServerCliOptions = {
@@ -47,11 +47,11 @@ export function getNextMaxClaimableAmount(
 export function getChannelIdFromPayload(paymentPayload: PaymentPayload): string | undefined {
   const raw = paymentPayload.payload as Record<string, unknown>;
 
-  if (isDeferredVoucherPayload(raw)) {
+  if (isBatchedVoucherPayload(raw)) {
     return typeof raw.channelId === "string" ? raw.channelId : undefined;
   }
 
-  if (!isDeferredDepositPayload(raw)) {
+  if (!isBatchedDepositPayload(raw)) {
     return undefined;
   }
 
@@ -75,7 +75,7 @@ export function colorizeRed(text: string): string {
 }
 
 export async function buildFinalPaymentResponse(
-  deferredScheme: DeferredEvmScheme,
+  batchedScheme: BatchedEvmScheme,
   paymentResponse: SettleResponse,
   channelId: string | undefined,
   requestStartCharged: string,
@@ -84,7 +84,7 @@ export async function buildFinalPaymentResponse(
     return paymentResponse;
   }
 
-  const session = await deferredScheme.getStorage().get(channelId);
+  const session = await batchedScheme.getStorage().get(channelId);
   if (!session) {
     return paymentResponse;
   }
@@ -119,7 +119,7 @@ export function getAcceptedRenewalState(
 } {
   const raw = paymentPayload.payload as Record<string, unknown>;
 
-  if (isDeferredDepositPayload(raw)) {
+  if (isBatchedDepositPayload(raw)) {
     const voucher = raw.voucher as Record<string, unknown>;
 
     return {
@@ -144,7 +144,7 @@ export function toVoucherPayload(
 ): { channelId: string; payload: PaymentPayload } {
   const raw = paymentPayload.payload as Record<string, unknown>;
 
-  if (!isDeferredDepositPayload(raw)) {
+  if (!isBatchedDepositPayload(raw)) {
     return {
       channelId: raw.channelId as string,
       payload: paymentPayload,

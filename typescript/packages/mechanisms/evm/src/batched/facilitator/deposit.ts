@@ -1,7 +1,7 @@
 import { PaymentRequirements, VerifyResponse, SettleResponse } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredDepositPayload } from "../types";
+import { BatchedDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS, receiveAuthorizationTypes } from "../constants";
 import { getEvmChainId } from "../../utils";
@@ -10,7 +10,7 @@ import * as Errors from "./errors";
 import {
   erc3009AuthorizationTimeInvalidReason,
   validateChannelConfig,
-  verifyDeferredVoucherTypedData,
+  verifyBatchedVoucherTypedData,
 } from "./utils";
 
 /**
@@ -32,7 +32,7 @@ import {
  */
 export async function verifyDeposit(
   signer: FacilitatorEvmSigner,
-  payload: DeferredDepositPayload,
+  payload: BatchedDepositPayload,
   requirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   const { deposit, voucher } = payload;
@@ -100,7 +100,7 @@ export async function verifyDeposit(
     return { isValid: false, invalidReason: Errors.ErrInvalidReceiveAuthorizationSignature, payer };
   }
 
-  const voucherOk = await verifyDeferredVoucherTypedData(
+  const voucherOk = await verifyBatchedVoucherTypedData(
     signer,
     {
       channelId: voucher.channelId,
@@ -175,7 +175,7 @@ export async function verifyDeposit(
 
 /**
  * Executes an ERC-3009 deposit on-chain by calling `depositWithERC3009` on the
- * batch-settlement contract.
+ * batched contract.
  *
  * The deposit is first verified via {@link verifyDeposit}; if invalid the returned
  * {@link SettleResponse} will have `success: false` with the verification reason.
@@ -187,7 +187,7 @@ export async function verifyDeposit(
  */
 export async function settleDeposit(
   signer: FacilitatorEvmSigner,
-  payload: DeferredDepositPayload,
+  payload: BatchedDepositPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const { deposit, voucher } = payload;

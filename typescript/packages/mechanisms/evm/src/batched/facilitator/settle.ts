@@ -1,7 +1,7 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import { DeferredSettleActionPayload } from "../types";
+import { BatchedSettleActionPayload } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "./errors";
@@ -19,7 +19,7 @@ import * as Errors from "./errors";
  */
 export async function executeSettle(
   signer: FacilitatorEvmSigner,
-  payload: DeferredSettleActionPayload,
+  payload: BatchedSettleActionPayload,
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;

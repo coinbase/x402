@@ -64,7 +64,7 @@ export function erc3009AuthorizationTimeInvalidReason(
  * @param chainId - Numeric EVM chain id for the EIP-712 domain.
  * @returns `true` when the voucher signature is valid.
  */
-export async function verifyDeferredVoucherTypedData(
+export async function verifyBatchedVoucherTypedData(
   signer: FacilitatorEvmSigner,
   params: {
     channelId: `0x${string}`;

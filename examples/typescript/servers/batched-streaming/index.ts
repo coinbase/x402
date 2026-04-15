@@ -5,8 +5,8 @@ import {
   encodePaymentResponseHeader,
 } from "@x402/core/http";
 import type { PaymentPayload, SettleResponse } from "@x402/core/types";
-import { DeferredEvmScheme, FileSessionStorage } from "@x402/evm/deferred/server";
-import { isDeferredDepositPayload } from "@x402/evm";
+import { BatchedEvmScheme, FileSessionStorage } from "@x402/evm/batched/server";
+import { isBatchedDepositPayload } from "@x402/evm";
 import { config } from "dotenv";
 import express from "express";
 import { privateKeyToAccount } from "viem/accounts";
@@ -78,17 +78,17 @@ const receiverAuthorizerSigner = receiverAuthorizerPrivateKey
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const deferredScheme = new DeferredEvmScheme(evmAddress, {
+const batchedScheme = new BatchedEvmScheme(evmAddress, {
   ...(receiverAuthorizerSigner ? { receiverAuthorizerSigner } : {}),
   withdrawDelay,
   ...(storageDir ? { storage: new FileSessionStorage({ directory: storageDir }) } : {}),
 });
 
-const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWORK, deferredScheme);
+const resourceServer = new x402ResourceServer(facilitatorClient).register(NETWORK, batchedScheme);
 
 // Payment requirements template 
 const paymentOptions = {
-  scheme: "batch-settlement" as const,
+  scheme: "batched" as const,
   price: PRICE_PER_CHUNK,
   network: NETWORK,
   payTo: evmAddress,
@@ -182,7 +182,7 @@ app.get("/llm/stream", async (req, res) => {
 
   const requestChannelId = getChannelIdFromPayload(paymentPayload);
   const requestStartCharged =
-    (await deferredScheme.getStorage().get(requestChannelId ?? ""))?.chargedCumulativeAmount ?? "0";
+    (await batchedScheme.getStorage().get(requestChannelId ?? ""))?.chargedCumulativeAmount ?? "0";
 
   // Verify payment
   const verifyResult = await resourceServer.verifyPayment(paymentPayload, matched);
@@ -194,7 +194,7 @@ app.get("/llm/stream", async (req, res) => {
   // For deposits, settle on-chain immediately (also charges one chunk to session)
   // For vouchers, defer settlement until streaming
   const raw = paymentPayload.payload as Record<string, unknown>;
-  const isDeposit = isDeferredDepositPayload(raw);
+  const isDeposit = isBatchedDepositPayload(raw);
   let firstChunkSettled = false;
   let trailingSettleResponse: SettleResponse | null = null;
 
@@ -247,7 +247,7 @@ app.get("/llm/stream", async (req, res) => {
       let balance: string;
       if (firstChunkSettled) {
         // The deposit settle already charged this chunk — just read the session state
-        const session = await deferredScheme.getStorage().get(channelId);
+        const session = await batchedScheme.getStorage().get(channelId);
         chargedCumulativeAmount = session?.chargedCumulativeAmount ?? chunkAmountAtomic;
         balance = session?.balance ?? "0";
         firstChunkSettled = false;
@@ -311,7 +311,7 @@ app.get("/llm/stream", async (req, res) => {
         (newVerify.extra as Record<string, string> | undefined)?.balance ?? "0";
       const renewalRaw = newPayload.payload as Record<string, unknown>;
 
-      if (isDeferredDepositPayload(renewalRaw)) {
+      if (isBatchedDepositPayload(renewalRaw)) {
         const renewalSettle = await resourceServer.settlePayment(newPayload, newRequirements);
         if (!renewalSettle.success) {
           sseWrite(res, "x402-error", {
@@ -390,7 +390,7 @@ app.get("/llm/stream", async (req, res) => {
       );
     } else if (firstChunkSettled) {
       // Stream ended within the first (deposit-settled) chunk — report state without re-settling
-      const session = await deferredScheme.getStorage().get(channelId);
+      const session = await batchedScheme.getStorage().get(channelId);
       sseWrite(res, "x402-settlement", {
         channelId,
         chargedCumulativeAmount: session?.chargedCumulativeAmount ?? "0",
@@ -410,7 +410,7 @@ app.get("/llm/stream", async (req, res) => {
     pendingVouchers.delete(channelId);
     if (trailingSettleResponse) {
       const finalPaymentResponse = await buildFinalPaymentResponse(
-        deferredScheme,
+        batchedScheme,
         trailingSettleResponse,
         channelId,
         requestStartCharged,
@@ -458,13 +458,13 @@ app.post("/x402/voucher/:channelId", (req, res) => {
 
 async function start(): Promise<void> {
   const [assetAmount] = await Promise.all([
-    deferredScheme.parsePrice(PRICE_PER_CHUNK, NETWORK),
+    batchedScheme.parsePrice(PRICE_PER_CHUNK, NETWORK),
     resourceServer.initialize(),
   ]);
   chunkAmountAtomic = assetAmount.amount;
 
   app.listen(PORT, () => {
-    console.log(`Deferred-streaming server listening at http://localhost:${PORT}`);
+    console.log(`Batched-streaming server listening at http://localhost:${PORT}`);
     console.log(
       `  GET  /llm/stream          — SSE endpoint`,
     );
@@ -485,6 +485,6 @@ async function start(): Promise<void> {
 }
 
 start().catch(error => {
-  console.error("Failed to initialize deferred-streaming server:", error);
+  console.error("Failed to initialize batched-streaming server:", error);
   process.exit(1);
 });

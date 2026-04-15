@@ -75,7 +75,7 @@ export class InMemorySessionStorage implements SessionStorage {
    * so no concurrent microtask can interleave between the read and write.
    *
    * @param channelId - The channel identifier.
-   * @param expectedChargedCumulativeAmount - Expected current `chargedCumulativeAmount`.
+   * @param expectedCharged - Expected current `chargedCumulativeAmount` (compare-and-set guard).
    * @param session - The new session to store if the check passes.
    * @returns `true` if the swap succeeded, `false` if the value changed underneath.
    */

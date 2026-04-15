@@ -36,35 +36,35 @@ export { UptoEvmScheme } from "./upto";
 export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
-// Batch-settlement (deferred) scheme client
-export { DeferredEvmScheme } from "./deferred";
+// Batched scheme client
+export { BatchedEvmScheme } from "./batched";
 
 // Batch-settlement types
 export type {
   ChannelConfig,
-  DeferredDepositPayload,
-  DeferredVoucherPayload,
-  DeferredVoucherFields,
-  DeferredErc3009Authorization,
-  DeferredClaimPayload,
-  DeferredClaimWithSignaturePayload,
-  DeferredSettleActionPayload,
-  DeferredDepositSettlePayload,
-  DeferredCooperativeWithdrawPayload,
-  DeferredCooperativeWithdrawWithSignaturePayload,
-  DeferredVoucherClaim,
-  DeferredPayload,
-  DeferredSettlePayload,
+  BatchedDepositPayload,
+  BatchedVoucherPayload,
+  BatchedVoucherFields,
+  BatchedErc3009Authorization,
+  BatchedClaimPayload,
+  BatchedClaimWithSignaturePayload,
+  BatchedSettleActionPayload,
+  BatchedDepositSettlePayload,
+  BatchedCooperativeWithdrawPayload,
+  BatchedCooperativeWithdrawWithSignaturePayload,
+  BatchedVoucherClaim,
+  BatchedPayload,
+  BatchedSettlePayload,
 } from "./types";
 export {
-  isDeferredDepositPayload,
-  isDeferredVoucherPayload,
-  isDeferredClaimPayload,
-  isDeferredClaimWithSignaturePayload,
-  isDeferredSettleActionPayload,
-  isDeferredDepositSettlePayload,
-  isDeferredCooperativeWithdrawPayload,
-  isDeferredCooperativeWithdrawWithSignaturePayload,
+  isBatchedDepositPayload,
+  isBatchedVoucherPayload,
+  isBatchedClaimPayload,
+  isBatchedClaimWithSignaturePayload,
+  isBatchedSettleActionPayload,
+  isBatchedDepositSettlePayload,
+  isBatchedCooperativeWithdrawPayload,
+  isBatchedCooperativeWithdrawWithSignaturePayload,
 } from "./types";
 
 // Batch-settlement constants
@@ -74,7 +74,7 @@ export {
   voucherTypes,
   cooperativeWithdrawTypes,
   claimBatchTypes,
-} from "./deferred/constants";
+} from "./batched/constants";
 
 // Default stablecoins (USD string pricing → token address per chain)
 export { getDefaultAsset } from "./shared/defaultAssets";

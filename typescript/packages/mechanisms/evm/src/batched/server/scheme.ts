@@ -11,17 +11,17 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import type { FacilitatorClient, SettleContext, VerifyContext } from "@x402/core/server";
-import { DeferredChannelManager } from "./settlement";
+import { BatchedChannelManager } from "./settlement";
 import { getAddress, encodeAbiParameters, keccak256, concatHex } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
 import { getEvmChainId } from "../../utils";
 import {
-  isDeferredDepositPayload,
-  isDeferredVoucherPayload,
-  isDeferredCooperativeWithdrawPayload,
-  isDeferredCooperativeWithdrawWithSignaturePayload,
+  isBatchedDepositPayload,
+  isBatchedVoucherPayload,
+  isBatchedCooperativeWithdrawPayload,
+  isBatchedCooperativeWithdrawWithSignaturePayload,
 } from "../types";
-import type { ChannelConfig, DeferredVoucherClaim } from "../types";
+import type { ChannelConfig, BatchedVoucherClaim } from "../types";
 import {
   BATCH_SETTLEMENT_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
@@ -41,22 +41,18 @@ export interface AuthorizerSigner {
   }): Promise<`0x${string}`>;
 }
 
-export interface DeferredEvmSchemeServerConfig {
+export interface BatchedEvmSchemeServerConfig {
   storage?: SessionStorage;
   receiverAuthorizerSigner?: AuthorizerSigner;
   withdrawDelay?: number;
 }
 
 /**
- * Server-side implementation of the `batch-settlement` scheme for EVM networks.
+ * Server-side implementation of the `batched` scheme for EVM networks.
  *
- * Manages per-channel session state (cumulative amounts, voucher signatures, balances)
- * via lifecycle hooks that integrate with the x402 resource-server middleware.  The scheme
- * skips on-chain settlement for voucher-only requests by returning a deferred result and
- * only hits the chain for deposits or cooperative withdrawals.
  */
-export class DeferredEvmScheme implements SchemeNetworkServer {
-  readonly scheme = "batch-settlement";
+export class BatchedEvmScheme implements SchemeNetworkServer {
+  readonly scheme = "batched";
   readonly schemeHooks: SchemeServerHooks;
 
   private moneyParsers: MoneyParser[] = [];
@@ -67,12 +63,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   private pendingCooperativeWithdrawChannels = new Set<string>();
 
   /**
-   * Constructs a batch-settlement server scheme.
+   * Constructs a batched server scheme.
    *
    * @param receiverAddress - The server's receiver address (payTo).
    * @param config - Optional configuration for storage, receiver-authorizer signer, and withdraw delay.
    */
-  constructor(receiverAddress: `0x${string}`, config?: DeferredEvmSchemeServerConfig) {
+  constructor(receiverAddress: `0x${string}`, config?: BatchedEvmSchemeServerConfig) {
     this.receiverAddress = receiverAddress;
     this.storage = config?.storage ?? new InMemorySessionStorage();
     this.receiverAuthorizerSigner = config?.receiverAuthorizerSigner;
@@ -91,7 +87,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    * @param parser - A parser function to try before the default USD→token conversion.
    * @returns `this` for chaining.
    */
-  registerMoneyParser(parser: MoneyParser): DeferredEvmScheme {
+  registerMoneyParser(parser: MoneyParser): BatchedEvmScheme {
     this.moneyParsers.push(parser);
     return this;
   }
@@ -128,7 +124,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Injects batch-settlement-specific fields into the payment requirements returned to
+   * Injects batched-specific fields into the payment requirements returned to
    * the client (receiverAuthorizer, withdrawDelay, EIP-712 domain info).
    *
    * @param paymentRequirements - Base payment requirements from the middleware.
@@ -138,7 +134,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    * @param _supportedKind.network - Network identifier from the matched kind.
    * @param _supportedKind.extra - Optional extra fields on the matched kind.
    * @param _extensionKeys - Extension keys (unused).
-   * @returns Enhanced payment requirements with batch-settlement fields in `extra`.
+   * @returns Enhanced payment requirements with batched fields in `extra`.
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -208,16 +204,16 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Creates a {@link DeferredChannelManager} pre-configured with this scheme's
+   * Creates a {@link BatchedChannelManager} pre-configured with this scheme's
    * receiver, default token for the given network, and the provided facilitator.
    *
    * @param facilitator - Facilitator client for submitting on-chain claims/settlements.
    * @param network - CAIP-2 network identifier (e.g. `"eip155:84532"`).
    * @returns A ready-to-use channel manager.
    */
-  createChannelManager(facilitator: FacilitatorClient, network: Network): DeferredChannelManager {
+  createChannelManager(facilitator: FacilitatorClient, network: Network): BatchedChannelManager {
     const token = getDefaultAsset(network).address as `0x${string}`;
-    return new DeferredChannelManager({
+    return new BatchedChannelManager({
       scheme: this,
       facilitator,
       receiver: this.receiverAddress,
@@ -235,12 +231,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    *
    * @param opts - Optional filtering: `idleSecs` to only return idle channels.
    * @param opts.idleSecs - Minimum seconds since last request for a channel to be included.
-   * @returns Array of {@link DeferredVoucherClaim} entries for batch submission.
+   * @returns Array of {@link BatchedVoucherClaim} entries for batch submission.
    */
-  async getClaimableVouchers(opts?: { idleSecs?: number }): Promise<DeferredVoucherClaim[]> {
+  async getClaimableVouchers(opts?: { idleSecs?: number }): Promise<BatchedVoucherClaim[]> {
     const sessions = await this.storage.list();
     const now = Date.now();
-    const claims: DeferredVoucherClaim[] = [];
+    const claims: BatchedVoucherClaim[] = [];
 
     for (const s of sessions) {
       if (BigInt(s.chargedCumulativeAmount) <= BigInt(s.totalClaimed)) {
@@ -316,7 +312,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
    * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
    * @returns The receiver-authorizer's EIP-712 signature over `ClaimBatch(claimsHash)`.
    */
-  async signClaimBatch(claims: DeferredVoucherClaim[], network: string): Promise<`0x${string}`> {
+  async signClaimBatch(claims: BatchedVoucherClaim[], network: string): Promise<`0x${string}`> {
     if (!this.receiverAuthorizerSigner) {
       throw new Error("receiverAuthorizerSigner is not configured");
     }
@@ -362,12 +358,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     ctx: VerifyContext,
   ): Promise<void | { abort: true; reason: string; message?: string }> {
     const { paymentPayload, requirements } = ctx;
-    if (requirements.scheme !== "batch-settlement") {
+    if (requirements.scheme !== "batched") {
       return;
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
-    if (!isDeferredVoucherPayload(raw)) {
+    if (!isBatchedVoucherPayload(raw)) {
       return;
     }
 
@@ -415,7 +411,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     result: VerifyResponse;
   }): Promise<void> {
     const { paymentPayload, requirements, result } = ctx;
-    if (requirements.scheme !== "batch-settlement" || !result.isValid || !result.payer) {
+    if (requirements.scheme !== "batched" || !result.isValid || !result.payer) {
       return;
     }
 
@@ -426,7 +422,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     let payer: string;
     let channelConfig: ChannelConfig | undefined;
 
-    if (isDeferredDepositPayload(raw)) {
+    if (isBatchedDepositPayload(raw)) {
       channelId = raw.voucher.channelId as string;
       signedMaxClaimable = raw.voucher.maxClaimableAmount as string;
       signature = raw.voucher.signature as `0x${string}`;
@@ -434,7 +430,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
         | ChannelConfig
         | undefined;
       payer = channelConfig?.payer ?? result.payer;
-    } else if (isDeferredVoucherPayload(raw)) {
+    } else if (isBatchedVoucherPayload(raw)) {
       channelId = raw.channelId as string;
       signedMaxClaimable = raw.maxClaimableAmount as string;
       signature = raw.signature as `0x${string}`;
@@ -481,21 +477,17 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       withdrawRequestedAt,
       lastRequestTimestamp: Date.now(),
     };
-    await this.storage.compareAndSet(
-      channelId,
-      prev?.chargedCumulativeAmount ?? "0",
-      session,
-    );
+    await this.storage.compareAndSet(channelId, prev?.chargedCumulativeAmount ?? "0", session);
   }
 
   /**
    * Lifecycle hook: runs before the facilitator settles a payment.
    *
-   * For voucher payloads the server does NOT trigger an on-chain settle.  Instead, it
+   * For voucher payloads the server does NOT trigger an onchain settle.  Instead, it
    * increments the local `chargedCumulativeAmount` and returns a `skip` result so the
-   * middleware responds immediately (deferred settlement).  If the client requests a
+   * middleware responds immediately.  If the client requests a
    * cooperative withdrawal, the payload is rewritten to a `cooperativeWithdraw` settle
-   * action that the facilitator will execute on-chain.
+   * action that the facilitator will execute onchain.
    *
    * @param ctx - Settle lifecycle context (payload and requirements).
    * @returns Nothing to proceed; `abort` to fail; `skip` with a result to short-circuit settlement.
@@ -508,12 +500,12 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     | { skip: true; result: SettleResponse }
   > {
     const { paymentPayload, requirements } = ctx;
-    if (requirements.scheme !== "batch-settlement") {
+    if (requirements.scheme !== "batched") {
       return;
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
-    if (!isDeferredVoucherPayload(raw)) {
+    if (!isBatchedVoucherPayload(raw)) {
       return;
     }
 
@@ -522,7 +514,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     if (!session) {
       return {
         abort: true,
-        reason: "missing_deferred_session",
+        reason: "missing_batched_session",
         message: "No session for channel; verify may not have completed",
       };
     }
@@ -535,7 +527,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     if (newCharged > signedCap) {
       return {
         abort: true,
-        reason: "deferred_charge_exceeds_signed_cumulative",
+        reason: "batched_charge_exceeds_signed_cumulative",
         message: `Charged ${newCharged.toString()} exceeds signed max ${signedCap.toString()}`,
       };
     }
@@ -543,7 +535,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     if (raw.withdraw === true) {
       const config = session.channelConfig;
 
-      const claimEntry: DeferredVoucherClaim = {
+      const claimEntry: BatchedVoucherClaim = {
         voucher: {
           channel: config,
           maxClaimableAmount: raw.maxClaimableAmount as string,
@@ -603,7 +595,7 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     if (!swapped) {
       return {
         abort: true,
-        reason: "deferred_channel_busy",
+        reason: "batched_channel_busy",
         message: "Concurrent request modified channel state",
       };
     }
@@ -645,15 +637,15 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
     result: SettleResponse;
   }): Promise<void> {
     const { paymentPayload, requirements, result } = ctx;
-    if (requirements.scheme !== "batch-settlement" || !result.success) {
+    if (requirements.scheme !== "batched" || !result.success) {
       return;
     }
 
     const raw = paymentPayload.payload as Record<string, unknown>;
 
     if (
-      isDeferredCooperativeWithdrawWithSignaturePayload(raw) ||
-      isDeferredCooperativeWithdrawPayload(raw)
+      isBatchedCooperativeWithdrawWithSignaturePayload(raw) ||
+      isBatchedCooperativeWithdrawPayload(raw)
     ) {
       const channelId =
         typeof (raw.config as Record<string, unknown>)?.payer === "string"
@@ -674,11 +666,11 @@ export class DeferredEvmScheme implements SchemeNetworkServer {
       return;
     }
 
-    if (isDeferredVoucherPayload(raw)) {
+    if (isBatchedVoucherPayload(raw)) {
       return;
     }
 
-    if (isDeferredDepositPayload(raw)) {
+    if (isBatchedDepositPayload(raw)) {
       const channelId = (raw.voucher as Record<string, unknown>).channelId as string;
       const ex = result.extra ?? {};
       const balanceSnap =
