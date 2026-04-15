@@ -196,7 +196,7 @@ facilitator = (
 )
 
 # Network configuration (from env or defaults)
-evm_network = os.environ.get("EVM_NETWORK", "eip155:84532")
+evm_network = os.environ.get("EVM_NETWORK", "eip155:84532") # Base Sepolia
 
 # Register EVM schemes (V1 and V2)
 register_exact_evm_facilitator(
