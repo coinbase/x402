@@ -2,7 +2,9 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {Permit2DepositCollector} from "../../src/periphery/Permit2DepositCollector.sol";
+import {
+    Permit2DepositCollector
+} from "../../src/periphery/Permit2DepositCollector.sol";
 import {DepositCollector} from "../../src/periphery/DepositCollector.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -18,7 +20,10 @@ contract Permit2DepositCollectorTest is Test {
 
     function setUp() public {
         mockPermit2 = new MockPermit2();
-        collector = new Permit2DepositCollector(address(this), address(mockPermit2));
+        collector = new Permit2DepositCollector(
+            address(this),
+            address(mockPermit2)
+        );
         token = new MockERC20("USDC", "USDC", 6);
 
         payer = makeAddr("payer");
@@ -54,7 +59,10 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_witnessConstants() public view {
-        assertEq(collector.DEPOSIT_WITNESS_TYPEHASH(), keccak256("DepositWitness(bytes32 channelId)"));
+        assertEq(
+            collector.DEPOSIT_WITNESS_TYPEHASH(),
+            keccak256("DepositWitness(bytes32 channelId)")
+        );
         assertEq(
             keccak256(bytes(collector.DEPOSIT_WITNESS_TYPE_STRING())),
             keccak256(
@@ -64,44 +72,100 @@ contract Permit2DepositCollectorTest is Test {
     }
 
     function test_collect_success() public {
-        bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
+        bytes memory signature = abi.encodePacked(
+            bytes32(uint256(1)),
+            bytes32(uint256(2)),
+            uint8(27)
+        );
+        bytes memory collectorData = _collectorData(
+            0,
+            block.timestamp + 3600,
+            signature
+        );
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(
+            payer,
+            address(token),
+            AMOUNT,
+            channelId,
+            address(this),
+            collectorData
+        );
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
         assertEq(token.balanceOf(payer), 100_000e6 - AMOUNT);
     }
 
     function test_collect_directTransfer_noHop() public {
-        bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
+        bytes memory signature = abi.encodePacked(
+            bytes32(uint256(1)),
+            bytes32(uint256(2)),
+            uint8(27)
+        );
+        bytes memory collectorData = _collectorData(
+            0,
+            block.timestamp + 3600,
+            signature
+        );
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(
+            payer,
+            address(token),
+            AMOUNT,
+            channelId,
+            address(this),
+            collectorData
+        );
 
         assertEq(token.balanceOf(address(collector)), 0);
     }
 
     function test_collect_consumesNonce() public {
-        bytes memory signature = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
-        bytes memory collectorData = _collectorData(42, block.timestamp + 3600, signature);
+        bytes memory signature = abi.encodePacked(
+            bytes32(uint256(1)),
+            bytes32(uint256(2)),
+            uint8(27)
+        );
+        bytes memory collectorData = _collectorData(
+            42,
+            block.timestamp + 3600,
+            signature
+        );
 
         uint256 bitmapBefore = mockPermit2.nonceBitmap(payer, 0);
         assertEq(bitmapBefore, 0);
 
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(
+            payer,
+            address(token),
+            AMOUNT,
+            keccak256("ch"),
+            address(this),
+            collectorData
+        );
 
         uint256 bitmapAfter = mockPermit2.nonceBitmap(payer, 0);
         assertGt(bitmapAfter, 0);
     }
 
     function test_collect_revert_onlySettlement() public {
-        bytes memory collectorData = _collectorData(0, block.timestamp + 3600, hex"dead");
+        bytes memory collectorData = _collectorData(
+            0,
+            block.timestamp + 3600,
+            hex"dead"
+        );
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlySettlement.selector);
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(
+            payer,
+            address(token),
+            AMOUNT,
+            keccak256("ch"),
+            address(this),
+            collectorData
+        );
     }
 }

@@ -134,7 +134,6 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error InvalidCollector();
     error InvalidRefundNonce();
     error ZeroRefund();
-    error RefundExceedsAvailable();
 
     // =========================================================================
     // Constructor
@@ -241,9 +240,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Withdrawal Flow
     // =========================================================================
 
-    /// @notice Start the withdrawal countdown. Only the payer can call.
+    /// @notice Start the withdrawal countdown. Only `config.payer` or `config.payerAuthorizer` may call.
     function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external {
-        if (msg.sender != config.payer) revert InvalidChannel();
+        if (msg.sender != config.payer && msg.sender != config.payerAuthorizer) {
+            revert InvalidChannel();
+        }
         if (amount == 0) revert NothingToWithdraw();
 
         bytes32 channelId = getChannelId(config);
@@ -291,7 +292,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     /// @notice Cooperative refund to the payer. Only `receiverAuthorizer` may call.
-    /// @param amount Must not exceed `balance - totalClaimed` for the channel; use the full available amount for a total refund.
+    /// @param amount Requested refund; capped to unclaimed escrow `balance - totalClaimed`. No-ops if capped amount is zero.
     function refund(ChannelConfig calldata config, uint128 amount) external nonReentrant {
         if (msg.sender != config.receiverAuthorizer) {
             revert NotReceiverAuthorizer();
@@ -300,6 +301,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     /// @notice Same as `refund`, but anyone may submit a signature from `receiverAuthorizer` authorizing `amount` for `nonce`.
+    /// @param amount Requested refund in the signature; capped to unclaimed escrow like `refund`. No-ops if capped amount is zero (nonce not consumed).
     /// @param nonce Must equal `refundNonce(channelId)`; incremented after each successful refund.
     function refundWithSignature(
         ChannelConfig calldata config,
@@ -415,11 +417,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
                 )
             );
         }
-        bytes memory packed;
-        for (uint256 j = 0; j < n; ++j) {
-            packed = abi.encodePacked(packed, entryHashes[j]);
-        }
-        return keccak256(packed);
+        return keccak256(abi.encodePacked(entryHashes));
     }
 
     function _executeRefund(ChannelConfig calldata config, uint128 amount) internal {
@@ -428,14 +426,15 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         bytes32 channelId = getChannelId(config);
         ChannelState storage ch = channels[channelId];
         uint128 available = ch.balance - ch.totalClaimed;
-        if (amount > available) revert RefundExceedsAvailable();
+        uint128 refundAmount = amount > available ? available : amount;
+        if (refundAmount == 0) return;
 
-        ch.balance -= amount;
+        ch.balance -= refundAmount;
 
         _clearPendingWithdrawal(channelId);
-        emit Refunded(channelId, msg.sender, amount);
+        emit Refunded(channelId, msg.sender, refundAmount);
 
-        IERC20(config.token).safeTransfer(config.payer, amount);
+        IERC20(config.token).safeTransfer(config.payer, refundAmount);
 
         unchecked {
             refundNonce[channelId]++;
