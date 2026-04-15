@@ -422,7 +422,11 @@ If any check fails, the client MUST NOT sign further vouchers and SHOULD initiat
 
 ### Recovery After State Loss
 
-The client reads the channel onchain via `channels[channelId]`. If the server holds unsettled vouchers above the onchain state, it returns a corrective 402 with `chargedCumulativeAmount`, `signedMaxClaimable`, and `signature`. The client MUST verify the returned voucher signature matches its own `payerAuthorizer` (or `payer`) before resuming.
+The client reads the channel onchain via `channels[channelId]`. Recovery has two paths depending on server state:
+
+**Path A — Server holds an outstanding voucher:** The corrective 402 carries `chargedCumulativeAmount`, `signedMaxClaimable`, and `signature` in `accepts[].extra`. The client MUST verify the returned voucher signature matches its own `payerAuthorizer` (or `payer`) before resuming. Error code: `batch_settlement_stale_cumulative_amount`.
+
+**Path B — Server has no stored voucher (e.g. after cooperative refund):** The facilitator rejects with `batch_settlement_evm_cumulative_below_claimed` because the voucher's `maxClaimableAmount` is at or below the on-chain `totalClaimed`. The corrective 402 carries no `signature` in `accepts[].extra`. The client MUST read on-chain `channels[channelId]` to obtain `totalClaimed` and resume with `chargedCumulativeAmount = totalClaimed`. No signature verification is needed because the on-chain state is the single source of truth when no outstanding voucher exists.
 
 ---
 

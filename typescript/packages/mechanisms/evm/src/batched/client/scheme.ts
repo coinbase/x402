@@ -324,22 +324,37 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
    * @returns `true` if the session was successfully resynced and the request can be retried.
    */
   async processCorrectivePaymentRequired(paymentRequired: PaymentRequired): Promise<boolean> {
-    if (paymentRequired.error !== "batch_settlement_stale_cumulative_amount") {
+    if (
+      paymentRequired.error !== "batch_settlement_stale_cumulative_amount" &&
+      paymentRequired.error !== "batch_settlement_evm_cumulative_below_claimed"
+    ) {
       return false;
     }
 
-    const accept = paymentRequired.accepts.find(
-      a =>
-        a.scheme === "batched" &&
-        a.extra?.chargedCumulativeAmount !== undefined &&
-        a.extra?.signedMaxClaimable !== undefined &&
-        a.extra?.signature !== undefined,
-    );
-    if (!accept?.extra) {
+    const accept = paymentRequired.accepts.find(a => a.scheme === "batched");
+    if (!accept) {
       return false;
     }
 
     const ex = accept.extra;
+    const hasSig =
+      ex?.chargedCumulativeAmount !== undefined &&
+      ex?.signedMaxClaimable !== undefined &&
+      ex?.signature !== undefined;
+
+    if (!hasSig) {
+      return this.recoverFromOnChainState(accept);
+    }
+
+    return this.recoverFromSignature(accept);
+  }
+
+  /**
+   * Recovers session from a corrective 402 that includes a server-provided voucher signature.
+   * Verifies the signature matches the client's own signing key before accepting.
+   */
+  private async recoverFromSignature(accept: PaymentRequirements): Promise<boolean> {
+    const ex = accept.extra!;
     const chargedRaw = ex.chargedCumulativeAmount;
     const signedRaw = ex.signedMaxClaimable;
     const sig = ex.signature as `0x${string}`;
@@ -404,6 +419,45 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
       chargedCumulativeAmount: charged.toString(),
       signedMaxClaimable: signed.toString(),
       signature: sig,
+      balance: chBalance.toString(),
+      totalClaimed: chTotalClaimed.toString(),
+    };
+
+    await this.storage.set(channelId.toLowerCase(), ctx);
+    return true;
+  }
+
+  /**
+   * Recovers session purely from on-chain state when the server has no stored voucher
+   * (e.g. after a cooperative refund deleted the session). The on-chain `totalClaimed`
+   * becomes the new baseline — no signature verification is needed because the contract
+   * is the source of truth when no outstanding voucher exists.
+   */
+  private async recoverFromOnChainState(accept: PaymentRequirements): Promise<boolean> {
+    if (!this.signer.readContract) {
+      return false;
+    }
+
+    const config = this.buildChannelConfig(accept);
+    const channelId = computeChannelId(config);
+
+    let chBalance: bigint;
+    let chTotalClaimed: bigint;
+    try {
+      const [balance, totalClaimed] = (await this.signer.readContract({
+        address: BATCH_SETTLEMENT_ADDRESS,
+        abi: batchSettlementABI,
+        functionName: "channels",
+        args: [channelId],
+      })) as [bigint, bigint];
+      chBalance = balance;
+      chTotalClaimed = totalClaimed;
+    } catch {
+      return false;
+    }
+
+    const ctx: BatchedClientContext = {
+      chargedCumulativeAmount: chTotalClaimed.toString(),
       balance: chBalance.toString(),
       totalClaimed: chTotalClaimed.toString(),
     };

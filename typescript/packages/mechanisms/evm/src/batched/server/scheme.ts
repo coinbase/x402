@@ -561,7 +561,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       channelId,
       channelConfig: resolvedConfig,
       payer: payer.toLowerCase(),
-      chargedCumulativeAmount: prev?.chargedCumulativeAmount ?? "0",
+      chargedCumulativeAmount: prev?.chargedCumulativeAmount ?? totalClaimed,
       signedMaxClaimable,
       signature,
       balance,
@@ -570,7 +570,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       refundNonce,
       lastRequestTimestamp: Date.now(),
     };
-    await this.storage.compareAndSet(channelId, prev?.chargedCumulativeAmount ?? "0", session);
+    await this.storage.compareAndSet(channelId, prev?.chargedCumulativeAmount ?? totalClaimed, session);
   }
 
   /**
@@ -825,8 +825,10 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       if (!resolvedConfig) {
         return;
       }
+      const prevCharged = prevSession?.chargedCumulativeAmount
+        ?? readExtraString(ex, "totalClaimed", "0");
       const chargedActual = (
-        BigInt(prevSession?.chargedCumulativeAmount ?? "0") + BigInt(requirements.amount)
+        BigInt(prevCharged) + BigInt(requirements.amount)
       ).toString();
       const signedMaxClaimable = (raw.voucher as Record<string, unknown>)
         .maxClaimableAmount as string;
