@@ -1,0 +1,7 @@
+{
+  "name": "ALTER Identity",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/alter-identity.png",
+  "description": "MCP identity server for autonomous agents. Agents pay x402 micropayments on Base L2 to query verified human identity data; 75% of each fee goes directly to the data subject as Identity Income.",
+  "websiteUrl": "https://truealter.com"
+}
