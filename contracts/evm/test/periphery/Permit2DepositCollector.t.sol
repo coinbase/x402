@@ -38,8 +38,8 @@ contract Permit2DepositCollectorTest is Test {
         return abi.encode(nonce, deadline, signature, bytes(""));
     }
 
-    function test_constructor_setsSettlementAndPermit2() public view {
-        assertEq(collector.settlement(), address(this));
+    function test_constructor_setsX402BatchSettlementAndPermit2() public view {
+        assertEq(collector.x402BatchSettlement(), address(this));
         assertEq(address(collector.PERMIT2()), address(mockPermit2));
     }
 
@@ -48,8 +48,8 @@ contract Permit2DepositCollectorTest is Test {
         new Permit2DepositCollector(address(this), address(0));
     }
 
-    function test_constructor_revert_zeroSettlement() public {
-        vm.expectRevert(DepositCollector.InvalidSettlementAddress.selector);
+    function test_constructor_revert_zeroX402BatchSettlement() public {
+        vm.expectRevert(DepositCollector.InvalidX402BatchSettlementAddress.selector);
         new Permit2DepositCollector(address(0), address(mockPermit2));
     }
 
@@ -97,11 +97,11 @@ contract Permit2DepositCollectorTest is Test {
         assertGt(bitmapAfter, 0);
     }
 
-    function test_collect_revert_onlySettlement() public {
+    function test_collect_revert_onlyX402BatchSettlement() public {
         bytes memory collectorData = _collectorData(0, block.timestamp + 3600, hex"dead");
 
         vm.prank(makeAddr("attacker"));
-        vm.expectRevert(DepositCollector.OnlySettlement.selector);
+        vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
         collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
     }
 }

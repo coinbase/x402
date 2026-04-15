@@ -66,11 +66,11 @@ contract ERC3009DepositCollectorTest is Test {
         assertEq(token.balanceOf(address(this)), smallAmount);
     }
 
-    function test_collect_revert_onlySettlement() public {
+    function test_collect_revert_onlyX402BatchSettlement() public {
         bytes memory collectorData = abi.encode(uint256(0), uint256(block.timestamp + 3600), uint256(1), hex"dead");
 
         vm.prank(makeAddr("attacker"));
-        vm.expectRevert(DepositCollector.OnlySettlement.selector);
+        vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
         collector.collect(payer, address(token), AMOUNT, bytes32(0), address(this), collectorData);
     }
 }

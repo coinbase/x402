@@ -110,11 +110,11 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
     }
 
-    function test_collect_revert_onlySettlement() public {
+    function test_collect_revert_onlyX402BatchSettlement() public {
         bytes memory collectorData = _makeCollectorData(AMOUNT);
 
         vm.prank(makeAddr("attacker"));
-        vm.expectRevert(DepositCollector.OnlySettlement.selector);
+        vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
         collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
     }
 }

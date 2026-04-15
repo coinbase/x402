@@ -12,17 +12,17 @@ import {IERC3009} from "../interfaces/IERC3009.sol";
 /// @notice Collects deposits via ERC-3009 `receiveWithAuthorization` for gasless pulls into escrow.
 ///
 /// @dev ERC-3009 requires `msg.sender == to`, so tokens arrive at this contract and are forwarded to
-///      `settlement`. The authorization nonce is `keccak256(abi.encode(channelId, salt))` where `salt`
+///      `x402BatchSettlement`. The authorization nonce is `keccak256(abi.encode(channelId, salt))` where `salt`
 ///      is supplied in `collectorData`.
 ///
 /// @author Coinbase
 contract ERC3009DepositCollector is DepositCollector {
     using SafeERC20 for IERC20;
 
-    /// @param _settlement The batch settlement contract that receives pulled tokens.
+    /// @param _x402BatchSettlement The `x402BatchSettlement` contract that receives pulled tokens.
     constructor(
-        address _settlement
-    ) DepositCollector(_settlement) {}
+        address _x402BatchSettlement
+    ) DepositCollector(_x402BatchSettlement) {}
 
     /// @inheritdoc IDepositCollector
     ///
@@ -38,7 +38,7 @@ contract ERC3009DepositCollector is DepositCollector {
         bytes32 channelId,
         address,
         bytes calldata collectorData
-    ) external override onlySettlement {
+    ) external override onlyx402BatchSettlement {
         (uint256 validAfter, uint256 validBefore, uint256 salt, bytes memory signature) =
             abi.decode(collectorData, (uint256, uint256, uint256, bytes));
 
@@ -48,6 +48,6 @@ contract ERC3009DepositCollector is DepositCollector {
             payer, address(this), amount, validAfter, validBefore, expectedNonce, signature
         );
 
-        IERC20(token).safeTransfer(settlement, amount);
+        IERC20(token).safeTransfer(x402BatchSettlement, amount);
     }
 }

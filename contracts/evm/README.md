@@ -23,15 +23,15 @@ Both contracts:
 | Contract | Address |
 |----------|---------|
 | x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
-| x402UptoPermit2Proxy | `0x4020a4f3b7b90CCA423b9FabCC0CE57c6c240002` |
+| x402UptoPermit2Proxy | `0x402015c795ecb48A360bDC6e35a2EaEb313a0002` |
 
 **Batch settlement (CREATE2 vanity `0x4020…`)**
 
 | Contract | Address |
 |----------|---------|
-| x402BatchSettlement | `0x4020e07E964De72a79367828c9C6140fcaE00003` |
-| ERC3009DepositCollector | `0x402064ac4dA4f510EeC7D71fDc23A7D47fb10004` |
-| Permit2DepositCollector | `0x4020F3A787c115F846002A407E42264A90950005` |
+| x402BatchSettlement | `0x4020ECC20B68d2A308931DA9ee1e016833860003` |
+| ERC3009DepositCollector | `0x4020a59826CB594BB9cE6d9DC48BE99674C00004` |
+| Permit2DepositCollector | `0x4020A4E9E164BCcA629FE0bEBbdDAF42768A0005` |
 
 ### Current Deployments
 
@@ -40,9 +40,8 @@ Both contracts:
 | Base Mainnet | [Deployed](https://basescan.org/address/0x402085c248EeA27D92E8b30b2C58ed07f9E20001) | — |
 | Base Sepolia | [Deployed](https://sepolia.basescan.org/address/0x402085c248EeA27D92E8b30b2C58ed07f9E20001) | [Legacy\*](https://sepolia.basescan.org/address/0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002) |
 
-> \*The Base Sepolia Upto deployment at `0x4020...0002` predates the deterministic build fix
-> and uses a different bytecode (with CBOR metadata). The canonical Upto address for all
-> new deployments is `0x4020a4f3...0002`.
+> \*Older testnet deployments may use prior vanity salts; the canonical **Upto** address for
+> CREATE2 deployments from this tree is `0x402015c7…313a0002` (see `forge script script/ComputeAddress.s.sol`).
 
 ## Prerequisites
 
@@ -87,7 +86,7 @@ and `keccak256(initCode)`—not on who sends the transaction.
    ```
    You should see:
    - Exact → `0x402085c248EeA27D92E8b30b2C58ed07f9E20001`
-   - Upto  → `0x4020a4f3b7b90CCA423b9FabCC0CE57c6c240002`
+   - Upto  → `0x402015c795ecb48A360bDC6e35a2EaEb313a0002`
 
 3. **Check prerequisites on the target chain**
    - [Permit2](https://github.com/Uniswap/permit2) must be deployed at `0x000000000022D473030F116dDEE9F6B43aC78BA3`

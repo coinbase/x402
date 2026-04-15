@@ -39,10 +39,10 @@ const EXACT_INIT_CODE_HASH: [u8; 32] =
     hex_literal::hex!("e774d1d5a07218946ab54efe010b300481478b86861bb17d69c98a57f68a604c");
 // x402UptoPermit2Proxy (deterministic build, no CBOR metadata)
 const UPTO_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("74f7a29cbc3c55f87cdef7f7c551643189e8bb62eed9de67753aebc402b83797");
+    hex_literal::hex!("01575bfc9cacbf6463db62ee8867594b1657139c8493a712ef6bcefa848a20b7");
 // x402BatchSettlement — keccak256(type(x402BatchSettlement).creationCode) after `forge build`
 const BATCH_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("ade7298dacf80f25fde37c50998b6bc928858bf0bba561d3eb3daaecb61e5fd5");
+    hex_literal::hex!("ccb7c8f6c2eee3ba2552cdba0507da54186da5cfbf0cb86a897f1be2e0e93a29");
 
 fn keccak256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Keccak::v256();

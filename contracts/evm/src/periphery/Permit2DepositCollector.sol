@@ -10,7 +10,7 @@ import {ISignatureTransfer} from "../interfaces/ISignatureTransfer.sol";
 /// @title Permit2DepositCollector
 /// @notice Collects deposits using Permit2 `permitWitnessTransferFrom` with a channel-bound witness.
 ///
-/// @dev Tokens move directly from the payer to `settlement` through Permit2.
+/// @dev Tokens move directly from the payer to `x402BatchSettlement` through Permit2.
 ///      `collectorData` is `abi.encode(nonce, deadline, permit2Signature, eip2612PermitData)`.
 ///      The token and amount on the `collect` call must match the signed Permit2 transfer.
 ///      If `eip2612PermitData` is empty, no EIP-2612 `permit` is attempted. If non-empty, it must be
@@ -56,9 +56,9 @@ contract Permit2DepositCollector is DepositCollector {
     /// @param data Low-level revert data.
     event EIP2612PermitFailedWithData(address indexed token, address indexed owner, bytes data);
 
-    /// @param _settlement The batch settlement contract that receives Permit2 transfers.
+    /// @param _x402BatchSettlement The `x402BatchSettlement` contract that receives Permit2 transfers.
     /// @param _permit2 The canonical Permit2 `SignatureTransfer` contract.
-    constructor(address _settlement, address _permit2) DepositCollector(_settlement) {
+    constructor(address _x402BatchSettlement, address _permit2) DepositCollector(_x402BatchSettlement) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         PERMIT2 = ISignatureTransfer(_permit2);
     }
@@ -77,7 +77,7 @@ contract Permit2DepositCollector is DepositCollector {
         bytes32 channelId,
         address,
         bytes calldata collectorData
-    ) external override onlySettlement {
+    ) external override onlyx402BatchSettlement {
         (uint256 nonce, uint256 deadline, bytes memory permit2Signature, bytes memory eip2612PermitData) =
             abi.decode(collectorData, (uint256, uint256, bytes, bytes));
 
@@ -94,7 +94,7 @@ contract Permit2DepositCollector is DepositCollector {
         _executePermit2Transfer(payer, amount, channelId, permit, permit2Signature);
     }
 
-    /// @dev Performs `permitWitnessTransferFrom` to pull from `payer` into `settlement` with `channelId` in the witness.
+    /// @dev Performs `permitWitnessTransferFrom` to pull from `payer` into `x402BatchSettlement` with `channelId` in the witness.
     function _executePermit2Transfer(
         address payer,
         uint256 amount,
@@ -106,7 +106,7 @@ contract Permit2DepositCollector is DepositCollector {
 
         PERMIT2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails({to: settlement, requestedAmount: amount}),
+            ISignatureTransfer.SignatureTransferDetails({to: x402BatchSettlement, requestedAmount: amount}),
             payer,
             witnessHash,
             DEPOSIT_WITNESS_TYPE_STRING,
