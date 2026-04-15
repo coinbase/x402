@@ -635,7 +635,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
       };
     }
 
-    if (raw.withdraw === true) {
+    if (raw.refund === true) {
       const config = session.channelConfig;
 
       const claimEntry: BatchedVoucherClaim = {
@@ -754,7 +754,7 @@ export class BatchedEvmScheme implements SchemeNetworkServer {
    * Lifecycle hook: runs after the facilitator settles a payment.
    *
    * Updates session state to reflect the settlement outcome — adjusting charged amounts,
-   * balances, and handling cooperative-withdrawal cleanup (session deletion).
+   * balances, and handling cooperative-refund cleanup (session deletion).
    *
    * @param ctx - Post-settle lifecycle context.
    * @param ctx.paymentPayload - Payment payload that was settled (possibly rewritten).

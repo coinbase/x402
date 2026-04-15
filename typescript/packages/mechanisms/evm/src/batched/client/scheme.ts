@@ -96,7 +96,7 @@ function resolveClientOptions(second?: BatchedEvmSchemeOptions | BatchedDepositP
  *
  * Builds payment payloads (deposit + voucher or voucher-only), processes server responses
  * to update local session state, handles corrective 402 resynchronisation, and supports
- * on-demand cooperative withdrawal requests.
+ * on-demand cooperative refund requests.
  */
 export class BatchedEvmScheme implements SchemeNetworkClient {
   readonly scheme = "batched";
@@ -120,7 +120,7 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
   private readonly salt: `0x${string}`;
   private readonly payerAuthorizer: `0x${string}` | undefined;
   private readonly voucherSigner: ClientEvmSigner | undefined;
-  private pendingWithdraw = new Set<string>();
+  private pendingRefund = new Set<string>();
 
   /**
    * Constructs a batched client scheme.
@@ -217,7 +217,7 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
    * Updates local session state from a parsed `SettleResponse`.
    *
    * Updates chargedCumulativeAmount, balance, and totalClaimed, or
-   * deletes the session if the response indicates a cooperative withdrawal.
+   * deletes the session if the response indicates a cooperative refund completed.
    *
    * @param settle - The parsed settle response.
    */
@@ -256,7 +256,7 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
    * @param channelId - The channel to request refund for.
    */
   requestRefund(channelId: string): void {
-    this.pendingWithdraw.add(channelId.toLowerCase());
+    this.pendingRefund.add(channelId.toLowerCase());
   }
 
   /**
@@ -471,8 +471,8 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
    *
    * If the channel has no on-chain deposit (or needs a top-up), builds an ERC-3009 deposit
    * payload bundled with a voucher.  Otherwise, signs and returns a voucher-only payload.
-   * If a cooperative withdrawal has been requested for this channel, the `withdraw` flag
-   * is set on the voucher so the server initiates the on-chain withdrawal.
+   * If a cooperative refund has been requested for this channel, the `refund` flag
+   * is set on the voucher so the server initiates the on-chain refund.
    *
    * @param x402Version - Protocol version for the payload envelope.
    * @param paymentRequirements - Server payment requirements (scheme, network, asset, amount).
@@ -530,16 +530,16 @@ export class BatchedEvmScheme implements SchemeNetworkClient {
       paymentRequirements.network,
     );
 
-    const shouldWithdraw = this.pendingWithdraw.has(channelId.toLowerCase());
-    if (shouldWithdraw) {
-      this.pendingWithdraw.delete(channelId.toLowerCase());
+    const shouldRefund = this.pendingRefund.has(channelId.toLowerCase());
+    if (shouldRefund) {
+      this.pendingRefund.delete(channelId.toLowerCase());
     }
 
     const payload: BatchedVoucherPayload = {
       type: "voucher",
       channelConfig: config,
       ...voucher,
-      ...(shouldWithdraw ? { withdraw: true } : {}),
+      ...(shouldRefund ? { refund: true } : {}),
     };
 
     return {

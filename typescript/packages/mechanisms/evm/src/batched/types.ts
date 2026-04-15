@@ -44,7 +44,7 @@ export type BatchedVoucherFields = {
   channelId: `0x${string}`;
   maxClaimableAmount: string;
   signature: `0x${string}`;
-  withdraw?: boolean;
+  refund?: boolean;
 };
 
 export type BatchedVoucherClaim = {

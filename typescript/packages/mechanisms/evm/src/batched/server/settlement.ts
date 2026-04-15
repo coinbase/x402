@@ -49,7 +49,7 @@ export interface RefundResult {
 
 /**
  * Manages the server-side channel lifecycle for the `batched` scheme:
- * batch claiming of vouchers, settlement of claimed funds, and cooperative withdrawal.
+ * batch claiming of vouchers, settlement of claimed funds, and cooperative refund.
  *
  * Provides both manual (`claim()`, `settle()`, `refund()`) and automatic
  * (`start()` / `stop()`) modes.  In automatic mode a periodic tick evaluates configurable
@@ -256,7 +256,7 @@ export class BatchedChannelManager {
   }
 
   /**
-   * Starts the auto-settlement loop that periodically evaluates claim/settle/withdraw
+   * Starts the auto-settlement loop that periodically evaluates claim/settle/refund
    * triggers and executes them.
    *
    * @param config - Auto-settlement policy configuration (intervals, thresholds, callbacks).
@@ -300,7 +300,7 @@ export class BatchedChannelManager {
    * Stops the auto-settlement loop.
    *
    * @param opts - Stop options.
-   * @param opts.flush - When true, run `claimAndSettle` and optional shutdown cooperative withdraw first.
+   * @param opts.flush - When true, run `claimAndSettle` and optional shutdown cooperative refund first.
    * @returns Resolves when the loop is stopped (and flush work completes, if requested).
    */
   async stop(opts?: { flush?: boolean }): Promise<void> {
@@ -326,7 +326,7 @@ export class BatchedChannelManager {
 
   /**
    * Single tick of the auto-settlement loop: evaluates claim, settle, and cooperative
-   * withdrawal triggers and executes any that fire.
+   * refund triggers and executes any that fire.
    *
    * @param cfg - Resolved auto-settlement options for this tick.
    * @param cfg.claimIntervalMs - Minimum milliseconds between automatic claim rounds.

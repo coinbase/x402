@@ -200,12 +200,12 @@ The `deposit.authorization` field contains the token transfer authorization — 
     "channelId": "0xabc123...channelId",
     "maxClaimableAmount": "5000",
     "signature": "0x...EIP-712 voucher signature",
-    "withdraw": true
+    "refund": true
   }
 }
 ```
 
-The optional `withdraw` flag signals a cooperative **refund** request (server will use `refund` / `refundWithSignature` with an agreed **`amount`**, after bringing onchain claims in line via `claim` / `claimWithSignature`).
+The optional `refund` flag signals a cooperative **refund** request (server will use `refund` / `refundWithSignature`, after bringing onchain claims in line via `claim` / `claimWithSignature`).
 
 ---
 
@@ -242,7 +242,7 @@ The server MUST serialize request processing per channel. The server MUST NOT up
 
 ### Cooperative refund settle flow
 
-When the server receives a voucher with `withdraw: true`:
+When the server receives a voucher with `refund: true`:
 
 **Path A — Signature path (`refundWithSignature`, relayer-friendly):**
 
