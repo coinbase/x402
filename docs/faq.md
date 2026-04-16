@@ -51,7 +51,7 @@ There is no single answer, but common patterns are:
 
 * **Flat per‑call** (e.g., `$0.001` per request)
 * **Tiered** (`/basic` vs `/pro` endpoints with different prices)
-* **Up‑to** (work in progress): "pay‑up‑to" where the final cost equals usage (tokens, MB, etc.)
+* **Up‑to**: "pay‑up‑to" where the final cost equals usage (tokens, MB, etc.) — available now in TypeScript and Go SDKs (Python support coming soon)
 
 #### Can I integrate x402 with a usage / plan manager like Metronome?
 
@@ -119,7 +119,7 @@ Yes. Programmatic wallets (e.g., **CDP Wallet API**, **viem**, **ethers‑v6** H
 Tracked in public GitHub issues + community RFCs. Major themes:
 
 * Multi‑asset support
-* Additional schemes (`upto`, `stream`)
+* Additional schemes (`stream`) — note: `upto` is already live in TypeScript and Go SDKs
 * Discovery layer for service search & reputation
 
 **Why is x402 hosted in the Coinbase GitHub?**
