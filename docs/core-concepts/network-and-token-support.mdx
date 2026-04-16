@@ -23,10 +23,16 @@ x402 V2 uses [CAIP-2](https://chainagnostic.org/CAIPs/caip-2) standard network i
 | `avalanche-fuji` | `eip155:43113` | 43113 | Avalanche Fuji testnet |
 | `polygon` | `eip155:137` | 137 | Polygon mainnet |
 | `polygon-amoy` | `eip155:80002` | 80002 | Polygon Amoy testnet |
+| - | `eip155:42161` | 42161 | Arbitrum One mainnet |
+| - | `eip155:421614` | 421614 | Arbitrum Sepolia testnet |
 | `sei` | `eip155:1329` | 1329 | Sei mainnet |
 | `sei-testnet` | `eip155:713715` | 713715 | Sei testnet |
 | `skale-base` | `eip155:1187947933` | 1187947933 | SKALE mainnet |
 | `skale-base-sepolia` | `eip155:324705682` | 324705682 | SKALE testnet |
+| - | `eip155:4326` | 4326 | MegaETH mainnet |
+| - | `eip155:143` | 143 | Monad mainnet |
+| - | `eip155:988` | 988 | Stable mainnet |
+| - | `eip155:2201` | 2201 | Stable testnet |
 
 ### Format Explanation
 - **EVM networks**: `eip155:<chainId>` where chainId is the numeric chain identifier
@@ -270,7 +276,7 @@ x402's network support is designed to be extensible while maintaining security a
 
 Key takeaways:
 
-* Base (`eip155:8453`), Base Sepolia (`eip155:84532`), Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`), and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) have the best out-of-the-box support
+* Base (`eip155:8453`), Base Sepolia (`eip155:84532`), Solana (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`), and Solana Devnet (`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`) have the best out-of-the-box support; Arbitrum One (`eip155:42161`), Polygon (`eip155:137`), MegaETH (`eip155:4326`), Monad (`eip155:143`), and Stable (`eip155:988`) are also supported with default stablecoins configured
 * Any EVM network can be supported with a custom facilitator using CAIP-2 format
 * Any ERC-20 token works on any facilitator (via EIP-3009 or Permit2)
 * Use price strings for USDC or TokenAmount for custom tokens

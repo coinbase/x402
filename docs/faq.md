@@ -67,6 +67,13 @@ Yes. x402 handles the _payment execution_. You can still meter usage, aggregate 
 | Base Sepolia   | `eip155:84532` | Any ERC-20 token  | fee-free | **Testnet** |
 | Solana         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Any SPL token or Token-2022 token | fee-free | **Mainnet** |
 | Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Any SPL token or Token-2022 | fee-free | **Testnet** |
+| Arbitrum One   | `eip155:42161` | Any ERC-20 token  | fee-free | **Mainnet** |
+| Arbitrum Sepolia | `eip155:421614` | Any ERC-20 token | fee-free | **Testnet** |
+| Polygon        | `eip155:137` | Any ERC-20 token  | fee-free | **Mainnet** |
+| MegaETH        | `eip155:4326` | MegaUSD (ERC-20)  | fee-free | **Mainnet** |
+| Monad          | `eip155:143` | Any ERC-20 token  | fee-free | **Mainnet** |
+| Stable         | `eip155:988` | USDT0 (ERC-20)    | fee-free | **Mainnet** |
+| Stable Testnet | `eip155:2201` | USDT0 (ERC-20)   | fee-free | **Testnet** |
 
 \* Gas paid on chain; many facilitators offer **zero** facilitator fees (see [ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for details).
 
