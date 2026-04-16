@@ -305,6 +305,7 @@ Verifies a payment payload. Returns the onchain channel snapshot:
   "network": "eip155:8453",
   "payer": "0xPayerAddress",
   "amount": "700",
+  "asset": "0xAssetAddress",
   "extra": {
     "channelId": "0xabc123...",
     "chargedCumulativeAmount": "3200",
@@ -459,22 +460,35 @@ Optional deployment patterns (not required by the core contract; may live in oth
 
 ## Error Codes
 
-Implementers MUST use the generic `batch-settlement` error codes from [scheme_batch_settlement.md](./scheme_batch_settlement.md#error-codes) when applicable.
-
-EVM-specific codes:
-
-| Error Code                                          | Description                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------ |
-| `batch_settlement_evm_channel_not_found`            | No channel with positive balance for the given `channelId`         |
-| `batch_settlement_evm_withdrawal_pending`           | Withdrawal request is pending on this channel                      |
-| `batch_settlement_evm_cumulative_exceeds_balance`   | Voucher `maxClaimableAmount` exceeds onchain balance               |
-| `batch_settlement_evm_withdraw_delay_out_of_range`  | `withdrawDelay` is outside the 15 min – 30 day bounds             |
-| `batch_settlement_stale_cumulative_amount`          | Client voucher base doesn't match server state; corrective 402    |
-| `batch_settlement_evm_refund_not_supported`          | Server cannot produce `refund` / `refundWithSignature` (e.g. no signing key) |
-| `batch_settlement_evm_channel_id_mismatch`           | `channelConfig` does not hash to the claimed `channelId`             |
-| `batch_settlement_evm_receiver_mismatch`             | `channelConfig.receiver` does not match `paymentRequirements.payTo`  |
-| `batch_settlement_evm_receiver_authorizer_mismatch`  | `channelConfig.receiverAuthorizer` does not match `extra.receiverAuthorizer` |
-| `batch_settlement_evm_withdraw_delay_mismatch`       | `channelConfig.withdrawDelay` does not match `extra.withdrawDelay`   |
+| Error Code                                                  | Description                                                                             |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `batch_settlement_stale_cumulative_amount`                  | Client voucher base doesn't match server state; corrective 402                          |
+| `batch_settlement_evm_channel_not_found`                    | No channel with positive balance for the given `channelId`                              |
+| `batch_settlement_evm_withdrawal_pending`                   | Withdrawal request is pending on this channel                                           |
+| `batch_settlement_evm_cumulative_exceeds_balance`           | Voucher `maxClaimableAmount` exceeds onchain balance                                    |
+| `batch_settlement_evm_cumulative_below_claimed`             | Voucher `maxClaimableAmount` is at or below onchain `totalClaimed`                      |
+| `batch_settlement_evm_insufficient_balance`                 | Client token balance is insufficient for the deposit                                    |
+| `batch_settlement_evm_invalid_voucher_signature`            | EIP-712 voucher signature does not recover to the expected signer                       |
+| `batch_settlement_evm_invalid_scheme`                       | `scheme` is not `batch-settlement`                                                      |
+| `batch_settlement_evm_network_mismatch`                     | `network` does not match the facilitator's chain                                        |
+| `batch_settlement_evm_token_mismatch`                       | `channelConfig.token` does not match `paymentRequirements.asset`                        |
+| `batch_settlement_evm_channel_id_mismatch`                  | `channelConfig` does not hash to the claimed `channelId`                                |
+| `batch_settlement_evm_receiver_mismatch`                    | `channelConfig.receiver` does not match `paymentRequirements.payTo`                     |
+| `batch_settlement_evm_receiver_authorizer_mismatch`         | `channelConfig.receiverAuthorizer` does not match `extra.receiverAuthorizer`            |
+| `batch_settlement_evm_withdraw_delay_mismatch`              | `channelConfig.withdrawDelay` does not match `extra.withdrawDelay`                      |
+| `batch_settlement_evm_withdraw_delay_out_of_range`          | `withdrawDelay` is outside the 15 min – 30 day bounds                                  |
+| `batch_settlement_evm_deposit_voucher_mismatch`             | Deposit payload `channelConfig` does not match the voucher's `channelId`                |
+| `batch_settlement_evm_missing_eip712_domain`                | Token EIP-712 domain (`name`, `version`) could not be read                              |
+| `batch_settlement_evm_payload_authorization_valid_before`   | ERC-3009 authorization `validBefore` has already passed                                 |
+| `batch_settlement_evm_payload_authorization_valid_after`    | ERC-3009 authorization `validAfter` is still in the future                              |
+| `batch_settlement_evm_invalid_receive_authorization_signature` | ERC-3009 `receiveWithAuthorization` signature is invalid                             |
+| `batch_settlement_evm_erc3009_authorization_required`       | Deposit payload is missing the required `erc3009Authorization`                          |
+| `batch_settlement_evm_invalid_payload_type`                 | Payload `type` is neither `"deposit"` nor `"voucher"`                                   |
+| `batch_settlement_evm_refund_not_supported`                 | Server cannot produce `refund` / `refundWithSignature` (e.g. no signing key)            |
+| `batch_settlement_evm_deposit_transaction_failed`           | Onchain deposit transaction reverted                                                    |
+| `batch_settlement_evm_claim_transaction_failed`             | Onchain claim transaction reverted                                                      |
+| `batch_settlement_evm_settle_transaction_failed`            | Onchain settle (transfer) transaction reverted                                          |
+| `batch_settlement_evm_refund_transaction_failed`            | Onchain refund transaction reverted                                                     |
 
 ---
 
@@ -486,6 +500,8 @@ EVM-specific codes:
 4. **Receiver-side commitment**: For direct **`claim`** and **`refund`**, `msg.sender` must be **`receiverAuthorizer`** or **`receiver`**. For **`claimWithSignature`** and **`refundWithSignature`**, signatures are verified against **`receiverAuthorizer`**.
 5. **Cumulative replay protection**: Without nonces, the cumulative model ensures `totalClaimed` only increases. Old vouchers with lower ceilings are naturally superseded. The client's risk gap is bounded by incremental signing.
 6. **Cross-function replay prevention**: **`Voucher`**, **`Refund`**, and **`ClaimBatch`** use distinct EIP-712 type hashes; **`Refund`** additionally scopes replay with a per-channel **`nonce`**.
+7. **Voucher expiry**: Vouchers do not carry an expiry field. A voucher remains claimable as long as the channel has available escrow (`balance - totalClaimed > 0`). The server's claim window is bounded by `withdrawDelay`: `finalizeWithdraw()` and `refund()` reduce `balance` by up to the available escrow, leaving `balance == totalClaimed` after a full withdrawal or refund. Once `balance - totalClaimed` reaches zero, no further claims can succeed. For deposit payloads, the ERC-3009 `validBefore`/`validAfter` fields provide time-bounds on the deposit authorization only.
+8. **Redeposit revives old vouchers**: Withdrawal does not reset `totalClaimed`. However, if a client withdraws (reducing `balance` to `totalClaimed`) and then redeposits into the **same channel**, previously unclaimed vouchers become claimable again because the channel now has available escrow. To invalidate all outstanding vouchers after a withdrawal, the client MUST deposit into a new channel (e.g. with a different `salt`) rather than redeposit into the same one.
 
 ---
 

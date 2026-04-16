@@ -239,7 +239,7 @@ Upon successful verification, the server includes a PAYMENT-RESPONSE header (bas
 ```http
 HTTP/2 200 OK
 Content-Type: text/html
-PAYMENT-RESPONSE: eyJhbW91bnQiOiAiNSIsICJhc3NldCI6ICJVU0QiLCAibmV0d29yayI6ICJjbG91ZGZsYXJlOjQwMiIsICJ0aW1lc3RhbXAiOiAxNzMwODcyOTY4LCAiZXh0ZW5zaW9ucyI6IHsidGVybXMiOiB7ImluZm8iOiB7ImZvcm1hdCI6ICJ1cmkiLCAidGVybXMiOiAiaHR0cHM6Ly9leGFtcGxlLmNvbS9wcGMvdGVybXMubWQifX19fQ==
+PAYMENT-RESPONSE: eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IiIsIm5ldHdvcmsiOiJjbG91ZGZsYXJlOjQwMiIsInBheWVyIjoibXljcmF3bGVyLmNvbSIsImFtb3VudCI6IjUiLCJhc3NldCI6IlVTRCIsImV4dHJhIjp7InRpbWVzdGFtcCI6MTczMDg3Mjk2OH19
 
 <!DOCTYPE html>
 <html>
@@ -252,11 +252,17 @@ PAYMENT-RESPONSE: eyJhbW91bnQiOiAiNSIsICJhc3NldCI6ICJVU0QiLCAibmV0d29yayI6ICJjbG
 
 ```json
 {
+  "success": true,
+  "transaction": "",
+  "network": "cloudflare:402",
+  "payer": "mycrawler.com",
   "amount": "5",
   "asset": "USD",
-  "network": "cloudflare:402",
-  "timestamp": 1730872968
+  "extra": {
+    "timestamp": 1730872968
+  }
 }
+```
 
 ## Appendix
 
