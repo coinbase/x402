@@ -111,16 +111,15 @@ export type UptoPermit2Payload = {
 
 // Batch-settlement EVM scheme payload types
 export type {
+  AuthorizerSigner,
   ChannelConfig,
   BatchSettlementDepositPayload,
   BatchSettlementVoucherPayload,
   BatchSettlementVoucherFields,
   BatchSettlementErc3009Authorization,
-  BatchSettlementClaimPayload,
   BatchSettlementClaimWithSignaturePayload,
   BatchSettlementSettleActionPayload,
   BatchSettlementDepositSettlePayload,
-  BatchSettlementRefundPayload,
   BatchSettlementRefundWithSignaturePayload,
   BatchSettlementVoucherClaim,
   BatchSettlementPayload,
@@ -129,11 +128,9 @@ export type {
 export {
   isBatchSettlementDepositPayload,
   isBatchSettlementVoucherPayload,
-  isBatchSettlementClaimPayload,
   isBatchSettlementClaimWithSignaturePayload,
   isBatchSettlementSettleActionPayload,
   isBatchSettlementDepositSettlePayload,
-  isBatchSettlementRefundPayload,
   isBatchSettlementRefundWithSignaturePayload,
 } from "./batch-settlement/types";
 

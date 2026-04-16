@@ -27,3 +27,4 @@ export const ErrChannelIdMismatch = "batch_settlement_evm_channel_id_mismatch";
 export const ErrReceiverMismatch = "batch_settlement_evm_receiver_mismatch";
 export const ErrReceiverAuthorizerMismatch = "batch_settlement_evm_receiver_authorizer_mismatch";
 export const ErrWithdrawDelayMismatch = "batch_settlement_evm_withdraw_delay_mismatch";
+export const ErrAuthorizerAddressMismatch = "batch_settlement_evm_authorizer_address_mismatch";

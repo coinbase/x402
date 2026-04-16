@@ -12,41 +12,23 @@ import {
 } from "@x402/core/types";
 import type { FacilitatorClient, SettleContext, VerifyContext } from "@x402/core/server";
 import { BatchSettlementChannelManager } from "./channelManager";
-import { getAddress } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
-import { getEvmChainId } from "../../utils";
 import {
   isBatchSettlementDepositPayload,
   isBatchSettlementVoucherPayload,
-  isBatchSettlementRefundPayload,
   isBatchSettlementRefundWithSignaturePayload,
 } from "../types";
 import type {
+  AuthorizerSigner,
   ChannelConfig,
   BatchSettlementPaymentResponseExtra,
   BatchSettlementVoucherClaim,
-  BatchSettlementRefundPayload,
   BatchSettlementRefundWithSignaturePayload,
 } from "../types";
-import {
-  BATCH_SETTLEMENT_ADDRESS,
-  BATCH_SETTLEMENT_DOMAIN,
-  BATCH_SETTLEMENT_SCHEME,
-  refundTypes,
-  claimBatchTypes,
-} from "../constants";
+import { BATCH_SETTLEMENT_SCHEME } from "../constants";
 import { computeChannelId } from "../utils";
+import { signClaimBatch, signRefund } from "../authorizerSigner";
 import { InMemorySessionStorage, SessionStorage, ChannelSession } from "./storage";
-
-export interface AuthorizerSigner {
-  address: `0x${string}`;
-  signTypedData(params: {
-    domain: Record<string, unknown>;
-    types: Record<string, Array<{ name: string; type: string }>>;
-    primaryType: string;
-    message: Record<string, unknown>;
-  }): Promise<`0x${string}`>;
-}
 
 export interface BatchSettlementEvmSchemeServerConfig {
   storage?: SessionStorage;
@@ -63,7 +45,7 @@ export interface BatchSettlementEvmSchemeServerConfig {
  */
 function buildRefundResponseSnapshot(
   session: ChannelSession,
-  payload: BatchSettlementRefundPayload | BatchSettlementRefundWithSignaturePayload,
+  payload: BatchSettlementRefundWithSignaturePayload,
 ): BatchSettlementPaymentResponseExtra {
   const finalClaimed =
     payload.claims[payload.claims.length - 1]?.totalClaimed ?? session.chargedCumulativeAmount;
@@ -281,12 +263,12 @@ export class BatchSettlementEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Returns the receiver-authorizer signer address, if configured.
+   * Returns the receiver-authorizer signer, if configured.
    *
-   * @returns Receiver-authorizer address, or `undefined` when not set.
+   * @returns Receiver-authorizer signer, or `undefined` when not set.
    */
-  getReceiverAuthorizerAddress(): `0x${string}` | undefined {
-    return this.receiverAuthorizerSigner?.address;
+  getReceiverAuthorizerSigner(): AuthorizerSigner | undefined {
+    return this.receiverAuthorizerSigner;
   }
 
   /**
@@ -358,83 +340,6 @@ export class BatchSettlementEvmScheme implements SchemeNetworkServer {
   async getWithdrawalPendingSessions(): Promise<ChannelSession[]> {
     const sessions = await this.storage.list();
     return sessions.filter(s => s.withdrawRequestedAt > 0);
-  }
-
-  /**
-   * Produces a `Refund` EIP-712 signature from the receiver-authorizer signer,
-   * permitting the payer to receive a cooperative refund of the specified amount.
-   *
-   * @param channelId - The channel to authorize refund for.
-   * @param amount - Refund amount (capped to unclaimed escrow on-chain).
-   * @param nonce - Must match on-chain `refundNonce(channelId)`.
-   * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
-   * @returns The receiver-authorizer's EIP-712 signature over `Refund(channelId, nonce, amount)`.
-   */
-  async signRefund(
-    channelId: `0x${string}`,
-    amount: string,
-    nonce: string,
-    network: string,
-  ): Promise<`0x${string}`> {
-    if (!this.receiverAuthorizerSigner) {
-      throw new Error("receiverAuthorizerSigner is not configured");
-    }
-
-    const chainId = getEvmChainId(network);
-
-    return this.receiverAuthorizerSigner.signTypedData({
-      domain: {
-        ...BATCH_SETTLEMENT_DOMAIN,
-        chainId,
-        verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
-      },
-      types: refundTypes as unknown as Record<string, Array<{ name: string; type: string }>>,
-      primaryType: "Refund",
-      message: {
-        channelId,
-        nonce: BigInt(nonce),
-        amount: BigInt(amount),
-      },
-    });
-  }
-
-  /**
-   * Produces a `ClaimBatch` EIP-712 signature from the receiver-authorizer signer,
-   * authorizing a third party (e.g. facilitator) to submit a batch claim via
-   * `claimWithSignature()`.
-   *
-   * @param claims - The voucher claims to authorize.
-   * @param network - CAIP-2 network identifier (used for EIP-712 chain id).
-   * @returns The receiver-authorizer's EIP-712 signature over `ClaimBatch(ClaimEntry[] claims)`.
-   */
-  async signClaimBatch(
-    claims: BatchSettlementVoucherClaim[],
-    network: string,
-  ): Promise<`0x${string}`> {
-    if (!this.receiverAuthorizerSigner) {
-      throw new Error("receiverAuthorizerSigner is not configured");
-    }
-
-    const chainId = getEvmChainId(network);
-
-    const claimEntries = claims.map(c => ({
-      channelId: computeChannelId(c.voucher.channel),
-      maxClaimableAmount: BigInt(c.voucher.maxClaimableAmount),
-      totalClaimed: BigInt(c.totalClaimed),
-    }));
-
-    return this.receiverAuthorizerSigner.signTypedData({
-      domain: {
-        ...BATCH_SETTLEMENT_DOMAIN,
-        chainId,
-        verifyingContract: getAddress(BATCH_SETTLEMENT_ADDRESS),
-      },
-      types: claimBatchTypes as unknown as Record<string, Array<{ name: string; type: string }>>,
-      primaryType: "ClaimBatch",
-      message: {
-        claims: claimEntries,
-      },
-    });
   }
 
   /**
@@ -660,55 +565,42 @@ export class BatchSettlementEvmScheme implements SchemeNetworkServer {
 
       const refundAmount = (BigInt(session.balance) - newCharged).toString();
 
-      if (this.receiverAuthorizerSigner) {
-        const nonce = String(session.refundNonce ?? 0);
-        const responseExtra = buildRefundResponseSnapshot(session, {
-          settleAction: "refundWithSignature",
-          config,
-          amount: refundAmount,
-          nonce,
-          claims: [claimEntry],
-          receiverAuthorizerSignature: "0x0",
-        });
+      const nonce = String(session.refundNonce ?? 0);
 
-        const authorizerSignature = await this.signRefund(
-          channelId as `0x${string}`,
-          refundAmount,
-          nonce,
-          requirements.network,
-        );
+      const refundAuthorizerSignature = this.receiverAuthorizerSigner
+        ? await signRefund(
+            this.receiverAuthorizerSigner,
+            channelId as `0x${string}`,
+            refundAmount,
+            nonce,
+            requirements.network,
+          )
+        : undefined;
 
-        const claimAuthorizerSignature = await this.signClaimBatch(
-          [claimEntry],
-          requirements.network,
-        );
+      const claimAuthorizerSignature = this.receiverAuthorizerSigner
+        ? await signClaimBatch(this.receiverAuthorizerSigner, [claimEntry], requirements.network)
+        : undefined;
 
-        (paymentPayload as { payload: unknown }).payload = {
-          settleAction: "refundWithSignature",
-          config,
-          amount: refundAmount,
-          nonce,
-          claims: [claimEntry],
-          receiverAuthorizerSignature: authorizerSignature,
-          claimAuthorizerSignature,
-          responseExtra,
-        };
-      } else {
-        const responseExtra = buildRefundResponseSnapshot(session, {
-          settleAction: "refund",
-          config,
-          amount: refundAmount,
-          claims: [claimEntry],
-        });
+      const responseExtra = buildRefundResponseSnapshot(session, {
+        settleAction: "refundWithSignature",
+        config,
+        amount: refundAmount,
+        nonce,
+        claims: [claimEntry],
+        refundAuthorizerSignature,
+        claimAuthorizerSignature,
+      });
 
-        (paymentPayload as { payload: unknown }).payload = {
-          settleAction: "refund",
-          config,
-          amount: refundAmount,
-          claims: [claimEntry],
-          responseExtra,
-        };
-      }
+      (paymentPayload as { payload: unknown }).payload = {
+        settleAction: "refundWithSignature",
+        config,
+        amount: refundAmount,
+        nonce,
+        claims: [claimEntry],
+        refundAuthorizerSignature,
+        claimAuthorizerSignature,
+        responseExtra,
+      };
 
       this.pendingRefundChannels.add(channelId.toLowerCase());
       return;
@@ -785,10 +677,8 @@ export class BatchSettlementEvmScheme implements SchemeNetworkServer {
 
     const raw = paymentPayload.payload as Record<string, unknown>;
 
-    if (isBatchSettlementRefundWithSignaturePayload(raw) || isBatchSettlementRefundPayload(raw)) {
-      const refundPayload = raw as
-        | BatchSettlementRefundPayload
-        | BatchSettlementRefundWithSignaturePayload;
+    if (isBatchSettlementRefundWithSignaturePayload(raw)) {
+      const refundPayload = raw as BatchSettlementRefundWithSignaturePayload;
       const channelId = computeChannelId(refundPayload.config);
       const prevSession = await this.storage.get(channelId);
       const fallback =

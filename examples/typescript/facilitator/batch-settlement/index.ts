@@ -24,6 +24,11 @@ if (!process.env.EVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
+if (!process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY) {
+  console.error("❌ EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
+
 const evmRpcUrl = process.env.EVM_RPC_URL;
 
 // Initialize the EVM account from private key
@@ -31,7 +36,26 @@ const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
   { nonceManager },
 );
+
+// Dedicated EOA for receiverAuthorizer (signs ClaimBatch / Refund EIP-712 messages).
+// Transactions are still submitted by the signer(s) from EVM_PRIVATE_KEY.
+const authorizerAccount = privateKeyToAccount(
+  process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY as `0x${string}`,
+);
+const authorizerSigner = {
+  address: authorizerAccount.address,
+  signTypedData: (params: {
+    domain: Record<string, unknown>;
+    types: Record<string, Array<{ name: string; type: string }>>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    authorizerAccount.signTypedData(params as any),
+};
+
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
+console.info(`EVM Receiver Authorizer: ${authorizerSigner.address}`);
 
 // Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
@@ -100,7 +124,7 @@ const facilitator = new x402Facilitator()
   });
 
 // Register EVM schemes (batched: deposit / voucher / claim / settle)
-facilitator.register("eip155:84532", new BatchSettlementEvmScheme(evmSigner)); // Base Sepolia
+facilitator.register("eip155:84532", new BatchSettlementEvmScheme(evmSigner, authorizerSigner)); // Base Sepolia
 
 // Initialize Express app
 const app = express();

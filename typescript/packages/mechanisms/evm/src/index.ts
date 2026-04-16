@@ -41,16 +41,15 @@ export { BatchSettlementEvmScheme } from "./batch-settlement";
 
 // Batch-settlement types
 export type {
+  AuthorizerSigner,
   ChannelConfig,
   BatchSettlementDepositPayload,
   BatchSettlementVoucherPayload,
   BatchSettlementVoucherFields,
   BatchSettlementErc3009Authorization,
-  BatchSettlementClaimPayload,
   BatchSettlementClaimWithSignaturePayload,
   BatchSettlementSettleActionPayload,
   BatchSettlementDepositSettlePayload,
-  BatchSettlementRefundPayload,
   BatchSettlementRefundWithSignaturePayload,
   BatchSettlementVoucherClaim,
   BatchSettlementPayload,
@@ -59,11 +58,9 @@ export type {
 export {
   isBatchSettlementDepositPayload,
   isBatchSettlementVoucherPayload,
-  isBatchSettlementClaimPayload,
   isBatchSettlementClaimWithSignaturePayload,
   isBatchSettlementSettleActionPayload,
   isBatchSettlementDepositSettlePayload,
-  isBatchSettlementRefundPayload,
   isBatchSettlementRefundWithSignaturePayload,
 } from "./types";
 

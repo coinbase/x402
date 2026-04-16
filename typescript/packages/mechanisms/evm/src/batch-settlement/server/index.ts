@@ -1,5 +1,6 @@
 export { BatchSettlementEvmScheme } from "./scheme";
-export type { BatchSettlementEvmSchemeServerConfig, AuthorizerSigner } from "./scheme";
+export type { BatchSettlementEvmSchemeServerConfig } from "./scheme";
+export type { AuthorizerSigner } from "../types";
 export { InMemorySessionStorage } from "./storage";
 export type { ChannelSession, SessionStorage } from "./storage";
 export type { FileSessionStorageOptions } from "./fileStorage";

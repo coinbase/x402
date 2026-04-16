@@ -1,3 +1,13 @@
+export interface AuthorizerSigner {
+  address: `0x${string}`;
+  signTypedData(params: {
+    domain: Record<string, unknown>;
+    types: Record<string, Array<{ name: string; type: string }>>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }): Promise<`0x${string}`>;
+}
+
 export type ChannelState = {
   balance: bigint;
   totalClaimed: bigint;
@@ -66,15 +76,10 @@ export type BatchSettlementPaymentResponseExtra = {
   refund?: true;
 };
 
-export type BatchSettlementClaimPayload = {
-  settleAction: "claim";
-  claims: BatchSettlementVoucherClaim[];
-};
-
 export type BatchSettlementClaimWithSignaturePayload = {
   settleAction: "claimWithSignature";
   claims: BatchSettlementVoucherClaim[];
-  authorizerSignature: `0x${string}`;
+  claimAuthorizerSignature?: `0x${string}`;
 };
 
 export type BatchSettlementSettleActionPayload = {
@@ -88,21 +93,13 @@ export type BatchSettlementDepositSettlePayload = {
   deposit: BatchSettlementDepositPayload["deposit"];
 };
 
-export type BatchSettlementRefundPayload = {
-  settleAction: "refund";
-  config: ChannelConfig;
-  amount: string;
-  claims: BatchSettlementVoucherClaim[];
-  responseExtra?: BatchSettlementPaymentResponseExtra;
-};
-
 export type BatchSettlementRefundWithSignaturePayload = {
   settleAction: "refundWithSignature";
   config: ChannelConfig;
   amount: string;
   nonce: string;
   claims: BatchSettlementVoucherClaim[];
-  receiverAuthorizerSignature: `0x${string}`;
+  refundAuthorizerSignature?: `0x${string}`;
   claimAuthorizerSignature?: `0x${string}`;
   responseExtra?: BatchSettlementPaymentResponseExtra;
 };
@@ -111,10 +108,8 @@ export type BatchSettlementPayload = BatchSettlementDepositPayload | BatchSettle
 
 export type BatchSettlementSettlePayload =
   | BatchSettlementDepositSettlePayload
-  | BatchSettlementClaimPayload
   | BatchSettlementClaimWithSignaturePayload
   | BatchSettlementSettleActionPayload
-  | BatchSettlementRefundPayload
   | BatchSettlementRefundWithSignaturePayload;
 
 /**
@@ -148,18 +143,6 @@ export function isBatchSettlementVoucherPayload(
 }
 
 /**
- * Type guard for a batch claim settle payload (facilitator calls `claim()`).
- *
- * @param payload - The raw payload object.
- * @returns True if the object matches {@link BatchSettlementClaimPayload}.
- */
-export function isBatchSettlementClaimPayload(
-  payload: Record<string, unknown>,
-): payload is BatchSettlementClaimPayload {
-  return payload.settleAction === "claim" && "claims" in payload;
-}
-
-/**
  * Type guard for a claim-with-signature settle payload (facilitator calls `claimWithSignature()`).
  *
  * @param payload - The raw payload object.
@@ -168,11 +151,7 @@ export function isBatchSettlementClaimPayload(
 export function isBatchSettlementClaimWithSignaturePayload(
   payload: Record<string, unknown>,
 ): payload is BatchSettlementClaimWithSignaturePayload {
-  return (
-    payload.settleAction === "claimWithSignature" &&
-    "claims" in payload &&
-    "authorizerSignature" in payload
-  );
+  return payload.settleAction === "claimWithSignature" && "claims" in payload;
 }
 
 /**
@@ -188,24 +167,7 @@ export function isBatchSettlementSettleActionPayload(
 }
 
 /**
- * Type guard for a msg.sender-gated refund settle payload
- *
- * @param payload - The raw payload object.
- * @returns True if the object matches {@link BatchSettlementRefundPayload}.
- */
-export function isBatchSettlementRefundPayload(
-  payload: Record<string, unknown>,
-): payload is BatchSettlementRefundPayload {
-  return (
-    payload.settleAction === "refund" &&
-    "config" in payload &&
-    !("receiverAuthorizerSignature" in payload)
-  );
-}
-
-/**
- * Type guard for a signature-based refund settle payload
- * (server IS the receiverAuthorizer, signs off-chain).
+ * Type guard for a signature-based refund settle payload.
  *
  * @param payload - The raw payload object.
  * @returns True if the object matches {@link BatchSettlementRefundWithSignaturePayload}.
@@ -213,11 +175,7 @@ export function isBatchSettlementRefundPayload(
 export function isBatchSettlementRefundWithSignaturePayload(
   payload: Record<string, unknown>,
 ): payload is BatchSettlementRefundWithSignaturePayload {
-  return (
-    payload.settleAction === "refundWithSignature" &&
-    "config" in payload &&
-    "receiverAuthorizerSignature" in payload
-  );
+  return payload.settleAction === "refundWithSignature" && "config" in payload;
 }
 
 /**

@@ -12,7 +12,6 @@ The two-phase **claim/settle** split allows the server to batch-claim vouchers f
 | ------------------- | --------------------------------------------------------------- | -------------------------------------------------------- |
 | **`eip3009`**       | Tokens with `receiveWithAuthorization` (e.g., USDC)             | **Recommended** (simplest, truly gasless)                |
 | **`permit2`**       | Tokens without EIP-3009, payer already has Permit2 approval     | **Universal Fallback** (works for any ERC-20)            |
-| **`direct`**        | Payer sends transaction directly with ERC-20 approval           | **Simplest** (requires payer gas)                        |
 
 Default: `eip3009` if `extra.assetTransferMethod` is omitted.
 
@@ -319,13 +318,31 @@ Verifies a payment payload. Returns the onchain channel snapshot:
 
 ### GET /supported
 
+The `extra.receiverAuthorizer` field is included in each `kinds` entry so clients know which address to commit in `ChannelConfig.receiverAuthorizer`. The `signers` map lists all addresses the facilitator may use for tx submission; they are independent of `receiverAuthorizer`.
+
 ```json
 {
   "kinds": [
-    { "x402Version": 2, "scheme": "batch-settlement", "network": "eip155:8453" }
-  ]
+    {
+      "x402Version": 2,
+      "scheme": "batch-settlement",
+      "network": "eip155:8453",
+      "extra": {
+        "receiverAuthorizer": "0xReceiverAuthorizerAddress"
+      }
+    }
+  ],
+  "extensions": [],
+  "signers": {
+    "eip155:*": [
+      "0xSignerAddress1",
+      "0xSignerAddress2"
+    ]
+  }
 }
 ```
+
+`receiverAuthorizer` is the sole key responsible for producing EIP-712 signatures for `claimWithSignature` and `refundWithSignature`. Any address in `signers` may relay the resulting transaction. When the facilitator is configured with a single key and no dedicated authorizer, `receiverAuthorizer` equals `signers[0]`.
 
 ### Verification Rules (MUST)
 
@@ -525,6 +542,7 @@ The Canonical Permit2 contract address can be found at [https://docs.uniswap.org
 
 | Version | Date       | Changes                                                              | Author         |
 | ------- | ---------- | -------------------------------------------------------------------- | -------------- |
+| v0.11   | 2026-04-16 | Facilitator `GET /supported` now includes `extra.receiverAuthorizer` in each `kinds` entry; `BatchSettlementEvmScheme` accepts an optional dedicated `receiverAuthorizerAddress` (defaults to `signers[0]`); `signers` lists all tx-submission keys independently of the authorizer | @phdargen      |
 | v0.10   | 2026-04-14 | Direct **`claim`** / **`refund`**: `msg.sender` may be **`receiver`** or **`receiverAuthorizer`** (unchanged: **`claimWithSignature`** / **`refundWithSignature`** verify **`receiverAuthorizer`** only) | @CarsonRoscoe  |
 | v0.9    | 2026-04-14 | Align doc with `x402BatchSettlement`: nested EIP-712 **`ClaimBatch`/`ClaimEntry`**; **`Refund(channelId, nonce, amount)`** + **`refund`/`refundWithSignature`** (partial/full cooperative refund); **`finalizeWithdraw`** caller = `payer` or `payerAuthorizer`; `VoucherClaim.totalClaimed`; deposit collectors in-repo; deposits do not cancel pending withdraw; facilitator/`refundNonce` notes | @CarsonRoscoe  |
 | v0.9    | 2026-04-09 | `finalizeWithdraw` permissionless after delay; removed `finalizeWithdrawWithSignature`, `FinalizeWithdraw` EIP-712 type and `getFinalizeWithdrawDigest`; Dual-path cooperative withdraw: `cooperativeWithdraw(config)` msg.sender-gated + `cooperativeWithdrawWithSignature(config, sig)` signature-based; Voucher payload now includes `channelConfig` | @phdargen      |

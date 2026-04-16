@@ -1,14 +1,15 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
 import { encodeFunctionData, getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import {
-  BatchSettlementRefundPayload,
+import type {
+  AuthorizerSigner,
   BatchSettlementRefundWithSignaturePayload,
   ChannelState,
 } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { computeChannelId } from "../utils";
+import { signClaimBatch, signRefund } from "../authorizerSigner";
 import * as Errors from "./errors";
 import { buildVoucherClaimArgs } from "./claim";
 import { readChannelState } from "./utils";
@@ -19,10 +20,10 @@ import { readChannelState } from "./utils";
  * @param payload - Refund payload containing claims, amount, and optional prior `responseExtra`.
  * @param channelId - Canonical channel id for the refund.
  * @param preState - On-chain channel state before this refund, or null if unknown.
- * @returns Extra fields (`channelId`, balances, `totalClaimed`, `refundNonce`, etc.) for the settlement response.
+ * @returns Extra fields for the settlement response.
  */
 function buildRefundExtra(
-  payload: BatchSettlementRefundPayload | BatchSettlementRefundWithSignaturePayload,
+  payload: BatchSettlementRefundWithSignaturePayload,
   channelId: `0x${string}`,
   preState: ChannelState | null,
 ): Record<string, unknown> {
@@ -53,9 +54,9 @@ function buildRefundExtra(
  * Normalizes channel config fields to checksummed addresses for the batch settlement contract.
  *
  * @param config - Channel configuration from the refund payload.
- * @returns Arguments object suitable for `refund` on the settlement contract.
+ * @returns Arguments object suitable for `refundWithSignature` on the settlement contract.
  */
-function buildConfigTuple(config: BatchSettlementRefundPayload["config"]) {
+function buildConfigTuple(config: BatchSettlementRefundWithSignaturePayload["config"]) {
   return {
     payer: getAddress(config.payer),
     payerAuthorizer: getAddress(config.payerAuthorizer),
@@ -68,102 +69,27 @@ function buildConfigTuple(config: BatchSettlementRefundPayload["config"]) {
 }
 
 /**
- * Executes a cooperative refund via msg.sender path (facilitator IS the receiverAuthorizer or receiver).
+ * Executes a cooperative refund via `refundWithSignature`.
  *
- * If `payload.claims` is non-empty, outstanding vouchers are claimed atomically with the
- * refund via the contract's `multicall`. Otherwise, a single `refund` call is made.
- *
- * @param signer - Facilitator signer used to submit the on-chain transactions.
- * @param payload - Refund payload (ChannelConfig + amount + claims, no signature).
- * @param requirements - Payment requirements for network identification.
- * @returns A {@link SettleResponse} with the transaction hash on success.
- */
-export async function executeRefund(
-  signer: FacilitatorEvmSigner,
-  payload: BatchSettlementRefundPayload,
-  requirements: PaymentRequirements,
-): Promise<SettleResponse> {
-  const network = requirements.network;
-
-  try {
-    const channelId = computeChannelId(payload.config);
-    const preState = await readChannelState(signer, channelId);
-    const contractAddr = getAddress(BATCH_SETTLEMENT_ADDRESS);
-
-    const refundCalldata = encodeFunctionData({
-      abi: batchSettlementABI,
-      functionName: "refund",
-      args: [buildConfigTuple(payload.config), BigInt(payload.amount)],
-    });
-
-    let tx: `0x${string}`;
-
-    if (payload.claims.length > 0) {
-      const claimCalldata = encodeFunctionData({
-        abi: batchSettlementABI,
-        functionName: "claim",
-        args: [buildVoucherClaimArgs(payload.claims)],
-      });
-
-      tx = await signer.writeContract({
-        address: contractAddr,
-        abi: batchSettlementABI,
-        functionName: "multicall",
-        args: [[claimCalldata, refundCalldata]],
-      });
-    } else {
-      tx = await signer.writeContract({
-        address: contractAddr,
-        abi: batchSettlementABI,
-        functionName: "refund",
-        args: [buildConfigTuple(payload.config), BigInt(payload.amount)],
-      });
-    }
-
-    const receipt = await signer.waitForTransactionReceipt({ hash: tx });
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: Errors.ErrRefundTransactionFailed,
-        transaction: tx,
-        network,
-      };
-    }
-
-    return {
-      success: true,
-      transaction: tx,
-      network,
-      payer: payload.config.payer,
-      amount: requirements.amount,
-      extra: buildRefundExtra(payload, channelId, preState),
-    };
-  } catch {
-    return {
-      success: false,
-      errorReason: Errors.ErrRefundTransactionFailed,
-      transaction: "",
-      network,
-    };
-  }
-}
-
-/**
- * Executes a cooperative refund via signature path (server IS the receiverAuthorizer).
+ * When `refundAuthorizerSignature` / `claimAuthorizerSignature` are present they are used
+ * directly.  When absent the facilitator signs the missing digests using
+ * `authorizerSigner`, after verifying that `config.receiverAuthorizer` matches
+ * `authorizerSigner.address`.
  *
  * If `payload.claims` is non-empty, the claim and refund are batched atomically via
- * the contract's `multicall`. The claim variant is chosen based on whether
- * `claimAuthorizerSignature` is present (`claimWithSignature`) or absent (`claim`).
+ * the contract's `multicall`.
  *
  * @param signer - Facilitator signer used to submit the on-chain transactions.
- * @param payload - Refund payload with receiverAuthorizer signature, amount, and nonce.
+ * @param payload - Refund payload with optional signatures, amount, and nonce.
  * @param requirements - Payment requirements for network identification.
+ * @param authorizerSigner - Dedicated key for producing EIP-712 signatures.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeRefundWithSignature(
   signer: FacilitatorEvmSigner,
   payload: BatchSettlementRefundWithSignaturePayload,
   requirements: PaymentRequirements,
+  authorizerSigner: AuthorizerSigner,
 ): Promise<SettleResponse> {
   const network = requirements.network;
 
@@ -171,6 +97,25 @@ export async function executeRefundWithSignature(
     const channelId = computeChannelId(payload.config);
     const preState = await readChannelState(signer, channelId);
     const contractAddr = getAddress(BATCH_SETTLEMENT_ADDRESS);
+
+    let refundSig = payload.refundAuthorizerSignature;
+    if (!refundSig) {
+      if (getAddress(payload.config.receiverAuthorizer) !== getAddress(authorizerSigner.address)) {
+        return {
+          success: false,
+          errorReason: Errors.ErrAuthorizerAddressMismatch,
+          transaction: "",
+          network,
+        };
+      }
+      refundSig = await signRefund(
+        authorizerSigner,
+        channelId,
+        payload.amount,
+        payload.nonce,
+        network,
+      );
+    }
 
     const refundCalldata = encodeFunctionData({
       abi: batchSettlementABI,
@@ -179,24 +124,23 @@ export async function executeRefundWithSignature(
         buildConfigTuple(payload.config),
         BigInt(payload.amount),
         BigInt(payload.nonce),
-        payload.receiverAuthorizerSignature,
+        refundSig,
       ],
     });
 
     let tx: `0x${string}`;
 
     if (payload.claims.length > 0) {
-      const claimCalldata = payload.claimAuthorizerSignature
-        ? encodeFunctionData({
-            abi: batchSettlementABI,
-            functionName: "claimWithSignature",
-            args: [buildVoucherClaimArgs(payload.claims), payload.claimAuthorizerSignature],
-          })
-        : encodeFunctionData({
-            abi: batchSettlementABI,
-            functionName: "claim",
-            args: [buildVoucherClaimArgs(payload.claims)],
-          });
+      let claimSig = payload.claimAuthorizerSignature;
+      if (!claimSig) {
+        claimSig = await signClaimBatch(authorizerSigner, payload.claims, network);
+      }
+
+      const claimCalldata = encodeFunctionData({
+        abi: batchSettlementABI,
+        functionName: "claimWithSignature",
+        args: [buildVoucherClaimArgs(payload.claims), claimSig],
+      });
 
       tx = await signer.writeContract({
         address: contractAddr,
@@ -213,7 +157,7 @@ export async function executeRefundWithSignature(
           buildConfigTuple(payload.config),
           BigInt(payload.amount),
           BigInt(payload.nonce),
-          payload.receiverAuthorizerSignature,
+          refundSig,
         ],
       });
     }

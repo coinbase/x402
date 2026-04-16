@@ -9,6 +9,7 @@ import type { BatchSettlementVoucherClaim } from "../types";
 import type { BatchSettlementEvmScheme } from "./scheme";
 import { computeChannelId } from "../utils";
 import { BATCH_SETTLEMENT_SCHEME } from "../constants";
+import { signClaimBatch, signRefund } from "../authorizerSigner";
 
 export interface ChannelManagerConfig {
   scheme: BatchSettlementEvmScheme;
@@ -192,54 +193,42 @@ export class BatchSettlementChannelManager {
 
     const firstTarget = targets[0];
     const config = firstTarget.channelConfig;
-    const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
+    const authorizerSigner = this.scheme.getReceiverAuthorizerSigner();
 
     const refundAmount = (
       BigInt(firstTarget.balance) - BigInt(firstTarget.chargedCumulativeAmount)
     ).toString();
 
-    let paymentPayload: PaymentPayload;
+    const nonce = String(firstTarget.refundNonce ?? 0);
 
-    if (hasAuthorizerSigner) {
-      const nonce = String(firstTarget.refundNonce ?? 0);
-
-      const authSig = await this.scheme.signRefund(
-        firstTarget.channelId as `0x${string}`,
-        refundAmount,
-        nonce,
-        this.network,
-      );
-
-      let claimAuthorizerSignature: `0x${string}` | undefined;
-      if (claims.length > 0) {
-        claimAuthorizerSignature = await this.scheme.signClaimBatch(claims, this.network);
-      }
-
-      paymentPayload = {
-        x402Version: 2,
-        accepted: this.buildPaymentRequirements(),
-        payload: {
-          settleAction: "refundWithSignature",
-          config,
-          amount: refundAmount,
+    const refundAuthorizerSignature = authorizerSigner
+      ? await signRefund(
+          authorizerSigner,
+          firstTarget.channelId as `0x${string}`,
+          refundAmount,
           nonce,
-          claims,
-          receiverAuthorizerSignature: authSig,
-          ...(claimAuthorizerSignature ? { claimAuthorizerSignature } : {}),
-        },
-      };
-    } else {
-      paymentPayload = {
-        x402Version: 2,
-        accepted: this.buildPaymentRequirements(),
-        payload: {
-          settleAction: "refund",
-          config,
-          amount: refundAmount,
-          claims,
-        },
-      };
-    }
+          this.network,
+        )
+      : undefined;
+
+    const claimAuthorizerSignature =
+      authorizerSigner && claims.length > 0
+        ? await signClaimBatch(authorizerSigner, claims, this.network)
+        : undefined;
+
+    const paymentPayload: PaymentPayload = {
+      x402Version: 2,
+      accepted: this.buildPaymentRequirements(),
+      payload: {
+        settleAction: "refundWithSignature",
+        config,
+        amount: refundAmount,
+        nonce,
+        claims,
+        ...(refundAuthorizerSignature ? { refundAuthorizerSignature } : {}),
+        ...(claimAuthorizerSignature ? { claimAuthorizerSignature } : {}),
+      },
+    };
 
     const response = await this.facilitator.settle(paymentPayload, this.buildPaymentRequirements());
     if (!response.success) {
@@ -532,31 +521,21 @@ export class BatchSettlementChannelManager {
    * @returns Per-batch claim summary (count and transaction hash).
    */
   private async submitClaim(claims: BatchSettlementVoucherClaim[]): Promise<ClaimResult> {
-    const hasAuthorizerSigner = this.scheme.getReceiverAuthorizerAddress() !== undefined;
+    const authorizerSigner = this.scheme.getReceiverAuthorizerSigner();
 
-    let paymentPayload: PaymentPayload;
+    const claimAuthorizerSignature = authorizerSigner
+      ? await signClaimBatch(authorizerSigner, claims, this.network)
+      : undefined;
 
-    if (hasAuthorizerSigner) {
-      const authorizerSignature = await this.scheme.signClaimBatch(claims, this.network);
-      paymentPayload = {
-        x402Version: 2,
-        accepted: this.buildPaymentRequirements(),
-        payload: {
-          settleAction: "claimWithSignature",
-          claims,
-          authorizerSignature,
-        },
-      };
-    } else {
-      paymentPayload = {
-        x402Version: 2,
-        accepted: this.buildPaymentRequirements(),
-        payload: {
-          settleAction: "claim",
-          claims,
-        },
-      };
-    }
+    const paymentPayload: PaymentPayload = {
+      x402Version: 2,
+      accepted: this.buildPaymentRequirements(),
+      payload: {
+        settleAction: "claimWithSignature",
+        claims,
+        ...(claimAuthorizerSignature ? { claimAuthorizerSignature } : {}),
+      },
+    };
 
     const response: SettleResponse = await this.facilitator.settle(
       paymentPayload,
