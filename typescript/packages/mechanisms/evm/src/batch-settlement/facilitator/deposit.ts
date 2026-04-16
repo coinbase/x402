@@ -184,6 +184,37 @@ export async function verifyDeposit(
     return { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer };
   }
 
+  const configTuple = {
+    payer: getAddress(config.payer),
+    payerAuthorizer: getAddress(config.payerAuthorizer),
+    receiver: getAddress(config.receiver),
+    receiverAuthorizer: getAddress(config.receiverAuthorizer),
+    token: getAddress(config.token),
+    withdrawDelay: config.withdrawDelay,
+    salt: config.salt,
+  };
+
+  const collectorData = encodeAbiParameters(
+    [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }],
+    [BigInt(auth.validAfter), BigInt(auth.validBefore), BigInt(auth.salt), auth.signature],
+  );
+
+  try {
+    await signer.readContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "deposit",
+      args: [
+        configTuple,
+        depositAmount,
+        getAddress(ERC3009_DEPOSIT_COLLECTOR_ADDRESS),
+        collectorData,
+      ],
+    });
+  } catch {
+    return { isValid: false, invalidReason: Errors.ErrDepositSimulationFailed, payer };
+  }
+
   return {
     isValid: true,
     payer,

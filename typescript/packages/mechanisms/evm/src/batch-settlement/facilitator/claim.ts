@@ -76,6 +76,22 @@ export async function executeClaimWithSignature(
   }
 
   try {
+    await signer.readContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "claimWithSignature",
+      args: [claimArgs, sig],
+    });
+  } catch {
+    return {
+      success: false,
+      errorReason: Errors.ErrClaimSimulationFailed,
+      transaction: "",
+      network,
+    };
+  }
+
+  try {
     const tx = await signer.writeContract({
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),
       abi: batchSettlementABI,

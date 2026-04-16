@@ -23,6 +23,23 @@ export async function executeSettle(
   requirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const network = requirements.network;
+
+  try {
+    await signer.readContract({
+      address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+      abi: batchSettlementABI,
+      functionName: "settle",
+      args: [getAddress(payload.receiver), getAddress(payload.token)],
+    });
+  } catch {
+    return {
+      success: false,
+      errorReason: Errors.ErrSettleSimulationFailed,
+      transaction: "",
+      network,
+    };
+  }
+
   try {
     const tx = await signer.writeContract({
       address: getAddress(BATCH_SETTLEMENT_ADDRESS),

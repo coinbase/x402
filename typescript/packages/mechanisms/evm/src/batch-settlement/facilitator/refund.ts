@@ -142,6 +142,22 @@ export async function executeRefundWithSignature(
         args: [buildVoucherClaimArgs(payload.claims), claimSig],
       });
 
+      try {
+        await signer.readContract({
+          address: contractAddr,
+          abi: batchSettlementABI,
+          functionName: "multicall",
+          args: [[claimCalldata, refundCalldata]],
+        });
+      } catch {
+        return {
+          success: false,
+          errorReason: Errors.ErrRefundSimulationFailed,
+          transaction: "",
+          network,
+        };
+      }
+
       tx = await signer.writeContract({
         address: contractAddr,
         abi: batchSettlementABI,
@@ -149,6 +165,27 @@ export async function executeRefundWithSignature(
         args: [[claimCalldata, refundCalldata]],
       });
     } else {
+      try {
+        await signer.readContract({
+          address: contractAddr,
+          abi: batchSettlementABI,
+          functionName: "refundWithSignature",
+          args: [
+            buildConfigTuple(payload.config),
+            BigInt(payload.amount),
+            BigInt(payload.nonce),
+            refundSig,
+          ],
+        });
+      } catch {
+        return {
+          success: false,
+          errorReason: Errors.ErrRefundSimulationFailed,
+          transaction: "",
+          network,
+        };
+      }
+
       tx = await signer.writeContract({
         address: contractAddr,
         abi: batchSettlementABI,

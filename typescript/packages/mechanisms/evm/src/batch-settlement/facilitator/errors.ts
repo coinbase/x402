@@ -28,3 +28,7 @@ export const ErrReceiverMismatch = "batch_settlement_evm_receiver_mismatch";
 export const ErrReceiverAuthorizerMismatch = "batch_settlement_evm_receiver_authorizer_mismatch";
 export const ErrWithdrawDelayMismatch = "batch_settlement_evm_withdraw_delay_mismatch";
 export const ErrAuthorizerAddressMismatch = "batch_settlement_evm_authorizer_address_mismatch";
+export const ErrDepositSimulationFailed = "batch_settlement_evm_deposit_simulation_failed";
+export const ErrClaimSimulationFailed = "batch_settlement_evm_claim_simulation_failed";
+export const ErrSettleSimulationFailed = "batch_settlement_evm_settle_simulation_failed";
+export const ErrRefundSimulationFailed = "batch_settlement_evm_refund_simulation_failed";
