@@ -24,23 +24,20 @@ if (!process.env.EVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
-if (!process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY) {
-  console.error("❌ EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY environment variable is required");
-  process.exit(1);
-}
-
 const evmRpcUrl = process.env.EVM_RPC_URL;
 
-// Initialize the EVM account from private key
+const receiverAuthorizerPrivateKey =
+  process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY ?? process.env.EVM_PRIVATE_KEY;
+
+// Initialize the EVM account from private key (submits transactions)
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
   { nonceManager },
 );
 
-// Dedicated EOA for receiverAuthorizer (signs ClaimBatch / Refund EIP-712 messages).
-// Transactions are still submitted by the signer(s) from EVM_PRIVATE_KEY.
+// Dedicated receiverAuthorizer (signs ClaimBatch / Refund EIP-712 messages)
 const authorizerAccount = privateKeyToAccount(
-  process.env.EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY as `0x${string}`,
+  receiverAuthorizerPrivateKey as `0x${string}`,
 );
 const authorizerSigner = {
   address: authorizerAccount.address,
