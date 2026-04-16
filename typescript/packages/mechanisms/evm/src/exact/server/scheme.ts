@@ -9,6 +9,38 @@ import {
 import { getDefaultAsset, type ExactDefaultAssetInfo } from "../../shared/defaultAssets";
 
 /**
+ * Converts a JavaScript number to a plain decimal string, expanding scientific notation
+ * via string manipulation rather than parseFloat round-tripping.
+ *
+ * e.g. 1e-7 → "0.0000001", 4.02 → "4.02"
+ *
+ * @param n - The number to convert
+ * @returns A plain decimal string representation with no scientific notation
+ */
+function numberToDecimalString(n: number): string {
+  const str = n.toString();
+  if (!/[eE]/.test(str)) return str;
+
+  const [significand, exponentStr] = str.split(/[eE]/);
+  const exp = parseInt(exponentStr, 10);
+  const negative = significand.startsWith("-");
+  const abs = negative ? significand.slice(1) : significand;
+  const [intDigits, fracDigits = ""] = abs.split(".");
+  const allDigits = intDigits + fracDigits;
+  const decimalPos = intDigits.length + exp;
+
+  let result: string;
+  if (decimalPos <= 0) {
+    result = "0." + "0".repeat(-decimalPos) + allDigits;
+  } else if (decimalPos >= allDigits.length) {
+    result = allDigits + "0".repeat(decimalPos - allDigits.length);
+  } else {
+    result = allDigits.slice(0, decimalPos) + "." + allDigits.slice(decimalPos);
+  }
+  return (negative ? "-" : "") + result;
+}
+
+/**
  * EVM server implementation for the Exact payment scheme.
  */
 export class ExactEvmScheme implements SchemeNetworkServer {
@@ -154,7 +186,10 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    */
   private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
     const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network);
-    const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
+    const tokenAmount = this.convertToTokenAmount(
+      numberToDecimalString(amount),
+      assetInfo.decimals,
+    );
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
     // Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).
@@ -185,13 +220,22 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    * @returns The token amount as an integer string in smallest units
    */
   private convertToTokenAmount(decimalAmount: string, decimals: number): string {
-    const amount = parseFloat(decimalAmount);
-    if (isNaN(amount)) {
+    if (/[eE]/.test(decimalAmount)) {
+      throw new Error(
+        `Invalid amount: ${decimalAmount} — use decimal notation, not scientific notation`,
+      );
+    }
+    if (!/^-?\d+\.?\d*$/.test(decimalAmount)) {
       throw new Error(`Invalid amount: ${decimalAmount}`);
     }
-    const [intPart, decPart = ""] = String(amount).split(".");
+    const [intPart, decPart = ""] = decimalAmount.split(".");
     const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
     const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
+    if (tokenAmount === "0" && /[1-9]/.test(decimalAmount)) {
+      throw new Error(
+        `Amount ${decimalAmount} is too small to represent with ${decimals} decimal places`,
+      );
+    }
     return tokenAmount;
   }
 }
