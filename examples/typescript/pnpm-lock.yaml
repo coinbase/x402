@@ -1145,7 +1145,7 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
-  clients/batched:
+  clients/batch-settlement:
     dependencies:
       '@x402/evm':
         specifier: workspace:*
@@ -1194,7 +1194,7 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
-  clients/batched-streaming:
+  clients/batch-settlement-streaming:
     dependencies:
       '@x402/core':
         specifier: workspace:*
@@ -1780,7 +1780,7 @@ importers:
         specifier: ^5.7.2
         version: 5.9.2
 
-  facilitator/batched:
+  facilitator/batch-settlement:
     dependencies:
       '@x402/core':
         specifier: workspace:*
@@ -1824,10 +1824,10 @@ importers:
         version: 50.8.0(eslint@9.33.0(jiti@2.6.1))
       eslint-plugin-prettier:
         specifier: ^5.2.6
-        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.6.2)
+        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@2.6.1)))(eslint@9.33.0(jiti@2.6.1))(prettier@3.5.2)
       prettier:
         specifier: ^3.3.3
-        version: 3.6.2
+        version: 3.5.2
       tsx:
         specifier: ^4.19.2
         version: 4.20.4
@@ -2066,7 +2066,7 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
-  servers/batched:
+  servers/batch-settlement:
     dependencies:
       '@x402/core':
         specifier: workspace:*
@@ -2124,7 +2124,7 @@ importers:
         specifier: ^5.3.0
         version: 5.9.2
 
-  servers/batched-streaming:
+  servers/batch-settlement-streaming:
     dependencies:
       '@x402/core':
         specifier: workspace:*
@@ -17058,7 +17058,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.48.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 

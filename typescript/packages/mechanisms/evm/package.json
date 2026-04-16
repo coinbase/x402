@@ -150,34 +150,34 @@
         "default": "./dist/cjs/upto/facilitator/index.js"
       }
     },
-    "./batched/client": {
+    "./batch-settlement/client": {
       "import": {
-        "types": "./dist/esm/batched/client/index.d.mts",
-        "default": "./dist/esm/batched/client/index.mjs"
+        "types": "./dist/esm/batch-settlement/client/index.d.mts",
+        "default": "./dist/esm/batch-settlement/client/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/batched/client/index.d.ts",
-        "default": "./dist/cjs/batched/client/index.js"
+        "types": "./dist/cjs/batch-settlement/client/index.d.ts",
+        "default": "./dist/cjs/batch-settlement/client/index.js"
       }
     },
-    "./batched/server": {
+    "./batch-settlement/server": {
       "import": {
-        "types": "./dist/esm/batched/server/index.d.mts",
-        "default": "./dist/esm/batched/server/index.mjs"
+        "types": "./dist/esm/batch-settlement/server/index.d.mts",
+        "default": "./dist/esm/batch-settlement/server/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/batched/server/index.d.ts",
-        "default": "./dist/cjs/batched/server/index.js"
+        "types": "./dist/cjs/batch-settlement/server/index.d.ts",
+        "default": "./dist/cjs/batch-settlement/server/index.js"
       }
     },
-    "./batched/facilitator": {
+    "./batch-settlement/facilitator": {
       "import": {
-        "types": "./dist/esm/batched/facilitator/index.d.mts",
-        "default": "./dist/esm/batched/facilitator/index.mjs"
+        "types": "./dist/esm/batch-settlement/facilitator/index.d.mts",
+        "default": "./dist/esm/batch-settlement/facilitator/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/batched/facilitator/index.d.ts",
-        "default": "./dist/cjs/batched/facilitator/index.js"
+        "types": "./dist/cjs/batch-settlement/facilitator/index.d.ts",
+        "default": "./dist/cjs/batch-settlement/facilitator/index.js"
       }
     }
   },

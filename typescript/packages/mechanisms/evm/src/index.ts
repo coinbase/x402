@@ -36,46 +36,47 @@ export { UptoEvmScheme } from "./upto";
 export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
 export { isUptoPermit2Payload } from "./types";
 
-// Batched scheme client
-export { BatchedEvmScheme } from "./batched";
+// Batch-settlement scheme client
+export { BatchSettlementEvmScheme } from "./batch-settlement";
 
 // Batch-settlement types
 export type {
   ChannelConfig,
-  BatchedDepositPayload,
-  BatchedVoucherPayload,
-  BatchedVoucherFields,
-  BatchedErc3009Authorization,
-  BatchedClaimPayload,
-  BatchedClaimWithSignaturePayload,
-  BatchedSettleActionPayload,
-  BatchedDepositSettlePayload,
-  BatchedRefundPayload,
-  BatchedRefundWithSignaturePayload,
-  BatchedVoucherClaim,
-  BatchedPayload,
-  BatchedSettlePayload,
+  BatchSettlementDepositPayload,
+  BatchSettlementVoucherPayload,
+  BatchSettlementVoucherFields,
+  BatchSettlementErc3009Authorization,
+  BatchSettlementClaimPayload,
+  BatchSettlementClaimWithSignaturePayload,
+  BatchSettlementSettleActionPayload,
+  BatchSettlementDepositSettlePayload,
+  BatchSettlementRefundPayload,
+  BatchSettlementRefundWithSignaturePayload,
+  BatchSettlementVoucherClaim,
+  BatchSettlementPayload,
+  BatchSettlementSettlePayload,
 } from "./types";
 export {
-  isBatchedDepositPayload,
-  isBatchedVoucherPayload,
-  isBatchedClaimPayload,
-  isBatchedClaimWithSignaturePayload,
-  isBatchedSettleActionPayload,
-  isBatchedDepositSettlePayload,
-  isBatchedRefundPayload,
-  isBatchedRefundWithSignaturePayload,
+  isBatchSettlementDepositPayload,
+  isBatchSettlementVoucherPayload,
+  isBatchSettlementClaimPayload,
+  isBatchSettlementClaimWithSignaturePayload,
+  isBatchSettlementSettleActionPayload,
+  isBatchSettlementDepositSettlePayload,
+  isBatchSettlementRefundPayload,
+  isBatchSettlementRefundWithSignaturePayload,
 } from "./types";
 
 // Batch-settlement constants
 export {
   BATCH_SETTLEMENT_ADDRESS,
+  BATCH_SETTLEMENT_SCHEME,
   ERC3009_DEPOSIT_COLLECTOR_ADDRESS,
   BATCH_SETTLEMENT_DOMAIN,
   voucherTypes,
   refundTypes,
   claimBatchTypes,
-} from "./batched/constants";
+} from "./batch-settlement/constants";
 
 // Default stablecoins (USD string pricing → token address per chain)
 export { getDefaultAsset } from "./shared/defaultAssets";

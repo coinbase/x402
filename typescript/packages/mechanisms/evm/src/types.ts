@@ -109,33 +109,33 @@ export type UptoPermit2Payload = {
   };
 };
 
-// Batched EVM scheme payload types (scheme id: "batched")
+// Batch-settlement EVM scheme payload types
 export type {
   ChannelConfig,
-  BatchedDepositPayload,
-  BatchedVoucherPayload,
-  BatchedVoucherFields,
-  BatchedErc3009Authorization,
-  BatchedClaimPayload,
-  BatchedClaimWithSignaturePayload,
-  BatchedSettleActionPayload,
-  BatchedDepositSettlePayload,
-  BatchedRefundPayload,
-  BatchedRefundWithSignaturePayload,
-  BatchedVoucherClaim,
-  BatchedPayload,
-  BatchedSettlePayload,
-} from "./batched/types";
+  BatchSettlementDepositPayload,
+  BatchSettlementVoucherPayload,
+  BatchSettlementVoucherFields,
+  BatchSettlementErc3009Authorization,
+  BatchSettlementClaimPayload,
+  BatchSettlementClaimWithSignaturePayload,
+  BatchSettlementSettleActionPayload,
+  BatchSettlementDepositSettlePayload,
+  BatchSettlementRefundPayload,
+  BatchSettlementRefundWithSignaturePayload,
+  BatchSettlementVoucherClaim,
+  BatchSettlementPayload,
+  BatchSettlementSettlePayload,
+} from "./batch-settlement/types";
 export {
-  isBatchedDepositPayload,
-  isBatchedVoucherPayload,
-  isBatchedClaimPayload,
-  isBatchedClaimWithSignaturePayload,
-  isBatchedSettleActionPayload,
-  isBatchedDepositSettlePayload,
-  isBatchedRefundPayload,
-  isBatchedRefundWithSignaturePayload,
-} from "./batched/types";
+  isBatchSettlementDepositPayload,
+  isBatchSettlementVoucherPayload,
+  isBatchSettlementClaimPayload,
+  isBatchSettlementClaimWithSignaturePayload,
+  isBatchSettlementSettleActionPayload,
+  isBatchSettlementDepositSettlePayload,
+  isBatchSettlementRefundPayload,
+  isBatchSettlementRefundWithSignaturePayload,
+} from "./batch-settlement/types";
 
 /**
  * Type guard to check if a payload is an upto Permit2 payload.
