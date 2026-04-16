@@ -1,0 +1,7 @@
+{
+  "name": "API Factory x402",
+  "category": "Services/Endpoints",
+  "description": "100 production-ready x402 APIs for AI agents. Crypto (Hyperliquid, DeFi yields, token safety, whale tracking), B2B (email verification, company enrichment, person lookup), SEO (audit, keyword research, web scraping), security (trust scoring, GDPR scanner, port scanner), and 70+ utility APIs. Every API is also an MCP server with SSE transport. npm SDK: x402-agent-tools (103 tools, LangChain + Vercel AI SDK). Pay-per-call in USDC on Base via x402. No API keys, no accounts.",
+  "logoUrl": "",
+  "websiteUrl": "https://github.com/Br0ski777/x402-agent-tools"
+}
