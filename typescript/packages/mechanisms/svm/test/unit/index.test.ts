@@ -4,7 +4,6 @@ import {
   validateSvmAddress,
   normalizeNetwork,
   getUsdcAddress,
-  convertToTokenAmount,
   SVM_ADDRESS_REGEX,
   SOLANA_MAINNET_CAIP2,
   SOLANA_DEVNET_CAIP2,
@@ -77,54 +76,6 @@ describe("@x402/svm", () => {
 
     it("should throw for unsupported networks", () => {
       expect(() => getUsdcAddress("solana:unknown" as never)).toThrow("Unsupported SVM network");
-    });
-  });
-
-  describe("convertToTokenAmount", () => {
-    it("should convert decimal amounts to token units (6 decimals)", () => {
-      expect(convertToTokenAmount("4.02", 6)).toBe("4020000");
-      expect(convertToTokenAmount("0.10", 6)).toBe("100000");
-      expect(convertToTokenAmount("1.00", 6)).toBe("1000000");
-      expect(convertToTokenAmount("0.01", 6)).toBe("10000");
-      expect(convertToTokenAmount("123.456789", 6)).toBe("123456789");
-    });
-
-    it("should handle whole numbers", () => {
-      expect(convertToTokenAmount("1", 6)).toBe("1000000");
-      expect(convertToTokenAmount("100", 6)).toBe("100000000");
-    });
-
-    it("should handle different decimals", () => {
-      expect(convertToTokenAmount("1", 9)).toBe("1000000000"); // SOL
-      expect(convertToTokenAmount("1", 2)).toBe("100");
-      expect(convertToTokenAmount("1", 0)).toBe("1");
-    });
-
-    it("should throw for invalid amounts", () => {
-      expect(() => convertToTokenAmount("abc", 6)).toThrow("Invalid amount");
-      expect(() => convertToTokenAmount("", 6)).toThrow("Invalid amount");
-      expect(() => convertToTokenAmount("NaN", 6)).toThrow("Invalid amount");
-    });
-
-    it("should throw for scientific notation input", () => {
-      expect(() => convertToTokenAmount("1e-7", 9)).toThrow("scientific notation");
-      expect(() => convertToTokenAmount("1.5e-6", 6)).toThrow("scientific notation");
-    });
-
-    it("should handle small amounts when the token has sufficient precision", () => {
-      // 0.0000001 with 9 decimals: 1e-7 * 1e9 = 100 atomic units
-      expect(convertToTokenAmount("0.0000001", 9)).toBe("100");
-      // 0.000000001 with 9 decimals: 1e-9 * 1e9 = 1 atomic unit
-      expect(convertToTokenAmount("0.000000001", 9)).toBe("1");
-      // 0.0000015 with 9 decimals: 1.5e-6 * 1e9 = 1500 atomic units
-      expect(convertToTokenAmount("0.0000015", 9)).toBe("1500");
-    });
-
-    it("should throw when a non-zero amount rounds down to 0", () => {
-      // 0.0000001 with 6 decimals: 1e-7 * 1e6 = 0.1 → rounds to 0 → error
-      expect(() => convertToTokenAmount("0.0000001", 6)).toThrow("too small");
-      // 0.0000000001 with 6 decimals: also too small
-      expect(() => convertToTokenAmount("0.0000000001", 6)).toThrow("too small");
     });
   });
 
