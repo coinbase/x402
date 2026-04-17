@@ -86,32 +86,8 @@ export function getSenderFromTransaction(txnBytes: Uint8Array, isSigned: boolean
   return txn.sender.toString();
 }
 
-/**
- * Converts a decimal amount to atomic units (token's smallest unit)
- *
- * @param decimalAmount - The decimal amount as a string (e.g., "1.50")
- * @param decimals - Number of decimal places (e.g., 6 for USDC)
- * @returns Amount in atomic units as a string
- *
- * @example
- * ```typescript
- * convertToTokenAmount("1.50", 6) // Returns "1500000"
- * convertToTokenAmount("0.10", 6) // Returns "100000"
- * ```
- */
-export function convertToTokenAmount(decimalAmount: string, decimals: number): string {
-  const amount = parseFloat(decimalAmount);
-  if (isNaN(amount)) {
-    throw new Error(`Invalid amount: ${decimalAmount}`);
-  }
-
-  // Handle decimal conversion properly
-  const [intPart, decPart = ""] = String(amount).split(".");
-  const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
-  const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
-
-  return tokenAmount;
-}
+// Re-export from core for backward compatibility
+export { convertToTokenAmount, numberToDecimalString } from "@x402/core/utils";
 
 /**
  * Converts atomic units to decimal amount
