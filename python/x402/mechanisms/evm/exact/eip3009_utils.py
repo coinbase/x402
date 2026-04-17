@@ -289,7 +289,12 @@ def parse_eip3009_transfer_error(error: Exception) -> str:
         return ERR_NONCE_ALREADY_USED
     if "transfer amount exceeds balance" in msg or "erc20insufficientbalance" in msg:
         return ERR_INSUFFICIENT_BALANCE
-    if "invalid signature" in msg or "signermismatch" in msg or "invalidsignaturev" in msg or "invalidsignatures" in msg:
+    if (
+        "invalid signature" in msg
+        or "signermismatch" in msg
+        or "invalidsignaturev" in msg
+        or "invalidsignatures" in msg
+    ):
         return ERR_INVALID_SIGNATURE
     return ERR_TRANSACTION_FAILED
 
