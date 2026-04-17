@@ -1,11 +1,11 @@
 package main
 
 import (
-	x402 "github.com/coinbase/x402/go"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
-	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
-	evmsigners "github.com/coinbase/x402/go/signers/evm"
-	svmsigners "github.com/coinbase/x402/go/signers/svm"
+	x402 "github.com/x402-foundation/x402/go"
+	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/client"
+	svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/client"
+	evmsigners "github.com/x402-foundation/x402/go/signers/evm"
+	svmsigners "github.com/x402-foundation/x402/go/signers/svm"
 )
 
 /**
@@ -53,4 +53,3 @@ func createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey string
 
 	return client, nil
 }
-
