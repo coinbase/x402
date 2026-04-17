@@ -773,7 +773,7 @@ x402 supports two payment schemes that control how charges are calculated:
 
 **`exact`** (default) — The client pays the exact advertised price. This is the simplest scheme and works across all networks (EVM, SVM, Stellar, Aptos) and all SDKs (TypeScript, Go, Python). Best for fixed-price endpoints where the cost is known upfront.
 
-**`upto`** — The client authorizes a **maximum** amount, but the server settles **only what was actually used**. This enables usage-based billing where the final charge depends on work performed (LLM token count, compute time, bytes served, etc.). Currently available on EVM networks only (Permit2), in TypeScript and Go SDKs.
+**`upto`** — The client authorizes a **maximum** amount, but the server settles **only what was actually used**. This enables usage-based billing where the final charge depends on work performed (LLM token count, compute time, bytes served, etc.). Currently available on EVM networks only (Permit2), in TypeScript, Go, and Python SDKs.
 
 The examples in step 2 above all use the `exact` scheme. To use `upto` instead, there are two key differences:
 
@@ -914,6 +914,76 @@ The examples in step 2 above all use the `exact` scheme. To use `upto` instead, 
 
         r.Run(":4021")
     }
+    ```
+  </Tab>
+  <Tab title="FastAPI">
+    ```python
+    import random
+    from typing import Any
+
+    from fastapi import FastAPI
+    from starlette.responses import Response
+
+    from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+    from x402.http.middleware.fastapi import PaymentMiddlewareASGI, set_settlement_overrides
+    from x402.http.types import RouteConfig
+    from x402.mechanisms.evm.upto import UptoEvmServerScheme
+    from x402.schemas import Network
+    from x402.server import x402ResourceServer
+
+    app = FastAPI()
+
+    evm_address = "0xYourEvmAddress"
+    EVM_NETWORK: Network = "eip155:84532"  # Base Sepolia
+
+    facilitator = HTTPFacilitatorClient(
+        FacilitatorConfig(url="https://x402.org/facilitator")
+    )
+
+    server = x402ResourceServer(facilitator)
+    server.register(EVM_NETWORK, UptoEvmServerScheme())
+
+    max_price = "$0.10"  # Maximum the client authorizes (10 cents)
+
+    routes: dict[str, RouteConfig] = {
+        "GET /api/generate": RouteConfig(
+            accepts=[
+                PaymentOption(
+                    scheme="upto",
+                    pay_to=evm_address,
+                    price=max_price,
+                    network=EVM_NETWORK,
+                ),
+            ],
+            mime_type="application/json",
+            description="AI text generation — billed by token usage",
+        ),
+    }
+
+    app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
+
+
+    @app.get("/api/generate")
+    async def generate(response: Response) -> dict[str, Any]:
+        # Simulate variable-cost work (LLM tokens, compute time, etc.)
+        max_amount_atomic = 100000  # 10 cents in 6-decimal USDC atomic units
+        actual_usage = random.randint(0, max_amount_atomic)
+
+        # Settle only the actual usage — the client is never charged more than this
+        set_settlement_overrides(response, {"amount": str(actual_usage)})
+
+        return {
+            "result": "Here is your generated text...",
+            "usage": {
+                "authorizedMaxAtomic": str(max_amount_atomic),
+                "actualChargedAtomic": str(actual_usage),
+            },
+        }
+
+
+    if __name__ == "__main__":
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=4021)
     ```
   </Tab>
 </Tabs>
