@@ -299,6 +299,56 @@ func DiagnoseEIP3009SimulationFailure(
 	return ErrEip3009SimulationFailed
 }
 
+// parseEIP3009TransferError maps known EIP-3009 / ERC-20 contract revert messages
+// to specific error codes so facilitator operators get actionable error information
+// instead of the generic ErrFailedToExecuteTransfer.
+//
+// The function recognises both the human-readable strings emitted by Circle's
+// FiatToken contracts and the Solidity custom-error names used by newer USDC
+// deployments and other ERC-20 implementations.
+func parseEIP3009TransferError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	// Authorization deadline passed — validBefore in the past.
+	case strings.Contains(msg, "authorizationexpired"),
+		strings.Contains(msg, "authorization is expired"),
+		strings.Contains(msg, "authorization expired"):
+		return ErrValidBeforeExpired
+
+	// Authorization not active yet — validAfter in the future.
+	case strings.Contains(msg, "authorizationnotyetvalid"),
+		strings.Contains(msg, "authorization is not yet valid"),
+		strings.Contains(msg, "authorization not yet valid"):
+		return ErrValidAfterInFuture
+
+	// Nonce / authorization already consumed.
+	case strings.Contains(msg, "authorizationused"),
+		strings.Contains(msg, "authorizationalreadyused"),
+		strings.Contains(msg, "authorization is used"),
+		strings.Contains(msg, "authorization is already used"),
+		strings.Contains(msg, "authorization used or canceled"):
+		return ErrNonceAlreadyUsed
+
+	// Payer has insufficient token balance.
+	case strings.Contains(msg, "erc20insufficientbalance"),
+		strings.Contains(msg, "transfer amount exceeds balance"),
+		strings.Contains(msg, "insufficient balance"):
+		return ErrInsufficientBalance
+
+	// Signature could not be verified by the token contract.
+	case strings.Contains(msg, "invalidsignature"),
+		strings.Contains(msg, "invalid signature"),
+		strings.Contains(msg, "ecrecover"):
+		return ErrInvalidSignature
+
+	default:
+		return ErrFailedToExecuteTransfer
+	}
+}
+
 // ExecuteTransferWithAuthorization executes the actual transfer onchain.
 func ExecuteTransferWithAuthorization(
 	ctx context.Context,

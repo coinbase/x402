@@ -1,0 +1,10 @@
+kind: fixed
+body: >-
+  EVM exact facilitator: simulation RPC failures in verifyEIP3009 now return
+  ErrEip3009SimulationFailed instead of the generic ErrInvalidPayload, and
+  ExecuteTransferWithAuthorization errors in settleEIP3009 are parsed by the new
+  parseEIP3009TransferError helper to surface specific error codes
+  (ErrValidBeforeExpired, ErrValidAfterInFuture, ErrNonceAlreadyUsed,
+  ErrInsufficientBalance, ErrInvalidSignature) instead of the blanket
+  ErrFailedToExecuteTransfer.
+time: 2026-04-17T11:20:00.000000-07:00
