@@ -203,9 +203,7 @@ export function parseEip3009TransferError(error: unknown): string {
   if (/authorization.*not.*valid|AuthorizationNotYetValid/i.test(msg)) {
     return Errors.ErrValidAfterInFuture;
   }
-  if (
-    /authorization.*used|AuthorizationAlreadyUsed|AuthorizationUsedOrCanceled/i.test(msg)
-  ) {
+  if (/authorization.*used|AuthorizationAlreadyUsed|AuthorizationUsedOrCanceled/i.test(msg)) {
     return Errors.ErrEip3009NonceAlreadyUsed;
   }
   if (/transfer.*exceeds.*balance|insufficient.*balance|ERC20InsufficientBalance/i.test(msg)) {
