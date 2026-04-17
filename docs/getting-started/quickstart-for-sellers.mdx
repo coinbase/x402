@@ -14,7 +14,7 @@ Before you begin, ensure you have:
 * An existing API or server
 
 **Note**\
-There are pre-configured examples available in the x402 repo for both [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/servers) and [Go](https://github.com/coinbase/x402/tree/main/examples/go/servers). There is also an [advanced example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) that shows how to use the x402 SDKs to build a more complex payment flow.
+There are pre-configured examples available in the x402 repo for both [Node.js](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers) and [Go](https://github.com/x402-foundation/x402/tree/main/examples/go/servers). There is also an [advanced example](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/advanced) that shows how to use the x402 SDKs to build a more complex payment flow.
 
 ### 1. Install Dependencies
 
@@ -51,7 +51,7 @@ There are pre-configured examples available in the x402 repo for both [Node.js](
     Add the x402 Go module to your project:
 
     ```bash
-    go get github.com/coinbase/x402/go
+    go get github.com/x402-foundation/x402/go
     ```
   </Tab>
   <Tab title="FastAPI">
@@ -87,7 +87,7 @@ Integrate the payment middleware into your application. You will need to provide
 
 <Tabs>
   <Tab title="Express">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/express).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/express).
 
     ```typescript
     import express from "express";
@@ -150,7 +150,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Next.js">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/fullstack/next).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/typescript/fullstack/next).
 
     Next.js offers two approaches: `paymentProxy` for protecting page routes (or multiple routes at once), and `withX402` for wrapping individual API route handlers. The key difference is that `withX402` only settles payment after a successful response (status \< 400), making it the recommended approach for API routes.
 
@@ -248,7 +248,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Hono">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/hono).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/hono).
 
     ```typescript
     import { Hono } from "hono";
@@ -307,7 +307,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Fastify">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/fastify).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/fastify).
 
     ```typescript
     import Fastify from "fastify";
@@ -364,7 +364,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Go (Gin)">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/go/servers/gin).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/go/servers/gin).
 
     ```go
     package main
@@ -373,11 +373,11 @@ Integrate the payment middleware into your application. You will need to provide
         "net/http"
         "time"
 
-        x402 "github.com/coinbase/x402/go"
-        x402http "github.com/coinbase/x402/go/http"
-        ginmw "github.com/coinbase/x402/go/http/gin"
-        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-        svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+        x402 "github.com/x402-foundation/x402/go"
+        x402http "github.com/x402-foundation/x402/go/http"
+        ginmw "github.com/x402-foundation/x402/go/http/gin"
+        evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/server"
+        svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/server"
         "github.com/gin-gonic/gin"
     )
 
@@ -437,7 +437,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Go (net/http)">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/go/servers/nethttp).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/go/servers/nethttp).
 
     ```go
     package main
@@ -447,11 +447,11 @@ Integrate the payment middleware into your application. You will need to provide
         "net/http"
         "time"
 
-        x402 "github.com/coinbase/x402/go"
-        x402http "github.com/coinbase/x402/go/http"
-        nethttpmw "github.com/coinbase/x402/go/http/nethttp"
-        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-        svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+        x402 "github.com/x402-foundation/x402/go"
+        x402http "github.com/x402-foundation/x402/go/http"
+        nethttpmw "github.com/x402-foundation/x402/go/http/nethttp"
+        evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/server"
+        svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/server"
     )
 
     func main() {
@@ -516,7 +516,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="FastAPI">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/fastapi).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/python/servers/fastapi).
 
     ```python
     from typing import Any
@@ -591,7 +591,7 @@ Integrate the payment middleware into your application. You will need to provide
     ```
   </Tab>
   <Tab title="Flask">
-    Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/flask).
+    Full example in the repo [here](https://github.com/x402-foundation/x402/tree/main/examples/python/servers/flask).
 
     ```python
     from flask import Flask, jsonify
@@ -726,7 +726,7 @@ Learn more about the discovery layer in the [Bazaar documentation](/extensions/b
 
 ### 5. Error Handling
 
-* If you run into trouble, check out the examples in the [repo](https://github.com/coinbase/x402/tree/main/examples) for more context and full code.
+* If you run into trouble, check out the examples in the [repo](https://github.com/x402-foundation/x402/tree/main/examples) for more context and full code.
 * Run `npm install` or `go mod tidy` to install dependencies
 
 ---
@@ -842,8 +842,8 @@ For multi-network support, register both EVM and SVM schemes:
   <Tab title="Go">
     ```go
     import (
-        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-        svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+        evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/server"
+        svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/server"
     )
 
     r.Use(ginmw.X402Payment(ginmw.Config{
@@ -900,7 +900,7 @@ See [Network Support](/core-concepts/network-and-token-support) for the full lis
 
 ### Next Steps
 
-* Check out the [Advanced Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) for a more complex payment flow
+* Check out the [Advanced Example](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/advanced) for a more complex payment flow
 * Explore [Advanced Concepts](/advanced-concepts/lifecycle-hooks) like lifecycle hooks for custom logic before/after verification/settlement
 * Explore [Extensions](/extensions/bazaar) like Bazaar for service discovery
 * Get started as a [buyer](/getting-started/quickstart-for-buyers)
