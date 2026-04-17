@@ -1,0 +1,7 @@
+{
+  "name": "BitcoinsAPI.com",
+  "description": "Production Bitcoin fee intelligence and mempool API with x402 pay-per-request endpoints for agents, apps, and automations.",
+  "logoUrl": "/logos/bitcoinsapi.png",
+  "websiteUrl": "https://bitcoinsapi.com",
+  "category": "Services/Endpoints"
+}
