@@ -117,6 +117,45 @@ class TestParsePrice:
             with pytest.raises(ValueError, match="Asset address required"):
                 server.parse_price({"amount": "123456"}, network)
 
+    class TestNanopayments:
+        """Test nanopayment precision — mirrors TypeScript nanopayment fix."""
+
+        def test_should_raise_for_amount_below_usdc_minimum_unit(self):
+            """Should raise ValueError when price is too small to represent in USDC atomic units."""
+            server = ExactEvmServerScheme()
+            network = "eip155:8453"  # USDC has 6 decimals; min = 0.000001
+
+            # 0.0000001 USDC = 0.1 atomic units → truncates to 0 — must error
+            with pytest.raises(ValueError, match="too small to represent"):
+                server.parse_price("0.0000001", network)
+
+        def test_should_handle_minimum_usdc_unit(self):
+            """Should correctly convert the minimum representable USDC amount."""
+            server = ExactEvmServerScheme()
+            network = "eip155:8453"
+
+            result = server.parse_price("0.000001", network)
+
+            assert result.amount == "1"  # 1 atomic unit
+
+        def test_should_handle_scientific_notation_float_prices(self):
+            """Float values in scientific notation (e.g. 1e-3) should convert correctly."""
+            server = ExactEvmServerScheme()
+            network = "eip155:8453"
+
+            # 1e-3 == 0.001 USDC == 1000 atomic units
+            result = server.parse_price(1e-3, network)
+
+            assert result.amount == "1000"
+
+        def test_should_raise_for_scientific_notation_float_below_minimum(self):
+            """Float values below the minimum unit should raise, not silently become 0."""
+            server = ExactEvmServerScheme()
+            network = "eip155:8453"
+
+            with pytest.raises(ValueError, match="too small to represent"):
+                server.parse_price(1e-7, network)  # 0.0000001 USDC < min unit
+
     class TestErrorCases:
         """Test error cases."""
 
