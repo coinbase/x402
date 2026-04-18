@@ -1,0 +1,1 @@
+Add unit tests for `eip3009_utils` — covers `parse_eip3009_authorization`, `_split_signature_parts`, `classify_eip3009_signature`, `simulate_eip3009_transfer`, `diagnose_eip3009_simulation_failure`, and `execute_transfer_with_authorization` (35 tests, previously zero coverage).
