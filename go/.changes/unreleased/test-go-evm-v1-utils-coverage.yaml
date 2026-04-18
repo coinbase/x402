@@ -1,0 +1,2 @@
+kind: added
+body: Add unit tests for go/mechanisms/evm/v1 utility functions (GetEvmChainId, GetNetworkConfig, GetAssetInfo) covering all 21 chain IDs, all 7 configured network configs, address lookup, case-insensitive matching, generic unknown-token passthrough, and error paths
