@@ -1,0 +1,1 @@
+Add comprehensive unit tests for `x402.schemas.helpers` — 60 tests covering `detect_version`, `get_scheme_and_network`, `match_payload_to_requirements`, `parse_payment_required`, `parse_payment_payload`, `parse_payment_requirements`, `matches_network_pattern`, `derive_network_pattern`, and `find_schemes_by_network`. Previously these utilities had zero dedicated test coverage.
