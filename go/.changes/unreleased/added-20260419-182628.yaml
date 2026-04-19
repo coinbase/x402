@@ -1,0 +1,3 @@
+kind: added
+body: Add unit tests for ParseEIP3009Authorization, HasEIP6492Deployment, and splitSignatureParts helpers in go/mechanisms/evm/exact/facilitator
+time: 2026-04-19T18:26:28Z
