@@ -1,0 +1,2 @@
+kind: added
+body: "Add unit tests for ExactSvmPayload.ToMap, PayloadFromMap, and IsValidNetwork in go/mechanisms/svm — 15 tests covering happy paths, error cases, and round-trip behaviour. Mirrors the coverage pattern of evm_types_test.go."
