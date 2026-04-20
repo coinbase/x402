@@ -1,8 +1,8 @@
 {
-  "name": "BitcoinsAPI Facilitator",
-  "description": "Hosted x402 facilitator for BitcoinsAPI.com with Base, Base Sepolia, Solana Mainnet, and Solana Devnet support plus seller-resource discovery endpoints.",
+  "name": "Satoshi Facilitator",
+  "description": "Independent x402 facilitator for Bitcoin-focused pay-per-call services, with live discovery support for Satoshi API on Base and Solana networks.",
   "logoUrl": "/logos/bitcoinsapi.png",
-  "websiteUrl": "https://facilitator.bitcoinsapi.com",
+  "websiteUrl": "https://bitcoinsapi.com/docs",
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://facilitator.bitcoinsapi.com",

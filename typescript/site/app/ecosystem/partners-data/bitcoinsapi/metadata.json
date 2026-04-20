@@ -1,7 +1,7 @@
 {
-  "name": "BitcoinsAPI.com",
-  "description": "Production Bitcoin fee intelligence and mempool API with x402 pay-per-request endpoints for agents, apps, and automations.",
+  "name": "Satoshi API",
+  "description": "Bitcoin infrastructure for agents and apps: x402-payable fee market data, next-block mining data, and transaction intelligence.",
   "logoUrl": "/logos/bitcoinsapi.png",
-  "websiteUrl": "https://bitcoinsapi.com",
+  "websiteUrl": "https://bitcoinsapi.com/docs",
   "category": "Services/Endpoints"
 }
