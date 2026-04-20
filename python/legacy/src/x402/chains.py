@@ -3,6 +3,7 @@ NETWORK_TO_ID = {
     "base": "8453",
     "avalanche-fuji": "43113",
     "avalanche": "43114",
+    "skale-base": "1187947933",
 }
 
 
@@ -52,6 +53,15 @@ KNOWN_TOKENS = {
         {
             "human_name": "usdc",
             "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "1187947933": [
+        {
+            "human_name": "usdc",
+            "address": "0x85889c8c714505E0c94b30fcfcF64fE3Ac8FCb20",
             "name": "USDC",
             "decimals": 6,
             "version": "2",
