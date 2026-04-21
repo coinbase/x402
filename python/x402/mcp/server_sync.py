@@ -205,6 +205,7 @@ def _create_payment_required_result_sync(
         config.accepts,
         resource_info,
         error_message,
+        config.extensions,
     )
 
     payment_required_dict = (

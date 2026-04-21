@@ -2,7 +2,8 @@
 Package bazaar provides the Bazaar Discovery Extension for x402 v2 and v1.
 
 Enables facilitators to automatically catalog and index x402-enabled resources
-by following the server's provided discovery instructions.
+by following the server's provided discovery instructions. Supports both HTTP
+endpoints and MCP (Model Context Protocol) tools.
 
 # V2 Usage
 
@@ -10,7 +11,7 @@ The v2 extension follows a pattern where:
   - `info`: Contains the actual discovery data (the values)
   - `schema`: JSON Schema that validates the structure of `info`
 
-# For Resource Servers (V2)
+# For HTTP Resource Servers (V2)
 
 	import "github.com/x402-foundation/x402/go/extensions/bazaar"
 
@@ -66,6 +67,35 @@ The v2 extension follows a pattern where:
 			bazaar.BAZAAR.Key(): extension,
 		},
 	}
+
+# For MCP Tool Servers (V2)
+
+	import (
+		"github.com/coinbase/x402/go/extensions/bazaar"
+		exttypes "github.com/coinbase/x402/go/extensions/types"
+		mcp402 "github.com/coinbase/x402/go/mcp"
+	)
+
+	// Declare an MCP tool for Bazaar discovery
+	extension, err := bazaar.DeclareMcpDiscoveryExtension(exttypes.DeclareMcpDiscoveryConfig{
+		ToolName:    "get_weather",
+		Description: "Get current weather for a city",
+		InputSchema: exttypes.JSONSchema{
+			"properties": map[string]interface{}{
+				"city": map[string]interface{}{"type": "string"},
+			},
+			"required": []string{"city"},
+		},
+	})
+
+	// Pass in MCP payment wrapper config
+	paymentWrapper := mcp402.NewPaymentWrapper(resourceServer, mcp402.PaymentWrapperConfig{
+		Accepts: accepts,
+		Resource: &types.ResourceInfo{URL: "mcp://tool/get_weather"},
+		Extensions: map[string]interface{}{
+			exttypes.BAZAAR.Key(): extension,
+		},
+	})
 
 # For Facilitators (V2 and V1)
 

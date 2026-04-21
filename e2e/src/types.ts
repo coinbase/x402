@@ -56,6 +56,8 @@ export interface TestEndpoint {
   protocolFamily?: ProtocolFamily;
   transferMethod?: TransferMethod;
   extensions?: string[];
+  /** For MCP tools: the tool name used in tools/call. Defaults to path if not specified. */
+  toolName?: string;
   /** True for Permit2 standard/direct settle - requires pre-approval (approve before test, not revoke) */
   permit2Direct?: boolean;
   /** True for endpoints that require Permit2 revocation + fund/drain state setup before the first test (coldstart). */

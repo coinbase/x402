@@ -4,10 +4,12 @@
   "transport": "mcp",
   "language": "python",
   "x402Version": 2,
+  "extensions": ["bazaar"],
   "endpoints": [
     {
       "path": "get_weather",
       "method": "tool",
+      "toolName": "get_weather",
       "description": "Paid weather tool via MCP transport",
       "requiresPayment": true,
       "protocolFamily": "evm",

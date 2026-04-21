@@ -118,7 +118,7 @@ const facilitator = new x402Facilitator()
           resource: discovered.resourceUrl,
           description: discovered.description,
           mimeType: discovered.mimeType,
-          type: "http",
+          type: discovered.discoveryInfo.input.type,
           x402Version: discovered.x402Version,
           accepts: [context.requirements],
           discoveryInfo: discovered.discoveryInfo,

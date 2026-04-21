@@ -40,6 +40,12 @@ interface ExpectedDiscoverableEndpoint {
   endpointPath: string;
   method: string;
   description: string;
+  /** For MCP tools: expected resource URL is mcp://tool/{toolName} */
+  expectedResourceUrl: string;
+  /** For MCP tools: the tool name expected in discoveryInfo.input.toolName */
+  toolName?: string;
+  /** Transport type ('http' or 'mcp') */
+  transport: string;
 }
 
 /**
@@ -95,6 +101,7 @@ function getDiscoverableEndpoints(
     return [];
   }
 
+  const serverTransport = server.config.transport ?? 'http';
   const serverUrl = `http://localhost:${serverPort}`;
   const discoverableEndpoints: ExpectedDiscoverableEndpoint[] = [];
 
@@ -104,12 +111,23 @@ function getDiscoverableEndpoints(
   ) || [];
 
   for (const endpoint of paymentEndpoints) {
+    const isMcpEndpoint = serverTransport === 'mcp' || endpoint.method === 'tool';
+    const toolName = endpoint.toolName ?? endpoint.path;
+
+    // MCP resources are identified by mcp://tool/{toolName}; HTTP by server URL + path
+    const expectedResourceUrl = isMcpEndpoint
+      ? `mcp://tool/${toolName}`
+      : `${serverUrl}${endpoint.path}`;
+
     discoverableEndpoints.push({
       serverName: server.config.name,
       serverUrl,
       endpointPath: endpoint.path,
       method: endpoint.method,
       description: endpoint.description,
+      expectedResourceUrl,
+      toolName: isMcpEndpoint ? toolName : undefined,
+      transport: isMcpEndpoint ? 'mcp' : 'http',
     });
   }
 
@@ -189,9 +207,9 @@ async function validateFacilitatorDiscovery(
 
   verboseLog(`  📊 Total resources discovered: ${discoveryResponse.items.length}`);
 
-  // Build set of discovered resource URLs for easy comparison
-  const discoveredUrls = new Set(
-    discoveryResponse.items.map(item => item.resource)
+  // Build map of discovered resource URL → item for easy lookup
+  const discoveredItemsByUrl = new Map(
+    discoveryResponse.items.map(item => [item.resource, item])
   );
 
   // Check which expected endpoints were discovered
@@ -199,11 +217,28 @@ async function validateFacilitatorDiscovery(
   const discoveredEndpoints: string[] = [];
 
   for (const expected of expectedEndpoints) {
-    const expectedResourceUrl = `${expected.serverUrl}${expected.endpointPath}`;
+    const { expectedResourceUrl } = expected;
+    const discoveredItem = discoveredItemsByUrl.get(expectedResourceUrl);
 
-    if (discoveredUrls.has(expectedResourceUrl)) {
+    if (discoveredItem) {
       discoveredEndpoints.push(expectedResourceUrl);
       verboseLog(`  ✅ Discovered: ${expected.method} ${expectedResourceUrl}`);
+
+      // For MCP resources, additionally verify type and toolName in discoveryInfo
+      if (expected.transport === 'mcp' && expected.toolName) {
+        const inputType = discoveredItem.discoveryInfo?.input?.type;
+        const inputToolName = discoveredItem.discoveryInfo?.input?.toolName;
+
+        if (inputType !== 'mcp') {
+          verboseLog(`  ⚠️  MCP resource ${expectedResourceUrl}: expected discoveryInfo.input.type "mcp", got "${inputType}"`);
+        }
+        if (inputToolName !== expected.toolName) {
+          verboseLog(`  ⚠️  MCP resource ${expectedResourceUrl}: expected toolName "${expected.toolName}", got "${inputToolName}"`);
+        }
+        if (inputType === 'mcp' && inputToolName === expected.toolName) {
+          verboseLog(`  ✅ MCP discovery metadata verified for tool: ${expected.toolName}`);
+        }
+      }
     } else {
       missingEndpoints.push(expected);
       verboseLog(`  ❌ Missing: ${expected.method} ${expectedResourceUrl}`);
@@ -211,9 +246,7 @@ async function validateFacilitatorDiscovery(
   }
 
   // Find any unexpected resources (discovered but not expected)
-  const expectedUrls = new Set(
-    expectedEndpoints.map(e => `${e.serverUrl}${e.endpointPath}`)
-  );
+  const expectedUrls = new Set(expectedEndpoints.map(e => e.expectedResourceUrl));
   const unexpectedEndpoints = discoveryResponse.items
     .filter(item => !expectedUrls.has(item.resource))
     .map(item => item.resource);
@@ -289,7 +322,7 @@ export async function handleDiscoveryValidation(
   if (allExpectedEndpoints.length > 0) {
     verboseLog('');
     allExpectedEndpoints.forEach(endpoint => {
-      verboseLog(`  • ${endpoint.method} ${endpoint.serverUrl}${endpoint.endpointPath} (${endpoint.serverName})`);
+      verboseLog(`  • ${endpoint.method} ${endpoint.expectedResourceUrl} (${endpoint.serverName})`);
     });
   }
 
@@ -354,7 +387,7 @@ export async function handleDiscoveryValidation(
     if (result.missingEndpoints.length > 0) {
       errorLog(`   ❌ Missing: ${result.missingEndpoints.length}`);
       result.missingEndpoints.forEach(endpoint => {
-        errorLog(`      • ${endpoint.method} ${endpoint.serverUrl}${endpoint.endpointPath}`);
+        errorLog(`      • ${endpoint.method} ${endpoint.expectedResourceUrl}`);
       });
     } else if (result.expectedEndpoints.length > 0) {
       log(`   ✅ All expected endpoints discovered`);
