@@ -77,6 +77,7 @@ async function main(): Promise<void> {
   // Step 5: Create payment wrapper with extensions
   const paidWeather = createPaymentWrapper(resourceServer, {
     accepts: weatherAccepts,
+    resource: { url: "mcp://tool/get_weather", description: "Get current weather for a city" },
     extensions: weatherExtensions,
   });
 
