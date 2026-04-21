@@ -1,0 +1,2 @@
+kind: added
+body: Add unit tests for ValidateEip2612PermitForPayment and SplitEip2612Signature in go/mechanisms/evm/eip2612.go (17 tests covering valid/invalid paths, case-insensitivity, deadline buffer, and signature byte layout)
