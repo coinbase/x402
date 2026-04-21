@@ -475,4 +475,3 @@ func createBodyDiscoveryExtension(
 		Schema: schema,
 	}, nil
 }
-
