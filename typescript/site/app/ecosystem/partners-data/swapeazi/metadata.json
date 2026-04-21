@@ -1,0 +1,7 @@
+{
+  "name": "SwapEazi",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/swapeazi.png",
+  "description": "Cross-chain stablecoin routing API for African corridors. Scan 7 chains, find the cheapest and fastest swap path. Pay-per-call via x402 — 0.02 USDC on Base.",
+  "websiteUrl": "https://swapeazi.io"
+}
