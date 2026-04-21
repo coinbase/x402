@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 92" width="256" height="294">
+  <defs>
+    <linearGradient id="haldirShield" x1="40" y1="4" x2="40" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e8c84a"/>
+      <stop offset="100%" stop-color="#8a6d1b"/>
+    </linearGradient>
+  </defs>
+  <path d="M40 4 L72 18 V46 C72 68 58 80 40 88 C22 80 8 68 8 46 V18 Z"
+        fill="url(#haldirShield)" fill-opacity="0.15"
+        stroke="url(#haldirShield)" stroke-width="2"/>
+  <path d="M32 44 L38 50 L52 36"
+        stroke="#c9a33e" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
