@@ -72,9 +72,7 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 
 ## Default Assets for Dollar-String Pricing
 
-When you use `"$0.01"` syntax, x402 needs to know which stablecoin to use. The following chains have pre-configured defaults. For chains not listed, use `registerMoneyParser()` or specify the price directly as a `TokenAmount` with `amountInAtomicUnits`.
-
-See [DEFAULT_ASSETS.md](/DEFAULT_ASSETS.md) for how to contribute a new default.
+When you use `"$0.01"` syntax, x402 needs to know which stablecoin to use. The following chains have pre-configured defaults. For chains not listed, use `registerMoneyParser()` or specify the price directly as a `TokenAmount` with `amountInAtomicUnits`. To contribute a new default asset, see [Contributing a New Default Asset](#contributing-a-new-default-asset) below.
 
 ### EVM
 
@@ -121,28 +119,14 @@ See [DEFAULT_ASSETS.md](/DEFAULT_ASSETS.md) for how to contribute a new default.
 | Aptos Mainnet | `aptos:1` | `0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b` (USDC) | 6 |
 | Aptos Testnet | `aptos:2` | `0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832` (USDC) | 6 |
 
-## Facilitators
-
-Network support in x402 depends on which facilitator you use. For a complete list, see the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators).
-
-### x402.org Facilitator
-
-* **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet), `stellar:testnet` (Stellar Testnet), `aptos:2` (Aptos Testnet)
-* **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
-
-### Production Facilitators
-
-Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options.
-
-### Quick Reference
-
-| Facilitator Type | Networks Supported | Production Ready | Requirements |
-| ---------------- | ------------------ | ---------------- | ------------ |
-| x402.org (Default) | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, `stellar:testnet`, `aptos:2` | Testnet only | None |
-| [Production Facilitators](https://www.x402.org/ecosystem?filter=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
-| Self-hosted | Any network  | Yes | Technical setup |
-
 ## Adding Support for New Networks
+
+There are two distinct paths, depending on your goal:
+
+1. **[Runtime Registration](#runtime-registration)** — use any network in your own server code without modifying the x402 source. No PR required.
+2. **[Contributing a New Default Asset](#contributing-a-new-default-asset)** — upstream a chain so it appears in the default-asset tables above and supports `"$0.01"` dollar-string pricing out of the box. Requires a PR updating the TypeScript, Go, and Python SDK registries.
+
+### Runtime Registration
 
 x402 uses dynamic network registration — you can support any EVM network without modifying source files.
 
@@ -220,6 +204,31 @@ x402 uses dynamic network registration — you can support any EVM network witho
 - Use CAIP-2 format: `eip155:<chainId>` for any EVM network
 - The scheme implementation handles the network automatically
 - You only need a facilitator that supports your target network (or run your own)
+
+### Contributing a New Default Asset
+
+To add a chain to the [default-asset tables above](#default-assets-for-dollar-string-pricing) so that dollar-string pricing (`"$0.01"`) works out of the box, open a PR against [x402-foundation/x402](https://github.com/x402-foundation/x402). Follow the cross-SDK walkthrough in [DEFAULT_ASSETS.md](https://github.com/x402-foundation/x402/blob/main/DEFAULT_ASSETS.md), which names every file in the TypeScript, Go, and Python registries that must be updated.
+
+## Facilitators
+
+Network support in x402 depends on which facilitator you use. For a complete list, see the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators).
+
+### x402.org Facilitator
+
+* **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet), `stellar:testnet` (Stellar Testnet), `aptos:2` (Aptos Testnet)
+* **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
+
+### Production Facilitators
+
+Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. See the [x402 Ecosystem](https://www.x402.org/ecosystem?filter=facilitators) for available options.
+
+### Quick Reference
+
+| Facilitator Type | Networks Supported | Production Ready | Requirements |
+| ---------------- | ------------------ | ---------------- | ------------ |
+| x402.org (Default) | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, `stellar:testnet`, `aptos:2` | Testnet only | None |
+| [Production Facilitators](https://www.x402.org/ecosystem?filter=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
+| Self-hosted | Any network  | Yes | Technical setup |
 
 ### Running Your Own Facilitator
 

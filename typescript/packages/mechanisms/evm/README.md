@@ -145,7 +145,7 @@ Supports two asset transfer methods:
 - **EIP-3009**: Tokens with native `transferWithAuthorization()` (e.g., USDC, EURC) — simplest, truly gasless
 - **Permit2**: Any ERC-20 token — universal fallback, requires one-time approval
 
-See [DEFAULT_ASSETS.md](../../../../DEFAULT_ASSETS.md) for the current list of configured chains and how to add new ones.
+For the current list of chains with default assets configured, see [Default Assets for Dollar-String Pricing](../../../../docs/core-concepts/network-and-token-support.mdx#default-assets-for-dollar-string-pricing) in the x402 docs. To add default asset support for a new chain, see [Adding Support for New Networks](../../../../docs/core-concepts/network-and-token-support.mdx#adding-support-for-new-networks).
 
 ## Development
 
