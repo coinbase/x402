@@ -49,9 +49,6 @@ export interface PaymentWrapperConfig {
     mimeType?: string;
   };
 
-  /** Extensions to include in 402 payment required responses (e.g., bazaar discovery) */
-  extensions?: Record<string, unknown>;
-
   /** Hooks for payment lifecycle events */
   hooks?: {
     /** Called after payment verification, before tool execution. Return false to abort. */
