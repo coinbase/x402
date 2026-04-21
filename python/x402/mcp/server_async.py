@@ -383,6 +383,7 @@ async def _create_settlement_failed_result_async(
         config.accepts,
         resource_info,
         f"Payment settlement failed: {error_message}",
+        config.extensions,
     )
 
     settlement_failure = {
