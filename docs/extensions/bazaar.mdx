@@ -155,7 +155,8 @@ Fetch the list of available x402 services using the facilitator client:
     });
     const client = withBazaar(facilitatorClient);
 
-    const response = await client.extensions.discovery.listResources({ type: "http" });
+    // List HTTP services; use type: "mcp" to list MCP tools instead
+    const response = await client.extensions.bazaar.listResources({ type: "http" });
 
     // Filter services under $0.10
     const usdcAsset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -221,12 +222,17 @@ Fetch the list of available x402 services using the facilitator client:
   <Tab title="Python">
     ```python
     from x402.http import FacilitatorConfig, HTTPFacilitatorClient
+    from x402.extensions.bazaar import with_bazaar, ListDiscoveryResourcesParams
 
-    facilitator = HTTPFacilitatorClient(
+    facilitator_client = HTTPFacilitatorClient(
         FacilitatorConfig(url="https://x402.org/facilitator")
     )
+    client = with_bazaar(facilitator_client)
 
-    response = await facilitator.list_resources(type="http")
+    # List HTTP services; use type="mcp" to list MCP tools instead
+    response = client.extensions.bazaar.list_resources(
+        ListDiscoveryResourcesParams(type="http")
+    )
 
     # Filter services under $0.10
     usdc_asset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -236,11 +242,62 @@ Fetch the list of available x402 services using the facilitator client:
         item
         for item in response.items
         if any(
-            payment_req.asset == usdc_asset
-            and int(payment_req.max_amount_required) < max_price
-            for payment_req in item.accepts
+            payment_req.get("asset") == usdc_asset
+            and int(payment_req.get("maxAmountRequired", 0)) < max_price
+            for payment_req in (item.accepts or [])
         )
     ]
+    ```
+  </Tab>
+</Tabs>
+
+#### Step 1b: Search for Services
+
+You can also search for services using a natural-language query. Note that whether results are paginated depends on the facilitator — check `search.paginationSupported` in the response:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    const results = await client.extensions.bazaar.search({
+      query: "weather APIs",
+      type: "http",
+    });
+
+    // Check if the server supports stable pagination
+    if (results.search.paginationSupported) {
+      console.log("Next page cursor:", results.search.cursor);
+    }
+
+    console.log(`Found ${results.items.length} services`);
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    results, err := client.SearchDiscoveryResources(ctx, &bazaar.SearchDiscoveryResourcesParams{
+        Query: "weather APIs",
+        Type:  "http",
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Found %d services\n", len(results.Items))
+    if results.Search.PaginationSupported {
+        fmt.Println("Next cursor:", results.Search.Cursor)
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from x402.extensions.bazaar import SearchDiscoveryResourcesParams
+
+    results = client.extensions.bazaar.search(
+        SearchDiscoveryResourcesParams(query="weather APIs", type="http")
+    )
+
+    print(f"Found {len(results.items)} services")
+    if results.search.pagination_supported:
+        print(f"Next cursor: {results.search.cursor}")
     ```
   </Tab>
 </Tabs>

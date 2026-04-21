@@ -111,6 +111,49 @@ class BazaarCatalog:
             },
         }
 
+    def search_resources(
+        self,
+        query: str,
+        resource_type: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Search resources using case-insensitive keyword matching.
+
+        Matches against the resource URL, type, and metadata values.
+        Pagination is not supported for in-memory keyword search.
+
+        Args:
+            query: The search query string.
+            resource_type: Optional filter by resource type.
+            limit: Optional advisory maximum number of results.
+
+        Returns:
+            Dictionary with x402Version, items, and search metadata.
+        """
+        needle = query.lower()
+        results = []
+        for r in self._resources.values():
+            haystack = " ".join(
+                [r.resource, r.type] + [str(v) for v in r.metadata.values()]
+            ).lower()
+            if needle in haystack:
+                results.append(r)
+
+        if resource_type:
+            results = [r for r in results if r.type == resource_type]
+
+        items = results[:limit] if limit is not None else results
+
+        return {
+            "x402Version": 2,
+            "items": [r.to_dict() for r in items],
+            "search": {
+                "query": query,
+                "paginationSupported": False,
+                "paginationApplied": False,
+            },
+        }
+
     def get_count(self) -> int:
         """Get total count of discovered resources."""
         return len(self._resources)

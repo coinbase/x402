@@ -28,6 +28,31 @@ export interface ListDiscoveryResourcesParams {
 }
 
 /**
+ * Parameters for searching discovery resources.
+ */
+export interface SearchDiscoveryResourcesParams {
+  /**
+   * Natural-language search query.
+   */
+  query: string;
+
+  /**
+   * Filter by protocol type (e.g., "http", "mcp").
+   */
+  type?: string;
+
+  /**
+   * Advisory maximum number of results. The server may return fewer or ignore this.
+   */
+  limit?: number;
+
+  /**
+   * Advisory continuation cursor from a previous response. The server may ignore this.
+   */
+  cursor?: string;
+}
+
+/**
  * A discovered x402 resource from the bazaar.
  */
 export interface DiscoveryResource {
@@ -65,10 +90,41 @@ export interface DiscoveryResourcesResponse {
 }
 
 /**
+ * Metadata about a search response, including pagination capability.
+ */
+export interface SearchMeta {
+  /** The query string that was searched */
+  query: string;
+  /**
+   * Whether this server supports stable pagination for search.
+   * Clients must not assume results are stable across calls unless this is true.
+   */
+  paginationSupported: boolean;
+  /** Whether pagination parameters were honored for this response */
+  paginationApplied: boolean;
+  /** The limit that was applied, if paginationApplied is true */
+  limit?: number;
+  /** Continuation cursor for the next page; present only when paginationSupported is true */
+  cursor?: string | null;
+}
+
+/**
+ * Response from searching discovery resources.
+ */
+export interface SearchDiscoveryResourcesResponse {
+  /** The x402 protocol version of this response */
+  x402Version: number;
+  /** The list of matching discovered resources */
+  items: DiscoveryResource[];
+  /** Metadata about the search and pagination behavior */
+  search: SearchMeta;
+}
+
+/**
  * Bazaar client extension interface providing discovery query functionality.
  */
 export interface BazaarClientExtension {
-  discovery: {
+  bazaar: {
     /**
      * List x402 discovery resources from the bazaar.
      *
@@ -76,6 +132,18 @@ export interface BazaarClientExtension {
      * @returns A promise resolving to the discovery resources response
      */
     listResources(params?: ListDiscoveryResourcesParams): Promise<DiscoveryResourcesResponse>;
+
+    /**
+     * Search x402 discovery resources from the bazaar using a natural-language query.
+     *
+     * Pagination is optional: servers that do not support stable pagination may ignore
+     * `limit` and `cursor`. Check `response.search.paginationSupported` before assuming
+     * results are stable across calls.
+     *
+     * @param params - Search parameters including the required query string
+     * @returns A promise resolving to the search response
+     */
+    search(params: SearchDiscoveryResourcesParams): Promise<SearchDiscoveryResourcesResponse>;
   };
 }
 
@@ -90,12 +158,15 @@ export interface BazaarClientExtension {
  * ```ts
  * // Basic usage
  * const client = withBazaar(new HTTPFacilitatorClient());
- * const resources = await client.extensions.discovery.listResources({ type: "http" });
+ * const resources = await client.extensions.bazaar.listResources({ type: "http" });
+ *
+ * // Search
+ * const results = await client.extensions.bazaar.search({ query: "weather APIs" });
  *
  * // Chaining with other extensions
  * const client = withBazaar(withOtherExtension(new HTTPFacilitatorClient()));
  * await client.extensions.other.someMethod();
- * await client.extensions.discovery.listResources();
+ * await client.extensions.bazaar.listResources();
  * ```
  */
 export function withBazaar<T extends HTTPFacilitatorClient>(
@@ -109,7 +180,7 @@ export function withBazaar<T extends HTTPFacilitatorClient>(
 
   extended.extensions = {
     ...existingExtensions,
-    discovery: {
+    bazaar: {
       async listResources(
         params?: ListDiscoveryResourcesParams,
       ): Promise<DiscoveryResourcesResponse> {
@@ -117,7 +188,7 @@ export function withBazaar<T extends HTTPFacilitatorClient>(
           "Content-Type": "application/json",
         };
 
-        const authHeaders = await client.createAuthHeaders("discovery");
+        const authHeaders = await client.createAuthHeaders("bazaar");
         headers = { ...headers, ...authHeaders.headers };
 
         const queryParams = new URLSearchParams();
@@ -147,6 +218,45 @@ export function withBazaar<T extends HTTPFacilitatorClient>(
         }
 
         return (await response.json()) as DiscoveryResourcesResponse;
+      },
+
+      async search(
+        params: SearchDiscoveryResourcesParams,
+      ): Promise<SearchDiscoveryResourcesResponse> {
+        let headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        const authHeaders = await client.createAuthHeaders("bazaar");
+        headers = { ...headers, ...authHeaders.headers };
+
+        const queryParams = new URLSearchParams();
+        queryParams.set("query", params.query);
+        if (params.type !== undefined) {
+          queryParams.set("type", params.type);
+        }
+        if (params.limit !== undefined) {
+          queryParams.set("limit", params.limit.toString());
+        }
+        if (params.cursor !== undefined) {
+          queryParams.set("cursor", params.cursor);
+        }
+
+        const endpoint = `${client.url}/discovery/search?${queryParams.toString()}`;
+
+        const response = await fetch(endpoint, {
+          method: "GET",
+          headers,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText);
+          throw new Error(
+            `Facilitator searchDiscoveryResources failed (${response.status}): ${errorText}`,
+          );
+        }
+
+        return (await response.json()) as SearchDiscoveryResourcesResponse;
       },
     },
   } as WithExtensions<T, BazaarClientExtension>["extensions"];

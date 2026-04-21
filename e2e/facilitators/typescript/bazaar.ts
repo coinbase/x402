@@ -58,6 +58,40 @@ export class BazaarCatalog {
     };
   }
 
+  /**
+   * Search resources using case-insensitive keyword matching against resource URL,
+   * type, and metadata values. Pagination is not supported for in-memory keyword search.
+   */
+  searchResources(query: string, type?: string, limit?: number) {
+    const needle = query.toLowerCase();
+    let results = Array.from(this.discoveredResources.values()).filter(r => {
+      const haystack = [
+        r.resource,
+        r.type,
+        ...Object.values(r.metadata ?? {}),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+
+    if (type) {
+      results = results.filter(r => r.type === type);
+    }
+
+    const items = limit !== undefined ? results.slice(0, limit) : results;
+
+    return {
+      x402Version: 1,
+      items,
+      search: {
+        query,
+        paginationSupported: false,
+        paginationApplied: false,
+      },
+    };
+  }
+
   getCount(): number {
     return this.discoveredResources.size;
   }

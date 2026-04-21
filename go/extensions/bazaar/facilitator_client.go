@@ -25,6 +25,21 @@ type ListDiscoveryResourcesParams struct {
 	Offset int
 }
 
+// SearchDiscoveryResourcesParams contains parameters for searching discovery resources.
+type SearchDiscoveryResourcesParams struct {
+	// Query is the natural-language search query (required).
+	Query string
+
+	// Type filters by protocol type (e.g., "http", "mcp").
+	Type string
+
+	// Limit is an advisory maximum number of results. The server may return fewer or ignore this.
+	Limit int
+
+	// Cursor is an advisory continuation token from a previous response. The server may ignore this.
+	Cursor string
+}
+
 // DiscoveryResource represents a discovered x402 resource from the bazaar.
 type DiscoveryResource struct {
 	// Resource is the URL or identifier of the discovered resource.
@@ -70,10 +85,41 @@ type DiscoveryResourcesResponse struct {
 	Pagination Pagination `json:"pagination"`
 }
 
+// SearchMeta contains metadata about a search response, including pagination capability.
+type SearchMeta struct {
+	// Query is the query string that was searched.
+	Query string `json:"query"`
+
+	// PaginationSupported indicates whether this server supports stable pagination for search.
+	// Clients must not assume results are stable across calls unless this is true.
+	PaginationSupported bool `json:"paginationSupported"`
+
+	// PaginationApplied indicates whether pagination parameters were honored for this response.
+	PaginationApplied bool `json:"paginationApplied"`
+
+	// Limit is the limit that was applied, if PaginationApplied is true.
+	Limit int `json:"limit,omitempty"`
+
+	// Cursor is a continuation token for the next page; present only when PaginationSupported is true.
+	Cursor *string `json:"cursor,omitempty"`
+}
+
+// SearchDiscoveryResourcesResponse is the response from searching discovery resources.
+type SearchDiscoveryResourcesResponse struct {
+	// X402Version is the x402 protocol version of this response.
+	X402Version int `json:"x402Version"`
+
+	// Items is the list of matching discovered resources.
+	Items []DiscoveryResource `json:"items"`
+
+	// Search contains metadata about the search and pagination behavior.
+	Search SearchMeta `json:"search"`
+}
+
 // BazaarFacilitatorClient wraps an HTTPFacilitatorClient with bazaar discovery
 // query functionality. It preserves all original facilitator client capabilities
-// (Verify, Settle, GetSupported) and adds the ability to list discovered x402
-// resources from the facilitator's bazaar.
+// (Verify, Settle, GetSupported) and adds the ability to list and search discovered
+// x402 resources from the facilitator's bazaar.
 type BazaarFacilitatorClient struct {
 	*x402http.HTTPFacilitatorClient
 }
@@ -87,6 +133,9 @@ type BazaarFacilitatorClient struct {
 //	    Type: "http",
 //	    Limit: 20,
 //	})
+//	results, err := client.SearchDiscoveryResources(ctx, &bazaar.SearchDiscoveryResourcesParams{
+//	    Query: "weather APIs",
+//	})
 func WithBazaar(client *x402http.HTTPFacilitatorClient) *BazaarFacilitatorClient {
 	return &BazaarFacilitatorClient{HTTPFacilitatorClient: client}
 }
@@ -99,13 +148,11 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 	ctx context.Context,
 	params *ListDiscoveryResourcesParams,
 ) (*DiscoveryResourcesResponse, error) {
-	// Build URL with query parameters
 	endpoint, err := c.buildDiscoveryURL(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build discovery URL: %w", err)
 	}
 
-	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery request: %w", err)
@@ -113,40 +160,95 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add auth headers if available
 	authProvider := c.GetAuthProvider()
 	if authProvider != nil {
 		authHeaders, err := authProvider.GetAuthHeaders(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get auth headers: %w", err)
 		}
-		for k, v := range authHeaders.Discovery {
+		for k, v := range authHeaders.Bazaar {
 			req.Header.Set(k, v)
 		}
 	}
 
-	// Make request
 	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("discovery request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check for error response
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("facilitator listDiscoveryResources failed (%d): %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	var result DiscoveryResourcesResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode discovery response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// SearchDiscoveryResources queries the facilitator's /discovery/search endpoint
+// to search x402 discovery resources from the bazaar using a natural-language query.
+//
+// Pagination is optional: servers that do not support stable pagination may ignore
+// Limit and Cursor in params. Check response.Search.PaginationSupported before
+// assuming results are stable across calls.
+func (c *BazaarFacilitatorClient) SearchDiscoveryResources(
+	ctx context.Context,
+	params *SearchDiscoveryResourcesParams,
+) (*SearchDiscoveryResourcesResponse, error) {
+	if params == nil || params.Query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	endpoint, err := c.buildSearchURL(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create search request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	authProvider := c.GetAuthProvider()
+	if authProvider != nil {
+		authHeaders, err := authProvider.GetAuthHeaders(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get auth headers: %w", err)
+		}
+		for k, v := range authHeaders.Bazaar {
+			req.Header.Set(k, v)
+		}
+	}
+
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("search request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("facilitator searchDiscoveryResources failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result SearchDiscoveryResourcesResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode search response: %w", err)
 	}
 
 	return &result, nil
@@ -174,6 +276,31 @@ func (c *BazaarFacilitatorClient) buildDiscoveryURL(params *ListDiscoveryResourc
 	}
 	if params.Offset > 0 {
 		q.Set("offset", strconv.Itoa(params.Offset))
+	}
+
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+// buildSearchURL constructs the full /discovery/search URL with query parameters.
+func (c *BazaarFacilitatorClient) buildSearchURL(params *SearchDiscoveryResourcesParams) (string, error) {
+	base := c.URL() + "/discovery/search"
+
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+
+	q := u.Query()
+	q.Set("query", params.Query)
+	if params.Type != "" {
+		q.Set("type", params.Type)
+	}
+	if params.Limit > 0 {
+		q.Set("limit", strconv.Itoa(params.Limit))
+	}
+	if params.Cursor != "" {
+		q.Set("cursor", params.Cursor)
 	}
 
 	u.RawQuery = q.Encode()

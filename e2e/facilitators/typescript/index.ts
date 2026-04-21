@@ -493,6 +493,25 @@ app.get("/discovery/resources", (req, res) => {
   }
 });
 
+app.get("/discovery/search", (req, res) => {
+  try {
+    const query = req.query.query as string;
+    if (!query) {
+      return res.status(400).json({ error: "query parameter is required" });
+    }
+    const type = req.query.type as string | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+
+    const response = bazaarCatalog.searchResources(query, type, limit);
+    res.json(response);
+  } catch (error) {
+    console.error("Discovery search error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 /**
  * GET /health
  * Health check endpoint

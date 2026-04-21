@@ -36,6 +36,7 @@ class AuthHeaders:
     verify: dict[str, str] = field(default_factory=dict)
     settle: dict[str, str] = field(default_factory=dict)
     supported: dict[str, str] = field(default_factory=dict)
+    bazaar: dict[str, str] = field(default_factory=dict)
 
 
 class AuthProvider(Protocol):
@@ -63,6 +64,7 @@ class CreateHeadersAuthProvider:
             verify=result.get("verify", {}),
             settle=result.get("settle", {}),
             supported=result.get("supported", result.get("list", {})),
+            bazaar=result.get("bazaar", {}),
         )
 
 
@@ -147,12 +149,16 @@ class FacilitatorConfig:
 class HTTPFacilitatorClientBase:
     """Base class with shared logic for HTTP facilitator clients."""
 
-    def __init__(self, config: FacilitatorConfig | dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, config: FacilitatorConfig | dict[str, Any] | None = None
+    ) -> None:
         """Create HTTP facilitator client."""
         if isinstance(config, dict):
             url = config.get("url", DEFAULT_FACILITATOR_URL)
             create_headers = config.get("create_headers")
-            auth_provider = CreateHeadersAuthProvider(create_headers) if create_headers else None
+            auth_provider = (
+                CreateHeadersAuthProvider(create_headers) if create_headers else None
+            )
 
             self._url = url.rstrip("/")
             self._timeout = 30.0

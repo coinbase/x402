@@ -1114,6 +1114,36 @@ func main() {
 		})
 	})
 
+	// GET /discovery/search - Search discovered resources using keyword matching
+	router.GET("/discovery/search", func(c *gin.Context) {
+		query := c.Query("query")
+		if query == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter is required"})
+			return
+		}
+
+		resourceType := c.Query("type")
+		limit := 0
+		if limitParam := c.Query("limit"); limitParam != "" {
+			fmt.Sscanf(limitParam, "%d", &limit)
+		}
+
+		items, q := bazaarCatalog.SearchResources(query, resourceType, limit)
+		if items == nil {
+			items = []DiscoveredResource{}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"x402Version": 1,
+			"items":       items,
+			"search": gin.H{
+				"query":               q,
+				"paginationSupported": false,
+				"paginationApplied":   false,
+			},
+		})
+	})
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":              "ok",

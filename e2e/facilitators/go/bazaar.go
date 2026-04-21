@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -82,6 +84,36 @@ func (c *BazaarCatalog) GetResources(limit, offset int) ([]DiscoveredResource, i
 	}
 
 	return all[offset:end], total
+}
+
+// SearchResources performs case-insensitive keyword search across resource URL,
+// type, and metadata values. Pagination is not supported for in-memory keyword search.
+func (c *BazaarCatalog) SearchResources(query, resourceType string, limit int) ([]DiscoveredResource, string) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	needle := strings.ToLower(query)
+	var results []DiscoveredResource
+
+	for _, r := range c.discoveredResources {
+		haystack := strings.ToLower(r.Resource + " " + r.Type)
+		for _, v := range r.Metadata {
+			haystack += " " + strings.ToLower(fmt.Sprintf("%v", v))
+		}
+		if !strings.Contains(haystack, needle) {
+			continue
+		}
+		if resourceType != "" && r.Type != resourceType {
+			continue
+		}
+		results = append(results, r)
+	}
+
+	if limit > 0 && len(results) > limit {
+		results = results[:limit]
+	}
+
+	return results, query
 }
 
 func (c *BazaarCatalog) GetCount() int {
