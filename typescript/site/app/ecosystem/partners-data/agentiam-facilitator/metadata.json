@@ -1,0 +1,19 @@
+{
+  "name": "AgentIAM Facilitator",
+  "description": "x402 facilitator on Base Mainnet for autonomous AI agents. Non-custodial USDC settlement via EIP-3009 with Postgres-backed nonce replay protection and settlement ledger. Part of Project Olympus.",
+  "logoUrl": "/logos/agentiam.svg",
+  "websiteUrl": "https://achillesalpha-facilitator.onrender.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://achillesalpha.onrender.com/facilitator",
+    "networks": ["base"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
