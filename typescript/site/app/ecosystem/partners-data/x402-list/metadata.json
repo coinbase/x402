@@ -1,0 +1,7 @@
+{
+  "name": "x402 List",
+  "description": "Agent-first directory of x402 API services with live uptime monitoring, machine-readable JSON/OpenAPI discovery, and an llms.txt for agent consumption.",
+  "logoUrl": "/logos/x402-list.png",
+  "websiteUrl": "https://x402-list.com",
+  "category": "Infrastructure & Tooling"
+}
