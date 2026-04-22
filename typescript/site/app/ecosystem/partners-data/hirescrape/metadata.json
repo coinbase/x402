@@ -1,0 +1,7 @@
+{
+  "name": "Hirescrape",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/hirescrape.png",
+  "description": "Pay-per-call scrapers for LinkedIn, Instagram, TikTok, TikTok Shop, and jobs across 8 boards. Per-record pricing starting at $0.002 with async snapshots for large runs. Settles USDC on Base via x402 v2 (EIP-3009 / CDP facilitator).",
+  "websiteUrl": "https://hirescrape.com"
+}
