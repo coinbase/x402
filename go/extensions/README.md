@@ -171,15 +171,16 @@ github.com/x402-foundation/x402/go/extensions/bazaar
 
 ```go
 import (
-    "github.com/coinbase/x402/go/extensions/bazaar"
-    exttypes "github.com/coinbase/x402/go/extensions/types"
-    mcp402 "github.com/coinbase/x402/go/mcp"
+    "github.com/x402-foundation/x402/go/extensions/bazaar"
+    mcp402 "github.com/x402-foundation/x402/go/mcp"
+    "github.com/x402-foundation/x402/go/types"
 )
 
-weatherDiscovery, _ := bazaar.DeclareMcpDiscoveryExtension(exttypes.DeclareMcpDiscoveryConfig{
+weatherDiscovery, _ := bazaar.DeclareMcpDiscoveryExtension(bazaar.DeclareMcpDiscoveryConfig{
     ToolName:    "get_weather",
     Description: "Get current weather for a city",
-    InputSchema: exttypes.JSONSchema{
+    Transport:   bazaar.TransportSSE,
+    InputSchema: bazaar.JSONSchema{
         "properties": map[string]interface{}{
             "city": map[string]interface{}{"type": "string", "description": "City name"},
         },
@@ -192,7 +193,7 @@ paymentWrapper := mcp402.NewPaymentWrapper(resourceServer, mcp402.PaymentWrapper
     Accepts: weatherAccepts,
     Resource: &types.ResourceInfo{URL: "mcp://tool/get_weather"},
     Extensions: map[string]interface{}{
-        exttypes.BAZAAR.Key(): weatherDiscovery,
+        bazaar.BAZAAR.Key(): weatherDiscovery,
     },
 })
 ```

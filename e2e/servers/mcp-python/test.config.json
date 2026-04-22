@@ -10,6 +10,7 @@
       "path": "get_weather",
       "method": "tool",
       "toolName": "get_weather",
+      "mcpTransport": "sse",
       "description": "Paid weather tool via MCP transport",
       "requiresPayment": true,
       "protocolFamily": "evm",

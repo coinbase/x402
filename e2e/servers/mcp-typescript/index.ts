@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   const weatherExtensions = declareDiscoveryExtension({
     toolName: "get_weather",
     description: "Get current weather for a city. Requires payment of $0.001.",
+    transport: "sse",
     inputSchema: {
       type: "object",
       properties: {

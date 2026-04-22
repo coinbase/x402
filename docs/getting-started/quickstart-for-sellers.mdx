@@ -1045,6 +1045,7 @@ const paid = createPaymentWrapper(resourceServer, {
   extensions: declareDiscoveryExtension({
     toolName: "get_weather",
     description: "Get current weather for a city",
+    transport: "sse",
     inputSchema: {
       properties: { city: { type: "string", description: "City name" } },
       required: ["city"],

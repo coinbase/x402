@@ -70,6 +70,7 @@ def main() -> None:
         DeclareMcpDiscoveryConfig(
             tool_name="get_weather",
             description="Get current weather for a city",
+            transport="sse",
             input_schema={
                 "properties": {"city": {"type": "string", "description": "City name"}},
                 "required": ["city"],

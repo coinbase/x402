@@ -48,6 +48,8 @@ interface ExpectedDiscoverableEndpoint {
   expectedResourceUrl: string;
   /** For MCP tools: the tool name expected in discoveryInfo.input.toolName */
   toolName?: string;
+  /** For MCP tools: expected discoveryInfo.input.transport value. */
+  mcpTransport?: "streamable-http" | "sse";
   /** Transport type ('http' or 'mcp') */
   transport: string;
 }
@@ -133,6 +135,7 @@ function getDiscoverableEndpoints(
       description: endpoint.description,
       expectedResourceUrl,
       toolName: isMcpEndpoint ? toolName : undefined,
+      mcpTransport: isMcpEndpoint ? endpoint.mcpTransport : undefined,
       transport: isMcpEndpoint ? "mcp" : "http",
     });
   }
@@ -241,6 +244,7 @@ async function validateFacilitatorDiscovery(
       if (expected.transport === "mcp" && expected.toolName) {
         const inputType = discoveredItem.discoveryInfo?.input?.type;
         const inputToolName = discoveredItem.discoveryInfo?.input?.toolName;
+        const inputTransport = discoveredItem.discoveryInfo?.input?.transport;
         let hasMetadataMismatch = false;
 
         if (inputType !== "mcp") {
@@ -255,10 +259,24 @@ async function validateFacilitatorDiscovery(
             `  ⚠️  MCP resource ${expectedResourceUrl}: expected toolName "${expected.toolName}", got "${inputToolName}"`,
           );
         }
+        if (
+          expected.mcpTransport !== undefined &&
+          inputTransport !== expected.mcpTransport
+        ) {
+          hasMetadataMismatch = true;
+          verboseLog(
+            `  ⚠️  MCP resource ${expectedResourceUrl}: expected transport "${expected.mcpTransport}", got "${inputTransport}"`,
+          );
+        }
         if (hasMetadataMismatch) {
           metadataMismatches.push(expectedResourceUrl);
         }
-        if (inputType === "mcp" && inputToolName === expected.toolName) {
+        if (
+          inputType === "mcp" &&
+          inputToolName === expected.toolName &&
+          (expected.mcpTransport === undefined ||
+            inputTransport === expected.mcpTransport)
+        ) {
           verboseLog(
             `  ✅ MCP discovery metadata verified for tool: ${expected.toolName}`,
           );

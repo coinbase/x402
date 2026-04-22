@@ -67,6 +67,7 @@ export interface PaymentWrapperConfig {
    * ```typescript
    * import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
    *
+   * resource: { url: "mcp://tool/get_weather" },
    * extensions: declareDiscoveryExtension({
    *   toolName: "get_weather",
    *   description: "Get current weather for a city",
