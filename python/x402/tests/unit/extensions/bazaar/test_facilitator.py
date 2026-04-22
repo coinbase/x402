@@ -11,6 +11,11 @@ from x402.extensions.bazaar import (
     validate_discovery_extension,
 )
 from x402.extensions.bazaar.facilitator import _is_valid_route_template
+from x402.extensions.bazaar.resource_service import (
+    DeclareMcpDiscoveryConfig,
+    declare_mcp_discovery_extension,
+)
+from x402.extensions.bazaar.types import McpDiscoveryInfo
 
 
 class TestIsValidRouteTemplate:
@@ -176,6 +181,32 @@ class TestExtractDiscoveryInfo:
 
         result = extract_discovery_info(payload, requirements)
         assert result is None
+
+    def test_extract_v2_mcp_extension_with_empty_method(self) -> None:
+        """MCP discovery should not depend on HTTP method being present."""
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/mcp"},
+            "extensions": {
+                BAZAAR.key: {
+                    "info": {
+                        "input": {
+                            "type": "mcp",
+                            "method": "",
+                            "toolName": "search_tool",
+                            "inputSchema": {"type": "object"},
+                        },
+                    },
+                    "schema": {},
+                }
+            },
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/mcp"
 
     def test_strip_query_params_from_v2_resource_url(self) -> None:
         """Test that query params are stripped from v2 resourceUrl."""
@@ -427,3 +458,80 @@ class TestDynamicRoutesFacilitator:
         assert discovered is not None
         assert discovered.resource_url == "http://example.com/search"
         assert discovered.route_template is None
+
+
+class TestExtractDiscoveryInfoMCP:
+    """Tests for MCP resource extraction via extract_discovery_info."""
+
+    def test_extract_v2_mcp_extension_populates_tool_name(self) -> None:
+        """MCP extensions should populate tool_name, not method."""
+        ext = declare_mcp_discovery_extension(
+            DeclareMcpDiscoveryConfig(
+                tool_name="search_tool",
+                input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
+            )
+        )
+
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/mcp"},
+            "extensions": {BAZAAR.key: ext[BAZAAR.key]},
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is not None
+        assert result.tool_name == "search_tool"
+        assert result.method == ""
+        assert result.resource_url == "https://api.example.com/mcp"
+        assert isinstance(result.discovery_info, McpDiscoveryInfo)
+
+    def test_extract_v2_mcp_extension_with_empty_method_field(self) -> None:
+        """MCP payloads with an explicit empty method field should still extract correctly."""
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/mcp"},
+            "extensions": {
+                BAZAAR.key: {
+                    "info": {
+                        "input": {
+                            "type": "mcp",
+                            "method": "",
+                            "toolName": "search_tool",
+                            "inputSchema": {"type": "object"},
+                        },
+                    },
+                    "schema": {},
+                }
+            },
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is not None
+        assert result.tool_name == "search_tool"
+        assert result.method == ""
+
+    def test_extract_v2_mcp_does_not_return_unknown_method(self) -> None:
+        """MCP resources must never surface method='UNKNOWN' — only empty string."""
+        ext = declare_mcp_discovery_extension(
+            DeclareMcpDiscoveryConfig(
+                tool_name="my_tool",
+                input_schema={"type": "object"},
+            )
+        )
+
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/mcp"},
+            "extensions": {BAZAAR.key: ext[BAZAAR.key]},
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is not None
+        assert result.method != "UNKNOWN"
+        assert result.method == ""

@@ -147,6 +147,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	var description string
 	var mimeType string
 	var routeTemplate string
+	var rawInput map[string]interface{}
 	version := versionCheck.X402Version
 
 	switch version {
@@ -173,6 +174,11 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 				if m, ok := bazaarExt.(map[string]interface{}); ok {
 					if v, ok := m["routeTemplate"]; ok {
 						rawTemplate, _ = v.(string)
+					}
+					if infoMap, ok := m["info"].(map[string]interface{}); ok {
+						if inputMap, ok := infoMap["input"].(map[string]interface{}); ok {
+							rawInput = inputMap
+						}
 					}
 				}
 				if isValidRouteTemplate(rawTemplate) {
@@ -225,17 +231,9 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		return nil, nil
 	}
 
-	// Extract method or toolName from discovery info
-	method := ""
-	toolName := ""
-	switch input := discoveryInfo.Input.(type) {
-	case types.QueryInput:
-		method = string(input.Method)
-	case types.BodyInput:
-		method = string(input.Method)
-	case types.McpInput:
-		toolName = input.ToolName
-	}
+	// Extract method or toolName from discovery info.
+	// For MCP, recover toolName from raw input if upstream deserialization produced QueryInput.
+	method, toolName := extractMethodAndToolName(discoveryInfo, rawInput)
 
 	if method == "" && toolName == "" {
 		return nil, fmt.Errorf("failed to extract method/toolName from discovery info")
@@ -369,6 +367,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 	var description string
 	var mimeType string
 	var routeTemplate string
+	var rawInput map[string]interface{}
 	version := versionCheck.X402Version
 
 	switch version {
@@ -395,6 +394,11 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 				if m, ok := bazaarExt.(map[string]interface{}); ok {
 					if v, ok := m["routeTemplate"]; ok {
 						rawTemplate, _ = v.(string)
+					}
+					if infoMap, ok := m["info"].(map[string]interface{}); ok {
+						if inputMap, ok := infoMap["input"].(map[string]interface{}); ok {
+							rawInput = inputMap
+						}
 					}
 				}
 				if isValidRouteTemplate(rawTemplate) {
@@ -453,17 +457,9 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		return nil, nil
 	}
 
-	// Extract method or toolName from discovery info
-	method := ""
-	toolName := ""
-	switch input := discoveryInfo.Input.(type) {
-	case types.QueryInput:
-		method = string(input.Method)
-	case types.BodyInput:
-		method = string(input.Method)
-	case types.McpInput:
-		toolName = input.ToolName
-	}
+	// Extract method or toolName from discovery info.
+	// For MCP, recover toolName from raw input if upstream deserialization produced QueryInput.
+	method, toolName := extractMethodAndToolName(discoveryInfo, rawInput)
 
 	if method == "" && toolName == "" {
 		return nil, fmt.Errorf("failed to extract method/toolName from discovery info")
@@ -481,6 +477,91 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		DiscoveryInfo: discoveryInfo,
 		RouteTemplate: routeTemplate,
 	}, nil
+}
+
+func extractMethodAndToolName(
+	discoveryInfo *types.DiscoveryInfo,
+	rawInput map[string]interface{},
+) (string, string) {
+	if discoveryInfo == nil {
+		return "", ""
+	}
+
+	if rawInputLooksLikeMCP(rawInput) {
+		mcpInput, ok := discoveryInfo.Input.(types.McpInput)
+		if !ok {
+			mcpInput = types.McpInput{}
+		}
+		mcpInput = mergeRawMCPInput(rawInput, mcpInput)
+		discoveryInfo.Input = mcpInput
+		return "", strings.TrimSpace(mcpInput.ToolName)
+	}
+
+	switch input := discoveryInfo.Input.(type) {
+	case types.QueryInput:
+		return string(input.Method), ""
+	case types.BodyInput:
+		return string(input.Method), ""
+	case types.McpInput:
+		normalized := mergeRawMCPInput(rawInput, input)
+		discoveryInfo.Input = normalized
+		return "", strings.TrimSpace(normalized.ToolName)
+	default:
+		return "", ""
+	}
+}
+
+func rawInputLooksLikeMCP(rawInput map[string]interface{}) bool {
+	if len(rawInput) == 0 {
+		return false
+	}
+	if strings.EqualFold(rawString(rawInput, "type"), "mcp") {
+		return true
+	}
+	return rawString(rawInput, "toolName") != ""
+}
+
+func mergeRawMCPInput(rawInput map[string]interface{}, input types.McpInput) types.McpInput {
+	if strings.TrimSpace(input.Type) == "" {
+		input.Type = "mcp"
+	}
+	if strings.TrimSpace(input.ToolName) == "" {
+		input.ToolName = rawString(rawInput, "toolName")
+	}
+	if strings.TrimSpace(string(input.Transport)) == "" {
+		if transport := rawString(rawInput, "transport"); transport != "" {
+			input.Transport = types.McpTransport(transport)
+		}
+	}
+	if input.Description == "" {
+		input.Description = rawString(rawInput, "description")
+	}
+	if input.InputSchema == nil {
+		if schema, ok := rawInput["inputSchema"]; ok {
+			input.InputSchema = schema
+		}
+	}
+	if input.Example == nil {
+		if example, ok := rawInput["example"]; ok {
+			input.Example = example
+		}
+	}
+	return input
+}
+
+func rawString(raw map[string]interface{}, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	value, ok := raw[key]
+	if !ok {
+		return ""
+	}
+	s, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(s)
 }
 
 // ExtractDiscoveryInfoFromExtension extracts discovery info from a v2 extension directly
