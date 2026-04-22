@@ -1,0 +1,2 @@
+kind: added
+body: Add unit tests for DeclareExtension, erc20ApprovalGasSponsoringSchema, and Erc20ApprovalFacilitatorExtension.Key in the erc20approvalgassponsor extension, raising statement coverage from 73.3% to 83.3%
