@@ -25,6 +25,11 @@ export interface ExactEvmSchemeConfig {
    * @default false
    */
   simulateInSettle?: boolean;
+  /**
+   * ASCII Builder Code to append as an ERC-8021 suffix on settlement transactions.
+   * When set, settlement calldata is extended with the builder attribution tag.
+   */
+  builderCode?: string;
 }
 
 /**
@@ -51,6 +56,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
       simulateInSettle: config?.simulateInSettle ?? false,
+      builderCode: config?.builderCode ?? "",
     };
   }
 
@@ -117,6 +123,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     if (isPermit2) {
       return settlePermit2(this.signer, payload, requirements, rawPayload, context, {
         simulateInSettle: this.config.simulateInSettle,
+        builderCode: this.config.builderCode || undefined,
       });
     }
 

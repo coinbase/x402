@@ -15,6 +15,7 @@ import {
   type Erc20ApprovalGasSponsoringSigner,
 } from "../extensions";
 import { getAddress, encodeFunctionData } from "viem";
+import { writeContractWithBuilderCode, buildErc8021Suffix } from "../../erc8021";
 import {
   PERMIT2_ADDRESS,
   permit2WitnessTypes,
@@ -58,6 +59,8 @@ export interface Permit2FacilitatorConfig {
    * @default false
    */
   simulateInSettle?: boolean;
+  /** ERC-8021 Builder Code to append to settlement calldata. */
+  builderCode?: string;
 }
 
 /**
@@ -353,10 +356,19 @@ export async function settlePermit2(
     };
   }
 
+  const builderCode = config?.builderCode;
+
   // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
   if (eip2612Info) {
-    return settlePermit2WithEIP2612(exactProxyConfig, signer, payload, permit2Payload, eip2612Info);
+    return settlePermit2WithEIP2612(
+      exactProxyConfig,
+      signer,
+      payload,
+      permit2Payload,
+      eip2612Info,
+      builderCode,
+    );
   }
 
   // Branch: ERC-20 approval gas sponsoring (broadcast approval + settle via extension signer)
@@ -377,12 +389,13 @@ export async function settlePermit2(
         payload,
         permit2Payload,
         erc20Info,
+        builderCode,
       );
     }
   }
 
   // Branch: standard settle (allowance already on-chain)
-  return settlePermit2Direct(exactProxyConfig, signer, payload, permit2Payload);
+  return settlePermit2Direct(exactProxyConfig, signer, payload, permit2Payload, builderCode);
 }
 
 // ---------------------------------------------------------------------------
@@ -397,6 +410,7 @@ export async function settlePermit2(
  * @param payload - The payment payload for network info
  * @param permit2Payload - The Permit2 payload with authorization and signature
  * @param eip2612Info - The EIP-2612 gas sponsoring info from the payload extension
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settlePermit2WithEIP2612(
@@ -405,26 +419,31 @@ async function settlePermit2WithEIP2612(
   payload: PaymentPayload,
   permit2Payload: ExactPermit2Payload,
   eip2612Info: Eip2612GasSponsoringInfo,
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
     const { v, r, s } = splitEip2612Signature(eip2612Info.signature);
 
-    const tx = await signer.writeContract({
-      address: config.proxyAddress,
-      abi: config.proxyABI,
-      functionName: "settleWithPermit",
-      args: [
-        {
-          value: BigInt(eip2612Info.amount),
-          deadline: BigInt(eip2612Info.deadline),
-          r,
-          s,
-          v,
-        },
-        ...buildExactPermit2SettleArgs(permit2Payload),
-      ],
-    });
+    const tx = await writeContractWithBuilderCode(
+      signer,
+      {
+        address: config.proxyAddress,
+        abi: config.proxyABI,
+        functionName: "settleWithPermit",
+        args: [
+          {
+            value: BigInt(eip2612Info.amount),
+            deadline: BigInt(eip2612Info.deadline),
+            r,
+            s,
+            v,
+          },
+          ...buildExactPermit2SettleArgs(permit2Payload),
+        ],
+      },
+      builderCode,
+    );
 
     return waitAndReturnSettleResponse(signer, tx, payload, payer);
   } catch (error) {
@@ -441,6 +460,7 @@ async function settlePermit2WithEIP2612(
  * @param permit2Payload - The Permit2 payload with authorization and signature
  * @param erc20Info - Object containing the signed approval transaction
  * @param erc20Info.signedTransaction - The RLP-encoded signed ERC-20 approve transaction
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settlePermit2WithERC20Approval(
@@ -449,15 +469,20 @@ async function settlePermit2WithERC20Approval(
   payload: PaymentPayload,
   permit2Payload: ExactPermit2Payload,
   erc20Info: { signedTransaction: string },
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
 
   try {
-    const settleData = encodeFunctionData({
+    let settleData = encodeFunctionData({
       abi: config.proxyABI,
       functionName: "settle",
       args: buildExactPermit2SettleArgs(permit2Payload),
     });
+
+    if (builderCode) {
+      settleData = `${settleData}${buildErc8021Suffix(builderCode)}` as `0x${string}`;
+    }
 
     const txHashes = await extensionSigner.sendTransactions([
       erc20Info.signedTransaction as `0x${string}`,
@@ -478,6 +503,7 @@ async function settlePermit2WithERC20Approval(
  * @param signer - The facilitator signer for contract writes
  * @param payload - The payment payload for network info
  * @param permit2Payload - The Permit2 payload with authorization and signature
+ * @param builderCode - Optional ERC-8021 builder code to append to calldata
  * @returns Promise resolving to a settlement response
  */
 async function settlePermit2Direct(
@@ -485,15 +511,20 @@ async function settlePermit2Direct(
   signer: FacilitatorEvmSigner,
   payload: PaymentPayload,
   permit2Payload: ExactPermit2Payload,
+  builderCode?: string,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
-    const tx = await signer.writeContract({
-      address: config.proxyAddress,
-      abi: config.proxyABI,
-      functionName: "settle",
-      args: buildExactPermit2SettleArgs(permit2Payload),
-    });
+    const tx = await writeContractWithBuilderCode(
+      signer,
+      {
+        address: config.proxyAddress,
+        abi: config.proxyABI,
+        functionName: "settle",
+        args: buildExactPermit2SettleArgs(permit2Payload),
+      },
+      builderCode,
+    );
 
     return waitAndReturnSettleResponse(signer, tx, payload, payer);
   } catch (error) {
