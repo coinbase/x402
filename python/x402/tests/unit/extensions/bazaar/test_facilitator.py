@@ -413,7 +413,8 @@ class TestDynamicRoutesFacilitator:
         declaration = ext[BAZAAR.key]
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
-        # Inject routeTemplate as if the server extension enriched it
+        # Inject method/routeTemplate/pathParams as the server extension would at request time
+        declaration["info"]["input"]["method"] = "GET"
         declaration["routeTemplate"] = "/users/:userId"
         declaration["info"]["input"]["pathParams"] = {"userId": "123"}
 
@@ -442,6 +443,7 @@ class TestDynamicRoutesFacilitator:
         declaration = ext[BAZAAR.key]
         if hasattr(declaration, "model_dump"):
             declaration = declaration.model_dump(by_alias=True)
+        declaration["info"]["input"]["method"] = "GET"
 
         payload = {
             "x402Version": 2,
@@ -535,3 +537,50 @@ class TestExtractDiscoveryInfoMCP:
         assert result is not None
         assert result.method != "UNKNOWN"
         assert result.method == ""
+
+    def test_http_resource_with_no_method_returns_none(self) -> None:
+        """HTTP resources with no method set must not silently produce a result."""
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/data"},
+            "extensions": {
+                BAZAAR.key: {
+                    "info": {
+                        "input": {
+                            "type": "http",
+                            # method intentionally absent
+                            "queryParams": {"q": "test"},
+                        },
+                    },
+                    "schema": {},
+                }
+            },
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is None
+
+    def test_http_resource_with_empty_method_string_returns_none(self) -> None:
+        """HTTP resources with an explicit empty method string must not silently produce a result."""
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/data"},
+            "extensions": {
+                BAZAAR.key: {
+                    "info": {
+                        "input": {
+                            "type": "http",
+                            "method": "",
+                        },
+                    },
+                    "schema": {},
+                }
+            },
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {}, validate=False)
+
+        assert result is None

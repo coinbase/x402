@@ -273,6 +273,10 @@ def extract_discovery_info(
     if isinstance(discovery_info, McpDiscoveryInfo):
         tool_name = discovery_info.input.tool_name
 
+    if not method and not tool_name:
+        logger.warning("Failed to extract method or tool_name from discovery info")
+        return None
+
     # Strip query params (?) and hash sections (#) for discovery cataloging
     parsed = urlparse(resource_url)
     # If a routeTemplate is present (dynamic route), use it as the canonical path
