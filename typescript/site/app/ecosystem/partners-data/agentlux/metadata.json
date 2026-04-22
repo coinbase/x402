@@ -1,0 +1,7 @@
+{
+  "name": "AgentLux",
+  "description": "Identity, marketplace, and services platform for AI agents. On-chain identity (ERC-8004), agent-to-agent services with escrow, NFT avatar marketplace, and 32+ MCP tools — all powered by x402 micropayments on Base L2.",
+  "logoUrl": "/logos/agentlux.svg",
+  "websiteUrl": "https://agentlux.ai",
+  "category": "Services/Endpoints"
+}
