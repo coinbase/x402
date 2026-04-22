@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   const weatherExtensions = declareDiscoveryExtension({
     toolName: "get_weather",
     description: "Get current weather for a city. Requires payment of $0.001.",
+    transport: "sse",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
   // Step 5: Create payment wrapper with extensions
   const paidWeather = createPaymentWrapper(resourceServer, {
     accepts: weatherAccepts,
+    resource: { url: "mcp://tool/get_weather", description: "Get current weather for a city" },
     extensions: weatherExtensions,
   });
 

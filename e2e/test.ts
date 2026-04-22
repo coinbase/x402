@@ -1019,15 +1019,17 @@ async function runTest() {
   }
 
   // Run discovery validation if bazaar extension is enabled
+  let discoveryFailed = false;
   const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
   if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
     log('\n🔍 Running Bazaar Discovery Validation...\n');
-    await handleDiscoveryValidation(
+    const discoveryResult = await handleDiscoveryValidation(
       facilitatorsWithConfig,
       serversArray,
       discoveryServerPorts,
       facilitatorServerMap
     );
+    discoveryFailed = !discoveryResult.success;
   }
 
   // Clean up facilitators (servers already stopped in test loop for both modes)
@@ -1199,7 +1201,7 @@ async function runTest() {
   // Close logger
   closeLogger();
 
-  if (failed > 0) {
+  if (failed > 0 || discoveryFailed) {
     process.exit(1);
   }
 }

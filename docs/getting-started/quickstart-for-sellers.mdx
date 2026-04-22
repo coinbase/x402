@@ -1008,36 +1008,50 @@ To verify:
 
 ### 4. Enhance Discovery with Metadata (Recommended)
 
-When using a facilitator that supports the Bazaar extension, your endpoints can be listed in the [x402 Bazaar](/extensions/bazaar), the discovery layer that helps buyers and AI agents find services. To enable discovery:
+When using a facilitator that supports the Bazaar extension, your endpoints can be listed in the [x402 Bazaar](/extensions/bazaar), the discovery layer that helps buyers and AI agents find services.
+
+**For HTTP endpoints**, add the discovery extension to your route config:
 
 ```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
 {
   "GET /weather": {
-    accepts: [
-      {
-        scheme: "exact",
-        price: "$0.001",
-        network: "eip155:8453",
-        payTo: "0xYourAddress",
-      },
-      {
-        scheme: "exact",
-        price: "$0.001",
-        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",  // Solana mainnet
-        payTo: "YourSolanaAddress",
-      },
-    ],
+    accepts: [{ scheme: "exact", price: "$0.001", network: "eip155:8453", payTo: "0xYourAddress" }],
     description: "Get real-time weather data including temperature, conditions, and humidity",
     mimeType: "application/json",
     extensions: {
-      bazaar: {
-        discoverable: true,
-        category: "weather",
-        tags: ["forecast", "real-time"],
-      },
+      ...declareDiscoveryExtension({
+        input: { city: "San Francisco" },
+        inputSchema: {
+          properties: { city: { type: "string", description: "City name" } },
+          required: ["city"],
+        },
+      }),
     },
   },
 }
+```
+
+**For MCP tools**, pass the discovery extension in your payment wrapper config:
+
+```typescript
+import { createPaymentWrapper } from "@x402/mcp";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+  resource: { url: "mcp://tool/get_weather", description: "Get current weather for a city" },
+  extensions: declareDiscoveryExtension({
+    toolName: "get_weather",
+    description: "Get current weather for a city",
+    transport: "sse",
+    inputSchema: {
+      properties: { city: { type: "string", description: "City name" } },
+      required: ["city"],
+    },
+  }),
+});
 ```
 
 Learn more about the discovery layer in the [Bazaar documentation](/extensions/bazaar).
