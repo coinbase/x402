@@ -148,11 +148,13 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 	ctx context.Context,
 	params *ListDiscoveryResourcesParams,
 ) (*DiscoveryResourcesResponse, error) {
+	// Build URL with query parameters
 	endpoint, err := c.buildDiscoveryURL(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build discovery URL: %w", err)
 	}
 
+	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery request: %w", err)
@@ -160,6 +162,7 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 
 	req.Header.Set("Content-Type", "application/json")
 
+	// Add auth headers if available
 	authProvider := c.GetAuthProvider()
 	if authProvider != nil {
 		authHeaders, err := authProvider.GetAuthHeaders(ctx)
@@ -171,21 +174,25 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 		}
 	}
 
+	// Make request
 	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("discovery request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	// Check for error response
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("facilitator listDiscoveryResources failed (%d): %s", resp.StatusCode, string(body))
 	}
 
+	// Parse response
 	var result DiscoveryResourcesResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode discovery response: %w", err)

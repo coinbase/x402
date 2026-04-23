@@ -19,6 +19,7 @@ import { HTTPFacilitatorClient } from "@x402/core/http";
 describe("Bazaar Client Extension - facilitatorClient", () => {
   describe("Type definitions", () => {
     it("DiscoveryResource should have correct shape with all required fields", () => {
+      // Type-level validation - ensures the interface compiles with correct fields
       const resource: DiscoveryResource = {
         resource: "https://api.example.com/endpoint",
         type: "http",
@@ -53,6 +54,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         x402Version: 1,
         accepts: [],
         lastUpdated: "2024-01-01T00:00:00.000Z",
+        // metadata is optional
       };
 
       expect(resource.metadata).toBeUndefined();
@@ -174,6 +176,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         url: "https://x402.org/facilitator",
       });
 
+      // Simulate a client with existing extensions
       const clientWithExtensions = facilitatorClient as typeof facilitatorClient & {
         extensions: { other: { someMethod: () => string } };
       };
@@ -183,6 +186,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
 
       const extendedClient = withBazaar(clientWithExtensions);
 
+      // Should have both the existing and new extensions
       expect(extendedClient.extensions.bazaar).toBeDefined();
       expect((extendedClient.extensions as { other?: unknown }).other).toBeDefined();
     });
