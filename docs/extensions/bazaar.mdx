@@ -254,7 +254,7 @@ Fetch the list of available x402 services using the facilitator client:
 
 #### Step 1b: Search for Services
 
-You can also search for services using a natural-language query. Note that whether results are paginated depends on the facilitator — check `search.paginationSupported` in the response:
+You can also search for services using a natural-language query. Pagination is facilitator-defined: some facilitators may include top-level `limit` and `cursor`, and others may omit them.
 
 <Tabs>
   <Tab title="TypeScript">
@@ -264,12 +264,12 @@ You can also search for services using a natural-language query. Note that wheth
       type: "http",
     });
 
-    // Check if the server supports stable pagination
-    if (results.search.paginationSupported) {
-      console.log("Next page cursor:", results.search.cursor);
+    // Some facilitators return top-level limit/cursor when pagination is used
+    if (results.cursor) {
+      console.log("Next page cursor:", results.cursor);
     }
 
-    console.log(`Found ${results.items.length} services`);
+    console.log(`Found ${results.resources.length} services`);
     ```
 
   </Tab>
@@ -283,9 +283,9 @@ You can also search for services using a natural-language query. Note that wheth
         panic(err)
     }
 
-    fmt.Printf("Found %d services\n", len(results.Items))
-    if results.Search.PaginationSupported {
-        fmt.Println("Next cursor:", results.Search.Cursor)
+    fmt.Printf("Found %d services\n", len(results.Resources))
+    if results.Cursor != nil {
+        fmt.Println("Next cursor:", results.Cursor)
     }
     ```
 
@@ -298,9 +298,9 @@ You can also search for services using a natural-language query. Note that wheth
         SearchDiscoveryResourcesParams(query="weather APIs", type="http")
     )
 
-    print(f"Found {len(results.items)} services")
-    if results.search.pagination_supported:
-        print(f"Next cursor: {results.search.cursor}")
+    print(f"Found {len(results.resources)} services")
+    if results.cursor is not None:
+        print(f"Next cursor: {results.cursor}")
     ```
 
   </Tab>

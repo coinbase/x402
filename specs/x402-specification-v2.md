@@ -549,7 +549,7 @@ List discoverable x402 resources from the Bazaar.
 
 **8.2 GET /discovery/search**
 
-Search discoverable x402 resources using a natural-language query. Pagination is optional: servers may ignore `limit` and `cursor` if they do not support stable pagination (e.g., when ranking is nondeterministic). Clients must check `search.paginationSupported` in the response before assuming results are stable across calls.
+Search discoverable x402 resources using a natural-language query. Response shape is CDP-style: top-level fields (no nested `search` object). Pagination is optional: servers may ignore `limit` and `cursor`, or include top-level `limit` and `cursor` in the response when returning paginated results.
 
 **Request Parameters:**
 
@@ -565,42 +565,36 @@ Search discoverable x402 resources using a natural-language query. Pagination is
 ```json
 {
   "x402Version": 2,
-  "items": [
+  "resources": [
     {
       "resource": "https://api.example.com/weather",
       "type": "http",
       "x402Version": 2,
       "accepts": [...],
       "lastUpdated": "2024-01-01T00:00:00Z",
-      "metadata": {
-        "category": "weather",
-        "provider": "Example Corp"
+      "extensions": {
+        "bazaar": {
+          "category": "weather",
+          "provider": "Example Corp"
+        }
       }
     }
   ],
-  "search": {
-    "query": "weather APIs",
-    "paginationSupported": false,
-    "paginationApplied": false,
-    "limit": 10,
-    "cursor": null
-  }
+  "partialResults": false,
+  "limit": 10,
+  "cursor": null
 }
 ```
 
-When `paginationSupported` is `true`, the server guarantees stable ordering and the `cursor` field may be provided for continuation:
+When paginated results are returned, include continuation details in top-level `limit` and `cursor`:
 
 ```json
 {
   "x402Version": 2,
-  "items": [...],
-  "search": {
-    "query": "financial data",
-    "paginationSupported": true,
-    "paginationApplied": true,
-    "limit": 10,
-    "cursor": "eyJwYWdlIjoyfQ=="
-  }
+  "resources": [...],
+  "partialResults": true,
+  "limit": 10,
+  "cursor": "eyJwYWdlIjoyfQ=="
 }
 ```
 
@@ -608,11 +602,9 @@ When `paginationSupported` is `true`, the server guarantees stable ordering and 
 
 | Field Name                    | Type      | Required | Description                                                              |
 | ----------------------------- | --------- | -------- | ------------------------------------------------------------------------ |
-| `search.query`                | `string`  | Required | The query string that was searched                                       |
-| `search.paginationSupported`  | `boolean` | Required | Whether this server supports stable pagination for search results        |
-| `search.paginationApplied`    | `boolean` | Required | Whether pagination parameters were honored for this response             |
-| `search.limit`                | `number`  | Optional | The limit that was applied, if pagination was applied                    |
-| `search.cursor`               | `string`  | Optional | Continuation cursor for the next page; present only when `paginationSupported` is true |
+| `partialResults`              | `boolean` | Optional | `true` if additional matches were truncated by the facilitator            |
+| `limit`                       | `number`  | Optional | Number of results in this page                                           |
+| `cursor`                      | `string`  | Optional | Continuation cursor for the next page; may be `null`                     |
 
 **8.3 Discovered Resource Fields**
 
@@ -623,7 +615,7 @@ When `paginationSupported` is `true`, the server guarantees stable ordering and 
 | `x402Version` | `number` | Required | Protocol version supported by the resource                      |
 | `accepts`     | `array`  | Required | Array of PaymentRequirements objects specifying payment methods |
 | `lastUpdated` | `number` | Required | Unix timestamp of when the resource was last updated            |
-| `metadata`    | `object` | Optional | Additional metadata (category, provider, etc.)                  |
+| `extensions`  | `object` | Optional | Additional extension payloads associated with this discovered resource |
 
 **8.4 Bazaar Concept**
 

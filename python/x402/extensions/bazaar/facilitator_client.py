@@ -66,8 +66,8 @@ class DiscoveryResource:
     last_updated: str | None = None
     """ISO 8601 timestamp of when the resource was last updated."""
 
-    metadata: dict[str, Any] | None = None
-    """Additional metadata about the resource."""
+    extensions: dict[str, Any] | None = None
+    """Additional extension payloads attached to this discovered resource."""
 
 
 @dataclass
@@ -94,40 +94,23 @@ class DiscoveryResourcesResponse:
 
 
 @dataclass
-class SearchMeta:
-    """Metadata about a search response, including pagination capability."""
-
-    query: str
-    """The query string that was searched."""
-
-    pagination_supported: bool
-    """Whether this server supports stable pagination for search results.
-
-    Clients must not assume results are stable across calls unless this is true.
-    """
-
-    pagination_applied: bool
-    """Whether pagination parameters were honored for this response."""
-
-    limit: int | None = None
-    """The limit that was applied, if pagination_applied is true."""
-
-    cursor: str | None = None
-    """Continuation cursor for the next page; present only when pagination_supported is true."""
-
-
-@dataclass
 class SearchDiscoveryResourcesResponse:
     """Response from searching discovery resources."""
 
     x402_version: int
     """The x402 protocol version of this response."""
 
-    items: list[DiscoveryResource]
+    resources: list[DiscoveryResource]
     """The list of matching discovered resources."""
 
-    search: SearchMeta
-    """Metadata about the search and pagination behavior."""
+    limit: int | None = None
+    """Optional limit applied by facilitator when returning this page."""
+
+    cursor: str | None = None
+    """Optional continuation cursor for the next page."""
+
+    partial_results: bool | None = None
+    """Whether additional matches were truncated by the facilitator."""
 
 
 class BazaarExtension:
@@ -213,15 +196,14 @@ class BazaarExtension:
     ) -> SearchDiscoveryResourcesResponse:
         """Search x402 discovery resources from the bazaar using a natural-language query.
 
-        Pagination is optional: servers that do not support stable pagination may ignore
-        `limit` and `cursor` in params. Check `response.search.pagination_supported`
-        before assuming results are stable across calls.
+        Pagination is optional: facilitators may ignore `limit` and `cursor`, or include
+        top-level `response.limit` and `response.cursor` when pagination is used.
 
         Args:
             params: Search parameters including the required query string.
 
         Returns:
-            A response containing matched discovery resources and search metadata.
+            A response containing matched discovery resources and optional pagination hints.
 
         Raises:
             ValueError: If query is empty or the request fails.
@@ -235,8 +217,8 @@ class BazaarExtension:
             results = client.extensions.bazaar.search(
                 SearchDiscoveryResourcesParams(query="weather APIs", type="http")
             )
-            if results.search.pagination_supported:
-                # safe to paginate with cursor
+            if results.cursor is not None:
+                # facilitator returned continuation cursor for the next page
                 pass
             ```
         """
@@ -359,7 +341,7 @@ def _parse_list_response(
                 x402_version=item.get("x402Version", 0),
                 accepts=item.get("accepts"),
                 last_updated=item.get("lastUpdated"),
-                metadata=item.get("metadata"),
+                extensions=item.get("extensions"),
             )
         )
 
@@ -382,7 +364,7 @@ def _parse_search_response(
 ) -> SearchDiscoveryResourcesResponse:
     """Parse a search discovery resources response from JSON data."""
     items = []
-    for item in data.get("items", []):
+    for item in data.get("resources", []):
         items.append(
             DiscoveryResource(
                 resource=item.get("resource", ""),
@@ -390,21 +372,14 @@ def _parse_search_response(
                 x402_version=item.get("x402Version", 0),
                 accepts=item.get("accepts"),
                 last_updated=item.get("lastUpdated"),
-                metadata=item.get("metadata"),
+                extensions=item.get("extensions"),
             )
         )
 
-    raw_search = data.get("search", {})
-    search_meta = SearchMeta(
-        query=raw_search.get("query", ""),
-        pagination_supported=raw_search.get("paginationSupported", False),
-        pagination_applied=raw_search.get("paginationApplied", False),
-        limit=raw_search.get("limit"),
-        cursor=raw_search.get("cursor"),
-    )
-
     return SearchDiscoveryResourcesResponse(
         x402_version=data.get("x402Version", 0),
-        items=items,
-        search=search_meta,
+        resources=items,
+        limit=data.get("limit"),
+        cursor=data.get("cursor"),
+        partial_results=data.get("partialResults"),
     )

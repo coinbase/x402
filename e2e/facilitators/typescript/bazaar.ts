@@ -9,7 +9,7 @@ export interface DiscoveredResource {
   discoveryInfo?: DiscoveryInfo;
   routeTemplate?: string;
   lastUpdated: string;
-  metadata?: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
 }
 
 export class BazaarCatalog {
@@ -38,7 +38,7 @@ export class BazaarCatalog {
       discoveryInfo,
       routeTemplate,
       lastUpdated: new Date().toISOString(),
-      metadata: {},
+      extensions: {},
     });
   }
 
@@ -60,12 +60,16 @@ export class BazaarCatalog {
 
   /**
    * Search resources using case-insensitive keyword matching against resource URL,
-   * type, and metadata values. Pagination is not supported for in-memory keyword search.
+   * type, and extension values.
    */
   searchResources(query: string, type?: string, limit?: number) {
     const needle = query.toLowerCase();
     let results = Array.from(this.discoveredResources.values()).filter((r) => {
-      const haystack = [r.resource, r.type, ...Object.values(r.metadata ?? {})]
+      const haystack = [
+        r.resource,
+        r.type,
+        ...Object.values(r.extensions ?? {}),
+      ]
         .join(" ")
         .toLowerCase();
       return haystack.includes(needle);
@@ -79,12 +83,8 @@ export class BazaarCatalog {
 
     return {
       x402Version: 2,
-      items,
-      search: {
-        query,
-        paginationSupported: false,
-        paginationApplied: false,
-      },
+      resources: items,
+      partialResults: false,
     };
   }
 

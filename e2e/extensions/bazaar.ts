@@ -26,7 +26,7 @@ interface DiscoveryResourcesResponse {
     accepts: any[];
     discoveryInfo?: any;
     lastUpdated: string;
-    metadata?: Record<string, unknown>;
+    extensions?: Record<string, unknown>;
   }>;
   pagination: {
     limit: number;
@@ -40,18 +40,14 @@ interface DiscoveryResourcesResponse {
  */
 interface DiscoverySearchResponse {
   x402Version: number;
-  items: Array<{
+  resources: Array<{
     resource: string;
     type: string;
     [key: string]: unknown;
   }>;
-  search: {
-    query: string;
-    paginationSupported: boolean;
-    paginationApplied: boolean;
-    limit?: number;
-    cursor?: string | null;
-  };
+  limit?: number;
+  cursor?: string | null;
+  partialResults?: boolean;
 }
 
 /**
@@ -190,34 +186,33 @@ async function validateSearchEndpoint(
     if (typeof data.x402Version !== "number") {
       return { valid: false, error: "search response missing x402Version" };
     }
-    if (!Array.isArray(data.items)) {
-      return { valid: false, error: "search response missing items array" };
+    if (!Array.isArray(data.resources)) {
+      return { valid: false, error: "search response missing resources array" };
     }
-    if (!data.search || typeof data.search !== "object") {
-      return { valid: false, error: "search response missing search metadata" };
-    }
-    if (data.search.query !== query) {
+    if (data.limit !== undefined && typeof data.limit !== "number") {
       return {
         valid: false,
-        error: `search.query mismatch: expected "${query}", got "${data.search.query}"`,
+        error: "limit must be number when present",
       };
     }
-    if (typeof data.search.paginationSupported !== "boolean") {
+    if (
+      data.cursor !== undefined &&
+      data.cursor !== null &&
+      typeof data.cursor !== "string"
+    ) {
       return {
         valid: false,
-        error: "search.paginationSupported must be boolean",
+        error: "cursor must be string|null when present",
       };
     }
-    if (typeof data.search.paginationApplied !== "boolean") {
-      return {
-        valid: false,
-        error: "search.paginationApplied must be boolean",
-      };
+    if (
+      data.partialResults !== undefined &&
+      typeof data.partialResults !== "boolean"
+    ) {
+      return { valid: false, error: "partialResults must be boolean when present" };
     }
 
-    verboseLog(
-      `  ✅ Search endpoint valid (${data.items.length} results, paginationSupported=${data.search.paginationSupported})`,
-    );
+    verboseLog(`  ✅ Search endpoint valid (${data.resources.length} results)`);
     return { valid: true };
   } catch (error) {
     return {

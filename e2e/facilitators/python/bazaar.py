@@ -18,7 +18,7 @@ class DiscoveredResource:
         accepts: list[dict[str, Any]],
         discovery_info: dict[str, Any] | None = None,
         route_template: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        extensions: dict[str, Any] | None = None,
     ) -> None:
         self.resource = resource
         self.type = resource_type
@@ -27,7 +27,7 @@ class DiscoveredResource:
         self.discovery_info = discovery_info
         self.route_template = route_template
         self.last_updated = datetime.now().isoformat()
-        self.metadata = metadata or {}
+        self.extensions = extensions or {}
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -37,7 +37,7 @@ class DiscoveredResource:
             "x402Version": self.x402_version,
             "accepts": self.accepts,
             "lastUpdated": self.last_updated,
-            "metadata": self.metadata,
+            "extensions": self.extensions,
         }
         if self.discovery_info:
             result["discoveryInfo"] = self.discovery_info
@@ -84,7 +84,7 @@ class BazaarCatalog:
             accepts=[payment_requirements],
             discovery_info=discovery_info,
             route_template=route_template,
-            metadata={},
+            extensions={},
         )
 
     def get_resources(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
@@ -119,8 +119,7 @@ class BazaarCatalog:
     ) -> dict[str, Any]:
         """Search resources using case-insensitive keyword matching.
 
-        Matches against the resource URL, type, and metadata values.
-        Pagination is not supported for in-memory keyword search.
+        Matches against the resource URL, type, and extension values.
 
         Args:
             query: The search query string.
@@ -128,13 +127,13 @@ class BazaarCatalog:
             limit: Optional advisory maximum number of results.
 
         Returns:
-            Dictionary with x402Version, items, and search metadata.
+            Dictionary with x402Version, items, and optional pagination hints.
         """
         needle = query.lower()
         results = []
         for r in self._resources.values():
             haystack = " ".join(
-                [r.resource, r.type] + [str(v) for v in r.metadata.values()]
+                [r.resource, r.type] + [str(v) for v in r.extensions.values()]
             ).lower()
             if needle in haystack:
                 results.append(r)
@@ -146,12 +145,8 @@ class BazaarCatalog:
 
         return {
             "x402Version": 2,
-            "items": [r.to_dict() for r in items],
-            "search": {
-                "query": query,
-                "paginationSupported": False,
-                "paginationApplied": False,
-            },
+            "resources": [r.to_dict() for r in items],
+            "partialResults": False,
         }
 
     def get_count(self) -> int:

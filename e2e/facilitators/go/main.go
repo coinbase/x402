@@ -1128,19 +1128,15 @@ func main() {
 			fmt.Sscanf(limitParam, "%d", &limit)
 		}
 
-		items, q := bazaarCatalog.SearchResources(query, resourceType, limit)
+		items, _ := bazaarCatalog.SearchResources(query, resourceType, limit)
 		if items == nil {
 			items = []DiscoveredResource{}
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"x402Version": 2,
-			"items":       items,
-			"search": gin.H{
-				"query":               q,
-				"paginationSupported": false,
-				"paginationApplied":   false,
-			},
+			"x402Version":    2,
+			"resources":      items,
+			"partialResults": false,
 		})
 	})
 

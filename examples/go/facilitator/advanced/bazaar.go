@@ -222,13 +222,9 @@ func runBazaarExample(evmPrivateKey, svmPrivateKey string) error {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"x402Version": 2,
-			"items":       items,
-			"search": gin.H{
-				"query":               query,
-				"paginationSupported": false,
-				"paginationApplied":   false,
-			},
+			"x402Version":    2,
+			"resources":      items,
+			"partialResults": false,
 		})
 	})
 

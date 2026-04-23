@@ -56,7 +56,7 @@ func TestListDiscoveryResources_Success(t *testing.T) {
 				X402Version: 2,
 				Accepts:     []json.RawMessage{json.RawMessage(`{"scheme":"exact","network":"eip155:1"}`)},
 				LastUpdated: "2026-03-01T00:00:00Z",
-				Metadata:    map[string]any{"category": "data"},
+				Extensions:  map[string]any{"bazaar": map[string]any{"category": "data"}},
 			},
 		},
 		Pagination: Pagination{
@@ -109,8 +109,9 @@ func TestListDiscoveryResources_Success(t *testing.T) {
 	if result.Items[0].LastUpdated != "2026-03-01T00:00:00Z" {
 		t.Errorf("Expected lastUpdated 2026-03-01T00:00:00Z, got %s", result.Items[0].LastUpdated)
 	}
-	if result.Items[0].Metadata["category"] != "data" {
-		t.Errorf("Expected metadata category=data, got %v", result.Items[0].Metadata["category"])
+	bazaarExt, ok := result.Items[0].Extensions["bazaar"].(map[string]any)
+	if !ok || bazaarExt["category"] != "data" {
+		t.Errorf("Expected extensions.bazaar.category=data, got %v", result.Items[0].Extensions)
 	}
 	if result.Pagination.Limit != 20 {
 		t.Errorf("Expected pagination limit 20, got %d", result.Pagination.Limit)
@@ -496,7 +497,7 @@ func TestSearchDiscoveryResources_Success(t *testing.T) {
 	cursor := "eyJwYWdlIjoyfQ=="
 	expectedResponse := SearchDiscoveryResourcesResponse{
 		X402Version: 2,
-		Items: []DiscoveryResource{
+		Resources: []DiscoveryResource{
 			{
 				Resource:    "https://api.example.com/weather",
 				Type:        "http",
@@ -505,13 +506,8 @@ func TestSearchDiscoveryResources_Success(t *testing.T) {
 				LastUpdated: "2026-03-01T00:00:00Z",
 			},
 		},
-		Search: SearchMeta{
-			Query:               "weather APIs",
-			PaginationSupported: true,
-			PaginationApplied:   true,
-			Limit:               10,
-			Cursor:              &cursor,
-		},
+		Limit:  10,
+		Cursor: &cursor,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -545,20 +541,17 @@ func TestSearchDiscoveryResources_Success(t *testing.T) {
 	if result.X402Version != 2 {
 		t.Errorf("Expected x402Version 2, got %d", result.X402Version)
 	}
-	if len(result.Items) != 1 {
-		t.Fatalf("Expected 1 item, got %d", len(result.Items))
+	if len(result.Resources) != 1 {
+		t.Fatalf("Expected 1 resource, got %d", len(result.Resources))
 	}
-	if result.Items[0].Resource != "https://api.example.com/weather" {
-		t.Errorf("Expected resource https://api.example.com/weather, got %s", result.Items[0].Resource)
+	if result.Resources[0].Resource != "https://api.example.com/weather" {
+		t.Errorf("Expected resource https://api.example.com/weather, got %s", result.Resources[0].Resource)
 	}
-	if result.Search.Query != "weather APIs" {
-		t.Errorf("Expected search query 'weather APIs', got %s", result.Search.Query)
+	if result.Limit != 10 {
+		t.Errorf("Expected limit 10, got %d", result.Limit)
 	}
-	if !result.Search.PaginationSupported {
-		t.Error("Expected paginationSupported=true")
-	}
-	if result.Search.Cursor == nil || *result.Search.Cursor != cursor {
-		t.Errorf("Expected cursor %q, got %v", cursor, result.Search.Cursor)
+	if result.Cursor == nil || *result.Cursor != cursor {
+		t.Errorf("Expected cursor %q, got %v", cursor, result.Cursor)
 	}
 }
 
@@ -567,12 +560,7 @@ func TestSearchDiscoveryResources_NoPagination(t *testing.T) {
 
 	expectedResponse := SearchDiscoveryResourcesResponse{
 		X402Version: 2,
-		Items:       []DiscoveryResource{},
-		Search: SearchMeta{
-			Query:               "mcp tools",
-			PaginationSupported: false,
-			PaginationApplied:   false,
-		},
+		Resources:   []DiscoveryResource{},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -592,14 +580,11 @@ func TestSearchDiscoveryResources_NoPagination(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if result.Search.PaginationSupported {
-		t.Error("Expected paginationSupported=false")
+	if result.Limit != 0 {
+		t.Errorf("Expected zero limit, got %d", result.Limit)
 	}
-	if result.Search.PaginationApplied {
-		t.Error("Expected paginationApplied=false")
-	}
-	if result.Search.Cursor != nil {
-		t.Errorf("Expected nil cursor, got %v", result.Search.Cursor)
+	if result.Cursor != nil {
+		t.Errorf("Expected nil cursor, got %v", result.Cursor)
 	}
 }
 
@@ -618,12 +603,7 @@ func TestSearchDiscoveryResources_WithTypeFilter(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchDiscoveryResourcesResponse{
 			X402Version: 2,
-			Items:       []DiscoveryResource{},
-			Search: SearchMeta{
-				Query:               "financial",
-				PaginationSupported: false,
-				PaginationApplied:   false,
-			},
+			Resources:   []DiscoveryResource{},
 		})
 	}))
 	defer server.Close()
@@ -697,12 +677,7 @@ func TestSearchDiscoveryResources_WithAuthHeaders(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchDiscoveryResourcesResponse{
 			X402Version: 2,
-			Items:       []DiscoveryResource{},
-			Search: SearchMeta{
-				Query:               "test",
-				PaginationSupported: false,
-				PaginationApplied:   false,
-			},
+			Resources:   []DiscoveryResource{},
 		})
 	}))
 	defer server.Close()

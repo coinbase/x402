@@ -66,8 +66,8 @@ export interface DiscoveryResource {
   accepts: PaymentRequirements[];
   /** ISO 8601 timestamp of when the resource was last updated */
   lastUpdated: string;
-  /** Additional metadata about the resource */
-  metadata?: Record<string, unknown>;
+  /** Additional extension payloads attached to this discovered resource */
+  extensions?: Record<string, unknown>;
 }
 
 /**
@@ -90,34 +90,19 @@ export interface DiscoveryResourcesResponse {
 }
 
 /**
- * Metadata about a search response, including pagination capability.
- */
-export interface SearchMeta {
-  /** The query string that was searched */
-  query: string;
-  /**
-   * Whether this server supports stable pagination for search.
-   * Clients must not assume results are stable across calls unless this is true.
-   */
-  paginationSupported: boolean;
-  /** Whether pagination parameters were honored for this response */
-  paginationApplied: boolean;
-  /** The limit that was applied, if paginationApplied is true */
-  limit?: number;
-  /** Continuation cursor for the next page; present only when paginationSupported is true */
-  cursor?: string | null;
-}
-
-/**
  * Response from searching discovery resources.
  */
 export interface SearchDiscoveryResourcesResponse {
   /** The x402 protocol version of this response */
   x402Version: number;
   /** The list of matching discovered resources */
-  items: DiscoveryResource[];
-  /** Metadata about the search and pagination behavior */
-  search: SearchMeta;
+  resources: DiscoveryResource[];
+  /** Whether additional matches were truncated by facilitator */
+  partialResults?: boolean;
+  /** Optional limit applied by facilitator when returning this page */
+  limit?: number;
+  /** Optional continuation cursor for the next page */
+  cursor?: string | null;
 }
 
 /**
@@ -136,9 +121,8 @@ export interface BazaarClientExtension {
     /**
      * Search x402 discovery resources from the bazaar using a natural-language query.
      *
-     * Pagination is optional: servers that do not support stable pagination may ignore
-     * `limit` and `cursor`. Check `response.search.paginationSupported` before assuming
-     * results are stable across calls.
+     * Pagination is optional: facilitators may ignore `limit` and `cursor`, or include
+     * top-level `response.limit` and `response.cursor` when pagination is used.
      *
      * @param params - Search parameters including the required query string
      * @returns A promise resolving to the search response

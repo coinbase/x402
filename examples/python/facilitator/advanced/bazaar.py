@@ -53,6 +53,7 @@ class CatalogResource(BaseModel):
     accepts: list[dict[str, Any]]
     discoveryInfo: dict[str, Any] | None = None
     lastUpdated: str
+    extensions: dict[str, Any] | None = None
 
 
 # BazaarCatalog stores discovered resources
@@ -78,7 +79,7 @@ class BazaarCatalog:
     ) -> list[CatalogResource]:
         """Search resources using case-insensitive keyword matching.
 
-        Matches against resource URL, type, and metadata values.
+        Matches against resource URL, type, and extension values.
 
         Args:
             query: The search query string.
@@ -92,7 +93,7 @@ class BazaarCatalog:
         results = []
         for r in self.resources.values():
             haystack = " ".join(
-                [r.resource, r.type] + [str(v) for v in (r.metadata or {}).values()]
+                [r.resource, r.type] + [str(v) for v in (r.extensions or {}).values()]
             ).lower()
             if needle in haystack:
                 results.append(r)
@@ -163,6 +164,7 @@ def _handle_after_verify(ctx: Any) -> None:
                     ],
                     discoveryInfo=discovery_info_dict,
                     lastUpdated=datetime.now().isoformat(),
+                    extensions={},
                 )
             )
             print("   ✅ Added to bazaar catalog")
@@ -334,18 +336,14 @@ async def discovery_search(query: str, type: str | None = None, limit: int | Non
         limit: Optional advisory maximum number of results.
 
     Returns:
-        Search response with x402Version, items, and search metadata.
+        Search response with x402Version, items, and optional pagination hints.
     """
     try:
         results = bazaar_catalog.search(query, type, limit)
         return {
             "x402Version": 2,
-            "items": [r.model_dump(by_alias=True) for r in results],
-            "search": {
-                "query": query,
-                "paginationSupported": False,
-                "paginationApplied": False,
-            },
+            "resources": [r.model_dump(by_alias=True) for r in results],
+            "partialResults": False,
         }
     except Exception as e:
         print(f"Discovery search error: {e}")

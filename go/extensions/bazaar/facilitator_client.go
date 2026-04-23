@@ -57,8 +57,8 @@ type DiscoveryResource struct {
 	// LastUpdated is an ISO 8601 timestamp of when the resource was last updated.
 	LastUpdated string `json:"lastUpdated"`
 
-	// Metadata contains additional metadata about the resource.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	// Extensions contains additional extension payloads for this discovered resource.
+	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
 // Pagination contains pagination information for a discovery resources response.
@@ -85,35 +85,22 @@ type DiscoveryResourcesResponse struct {
 	Pagination Pagination `json:"pagination"`
 }
 
-// SearchMeta contains metadata about a search response, including pagination capability.
-type SearchMeta struct {
-	// Query is the query string that was searched.
-	Query string `json:"query"`
-
-	// PaginationSupported indicates whether this server supports stable pagination for search.
-	// Clients must not assume results are stable across calls unless this is true.
-	PaginationSupported bool `json:"paginationSupported"`
-
-	// PaginationApplied indicates whether pagination parameters were honored for this response.
-	PaginationApplied bool `json:"paginationApplied"`
-
-	// Limit is the limit that was applied, if PaginationApplied is true.
-	Limit int `json:"limit,omitempty"`
-
-	// Cursor is a continuation token for the next page; present only when PaginationSupported is true.
-	Cursor *string `json:"cursor,omitempty"`
-}
-
 // SearchDiscoveryResourcesResponse is the response from searching discovery resources.
 type SearchDiscoveryResourcesResponse struct {
 	// X402Version is the x402 protocol version of this response.
 	X402Version int `json:"x402Version"`
 
-	// Items is the list of matching discovered resources.
-	Items []DiscoveryResource `json:"items"`
+	// Resources is the list of matching discovered resources.
+	Resources []DiscoveryResource `json:"resources"`
 
-	// Search contains metadata about the search and pagination behavior.
-	Search SearchMeta `json:"search"`
+	// PartialResults indicates additional matches were truncated by facilitator.
+	PartialResults bool `json:"partialResults,omitempty"`
+
+	// Limit is the optional limit applied by facilitator when returning this page.
+	Limit int `json:"limit,omitempty"`
+
+	// Cursor is the optional continuation token for the next page.
+	Cursor *string `json:"cursor,omitempty"`
 }
 
 // BazaarFacilitatorClient wraps an HTTPFacilitatorClient with bazaar discovery
@@ -204,9 +191,8 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 // SearchDiscoveryResources queries the facilitator's /discovery/search endpoint
 // to search x402 discovery resources from the bazaar using a natural-language query.
 //
-// Pagination is optional: servers that do not support stable pagination may ignore
-// Limit and Cursor in params. Check response.Search.PaginationSupported before
-// assuming results are stable across calls.
+// Pagination is optional: facilitators may ignore Limit/Cursor in params, or include
+// top-level response.Limit/response.Cursor when pagination is used.
 func (c *BazaarFacilitatorClient) SearchDiscoveryResources(
 	ctx context.Context,
 	params *SearchDiscoveryResourcesParams,

@@ -57,7 +57,7 @@ interface DiscoveredResource {
   accepts: PaymentRequirements[];
   discoveryInfo?: DiscoveryInfo;
   lastUpdated: string;
-  metadata?: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
 }
 
 // BazaarCatalog stores discovered resources
@@ -87,12 +87,12 @@ class BazaarCatalog {
 
   /**
    * Search resources using case-insensitive keyword matching.
-   * Matches against resource URL, type, and metadata values.
+   * Matches against resource URL, type, and extension values.
    *
    * @param query - Search query string
    * @param type - Optional filter by resource type
    * @param limit - Optional advisory maximum results
-   * @returns Matching resources with search metadata
+   * @returns Matching resources with optional pagination hints
    */
   search(query: string, type?: string, limit?: number): DiscoveredResource[] {
     const needle = query.toLowerCase();
@@ -101,7 +101,7 @@ class BazaarCatalog {
         r.resource,
         r.type,
         r.description ?? "",
-        ...Object.values(r.metadata ?? {}),
+        ...Object.values(r.extensions ?? {}),
       ]
         .join(" ")
         .toLowerCase();
@@ -154,7 +154,7 @@ const facilitator = new x402Facilitator()
           accepts: [context.requirements],
           discoveryInfo: discovered.discoveryInfo,
           lastUpdated: new Date().toISOString(),
-          metadata: {},
+          extensions: {},
         });
         console.log("   ✅ Added to bazaar catalog");
       }
@@ -384,12 +384,8 @@ app.get("/discovery/search", async (req, res) => {
 
     res.json({
       x402Version: 2,
-      items,
-      search: {
-        query,
-        paginationSupported: false,
-        paginationApplied: false,
-      },
+      resources: items,
+      partialResults: false,
     });
   } catch (error) {
     console.error("Discovery search error:", error);

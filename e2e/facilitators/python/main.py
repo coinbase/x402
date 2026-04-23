@@ -375,7 +375,7 @@ async def discovery_search(query: str, type: str | None = None, limit: int | Non
         limit: Optional advisory maximum number of results.
 
     Returns:
-        Search response with x402Version, items, and search metadata.
+        Search response with x402Version, items, and optional pagination hints.
     """
     try:
         return bazaar_catalog.search_resources(query, type, limit)

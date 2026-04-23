@@ -16,7 +16,6 @@ from x402.extensions.bazaar import (
     Pagination,
     SearchDiscoveryResourcesParams,
     SearchDiscoveryResourcesResponse,
-    SearchMeta,
     with_bazaar,
 )
 from x402.extensions.bazaar.facilitator_client import (
@@ -55,7 +54,7 @@ LIST_RESPONSE_FIXTURE = {
             "x402Version": 2,
             "accepts": [{"scheme": "exact", "network": "eip155:8453"}],
             "lastUpdated": "2026-01-01T00:00:00Z",
-            "metadata": {"category": "weather"},
+            "extensions": {"bazaar": {"category": "weather"}},
         }
     ],
     "pagination": {"limit": 20, "offset": 0, "total": 1},
@@ -63,7 +62,7 @@ LIST_RESPONSE_FIXTURE = {
 
 SEARCH_RESPONSE_FIXTURE = {
     "x402Version": 2,
-    "items": [
+    "resources": [
         {
             "resource": "https://api.example.com/weather",
             "type": "http",
@@ -72,11 +71,8 @@ SEARCH_RESPONSE_FIXTURE = {
             "lastUpdated": "2026-01-01T00:00:00Z",
         }
     ],
-    "search": {
-        "query": "weather APIs",
-        "paginationSupported": False,
-        "paginationApplied": False,
-    },
+    "limit": 10,
+    "partialResults": False,
 }
 
 
@@ -96,7 +92,7 @@ class TestParseListResponse:
         assert result.items[0].type == "http"
         assert result.items[0].x402_version == 2
         assert result.items[0].last_updated == "2026-01-01T00:00:00Z"
-        assert result.items[0].metadata == {"category": "weather"}
+        assert result.items[0].extensions == {"bazaar": {"category": "weather"}}
         assert isinstance(result.pagination, Pagination)
         assert result.pagination.limit == 20
         assert result.pagination.offset == 0
@@ -122,7 +118,7 @@ class TestParseListResponse:
         result = _parse_list_response(data)
 
         assert result.items[0].resource == "https://api.example.com/data"
-        assert result.items[0].metadata is None
+        assert result.items[0].extensions is None
         assert result.items[0].accepts is None
         assert result.items[0].x402_version == 0
 
@@ -146,53 +142,41 @@ class TestParseSearchResponse:
 
         assert isinstance(result, SearchDiscoveryResourcesResponse)
         assert result.x402_version == 2
-        assert len(result.items) == 1
-        assert result.items[0].resource == "https://api.example.com/weather"
-        assert isinstance(result.search, SearchMeta)
-        assert result.search.query == "weather APIs"
-        assert result.search.pagination_supported is False
-        assert result.search.pagination_applied is False
+        assert len(result.resources) == 1
+        assert result.resources[0].resource == "https://api.example.com/weather"
+        assert result.limit == 10
+        assert result.cursor is None
+        assert result.partial_results is False
 
-    def test_parses_pagination_supported_with_cursor(self) -> None:
+    def test_parses_top_level_limit_and_cursor(self) -> None:
         data = {
             "x402Version": 2,
-            "items": [],
-            "search": {
-                "query": "financial",
-                "paginationSupported": True,
-                "paginationApplied": True,
-                "limit": 10,
-                "cursor": "eyJwYWdlIjoyfQ==",
-            },
+            "resources": [],
+            "limit": 10,
+            "cursor": "eyJwYWdlIjoyfQ==",
         }
         result = _parse_search_response(data)
 
-        assert result.search.pagination_supported is True
-        assert result.search.pagination_applied is True
-        assert result.search.limit == 10
-        assert result.search.cursor == "eyJwYWdlIjoyfQ=="
+        assert result.limit == 10
+        assert result.cursor == "eyJwYWdlIjoyfQ=="
 
     def test_handles_null_cursor(self) -> None:
         data = {
             "x402Version": 2,
-            "items": [],
-            "search": {
-                "query": "test",
-                "paginationSupported": False,
-                "paginationApplied": False,
-                "cursor": None,
-            },
+            "resources": [],
+            "limit": 5,
+            "cursor": None,
         }
         result = _parse_search_response(data)
 
-        assert result.search.cursor is None
+        assert result.cursor is None
 
     def test_handles_missing_search_meta(self) -> None:
-        data = {"x402Version": 2, "items": []}
+        data = {"x402Version": 2, "resources": []}
         result = _parse_search_response(data)
 
-        assert result.search.query == ""
-        assert result.search.pagination_supported is False
+        assert result.limit is None
+        assert result.cursor is None
 
 
 # ---------------------------------------------------------------------------
@@ -416,11 +400,10 @@ class TestSearch:
         )
 
         assert isinstance(result, SearchDiscoveryResourcesResponse)
-        assert len(result.items) == 1
-        assert result.items[0].resource == "https://api.example.com/weather"
-        assert result.search.query == "weather APIs"
-        assert result.search.pagination_supported is False
-        assert result.search.pagination_applied is False
+        assert len(result.resources) == 1
+        assert result.resources[0].resource == "https://api.example.com/weather"
+        assert result.limit == 10
+        assert result.cursor is None
 
     def test_raises_on_empty_query(self) -> None:
         client = _make_client()
@@ -476,18 +459,13 @@ class TestSearch:
         call_kwargs = http_client.get.call_args[1]
         assert "cursor" not in call_kwargs["params"]
 
-    def test_returns_pagination_supported_true_with_cursor(self) -> None:
+    def test_returns_top_level_cursor_when_present(self) -> None:
         cursor = "eyJwYWdlIjoyfQ=="
         data = {
             "x402Version": 2,
-            "items": [],
-            "search": {
-                "query": "financial",
-                "paginationSupported": True,
-                "paginationApplied": True,
-                "limit": 10,
-                "cursor": cursor,
-            },
+            "resources": [],
+            "limit": 10,
+            "cursor": cursor,
         }
         response = _make_http_response(200, data)
         extended = self._make_extended(response)
@@ -496,5 +474,5 @@ class TestSearch:
             SearchDiscoveryResourcesParams(query="financial")
         )
 
-        assert result.search.pagination_supported is True
-        assert result.search.cursor == cursor
+        assert result.limit == 10
+        assert result.cursor == cursor

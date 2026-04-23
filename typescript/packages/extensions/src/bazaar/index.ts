@@ -135,5 +135,4 @@ export {
   type DiscoveryResource,
   type DiscoveryResourcesResponse,
   type SearchDiscoveryResourcesResponse,
-  type SearchMeta,
 } from "./facilitatorClient";

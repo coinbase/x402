@@ -12,7 +12,6 @@ import {
   type ListDiscoveryResourcesParams,
   type SearchDiscoveryResourcesParams,
   type SearchDiscoveryResourcesResponse,
-  type SearchMeta,
 } from "../src/bazaar/facilitatorClient";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 
@@ -36,7 +35,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
           },
         ],
         lastUpdated: "2024-01-01T00:00:00.000Z",
-        metadata: { category: "weather" },
+        extensions: { bazaar: { category: "weather" } },
       };
 
       expect(resource.resource).toBe("https://api.example.com/endpoint");
@@ -44,20 +43,20 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       expect(resource.x402Version).toBe(2);
       expect(resource.accepts).toHaveLength(1);
       expect(resource.lastUpdated).toBe("2024-01-01T00:00:00.000Z");
-      expect(resource.metadata).toEqual({ category: "weather" });
+      expect(resource.extensions).toEqual({ bazaar: { category: "weather" } });
     });
 
-    it("DiscoveryResource should allow optional metadata", () => {
+    it("DiscoveryResource should allow optional extensions", () => {
       const resource: DiscoveryResource = {
         resource: "https://api.example.com/endpoint",
         type: "http",
         x402Version: 1,
         accepts: [],
         lastUpdated: "2024-01-01T00:00:00.000Z",
-        // metadata is optional
+        // extensions is optional
       };
 
-      expect(resource.metadata).toBeUndefined();
+      expect(resource.extensions).toBeUndefined();
     });
 
     it("DiscoveryResourcesResponse should have correct shape with pagination", () => {
@@ -112,34 +111,17 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       expect(params2.cursor).toBe("abc123");
     });
 
-    it("SearchMeta should capture pagination state correctly", () => {
-      const meta: SearchMeta = {
-        query: "weather APIs",
-        paginationSupported: false,
-        paginationApplied: false,
+    it("SearchDiscoveryResourcesResponse should have correct shape", () => {
+      const response: SearchDiscoveryResourcesResponse = {
+        x402Version: 2,
+        resources: [],
         limit: 10,
         cursor: null,
       };
 
-      expect(meta.paginationSupported).toBe(false);
-      expect(meta.paginationApplied).toBe(false);
-      expect(meta.cursor).toBeNull();
-    });
-
-    it("SearchDiscoveryResourcesResponse should have correct shape", () => {
-      const response: SearchDiscoveryResourcesResponse = {
-        x402Version: 2,
-        items: [],
-        search: {
-          query: "weather APIs",
-          paginationSupported: false,
-          paginationApplied: false,
-        },
-      };
-
       expect(response.x402Version).toBe(2);
-      expect(response.search.query).toBe("weather APIs");
-      expect(response.search.paginationSupported).toBe(false);
+      expect(response.limit).toBe(10);
+      expect(response.cursor).toBeNull();
     });
   });
 
@@ -285,7 +267,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
                 },
               ],
               lastUpdated: "2024-01-01T00:00:00.000Z",
-              metadata: {},
+              extensions: {},
             },
           ],
           pagination: {
@@ -322,12 +304,8 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       it("should call correct endpoint with required query param", async () => {
         const mockResponse: SearchDiscoveryResourcesResponse = {
           x402Version: 2,
-          items: [],
-          search: {
-            query: "weather APIs",
-            paginationSupported: false,
-            paginationApplied: false,
-          },
+          resources: [],
+          limit: 10,
         };
 
         mockFetch.mockResolvedValue({
@@ -349,21 +327,16 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         expect(url).toContain("/discovery/search");
         expect(url).toContain("query=weather+APIs");
         expect(options.method).toBe("GET");
-        expect(result.search.query).toBe("weather APIs");
-        expect(result.search.paginationSupported).toBe(false);
+        expect(result.limit).toBe(10);
+        expect(result.cursor).toBeUndefined();
       });
 
       it("should include optional params when provided", async () => {
         const mockResponse: SearchDiscoveryResourcesResponse = {
           x402Version: 2,
-          items: [],
-          search: {
-            query: "financial data",
-            paginationSupported: true,
-            paginationApplied: true,
-            limit: 10,
-            cursor: "eyJwYWdlIjoyfQ==",
-          },
+          resources: [],
+          limit: 10,
+          cursor: "eyJwYWdlIjoyfQ==",
         };
 
         mockFetch.mockResolvedValue({
@@ -407,10 +380,10 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         );
       });
 
-      it("should handle paginationSupported=true response with cursor", async () => {
+      it("should handle paginated search response with cursor", async () => {
         const mockResponse: SearchDiscoveryResourcesResponse = {
           x402Version: 2,
-          items: [
+          resources: [
             {
               resource: "https://api.example.com/weather",
               type: "http",
@@ -419,13 +392,8 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
               lastUpdated: "2024-01-01T00:00:00.000Z",
             },
           ],
-          search: {
-            query: "weather",
-            paginationSupported: true,
-            paginationApplied: true,
-            limit: 10,
-            cursor: "nextPageToken",
-          },
+          limit: 10,
+          cursor: "nextPageToken",
         };
 
         mockFetch.mockResolvedValue({
@@ -440,10 +408,9 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
 
         const result = await extendedClient.extensions.bazaar.search({ query: "weather" });
 
-        expect(result.items).toHaveLength(1);
-        expect(result.search.paginationSupported).toBe(true);
-        expect(result.search.paginationApplied).toBe(true);
-        expect(result.search.cursor).toBe("nextPageToken");
+        expect(result.resources).toHaveLength(1);
+        expect(result.limit).toBe(10);
+        expect(result.cursor).toBe("nextPageToken");
       });
     });
   });
