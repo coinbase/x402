@@ -1,0 +1,2 @@
+kind: added
+body: Add 40 unit tests for go/extensions/v1 covering ExtractDiscoveryInfoV1 (GET/HEAD/DELETE/POST/PUT/PATCH methods, query/body/header extraction, discoverable flag, struct input, body type normalization), IsDiscoverableV1, and ExtractResourceMetadataV1 — raising statement coverage from 0% to 94.1%
