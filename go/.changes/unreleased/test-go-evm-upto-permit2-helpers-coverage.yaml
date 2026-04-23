@@ -1,0 +1,9 @@
+kind: added
+body: >
+  Add unit tests for asBigInt, errParse/parseError, and additional
+  BuildUptoPermit2SettleArgs cases (zero values, MaxUint256, facilitator
+  address forwarding) in go/mechanisms/evm/upto/facilitator — these
+  helpers previously had zero dedicated test coverage.
+links:
+  - name: PR
+    url: https://github.com/coinbase/x402/pull/104
