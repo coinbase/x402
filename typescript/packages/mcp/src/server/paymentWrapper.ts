@@ -49,9 +49,6 @@ export interface PaymentWrapperConfig {
     mimeType?: string;
   };
 
-  /** Extensions to include in 402 payment required responses (e.g., bazaar discovery) */
-  extensions?: Record<string, unknown>;
-
   /** Hooks for payment lifecycle events */
   hooks?: {
     /** Called after payment verification, before tool execution. Return false to abort. */
@@ -61,6 +58,27 @@ export interface PaymentWrapperConfig {
     /** Called after successful settlement */
     onAfterSettlement?: AfterSettlementHook;
   };
+
+  /**
+   * x402 extensions to include in the PaymentRequired response.
+   * Use this to attach Bazaar discovery metadata so facilitators can index the tool.
+   *
+   * @example
+   * ```typescript
+   * import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+   *
+   * resource: { url: "mcp://tool/get_weather" },
+   * extensions: declareDiscoveryExtension({
+   *   toolName: "get_weather",
+   *   description: "Get current weather for a city",
+   *   inputSchema: {
+   *     properties: { city: { type: "string" } },
+   *     required: ["city"],
+   *   },
+   * })
+   * ```
+   */
+  extensions?: Record<string, unknown>;
 }
 
 /**

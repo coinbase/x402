@@ -2539,6 +2539,92 @@ func TestExtractDiscoveredResourceFromPaymentPayload_MCP(t *testing.T) {
 		assert.Equal(t, "mcp", mcpInput.Type)
 		assert.Equal(t, "search_tool", mcpInput.ToolName)
 	})
+
+	t.Run("should extract MCP resource when method is empty", func(t *testing.T) {
+		extension := map[string]interface{}{
+			"info": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":        "mcp",
+					"method":      "",
+					"toolName":    "search_tool",
+					"inputSchema": map[string]interface{}{"type": "object"},
+				},
+			},
+			"schema": map[string]interface{}{},
+		}
+
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
+		paymentPayload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted:    requirements,
+			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/mcp",
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR.Key(): extension,
+			},
+		}
+
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, false)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "search_tool", info.ToolName)
+		assert.Empty(t, info.Method)
+	})
+
+	t.Run("should recover MCP fields when deserialized as query input", func(t *testing.T) {
+		// Missing input.type causes default QueryInput decoding in DiscoveryInfo.UnmarshalJSON.
+		// The extractor should recover MCP fields from raw payload input.
+		extension := map[string]interface{}{
+			"info": map[string]interface{}{
+				"input": map[string]interface{}{
+					"toolName":    "query_fallback_tool",
+					"transport":   "sse",
+					"inputSchema": map[string]interface{}{"type": "object"},
+				},
+			},
+			"schema": map[string]interface{}{},
+		}
+
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
+		paymentPayload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted:    requirements,
+			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/mcp",
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR.Key(): extension,
+			},
+		}
+
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, false)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "query_fallback_tool", info.ToolName)
+		assert.Empty(t, info.Method)
+
+		mcpInput, ok := info.DiscoveryInfo.Input.(bazaar.McpInput)
+		require.True(t, ok)
+		assert.Equal(t, "query_fallback_tool", mcpInput.ToolName)
+		assert.Equal(t, bazaar.TransportSSE, mcpInput.Transport)
+	})
 }
 
 func TestExtractDiscoveredResourceFromPaymentRequired_MCP(t *testing.T) {
@@ -2585,6 +2671,78 @@ func TestExtractDiscoveredResourceFromPaymentRequired_MCP(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "mcp", mcpInput.Type)
 		assert.Equal(t, "lookup_tool", mcpInput.ToolName)
+	})
+
+	t.Run("should extract MCP info from payment required when method is empty", func(t *testing.T) {
+		extension := map[string]interface{}{
+			"info": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":        "mcp",
+					"method":      "",
+					"toolName":    "lookup_tool",
+					"inputSchema": map[string]interface{}{"type": "object"},
+				},
+			},
+			"schema": map[string]interface{}{},
+		}
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/mcp",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{Scheme: "exact", Network: "eip155:8453"},
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR.Key(): extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, false)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "lookup_tool", info.ToolName)
+		assert.Empty(t, info.Method)
+	})
+
+	t.Run("should recover MCP fields in payment required when deserialized as query input", func(t *testing.T) {
+		extension := map[string]interface{}{
+			"info": map[string]interface{}{
+				"input": map[string]interface{}{
+					"toolName":    "query_fallback_lookup_tool",
+					"transport":   "streamable-http",
+					"inputSchema": map[string]interface{}{"type": "object"},
+				},
+			},
+			"schema": map[string]interface{}{},
+		}
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/mcp",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{Scheme: "exact", Network: "eip155:8453"},
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR.Key(): extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, false)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "query_fallback_lookup_tool", info.ToolName)
+		assert.Empty(t, info.Method)
+
+		mcpInput, ok := info.DiscoveryInfo.Input.(bazaar.McpInput)
+		require.True(t, ok)
+		assert.Equal(t, "query_fallback_lookup_tool", mcpInput.ToolName)
+		assert.Equal(t, bazaar.TransportStreamableHTTP, mcpInput.Transport)
 	})
 }
 
