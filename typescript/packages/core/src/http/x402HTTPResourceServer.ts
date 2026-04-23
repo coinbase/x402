@@ -530,6 +530,8 @@ export class x402HTTPResourceServer {
       const verifyResult = await this.ResourceServer.verifyPayment(
         paymentPayload,
         matchingRequirements,
+        routeConfig.extensions ?? {},
+        transportContext,
       );
 
       if (!verifyResult.isValid) {

@@ -205,9 +205,20 @@ export function createPaymentWrapper(
         );
       }
 
-      // Match the client's chosen payment method against config.accepts
-      const paymentRequirements = resourceServer.findMatchingRequirements(
+      const resourceInfoForMatch = {
+        url: createToolResourceUrl(toolName, config.resource?.url),
+        description: config.resource?.description || `Tool: ${toolName}`,
+        mimeType: config.resource?.mimeType || "application/json",
+      };
+      // Match on post-enrichment accepts (same as HTTP): extensions may change payTo etc.
+      const paymentRequiredForMatch = await resourceServer.createPaymentRequiredResponse(
         config.accepts,
+        resourceInfoForMatch,
+        undefined,
+        config.extensions,
+      );
+      const paymentRequirements = resourceServer.findMatchingRequirements(
+        paymentRequiredForMatch.accepts,
         paymentPayload,
       );
 
@@ -220,8 +231,12 @@ export function createPaymentWrapper(
         );
       }
 
-      // Verify payment
-      const verifyResult = await resourceServer.verifyPayment(paymentPayload, paymentRequirements);
+      const extMap = config.extensions ?? {};
+      const verifyResult = await resourceServer.verifyPayment(
+        paymentPayload,
+        paymentRequirements,
+        extMap,
+      );
 
       if (!verifyResult.isValid) {
         return createPaymentRequiredResult(
@@ -277,6 +292,7 @@ export function createPaymentWrapper(
         const settleResult = await resourceServer.settlePayment(
           paymentPayload,
           paymentRequirements,
+          extMap,
         );
 
         // Run onAfterSettlement hook if present

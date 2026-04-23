@@ -143,6 +143,7 @@ describe("createPaymentWrapper", () => {
       expect(mockResourceServer.verifyPayment).toHaveBeenCalledWith(
         mockPaymentPayload,
         mockPaymentRequirements,
+        {},
       );
       expect(handler).toHaveBeenCalled();
       expect(result.content).toEqual([{ type: "text", text: "success" }]);
@@ -167,6 +168,7 @@ describe("createPaymentWrapper", () => {
       expect(mockResourceServer.settlePayment).toHaveBeenCalledWith(
         mockPaymentPayload,
         mockPaymentRequirements,
+        {},
       );
     });
 
@@ -454,6 +456,7 @@ describe("createPaymentWrapper", () => {
       expect(mockResourceServer.verifyPayment).toHaveBeenCalledWith(
         mockPaymentPayload,
         mockPaymentRequirements,
+        {},
       );
     });
   });
