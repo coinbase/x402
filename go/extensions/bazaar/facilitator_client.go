@@ -85,6 +85,15 @@ type DiscoveryResourcesResponse struct {
 	Pagination Pagination `json:"pagination"`
 }
 
+// SearchPagination describes pagination details for a paginated search response.
+type SearchPagination struct {
+	// Limit is the number of results in this page.
+	Limit int `json:"limit"`
+
+	// Cursor is a continuation token for the next page; may be nil.
+	Cursor *string `json:"cursor"`
+}
+
 // SearchDiscoveryResourcesResponse is the response from searching discovery resources.
 type SearchDiscoveryResourcesResponse struct {
 	// X402Version is the x402 protocol version of this response.
@@ -96,11 +105,8 @@ type SearchDiscoveryResourcesResponse struct {
 	// PartialResults indicates additional matches were truncated by facilitator.
 	PartialResults bool `json:"partialResults,omitempty"`
 
-	// Limit is the optional limit applied by facilitator when returning this page.
-	Limit int `json:"limit,omitempty"`
-
-	// Cursor is the optional continuation token for the next page.
-	Cursor *string `json:"cursor,omitempty"`
+	// Pagination contains optional pagination details for paginated responses.
+	Pagination *SearchPagination `json:"pagination,omitempty"`
 }
 
 // BazaarFacilitatorClient wraps an HTTPFacilitatorClient with bazaar discovery

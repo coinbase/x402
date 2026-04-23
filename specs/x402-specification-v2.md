@@ -549,7 +549,7 @@ List discoverable x402 resources from the Bazaar.
 
 **8.2 GET /discovery/search**
 
-Search discoverable x402 resources using a natural-language query. Response shape is CDP-style: top-level fields (no nested `search` object). Pagination is optional: servers may ignore `limit` and `cursor`, or include top-level `limit` and `cursor` in the response when returning paginated results.
+Search discoverable x402 resources using a natural-language query. Response shape mirrors the list endpoint: `resources` array with optional `pagination` object. Pagination is optional: servers may ignore `limit` and `cursor`, or include a `pagination` object in the response when returning paginated results.
 
 **Request Parameters:**
 
@@ -581,20 +581,24 @@ Search discoverable x402 resources using a natural-language query. Response shap
     }
   ],
   "partialResults": false,
-  "limit": 10,
-  "cursor": null
+  "pagination": {
+    "limit": 10,
+    "cursor": null
+  }
 }
 ```
 
-When paginated results are returned, include continuation details in top-level `limit` and `cursor`:
+When paginated results are returned, include a `pagination` object matching the list endpoint's shape:
 
 ```json
 {
   "x402Version": 2,
   "resources": [...],
   "partialResults": true,
-  "limit": 10,
-  "cursor": "eyJwYWdlIjoyfQ=="
+  "pagination": {
+    "limit": 10,
+    "cursor": "eyJwYWdlIjoyfQ=="
+  }
 }
 ```
 
@@ -603,8 +607,9 @@ When paginated results are returned, include continuation details in top-level `
 | Field Name                    | Type      | Required | Description                                                              |
 | ----------------------------- | --------- | -------- | ------------------------------------------------------------------------ |
 | `partialResults`              | `boolean` | Optional | `true` if additional matches were truncated by the facilitator            |
-| `limit`                       | `number`  | Optional | Number of results in this page                                           |
-| `cursor`                      | `string`  | Optional | Continuation cursor for the next page; may be `null`                     |
+| `pagination`                  | `object`  | Optional | Pagination details; present only when a paginated response is returned    |
+| `pagination.limit`            | `number`  | Required | Number of results in this page                                           |
+| `pagination.cursor`           | `string`  | Required | Continuation cursor for the next page; may be `null`                     |
 
 **8.3 Discovered Resource Fields**
 

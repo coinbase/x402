@@ -264,9 +264,9 @@ You can also search for services using a natural-language query. Pagination is f
       type: "http",
     });
 
-    // Some facilitators return top-level limit/cursor when pagination is used
-    if (results.cursor) {
-      console.log("Next page cursor:", results.cursor);
+    // Some facilitators return a pagination object like the list endpoint
+    if (results.pagination) {
+      console.log("Next page cursor:", results.pagination.cursor);
     }
 
     console.log(`Found ${results.resources.length} services`);
@@ -284,8 +284,8 @@ You can also search for services using a natural-language query. Pagination is f
     }
 
     fmt.Printf("Found %d services\n", len(results.Resources))
-    if results.Cursor != nil {
-        fmt.Println("Next cursor:", results.Cursor)
+    if results.Pagination != nil {
+        fmt.Println("Next cursor:", results.Pagination.Cursor)
     }
     ```
 
@@ -299,8 +299,8 @@ You can also search for services using a natural-language query. Pagination is f
     )
 
     print(f"Found {len(results.resources)} services")
-    if results.cursor is not None:
-        print(f"Next cursor: {results.cursor}")
+    if results.pagination is not None:
+        print(f"Next cursor: {results.pagination.cursor}")
     ```
 
   </Tab>

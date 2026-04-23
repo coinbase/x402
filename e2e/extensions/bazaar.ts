@@ -45,9 +45,8 @@ interface DiscoverySearchResponse {
     type: string;
     [key: string]: unknown;
   }>;
-  limit?: number;
-  cursor?: string | null;
   partialResults?: boolean;
+  pagination?: { limit: number; cursor: string | null } | null;
 }
 
 /**
@@ -189,21 +188,13 @@ async function validateSearchEndpoint(
     if (!Array.isArray(data.resources)) {
       return { valid: false, error: "search response missing resources array" };
     }
-    if (data.limit !== undefined && typeof data.limit !== "number") {
-      return {
-        valid: false,
-        error: "limit must be number when present",
-      };
-    }
     if (
-      data.cursor !== undefined &&
-      data.cursor !== null &&
-      typeof data.cursor !== "string"
+      data.pagination !== undefined &&
+      data.pagination !== null &&
+      (typeof data.pagination !== "object" ||
+        typeof data.pagination.limit !== "number")
     ) {
-      return {
-        valid: false,
-        error: "cursor must be string|null when present",
-      };
+      return { valid: false, error: "pagination.limit must be number when present" };
     }
     if (
       data.partialResults !== undefined &&

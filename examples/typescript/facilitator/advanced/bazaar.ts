@@ -386,6 +386,7 @@ app.get("/discovery/search", async (req, res) => {
       x402Version: 2,
       resources: items,
       partialResults: false,
+      pagination: null,
     });
   } catch (error) {
     console.error("Discovery search error:", error);

@@ -94,6 +94,17 @@ class DiscoveryResourcesResponse:
 
 
 @dataclass
+class SearchPagination:
+    """Pagination details for a paginated search response."""
+
+    limit: int
+    """Number of results in this page."""
+
+    cursor: str | None
+    """Continuation cursor for the next page; may be None."""
+
+
+@dataclass
 class SearchDiscoveryResourcesResponse:
     """Response from searching discovery resources."""
 
@@ -103,14 +114,11 @@ class SearchDiscoveryResourcesResponse:
     resources: list[DiscoveryResource]
     """The list of matching discovered resources."""
 
-    limit: int | None = None
-    """Optional limit applied by facilitator when returning this page."""
-
-    cursor: str | None = None
-    """Optional continuation cursor for the next page."""
-
     partial_results: bool | None = None
     """Whether additional matches were truncated by the facilitator."""
+
+    pagination: SearchPagination | None = None
+    """Optional pagination details for paginated responses."""
 
 
 class BazaarExtension:
@@ -376,10 +384,19 @@ def _parse_search_response(
             )
         )
 
+    raw_pagination = data.get("pagination")
+    pagination = (
+        SearchPagination(
+            limit=raw_pagination.get("limit", 0),
+            cursor=raw_pagination.get("cursor"),
+        )
+        if raw_pagination is not None
+        else None
+    )
+
     return SearchDiscoveryResourcesResponse(
         x402_version=data.get("x402Version", 0),
         resources=items,
-        limit=data.get("limit"),
-        cursor=data.get("cursor"),
         partial_results=data.get("partialResults"),
+        pagination=pagination,
     )

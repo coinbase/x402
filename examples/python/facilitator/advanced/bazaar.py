@@ -344,6 +344,7 @@ async def discovery_search(query: str, type: str | None = None, limit: int | Non
             "x402Version": 2,
             "resources": [r.model_dump(by_alias=True) for r in results],
             "partialResults": False,
+            "pagination": None,
         }
     except Exception as e:
         print(f"Discovery search error: {e}")

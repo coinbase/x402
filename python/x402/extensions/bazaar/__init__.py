@@ -68,6 +68,7 @@ from .facilitator_client import (
     Pagination,
     SearchDiscoveryResourcesParams,
     SearchDiscoveryResourcesResponse,
+    SearchPagination,
     with_bazaar,
 )
 from .resource_service import (
@@ -139,6 +140,7 @@ __all__ = [
     "DiscoveryResourcesResponse",
     "Pagination",
     "SearchDiscoveryResourcesResponse",
+    "SearchPagination",
     "BazaarClientExtension",
     "BazaarExtension",
     "BazaarExtendedClient",

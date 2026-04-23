@@ -506,8 +506,7 @@ func TestSearchDiscoveryResources_Success(t *testing.T) {
 				LastUpdated: "2026-03-01T00:00:00Z",
 			},
 		},
-		Limit:  10,
-		Cursor: &cursor,
+		Pagination: &SearchPagination{Limit: 10, Cursor: &cursor},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -547,11 +546,14 @@ func TestSearchDiscoveryResources_Success(t *testing.T) {
 	if result.Resources[0].Resource != "https://api.example.com/weather" {
 		t.Errorf("Expected resource https://api.example.com/weather, got %s", result.Resources[0].Resource)
 	}
-	if result.Limit != 10 {
-		t.Errorf("Expected limit 10, got %d", result.Limit)
+	if result.Pagination == nil {
+		t.Fatal("Expected pagination to be present")
 	}
-	if result.Cursor == nil || *result.Cursor != cursor {
-		t.Errorf("Expected cursor %q, got %v", cursor, result.Cursor)
+	if result.Pagination.Limit != 10 {
+		t.Errorf("Expected pagination.limit 10, got %d", result.Pagination.Limit)
+	}
+	if result.Pagination.Cursor == nil || *result.Pagination.Cursor != cursor {
+		t.Errorf("Expected pagination.cursor %q, got %v", cursor, result.Pagination.Cursor)
 	}
 }
 
@@ -580,11 +582,8 @@ func TestSearchDiscoveryResources_NoPagination(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if result.Limit != 0 {
-		t.Errorf("Expected zero limit, got %d", result.Limit)
-	}
-	if result.Cursor != nil {
-		t.Errorf("Expected nil cursor, got %v", result.Cursor)
+	if result.Pagination != nil {
+		t.Errorf("Expected nil pagination, got %v", result.Pagination)
 	}
 }
 

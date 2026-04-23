@@ -225,6 +225,7 @@ func runBazaarExample(evmPrivateKey, svmPrivateKey string) error {
 			"x402Version":    2,
 			"resources":      items,
 			"partialResults": false,
+			"pagination":     nil,
 		})
 	})
 

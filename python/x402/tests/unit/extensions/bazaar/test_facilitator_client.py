@@ -71,8 +71,8 @@ SEARCH_RESPONSE_FIXTURE = {
             "lastUpdated": "2026-01-01T00:00:00Z",
         }
     ],
-    "limit": 10,
     "partialResults": False,
+    "pagination": {"limit": 10, "cursor": None},
 }
 
 
@@ -144,39 +144,39 @@ class TestParseSearchResponse:
         assert result.x402_version == 2
         assert len(result.resources) == 1
         assert result.resources[0].resource == "https://api.example.com/weather"
-        assert result.limit == 10
-        assert result.cursor is None
         assert result.partial_results is False
+        assert result.pagination is not None
+        assert result.pagination.limit == 10
+        assert result.pagination.cursor is None
 
-    def test_parses_top_level_limit_and_cursor(self) -> None:
+    def test_parses_pagination_object_with_cursor(self) -> None:
         data = {
             "x402Version": 2,
             "resources": [],
-            "limit": 10,
-            "cursor": "eyJwYWdlIjoyfQ==",
+            "pagination": {"limit": 10, "cursor": "eyJwYWdlIjoyfQ=="},
         }
         result = _parse_search_response(data)
 
-        assert result.limit == 10
-        assert result.cursor == "eyJwYWdlIjoyfQ=="
+        assert result.pagination is not None
+        assert result.pagination.limit == 10
+        assert result.pagination.cursor == "eyJwYWdlIjoyfQ=="
 
-    def test_handles_null_cursor(self) -> None:
+    def test_handles_null_cursor_in_pagination(self) -> None:
         data = {
             "x402Version": 2,
             "resources": [],
-            "limit": 5,
-            "cursor": None,
+            "pagination": {"limit": 5, "cursor": None},
         }
         result = _parse_search_response(data)
 
-        assert result.cursor is None
+        assert result.pagination is not None
+        assert result.pagination.cursor is None
 
-    def test_handles_missing_search_meta(self) -> None:
+    def test_handles_missing_pagination(self) -> None:
         data = {"x402Version": 2, "resources": []}
         result = _parse_search_response(data)
 
-        assert result.limit is None
-        assert result.cursor is None
+        assert result.pagination is None
 
 
 # ---------------------------------------------------------------------------
@@ -402,8 +402,9 @@ class TestSearch:
         assert isinstance(result, SearchDiscoveryResourcesResponse)
         assert len(result.resources) == 1
         assert result.resources[0].resource == "https://api.example.com/weather"
-        assert result.limit == 10
-        assert result.cursor is None
+        assert result.pagination is not None
+        assert result.pagination.limit == 10
+        assert result.pagination.cursor is None
 
     def test_raises_on_empty_query(self) -> None:
         client = _make_client()
@@ -459,13 +460,12 @@ class TestSearch:
         call_kwargs = http_client.get.call_args[1]
         assert "cursor" not in call_kwargs["params"]
 
-    def test_returns_top_level_cursor_when_present(self) -> None:
+    def test_returns_pagination_object_with_cursor(self) -> None:
         cursor = "eyJwYWdlIjoyfQ=="
         data = {
             "x402Version": 2,
             "resources": [],
-            "limit": 10,
-            "cursor": cursor,
+            "pagination": {"limit": 10, "cursor": cursor},
         }
         response = _make_http_response(200, data)
         extended = self._make_extended(response)
@@ -474,5 +474,6 @@ class TestSearch:
             SearchDiscoveryResourcesParams(query="financial")
         )
 
-        assert result.limit == 10
-        assert result.cursor == cursor
+        assert result.pagination is not None
+        assert result.pagination.limit == 10
+        assert result.pagination.cursor == cursor

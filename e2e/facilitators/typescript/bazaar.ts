@@ -85,6 +85,7 @@ export class BazaarCatalog {
       x402Version: 2,
       resources: items,
       partialResults: false,
+      pagination: null,
     };
   }
 

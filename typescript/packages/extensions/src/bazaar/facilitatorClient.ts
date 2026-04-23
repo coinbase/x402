@@ -99,10 +99,13 @@ export interface SearchDiscoveryResourcesResponse {
   resources: DiscoveryResource[];
   /** Whether additional matches were truncated by facilitator */
   partialResults?: boolean;
-  /** Optional limit applied by facilitator when returning this page */
-  limit?: number;
-  /** Optional continuation cursor for the next page */
-  cursor?: string | null;
+  /** Optional pagination details when a paginated response is returned */
+  pagination?: {
+    /** Number of results in this page */
+    limit: number;
+    /** Continuation cursor for the next page; may be null */
+    cursor: string | null;
+  };
 }
 
 /**

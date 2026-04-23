@@ -115,13 +115,12 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       const response: SearchDiscoveryResourcesResponse = {
         x402Version: 2,
         resources: [],
-        limit: 10,
-        cursor: null,
+        pagination: { limit: 10, cursor: null },
       };
 
       expect(response.x402Version).toBe(2);
-      expect(response.limit).toBe(10);
-      expect(response.cursor).toBeNull();
+      expect(response.pagination?.limit).toBe(10);
+      expect(response.pagination?.cursor).toBeNull();
     });
   });
 
@@ -305,7 +304,6 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         const mockResponse: SearchDiscoveryResourcesResponse = {
           x402Version: 2,
           resources: [],
-          limit: 10,
         };
 
         mockFetch.mockResolvedValue({
@@ -327,16 +325,14 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         expect(url).toContain("/discovery/search");
         expect(url).toContain("query=weather+APIs");
         expect(options.method).toBe("GET");
-        expect(result.limit).toBe(10);
-        expect(result.cursor).toBeUndefined();
+        expect(result.pagination).toBeUndefined();
       });
 
       it("should include optional params when provided", async () => {
         const mockResponse: SearchDiscoveryResourcesResponse = {
           x402Version: 2,
           resources: [],
-          limit: 10,
-          cursor: "eyJwYWdlIjoyfQ==",
+          pagination: { limit: 10, cursor: "eyJwYWdlIjoyfQ==" },
         };
 
         mockFetch.mockResolvedValue({
@@ -392,8 +388,7 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
               lastUpdated: "2024-01-01T00:00:00.000Z",
             },
           ],
-          limit: 10,
-          cursor: "nextPageToken",
+          pagination: { limit: 10, cursor: "nextPageToken" },
         };
 
         mockFetch.mockResolvedValue({
@@ -409,8 +404,8 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         const result = await extendedClient.extensions.bazaar.search({ query: "weather" });
 
         expect(result.resources).toHaveLength(1);
-        expect(result.limit).toBe(10);
-        expect(result.cursor).toBe("nextPageToken");
+        expect(result.pagination?.limit).toBe(10);
+        expect(result.pagination?.cursor).toBe("nextPageToken");
       });
     });
   });

@@ -147,6 +147,7 @@ class BazaarCatalog:
             "x402Version": 2,
             "resources": [r.to_dict() for r in items],
             "partialResults": False,
+            "pagination": None,
         }
 
     def get_count(self) -> int:
