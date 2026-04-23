@@ -37,9 +37,7 @@ def _make_client(url: str = "https://facilitator.example.com") -> MagicMock:
     return client
 
 
-def _make_http_response(
-    status_code: int = 200, json_data: dict | None = None
-) -> MagicMock:
+def _make_http_response(status_code: int = 200, json_data: dict | None = None) -> MagicMock:
     """Create a mock HTTP response."""
     response = MagicMock()
     response.status_code = status_code
@@ -263,9 +261,7 @@ class TestListResources:
         response = _make_http_response(200, LIST_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.list_resources(
-            ListDiscoveryResourcesParams(type="http")
-        )
+        extended.extensions.bazaar.list_resources(ListDiscoveryResourcesParams(type="http"))
 
         http_client = extended._client._get_client()
         call_kwargs = http_client.get.call_args[1]
@@ -275,9 +271,7 @@ class TestListResources:
         response = _make_http_response(200, LIST_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.list_resources(
-            ListDiscoveryResourcesParams(limit=10, offset=5)
-        )
+        extended.extensions.bazaar.list_resources(ListDiscoveryResourcesParams(limit=10, offset=5))
 
         http_client = extended._client._get_client()
         call_kwargs = http_client.get.call_args[1]
@@ -372,9 +366,7 @@ class TestSearch:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.search(
-            SearchDiscoveryResourcesParams(query="weather")
-        )
+        extended.extensions.bazaar.search(SearchDiscoveryResourcesParams(query="weather"))
 
         http_client = extended._client._get_client()
         call_args = http_client.get.call_args
@@ -384,9 +376,7 @@ class TestSearch:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.search(
-            SearchDiscoveryResourcesParams(query="weather APIs")
-        )
+        extended.extensions.bazaar.search(SearchDiscoveryResourcesParams(query="weather APIs"))
 
         http_client = extended._client._get_client()
         call_kwargs = http_client.get.call_args[1]
@@ -444,12 +434,8 @@ class TestSearch:
         response.text = "search failed"
         extended = self._make_extended(response)
 
-        with pytest.raises(
-            ValueError, match="searchDiscoveryResources failed \\(500\\)"
-        ):
-            extended.extensions.bazaar.search(
-                SearchDiscoveryResourcesParams(query="test")
-            )
+        with pytest.raises(ValueError, match="searchDiscoveryResources failed \\(500\\)"):
+            extended.extensions.bazaar.search(SearchDiscoveryResourcesParams(query="test"))
 
     def test_sends_bazaar_auth_headers(self) -> None:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
@@ -474,9 +460,7 @@ class TestSearch:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.search(
-            SearchDiscoveryResourcesParams(query="weather")
-        )
+        extended.extensions.bazaar.search(SearchDiscoveryResourcesParams(query="weather"))
 
         http_client = extended._client._get_client()
         call_kwargs = http_client.get.call_args[1]
@@ -486,9 +470,7 @@ class TestSearch:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
 
-        extended.extensions.bazaar.search(
-            SearchDiscoveryResourcesParams(query="weather")
-        )
+        extended.extensions.bazaar.search(SearchDiscoveryResourcesParams(query="weather"))
 
         http_client = extended._client._get_client()
         call_kwargs = http_client.get.call_args[1]
