@@ -17,7 +17,6 @@ import {
   Network,
   ResourceServerExtension,
   ResourceServerExtensionHooks,
-  VerifyError,
 } from "../types";
 import type { DeepReadonly } from "../types/readonly";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
@@ -359,7 +358,12 @@ export class x402ResourceServer {
       const extension = this.registeredExtensions.get(key);
 
       if (extension?.enrichDeclaration) {
-        enriched[key] = extension.enrichDeclaration(declaration, transportContext);
+        try {
+          enriched[key] = extension.enrichDeclaration(declaration, transportContext);
+        } catch (error) {
+          this.warnExtensionHookFailure(key, "enrichDeclaration", error);
+          enriched[key] = declaration;
+        }
       } else {
         enriched[key] = declaration;
       }
@@ -739,10 +743,7 @@ export class x402ResourceServer {
               response.extensions[key] = extensionData;
             }
           } catch (error) {
-            console.error(
-              `Error in enrichPaymentRequiredResponse hook for extension ${key}:`,
-              error,
-            );
+            this.warnExtensionHookFailure(key, "enrichPaymentRequiredResponse", error);
           }
           assertAcceptsAllowlistedAfterExtensionEnrich(baselineAccepts, acceptsClone, key);
           baselineAccepts = snapshotPaymentRequirementsList(acceptsClone);
@@ -778,7 +779,7 @@ export class x402ResourceServer {
       transportContext,
     };
 
-    for (const hook of this.getHooks("beforeVerify", extensionKeysInUse)) {
+    for (const { label, hook } of this.getLabeledHooks("beforeVerify", extensionKeysInUse)) {
       try {
         const result = await hook(context);
         if (result && "abort" in result && result.abort) {
@@ -789,11 +790,7 @@ export class x402ResourceServer {
           };
         }
       } catch (error) {
-        throw new VerifyError(400, {
-          isValid: false,
-          invalidReason: "before_verify_hook_error",
-          invalidMessage: error instanceof Error ? error.message : "",
-        });
+        this.warnResourceServerHookFailure("beforeVerify", label, error);
       }
     }
 
@@ -839,8 +836,12 @@ export class x402ResourceServer {
         result: verifyResult,
       };
 
-      for (const hook of this.getHooks("afterVerify", extensionKeysInUse)) {
-        await hook(resultContext);
+      for (const { label, hook } of this.getLabeledHooks("afterVerify", extensionKeysInUse)) {
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          this.warnResourceServerHookFailure("afterVerify", label, error);
+        }
       }
 
       return verifyResult;
@@ -850,10 +851,14 @@ export class x402ResourceServer {
         error: error as Error,
       };
 
-      for (const hook of this.getHooks("onVerifyFailure", extensionKeysInUse)) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+      for (const { label, hook } of this.getLabeledHooks("onVerifyFailure", extensionKeysInUse)) {
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (error) {
+          this.warnResourceServerHookFailure("onVerifyFailure", label, error);
         }
       }
 
@@ -904,7 +909,7 @@ export class x402ResourceServer {
       transportContext,
     };
 
-    for (const hook of this.getHooks("beforeSettle", extensionKeysInUse)) {
+    for (const { label, hook } of this.getLabeledHooks("beforeSettle", extensionKeysInUse)) {
       try {
         const result = await hook(context);
         if (result && "abort" in result && result.abort) {
@@ -920,13 +925,7 @@ export class x402ResourceServer {
         if (error instanceof SettleError) {
           throw error;
         }
-        throw new SettleError(400, {
-          success: false,
-          errorReason: "before_settle_hook_error",
-          errorMessage: error instanceof Error ? error.message : "",
-          transaction: "",
-          network: requirements.network,
-        });
+        this.warnResourceServerHookFailure("beforeSettle", label, error);
       }
     }
 
@@ -972,8 +971,12 @@ export class x402ResourceServer {
         result: settleResult,
       };
 
-      for (const hook of this.getHooks("afterSettle", extensionKeysInUse)) {
-        await hook(resultContext);
+      for (const { label, hook } of this.getLabeledHooks("afterSettle", extensionKeysInUse)) {
+        try {
+          await hook(resultContext);
+        } catch (error) {
+          this.warnResourceServerHookFailure("afterSettle", label, error);
+        }
       }
 
       // Let declared extensions add data to settlement response
@@ -994,7 +997,7 @@ export class x402ResourceServer {
                 settleResult.extensions[key] = extensionData;
               }
             } catch (error) {
-              console.error(`Error in enrichSettlementResponse hook for extension ${key}:`, error);
+              this.warnExtensionHookFailure(key, "enrichSettlementResponse", error);
             }
             assertSettleResponseCoreUnchanged(settleCoreSnapshot, settleResult, key);
           }
@@ -1008,10 +1011,14 @@ export class x402ResourceServer {
         error: error as Error,
       };
 
-      for (const hook of this.getHooks("onSettleFailure", extensionKeysInUse)) {
-        const result = await hook(failureContext);
-        if (result && "recovered" in result && result.recovered) {
-          return result.result;
+      for (const { label, hook } of this.getLabeledHooks("onSettleFailure", extensionKeysInUse)) {
+        try {
+          const result = await hook(failureContext);
+          if (result && "recovered" in result && result.recovered) {
+            return result.result;
+          }
+        } catch (error) {
+          this.warnResourceServerHookFailure("onSettleFailure", label, error);
         }
       }
 
@@ -1136,55 +1143,54 @@ export class x402ResourceServer {
     };
   }
 
+  private warnResourceServerHookFailure(
+    phase: ResourceServerHookPhase,
+    label: string,
+    error: unknown,
+  ): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[x402] Resource server ${phase} hook threw (${label}): ${detail}`);
+  }
+
+  private warnExtensionHookFailure(extensionKey: string, hookName: string, error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[x402] extension "${extensionKey}" ${hookName} threw: ${detail}`);
+  }
+
   /**
-   * Manual hooks first, then every registered extension adapter for the phase.
-   *
-   * @param phase - Hook slot (e.g. `beforeVerify`)
-   * @returns Ordered hooks: manual entries, then all extension adapters
-   */
-  private getHooks<P extends ResourceServerHookPhase>(
-    phase: P,
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
-  /**
-   * Manual hooks first, then extension adapters only for keys in `extensionKeysInUse`.
+   * Manual hooks first, then extension adapters for keys in `extensionKeysInUse`.
+   * Each entry carries a stable label for logging when a hook throws.
    *
    * @param phase - Hook slot (e.g. `beforeVerify`)
    * @param extensionKeysInUse - Declared extension keys for this request
-   * @returns Ordered hooks: manual entries, then matching extension adapters
+   * @returns Hooks in invocation order with source labels
    */
-  private getHooks<P extends ResourceServerHookPhase>(
+  private getLabeledHooks<P extends ResourceServerHookPhase>(
     phase: P,
     extensionKeysInUse: readonly string[],
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
-  /**
-   * Resolves manual plus extension adapter hooks for a lifecycle phase.
-   *
-   * @param phase - Hook slot (e.g. `beforeVerify`)
-   * @param extensionKeysInUse - When set, only adapters for these extension keys are included
-   * @returns Hook functions in invocation order
-   */
-  private getHooks<P extends ResourceServerHookPhase>(
-    phase: P,
-    extensionKeysInUse?: readonly string[],
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>> {
+  ): Array<{
+    label: string;
+    hook: NonNullable<ExtensionAdapterHandles[P]>;
+  }> {
     type HookFn = NonNullable<ExtensionAdapterHandles[P]>;
     const manualKey = `${phase}Hooks` as ResourceServerManualHookArrayKey;
     const manual = (this as Record<ResourceServerManualHookArrayKey, HookFn[]>)[manualKey];
 
-    let fromExtensionAdapters: HookFn[];
-    if (extensionKeysInUse !== undefined) {
-      const inUse = new Set(extensionKeysInUse);
-      fromExtensionAdapters = [...this.extensionHookAdapters.entries()]
-        .filter(([extensionKey]) => inUse.has(extensionKey))
-        .map(([, adapterHandles]) => adapterHandles[phase])
-        .filter((hook): hook is HookFn => hook !== undefined);
-    } else {
-      fromExtensionAdapters = [...this.extensionHookAdapters.values()]
-        .map(adapterHandles => adapterHandles[phase])
-        .filter((hook): hook is HookFn => hook !== undefined);
+    const out: Array<{ label: string; hook: HookFn }> = [];
+    manual.forEach((hook, index) => {
+      out.push({ label: `manual ${phase} hook #${index}`, hook });
+    });
+
+    const inUse = new Set(extensionKeysInUse);
+    for (const [extensionKey, adapterHandles] of this.extensionHookAdapters.entries()) {
+      if (!inUse.has(extensionKey)) continue;
+      const hook = adapterHandles[phase];
+      if (hook !== undefined) {
+        out.push({ label: `extension "${extensionKey}" ${phase}`, hook });
+      }
     }
 
-    return [...manual, ...fromExtensionAdapters];
+    return out;
   }
 
   /**

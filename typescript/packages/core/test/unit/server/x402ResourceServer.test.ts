@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   x402ResourceServer,
   resolveSettlementOverrideAmount,
@@ -490,6 +490,25 @@ describe("x402ResourceServer", () => {
 
         expect(executionOrder).toEqual([1, 2]); // Third hook not executed
       });
+
+      it("should warn and continue verification when a beforeVerify hook throws", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        server.onBeforeVerify(async () => {
+          throw new Error("Hook boom");
+        });
+
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+
+        expect(mockClient.verifyCalls.length).toBe(1);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /\[x402\] Resource server beforeVerify hook threw \(manual beforeVerify hook #0\): Hook boom/,
+          ),
+        );
+
+        warnSpy.mockRestore();
+      });
     });
 
     describe("onAfterVerify", () => {
@@ -528,6 +547,31 @@ describe("x402ResourceServer", () => {
         await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2, 3]);
+      });
+
+      it("should warn and run later afterVerify hooks when an earlier hook throws", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const executionOrder: number[] = [];
+
+        server
+          .onAfterVerify(async () => {
+            executionOrder.push(1);
+            throw new Error("after fail");
+          })
+          .onAfterVerify(async () => {
+            executionOrder.push(2);
+          });
+
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+
+        expect(executionOrder).toEqual([1, 2]);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /\[x402\] Resource server afterVerify hook threw \(manual afterVerify hook #0\): after fail/,
+          ),
+        );
+
+        warnSpy.mockRestore();
       });
 
       it("should not execute afterVerify if verification aborted", async () => {
@@ -610,6 +654,36 @@ describe("x402ResourceServer", () => {
         expect(executionOrder).toEqual([1, 2]); // Stops after recovery
       });
 
+      it("should warn and continue onVerifyFailure hooks when a hook throws", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const executionOrder: number[] = [];
+
+        mockClient.setVerifyResponse(new Error("Failure"));
+
+        server
+          .onVerifyFailure(async () => {
+            executionOrder.push(1);
+            throw new Error("failure-hook boom");
+          })
+          .onVerifyFailure(async () => {
+            executionOrder.push(2);
+            return { recovered: true, result: { isValid: true, payer: "0xok" } };
+          });
+
+        const result = await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+
+        expect(result.isValid).toBe(true);
+        expect(result.payer).toBe("0xok");
+        expect(executionOrder).toEqual([1, 2]);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /\[x402\] Resource server onVerifyFailure hook threw \(manual onVerifyFailure hook #0\): failure-hook boom/,
+          ),
+        );
+
+        warnSpy.mockRestore();
+      });
+
       it("should re-throw if no recovery", async () => {
         mockClient.setVerifyResponse(new Error("Fatal error"));
 
@@ -665,19 +739,24 @@ describe("x402ResourceServer", () => {
         }
       });
 
-      it("should wrap unexpected hook errors as before_settle_hook_error", async () => {
+      it("should warn and continue settlement when a beforeSettle hook throws", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
         server.onBeforeSettle(async () => {
           throw new Error("Unexpected failure");
         });
 
-        try {
-          await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
-          expect.unreachable("Should have thrown");
-        } catch (error: any) {
-          expect(error.name).toBe("SettleError");
-          expect(error.errorReason).toBe("before_settle_hook_error");
-          expect(error.errorMessage).toBe("Unexpected failure");
-        }
+        const result = await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+
+        expect(result.success).toBe(true);
+        expect(mockClient.settleCalls.length).toBe(1);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /\[x402\] Resource server beforeSettle hook threw \(manual beforeSettle hook #0\): Unexpected failure/,
+          ),
+        );
+
+        warnSpy.mockRestore();
       });
 
       it("should execute multiple hooks in order", async () => {
