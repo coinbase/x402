@@ -1,0 +1,3 @@
+kind: added
+body: Add unit tests for UptoEvmScheme covering NewUptoEvmScheme, Scheme, GetAssetDecimals, RegisterMoneyParser, ParsePrice (map/scalar/custom-parser paths), ValidatePaymentRequirements, and defaultMoneyConversion
+time: 2026-04-23T06:20:00Z
