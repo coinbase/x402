@@ -11,9 +11,9 @@ The x402 Bazaar is in early development. While our vision is to build the "Googl
 
 The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**. Without it, x402-compatible endpoints and MCP tools are like hidden stalls in a vast market. The Bazaar provides:
 
-- **For Buyers (API Consumers)**: Programmatically discover available x402-enabled services (HTTP endpoints and MCP tools), understand their capabilities, pricing, and schemas
-- **For Sellers (API Providers)**: Automatic visibility for your x402-enabled services to a global audience of developers and AI agents
-- **For AI Agents**: Dynamic service discovery without pre-baked integrations - query, find, pay, and use
+* **For Buyers (API Consumers)**: Programmatically discover available x402-enabled services (HTTP endpoints and MCP tools), understand their capabilities, pricing, and schemas
+* **For Sellers (API Providers)**: Automatic visibility for your x402-enabled services to a global audience of developers and AI agents
+* **For AI Agents**: Dynamic service discovery without pre-baked integrations - query, find, pay, and use
 
 ### How It Works
 
@@ -29,18 +29,18 @@ After processing a payment that includes the `bazaar` extension, facilitators **
 
 **Header value:** A base64-encoded JSON object keyed by extension name. The `bazaar` key contains the bazaar extension's response:
 
-| Field                   | Type   | Required | Description                                                            |
-| ----------------------- | ------ | -------- | ---------------------------------------------------------------------- |
-| `bazaar.status`         | string | Yes      | One of `"success"`, `"processing"`, or `"rejected"`                    |
-| `bazaar.rejectedReason` | string | No       | Human-readable explanation. Only present when `status` is `"rejected"` |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `bazaar.status` | string | Yes | One of `"success"`, `"processing"`, or `"rejected"` |
+| `bazaar.rejectedReason` | string | No | Human-readable explanation. Only present when `status` is `"rejected"` |
 
 **Status values:**
 
-| Value          | Meaning                                                                                            |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| `"success"`    | The discovery info was validated and successfully cataloged                                        |
-| `"processing"` | The discovery info was accepted and is being cataloged asynchronously                              |
-| `"rejected"`   | The discovery info was rejected (e.g., failed schema validation). See `rejectedReason` for details |
+| Value | Meaning |
+|-------|---------|
+| `"success"` | The discovery info was validated and successfully cataloged |
+| `"processing"` | The discovery info was accepted and is being cataloged asynchronously |
+| `"rejected"` | The discovery info was rejected (e.g., failed schema validation). See `rejectedReason` for details |
 
 **Example (success):**
 
@@ -48,7 +48,7 @@ After processing a payment that includes the `bazaar` extension, facilitators **
 EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoic3VjY2VzcyJ9fQ==
 ```
 
-_(base64 of `{"bazaar":{"status":"success"}}`)_
+*(base64 of `{"bazaar":{"status":"success"}}`)*
 
 **Example (rejected):**
 
@@ -56,7 +56,7 @@ _(base64 of `{"bazaar":{"status":"success"}}`)_
 EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoicmVqZWN0ZWQiLCJyZWplY3RlZFJlYXNvbiI6ImluZm8gZmFpbGVkIHNjaGVtYSB2YWxpZGF0aW9uIn19
 ```
 
-_(base64 of `{"bazaar":{"status":"rejected","rejectedReason":"info failed schema validation"}}`)_
+*(base64 of `{"bazaar":{"status":"rejected","rejectedReason":"info failed schema validation"}}`)*
 
 Clients that understand the `bazaar` extension should read the `bazaar` key of this header to confirm cataloging succeeded and surface any rejection reason for debugging.
 
@@ -74,16 +74,15 @@ Clients that understand the `bazaar` extension should read the `bazaar` key of t
 Retrieve all available x402-compatible endpoints and MCP tools:
 
 ##### Coinbase
-
 ```bash
 GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
 ```
 
 ##### PayAI
-
 ```bash
 GET https://facilitator.payai.network/discovery/resources
 ```
+
 
 **Note**: The recommended way to use this endpoint is to use the `useFacilitator` hook as described below.
 
@@ -128,12 +127,10 @@ Each resource in the list contains the following fields:
 **Resource Types**
 
 The `type` field indicates the resource type:
-
 - `"http"` - HTTP endpoints (GET, POST, PUT, PATCH, DELETE, HEAD)
 - `"mcp"` - MCP (Model Context Protocol) tools
 
 For MCP tools, the `outputSchema.input` object will contain:
-
 - `type: "mcp"` - Identifies this as an MCP tool
 - `toolName` - The MCP tool name (used in `tools/call` requests)
 - `inputSchema` - JSON Schema for the tool's arguments (follows MCP `Tool.inputSchema` format)
@@ -174,7 +171,6 @@ Fetch the list of available x402 services using the facilitator client:
       )
     );
     ```
-
   </Tab>
   <Tab title="Go">
     ```go
@@ -224,7 +220,6 @@ Fetch the list of available x402 services using the facilitator client:
         }
     }
     ```
-
   </Tab>
   <Tab title="Python">
     ```python
@@ -352,7 +347,6 @@ Once you've found a suitable service, use an x402 client to call it:
 
     console.log("Response data:", response.data);
     ```
-
   </Tab>
   <Tab title="Python">
     ```python
@@ -391,7 +385,6 @@ Once you've found a suitable service, use an x402 client to call it:
 
     asyncio.run(main())
     ```
-
   </Tab>
 </Tabs>
 
@@ -431,7 +424,6 @@ For discovered MCP tools, use the x402 MCP client to call the tool after paying:
 
     await x402Mcp.close();
     ```
-
   </Tab>
 </Tabs>
 
@@ -442,7 +434,6 @@ For discovered MCP tools, use the x402 MCP client to call the tool after paying:
 Add the bazaar extension to your route configuration to make your API or MCP tools discoverable.
 
 **Supported Resource Types:**
-
 - **HTTP Endpoints** - Standard REST APIs (GET, POST, PUT, PATCH, DELETE, HEAD)
 - **MCP Tools** - Model Context Protocol tools for AI agent integration
 
@@ -509,7 +500,6 @@ To enhance your listing with descriptions and schemas, include them when setting
 
     app.use(paymentMiddleware(routes, server));
     ```
-
   </Tab>
   <Tab title="Python">
     ```python
@@ -657,7 +647,6 @@ To enhance your listing with descriptions and schemas, include them when setting
         r.Run(":4021")
     }
     ```
-
   </Tab>
 </Tabs>
 
@@ -693,7 +682,6 @@ To make paid MCP tools discoverable, pass the discovery extension in your paymen
       paid(async ({ city }) => ({ content: [{ type: "text", text: JSON.stringify(await fetchWeather(city)) }] }))
     );
     ```
-
   </Tab>
   <Tab title="Python">
     ```python
@@ -765,7 +753,6 @@ To make paid MCP tools discoverable, pass the discovery extension in your paymen
         },
     })
     ```
-
   </Tab>
 </Tabs>
 
@@ -775,8 +762,8 @@ The x402 Bazaar is rapidly evolving, and your feedback helps us prioritize featu
 
 ### Support
 
-- **GitHub**: [github.com/x402-foundation/x402](https://github.com/x402-foundation/x402)
-- **Discord**: [Join #x402 channel](https://discord.com/invite/cdp)
+* **GitHub**: [github.com/x402-foundation/x402](https://github.com/x402-foundation/x402)
+* **Discord**: [Join #x402 channel](https://discord.com/invite/cdp)
 
 ### FAQ
 
