@@ -40,6 +40,8 @@ export type {
   SettleFailureContext,
 } from "./extensions";
 
+export type { DeepReadonly } from "./readonly";
+
 export type Network = `${string}:${string}`;
 
 export type Money = string | number;

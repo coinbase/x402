@@ -23,6 +23,10 @@ export interface FacilitatorExtension {
   key: string;
 }
 
+/**
+ * Per-extension verify/settle hooks. Contexts are **read-only** for core protocol fields; use
+ * **abort** / **recover** return values instead of mutating `paymentPayload`, `requirements`, etc.
+ */
 export interface ResourceServerExtensionHooks {
   onBeforeVerify?: (
     declaration: unknown,
@@ -47,11 +51,20 @@ export interface ResourceServerExtensionHooks {
 export interface ResourceServerExtension {
   key: string;
   enrichDeclaration?: (declaration: unknown, transportContext: unknown) => unknown;
-  /** Return value merges into `extensions[key]`; may mutate `context.paymentRequiredResponse.accepts` entries. */
+  /**
+   * Return value merges into `extensions[key]`. In-place edits to `accepts` are allowlisted only
+   * (see server `assertAcceptsAllowlistedAfterExtensionEnrich`): vacant `payTo` / `amount` / `asset`
+   * may be filled; locked values and `scheme` / `network` / `maxTimeoutSeconds` / baseline `extra`
+   * entries are immutable.
+   */
   enrichPaymentRequiredResponse?: (
     declaration: unknown,
     context: PaymentRequiredContext,
   ) => Promise<unknown>;
+  /**
+   * Return value merges into `settleResult.extensions[key]`. Facilitator fields (`success`,
+   * `transaction`, `network`, etc.) must not be changed; only `extensions` is merged from the hook.
+   */
   enrichSettlementResponse?: (
     declaration: unknown,
     context: SettleResultContext,

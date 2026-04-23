@@ -19,7 +19,14 @@ import {
   ResourceServerExtensionHooks,
   VerifyError,
 } from "../types";
+import type { DeepReadonly } from "../types/readonly";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
+import {
+  assertAcceptsAllowlistedAfterExtensionEnrich,
+  assertSettleResponseCoreUnchanged,
+  snapshotPaymentRequirementsList,
+  snapshotSettleResponseCore,
+} from "./extensionResponsePolicy";
 import { FacilitatorClient, HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 import { x402Version } from "..";
 
@@ -29,13 +36,25 @@ import { x402Version } from "..";
  */
 export interface ResourceConfig {
   scheme: string;
-  payTo: string; // Payment recipient address
+  /**
+   * Payment recipient. Use a **vacant** value (`""` or whitespace-only) when an extension must
+   * fill `payTo` during `enrichPaymentRequiredResponse`; non-vacant values are **immutable** there
+   * so extensions cannot redirect funds to an arbitrary address.
+   */
+  payTo: string;
   price: Price;
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>; // Scheme-specific additional data
 }
 
+/**
+ * Context for `enrichPaymentRequiredResponse`. Extensions may merge extension payload via the
+ * return value. In-place edits to `paymentRequiredResponse.accepts` are **allowlisted** only
+ * (see {@link assertAcceptsAllowlistedAfterExtensionEnrich}): `scheme`, `network`, and
+ * `maxTimeoutSeconds` are immutable; `payTo`, `amount`, and `asset` may change only when the
+ * baseline value was vacant; `extra` may add keys but must not change or remove baseline keys.
+ */
 export interface PaymentRequiredContext {
   requirements: PaymentRequirements[];
   resourceInfo: ResourceInfo;
@@ -44,15 +63,19 @@ export interface PaymentRequiredContext {
   transportContext?: unknown;
 }
 
+/**
+ * Verify / settle lifecycle hook context: treat as **read-only** for core protocol fields.
+ * Control flow uses **abort** / **recover** return values only, not in-place mutation.
+ */
 export interface VerifyContext {
-  paymentPayload: PaymentPayload;
-  requirements: PaymentRequirements;
-  declaredExtensions: Record<string, unknown>;
+  paymentPayload: DeepReadonly<PaymentPayload>;
+  requirements: DeepReadonly<PaymentRequirements>;
+  declaredExtensions: DeepReadonly<Record<string, unknown>>;
   transportContext?: unknown;
 }
 
 export interface VerifyResultContext extends VerifyContext {
-  result: VerifyResponse;
+  result: DeepReadonly<VerifyResponse>;
 }
 
 export interface VerifyFailureContext extends VerifyContext {
@@ -60,13 +83,13 @@ export interface VerifyFailureContext extends VerifyContext {
 }
 
 export interface SettleContext {
-  paymentPayload: PaymentPayload;
-  requirements: PaymentRequirements;
-  declaredExtensions: Record<string, unknown>;
+  paymentPayload: DeepReadonly<PaymentPayload>;
+  requirements: DeepReadonly<PaymentRequirements>;
+  declaredExtensions: DeepReadonly<Record<string, unknown>>;
 }
 
 export interface SettleResultContext extends SettleContext {
-  result: SettleResponse;
+  result: DeepReadonly<SettleResponse>;
   transportContext?: unknown;
 }
 
@@ -248,6 +271,13 @@ export class x402ResourceServer {
     return !!findByNetworkAndScheme(this.registeredServerSchemes, scheme, network);
   }
 
+  /**
+   * Registers a resource server extension (enrichment and optional verify/settle hooks).
+   * Re-registering the same key overwrites; omitting `hooks` removes adapter handles for that key.
+   *
+   * @param extension - Extension definition including `key` and optional `hooks`
+   * @returns This server instance for chaining
+   */
   registerExtension(extension: ResourceServerExtension): this {
     this.registeredExtensions.set(extension.key, extension);
     const extensionKey = extension.key;
@@ -261,7 +291,10 @@ export class x402ResourceServer {
     const bindExtensionHookAdapterReturning = <
       ExtKey extends keyof ResourceServerExtensionHooks,
       Phase extends ResourceServerHookPhase,
-    >(extensionHookKey: ExtKey, adapterPhase: Phase): void => {
+    >(
+      extensionHookKey: ExtKey,
+      adapterPhase: Phase,
+    ): void => {
       const impl = extensionHooks[extensionHookKey];
       if (!impl) return;
 
@@ -279,7 +312,10 @@ export class x402ResourceServer {
     const bindExtensionHookAdapterVoid = <
       ExtKey extends keyof ResourceServerExtensionHooks,
       Phase extends ResourceServerHookPhase,
-    >(extensionHookKey: ExtKey, adapterPhase: Phase): void => {
+    >(
+      extensionHookKey: ExtKey,
+      adapterPhase: Phase,
+    ): void => {
       const impl = extensionHooks[extensionHookKey];
       if (!impl) return;
 
@@ -306,45 +342,6 @@ export class x402ResourceServer {
       this.extensionHookAdapters.delete(extensionKey);
     }
     return this;
-  }
-
-  /**
-   * Manual hooks first, then every registered extension adapter for the phase.
-   */
-  private getHooks<P extends ResourceServerHookPhase>(
-    phase: P,
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
-  /**
-   * Manual hooks first, then extension adapters only for keys present in `extensionKeysInUse`
-   * (e.g. keys declared on the payment). Phases with no manual hooks still return only those
-   * filtered extension adapters.
-   */
-  private getHooks<P extends ResourceServerHookPhase>(
-    phase: P,
-    extensionKeysInUse: readonly string[],
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
-  private getHooks<P extends ResourceServerHookPhase>(
-    phase: P,
-    extensionKeysInUse?: readonly string[],
-  ): Array<NonNullable<ExtensionAdapterHandles[P]>> {
-    type HookFn = NonNullable<ExtensionAdapterHandles[P]>;
-    const manualKey = `${phase}Hooks` as ResourceServerManualHookArrayKey;
-    const manual = (this as Record<ResourceServerManualHookArrayKey, HookFn[]>)[manualKey];
-
-    let fromExtensionAdapters: HookFn[];
-    if (extensionKeysInUse !== undefined) {
-      const inUse = new Set(extensionKeysInUse);
-      fromExtensionAdapters = [...this.extensionHookAdapters.entries()]
-        .filter(([extensionKey]) => inUse.has(extensionKey))
-        .map(([, adapterHandles]) => adapterHandles[phase])
-        .filter((hook): hook is HookFn => hook !== undefined);
-    } else {
-      fromExtensionAdapters = [...this.extensionHookAdapters.values()]
-        .map(adapterHandles => adapterHandles[phase])
-        .filter((hook): hook is HookFn => hook !== undefined);
-    }
-
-    return [...manual, ...fromExtensionAdapters];
   }
 
   /**
@@ -523,14 +520,14 @@ export class x402ResourceServer {
     if (this.supportedResponsesMap.size === 0) {
       throw lastError
         ? new Error(
-          "Failed to initialize: no supported payment kinds loaded from any facilitator.",
-          {
-            cause: lastError,
-          },
-        )
+            "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+            {
+              cause: lastError,
+            },
+          )
         : new Error(
-          "Failed to initialize: no supported payment kinds loaded from any facilitator.",
-        );
+            "Failed to initialize: no supported payment kinds loaded from any facilitator.",
+          );
     }
   }
 
@@ -612,7 +609,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -724,6 +721,7 @@ export class x402ResourceServer {
       ...req,
       extra: { ...req.extra },
     }));
+    const baselineAccepts = snapshotPaymentRequirementsList(acceptsClone);
 
     // V2 response with resource at top level
     let response: PaymentRequired = {
@@ -767,6 +765,7 @@ export class x402ResourceServer {
               error,
             );
           }
+          assertAcceptsAllowlistedAfterExtensionEnrich(baselineAccepts, acceptsClone, key);
         }
       }
     }
@@ -774,6 +773,15 @@ export class x402ResourceServer {
     return response;
   }
 
+  /**
+   * Verifies a payment against requirements, running manual and in-use extension hooks.
+   *
+   * @param paymentPayload - Signed payment payload from the client
+   * @param requirements - Requirements matched to the payload
+   * @param declaredExtensions - Optional per-extension declarations for the request
+   * @param transportContext - Optional transport-specific context (e.g. HTTP, MCP)
+   * @returns Facilitator verify outcome, or abort/recovery as driven by hooks
+   */
   async verifyPayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
@@ -990,6 +998,7 @@ export class x402ResourceServer {
 
       // Let declared extensions add data to settlement response
       if (Object.keys(resolvedDeclaredExtensions).length > 0) {
+        const settleCoreSnapshot = snapshotSettleResponseCore(settleResult);
         for (const [key, declaration] of Object.entries(resolvedDeclaredExtensions)) {
           const extension = this.registeredExtensions.get(key);
           if (extension?.enrichSettlementResponse) {
@@ -1007,6 +1016,7 @@ export class x402ResourceServer {
             } catch (error) {
               console.error(`Error in enrichSettlementResponse hook for extension ${key}:`, error);
             }
+            assertSettleResponseCoreUnchanged(settleCoreSnapshot, settleResult, key);
           }
         }
       }
@@ -1144,6 +1154,57 @@ export class x402ResourceServer {
       success: true,
       verificationResult,
     };
+  }
+
+  /**
+   * Manual hooks first, then every registered extension adapter for the phase.
+   *
+   * @param phase - Hook slot (e.g. `beforeVerify`)
+   * @returns Ordered hooks: manual entries, then all extension adapters
+   */
+  private getHooks<P extends ResourceServerHookPhase>(
+    phase: P,
+  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
+  /**
+   * Manual hooks first, then extension adapters only for keys in `extensionKeysInUse`.
+   *
+   * @param phase - Hook slot (e.g. `beforeVerify`)
+   * @param extensionKeysInUse - Declared extension keys for this request
+   * @returns Ordered hooks: manual entries, then matching extension adapters
+   */
+  private getHooks<P extends ResourceServerHookPhase>(
+    phase: P,
+    extensionKeysInUse: readonly string[],
+  ): Array<NonNullable<ExtensionAdapterHandles[P]>>;
+  /**
+   * Resolves manual plus extension adapter hooks for a lifecycle phase.
+   *
+   * @param phase - Hook slot (e.g. `beforeVerify`)
+   * @param extensionKeysInUse - When set, only adapters for these extension keys are included
+   * @returns Hook functions in invocation order
+   */
+  private getHooks<P extends ResourceServerHookPhase>(
+    phase: P,
+    extensionKeysInUse?: readonly string[],
+  ): Array<NonNullable<ExtensionAdapterHandles[P]>> {
+    type HookFn = NonNullable<ExtensionAdapterHandles[P]>;
+    const manualKey = `${phase}Hooks` as ResourceServerManualHookArrayKey;
+    const manual = (this as Record<ResourceServerManualHookArrayKey, HookFn[]>)[manualKey];
+
+    let fromExtensionAdapters: HookFn[];
+    if (extensionKeysInUse !== undefined) {
+      const inUse = new Set(extensionKeysInUse);
+      fromExtensionAdapters = [...this.extensionHookAdapters.entries()]
+        .filter(([extensionKey]) => inUse.has(extensionKey))
+        .map(([, adapterHandles]) => adapterHandles[phase])
+        .filter((hook): hook is HookFn => hook !== undefined);
+    } else {
+      fromExtensionAdapters = [...this.extensionHookAdapters.values()]
+        .map(adapterHandles => adapterHandles[phase])
+        .filter((hook): hook is HookFn => hook !== undefined);
+    }
+
+    return [...manual, ...fromExtensionAdapters];
   }
 
   /**

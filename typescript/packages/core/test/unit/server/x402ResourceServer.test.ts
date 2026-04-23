@@ -13,6 +13,7 @@ import {
   buildSettleResponse,
 } from "../../mocks";
 import { Network } from "../../../src/types";
+import type { SettleResponse } from "../../../src/types/facilitator";
 
 describe("x402ResourceServer", () => {
   describe("Construction", () => {
@@ -1060,6 +1061,31 @@ describe("x402ResourceServer", () => {
 
       expect(hookAmount).toBe("300000");
     });
+
+    it("rejects enrichSettlementResponse that mutates facilitator core fields", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse(),
+        buildVerifyResponse({ isValid: true }),
+        buildSettleResponse({
+          success: true,
+          transaction: "0xfacilitator_tx",
+          network: "test:network" as Network,
+        }),
+      );
+      const server = new x402ResourceServer(mockClient);
+      server.registerExtension({
+        key: "badSettle",
+        enrichSettlementResponse: async (_d, ctx) => {
+          // Simulate a misbehaving extension: context is typed read-only, but runtime objects are still mutable.
+          (ctx.result as SettleResponse).transaction = "0x_attacker_tx";
+          return { leaked: true };
+        },
+      });
+
+      await expect(
+        server.settlePayment(buildPaymentPayload(), buildPaymentRequirements(), { badSettle: {} }),
+      ).rejects.toThrow(/transaction/);
+    });
   });
 
   describe("findMatchingRequirements", () => {
@@ -1230,7 +1256,7 @@ describe("x402ResourceServer", () => {
       expect(requirements[0].payTo).toBe("0x_original");
     });
 
-    it("should allow enrichPaymentRequiredResponse to mutate cloned accepts payTo", async () => {
+    it("allows enrichPaymentRequiredResponse to set payTo only when baseline payTo is vacant", async () => {
       const server = new x402ResourceServer();
       server.registerExtension({
         key: "mut",
@@ -1239,7 +1265,7 @@ describe("x402ResourceServer", () => {
           return { ok: true };
         },
       });
-      const requirements = [buildPaymentRequirements({ payTo: "0x_original" })];
+      const requirements = [buildPaymentRequirements({ payTo: "" })];
       const result = await server.createPaymentRequiredResponse(
         requirements,
         { url: "https://example.com", description: "", mimeType: "" },
@@ -1248,8 +1274,29 @@ describe("x402ResourceServer", () => {
       );
 
       expect(result.accepts[0].payTo).toBe("0x_mutated");
-      expect(requirements[0].payTo).toBe("0x_original");
+      expect(requirements[0].payTo).toBe("");
       expect((result.extensions as Record<string, unknown>).mut).toEqual({ ok: true });
+    });
+
+    it("rejects enrichPaymentRequiredResponse that overwrites a non-vacant payTo", async () => {
+      const server = new x402ResourceServer();
+      server.registerExtension({
+        key: "bad",
+        enrichPaymentRequiredResponse: async (_d, ctx) => {
+          ctx.paymentRequiredResponse.accepts[0]!.payTo = "0x_attacker";
+          return {};
+        },
+      });
+      const requirements = [buildPaymentRequirements({ payTo: "0x_merchant" })];
+
+      await expect(
+        server.createPaymentRequiredResponse(
+          requirements,
+          { url: "https://example.com", description: "", mimeType: "" },
+          undefined,
+          { bad: {} },
+        ),
+      ).rejects.toThrow(/payTo.*vacant/);
     });
   });
 
@@ -1377,7 +1424,9 @@ describe("x402ResourceServer", () => {
       await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
       expect(afterCalls).toBe(0);
 
-      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), { afterExt: {} });
+      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), {
+        afterExt: {},
+      });
       expect(afterCalls).toBe(1);
     });
 
@@ -1434,7 +1483,9 @@ describe("x402ResourceServer", () => {
       expect(beforeCalls).toBe(0);
       expect(afterCalls).toBe(0);
 
-      await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements(), { settleExt: {} });
+      await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements(), {
+        settleExt: {},
+      });
       expect(beforeCalls).toBe(1);
       expect(afterCalls).toBe(1);
     });
@@ -1463,7 +1514,9 @@ describe("x402ResourceServer", () => {
       expect(failCalls).toBe(0);
 
       await expect(
-        server.settlePayment(buildPaymentPayload(), buildPaymentRequirements(), { settleFailExt: {} }),
+        server.settlePayment(buildPaymentPayload(), buildPaymentRequirements(), {
+          settleFailExt: {},
+        }),
       ).rejects.toThrow("settle boom");
       expect(failCalls).toBe(1);
     });
@@ -1532,11 +1585,15 @@ describe("x402ResourceServer", () => {
           },
         },
       });
-      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), { noHooks: {} });
+      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), {
+        noHooks: {},
+      });
       expect(calls).toBe(1);
 
       server.registerExtension({ key: "noHooks" });
-      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), { noHooks: {} });
+      await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements(), {
+        noHooks: {},
+      });
       expect(calls).toBe(1);
     });
   });
@@ -1560,7 +1617,7 @@ describe("x402ResourceServer", () => {
 
       const resourceConfig = {
         scheme: "test-scheme",
-        payTo: "0x_public_payto",
+        payTo: "",
         price: 1.0 as const,
         network: "test:network" as Network,
       };

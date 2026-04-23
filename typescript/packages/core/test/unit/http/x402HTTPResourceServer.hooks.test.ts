@@ -6,10 +6,7 @@ import {
   RouteConfig,
   ProtectedRequestHook,
 } from "../../../src/http/x402HTTPResourceServer";
-import {
-  x402ResourceServer,
-  type VerifyContext,
-} from "../../../src/server/x402ResourceServer";
+import { x402ResourceServer, type VerifyContext } from "../../../src/server/x402ResourceServer";
 import {
   MockFacilitatorClient,
   MockSchemeNetworkServer,
