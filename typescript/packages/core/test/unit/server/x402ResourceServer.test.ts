@@ -670,7 +670,10 @@ describe("x402ResourceServer", () => {
             return { recovered: true, result: { isValid: true, payer: "0xok" } };
           });
 
-        const result = await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        const result = await server.verifyPayment(
+          buildPaymentPayload(),
+          buildPaymentRequirements(),
+        );
 
         expect(result.isValid).toBe(true);
         expect(result.payer).toBe("0xok");
@@ -746,7 +749,10 @@ describe("x402ResourceServer", () => {
           throw new Error("Unexpected failure");
         });
 
-        const result = await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+        const result = await server.settlePayment(
+          buildPaymentPayload(),
+          buildPaymentRequirements(),
+        );
 
         expect(result.success).toBe(true);
         expect(mockClient.settleCalls.length).toBe(1);

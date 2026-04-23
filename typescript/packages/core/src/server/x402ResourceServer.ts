@@ -12,12 +12,7 @@ import {
   ResourceInfo,
 } from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
-import {
-  Price,
-  Network,
-  ResourceServerExtension,
-  ResourceServerExtensionHooks,
-} from "../types";
+import { Price, Network, ResourceServerExtension, ResourceServerExtensionHooks } from "../types";
 import type { DeepReadonly } from "../types/readonly";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
 import {
@@ -1143,6 +1138,13 @@ export class x402ResourceServer {
     };
   }
 
+  /**
+   * Logs a warning when a manual or extension adapter lifecycle hook throws.
+   *
+   * @param phase - Lifecycle phase name (e.g. `beforeVerify`)
+   * @param label - Hook source label from {@link getLabeledHooks} (manual index or extension key)
+   * @param error - Thrown value or rejection reason
+   */
   private warnResourceServerHookFailure(
     phase: ResourceServerHookPhase,
     label: string,
@@ -1152,6 +1154,13 @@ export class x402ResourceServer {
     console.warn(`[x402] Resource server ${phase} hook threw (${label}): ${detail}`);
   }
 
+  /**
+   * Logs a warning when a registered extension enrichment hook throws.
+   *
+   * @param extensionKey - Registered extension identifier
+   * @param hookName - Hook method name (e.g. `enrichDeclaration`)
+   * @param error - Thrown value or rejection reason
+   */
   private warnExtensionHookFailure(extensionKey: string, hookName: string, error: unknown): void {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[x402] extension "${extensionKey}" ${hookName} threw: ${detail}`);

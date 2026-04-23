@@ -95,9 +95,9 @@ describe("extensionResponsePolicy", () => {
       ]);
       const current = snapshotPaymentRequirementsList(baseline);
       (current[0].extra as { nested: { b: string } }).nested.b = "mutated";
-      expect(() =>
-        assertAcceptsAllowlistedAfterExtensionEnrich(baseline, current, "ext"),
-      ).toThrow(/extra\["nested"\]/);
+      expect(() => assertAcceptsAllowlistedAfterExtensionEnrich(baseline, current, "ext")).toThrow(
+        /extra\["nested"\]/,
+      );
     });
   });
 
