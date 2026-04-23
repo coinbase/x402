@@ -23,7 +23,7 @@ export function snapshotPaymentRequirementsList(
 ): PaymentRequirements[] {
   return requirements.map(req => ({
     ...req,
-    extra: { ...req.extra },
+    extra: structuredClone(req.extra),
   }));
 }
 

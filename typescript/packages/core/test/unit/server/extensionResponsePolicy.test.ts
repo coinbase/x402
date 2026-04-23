@@ -88,6 +88,17 @@ describe("extensionResponsePolicy", () => {
         assertAcceptsAllowlistedAfterExtensionEnrich(baseline, current, "ext"),
       ).not.toThrow();
     });
+
+    it("detects in-place mutation of nested extra values (deep snapshot)", () => {
+      const baseline = snapshotPaymentRequirementsList([
+        buildPaymentRequirements({ extra: { nested: { b: "c" } } }),
+      ]);
+      const current = snapshotPaymentRequirementsList(baseline);
+      (current[0].extra as { nested: { b: string } }).nested.b = "mutated";
+      expect(() =>
+        assertAcceptsAllowlistedAfterExtensionEnrich(baseline, current, "ext"),
+      ).toThrow(/extra\["nested"\]/);
+    });
   });
 
   describe("assertSettleResponseCoreUnchanged", () => {

@@ -86,11 +86,11 @@ export interface SettleContext {
   paymentPayload: DeepReadonly<PaymentPayload>;
   requirements: DeepReadonly<PaymentRequirements>;
   declaredExtensions: DeepReadonly<Record<string, unknown>>;
+  transportContext?: unknown;
 }
 
 export interface SettleResultContext extends SettleContext {
   result: DeepReadonly<SettleResponse>;
-  transportContext?: unknown;
 }
 
 export interface SettleFailureContext extends SettleContext {
@@ -288,7 +288,7 @@ export class x402ResourceServer {
     }
     const handles: ExtensionAdapterHandles = {};
 
-    const bindExtensionHookAdapterReturning = <
+    const bindExtensionHookAdapter = <
       ExtKey extends keyof ResourceServerExtensionHooks,
       Phase extends ResourceServerHookPhase,
     >(
@@ -309,33 +309,12 @@ export class x402ResourceServer {
       }) as ExtensionAdapterHandles[Phase];
     };
 
-    const bindExtensionHookAdapterVoid = <
-      ExtKey extends keyof ResourceServerExtensionHooks,
-      Phase extends ResourceServerHookPhase,
-    >(
-      extensionHookKey: ExtKey,
-      adapterPhase: Phase,
-    ): void => {
-      const impl = extensionHooks[extensionHookKey];
-      if (!impl) return;
-
-      type AdapterContext = Parameters<NonNullable<ExtensionAdapterHandles[Phase]>>[0];
-
-      handles[adapterPhase] = (async (ctx: AdapterContext) => {
-        if (ctx.declaredExtensions[extensionKey] === undefined) return;
-        await (impl as (declaration: unknown, context: AdapterContext) => Promise<void>)(
-          ctx.declaredExtensions[extensionKey],
-          ctx,
-        );
-      }) as ExtensionAdapterHandles[Phase];
-    };
-
-    bindExtensionHookAdapterReturning("onBeforeVerify", "beforeVerify");
-    bindExtensionHookAdapterVoid("onAfterVerify", "afterVerify");
-    bindExtensionHookAdapterReturning("onVerifyFailure", "onVerifyFailure");
-    bindExtensionHookAdapterReturning("onBeforeSettle", "beforeSettle");
-    bindExtensionHookAdapterVoid("onAfterSettle", "afterSettle");
-    bindExtensionHookAdapterReturning("onSettleFailure", "onSettleFailure");
+    bindExtensionHookAdapter("onBeforeVerify", "beforeVerify");
+    bindExtensionHookAdapter("onAfterVerify", "afterVerify");
+    bindExtensionHookAdapter("onVerifyFailure", "onVerifyFailure");
+    bindExtensionHookAdapter("onBeforeSettle", "beforeSettle");
+    bindExtensionHookAdapter("onAfterSettle", "afterSettle");
+    bindExtensionHookAdapter("onSettleFailure", "onSettleFailure");
     if (Object.keys(handles).length > 0) {
       this.extensionHookAdapters.set(extensionKey, handles);
     } else {
@@ -719,9 +698,9 @@ export class x402ResourceServer {
   ): Promise<PaymentRequired> {
     const acceptsClone = requirements.map(req => ({
       ...req,
-      extra: { ...req.extra },
+      extra: structuredClone(req.extra),
     }));
-    const baselineAccepts = snapshotPaymentRequirementsList(acceptsClone);
+    let baselineAccepts = snapshotPaymentRequirementsList(acceptsClone);
 
     // V2 response with resource at top level
     let response: PaymentRequired = {
@@ -766,6 +745,7 @@ export class x402ResourceServer {
             );
           }
           assertAcceptsAllowlistedAfterExtensionEnrich(baselineAccepts, acceptsClone, key);
+          baselineAccepts = snapshotPaymentRequirementsList(acceptsClone);
         }
       }
     }
@@ -921,6 +901,7 @@ export class x402ResourceServer {
       paymentPayload,
       requirements: effectiveRequirements,
       declaredExtensions: resolvedDeclaredExtensions,
+      transportContext,
     };
 
     for (const hook of this.getHooks("beforeSettle", extensionKeysInUse)) {
@@ -989,7 +970,6 @@ export class x402ResourceServer {
       const resultContext: SettleResultContext = {
         ...context,
         result: settleResult,
-        transportContext,
       };
 
       for (const hook of this.getHooks("afterSettle", extensionKeysInUse)) {
