@@ -47,7 +47,6 @@ After processing a payment that includes the `bazaar` extension, facilitators **
 ```
 EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoic3VjY2VzcyJ9fQ==
 ```
-
 *(base64 of `{"bazaar":{"status":"success"}}`)*
 
 **Example (rejected):**
@@ -55,7 +54,6 @@ EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoic3VjY2VzcyJ9fQ==
 ```
 EXTENSION-RESPONSES: eyJiYXphYXIiOnsic3RhdHVzIjoicmVqZWN0ZWQiLCJyZWplY3RlZFJlYXNvbiI6ImluZm8gZmFpbGVkIHNjaGVtYSB2YWxpZGF0aW9uIn19
 ```
-
 *(base64 of `{"bazaar":{"status":"rejected","rejectedReason":"info failed schema validation"}}`)*
 
 Clients that understand the `bazaar` extension should read the `bazaar` key of this header to confirm cataloging succeeded and surface any rejection reason for debugging.
@@ -562,7 +560,6 @@ To enhance your listing with descriptions and schemas, include them when setting
 
     app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
     ```
-
   </Tab>
   <Tab title="Go">
     ```go
@@ -716,7 +713,6 @@ To make paid MCP tools discoverable, pass the discovery extension in your paymen
     async def get_weather(city: str) -> str:
         return json.dumps(await fetch_weather(city))
     ```
-
   </Tab>
   <Tab title="Go">
     ```go

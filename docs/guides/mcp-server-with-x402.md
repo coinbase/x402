@@ -246,7 +246,7 @@ After payment is processed, the MCP server returns:
 }
 ```
 
----
+***
 
 ### Architecture Diagram
 
@@ -273,7 +273,7 @@ After payment is processed, the MCP server returns:
         │◀──────────────────────│                       │
 ```
 
----
+***
 
 ### Dependencies
 
@@ -298,9 +298,9 @@ The example uses these x402 v2 packages:
 
 ### How the Pieces Fit Together
 
-- **x402-compatible server**: Hosts the paid API (e.g., weather data). Responds with HTTP 402 and `PAYMENT-REQUIRED` header if payment is required.
-- **MCP server (this implementation)**: Acts as a bridge, handling payment via `@x402/axios` and exposing tools to MCP clients.
-- **Claude Desktop**: Calls the MCP tool, receives the paid data, and displays it to the user.
+* **x402-compatible server**: Hosts the paid API (e.g., weather data). Responds with HTTP 402 and `PAYMENT-REQUIRED` header if payment is required.
+* **MCP server (this implementation)**: Acts as a bridge, handling payment via `@x402/axios` and exposing tools to MCP clients.
+* **Claude Desktop**: Calls the MCP tool, receives the paid data, and displays it to the user.
 
 ***
 
