@@ -45,12 +45,22 @@ import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { NETWORKS as SVM_V1_NETWORKS } from "@x402/svm/v1";
-import { createEd25519Signer, type FacilitatorStellarSigner } from "@x402/stellar";
+import {
+  createEd25519Signer,
+  type FacilitatorStellarSigner,
+} from "@x402/stellar";
 import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
-import { createWalletClient, http, publicActions, Chain, parseTransaction, recoverTransactionAddress } from "viem";
+import {
+  createWalletClient,
+  http,
+  publicActions,
+  Chain,
+  parseTransaction,
+  recoverTransactionAddress,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia, base } from "viem/chains";
 import { BazaarCatalog } from "./bazaar.js";
@@ -63,7 +73,9 @@ const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
 const SVM_NETWORK =
   process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const APTOS_NETWORK = process.env.APTOS_NETWORK || "aptos:2";
-const AVM_NETWORK = process.env.AVM_NETWORK || "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=";
+const AVM_NETWORK =
+  process.env.AVM_NETWORK ||
+  "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=";
 const STELLAR_NETWORK = process.env.STELLAR_NETWORK || "stellar:testnet";
 const EVM_RPC_URL = process.env.EVM_RPC_URL;
 const SVM_RPC_URL = process.env.SVM_RPC_URL;
@@ -140,7 +152,10 @@ if (process.env.AVM_PRIVATE_KEY) {
 // Initialize the Stellar signer from private key (optional)
 let stellarSigner: FacilitatorStellarSigner | undefined;
 if (process.env.STELLAR_PRIVATE_KEY) {
-  stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY as string, STELLAR_NETWORK as Network);
+  stellarSigner = createEd25519Signer(
+    process.env.STELLAR_PRIVATE_KEY as string,
+    STELLAR_NETWORK as Network,
+  );
   console.info(`Stellar Facilitator account: ${stellarSigner.address}`);
 }
 
@@ -229,10 +244,7 @@ facilitator
   .register(SVM_NETWORK as Network, new ExactSvmScheme(svmSigner))
   .registerV1(SVM_V1_NETWORKS as Network[], new ExactSvmSchemeV1(svmSigner));
 if (avmSigner) {
-  facilitator.register(
-    AVM_NETWORK as Network,
-    new ExactAvmScheme(avmSigner),
-  );
+  facilitator.register(AVM_NETWORK as Network, new ExactAvmScheme(avmSigner));
 }
 if (aptosSigner) {
   facilitator.register(
@@ -241,7 +253,10 @@ if (aptosSigner) {
   );
 }
 if (stellarSigner) {
-  facilitator.register(STELLAR_NETWORK as Network, new ExactStellarScheme([stellarSigner]));
+  facilitator.register(
+    STELLAR_NETWORK as Network,
+    new ExactStellarScheme([stellarSigner]),
+  );
 }
 
 const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
@@ -261,7 +276,10 @@ const erc20AllowanceAbi = [
 const erc20ApprovalSigner = {
   ...evmSigner,
   sendTransactions: async (
-    transactions: (`0x${string}` | { to: `0x${string}`; data: `0x${string}`; gas?: bigint })[],
+    transactions: (
+      | `0x${string}`
+      | { to: `0x${string}`; data: `0x${string}`; gas?: bigint }
+    )[],
   ): Promise<`0x${string}`[]> => {
     const hashes: `0x${string}`[] = [];
     for (const tx of transactions) {
@@ -269,28 +287,38 @@ const erc20ApprovalSigner = {
       if (typeof tx === "string") {
         // Parse the raw tx to extract sender and gas params for potential gas funding
         const parsed = parseTransaction(tx);
-        const payerAddress = await recoverTransactionAddress({ serializedTransaction: tx });
+        const payerAddress = await recoverTransactionAddress({
+          serializedTransaction: tx,
+        });
         const gas = parsed.gas ?? 70_000n;
         const maxFeePerGas = parsed.maxFeePerGas ?? 1_000_000_000n;
         const gasCost = gas * maxFeePerGas;
 
         // Check if the payer has enough ETH for gas
-        const payerBalance = await viemClient.getBalance({ address: payerAddress });
+        const payerBalance = await viemClient.getBalance({
+          address: payerAddress,
+        });
         if (payerBalance < gasCost) {
           const deficit = gasCost - payerBalance;
-          console.log(`⛽ Funding payer ${payerAddress} with ${deficit} wei for gas`);
+          console.log(
+            `⛽ Funding payer ${payerAddress} with ${deficit} wei for gas`,
+          );
           const fundHash = await viemClient.sendTransaction({
             to: payerAddress,
             value: deficit,
           });
-          const fundReceipt = await viemClient.waitForTransactionReceipt({ hash: fundHash });
+          const fundReceipt = await viemClient.waitForTransactionReceipt({
+            hash: fundHash,
+          });
           if (fundReceipt.status !== "success") {
             throw new Error(`gas_funding_failed: ${fundHash}`);
           }
           console.log(`⛽ Gas funding confirmed: ${fundHash}`);
         }
 
-        hash = await viemClient.sendRawTransaction({ serializedTransaction: tx });
+        hash = await viemClient.sendRawTransaction({
+          serializedTransaction: tx,
+        });
       } else {
         hash = await viemClient.sendTransaction(tx);
       }
@@ -307,7 +335,9 @@ const erc20ApprovalSigner = {
 facilitator
   .registerExtension(BAZAAR)
   .registerExtension(EIP2612_GAS_SPONSORING)
-  .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner))
+  .registerExtension(
+    createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner),
+  )
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation
@@ -320,18 +350,30 @@ facilitator
         context.paymentPayload,
         context.requirements,
       );
-      if (discovered && "method" in discovered && discovered.method) {
+      if (discovered) {
+        const action =
+          "method" in discovered ? discovered.method : discovered.toolName;
+        if (!action) {
+          return;
+        }
+        let resourceUrl = discovered.resourceUrl;
+        if (
+          discovered.discoveryInfo.input.type === "mcp" &&
+          "toolName" in discovered &&
+          discovered.toolName &&
+          (!resourceUrl || resourceUrl.startsWith("null/"))
+        ) {
+          resourceUrl = `mcp://tool/${discovered.toolName}`;
+        }
         bazaarCatalog.catalogResource(
-          discovered.resourceUrl,
-          discovered.method,
+          resourceUrl,
+          action,
           discovered.x402Version,
           discovered.discoveryInfo,
           context.requirements,
           discovered.routeTemplate,
         );
-        console.log(
-          `📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`,
-        );
+        console.log(`📦 Discovered resource: ${action} ${resourceUrl}`);
       }
     }
   })
@@ -500,7 +542,9 @@ app.get("/discovery/search", (req, res) => {
       return res.status(400).json({ error: "query parameter is required" });
     }
     const type = req.query.type as string | undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string)
+      : undefined;
 
     const response = bazaarCatalog.searchResources(query, type, limit);
     res.json(response);

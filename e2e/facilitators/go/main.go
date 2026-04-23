@@ -1104,7 +1104,7 @@ func main() {
 		items, total := bazaarCatalog.GetResources(limit, offset)
 
 		c.JSON(http.StatusOK, gin.H{
-			"x402Version": 1,
+			"x402Version": 2,
 			"items":       items,
 			"pagination": gin.H{
 				"limit":  limit,
@@ -1134,7 +1134,7 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"x402Version": 1,
+			"x402Version": 2,
 			"items":       items,
 			"search": gin.H{
 				"query":               q,

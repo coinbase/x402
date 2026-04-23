@@ -184,7 +184,7 @@ async function validateSearchEndpoint(
       };
     }
 
-    const data = await response.json() as DiscoverySearchResponse;
+    const data = (await response.json()) as DiscoverySearchResponse;
 
     // Validate required fields
     if (typeof data.x402Version !== "number") {
@@ -197,16 +197,27 @@ async function validateSearchEndpoint(
       return { valid: false, error: "search response missing search metadata" };
     }
     if (data.search.query !== query) {
-      return { valid: false, error: `search.query mismatch: expected "${query}", got "${data.search.query}"` };
+      return {
+        valid: false,
+        error: `search.query mismatch: expected "${query}", got "${data.search.query}"`,
+      };
     }
     if (typeof data.search.paginationSupported !== "boolean") {
-      return { valid: false, error: "search.paginationSupported must be boolean" };
+      return {
+        valid: false,
+        error: "search.paginationSupported must be boolean",
+      };
     }
     if (typeof data.search.paginationApplied !== "boolean") {
-      return { valid: false, error: "search.paginationApplied must be boolean" };
+      return {
+        valid: false,
+        error: "search.paginationApplied must be boolean",
+      };
     }
 
-    verboseLog(`  ✅ Search endpoint valid (${data.items.length} results, paginationSupported=${data.search.paginationSupported})`);
+    verboseLog(
+      `  ✅ Search endpoint valid (${data.items.length} results, paginationSupported=${data.search.paginationSupported})`,
+    );
     return { valid: true };
   } catch (error) {
     return {
@@ -498,7 +509,13 @@ export async function handleDiscoveryValidation(
       // Also validate the search endpoint structure
       const searchResult = await validateSearchEndpoint(proxy, config.name);
       if (!searchResult.valid) {
-        verboseLog(`  ⚠️  Search endpoint validation failed for ${config.name}: ${searchResult.error}`);
+        result.success = false;
+        result.error = result.error
+          ? `${result.error}; Search endpoint validation failed: ${searchResult.error}`
+          : `Search endpoint validation failed: ${searchResult.error}`;
+        errorLog(
+          `  ❌ Search endpoint validation failed for ${config.name}: ${searchResult.error}`,
+        );
       }
     }
   }

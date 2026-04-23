@@ -57,6 +57,7 @@ interface DiscoveredResource {
   accepts: PaymentRequirements[];
   discoveryInfo?: DiscoveryInfo;
   lastUpdated: string;
+  metadata?: Record<string, unknown>;
 }
 
 // BazaarCatalog stores discovered resources
@@ -95,7 +96,7 @@ class BazaarCatalog {
    */
   search(query: string, type?: string, limit?: number): DiscoveredResource[] {
     const needle = query.toLowerCase();
-    let results = Array.from(this.resources.values()).filter(r => {
+    let results = Array.from(this.resources.values()).filter((r) => {
       const haystack = [
         r.resource,
         r.type,
@@ -108,7 +109,7 @@ class BazaarCatalog {
     });
 
     if (type) {
-      results = results.filter(r => r.type === type);
+      results = results.filter((r) => r.type === type);
     }
 
     return limit !== undefined ? results.slice(0, limit) : results;
@@ -153,6 +154,7 @@ const facilitator = new x402Facilitator()
           accepts: [context.requirements],
           discoveryInfo: discovered.discoveryInfo,
           lastUpdated: new Date().toISOString(),
+          metadata: {},
         });
         console.log("   ✅ Added to bazaar catalog");
       }
@@ -374,7 +376,9 @@ app.get("/discovery/search", async (req, res) => {
       return res.status(400).json({ error: "query parameter is required" });
     }
     const type = req.query.type as string | undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string)
+      : undefined;
 
     const items = bazaarCatalog.search(query, type, limit);
 
