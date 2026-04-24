@@ -5,13 +5,18 @@ import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 import { ExactEvmScheme, type ExactEvmSchemeOptions } from "@x402/evm/exact/client";
-import { UptoEvmScheme as UptoEvmClientScheme, type UptoEvmSchemeOptions } from "@x402/evm/upto/client";
+import {
+  UptoEvmScheme as UptoEvmClientScheme,
+  type UptoEvmSchemeOptions,
+} from "@x402/evm/upto/client";
 import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { ExactSvmSchemeV1 } from "@x402/svm/v1";
 import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
+import { createClientHederaSigner, PrivateKey as HederaPrivateKey } from "@x402/hedera";
+import { ExactHederaScheme } from "@x402/hedera/exact/client";
 import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { createEd25519Signer, type Ed25519Signer } from "@x402/stellar";
 import { ExactAvmScheme as ExactAvmClientScheme } from "@x402/avm/exact/client";
@@ -60,6 +65,19 @@ if (process.env.APTOS_PRIVATE_KEY) {
   aptosAccount = Account.fromPrivateKey({ privateKey: aptosPrivateKey });
 }
 
+// Initialize Hedera signer if account + key are provided
+let hederaClientSigner: ReturnType<typeof createClientHederaSigner> | undefined;
+if (process.env.HEDERA_ACCOUNT_ID && process.env.HEDERA_PRIVATE_KEY) {
+  hederaClientSigner = createClientHederaSigner(
+    process.env.HEDERA_ACCOUNT_ID,
+    HederaPrivateKey.fromStringECDSA(process.env.HEDERA_PRIVATE_KEY),
+    {
+      network: process.env.HEDERA_NETWORK || "hedera:testnet",
+      nodeUrl: process.env.HEDERA_NODE_URL || undefined,
+    },
+  );
+}
+
 // Initialize Stellar signer if key is provided
 let stellarSigner: Ed25519Signer | undefined;
 if (process.env.STELLAR_PRIVATE_KEY) {
@@ -83,6 +101,9 @@ const client = new x402Client()
 if (aptosAccount) {
   client.register("aptos:*", new ExactAptosScheme(aptosAccount));
 }
+if (hederaClientSigner) {
+  client.register("hedera:*", new ExactHederaScheme(hederaClientSigner));
+}
 if (stellarSigner) {
   client.register("stellar:*", new ExactStellarScheme(stellarSigner));
 }
@@ -94,7 +115,7 @@ const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
 
 axiosWithPayment
   .get(url)
-  .then(async (response) => {
+  .then(async response => {
     const data = response.data;
     // Check both v2 (PAYMENT-RESPONSE) and v1 (X-PAYMENT-RESPONSE) headers
     const paymentResponse =
@@ -125,11 +146,13 @@ axiosWithPayment
     console.log(JSON.stringify(result));
     process.exit(0);
   })
-  .catch((error) => {
-    console.error(JSON.stringify({
-      success: false,
-      error: error.message || "Request failed",
-      status_code: error.response?.status || 500,
-    }));
+  .catch(error => {
+    console.error(
+      JSON.stringify({
+        success: false,
+        error: error.message || "Request failed",
+        status_code: error.response?.status || 500,
+      }),
+    );
     process.exit(1);
   });
