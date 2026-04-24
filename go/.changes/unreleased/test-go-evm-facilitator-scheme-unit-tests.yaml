@@ -1,0 +1,2 @@
+kind: added
+body: "add unit tests for ExactEvmScheme and UptoEvmScheme facilitator structs (NewScheme config copy, Scheme, CaipFamily, GetExtra, GetSigners, Verify/Settle payload routing)"
