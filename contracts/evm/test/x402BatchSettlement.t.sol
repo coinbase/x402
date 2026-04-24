@@ -923,7 +923,7 @@ contract X402BatchSettlementTest is Test {
         assertEq(token.balanceOf(payerWallet.addr), balBefore + refundAmt);
     }
 
-    function test_refundWithSignature_clearsPendingWithdrawal() public {
+    function test_refundWithSignature_clearsPendingWithdrawal_whenRefundCoversIt() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);
         _deposit(config, DEPOSIT_AMOUNT);
@@ -936,6 +936,68 @@ contract X402BatchSettlementTest is Test {
 
         x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
         assertEq(ws.initiatedAt, 0);
+        assertEq(ws.amount, 0);
+    }
+
+    function test_refund_partialDoesNotClearPendingWithdrawal() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        uint40 initiatedBefore = _getPendingWithdrawal(channelId).initiatedAt;
+        assertGt(initiatedBefore, 0);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.refund(config, 1);
+
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
+        assertEq(ws.initiatedAt, initiatedBefore);
+        assertEq(ws.amount, DEPOSIT_AMOUNT - 1);
+    }
+
+    function test_refund_griefAttempt_finalizeStillSucceedsAfterDelay() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
+
+        uint256 payerBalBefore = token.balanceOf(payerWallet.addr);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.refund(config, 1);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY);
+
+        vm.prank(payerWallet.addr);
+        settlement.finalizeWithdraw(config);
+
+        assertEq(token.balanceOf(payerWallet.addr), payerBalBefore + DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
+        assertEq(ws.initiatedAt, 0);
+        assertEq(ws.amount, 0);
+    }
+
+    function test_refund_largerThanPending_clearsWithdrawal() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        uint128 partialWithdraw = DEPOSIT_AMOUNT / 4;
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, partialWithdraw);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.refund(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
+        assertEq(ws.initiatedAt, 0);
+        assertEq(ws.amount, 0);
     }
 
     function test_refundWithSignature_noop_whenNothingAvailable_afterFullClaim() public {

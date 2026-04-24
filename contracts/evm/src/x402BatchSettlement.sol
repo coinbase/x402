@@ -502,8 +502,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         WithdrawalState storage pws = pendingWithdrawals[channelId];
         if (pws.initiatedAt != 0) {
-            pws.amount = 0;
-            pws.initiatedAt = 0;
+            if (refundAmount >= pws.amount) {
+                pws.amount = 0;
+                pws.initiatedAt = 0;
+            } else {
+                pws.amount -= refundAmount;
+            }
         }
 
         emit Refunded(channelId, msg.sender, refundAmount);
