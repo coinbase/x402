@@ -1,0 +1,2 @@
+kind: added
+body: "add unit tests for ExactEvmScheme (ParsePrice, ValidatePaymentRequirements, EnhancePaymentRequirements, GetDisplayAmount, ConvertToTokenAmount, ConvertFromTokenAmount, GetSupportedNetworks, GetAssetDecimals)"
