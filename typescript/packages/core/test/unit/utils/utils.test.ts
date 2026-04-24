@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   findByNetworkAndScheme,
   findSchemesByNetwork,
+  findFacilitatorBySchemeAndNetwork,
   deepEqual,
   safeBase64Encode,
   safeBase64Decode,
   numberToDecimalString,
   convertToTokenAmount,
+  SchemeData,
 } from "../../../src/utils";
 import { Network } from "../../../src/types";
 
@@ -420,6 +422,107 @@ describe("Utils", () => {
         expect(() => convertToTokenAmount("", 6)).toThrow("Invalid amount");
         expect(() => convertToTokenAmount("NaN", 6)).toThrow("Invalid amount");
       });
+    });
+
+    describe("ReDoS hardening — adversarial inputs must not hang", () => {
+      it("should reject long non-matching strings quickly", () => {
+        // Strings with many digits followed by a non-digit suffix should fail fast
+        // (not cause polynomial backtracking on the old /^-?\d+\.?\d*$/ pattern)
+        const start = Date.now();
+        expect(() => convertToTokenAmount("9".repeat(1000) + "x", 6)).toThrow("Invalid amount");
+        expect(Date.now() - start).toBeLessThan(100);
+      });
+
+      it("should reject strings with multiple decimal points quickly", () => {
+        const start = Date.now();
+        expect(() => convertToTokenAmount("1.2.3", 6)).toThrow("Invalid amount");
+        expect(Date.now() - start).toBeLessThan(100);
+      });
+
+      it("should reject strings with trailing non-numeric suffix quickly", () => {
+        const start = Date.now();
+        expect(() =>
+          convertToTokenAmount("0".repeat(500) + "." + "0".repeat(500) + "!", 6),
+        ).toThrow("Invalid amount");
+        expect(Date.now() - start).toBeLessThan(100);
+      });
+    });
+  });
+
+  describe("findFacilitatorBySchemeAndNetwork", () => {
+    const makeFacilitator = (id: string) => ({ id });
+
+    it("should find by network in the stored networks set", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      const facilitator = makeFacilitator("f1");
+      schemeMap.set("exact", {
+        facilitator,
+        networks: new Set(["eip155:8453" as any]),
+        pattern: "eip155:8453" as any,
+      });
+      const result = findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "eip155:8453" as any);
+      expect(result).toBe(facilitator);
+    });
+
+    it("should return undefined for missing scheme", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      expect(
+        findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "eip155:8453" as any),
+      ).toBeUndefined();
+    });
+
+    it("should match wildcard pattern eip155:*", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      const facilitator = makeFacilitator("f2");
+      schemeMap.set("exact", {
+        facilitator,
+        networks: new Set(),
+        pattern: "eip155:*" as any,
+      });
+      const result = findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "eip155:8453" as any);
+      expect(result).toBe(facilitator);
+    });
+
+    it("should not match cross-namespace via wildcard", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      schemeMap.set("exact", {
+        facilitator: makeFacilitator("f3"),
+        networks: new Set(),
+        pattern: "eip155:*" as any,
+      });
+      // solana:mainnet should not match eip155:* pattern
+      const result = findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "solana:mainnet" as any);
+      expect(result).toBeUndefined();
+    });
+
+    it("should handle pattern with regex metacharacters safely", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      const facilitator = makeFacilitator("f4");
+      // Pattern containing a dot — should be treated as literal, not regex wildcard
+      schemeMap.set("exact", {
+        facilitator,
+        networks: new Set(),
+        pattern: "eip155:84.3" as any, // dot is literal
+      });
+      // '8453' has a different char at position 3 — should NOT match
+      const result = findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "eip155:8453" as any);
+      expect(result).toBeUndefined();
+    });
+
+    it("should handle multiple wildcards in pattern", () => {
+      const schemeMap = new Map<string, SchemeData<{ id: string }>>();
+      const facilitator = makeFacilitator("f5");
+      schemeMap.set("exact", {
+        facilitator,
+        networks: new Set(),
+        pattern: "*:*" as any,
+      });
+      expect(findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "eip155:8453" as any)).toBe(
+        facilitator,
+      );
+      expect(findFacilitatorBySchemeAndNetwork(schemeMap, "exact", "solana:mainnet" as any)).toBe(
+        facilitator,
+      );
     });
   });
 
