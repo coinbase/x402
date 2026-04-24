@@ -109,6 +109,16 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         APTOS_RPC_URL: config.networks.aptos.rpcUrl,
         APTOS_PAYEE_ADDRESS: config.aptosPayTo,
 
+        // Hedera network config. HEDERA_ASSET / HEDERA_AMOUNT are only
+        // forwarded when set by the caller; the resource servers apply their
+        // own HBAR defaults (0.0.0 / 100000 tinybars) when absent, so passing
+        // an empty string here would clobber those defaults.
+        HEDERA_NETWORK: config.networks.hedera.caip2,
+        HEDERA_NODE_URL: config.networks.hedera.rpcUrl,
+        HEDERA_PAYEE_ADDRESS: config.hederaPayTo,
+        ...(config.hederaAsset !== undefined ? { HEDERA_ASSET: config.hederaAsset } : {}),
+        ...(config.hederaAmount !== undefined ? { HEDERA_AMOUNT: config.hederaAmount } : {}),
+
         // Stellar network config
         STELLAR_NETWORK: config.networks.stellar.caip2,
         STELLAR_RPC_URL: config.networks.stellar.rpcUrl,

@@ -7,6 +7,7 @@
     "svm",
     "avm",
     "aptos",
+    "hedera",
     "stellar"
   ],
   "x402Versions": [
@@ -34,6 +35,10 @@
     "optional": [
       "AVM_PRIVATE_KEY",
       "APTOS_PRIVATE_KEY",
+      "HEDERA_ACCOUNT_ID",
+      "HEDERA_PRIVATE_KEY",
+      "HEDERA_NETWORK",
+      "HEDERA_NODE_URL",
       "STELLAR_PRIVATE_KEY"
     ]
   }
