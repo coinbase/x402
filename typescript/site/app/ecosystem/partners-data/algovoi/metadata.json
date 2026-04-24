@@ -1,14 +1,22 @@
 {
   "name": "AlgoVoi",
-  "description": "Multi-chain x402 payment facilitator for Algorand, VOI Network, Stellar, and Hedera. Enables AI agents to pay with on-chain USDC across non-EVM networks — no EVM required.",
+  "description": "Multi-chain x402 payment facilitator spanning both EVM and non-EVM networks. Supports Algorand, VOI Network, Hedera, Stellar, Base, Solana, and Tempo. AI agents pay with on-chain USDC (or native-chain assets) on a single x402 endpoint. First-mover coverage of VOI, Hedera, Stellar, Solana Pay `reference` binding, and Tempo (TIP-20).",
   "logoUrl": "/logos/algovoi.png",
   "websiteUrl": "https://www.algovoi.co.uk",
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://cloud.algovoi.co.uk",
-    "networks": ["algorand-mainnet", "voi-mainnet", "hedera-mainnet", "stellar-mainnet"],
+    "networks": [
+      "algorand-mainnet",
+      "voi-mainnet",
+      "hedera-mainnet",
+      "stellar-mainnet",
+      "base-mainnet",
+      "solana-mainnet",
+      "tempo-mainnet"
+    ],
     "schemes": ["exact"],
-    "assets": ["ARC-3", "ARC-200", "USDC"],
+    "assets": ["ARC-3", "ARC-200", "HTS", "Stellar-Credit", "ERC-20", "SPL-Token", "TIP-20", "USDC", "USDCe"],
     "supports": { "verify": true, "settle": true, "supported": true, "list": false }
   }
 }
