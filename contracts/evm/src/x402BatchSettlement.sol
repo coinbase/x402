@@ -488,11 +488,16 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         emit Claimed(channelId, msg.sender, claimDelta, vc.totalClaimed);
     }
 
-    /// @dev Caps refund to available unclaimed escrow, clears any pending withdrawal, transfers to payer, bumps `refundNonce`.
+    /// @dev Caps refund to available unclaimed escrow, reduces or clears any pending withdrawal, transfers to payer.
+    /// @dev Always bumps `refundNonce` on any non-reverting entry, including the zero-available no-op, to prevent signature replay.
     function _executeRefund(ChannelConfig calldata config, uint128 amount) internal {
         if (amount == 0) revert ZeroRefund();
 
         bytes32 channelId = getChannelId(config);
+        unchecked {
+            refundNonce[channelId]++;
+        }
+
         ChannelState storage ch = channels[channelId];
         uint128 available = ch.balance - ch.totalClaimed;
         uint128 refundAmount = amount > available ? available : amount;
@@ -513,9 +518,5 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         emit Refunded(channelId, msg.sender, refundAmount);
 
         IERC20(config.token).safeTransfer(config.payer, refundAmount);
-
-        unchecked {
-            refundNonce[channelId]++;
-        }
     }
 }

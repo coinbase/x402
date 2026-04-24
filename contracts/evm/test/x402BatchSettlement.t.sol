@@ -1016,8 +1016,45 @@ contract X402BatchSettlementTest is Test {
 
         settlement.refundWithSignature(config, 1, 0, sig);
 
-        assertEq(settlement.refundNonce(channelId), nonceBefore);
+        assertEq(settlement.refundNonce(channelId), nonceBefore + 1);
         assertEq(token.balanceOf(payerWallet.addr), payerBal);
+    }
+
+    function test_refundWithSignature_replay_blockedAfterNoopThenDeposit() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        bytes memory sig = _signRefund(receiverAuthWallet, channelId, 0, DEPOSIT_AMOUNT);
+        settlement.refundWithSignature(config, DEPOSIT_AMOUNT, 0, sig);
+
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        vm.expectRevert(x402BatchSettlement.InvalidRefundNonce.selector);
+        settlement.refundWithSignature(config, DEPOSIT_AMOUNT, 0, sig);
+    }
+
+    function test_refund_directCall_bumpsNonce_evenOnNoop() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        uint256 nonceBefore = settlement.refundNonce(channelId);
+
+        vm.prank(receiverAuthWallet.addr);
+        settlement.refund(config, 1);
+
+        assertEq(settlement.refundNonce(channelId), nonceBefore + 1);
     }
 
     function test_refund_capsToAvailable() public {
