@@ -1,0 +1,7 @@
+{
+  "name": "TrustGate",
+  "description": "ERC-8004 reputation + on-chain wallet history + x402 dispute rate. Trust scoring for AI agents before they hit your paid endpoint.",
+  "logoUrl": "/logos/trustgate.svg",
+  "websiteUrl": "https://trust-gate-production.up.railway.app",
+  "category": "Services/Endpoints"
+}
