@@ -85,6 +85,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // Constants — EIP-712 Type Hashes
     // =========================================================================
 
+    bytes32 public constant CHANNEL_CONFIG_TYPEHASH = keccak256(
+        "ChannelConfig(address payer,address payerAuthorizer,address receiver,address receiverAuthorizer,address token,uint40 withdrawDelay,bytes32 salt)"
+    );
+
     bytes32 public constant VOUCHER_TYPEHASH = keccak256("Voucher(bytes32 channelId,uint128 maxClaimableAmount)");
 
     bytes32 public constant REFUND_TYPEHASH = keccak256("Refund(bytes32 channelId,uint256 nonce,uint128 amount)");
@@ -393,11 +397,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     ///
     /// @param config The channel configuration to hash.
     ///
-    /// @return The `keccak256(abi.encode(config))` channel id.
+    /// @return The EIP-712 typed-data hash of `ChannelConfig`, bound to this contract's domain
+    ///         (chainId + verifyingContract). Identical configs on different chains or different
+    ///         deployments produce different ids, preventing cross-chain channel-state collision.
     function getChannelId(
         ChannelConfig calldata config
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encode(config));
+    ) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(CHANNEL_CONFIG_TYPEHASH, config)));
     }
 
     /// @notice EIP-712 digest for a `Voucher` with the given `channelId` and `maxClaimableAmount`.

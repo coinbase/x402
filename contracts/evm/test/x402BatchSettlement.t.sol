@@ -111,8 +111,9 @@ contract X402BatchSettlementTest is Test {
 
     function _channelId(
         x402BatchSettlement.ChannelConfig memory config
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(config));
+    ) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(settlement.CHANNEL_CONFIG_TYPEHASH(), config));
+        return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
     function _domainSeparator() internal view returns (bytes32) {
