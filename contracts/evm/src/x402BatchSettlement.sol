@@ -378,7 +378,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     ) external nonReentrant {
         bytes32 channelId = getChannelId(config);
         if (nonce != refundNonce[channelId]) revert InvalidRefundNonce();
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount)));
+        bytes32 digest = getRefundDigest(channelId, nonce, amount);
         if (!SignatureChecker.isValidSignatureNow(config.receiverAuthorizer, digest, receiverAuthorizerSignature)) {
             revert InvalidSignature();
         }
@@ -406,7 +406,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param maxClaimableAmount The ceiling encoded in the voucher.
     ///
     /// @return The typed data hash signers use for payer authorization.
-    function getVoucherDigest(bytes32 channelId, uint128 maxClaimableAmount) external view returns (bytes32) {
+    function getVoucherDigest(bytes32 channelId, uint128 maxClaimableAmount) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, maxClaimableAmount)));
     }
 
@@ -417,7 +417,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param amount The signed refund amount.
     ///
     /// @return The typed data hash for `receiverAuthorizer` to sign.
-    function getRefundDigest(bytes32 channelId, uint256 nonce, uint128 amount) external view returns (bytes32) {
+    function getRefundDigest(bytes32 channelId, uint256 nonce, uint128 amount) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount)));
     }
 
@@ -473,8 +473,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
         if (vc.totalClaimed > ch.balance) revert ClaimExceedsBalance();
 
-        bytes32 structHash = keccak256(abi.encode(VOUCHER_TYPEHASH, channelId, vc.voucher.maxClaimableAmount));
-        bytes32 digest = _hashTypedDataV4(structHash);
+        bytes32 digest = getVoucherDigest(channelId, vc.voucher.maxClaimableAmount);
 
         address payerAuth = vc.voucher.channel.payerAuthorizer;
         if (payerAuth != address(0)) {
