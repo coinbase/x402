@@ -749,6 +749,53 @@ contract X402BatchSettlementTest is Test {
         settlement.initiateWithdraw(config, DEPOSIT_AMOUNT);
     }
 
+    function test_initiateWithdraw_revert_amountExceedsAvailable_noChannel() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+
+        vm.prank(payerWallet.addr);
+        vm.expectRevert(x402BatchSettlement.WithdrawAmountExceedsAvailable.selector);
+        settlement.initiateWithdraw(config, 1);
+    }
+
+    function test_initiateWithdraw_revert_amountExceedsAvailable_afterClaim() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](1);
+        claims[0] = _makeVoucherClaim(config, CLAIM_AMOUNT, CLAIM_AMOUNT);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.claim(claims);
+
+        uint128 available = DEPOSIT_AMOUNT - CLAIM_AMOUNT;
+
+        vm.prank(payerWallet.addr);
+        vm.expectRevert(x402BatchSettlement.WithdrawAmountExceedsAvailable.selector);
+        settlement.initiateWithdraw(config, available + 1);
+
+        vm.prank(payerWallet.addr);
+        settlement.initiateWithdraw(config, available);
+
+        x402BatchSettlement.WithdrawalState memory ws = _getPendingWithdrawal(channelId);
+        assertEq(ws.amount, available);
+    }
+
+    function test_initiateWithdraw_attackBypass_blocked() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+
+        vm.prank(payerWallet.addr);
+        vm.expectRevert(x402BatchSettlement.WithdrawAmountExceedsAvailable.selector);
+        settlement.initiateWithdraw(config, type(uint128).max);
+
+        vm.warp(block.timestamp + WITHDRAW_DELAY + 1);
+
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        vm.prank(payerWallet.addr);
+        vm.expectRevert(x402BatchSettlement.WithdrawalNotPending.selector);
+        settlement.finalizeWithdraw(config);
+    }
+
     function test_finalizeWithdraw_success() public {
         x402BatchSettlement.ChannelConfig memory config = _makeConfig();
         bytes32 channelId = _channelId(config);

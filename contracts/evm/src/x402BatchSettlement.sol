@@ -152,6 +152,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     error NotAuthorizedToFinalizeWithdraw();
     error WithdrawDelayNotElapsed();
     error NothingToWithdraw();
+    error WithdrawAmountExceedsAvailable();
     error WithdrawDelayOutOfRange();
     error EmptyBatch();
     error DepositCollectionFailed();
@@ -301,6 +302,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         WithdrawalState storage ws = pendingWithdrawals[channelId];
         if (ws.initiatedAt != 0) revert WithdrawalAlreadyPending();
+
+        ChannelState storage ch = channels[channelId];
+        uint128 available = ch.balance - ch.totalClaimed;
+        if (amount > available) revert WithdrawAmountExceedsAvailable();
 
         ws.amount = amount;
         ws.initiatedAt = uint40(block.timestamp);
