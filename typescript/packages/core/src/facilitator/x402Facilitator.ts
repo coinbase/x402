@@ -318,7 +318,10 @@ export class x402Facilitator {
             break;
           }
           // Try pattern matching
-          const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+          // Escape regex metacharacters in the pattern before expanding wildcards to avoid
+          // metacharacter injection and ensure all wildcards are replaced (not just the first).
+          const escapedPattern = schemeData.pattern.replace(/[$()+.?^{|}[\]\\]/g, "\\$&");
+          const patternRegex = new RegExp("^" + escapedPattern.replace(/\*/g, ".*") + "$");
           if (patternRegex.test(paymentRequirements.network)) {
             schemeNetworkFacilitator = schemeData.facilitator;
             break;
@@ -436,7 +439,10 @@ export class x402Facilitator {
             break;
           }
           // Try pattern matching
-          const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+          // Escape regex metacharacters in the pattern before expanding wildcards to avoid
+          // metacharacter injection and ensure all wildcards are replaced (not just the first).
+          const escapedPattern = schemeData.pattern.replace(/[$()+.?^{|}[\]\\]/g, "\\$&");
+          const patternRegex = new RegExp("^" + escapedPattern.replace(/\*/g, ".*") + "$");
           if (patternRegex.test(paymentRequirements.network)) {
             schemeNetworkFacilitator = schemeData.facilitator;
             break;

@@ -47,7 +47,7 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
       `Invalid amount: ${decimalAmount} — use decimal notation, not scientific notation`,
     );
   }
-  if (!/^-?\d+\.?\d*$/.test(decimalAmount)) {
+  if (!/^-?(?:\d+(?:\.\d*)?)$/.test(decimalAmount)) {
     throw new Error(`Invalid amount: ${decimalAmount}`);
   }
   const [intPart, decPart = ""] = decimalAmount.split(".");
@@ -128,8 +128,9 @@ export const findFacilitatorBySchemeAndNetwork = <T>(
     return schemeData.facilitator;
   }
 
-  // Try pattern matching
-  const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+  // Try pattern matching — escape regex metacharacters before expanding wildcards
+  const escapedPattern = schemeData.pattern.replace(/[$()+.?^{|}[\]\\]/g, "\\$&");
+  const patternRegex = new RegExp("^" + escapedPattern.replace(/\*/g, ".*") + "$");
   if (patternRegex.test(network)) {
     return schemeData.facilitator;
   }
