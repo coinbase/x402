@@ -1,0 +1,7 @@
+{
+  "name": "Solana Trading Data API",
+  "description": "Real-time Solana memecoin trading data for AI agents — trending tokens, token analysis, and momentum signals from GeckoTerminal. Pay-per-request (0.01 USDC) via x402 on Solana mainnet.",
+  "logoUrl": "/logos/solana-trading-data.png",
+  "websiteUrl": "https://overnight-enormous-calling-beliefs.trycloudflare.com",
+  "category": "Services/Endpoints"
+}
