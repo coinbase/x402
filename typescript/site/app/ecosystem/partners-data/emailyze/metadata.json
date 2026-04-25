@@ -1,0 +1,7 @@
+{
+  "name": "Emailyze",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/emailyze.svg",
+  "description": "Disposable and risky email detection API. Pay $0.001 per check via x402 — no API key or account required. Returns risk score, provider type (disposable/personal/masked), MX validity, catch-all detection, and 16 signals per email. Supports Base mainnet and Base Sepolia testnet.",
+  "websiteUrl": "https://emailyze.xyz"
+}
