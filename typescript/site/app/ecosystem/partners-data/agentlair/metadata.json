@@ -1,0 +1,7 @@
+{
+  "name": "AgentLair",
+  "description": "Email identity and credential vault for AI agents. Agents pay 0.01 USDC via x402 to send emails beyond free-tier rate limits on Base.",
+  "logoUrl": "/logos/agentlair.png",
+  "websiteUrl": "https://agentlair.dev",
+  "category": "Services/Endpoints"
+}
