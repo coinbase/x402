@@ -442,3 +442,365 @@ class TestPaymentRoundTripper:
                 body=None,
                 retry_func=lambda h: "should not happen",
             )
+
+
+# =============================================================================
+# on_payment_required Hook Tests — Async (x402HTTPClient)
+# =============================================================================
+
+
+class TestX402HTTPClientPaymentRequiredHooks:
+    """Tests for on_payment_required lifecycle hooks (async)."""
+
+    @pytest.mark.asyncio
+    async def test_no_hooks_proceeds_to_payment(self):
+        """With no hooks registered, handle_payment_required returns None."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = await http_client.handle_payment_required(payment_required)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_hook_returning_headers_short_circuits_payment(self):
+        """Hook that returns headers should prevent payment creation."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        api_key_headers = {"Authorization": "Bearer my-api-key"}
+
+        async def try_api_key(pr):
+            return api_key_headers
+
+        http_client.on_payment_required(try_api_key)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = await http_client.handle_payment_required(payment_required)
+
+        assert result == api_key_headers
+        assert len(mock_client.create_payment_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_hook_returning_none_falls_through_to_payment(self):
+        """Hook that returns None should fall through to normal payment flow."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        async def no_op_hook(pr):
+            return None
+
+        http_client.on_payment_required(no_op_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = await http_client.handle_payment_required(payment_required)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_first_hook_with_headers_wins(self):
+        """First hook to return headers wins; subsequent hooks are not called."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        first_headers = {"X-First": "1"}
+        second_called = []
+
+        async def first_hook(pr):
+            return first_headers
+
+        async def second_hook(pr):
+            second_called.append(True)
+            return {"X-Second": "2"}
+
+        http_client.on_payment_required(first_hook)
+        http_client.on_payment_required(second_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = await http_client.handle_payment_required(payment_required)
+
+        assert result == first_headers
+        assert len(second_called) == 0
+
+    @pytest.mark.asyncio
+    async def test_second_hook_runs_when_first_returns_none(self):
+        """Second hook runs when first returns None."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        second_headers = {"X-Second": "2"}
+
+        async def first_hook(pr):
+            return None
+
+        async def second_hook(pr):
+            return second_headers
+
+        http_client.on_payment_required(first_hook)
+        http_client.on_payment_required(second_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = await http_client.handle_payment_required(payment_required)
+
+        assert result == second_headers
+
+    @pytest.mark.asyncio
+    async def test_on_payment_required_returns_self_for_chaining(self):
+        """on_payment_required should return self to support method chaining."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        async def hook(pr):
+            return None
+
+        returned = http_client.on_payment_required(hook)
+
+        assert returned is http_client
+
+    @pytest.mark.asyncio
+    async def test_handle_402_response_uses_hook_headers(self):
+        """handle_402_response should use hook headers and skip payment when hook fires."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        api_key_headers = {"Authorization": "Bearer test-key"}
+
+        async def try_api_key(pr):
+            return api_key_headers
+
+        http_client.on_payment_required(try_api_key)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+        headers = {PAYMENT_REQUIRED_HEADER: encoded}
+
+        returned_headers, payload = await http_client.handle_402_response(headers, None)
+
+        assert returned_headers == api_key_headers
+        assert payload is None
+        assert len(mock_client.create_payment_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_handle_402_response_proceeds_to_payment_when_no_hook_fires(self):
+        """handle_402_response falls through to payment when hooks return None."""
+        mock_client = MockX402Client()
+        http_client = x402HTTPClient(mock_client)
+
+        async def no_op_hook(pr):
+            return None
+
+        http_client.on_payment_required(no_op_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+        headers = {PAYMENT_REQUIRED_HEADER: encoded}
+
+        returned_headers, payload = await http_client.handle_402_response(headers, None)
+
+        assert PAYMENT_SIGNATURE_HEADER in returned_headers
+        assert payload is not None
+        assert len(mock_client.create_payment_calls) == 1
+
+
+# =============================================================================
+# on_payment_required Hook Tests — Sync (x402HTTPClientSync)
+# =============================================================================
+
+
+class TestX402HTTPClientSyncPaymentRequiredHooks:
+    """Tests for on_payment_required lifecycle hooks (sync)."""
+
+    def test_no_hooks_proceeds_to_payment(self):
+        """With no hooks registered, handle_payment_required returns None."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = http_client.handle_payment_required(payment_required)
+
+        assert result is None
+
+    def test_hook_returning_headers_short_circuits_payment(self):
+        """Hook that returns headers should prevent payment creation."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        api_key_headers = {"Authorization": "Bearer my-api-key"}
+
+        def try_api_key(pr):
+            return api_key_headers
+
+        http_client.on_payment_required(try_api_key)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = http_client.handle_payment_required(payment_required)
+
+        assert result == api_key_headers
+        assert len(mock_client.create_payment_calls) == 0
+
+    def test_hook_returning_none_falls_through(self):
+        """Hook that returns None should fall through to normal payment flow."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        def no_op_hook(pr):
+            return None
+
+        http_client.on_payment_required(no_op_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = http_client.handle_payment_required(payment_required)
+
+        assert result is None
+
+    def test_first_hook_with_headers_wins(self):
+        """First hook to return headers wins; subsequent hooks are not called."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        first_headers = {"X-First": "1"}
+        second_called = []
+
+        def first_hook(pr):
+            return first_headers
+
+        def second_hook(pr):
+            second_called.append(True)
+            return {"X-Second": "2"}
+
+        http_client.on_payment_required(first_hook)
+        http_client.on_payment_required(second_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = http_client.handle_payment_required(payment_required)
+
+        assert result == first_headers
+        assert len(second_called) == 0
+
+    def test_second_hook_runs_when_first_returns_none(self):
+        """Second hook runs when first returns None."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        second_headers = {"X-Second": "2"}
+
+        def first_hook(pr):
+            return None
+
+        def second_hook(pr):
+            return second_headers
+
+        http_client.on_payment_required(first_hook)
+        http_client.on_payment_required(second_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+
+        result = http_client.handle_payment_required(payment_required)
+
+        assert result == second_headers
+
+    def test_on_payment_required_returns_self_for_chaining(self):
+        """on_payment_required should return self to support method chaining."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        def hook(pr):
+            return None
+
+        returned = http_client.on_payment_required(hook)
+
+        assert returned is http_client
+
+    def test_handle_402_response_uses_hook_headers(self):
+        """handle_402_response should use hook headers and skip payment when hook fires."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        api_key_headers = {"Authorization": "Bearer test-key"}
+
+        def try_api_key(pr):
+            return api_key_headers
+
+        http_client.on_payment_required(try_api_key)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+        headers = {PAYMENT_REQUIRED_HEADER: encoded}
+
+        returned_headers, payload = http_client.handle_402_response(headers, None)
+
+        assert returned_headers == api_key_headers
+        assert payload is None
+        assert len(mock_client.create_payment_calls) == 0
+
+    def test_handle_402_response_proceeds_to_payment_when_no_hook_fires(self):
+        """handle_402_response falls through to payment when hooks return None."""
+        mock_client = MockX402ClientSync()
+        http_client = x402HTTPClientSync(mock_client)
+
+        def no_op_hook(pr):
+            return None
+
+        http_client.on_payment_required(no_op_hook)
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+        headers = {PAYMENT_REQUIRED_HEADER: encoded}
+
+        returned_headers, payload = http_client.handle_402_response(headers, None)
+
+        assert PAYMENT_SIGNATURE_HEADER in returned_headers
+        assert payload is not None
+        assert len(mock_client.create_payment_calls) == 1

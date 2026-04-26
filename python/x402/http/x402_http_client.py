@@ -16,11 +16,36 @@ from .x402_http_client_base import x402HTTPClientBase
 if TYPE_CHECKING:
     from ..client import x402Client, x402ClientSync
 
+# ---------------------------------------------------------------------------
+# Hook type aliases
+# ---------------------------------------------------------------------------
+
+#: Return type for on_payment_required hooks.  Return a dict of headers to
+#: retry with those headers *before* attempting payment, or ``None``/nothing
+#: to fall through to the normal payment flow.
+PaymentRequiredHookResult = dict[str, str] | None
+
+#: Async hook called when a 402 response is received.
+#: Mirrors the TypeScript ``PaymentRequiredHook`` type.
+AsyncPaymentRequiredHook = Callable[
+    [PaymentRequired | PaymentRequiredV1],
+    Any,  # Awaitable[PaymentRequiredHookResult]
+]
+
+#: Sync hook called when a 402 response is received.
+SyncPaymentRequiredHook = Callable[
+    [PaymentRequired | PaymentRequiredV1],
+    PaymentRequiredHookResult,
+]
+
 # Re-export for external use
 __all__ = [
     "x402HTTPClient",
     "x402HTTPClientSync",
     "PaymentRoundTripper",
+    "AsyncPaymentRequiredHook",
+    "SyncPaymentRequiredHook",
+    "PaymentRequiredHookResult",
 ]
 
 
@@ -43,6 +68,63 @@ class x402HTTPClient(x402HTTPClientBase):
             client: Underlying x402Client for payment logic.
         """
         self._client = client
+        self._payment_required_hooks: list[AsyncPaymentRequiredHook] = []
+
+    # =========================================================================
+    # Lifecycle Hooks
+    # =========================================================================
+
+    def on_payment_required(
+        self,
+        hook: AsyncPaymentRequiredHook,
+    ) -> x402HTTPClient:
+        """Register a hook to run when a 402 response is received.
+
+        The hook runs *before* x402 payment processing.  If the hook returns a
+        dict, the request is retried with those headers (e.g. an API key) and
+        payment is skipped.  Return ``None`` or nothing to fall through to the
+        normal payment flow.
+
+        Multiple hooks are tried in registration order; the first one that
+        returns a non-``None`` result wins.
+
+        Supports method chaining::
+
+            client.on_payment_required(try_api_key).on_payment_required(log_request)
+
+        Args:
+            hook: Async callable that receives the
+                :class:`~x402.schemas.PaymentRequired` object and returns
+                either a ``dict[str, str]`` of headers or ``None``.
+
+        Returns:
+            ``self`` for method chaining.
+        """
+        self._payment_required_hooks.append(hook)
+        return self
+
+    async def handle_payment_required(
+        self,
+        payment_required: PaymentRequired | PaymentRequiredV1,
+    ) -> dict[str, str] | None:
+        """Run registered hooks for a 402 response.
+
+        Iterates through hooks in order and returns the headers from the first
+        hook that returns a non-``None`` result.  Returns ``None`` if no hook
+        provides headers, which signals the caller to proceed with payment.
+
+        Args:
+            payment_required: Parsed payment-required object from the server.
+
+        Returns:
+            Headers to use for a pre-payment retry, or ``None`` to proceed
+            with the normal x402 payment flow.
+        """
+        for hook in self._payment_required_hooks:
+            result = await hook(payment_required)
+            if result is not None:
+                return result
+        return None
 
     # =========================================================================
     # Payment Creation (async, delegates to x402Client)
@@ -72,10 +154,17 @@ class x402HTTPClient(x402HTTPClientBase):
         self,
         headers: dict[str, str],
         body: bytes | None,
-    ) -> tuple[dict[str, str], PaymentPayload | PaymentPayloadV1]:
+    ) -> tuple[dict[str, str], PaymentPayload | PaymentPayloadV1 | None]:
         """Handle a 402 response and create payment headers.
 
-        Convenience method that:
+        First runs any registered ``on_payment_required`` hooks.  If a hook
+        returns headers, those headers are returned *without* creating a
+        payment payload (the second element of the tuple will be ``None``).
+        This allows callers to retry with, e.g., an API key before paying.
+
+        If no hook provides headers the method falls through to the normal
+        x402 payment flow:
+
         1. Detects protocol version
         2. Parses PaymentRequired
         3. Creates PaymentPayload
@@ -86,16 +175,20 @@ class x402HTTPClient(x402HTTPClientBase):
             body: Response body bytes.
 
         Returns:
-            Tuple of (headers_to_add, payment_payload).
+            Tuple of (headers_to_add, payment_payload_or_none).  The second
+            element is ``None`` when a hook short-circuited the payment flow.
         """
-        # Get payment required
         get_header, body_data = self._handle_402_common(headers, body)
         payment_required = self.get_payment_required_response(get_header, body_data)
-        # Create payment
-        payment_payload = await self.create_payment_payload(payment_required)
-        # Encode headers
-        payment_headers = self.encode_payment_signature_header(payment_payload)
 
+        # Run on_payment_required hooks first
+        hook_headers = await self.handle_payment_required(payment_required)
+        if hook_headers is not None:
+            return hook_headers, None
+
+        # Normal payment flow
+        payment_payload = await self.create_payment_payload(payment_required)
+        payment_headers = self.encode_payment_signature_header(payment_payload)
         return payment_headers, payment_payload
 
 
@@ -131,6 +224,63 @@ class x402HTTPClientSync(x402HTTPClientBase):
             )
 
         self._client = client
+        self._payment_required_hooks: list[SyncPaymentRequiredHook] = []
+
+    # =========================================================================
+    # Lifecycle Hooks
+    # =========================================================================
+
+    def on_payment_required(
+        self,
+        hook: SyncPaymentRequiredHook,
+    ) -> x402HTTPClientSync:
+        """Register a hook to run when a 402 response is received.
+
+        The hook runs *before* x402 payment processing.  If the hook returns a
+        dict, the request is retried with those headers (e.g. an API key) and
+        payment is skipped.  Return ``None`` or nothing to fall through to the
+        normal payment flow.
+
+        Multiple hooks are tried in registration order; the first one that
+        returns a non-``None`` result wins.
+
+        Supports method chaining::
+
+            client.on_payment_required(try_api_key).on_payment_required(log_request)
+
+        Args:
+            hook: Sync callable that receives the
+                :class:`~x402.schemas.PaymentRequired` object and returns
+                either a ``dict[str, str]`` of headers or ``None``.
+
+        Returns:
+            ``self`` for method chaining.
+        """
+        self._payment_required_hooks.append(hook)
+        return self
+
+    def handle_payment_required(
+        self,
+        payment_required: PaymentRequired | PaymentRequiredV1,
+    ) -> dict[str, str] | None:
+        """Run registered hooks for a 402 response.
+
+        Iterates through hooks in order and returns the headers from the first
+        hook that returns a non-``None`` result.  Returns ``None`` if no hook
+        provides headers, which signals the caller to proceed with payment.
+
+        Args:
+            payment_required: Parsed payment-required object from the server.
+
+        Returns:
+            Headers to use for a pre-payment retry, or ``None`` to proceed
+            with the normal x402 payment flow.
+        """
+        for hook in self._payment_required_hooks:
+            result = hook(payment_required)
+            if result is not None:
+                return result
+        return None
 
     def create_payment_payload(
         self,
@@ -152,10 +302,17 @@ class x402HTTPClientSync(x402HTTPClientBase):
         self,
         headers: dict[str, str],
         body: bytes | None,
-    ) -> tuple[dict[str, str], PaymentPayload | PaymentPayloadV1]:
+    ) -> tuple[dict[str, str], PaymentPayload | PaymentPayloadV1 | None]:
         """Handle a 402 response and create payment headers.
 
-        Convenience method that:
+        First runs any registered ``on_payment_required`` hooks.  If a hook
+        returns headers, those headers are returned *without* creating a
+        payment payload (the second element of the tuple will be ``None``).
+        This allows callers to retry with, e.g., an API key before paying.
+
+        If no hook provides headers the method falls through to the normal
+        x402 payment flow:
+
         1. Detects protocol version
         2. Parses PaymentRequired
         3. Creates PaymentPayload
@@ -166,17 +323,20 @@ class x402HTTPClientSync(x402HTTPClientBase):
             body: Response body bytes.
 
         Returns:
-            Tuple of (headers_to_add, payment_payload).
+            Tuple of (headers_to_add, payment_payload_or_none).  The second
+            element is ``None`` when a hook short-circuited the payment flow.
         """
-        # Get payment required
         get_header, body_data = self._handle_402_common(headers, body)
         payment_required = self.get_payment_required_response(get_header, body_data)
-        # Create payment
+
+        # Run on_payment_required hooks first
+        hook_headers = self.handle_payment_required(payment_required)
+        if hook_headers is not None:
+            return hook_headers, None
+
+        # Normal payment flow
         payment_payload = self.create_payment_payload(payment_required)
-
-        # Encode headers
         payment_headers = self.encode_payment_signature_header(payment_payload)
-
         return payment_headers, payment_payload
 
 

@@ -258,7 +258,39 @@ Register hooks for HTTP-specific payment required handling. Use cases include tr
     ```
   </Tab>
   <Tab title="Python">
-    *Coming soon.*
+    ```python
+    from x402 import x402Client
+    from x402.http import x402HTTPClient
+
+    client = x402Client()
+    http_client = x402HTTPClient(client)
+
+    def try_api_key(payment_required):
+        api_key = os.environ.get("API_KEY")
+        if api_key:
+            return {"Authorization": f"Bearer {api_key}"}
+        # Return None to fall through to payment
+
+    http_client.on_payment_required(try_api_key)
+    ```
+
+    For asynchronous applications:
+
+    ```python
+    from x402 import x402Client
+    from x402.http import x402HTTPClient
+
+    client = x402Client()
+    http_client = x402HTTPClient(client)
+
+    async def try_api_key(payment_required):
+        api_key = os.environ.get("API_KEY")
+        if api_key:
+            return {"Authorization": f"Bearer {api_key}"}
+        # Return None to fall through to payment
+
+    http_client.on_payment_required(try_api_key)
+    ```
   </Tab>
   <Tab title="Go">
     *Coming soon.*
