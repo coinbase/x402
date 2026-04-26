@@ -1033,6 +1033,19 @@ export class x402HTTPResourceServer {
     // Fallback: Basic HTML paywall
     const resource = paymentRequired.resource;
     const displayAmount = this.getDisplayAmount(paymentRequired);
+    const firstAccept = paymentRequired.accepts?.[0];
+    const decimals =
+      firstAccept && "amount" in firstAccept
+        ? this.ResourceServer.getAssetDecimalsForRequirements(firstAccept)
+        : 6;
+    const safeDecimals = Math.min(Math.max(decimals, 0), 100);
+    const displayAmountText = parseFloat(displayAmount.toFixed(safeDecimals)).toString();
+    const assetLabel =
+      typeof firstAccept?.extra?.name === "string"
+        ? firstAccept.extra.name
+        : firstAccept?.asset
+          ? `...${firstAccept.asset.slice(-6)}`
+          : "Token";
 
     return `
       <!DOCTYPE html>
@@ -1047,7 +1060,7 @@ export class x402HTTPResourceServer {
             ${paywallConfig?.appLogo ? `<img src="${paywallConfig.appLogo}" alt="${paywallConfig.appName || "App"}" style="max-width: 200px; margin-bottom: 20px;">` : ""}
             <h1>Payment Required</h1>
             ${resource ? `<p><strong>Resource:</strong> ${resource.description || resource.url}</p>` : ""}
-            <p><strong>Amount:</strong> $${displayAmount.toFixed(2)} USDC</p>
+            <p><strong>Amount:</strong> ${displayAmountText} ${assetLabel}</p>
             <div id="payment-widget" 
                  data-requirements='${JSON.stringify(paymentRequired)}'
                  data-app-name="${paywallConfig?.appName || ""}"
@@ -1065,6 +1078,7 @@ export class x402HTTPResourceServer {
 
   /**
    * Extract display amount from payment requirements.
+   * Uses the registered scheme's decimal precision for the asset, falling back to 6.
    *
    * @param paymentRequired - The payment required object
    * @returns The display amount in decimal format
@@ -1074,8 +1088,8 @@ export class x402HTTPResourceServer {
     if (accepts && accepts.length > 0) {
       const firstReq = accepts[0];
       if ("amount" in firstReq) {
-        // V2 format
-        return parseFloat(firstReq.amount) / 1000000; // Assuming USDC with 6 decimals
+        const decimals = this.ResourceServer.getAssetDecimalsForRequirements(firstReq);
+        return parseFloat(firstReq.amount) / 10 ** decimals;
       }
     }
     return 0;
