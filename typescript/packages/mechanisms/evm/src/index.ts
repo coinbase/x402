@@ -48,3 +48,6 @@ export {
   x402ExactPermit2ProxyABI,
   x402UptoPermit2ProxyABI,
 } from "./constants";
+
+// Default-asset registry (network → token metadata)
+export { DEFAULT_STABLECOINS } from "./shared/defaultAssets";

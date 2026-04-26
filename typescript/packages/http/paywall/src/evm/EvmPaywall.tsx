@@ -7,7 +7,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { x402Client } from "@x402/core/client";
 import { encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentRequired } from "@x402/core/types";
-import { getUSDCBalance } from "./utils";
+import { getTokenBalance, getTokenDecimals } from "./utils";
 
 import { Spinner } from "./Spinner";
 import { getNetworkDisplayName, isTestnetNetwork } from "../paywallUtils";
@@ -36,7 +36,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
+  const [formattedBalance, setFormattedBalance] = useState<string>("");
   const [hideBalance, setHideBalance] = useState(true);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string>("");
 
@@ -50,6 +50,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
   const network = firstRequirement.network;
   const tokenName = (firstRequirement.extra?.name as string) || "Token";
+  const tokenAddress = firstRequirement.asset as `0x${string}`;
   const chainName = getNetworkDisplayName(network);
   const testnet = isTestnetNetwork(network);
 
@@ -71,14 +72,16 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
     [paymentChain],
   );
 
-  const checkUSDCBalance = useCallback(async () => {
+  const checkBalance = useCallback(async () => {
     if (!address) {
       return;
     }
-    const balance = await getUSDCBalance(publicClient, address);
-    const formattedBalance = formatUnits(balance, 6);
-    setFormattedUsdcBalance(formattedBalance);
-  }, [address, publicClient]);
+    const [balance, decimals] = await Promise.all([
+      getTokenBalance(publicClient, address, tokenAddress),
+      getTokenDecimals(publicClient, tokenAddress),
+    ]);
+    setFormattedBalance(formatUnits(balance, decimals));
+  }, [address, publicClient, tokenAddress]);
 
   const handleSwitchChain = useCallback(async () => {
     if (isCorrectChain) {
@@ -100,8 +103,8 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
     }
 
     void handleSwitchChain();
-    void checkUSDCBalance();
-  }, [address, handleSwitchChain, checkUSDCBalance]);
+    void checkBalance();
+  }, [address, handleSwitchChain, checkBalance]);
 
   useEffect(() => {
     if (isConnected && chainId === connectedChainId) {
@@ -140,7 +143,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
     try {
       setStatus("Checking balance...");
-      const balance = await getUSDCBalance(publicClient, address);
+      const balance = await getTokenBalance(publicClient, address, tokenAddress);
 
       if (balance === 0n) {
         throw new Error(`Insufficient balance. Make sure you have ${tokenName} on ${chainName}`);
@@ -259,8 +262,8 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
                 <span className="payment-label">Available balance:</span>
                 <span className="payment-value">
                   <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
-                    {formattedUsdcBalance && !hideBalance
-                      ? `$${formattedUsdcBalance} ${tokenName}`
+                    {formattedBalance && !hideBalance
+                      ? `$${formattedBalance} ${tokenName}`
                       : `••••• ${tokenName}`}
                   </button>
                 </span>
