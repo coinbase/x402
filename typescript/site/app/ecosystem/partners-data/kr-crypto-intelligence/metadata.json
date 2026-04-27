@@ -1,7 +1,7 @@
 {
   "name": "KR Crypto Intelligence",
-  "description": "Korean crypto market data + AI analysis for AI agents. 7 endpoints: AI market read ($0.10, 9 data sources + Claude AI), Kimchi Premium, stablecoin premium, Upbit/Bithumb prices, USD/KRW FX rate. Pay-per-use x402 on Base and Solana. First Korean market data service in the x402 ecosystem.",
-  "logoUrl": "",
+  "description": "Korean crypto market data + AI-powered analysis for AI agents. 11 paid endpoints including world's first Korean-to-English sentiment analysis, Kimchi Premium across 180+ tokens, Global vs Korea divergence, market alerts. Pay-per-call $0.001-$0.10 USDC on Base, Polygon, and Solana via x402.",
+  "logoUrl": "/logos/kr-crypto-intelligence.png",
   "websiteUrl": "https://api.printmoneylab.com",
   "category": "Services/Endpoints"
 }
