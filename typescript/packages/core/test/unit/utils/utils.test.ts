@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   findByNetworkAndScheme,
+  findFacilitatorBySchemeAndNetwork,
   findSchemesByNetwork,
   deepEqual,
   safeBase64Encode,
   safeBase64Decode,
   numberToDecimalString,
   convertToTokenAmount,
+  Base64EncodedRegex,
+  type SchemeData,
 } from "../../../src/utils";
 import { Network } from "../../../src/types";
 
@@ -483,5 +486,124 @@ describe("Utils", () => {
         expect(safeBase64Decode("YWJj")).toBe("abc");
       });
     });
+  });
+});
+
+
+describe("findFacilitatorBySchemeAndNetwork", () => {
+  const makeFacilitatorMap = <T>(
+    entries: Array<{ scheme: string; facilitator: T; networks: string[]; pattern: string }>,
+  ): Map<string, SchemeData<T>> => {
+    const map = new Map<string, SchemeData<T>>();
+    for (const { scheme, facilitator, networks, pattern } of entries) {
+      map.set(scheme, {
+        facilitator,
+        networks: new Set(networks as import("../../../src/types").Network[]),
+        pattern: pattern as import("../../../src/types").Network,
+      });
+    }
+    return map;
+  };
+
+  it("returns facilitator when scheme and network match exactly", () => {
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "evmFacilitator", networks: ["eip155:8453"], pattern: "eip155:*" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:8453" as import("../../../src/types").Network)).toBe("evmFacilitator");
+  });
+
+  it("returns undefined when scheme is not registered", () => {
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "evmFacilitator", networks: ["eip155:8453"], pattern: "eip155:*" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "upto", "eip155:8453" as import("../../../src/types").Network)).toBeUndefined();
+  });
+
+  it("returns undefined when network is not in networks set and does not match pattern", () => {
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "evmFacilitator", networks: ["eip155:8453"], pattern: "eip155:8453" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "solana:mainnet" as import("../../../src/types").Network)).toBeUndefined();
+  });
+
+  it("falls through to pattern matching when network is not in the set", () => {
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "wildcardFacilitator", networks: ["eip155:8453"], pattern: "eip155:*" },
+    ]);
+    // eip155:1 is not in the networks Set but matches the pattern eip155:*
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:1" as import("../../../src/types").Network)).toBe("wildcardFacilitator");
+  });
+
+  it("returns undefined on empty map", () => {
+    const map = new Map<string, SchemeData<string>>();
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:8453" as import("../../../src/types").Network)).toBeUndefined();
+  });
+
+  it("supports multiple schemes and returns the correct one", () => {
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "exactFacilitator", networks: ["eip155:8453"], pattern: "eip155:*" },
+      { scheme: "upto", facilitator: "uptoFacilitator", networks: ["eip155:8453"], pattern: "eip155:*" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:8453" as import("../../../src/types").Network)).toBe("exactFacilitator");
+    expect(findFacilitatorBySchemeAndNetwork(map, "upto", "eip155:8453" as import("../../../src/types").Network)).toBe("uptoFacilitator");
+  });
+
+  it("networks set match takes priority over pattern matching", () => {
+    // network IS in the set — should return immediately without regex
+    const map = makeFacilitatorMap([
+      { scheme: "exact", facilitator: "directFacilitator", networks: ["eip155:8453"], pattern: "nomatch:*" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:8453" as import("../../../src/types").Network)).toBe("directFacilitator");
+  });
+
+  it("works with non-string facilitator values (objects)", () => {
+    type FacilitatorObj = { verify: () => boolean };
+    const obj: FacilitatorObj = { verify: () => true };
+    const map = makeFacilitatorMap<FacilitatorObj>([
+      { scheme: "exact", facilitator: obj, networks: ["eip155:8453"], pattern: "eip155:*" },
+    ]);
+    expect(findFacilitatorBySchemeAndNetwork(map, "exact", "eip155:8453" as import("../../../src/types").Network)).toBe(obj);
+  });
+});
+
+describe("Base64EncodedRegex", () => {
+  it("matches a valid base64 string without padding", () => {
+    expect(Base64EncodedRegex.test("YWJj")).toBe(true);
+  });
+
+  it("matches a valid base64 string with single = padding", () => {
+    expect(Base64EncodedRegex.test("YWI=")).toBe(true);
+  });
+
+  it("matches a valid base64 string with double == padding", () => {
+    expect(Base64EncodedRegex.test("YQ==")).toBe(true);
+  });
+
+  it("matches an empty string", () => {
+    expect(Base64EncodedRegex.test("")).toBe(true);
+  });
+
+  it("matches all valid base64 alphabet characters", () => {
+    expect(Base64EncodedRegex.test("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")).toBe(true);
+  });
+
+  it("matches a realistic JWT segment (no padding)", () => {
+    expect(Base64EncodedRegex.test("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")).toBe(true);
+  });
+
+  it("does not match strings with illegal characters (hyphen)", () => {
+    expect(Base64EncodedRegex.test("YW-j")).toBe(false);
+  });
+
+  it("does not match strings with illegal characters (underscore, base64url)", () => {
+    expect(Base64EncodedRegex.test("YW_j")).toBe(false);
+  });
+
+  it("does not match strings with spaces", () => {
+    expect(Base64EncodedRegex.test("YW Bj")).toBe(false);
+  });
+
+  it("does not match strings with more than two padding characters", () => {
+    expect(Base64EncodedRegex.test("YQ===")).toBe(false);
   });
 });
