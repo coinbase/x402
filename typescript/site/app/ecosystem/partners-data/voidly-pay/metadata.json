@@ -1,0 +1,19 @@
+{
+  "name": "Voidly Pay",
+  "description": "Agent-to-agent payment rail with x402 facilitator, USDC-backed credits on Base mainnet, MCP server, drop-in SDKs (TypeScript, Python, LangChain, Vercel AI), and a universal reverse proxy that paywalls any public HTTPS URL with one query parameter.",
+  "logoUrl": "/logos/voidly-pay.png",
+  "websiteUrl": "https://voidly.ai/pay",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://api.voidly.ai/v1/pay/x402",
+    "networks": ["base"],
+    "schemes": ["exact", "voidly-credit"],
+    "assets": ["ERC20"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
