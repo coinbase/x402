@@ -296,7 +296,7 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param amount The gross amount requested; may be capped on finalization.
     ///
     /// @dev Only `config.payer` or `config.payerAuthorizer` may call. Reverts if a withdrawal is already pending.
-    function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external {
+    function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external nonReentrant {
         if (msg.sender != config.payer && msg.sender != config.payerAuthorizer) {
             revert InvalidChannel();
         }
