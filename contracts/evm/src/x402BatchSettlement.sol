@@ -206,16 +206,16 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         if (amount > type(uint128).max - ch.balance) revert DepositOverflow();
         ch.balance += amount;
 
+        uint256 balBefore = IERC20(config.token).balanceOf(address(this));
+        IDepositCollector(collector).collect(config.payer, config.token, amount, channelId, msg.sender, collectorData);
+        uint256 balAfter = IERC20(config.token).balanceOf(address(this));
+        if (balAfter != balBefore + amount) revert DepositCollectionFailed();
+
         // First deposit on this channel (escrow was empty before this deposit)
         if (ch.balance == amount && ch.totalClaimed == 0) {
             emit ChannelCreated(channelId, config);
         }
         emit Deposited(channelId, msg.sender, amount, ch.balance);
-
-        uint256 balBefore = IERC20(config.token).balanceOf(address(this));
-        IDepositCollector(collector).collect(config.payer, config.token, amount, channelId, msg.sender, collectorData);
-        uint256 balAfter = IERC20(config.token).balanceOf(address(this));
-        if (balAfter != balBefore + amount) revert DepositCollectionFailed();
     }
 
     // =========================================================================
