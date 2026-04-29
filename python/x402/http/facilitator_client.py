@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import ValidationError
@@ -88,14 +89,23 @@ def _parse_facilitator_response(
         ) from exc
 
 
-def _merge_extension_responses_header(response: Any, result: Any) -> None:
-    """Read the EXTENSION-RESPONSES header and merge decoded extension data into result.
+_logger = logging.getLogger("x402")
 
-    Header entries do not overwrite extension entries already present in the body.
+_EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = {
+    "status",
+    "rejectedReason",
+    "reason",
+    "code",
+}
+
+
+def _log_extension_responses_header(response: Any) -> None:
+    """Read the EXTENSION-RESPONSES header and log allowlisted fields.
+
+    Silently ignores malformed headers.
 
     Args:
         response: The HTTP response object (httpx.Response).
-        result: The parsed response model to enrich (VerifyResponse or SettleResponse).
     """
     header = response.headers.get("EXTENSION-RESPONSES") or response.headers.get(
         "extension-responses"
@@ -107,9 +117,18 @@ def _merge_extension_responses_header(response: Any, result: Any) -> None:
         header_extensions: dict[str, Any] = json.loads(decoded)
         if not isinstance(header_extensions, dict):
             return
-        existing = result.extensions or {}
-        merged = {**header_extensions, **existing}
-        result.extensions = merged
+        sanitized: dict[str, dict[str, Any]] = {}
+        for extension_key, payload in header_extensions.items():
+            filtered: dict[str, Any] = {}
+            if isinstance(payload, dict):
+                for field in _EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST:
+                    if field in payload:
+                        filtered[field] = payload[field]
+            sanitized[extension_key] = filtered
+        _logger.info(
+            "[x402] extension responses: %s",
+            json.dumps(sanitized),
+        )
     except Exception:
         pass
 
@@ -316,7 +335,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         result = _parse_facilitator_response(response, VerifyResponse, "verify")
-        _merge_extension_responses_header(response, result)
+        _log_extension_responses_header(response)
         return result
 
     async def _settle_http(
@@ -339,7 +358,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         result = _parse_facilitator_response(response, SettleResponse, "settle")
-        _merge_extension_responses_header(response, result)
+        _log_extension_responses_header(response)
         return result
 
 
@@ -536,7 +555,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         result = _parse_facilitator_response(response, VerifyResponse, "verify")
-        _merge_extension_responses_header(response, result)
+        _log_extension_responses_header(response)
         return result
 
     def _settle_http(
@@ -559,5 +578,5 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         result = _parse_facilitator_response(response, SettleResponse, "settle")
-        _merge_extension_responses_header(response, result)
+        _log_extension_responses_header(response)
         return result

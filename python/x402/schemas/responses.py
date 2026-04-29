@@ -30,14 +30,12 @@ class VerifyResponse(BaseX402Model):
         invalid_reason: Reason for invalidity (if is_valid is False).
         invalid_message: Human-readable message for invalidity.
         payer: The payer's address.
-        extensions: Optional extension data returned by the facilitator.
     """
 
     is_valid: bool
     invalid_reason: str | None = None
     invalid_message: str | None = None
     payer: str | None = None
-    extensions: dict[str, Any] | None = None
 
 
 class SettleRequest(BaseX402Model):
@@ -65,7 +63,6 @@ class SettleResponse(BaseX402Model):
         transaction: Transaction hash/identifier.
         network: Network where settlement occurred.
         amount: Settled amount in atomic units.
-        extensions: Optional extension data returned by the facilitator.
     """
 
     success: bool
@@ -75,7 +72,6 @@ class SettleResponse(BaseX402Model):
     transaction: str
     network: Network
     amount: str | None = None
-    extensions: dict[str, Any] | None = None
 
 
 class SupportedKind(BaseX402Model):

@@ -602,7 +602,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Verify payment (type-safe)
-	verifyResult, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
+	_, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
 	if verifyErr != nil {
 		err = verifyErr
 		errorMsg := err.Error()
@@ -631,13 +631,6 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		}
 	}
 
-	if verifyResult != nil && len(verifyResult.Extensions) > 0 {
-		sanitized := sanitizeExtensionResponsesForLog(verifyResult.Extensions)
-		if extJSON, err := json.Marshal(sanitized); err == nil {
-			log.Printf("[x402] extension responses: %s", extJSON)
-		}
-	}
-
 	// Payment verified
 	return HTTPProcessResult{
 		Type:                ResultPaymentVerified,
@@ -660,13 +653,6 @@ func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool
 // The value is the canonical HTTP header form (Title-Case) so it works correctly
 // with both http.Header methods and direct map access.
 const SettlementOverridesHeader = "Settlement-Overrides"
-
-var extensionResponseLogFieldAllowlist = map[string]struct{}{
-	"status":         {},
-	"rejectedReason": {},
-	"reason":         {},
-	"code":           {},
-}
 
 // MarshalSettlementOverrides serializes overrides to the JSON string suitable for
 // the SettlementOverridesHeader value. Returns an empty string on marshal failure
@@ -710,13 +696,6 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 			settleResult.Payer,
 			nil,
 		)
-	}
-
-	if len(settleResult.Extensions) > 0 {
-		sanitized := sanitizeExtensionResponsesForLog(settleResult.Extensions)
-		if extJSON, err := json.Marshal(sanitized); err == nil {
-			log.Printf("[x402] extension responses: %s", extJSON)
-		}
 	}
 
 	return &ProcessSettleResult{
@@ -1111,25 +1090,6 @@ func injectPaywallConfig(template string, paymentRequired types.PaymentRequired,
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-func sanitizeExtensionResponsesForLog(
-	extensions map[string]interface{},
-) map[string]map[string]interface{} {
-	sanitized := make(map[string]map[string]interface{}, len(extensions))
-	for extensionKey, payload := range extensions {
-		filtered := make(map[string]interface{})
-		payloadMap, ok := payload.(map[string]interface{})
-		if ok {
-			for fieldKey := range extensionResponseLogFieldAllowlist {
-				if value, exists := payloadMap[fieldKey]; exists {
-					filtered[fieldKey] = value
-				}
-			}
-		}
-		sanitized[extensionKey] = filtered
-	}
-	return sanitized
-}
 
 // parseRoutePattern parses a route pattern like "GET /api/*"
 func parseRoutePattern(pattern string) (string, string, *regexp.Regexp) {

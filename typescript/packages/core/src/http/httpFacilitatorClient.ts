@@ -144,26 +144,40 @@ function responseExcerpt(text: string, limit: number = 200): string {
   return `${compact.slice(0, limit - 3)}...`;
 }
 
+const EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = new Set([
+  "status",
+  "rejectedReason",
+  "reason",
+  "code",
+]);
+
 /**
- * Reads the `EXTENSION-RESPONSES` header from a facilitator HTTP response and merges
- * any decoded extension data into the provided result object's `extensions` field.
- * Header data does not overwrite extension entries already present in the body.
+ * Reads the `EXTENSION-RESPONSES` header from a facilitator HTTP response and logs
+ * allowlisted fields. Silently ignores malformed headers.
  *
  * @param response - The HTTP response from the facilitator
- * @param result - The parsed response object to enrich
  */
-function mergeExtensionResponsesHeader<T extends { extensions?: Record<string, unknown> }>(
-  response: Response,
-  result: T,
-): void {
+function logExtensionResponsesHeader(response: Response): void {
   const header = response.headers.get("EXTENSION-RESPONSES");
   if (!header) return;
   try {
     const decoded = JSON.parse(safeBase64Decode(header));
-    if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
-      const headerExtensions = decoded as Record<string, unknown>;
-      result.extensions = { ...headerExtensions, ...(result.extensions ?? {}) };
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return;
+    const sanitized: Record<string, Record<string, unknown>> = {};
+    for (const [extensionKey, payload] of Object.entries(decoded as Record<string, unknown>)) {
+      const source =
+        payload && typeof payload === "object" && !Array.isArray(payload)
+          ? (payload as Record<string, unknown>)
+          : {};
+      const filtered: Record<string, unknown> = {};
+      for (const key of EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST) {
+        if (source[key] !== undefined) {
+          filtered[key] = source[key];
+        }
+      }
+      sanitized[extensionKey] = filtered;
     }
+    console.log(`[x402] extension responses: ${JSON.stringify(sanitized)}`);
   } catch {
     // Ignore malformed header
   }
@@ -273,7 +287,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
     }
 
     const verifyResult = await parseSuccessResponse(response, verifyResponseSchema, "verify");
-    mergeExtensionResponsesHeader(response, verifyResult);
+    logExtensionResponsesHeader(response);
     return verifyResult;
   }
 
@@ -327,7 +341,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
     }
 
     const settleResult = await parseSuccessResponse(response, settleResponseSchema, "settle");
-    mergeExtensionResponsesHeader(response, settleResult);
+    logExtensionResponsesHeader(response);
     return settleResult;
   }
 

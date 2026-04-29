@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -169,31 +170,43 @@ func parseSettleSuccessResponse(body []byte) (*x402.SettleResponse, error) {
 	}, nil
 }
 
-// mergeExtensionResponsesHeader reads the EXTENSION-RESPONSES header from an HTTP response
-// and merges the decoded extension data into dst. Header entries do not overwrite body-provided
-// extensions already present in dst.
-func mergeExtensionResponsesHeader(resp *http.Response, dst map[string]interface{}) map[string]interface{} {
+var extensionResponseLogFieldAllowlist = map[string]struct{}{
+	"status":         {},
+	"rejectedReason": {},
+	"reason":         {},
+	"code":           {},
+}
+
+// logExtensionResponsesHeader reads the EXTENSION-RESPONSES header from an HTTP response
+// and logs allowlisted fields. Silently ignores malformed headers.
+func logExtensionResponsesHeader(resp *http.Response) {
 	header := resp.Header.Get("EXTENSION-RESPONSES")
 	if header == "" {
-		return dst
+		return
 	}
 	decoded, err := base64.StdEncoding.DecodeString(header)
 	if err != nil {
-		return dst
+		return
 	}
 	var headerExtensions map[string]interface{}
 	if err := json.Unmarshal(decoded, &headerExtensions); err != nil {
-		return dst
+		return
 	}
-	if dst == nil {
-		dst = make(map[string]interface{})
-	}
-	for k, v := range headerExtensions {
-		if _, exists := dst[k]; !exists {
-			dst[k] = v
+	sanitized := make(map[string]map[string]interface{}, len(headerExtensions))
+	for extensionKey, payload := range headerExtensions {
+		filtered := make(map[string]interface{})
+		if payloadMap, ok := payload.(map[string]interface{}); ok {
+			for fieldKey := range extensionResponseLogFieldAllowlist {
+				if value, exists := payloadMap[fieldKey]; exists {
+					filtered[fieldKey] = value
+				}
+			}
 		}
+		sanitized[extensionKey] = filtered
 	}
-	return dst
+	if extJSON, err := json.Marshal(sanitized); err == nil {
+		log.Printf("[x402] extension responses: %s", extJSON)
+	}
 }
 
 func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) {
@@ -451,7 +464,7 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	if err != nil {
 		return nil, err
 	}
-	result.Extensions = mergeExtensionResponsesHeader(resp, result.Extensions)
+	logExtensionResponsesHeader(resp)
 	return result, nil
 }
 
@@ -533,6 +546,6 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	if err != nil {
 		return nil, err
 	}
-	result.Extensions = mergeExtensionResponsesHeader(resp, result.Extensions)
+	logExtensionResponsesHeader(resp)
 	return result, nil
 }

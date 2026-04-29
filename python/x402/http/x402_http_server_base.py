@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import dataclasses
 import html
-import json
 import logging
 import re
 from collections.abc import Generator
@@ -57,27 +56,6 @@ if TYPE_CHECKING:
     from ..server import x402ResourceServer, x402ResourceServerSync
 
 logger = logging.getLogger("x402")
-EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = {
-    "status",
-    "rejectedReason",
-    "reason",
-    "code",
-}
-
-
-def _sanitize_extension_responses_for_log(
-    extensions: dict[str, Any],
-) -> dict[str, dict[str, Any]]:
-    """Keep only allowlisted extension response fields for logging."""
-    sanitized: dict[str, dict[str, Any]] = {}
-    for extension_key, payload in extensions.items():
-        filtered: dict[str, Any] = {}
-        if isinstance(payload, dict):
-            for field in EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST:
-                if field in payload:
-                    filtered[field] = payload[field]
-        sanitized[extension_key] = filtered
-    return sanitized
 
 
 # ============================================================================
@@ -419,12 +397,6 @@ class x402HTTPServerBase:
                     ),
                 )
 
-            if verify_result.extensions:
-                logger.info(
-                    "[x402] extension responses: %s",
-                    json.dumps(_sanitize_extension_responses_for_log(verify_result.extensions)),
-                )
-
             # Payment valid
             return HTTPProcessResult(
                 type=RESULT_PAYMENT_VERIFIED,
@@ -538,12 +510,6 @@ class x402HTTPServerBase:
                 )
                 failure.response = self._build_settlement_failure_response(failure, context)
                 return failure
-
-            if settle_response.extensions:
-                logger.info(
-                    "[x402] extension responses: %s",
-                    json.dumps(_sanitize_extension_responses_for_log(settle_response.extensions)),
-                )
 
             return ProcessSettleResult(
                 success=True,
