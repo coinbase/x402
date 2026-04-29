@@ -24,27 +24,13 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import {x402BatchSettlement} from "../src/x402BatchSettlement.sol";
-import {IDepositCollector} from "../src/interfaces/IDepositCollector.sol";
 import {ERC3009DepositCollector} from "../src/periphery/ERC3009DepositCollector.sol";
 import {Permit2DepositCollector} from "../src/periphery/Permit2DepositCollector.sol";
+import {GasMockDepositCollector} from "./mocks/GasMockDepositCollector.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockERC3009Token} from "./mocks/MockERC3009Token.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
-
-contract GasMockDepositCollector is IDepositCollector {
-    function collect(
-        address payer,
-        address token,
-        uint256 amount,
-        bytes32,
-        bytes calldata
-    ) external override {
-        IERC20(token).transferFrom(payer, msg.sender, amount);
-    }
-}
 
 contract X402BatchSettlementGasTest is Test {
     x402BatchSettlement public settlement;
@@ -218,8 +204,7 @@ contract X402BatchSettlementGasTest is Test {
         x402BatchSettlement.VoucherClaim[] memory claims = new x402BatchSettlement.VoucherClaim[](10);
 
         for (uint256 i = 0; i < 10; ++i) {
-            x402BatchSettlement.ChannelConfig memory cfg =
-                _makeConfig(address(erc20Token), bytes32(uint256(i + 1)));
+            x402BatchSettlement.ChannelConfig memory cfg = _makeConfig(address(erc20Token), bytes32(uint256(i + 1)));
             bytes32 cid = settlement.getChannelId(cfg);
 
             vm.prank(payerWallet.addr);
