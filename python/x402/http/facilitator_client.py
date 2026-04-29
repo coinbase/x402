@@ -91,12 +91,7 @@ def _parse_facilitator_response(
 
 _logger = logging.getLogger("x402")
 
-_EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = {
-    "status",
-    "rejectedReason",
-    "reason",
-    "code",
-}
+_EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = ["status", "rejectedReason", "reason", "code"]
 
 
 def _log_extension_responses_header(response: Any) -> None:

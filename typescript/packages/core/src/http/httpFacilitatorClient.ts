@@ -144,12 +144,7 @@ function responseExcerpt(text: string, limit: number = 200): string {
   return `${compact.slice(0, limit - 3)}...`;
 }
 
-const EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = new Set([
-  "status",
-  "rejectedReason",
-  "reason",
-  "code",
-]);
+const EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = ["status", "rejectedReason", "reason", "code"];
 
 /**
  * Reads the `EXTENSION-RESPONSES` header from a facilitator HTTP response and logs

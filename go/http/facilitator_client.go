@@ -170,12 +170,7 @@ func parseSettleSuccessResponse(body []byte) (*x402.SettleResponse, error) {
 	}, nil
 }
 
-var extensionResponseLogFieldAllowlist = map[string]struct{}{
-	"status":         {},
-	"rejectedReason": {},
-	"reason":         {},
-	"code":           {},
-}
+var extensionResponseLogFieldAllowlist = []string{"status", "rejectedReason", "reason", "code"}
 
 // logExtensionResponsesHeader reads the EXTENSION-RESPONSES header from an HTTP response
 // and logs allowlisted fields. Silently ignores malformed headers.
@@ -196,7 +191,7 @@ func logExtensionResponsesHeader(resp *http.Response) {
 	for extensionKey, payload := range headerExtensions {
 		filtered := make(map[string]interface{})
 		if payloadMap, ok := payload.(map[string]interface{}); ok {
-			for fieldKey := range extensionResponseLogFieldAllowlist {
+			for _, fieldKey := range extensionResponseLogFieldAllowlist {
 				if value, exists := payloadMap[fieldKey]; exists {
 					filtered[fieldKey] = value
 				}
