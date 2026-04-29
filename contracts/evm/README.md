@@ -33,6 +33,8 @@ Both contracts:
 | ERC3009DepositCollector | `0x40205cf31B2027ce5AfbD9EEbC167B8e0fB40004` |
 | Permit2DepositCollector | `0x40200a262E9A5A824A38Bc5A59cedbC20CF10005` |
 
+**Implementer notes:** [x402-batch-settlement-implementers.md](docs/x402-batch-settlement-implementers.md) — on-chain vs off-chain entitlement, timed withdrawal vs `claim`, deposits, EIP-712, and deployment constraints.
+
 > Re-mine collectors (`cargo run --release -- batch-stack`) whenever `ERC3009DepositCollector` / `Permit2DepositCollector` bytecode changes; salts live in `script/DeployBatchSettlement.s.sol`.
 
 ### Current Deployments

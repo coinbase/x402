@@ -29,6 +29,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // =========================================================================
 
     /// @notice Immutable channel parameters; hashed to form `channelId`.
+    ///
+    /// @dev `withdrawDelay` must be between `MIN_WITHDRAW_DELAY` and `MAX_WITHDRAW_DELAY` (inclusive) at deposit time.
+    ///      The floor is a protocol minimum; high-value channels often use **longer** delays so receiver-side `claim`
+    ///      transactions have time to land before a payer can finalize a timed withdrawal (an integrator policy choice).
     struct ChannelConfig {
         address payer;
         address payerAuthorizer;
@@ -230,6 +234,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param voucherClaims Signed voucher rows with cumulative claim totals.
     ///
     /// @dev For each row, `msg.sender` must be `receiverAuthorizer` or `receiver` for that row's channel.
+    ///
+    ///      Receiver-side integrators should submit `claim` **promptly** once a payer-signed voucher should bind on-chain
+    ///      entitlement: only **recorded** claims (`totalClaimed`) reduce what the payer can withdraw. If the payer
+    ///      finalizes a timed withdrawal before this call executes, later `claim` can revert with `ClaimExceedsBalance`.
     function claim(
         VoucherClaim[] calldata voucherClaims
     ) external nonReentrant {
@@ -250,6 +258,9 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param authorizerSignature Signature from `receiverAuthorizer` over `getClaimBatchDigest(voucherClaims)`.
     ///
     /// @dev Callable by anyone (relay-friendly). All rows must match the same `receiverAuthorizer`.
+    ///
+    ///      Same liveness consideration as `claim`: relays should submit before payer timed withdrawal drains escrow
+    ///      (see `finalizeWithdraw` / `initiateWithdraw`).
     function claimWithSignature(
         VoucherClaim[] calldata voucherClaims,
         bytes calldata authorizerSignature
@@ -299,6 +310,11 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param amount The gross amount requested; may be capped on finalization.
     ///
     /// @dev Only `config.payer` or `config.payerAuthorizer` may call. Reverts if a withdrawal is already pending.
+    ///
+    ///      Available liquidity is `ch.balance - ch.totalClaimed` using **only** on-chain `totalClaimed`. Payer-signed
+    ///      vouchers that are not yet claimed do **not** reserve funds; receivers relying on voucher value must treat
+    ///      inclusion of `claim` during the withdrawal window as an operational requirement (RPC outages, censorship,
+    ///      or relay failure can interact badly with `finalizeWithdraw`).
     function initiateWithdraw(ChannelConfig calldata config, uint128 amount) external nonReentrant {
         if (msg.sender != config.payer && msg.sender != config.payerAuthorizer) {
             revert InvalidChannel();
@@ -326,6 +342,9 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param config The channel configuration.
     ///
     /// @dev Only `config.payer` or `config.payerAuthorizer` may call. Amount may be capped by available escrow.
+    ///
+    ///      Uses **current** `ch.balance` and `ch.totalClaimed` at execution time. If this transaction executes before a
+    ///      competing `claim`, it can reduce escrow such that the claim later reverts with `ClaimExceedsBalance`.
     function finalizeWithdraw(
         ChannelConfig calldata config
     ) external nonReentrant {
