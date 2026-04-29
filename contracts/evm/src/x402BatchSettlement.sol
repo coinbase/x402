@@ -439,6 +439,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @param voucherClaims The claim rows hashed into the batch.
     ///
     /// @return The typed data hash `receiverAuthorizer` signs for the batch.
+    ///
+    /// @dev `claim` and `claimWithSignature` revert with `EmptyBatch()` when `voucherClaims.length == 0`, so they
+    ///      never call this with an empty array. The digest for `length == 0` is still defined (`entriesRoot = keccak256("")`)
+    ///      for `eth_call` and off-chain tools to match this contract’s EIP-712 encoding without duplicating hashing logic.
     function getClaimBatchDigest(
         VoucherClaim[] calldata voucherClaims
     ) public view returns (bytes32) {
