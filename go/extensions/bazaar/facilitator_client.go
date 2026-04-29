@@ -18,6 +18,18 @@ type ListDiscoveryResourcesParams struct {
 	// Type filters by protocol type (e.g., "http", "mcp").
 	Type string
 
+	// PayTo filters by payment recipient address.
+	PayTo string
+
+	// Scheme filters by payment scheme (e.g., "exact").
+	Scheme string
+
+	// Network filters by payment network (e.g., "eip155:8453").
+	Network string
+
+	// Extensions filters by extension key present on the discovered resource.
+	Extensions string
+
 	// Limit is the number of discovered x402 resources to return per page.
 	Limit int
 
@@ -32,6 +44,18 @@ type SearchDiscoveryResourcesParams struct {
 
 	// Type filters by protocol type (e.g., "http", "mcp").
 	Type string
+
+	// PayTo filters by payment recipient address.
+	PayTo string
+
+	// Scheme filters by payment scheme (e.g., "exact").
+	Scheme string
+
+	// Network filters by payment network (e.g., "eip155:8453").
+	Network string
+
+	// Extensions filters by extension key present on the discovered resource.
+	Extensions string
 
 	// Limit is an advisory maximum number of results. The server may return fewer or ignore this.
 	Limit int
@@ -198,7 +222,7 @@ func (c *BazaarFacilitatorClient) ListDiscoveryResources(
 // to search x402 discovery resources from the bazaar using a natural-language query.
 //
 // Pagination is optional: facilitators may ignore Limit/Cursor in params, or include
-// top-level response.Limit/response.Cursor when pagination is used.
+// response.pagination when pagination is used.
 func (c *BazaarFacilitatorClient) SearchDiscoveryResources(
 	ctx context.Context,
 	params *SearchDiscoveryResourcesParams,
@@ -270,6 +294,18 @@ func (c *BazaarFacilitatorClient) buildDiscoveryURL(params *ListDiscoveryResourc
 	if params.Type != "" {
 		q.Set("type", params.Type)
 	}
+	if params.PayTo != "" {
+		q.Set("payTo", params.PayTo)
+	}
+	if params.Scheme != "" {
+		q.Set("scheme", params.Scheme)
+	}
+	if params.Network != "" {
+		q.Set("network", params.Network)
+	}
+	if params.Extensions != "" {
+		q.Set("extensions", params.Extensions)
+	}
 	if params.Limit > 0 {
 		q.Set("limit", strconv.Itoa(params.Limit))
 	}
@@ -294,6 +330,18 @@ func (c *BazaarFacilitatorClient) buildSearchURL(params *SearchDiscoveryResource
 	q.Set("query", params.Query)
 	if params.Type != "" {
 		q.Set("type", params.Type)
+	}
+	if params.PayTo != "" {
+		q.Set("payTo", params.PayTo)
+	}
+	if params.Scheme != "" {
+		q.Set("scheme", params.Scheme)
+	}
+	if params.Network != "" {
+		q.Set("network", params.Network)
+	}
+	if params.Extensions != "" {
+		q.Set("extensions", params.Extensions)
 	}
 	if params.Limit > 0 {
 		q.Set("limit", strconv.Itoa(params.Limit))

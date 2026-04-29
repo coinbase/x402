@@ -23,6 +23,18 @@ class ListDiscoveryResourcesParams:
     type: str | None = None
     """Filter by protocol type (e.g., "http", "mcp")."""
 
+    pay_to: str | None = None
+    """Filter by payment recipient address."""
+
+    scheme: str | None = None
+    """Filter by payment scheme (e.g., "exact")."""
+
+    network: str | None = None
+    """Filter by payment network (e.g., "eip155:8453")."""
+
+    extensions: str | None = None
+    """Filter by extension key present on the discovered resource."""
+
     limit: int | None = None
     """The number of discovered x402 resources to return per page."""
 
@@ -39,6 +51,18 @@ class SearchDiscoveryResourcesParams:
 
     type: str | None = None
     """Filter by protocol type (e.g., "http", "mcp")."""
+
+    pay_to: str | None = None
+    """Filter by payment recipient address."""
+
+    scheme: str | None = None
+    """Filter by payment scheme (e.g., "exact")."""
+
+    network: str | None = None
+    """Filter by payment network (e.g., "eip155:8453")."""
+
+    extensions: str | None = None
+    """Filter by extension key present on the discovered resource."""
 
     limit: int | None = None
     """Advisory maximum number of results. The server may return fewer or ignore this."""
@@ -175,6 +199,14 @@ class BazaarExtension:
         query_params: dict[str, str] = {}
         if params.type is not None:
             query_params["type"] = params.type
+        if params.pay_to is not None:
+            query_params["payTo"] = params.pay_to
+        if params.scheme is not None:
+            query_params["scheme"] = params.scheme
+        if params.network is not None:
+            query_params["network"] = params.network
+        if params.extensions is not None:
+            query_params["extensions"] = params.extensions
         if params.limit is not None:
             query_params["limit"] = str(params.limit)
         if params.offset is not None:
@@ -205,7 +237,7 @@ class BazaarExtension:
         """Search x402 discovery resources from the bazaar using a natural-language query.
 
         Pagination is optional: facilitators may ignore `limit` and `cursor`, or include
-        top-level `response.limit` and `response.cursor` when pagination is used.
+        `response.pagination` when pagination is used.
 
         Args:
             params: Search parameters including the required query string.
@@ -242,6 +274,14 @@ class BazaarExtension:
         query_params: dict[str, str] = {"query": params.query}
         if params.type is not None:
             query_params["type"] = params.type
+        if params.pay_to is not None:
+            query_params["payTo"] = params.pay_to
+        if params.scheme is not None:
+            query_params["scheme"] = params.scheme
+        if params.network is not None:
+            query_params["network"] = params.network
+        if params.extensions is not None:
+            query_params["extensions"] = params.extensions
         if params.limit is not None:
             query_params["limit"] = str(params.limit)
         if params.cursor is not None:

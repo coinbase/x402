@@ -262,6 +262,26 @@ class TestListResources:
         assert call_kwargs["params"]["limit"] == "10"
         assert call_kwargs["params"]["offset"] == "5"
 
+    def test_passes_additional_filters(self) -> None:
+        response = _make_http_response(200, LIST_RESPONSE_FIXTURE)
+        extended = self._make_extended(response)
+
+        extended.extensions.bazaar.list_resources(
+            ListDiscoveryResourcesParams(
+                pay_to="0x1234567890123456789012345678901234567890",
+                scheme="exact",
+                network="eip155:8453",
+                extensions="bazaar",
+            )
+        )
+
+        http_client = extended._client._get_client()
+        call_kwargs = http_client.get.call_args[1]
+        assert call_kwargs["params"]["payTo"] == "0x1234567890123456789012345678901234567890"
+        assert call_kwargs["params"]["scheme"] == "exact"
+        assert call_kwargs["params"]["network"] == "eip155:8453"
+        assert call_kwargs["params"]["extensions"] == "bazaar"
+
     def test_omits_params_when_none(self) -> None:
         response = _make_http_response(200, LIST_RESPONSE_FIXTURE)
         extended = self._make_extended(response)
@@ -390,6 +410,27 @@ class TestSearch:
         call_kwargs = http_client.get.call_args[1]
         assert call_kwargs["params"]["limit"] == "5"
         assert call_kwargs["params"]["cursor"] == "abc123"
+
+    def test_passes_additional_filters(self) -> None:
+        response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)
+        extended = self._make_extended(response)
+
+        extended.extensions.bazaar.search(
+            SearchDiscoveryResourcesParams(
+                query="test",
+                pay_to="0x1234567890123456789012345678901234567890",
+                scheme="exact",
+                network="eip155:8453",
+                extensions="bazaar",
+            )
+        )
+
+        http_client = extended._client._get_client()
+        call_kwargs = http_client.get.call_args[1]
+        assert call_kwargs["params"]["payTo"] == "0x1234567890123456789012345678901234567890"
+        assert call_kwargs["params"]["scheme"] == "exact"
+        assert call_kwargs["params"]["network"] == "eip155:8453"
+        assert call_kwargs["params"]["extensions"] == "bazaar"
 
     def test_returns_parsed_search_response(self) -> None:
         response = _make_http_response(200, SEARCH_RESPONSE_FIXTURE)

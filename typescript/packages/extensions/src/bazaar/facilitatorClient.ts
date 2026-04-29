@@ -17,6 +17,26 @@ export interface ListDiscoveryResourcesParams {
   type?: string;
 
   /**
+   * Filter by payment recipient address.
+   */
+  payTo?: string;
+
+  /**
+   * Filter by payment scheme (e.g., "exact").
+   */
+  scheme?: string;
+
+  /**
+   * Filter by payment network (e.g., "eip155:8453").
+   */
+  network?: string;
+
+  /**
+   * Filter by extension key present on the discovered resource.
+   */
+  extensions?: string;
+
+  /**
    * The number of discovered x402 resources to return per page.
    */
   limit?: number;
@@ -40,6 +60,26 @@ export interface SearchDiscoveryResourcesParams {
    * Filter by protocol type (e.g., "http", "mcp").
    */
   type?: string;
+
+  /**
+   * Filter by payment recipient address.
+   */
+  payTo?: string;
+
+  /**
+   * Filter by payment scheme (e.g., "exact").
+   */
+  scheme?: string;
+
+  /**
+   * Filter by payment network (e.g., "eip155:8453").
+   */
+  network?: string;
+
+  /**
+   * Filter by extension key present on the discovered resource.
+   */
+  extensions?: string;
 
   /**
    * Advisory maximum number of results. The server may return fewer or ignore this.
@@ -105,7 +145,7 @@ export interface SearchDiscoveryResourcesResponse {
     limit: number;
     /** Continuation cursor for the next page; may be null */
     cursor: string | null;
-  };
+  } | null;
 }
 
 /**
@@ -125,7 +165,7 @@ export interface BazaarClientExtension {
      * Search x402 discovery resources from the bazaar using a natural-language query.
      *
      * Pagination is optional: facilitators may ignore `limit` and `cursor`, or include
-     * top-level `response.limit` and `response.cursor` when pagination is used.
+     * `response.pagination` when pagination is used.
      *
      * @param params - Search parameters including the required query string
      * @returns A promise resolving to the search response
@@ -182,6 +222,18 @@ export function withBazaar<T extends HTTPFacilitatorClient>(
         if (params?.type !== undefined) {
           queryParams.set("type", params.type);
         }
+        if (params?.payTo !== undefined) {
+          queryParams.set("payTo", params.payTo);
+        }
+        if (params?.scheme !== undefined) {
+          queryParams.set("scheme", params.scheme);
+        }
+        if (params?.network !== undefined) {
+          queryParams.set("network", params.network);
+        }
+        if (params?.extensions !== undefined) {
+          queryParams.set("extensions", params.extensions);
+        }
         if (params?.limit !== undefined) {
           queryParams.set("limit", params.limit.toString());
         }
@@ -221,6 +273,18 @@ export function withBazaar<T extends HTTPFacilitatorClient>(
         queryParams.set("query", params.query);
         if (params.type !== undefined) {
           queryParams.set("type", params.type);
+        }
+        if (params.payTo !== undefined) {
+          queryParams.set("payTo", params.payTo);
+        }
+        if (params.scheme !== undefined) {
+          queryParams.set("scheme", params.scheme);
+        }
+        if (params.network !== undefined) {
+          queryParams.set("network", params.network);
+        }
+        if (params.extensions !== undefined) {
+          queryParams.set("extensions", params.extensions);
         }
         if (params.limit !== undefined) {
           queryParams.set("limit", params.limit.toString());

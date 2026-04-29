@@ -243,7 +243,7 @@ Fetch the list of available x402 services using the facilitator client:
         for item in response.items
         if any(
             payment_req.get("asset") == usdc_asset
-            and int(payment_req.get("maxAmountRequired", 0)) < max_price
+            and int(payment_req.get("amount", 0)) < max_price
             for payment_req in (item.accepts or [])
         )
     ]

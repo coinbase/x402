@@ -505,6 +505,10 @@ List discoverable x402 resources from the Bazaar.
 | Parameter | Type     | Required | Description                                 | Default |
 | --------- | -------- | -------- | ------------------------------------------- | ------- |
 | `type`    | `string` | Optional | Filter by resource type (e.g., "http")      | -       |
+| `payTo`   | `string` | Optional | Filter by payment recipient address          | -       |
+| `scheme`  | `string` | Optional | Filter by payment scheme (e.g., "exact")    | -       |
+| `network` | `string` | Optional | Filter by payment network (e.g., "eip155:8453") | -   |
+| `extensions` | `string` | Optional | Filter by extension key present on each resource | -       |
 | `limit`   | `number` | Optional | Maximum number of results to return (1-100) | 20      |
 | `offset`  | `number` | Optional | Number of results to skip for pagination    | 0       |
 
@@ -549,67 +553,8 @@ List discoverable x402 resources from the Bazaar.
 
 **8.2 GET /discovery/search**
 
-Search discoverable x402 resources using a natural-language query. Response shape mirrors the list endpoint: `resources` array with optional `pagination` object. Pagination is optional: servers may ignore `limit` and `cursor`, or include a `pagination` object in the response when returning paginated results.
-
-**Request Parameters:**
-
-| Parameter | Type     | Required | Description                                                    | Default |
-| --------- | -------- | -------- | -------------------------------------------------------------- | ------- |
-| `query`   | `string` | Required | Natural-language search query                                  | -       |
-| `type`    | `string` | Optional | Filter by resource type (e.g., "http", "mcp")                  | -       |
-| `limit`   | `number` | Optional | Advisory maximum results; server may return fewer or ignore    | -       |
-| `cursor`  | `string` | Optional | Advisory continuation token; server may ignore                 | -       |
-
-**Response:**
-
-```json
-{
-  "x402Version": 2,
-  "resources": [
-    {
-      "resource": "https://api.example.com/weather",
-      "type": "http",
-      "x402Version": 2,
-      "accepts": [...],
-      "lastUpdated": "2024-01-01T00:00:00Z",
-      "extensions": {
-        "bazaar": {
-          "category": "weather",
-          "provider": "Example Corp"
-        }
-      }
-    }
-  ],
-  "partialResults": false,
-  "pagination": {
-    "limit": 10,
-    "cursor": null
-  }
-}
-```
-
-When paginated results are returned, include a `pagination` object matching the list endpoint's shape:
-
-```json
-{
-  "x402Version": 2,
-  "resources": [...],
-  "partialResults": true,
-  "pagination": {
-    "limit": 10,
-    "cursor": "eyJwYWdlIjoyfQ=="
-  }
-}
-```
-
-**Search Response Fields:**
-
-| Field Name                    | Type      | Required | Description                                                              |
-| ----------------------------- | --------- | -------- | ------------------------------------------------------------------------ |
-| `partialResults`              | `boolean` | Optional | `true` if additional matches were truncated by the facilitator            |
-| `pagination`                  | `object`  | Optional | Pagination details; present only when a paginated response is returned    |
-| `pagination.limit`            | `number`  | Required | Number of results in this page                                           |
-| `pagination.cursor`           | `string`  | Required | Continuation cursor for the next page; may be `null`                     |
+Search semantics and response shape are defined in the Bazaar extension specification at
+`specs/extensions/bazaar.md`, since this endpoint is extension-specific behavior.
 
 **8.3 Discovered Resource Fields**
 

@@ -130,6 +130,18 @@ func TestListDiscoveryResources_WithParams(t *testing.T) {
 		if query.Get("type") != "http" {
 			t.Errorf("Expected type=http, got %s", query.Get("type"))
 		}
+		if query.Get("payTo") != "0x1234567890123456789012345678901234567890" {
+			t.Errorf("Expected payTo filter, got %s", query.Get("payTo"))
+		}
+		if query.Get("scheme") != "exact" {
+			t.Errorf("Expected scheme=exact, got %s", query.Get("scheme"))
+		}
+		if query.Get("network") != "eip155:8453" {
+			t.Errorf("Expected network=eip155:8453, got %s", query.Get("network"))
+		}
+		if query.Get("extensions") != "bazaar" {
+			t.Errorf("Expected extensions=bazaar, got %s", query.Get("extensions"))
+		}
 		if query.Get("limit") != "10" {
 			t.Errorf("Expected limit=10, got %s", query.Get("limit"))
 		}
@@ -151,9 +163,13 @@ func TestListDiscoveryResources_WithParams(t *testing.T) {
 	}))
 
 	result, err := client.ListDiscoveryResources(ctx, &ListDiscoveryResourcesParams{
-		Type:   "http",
-		Limit:  10,
-		Offset: 5,
+		Type:       "http",
+		PayTo:      "0x1234567890123456789012345678901234567890",
+		Scheme:     "exact",
+		Network:    "eip155:8453",
+		Extensions: "bazaar",
+		Limit:      10,
+		Offset:     5,
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -598,6 +614,18 @@ func TestSearchDiscoveryResources_WithTypeFilter(t *testing.T) {
 		if query.Get("type") != "http" {
 			t.Errorf("Expected type=http, got %s", query.Get("type"))
 		}
+		if query.Get("payTo") != "0x1234567890123456789012345678901234567890" {
+			t.Errorf("Expected payTo filter, got %s", query.Get("payTo"))
+		}
+		if query.Get("scheme") != "exact" {
+			t.Errorf("Expected scheme=exact, got %s", query.Get("scheme"))
+		}
+		if query.Get("network") != "eip155:8453" {
+			t.Errorf("Expected network=eip155:8453, got %s", query.Get("network"))
+		}
+		if query.Get("extensions") != "bazaar" {
+			t.Errorf("Expected extensions=bazaar, got %s", query.Get("extensions"))
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchDiscoveryResourcesResponse{
@@ -612,8 +640,12 @@ func TestSearchDiscoveryResources_WithTypeFilter(t *testing.T) {
 	}))
 
 	_, err := client.SearchDiscoveryResources(ctx, &SearchDiscoveryResourcesParams{
-		Query: "financial",
-		Type:  "http",
+		Query:      "financial",
+		Type:       "http",
+		PayTo:      "0x1234567890123456789012345678901234567890",
+		Scheme:     "exact",
+		Network:    "eip155:8453",
+		Extensions: "bazaar",
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

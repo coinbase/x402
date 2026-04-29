@@ -88,10 +88,22 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
     it("ListDiscoveryResourcesParams should accept optional parameters", () => {
       const params1: ListDiscoveryResourcesParams = {};
       const params2: ListDiscoveryResourcesParams = { type: "http" };
-      const params3: ListDiscoveryResourcesParams = { type: "http", limit: 10, offset: 5 };
+      const params3: ListDiscoveryResourcesParams = {
+        type: "http",
+        payTo: "0x1234567890123456789012345678901234567890",
+        scheme: "exact",
+        network: "eip155:8453",
+        extensions: "bazaar",
+        limit: 10,
+        offset: 5,
+      };
 
       expect(params1.type).toBeUndefined();
       expect(params2.type).toBe("http");
+      expect(params3.payTo).toBe("0x1234567890123456789012345678901234567890");
+      expect(params3.scheme).toBe("exact");
+      expect(params3.network).toBe("eip155:8453");
+      expect(params3.extensions).toBe("bazaar");
       expect(params3.limit).toBe(10);
       expect(params3.offset).toBe(5);
     });
@@ -101,12 +113,20 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       const params2: SearchDiscoveryResourcesParams = {
         query: "financial data",
         type: "http",
+        payTo: "0x1234567890123456789012345678901234567890",
+        scheme: "exact",
+        network: "eip155:8453",
+        extensions: "bazaar",
         limit: 10,
         cursor: "abc123",
       };
 
       expect(params1.query).toBe("weather APIs");
       expect(params1.type).toBeUndefined();
+      expect(params2.payTo).toBe("0x1234567890123456789012345678901234567890");
+      expect(params2.scheme).toBe("exact");
+      expect(params2.network).toBe("eip155:8453");
+      expect(params2.extensions).toBe("bazaar");
       expect(params2.limit).toBe(10);
       expect(params2.cursor).toBe("abc123");
     });
@@ -121,6 +141,16 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
       expect(response.x402Version).toBe(2);
       expect(response.pagination?.limit).toBe(10);
       expect(response.pagination?.cursor).toBeNull();
+    });
+
+    it("SearchDiscoveryResourcesResponse should allow null pagination", () => {
+      const response: SearchDiscoveryResourcesResponse = {
+        x402Version: 2,
+        resources: [],
+        pagination: null,
+      };
+
+      expect(response.pagination).toBeNull();
     });
   });
 
@@ -218,12 +248,20 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
 
         await extendedClient.extensions.bazaar.listResources({
           type: "http",
+          payTo: "0x1234567890123456789012345678901234567890",
+          scheme: "exact",
+          network: "eip155:8453",
+          extensions: "bazaar",
           limit: 10,
           offset: 5,
         });
 
         const [url] = mockFetch.mock.calls[0];
         expect(url).toContain("type=http");
+        expect(url).toContain("payTo=0x1234567890123456789012345678901234567890");
+        expect(url).toContain("scheme=exact");
+        expect(url).toContain("network=eip155%3A8453");
+        expect(url).toContain("extensions=bazaar");
         expect(url).toContain("limit=10");
         expect(url).toContain("offset=5");
       });
@@ -348,12 +386,20 @@ describe("Bazaar Client Extension - facilitatorClient", () => {
         await extendedClient.extensions.bazaar.search({
           query: "financial data",
           type: "http",
+          payTo: "0x1234567890123456789012345678901234567890",
+          scheme: "exact",
+          network: "eip155:8453",
+          extensions: "bazaar",
           limit: 10,
           cursor: "eyJwYWdlIjoyfQ==",
         });
 
         const [url] = mockFetch.mock.calls[0];
         expect(url).toContain("type=http");
+        expect(url).toContain("payTo=0x1234567890123456789012345678901234567890");
+        expect(url).toContain("scheme=exact");
+        expect(url).toContain("network=eip155%3A8453");
+        expect(url).toContain("extensions=bazaar");
         expect(url).toContain("limit=10");
         expect(url).toContain("cursor=");
       });
