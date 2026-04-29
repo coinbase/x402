@@ -118,6 +118,9 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @notice Emitted the first time a channel receives escrowed balance.
     event ChannelCreated(bytes32 indexed channelId, ChannelConfig config);
 
+    /// @notice Emitted when unclaimed escrow returns to zero and no claims were recorded.
+    event ChannelClosed(bytes32 indexed channelId, ChannelConfig config);
+
     /// @notice Emitted after a successful deposit into a channel.
     event Deposited(bytes32 indexed channelId, address indexed sender, uint128 amount, uint128 newBalance);
 
@@ -348,6 +351,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
 
         emit WithdrawFinalized(channelId, msg.sender, withdrawAmount);
 
+        if (ch.balance == 0 && ch.totalClaimed == 0) {
+            emit ChannelClosed(channelId, config);
+        }
+
         if (withdrawAmount > 0) {
             IERC20(config.token).safeTransfer(config.payer, withdrawAmount);
         }
@@ -526,6 +533,10 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
         }
 
         emit Refunded(channelId, msg.sender, refundAmount);
+
+        if (ch.balance == 0 && ch.totalClaimed == 0) {
+            emit ChannelClosed(channelId, config);
+        }
 
         IERC20(config.token).safeTransfer(config.payer, refundAmount);
     }

@@ -51,6 +51,7 @@ contract X402BatchSettlementTest is Test {
     uint128 constant CLAIM_AMOUNT = 100e6;
 
     event ChannelCreated(bytes32 indexed channelId, x402BatchSettlement.ChannelConfig config);
+    event ChannelClosed(bytes32 indexed channelId, x402BatchSettlement.ChannelConfig config);
     event Deposited(bytes32 indexed channelId, address indexed sender, uint128 amount, uint128 newBalance);
     event Claimed(bytes32 indexed channelId, address indexed sender, uint128 claimAmount, uint128 newTotalClaimed);
     event Settled(address indexed receiver, address indexed token, address indexed sender, uint128 amount);
@@ -811,6 +812,8 @@ contract X402BatchSettlementTest is Test {
 
         vm.expectEmit(true, true, false, true);
         emit WithdrawFinalized(channelId, payerWallet.addr, DEPOSIT_AMOUNT);
+        vm.expectEmit(true, false, false, true);
+        emit ChannelClosed(channelId, config);
 
         vm.prank(payerWallet.addr);
         settlement.finalizeWithdraw(config);
@@ -1243,13 +1246,34 @@ contract X402BatchSettlementTest is Test {
 
         _deposit(config, DEPOSIT_AMOUNT);
 
+        vm.expectEmit(true, true, false, true);
+        emit Refunded(channelId, receiverAuthWallet.addr, DEPOSIT_AMOUNT);
+        vm.expectEmit(true, false, false, true);
+        emit ChannelClosed(channelId, config);
         vm.prank(receiverAuthWallet.addr);
         settlement.refund(config, DEPOSIT_AMOUNT);
 
+        vm.expectEmit(true, false, false, true);
+        emit ChannelCreated(channelId, config);
+        vm.expectEmit(true, true, false, true);
+        emit Deposited(channelId, address(this), DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
         _deposit(config, DEPOSIT_AMOUNT);
 
         x402BatchSettlement.ChannelState memory ch = _getChannel(channelId);
         assertEq(ch.balance, DEPOSIT_AMOUNT);
+    }
+
+    function test_channelClosed_onFullRefund_noClaims() public {
+        x402BatchSettlement.ChannelConfig memory config = _makeConfig();
+        bytes32 channelId = _channelId(config);
+        _deposit(config, DEPOSIT_AMOUNT);
+
+        vm.expectEmit(true, true, false, true);
+        emit Refunded(channelId, receiverAuthWallet.addr, DEPOSIT_AMOUNT);
+        vm.expectEmit(true, false, false, true);
+        emit ChannelClosed(channelId, config);
+        vm.prank(receiverAuthWallet.addr);
+        settlement.refund(config, DEPOSIT_AMOUNT);
     }
 
     function test_crossChannel_isolation() public {
