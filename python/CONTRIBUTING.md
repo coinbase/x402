@@ -21,25 +21,31 @@ python/
 └── x402/
     ├── pyproject.toml
     ├── uv.lock
-    ├── src/
-    │   └── x402/
-    │       ├── __init__.py
-    │       ├── types.py           # Core types (Pydantic models)
-    │       ├── encoding.py        # Base64 encoding utilities
-    │       ├── exact.py           # Exact scheme implementation
-    │       ├── facilitator.py     # Facilitator client
-    │       ├── clients/
-    │       │   ├── base.py        # Base client logic
-    │       │   ├── httpx.py       # httpx client integration
-    │       │   └── requests.py    # requests client integration
-    │       ├── fastapi/
-    │       │   └── middleware.py  # FastAPI middleware
-    │       └── flask/
-    │           └── middleware.py  # Flask middleware
+    ├── interfaces.py             # Public protocol definitions
+    ├── client.py                 # Top-level client surface
+    ├── client_base.py            # Shared client logic
+    ├── facilitator.py            # Facilitator client
+    ├── facilitator_base.py       # Shared facilitator logic
+    ├── server.py                 # Top-level server surface
+    ├── server_base.py            # Shared server logic
+    ├── http/                     # HTTP transport layer
+    │   ├── clients/              # httpx / requests integrations
+    │   ├── middleware/           # FastAPI / Flask / etc. middleware
+    │   └── paywall/              # 402-response helpers
+    ├── mechanisms/               # On-chain payment mechanisms
+    │   ├── evm/                  # EVM (exact, upto, signing)
+    │   └── svm/                  # Solana
+    ├── extensions/               # Optional features
+    │   ├── bazaar/
+    │   ├── eip2612_gas_sponsoring/
+    │   ├── erc20_approval_gas_sponsoring/
+    │   └── payment_identifier/
+    ├── mcp/                      # MCP server integration
+    ├── schemas/                  # JSON schemas
     └── tests/
-        ├── clients/
-        ├── fastapi_tests/
-        └── flask_tests/
+        ├── unit/                 # Mirrors the package layout
+        ├── integrations/
+        └── mocks/
 ```
 
 ## Development Setup
