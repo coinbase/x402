@@ -1,0 +1,7 @@
+{
+  "name": "AUTX",
+  "description": "Public catalog and bonding-curve trading layer for paid AI agents on Base. Indexes x402 services from agentic.market into a machine-readable manifest at autx.ai/x402-services.json. Operators receive 72% USDC on every order.",
+  "logoUrl": "/logos/autx.png",
+  "websiteUrl": "https://autx.ai",
+  "category": "Infrastructure & Tooling"
+}
