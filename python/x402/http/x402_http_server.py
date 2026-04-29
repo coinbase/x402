@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from typing import TYPE_CHECKING, Any
 
 from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
@@ -27,6 +28,8 @@ from .x402_http_server_base import PaywallProvider, x402HTTPServerBase
 
 if TYPE_CHECKING:
     from ..server import x402ResourceServerSync
+
+logger = logging.getLogger("x402")
 
 __all__ = [
     "x402HTTPResourceServer",
@@ -166,6 +169,14 @@ class x402HTTPResourceServer(x402HTTPServerBase):
                     failure, context
                 )
                 return failure
+
+            if settle_response.extensions and "bazaar" in settle_response.extensions:
+                import json
+
+                logger.info(
+                    "[x402] bazaar extension response: %s",
+                    json.dumps(settle_response.extensions["bazaar"]),
+                )
 
             return ProcessSettleResult(
                 success=True,

@@ -8,6 +8,7 @@ import {
   FacilitatorResponseError,
 } from "../types/facilitator";
 import { z } from "../schemas";
+import { safeBase64Decode } from "../utils";
 
 const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 
@@ -144,6 +145,31 @@ function responseExcerpt(text: string, limit: number = 200): string {
 }
 
 /**
+ * Reads the `EXTENSION-RESPONSES` header from a facilitator HTTP response and merges
+ * any decoded extension data into the provided result object's `extensions` field.
+ * Header data does not overwrite extension entries already present in the body.
+ *
+ * @param response - The HTTP response from the facilitator
+ * @param result - The parsed response object to enrich
+ */
+function mergeExtensionResponsesHeader<T extends { extensions?: Record<string, unknown> }>(
+  response: Response,
+  result: T,
+): void {
+  const header = response.headers.get("EXTENSION-RESPONSES");
+  if (!header) return;
+  try {
+    const decoded = JSON.parse(safeBase64Decode(header));
+    if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+      const headerExtensions = decoded as Record<string, unknown>;
+      result.extensions = { ...headerExtensions, ...(result.extensions ?? {}) };
+    }
+  } catch {
+    // Ignore malformed header
+  }
+}
+
+/**
  * Parses and validates a successful facilitator response body.
  *
  * @param response - The HTTP response returned by the facilitator
@@ -246,7 +272,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       );
     }
 
-    return parseSuccessResponse(response, verifyResponseSchema, "verify");
+    const verifyResult = await parseSuccessResponse(response, verifyResponseSchema, "verify");
+    mergeExtensionResponsesHeader(response, verifyResult);
+    return verifyResult;
   }
 
   /**
@@ -298,7 +326,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       );
     }
 
-    return parseSuccessResponse(response, settleResponseSchema, "settle");
+    const settleResult = await parseSuccessResponse(response, settleResponseSchema, "settle");
+    mergeExtensionResponsesHeader(response, settleResult);
+    return settleResult;
   }
 
   /**

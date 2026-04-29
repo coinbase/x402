@@ -602,7 +602,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Verify payment (type-safe)
-	_, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
+	verifyResult, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
 	if verifyErr != nil {
 		err = verifyErr
 		errorMsg := err.Error()
@@ -628,6 +628,14 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
 			Response: response,
+		}
+	}
+
+	if verifyResult != nil {
+		if bazaarExt, ok := verifyResult.Extensions["bazaar"]; ok {
+			if extJSON, err := json.Marshal(bazaarExt); err == nil {
+				log.Printf("[x402] bazaar extension response: %s", extJSON)
+			}
 		}
 	}
 
@@ -696,6 +704,12 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 			settleResult.Payer,
 			nil,
 		)
+	}
+
+	if bazaarExt, ok := settleResult.Extensions["bazaar"]; ok {
+		if extJSON, err := json.Marshal(bazaarExt); err == nil {
+			log.Printf("[x402] bazaar extension response: %s", extJSON)
+		}
 	}
 
 	return &ProcessSettleResult{

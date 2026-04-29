@@ -859,6 +859,12 @@ export class x402ResourceServer {
         }
       }
 
+      if ("bazaar" in resolvedDeclaredExtensions && verifyResult.extensions?.bazaar !== undefined) {
+        console.log(
+          `[x402] bazaar extension response: ${JSON.stringify(verifyResult.extensions.bazaar)}`,
+        );
+      }
+
       return verifyResult;
     } catch (error) {
       const failureContext: VerifyFailureContext = {
@@ -1017,6 +1023,12 @@ export class x402ResourceServer {
             assertSettleResponseCoreUnchanged(settleCoreSnapshot, settleResult, key);
           }
         }
+      }
+
+      if ("bazaar" in resolvedDeclaredExtensions && settleResult.extensions?.bazaar !== undefined) {
+        console.log(
+          `[x402] bazaar extension response: ${JSON.stringify(settleResult.extensions.bazaar)}`,
+        );
       }
 
       return settleResult;

@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -83,19 +84,21 @@ func (e *FacilitatorResponseError) Unwrap() error {
 }
 
 type verifyResponseEnvelope struct {
-	IsValid        *bool  `json:"isValid"`
-	InvalidReason  string `json:"invalidReason,omitempty"`
-	InvalidMessage string `json:"invalidMessage,omitempty"`
-	Payer          string `json:"payer,omitempty"`
+	IsValid        *bool                  `json:"isValid"`
+	InvalidReason  string                 `json:"invalidReason,omitempty"`
+	InvalidMessage string                 `json:"invalidMessage,omitempty"`
+	Payer          string                 `json:"payer,omitempty"`
+	Extensions     map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type settleResponseEnvelope struct {
-	Success      *bool         `json:"success"`
-	ErrorReason  string        `json:"errorReason,omitempty"`
-	ErrorMessage string        `json:"errorMessage,omitempty"`
-	Payer        string        `json:"payer,omitempty"`
-	Transaction  *string       `json:"transaction"`
-	Network      *x402.Network `json:"network"`
+	Success      *bool                  `json:"success"`
+	ErrorReason  string                 `json:"errorReason,omitempty"`
+	ErrorMessage string                 `json:"errorMessage,omitempty"`
+	Payer        string                 `json:"payer,omitempty"`
+	Transaction  *string                `json:"transaction"`
+	Network      *x402.Network          `json:"network"`
+	Extensions   map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type supportedKindEnvelope struct {
@@ -146,6 +149,7 @@ func parseVerifySuccessResponse(body []byte) (*x402.VerifyResponse, error) {
 		InvalidReason:  response.InvalidReason,
 		InvalidMessage: response.InvalidMessage,
 		Payer:          response.Payer,
+		Extensions:     response.Extensions,
 	}, nil
 }
 
@@ -165,7 +169,35 @@ func parseSettleSuccessResponse(body []byte) (*x402.SettleResponse, error) {
 		Payer:        response.Payer,
 		Transaction:  *response.Transaction,
 		Network:      *response.Network,
+		Extensions:   response.Extensions,
 	}, nil
+}
+
+// mergeExtensionResponsesHeader reads the EXTENSION-RESPONSES header from an HTTP response
+// and merges the decoded extension data into dst. Header entries do not overwrite body-provided
+// extensions already present in dst.
+func mergeExtensionResponsesHeader(resp *http.Response, dst map[string]interface{}) map[string]interface{} {
+	header := resp.Header.Get("EXTENSION-RESPONSES")
+	if header == "" {
+		return dst
+	}
+	decoded, err := base64.StdEncoding.DecodeString(header)
+	if err != nil {
+		return dst
+	}
+	var headerExtensions map[string]interface{}
+	if err := json.Unmarshal(decoded, &headerExtensions); err != nil {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]interface{})
+	}
+	for k, v := range headerExtensions {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
+		}
+	}
+	return dst
 }
 
 func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) {
@@ -419,7 +451,12 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
-	return parseVerifySuccessResponse(responseBody)
+	result, err := parseVerifySuccessResponse(responseBody)
+	if err != nil {
+		return nil, err
+	}
+	result.Extensions = mergeExtensionResponsesHeader(resp, result.Extensions)
+	return result, nil
 }
 
 func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.SettleResponse, error) {
@@ -496,5 +533,10 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
-	return parseSettleSuccessResponse(responseBody)
+	result, err := parseSettleSuccessResponse(responseBody)
+	if err != nil {
+		return nil, err
+	}
+	result.Extensions = mergeExtensionResponsesHeader(resp, result.Extensions)
+	return result, nil
 }

@@ -6,6 +6,7 @@ implementations for communicating with remote facilitator services.
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -85,6 +86,32 @@ def _parse_facilitator_response(
         raise FacilitatorResponseError(
             f"Facilitator {operation} returned invalid data: {_response_excerpt(response)}"
         ) from exc
+
+
+def _merge_extension_responses_header(response: Any, result: Any) -> None:
+    """Read the EXTENSION-RESPONSES header and merge decoded extension data into result.
+
+    Header entries do not overwrite extension entries already present in the body.
+
+    Args:
+        response: The HTTP response object (httpx.Response).
+        result: The parsed response model to enrich (VerifyResponse or SettleResponse).
+    """
+    header = response.headers.get("EXTENSION-RESPONSES") or response.headers.get(
+        "extension-responses"
+    )
+    if not header:
+        return
+    try:
+        decoded = base64.b64decode(header).decode("utf-8")
+        header_extensions: dict[str, Any] = json.loads(decoded)
+        if not isinstance(header_extensions, dict):
+            return
+        existing = result.extensions or {}
+        merged = {**header_extensions, **existing}
+        result.extensions = merged
+    except Exception:
+        pass
 
 
 # ============================================================================
@@ -288,7 +315,9 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, VerifyResponse, "verify")
+        result = _parse_facilitator_response(response, VerifyResponse, "verify")
+        _merge_extension_responses_header(response, result)
+        return result
 
     async def _settle_http(
         self,
@@ -309,7 +338,9 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, SettleResponse, "settle")
+        result = _parse_facilitator_response(response, SettleResponse, "settle")
+        _merge_extension_responses_header(response, result)
+        return result
 
 
 # ============================================================================
@@ -504,7 +535,9 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, VerifyResponse, "verify")
+        result = _parse_facilitator_response(response, VerifyResponse, "verify")
+        _merge_extension_responses_header(response, result)
+        return result
 
     def _settle_http(
         self,
@@ -525,4 +558,6 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, SettleResponse, "settle")
+        result = _parse_facilitator_response(response, SettleResponse, "settle")
+        _merge_extension_responses_header(response, result)
+        return result

@@ -396,6 +396,19 @@ class x402HTTPServerBase:
                     ),
                 )
 
+            if (
+                extensions
+                and "bazaar" in extensions
+                and verify_result.extensions
+                and "bazaar" in verify_result.extensions
+            ):
+                import json
+
+                logger.info(
+                    "[x402] bazaar extension response: %s",
+                    json.dumps(verify_result.extensions["bazaar"]),
+                )
+
             # Payment valid
             return HTTPProcessResult(
                 type=RESULT_PAYMENT_VERIFIED,
@@ -509,6 +522,14 @@ class x402HTTPServerBase:
                 )
                 failure.response = self._build_settlement_failure_response(failure, context)
                 return failure
+
+            if settle_response.extensions and "bazaar" in settle_response.extensions:
+                import json
+
+                logger.info(
+                    "[x402] bazaar extension response: %s",
+                    json.dumps(settle_response.extensions["bazaar"]),
+                )
 
             return ProcessSettleResult(
                 success=True,
