@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import html
+import json
 import logging
 import re
 from collections.abc import Generator
@@ -56,6 +57,28 @@ if TYPE_CHECKING:
     from ..server import x402ResourceServer, x402ResourceServerSync
 
 logger = logging.getLogger("x402")
+EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = {
+    "status",
+    "rejectedReason",
+    "reason",
+    "code",
+}
+
+
+def _sanitize_extension_responses_for_log(
+    extensions: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Keep only allowlisted extension response fields for logging."""
+    sanitized: dict[str, dict[str, Any]] = {}
+    for extension_key, payload in extensions.items():
+        filtered: dict[str, Any] = {}
+        if isinstance(payload, dict):
+            for field in EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST:
+                if field in payload:
+                    filtered[field] = payload[field]
+        sanitized[extension_key] = filtered
+    return sanitized
+
 
 # ============================================================================
 # Paywall Provider Protocol
@@ -396,17 +419,10 @@ class x402HTTPServerBase:
                     ),
                 )
 
-            if (
-                extensions
-                and "bazaar" in extensions
-                and verify_result.extensions
-                and "bazaar" in verify_result.extensions
-            ):
-                import json
-
+            if verify_result.extensions:
                 logger.info(
-                    "[x402] bazaar extension response: %s",
-                    json.dumps(verify_result.extensions["bazaar"]),
+                    "[x402] extension responses: %s",
+                    json.dumps(_sanitize_extension_responses_for_log(verify_result.extensions)),
                 )
 
             # Payment valid
@@ -523,12 +539,10 @@ class x402HTTPServerBase:
                 failure.response = self._build_settlement_failure_response(failure, context)
                 return failure
 
-            if settle_response.extensions and "bazaar" in settle_response.extensions:
-                import json
-
+            if settle_response.extensions:
                 logger.info(
-                    "[x402] bazaar extension response: %s",
-                    json.dumps(settle_response.extensions["bazaar"]),
+                    "[x402] extension responses: %s",
+                    json.dumps(_sanitize_extension_responses_for_log(settle_response.extensions)),
                 )
 
             return ProcessSettleResult(

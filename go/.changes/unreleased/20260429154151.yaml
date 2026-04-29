@@ -1,0 +1,3 @@
+kind: Added
+body: Read and merge EXTENSION-RESPONSES headers into VerifyResponse/SettleResponse extensions in the HTTP facilitator client; resource servers now log only allowlisted extension response fields (status, rejectedReason, reason, code) after verify and settle
+time: 2026-04-29T15:41:51Z

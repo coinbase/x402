@@ -84,21 +84,19 @@ func (e *FacilitatorResponseError) Unwrap() error {
 }
 
 type verifyResponseEnvelope struct {
-	IsValid        *bool                  `json:"isValid"`
-	InvalidReason  string                 `json:"invalidReason,omitempty"`
-	InvalidMessage string                 `json:"invalidMessage,omitempty"`
-	Payer          string                 `json:"payer,omitempty"`
-	Extensions     map[string]interface{} `json:"extensions,omitempty"`
+	IsValid        *bool  `json:"isValid"`
+	InvalidReason  string `json:"invalidReason,omitempty"`
+	InvalidMessage string `json:"invalidMessage,omitempty"`
+	Payer          string `json:"payer,omitempty"`
 }
 
 type settleResponseEnvelope struct {
-	Success      *bool                  `json:"success"`
-	ErrorReason  string                 `json:"errorReason,omitempty"`
-	ErrorMessage string                 `json:"errorMessage,omitempty"`
-	Payer        string                 `json:"payer,omitempty"`
-	Transaction  *string                `json:"transaction"`
-	Network      *x402.Network          `json:"network"`
-	Extensions   map[string]interface{} `json:"extensions,omitempty"`
+	Success      *bool         `json:"success"`
+	ErrorReason  string        `json:"errorReason,omitempty"`
+	ErrorMessage string        `json:"errorMessage,omitempty"`
+	Payer        string        `json:"payer,omitempty"`
+	Transaction  *string       `json:"transaction"`
+	Network      *x402.Network `json:"network"`
 }
 
 type supportedKindEnvelope struct {
@@ -149,7 +147,6 @@ func parseVerifySuccessResponse(body []byte) (*x402.VerifyResponse, error) {
 		InvalidReason:  response.InvalidReason,
 		InvalidMessage: response.InvalidMessage,
 		Payer:          response.Payer,
-		Extensions:     response.Extensions,
 	}, nil
 }
 
@@ -169,7 +166,6 @@ func parseSettleSuccessResponse(body []byte) (*x402.SettleResponse, error) {
 		Payer:        response.Payer,
 		Transaction:  *response.Transaction,
 		Network:      *response.Network,
-		Extensions:   response.Extensions,
 	}, nil
 }
 

@@ -193,6 +193,13 @@ type ResourceServerHookPhase = keyof ExtensionAdapterHandles;
 
 type ResourceServerManualHookArrayKey = `${ResourceServerHookPhase}Hooks`;
 
+const EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST = new Set([
+  "status",
+  "rejectedReason",
+  "reason",
+  "code",
+]);
+
 /**
  * Core x402 protocol server for resource protection
  * Transport-agnostic implementation of the x402 payment protocol
@@ -859,10 +866,9 @@ export class x402ResourceServer {
         }
       }
 
-      if ("bazaar" in resolvedDeclaredExtensions && verifyResult.extensions?.bazaar !== undefined) {
-        console.log(
-          `[x402] bazaar extension response: ${JSON.stringify(verifyResult.extensions.bazaar)}`,
-        );
+      if (verifyResult.extensions && Object.keys(verifyResult.extensions).length > 0) {
+        const sanitized = this.sanitizeExtensionResponsesForLogging(verifyResult.extensions);
+        console.log(`[x402] extension responses: ${JSON.stringify(sanitized)}`);
       }
 
       return verifyResult;
@@ -1025,10 +1031,9 @@ export class x402ResourceServer {
         }
       }
 
-      if ("bazaar" in resolvedDeclaredExtensions && settleResult.extensions?.bazaar !== undefined) {
-        console.log(
-          `[x402] bazaar extension response: ${JSON.stringify(settleResult.extensions.bazaar)}`,
-        );
+      if (settleResult.extensions && Object.keys(settleResult.extensions).length > 0) {
+        const sanitized = this.sanitizeExtensionResponsesForLogging(settleResult.extensions);
+        console.log(`[x402] extension responses: ${JSON.stringify(sanitized)}`);
       }
 
       return settleResult;
@@ -1196,6 +1201,32 @@ export class x402ResourceServer {
   private warnExtensionHookFailure(extensionKey: string, hookName: string, error: unknown): void {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[x402] extension "${extensionKey}" ${hookName} threw: ${detail}`);
+  }
+
+  /**
+   * Redacts extension responses for logs by keeping only allowlisted keys.
+   *
+   * @param extensions - Facilitator extension responses keyed by extension name
+   * @returns Extension responses with only allowlisted fields preserved
+   */
+  private sanitizeExtensionResponsesForLogging(
+    extensions: Record<string, unknown>,
+  ): Record<string, Record<string, unknown>> {
+    const sanitized: Record<string, Record<string, unknown>> = {};
+    for (const [extensionKey, payload] of Object.entries(extensions)) {
+      const source =
+        payload && typeof payload === "object" && !Array.isArray(payload)
+          ? (payload as Record<string, unknown>)
+          : {};
+      const filtered: Record<string, unknown> = {};
+      for (const key of EXTENSION_RESPONSE_LOG_FIELD_ALLOWLIST) {
+        if (source[key] !== undefined) {
+          filtered[key] = source[key];
+        }
+      }
+      sanitized[extensionKey] = filtered;
+    }
+    return sanitized;
   }
 
   /**
