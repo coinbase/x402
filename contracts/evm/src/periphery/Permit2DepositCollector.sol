@@ -75,7 +75,6 @@ contract Permit2DepositCollector is DepositCollector {
         address token,
         uint256 amount,
         bytes32 channelId,
-        address,
         bytes calldata collectorData
     ) external override onlyx402BatchSettlement {
         (uint256 nonce, uint256 deadline, bytes memory permit2Signature, bytes memory eip2612PermitData) =

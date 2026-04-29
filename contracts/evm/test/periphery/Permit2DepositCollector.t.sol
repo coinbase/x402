@@ -68,7 +68,7 @@ contract Permit2DepositCollectorTest is Test {
         bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
         assertEq(token.balanceOf(payer), 100_000e6 - AMOUNT);
@@ -79,7 +79,7 @@ contract Permit2DepositCollectorTest is Test {
         bytes memory collectorData = _collectorData(0, block.timestamp + 3600, signature);
 
         bytes32 channelId = keccak256("test-channel");
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(collector)), 0);
     }
@@ -91,7 +91,7 @@ contract Permit2DepositCollectorTest is Test {
         uint256 bitmapBefore = mockPermit2.nonceBitmap(payer, 0);
         assertEq(bitmapBefore, 0);
 
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), collectorData);
 
         uint256 bitmapAfter = mockPermit2.nonceBitmap(payer, 0);
         assertGt(bitmapAfter, 0);
@@ -102,6 +102,6 @@ contract Permit2DepositCollectorTest is Test {
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), collectorData);
     }
 }

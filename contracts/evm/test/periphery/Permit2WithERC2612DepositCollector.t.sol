@@ -56,7 +56,7 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         bytes memory collectorData = _makeCollectorData(AMOUNT);
         bytes32 channelId = keccak256("test-channel");
 
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
         assertEq(token.balanceOf(payer), 100_000e6 - AMOUNT);
@@ -71,7 +71,7 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         vm.expectEmit(true, true, false, true);
         emit EIP2612PermitFailedWithReason(address(token), payer, "ERC20Permit: invalid signature");
 
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
     }
@@ -85,7 +85,7 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         vm.expectEmit(true, true, false, true);
         emit EIP2612PermitFailedWithPanic(address(token), payer, 0x12);
 
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
     }
@@ -96,7 +96,7 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         bytes memory collectorData = _makeCollectorData(AMOUNT);
         bytes32 channelId = keccak256("test-channel");
 
-        collector.collect(payer, address(token), AMOUNT, channelId, address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, channelId, collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
     }
@@ -107,7 +107,7 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
         bytes memory collectorData = abi.encode(uint256(0), block.timestamp + 3600, signature, eip2612);
 
         vm.expectRevert(Permit2DepositCollector.Permit2612AmountMismatch.selector);
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), collectorData);
     }
 
     function test_collect_revert_onlyX402BatchSettlement() public {
@@ -115,6 +115,6 @@ contract Permit2WithERC2612DepositCollectorTest is Test {
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
-        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, keccak256("ch"), collectorData);
     }
 }

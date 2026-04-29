@@ -14,7 +14,6 @@ contract MockDepositCollector is IDepositCollector {
         address token,
         uint256 amount,
         bytes32,
-        address,
         bytes calldata
     ) external override {
         IERC20(token).transferFrom(payer, msg.sender, amount);
@@ -27,7 +26,6 @@ contract MockShortCollector is IDepositCollector {
         address token,
         uint256 amount,
         bytes32,
-        address,
         bytes calldata
     ) external override {
         IERC20(token).transferFrom(payer, msg.sender, amount / 2);

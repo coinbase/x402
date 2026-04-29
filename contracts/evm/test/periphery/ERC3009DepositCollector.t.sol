@@ -31,7 +31,7 @@ contract ERC3009DepositCollectorTest is Test {
 
         bytes memory collectorData = abi.encode(validAfter, validBefore, salt, signature);
 
-        collector.collect(payer, address(token), AMOUNT, bytes32(0), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, bytes32(0), collectorData);
 
         assertEq(token.balanceOf(address(this)), AMOUNT);
         assertEq(token.balanceOf(payer), 100_000e6 - AMOUNT);
@@ -46,7 +46,7 @@ contract ERC3009DepositCollectorTest is Test {
         );
 
         uint256 collectorBalBefore = token.balanceOf(address(collector));
-        collector.collect(payer, address(token), AMOUNT, bytes32(0), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, bytes32(0), collectorData);
         uint256 collectorBalAfter = token.balanceOf(address(collector));
 
         assertEq(collectorBalAfter, collectorBalBefore);
@@ -62,7 +62,7 @@ contract ERC3009DepositCollectorTest is Test {
             abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27))
         );
 
-        collector.collect(payer, address(token), smallAmount, bytes32(0), address(this), collectorData);
+        collector.collect(payer, address(token), smallAmount, bytes32(0), collectorData);
         assertEq(token.balanceOf(address(this)), smallAmount);
     }
 
@@ -71,6 +71,6 @@ contract ERC3009DepositCollectorTest is Test {
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(DepositCollector.OnlyX402BatchSettlement.selector);
-        collector.collect(payer, address(token), AMOUNT, bytes32(0), address(this), collectorData);
+        collector.collect(payer, address(token), AMOUNT, bytes32(0), collectorData);
     }
 }

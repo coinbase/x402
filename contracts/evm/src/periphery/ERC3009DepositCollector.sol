@@ -36,7 +36,6 @@ contract ERC3009DepositCollector is DepositCollector {
         address token,
         uint256 amount,
         bytes32 channelId,
-        address,
         bytes calldata collectorData
     ) external override onlyx402BatchSettlement {
         (uint256 validAfter, uint256 validBefore, uint256 salt, bytes memory signature) =

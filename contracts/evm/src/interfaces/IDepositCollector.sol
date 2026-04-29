@@ -12,14 +12,12 @@ interface IDepositCollector {
     /// @param token The ERC-20 token address
     /// @param amount The exact amount of tokens to transfer
     /// @param channelId The channel identifier (used by Permit2 collectors for witness binding)
-    /// @param caller The address that called `deposit()` on `x402BatchSettlement`
     /// @param collectorData Opaque bytes containing collector-specific parameters (signatures, nonces, etc.)
     function collect(
         address payer,
         address token,
         uint256 amount,
         bytes32 channelId,
-        address caller,
         bytes calldata collectorData
     ) external;
 }
