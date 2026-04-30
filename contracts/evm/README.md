@@ -29,9 +29,9 @@ Both contracts:
 
 | Contract | Address |
 |----------|---------|
-| x402BatchSettlement | `0x4020ECC20B68d2A308931DA9ee1e016833860003` |
-| ERC3009DepositCollector | `0x40205cf31B2027ce5AfbD9EEbC167B8e0fB40004` |
-| Permit2DepositCollector | `0x40200a262E9A5A824A38Bc5A59cedbC20CF10005` |
+| x402BatchSettlement | `0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003` |
+| ERC3009DepositCollector | `0x4020806089470a89826cB9fB1f4059150b550004` |
+| Permit2DepositCollector | `0x4020425FAf3B746C082C2f942b4E5159887B0005` |
 
 **Implementer notes:** [x402-batch-settlement-implementers.md](docs/x402-batch-settlement-implementers.md) — on-chain vs off-chain entitlement, timed withdrawal vs `claim`, deposits, EIP-712, and deployment constraints.
 
@@ -183,8 +183,8 @@ After any contract change, refresh embedded creation bytecode used by the miner:
 cd contracts/evm
 forge build
 mkdir -p vanity-miner/bytecode
-forge inspect ERC3009DepositCollector bytecode | sed 's/^0x//' > vanity-miner/bytecode/erc3009_creation.hex
-forge inspect Permit2DepositCollector bytecode | sed 's/^0x//' > vanity-miner/bytecode/permit2_creation.hex
+forge inspect ERC3009DepositCollector bytecode | sed 's/^0x//' | tr -d '\n' > vanity-miner/bytecode/erc3009_creation.hex
+forge inspect Permit2DepositCollector bytecode | sed 's/^0x//' | tr -d '\n' > vanity-miner/bytecode/permit2_creation.hex
 ```
 
 Update `BATCH_INIT_CODE_HASH` in `vanity-miner/src/main.rs` to `cast keccak $(forge inspect x402BatchSettlement bytecode)` (with `0x` prefix in the constant).
