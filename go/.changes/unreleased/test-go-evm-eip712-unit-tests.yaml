@@ -1,0 +1,2 @@
+kind: added
+body: Add unit tests for eip712.go — HashTypedData, HashEIP3009Authorization, HashPermit2Authorization, HashUptoPermit2Authorization, BuildPermit2WitnessMap, BuildUptoPermit2WitnessMap (30 tests, previously zero coverage)
