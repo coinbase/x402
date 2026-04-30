@@ -111,6 +111,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     // =========================================================================
 
     mapping(bytes32 channelId => ChannelState) public channels;
+
+    /// @dev Monotonic sequence per `channelId` for EIP-712 `Refund` replay protection. Incremented inside
+    ///      `_executeRefund` **before** the capped refund amount is applied, for **both** `refund` and
+    ///      `refundWithSignature`, including when the capped amount is zero (no transfer, no `Refunded` event).
+    ///      A direct `refund` therefore advances the nonce and invalidates any presigned `refundWithSignature`
+    ///      digest that was bound to the previous nonce; coordinate receiver vs relayer flows off-chain.
     mapping(bytes32 channelId => uint256) public refundNonce;
     mapping(bytes32 channelId => WithdrawalState) public pendingWithdrawals;
     mapping(address receiver => mapping(address token => ReceiverState)) public receivers;
@@ -382,9 +388,14 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @notice Cooperative refund of unclaimed escrow to the payer.
     ///
     /// @param config The channel configuration.
-    /// @param amount Requested refund; capped to `balance - totalClaimed`. No-ops if the capped amount is zero.
+    /// @param amount Requested refund; capped to `balance - totalClaimed`. Reverts with `ZeroRefund` if `amount == 0`.
+    ///               If the capped amount is zero but `amount > 0`, no token transfer occurs (no `Refunded` event)
+    ///               yet `refundNonce` still advances (see `_executeRefund`).
     ///
-    /// @dev Only `receiverAuthorizer` or `receiver` may call.
+    /// @dev Only `receiverAuthorizer` or `receiver` may call. Shares `_executeRefund` with `refundWithSignature`, so
+    ///      every successful call advances `refundNonce` for the channel. Any in-flight EIP-712 `Refund` signature
+    ///      produced for the previous nonce becomes unusable; relayers and authorizers should expect re-signing if
+    ///      direct refunds race ahead of relayed `refundWithSignature` submissions.
     function refund(ChannelConfig calldata config, uint128 amount) external nonReentrant {
         if (!_isReceiverSide(msg.sender, config)) {
             revert NotAuthorizedToRefund();
@@ -395,11 +406,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @notice Refunds unclaimed escrow to the payer using an EIP-712 `Refund` signature from `receiverAuthorizer`.
     ///
     /// @param config The channel configuration.
-    /// @param amount The amount in the signature; capped like `refund`. No-op if capped amount is zero (nonce unchanged).
-    /// @param nonce Must equal `refundNonce(channelId)` for the channel; incremented after each successful refund.
+    /// @param amount The amount in the signature; capped like `refund`. If the capped amount is zero, no transfer
+    ///               and no `Refunded` event, but `refundNonce` still advances once `_executeRefund` runs.
+    /// @param nonce Must equal `refundNonce(channelId)` at entry; `_executeRefund` increments it (same as `refund`).
     /// @param receiverAuthorizerSignature EIP-712 signature from `receiverAuthorizer` over the refund digest.
     ///
-    /// @dev Callable by anyone (relay-friendly).
+    /// @dev Callable by anyone (relay-friendly). A prior direct `refund` on the same channel can advance the nonce
+    ///      and cause `InvalidRefundNonce` here until the authorizer signs at the new nonce.
     function refundWithSignature(
         ChannelConfig calldata config,
         uint128 amount,
@@ -445,10 +458,13 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     /// @notice EIP-712 digest for a cooperative `Refund` authorization.
     ///
     /// @param channelId The channel identifier.
-    /// @param nonce The refund nonce (must match on-chain `refundNonce`).
+    /// @param nonce The refund nonce; must equal on-chain `refundNonce(channelId)` when `refundWithSignature` runs.
     /// @param amount The signed refund amount.
     ///
     /// @return The typed data hash for `receiverAuthorizer` to sign.
+    ///
+    /// @dev Off-chain signers should use the current `refundNonce(channelId)` as `nonce`. A successful direct `refund`
+    ///      on the same channel advances that nonce and invalidates digests signed for the old value until re-signed.
     function getRefundDigest(bytes32 channelId, uint256 nonce, uint128 amount) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(REFUND_TYPEHASH, channelId, nonce, amount)));
     }
@@ -529,7 +545,12 @@ contract x402BatchSettlement is EIP712, Multicall, ReentrancyGuardTransient {
     }
 
     /// @dev Caps refund to available unclaimed escrow, reduces or clears any pending withdrawal, transfers to payer.
-    /// @dev Always bumps `refundNonce` on any non-reverting entry, including the zero-available no-op, to prevent signature replay.
+    ///
+    /// @dev Increments `refundNonce[channelId]` **first** (before computing the capped refund). That applies to both
+    ///      `refund` and `refundWithSignature`, including when `amount > 0` but available unclaimed escrow is zero
+    ///      (no transfer, no `Refunded` event). This ties replay protection for signed refunds to the same counter
+    ///      used whenever the receiver side executes a cooperative refund through this helper. `amount == 0` reverts
+    ///      with `ZeroRefund` and does not bump the nonce.
     function _executeRefund(ChannelConfig calldata config, uint128 amount) internal {
         if (amount == 0) revert ZeroRefund();
 

@@ -14,7 +14,7 @@ The contract persists:
 |--------|---------|
 | `channels[channelId]` | Per-channel `balance` (escrow) and cumulative `totalClaimed` (receiver-attributed obligation against that escrow). |
 | `pendingWithdrawals[channelId]` | Timed payer withdrawal in progress (`amount`, `initiatedAt`). |
-| `refundNonce[channelId]` | Nonce for cooperative refunds authorized by the receiver side. |
+| `refundNonce[channelId]` | Monotonic nonce per channel for EIP-712 `Refund` digests; also advanced by direct `refund` (see below). |
 | `receivers[receiver][token]` | Per-receiver, per-token aggregates for settlement sweeps (`totalClaimed`, `totalSettled`). |
 
 **Payer-signed vouchers exist off-chain** until the receiver side submits `claim` or `claimWithSignature`. Until then, `totalClaimed` does not reflect entitlement implied by those vouchers.
@@ -63,6 +63,18 @@ Reference collectors in this repo: `DepositCollector` base, `ERC3009DepositColle
 | `initiateWithdraw` / `finalizeWithdraw` | Payer / `payerAuthorizer` | Timed reclaim of unclaimed escrow after `withdrawDelay`. |
 
 Trust and UX differ: refunds require receiver cooperation or `receiverAuthorizer` signatures; timed withdrawal is payer-controlled once liquidity is unclaimed on-chain.
+
+### `refundNonce` and mixing `refund` with `refundWithSignature`
+
+Both `refund` and `refundWithSignature` call the same internal refund path. **`refundNonce[channelId]` is incremented at the start of that path**, before the contract applies the cap `min(requested, balance - totalClaimed)` and before any token transfer.
+
+Implications for integrators:
+
+1. **Nonce advances even on “no token moved”**: If `amount > 0` but available unclaimed escrow is zero, there is no `Refunded` event and no transfer, yet the nonce still increases (same for either entry point). This matches on-chain tests; do not assume “no-op” means “nonce unchanged.”
+2. **Direct `refund` invalidates queued signatures**: A `receiver` / `receiverAuthorizer` calling plain `refund` advances the nonce. Any EIP-712 `Refund` digest that `receiverAuthorizer` had pre-signed for the **previous** nonce will revert with `InvalidRefundNonce` until a fresh signature is produced at the new nonce. This is receiver-side coordination (or relayer vs hot-wallet racing), not a cross-party exploit, but it is easy to miss operationally.
+3. **Signing and relaying**: Before signing `getRefundDigest(channelId, nonce, amount)`, read the live `refundNonce(channelId)`. If direct refunds and relayed `refundWithSignature` can interleave, serialize them in your product or expect re-signing.
+
+The contract intentionally keeps one counter for both paths so signed-refund replay protection stays aligned with any cooperative refund that reaches `_executeRefund`.
 
 ## Settlement
 
