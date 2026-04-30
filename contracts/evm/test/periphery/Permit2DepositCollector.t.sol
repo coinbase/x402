@@ -58,7 +58,7 @@ contract Permit2DepositCollectorTest is Test {
         assertEq(
             keccak256(bytes(collector.DEPOSIT_WITNESS_TYPE_STRING())),
             keccak256(
-                "DepositWitness witness)TokenPermissions(address token,uint256 amount)DepositWitness(bytes32 channelId)"
+                "DepositWitness witness)DepositWitness(bytes32 channelId)TokenPermissions(address token,uint256 amount)"
             )
         );
     }
