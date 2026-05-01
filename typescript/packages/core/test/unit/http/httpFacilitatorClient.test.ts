@@ -186,6 +186,257 @@ describe("HTTPFacilitatorClient", () => {
     });
   });
 
+  describe("getSupported 429 retry with exponential backoff", () => {
+    it("retries on 429 and succeeds on second attempt", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" }],
+            }),
+            { status: 200 },
+          ),
+        );
+      vi.stubGlobal("fetch", mockFetch);
+      vi.useFakeTimers();
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      const resultPromise = client.getSupported();
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.kinds[0].scheme).toBe("exact");
+      vi.useRealTimers();
+    });
+
+    it("retries on 429 and succeeds on third (final) attempt", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+        .mockResolvedValueOnce(new Response("rate limited again", { status: 429 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" }],
+            }),
+            { status: 200 },
+          ),
+        );
+      vi.stubGlobal("fetch", mockFetch);
+      vi.useFakeTimers();
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      const resultPromise = client.getSupported();
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(result.kinds[0].scheme).toBe("exact");
+      vi.useRealTimers();
+    });
+
+    it("throws after exhausting all retries on repeated 429", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response("rate limited", { status: 429 }));
+      vi.stubGlobal("fetch", mockFetch);
+      vi.useFakeTimers();
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      // Attach a catch immediately to prevent unhandled rejection during timer advancement
+      const resultPromise = client.getSupported().catch(e => ({ _caught: e as Error }));
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(result).toHaveProperty("_caught");
+      expect((result as { _caught: Error })._caught.message).toContain("429");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    });
+
+    it("does not retry on non-429 errors", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response("server error", { status: 500 }));
+      vi.stubGlobal("fetch", mockFetch);
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+
+      await expect(client.getSupported()).rejects.toThrow("500");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("createAuthHeaders", () => {
+    it("returns empty headers when no createAuthHeaders config provided", async () => {
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      const result = await client.createAuthHeaders("verify");
+
+      expect(result.headers).toEqual({});
+    });
+
+    it("returns headers for the specified path from createAuthHeaders config", async () => {
+      const client = new HTTPFacilitatorClient({
+        url: "https://facilitator.test",
+        createAuthHeaders: async () => ({
+          verify: { Authorization: "Bearer verify-token" },
+          settle: { Authorization: "Bearer settle-token" },
+          supported: { Authorization: "Bearer supported-token" },
+        }),
+      });
+
+      const verifyResult = await client.createAuthHeaders("verify");
+      const settleResult = await client.createAuthHeaders("settle");
+      const supportedResult = await client.createAuthHeaders("supported");
+
+      expect(verifyResult.headers).toEqual({ Authorization: "Bearer verify-token" });
+      expect(settleResult.headers).toEqual({ Authorization: "Bearer settle-token" });
+      expect(supportedResult.headers).toEqual({ Authorization: "Bearer supported-token" });
+    });
+
+    it("returns empty headers for unknown path", async () => {
+      const client = new HTTPFacilitatorClient({
+        url: "https://facilitator.test",
+        createAuthHeaders: async () => ({
+          verify: { Authorization: "Bearer token" },
+          settle: { Authorization: "Bearer token" },
+          supported: { Authorization: "Bearer token" },
+        }),
+      });
+
+      const result = await client.createAuthHeaders("unknown-path");
+      expect(result.headers).toEqual({});
+    });
+  });
+
+  describe("auth header propagation", () => {
+    it("includes auth headers in verify requests", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ isValid: true }), { status: 200 }));
+      vi.stubGlobal("fetch", mockFetch);
+
+      const client = new HTTPFacilitatorClient({
+        url: "https://facilitator.test",
+        createAuthHeaders: async () => ({
+          verify: { Authorization: "Bearer verify-token", "X-Api-Key": "key123" },
+          settle: {},
+          supported: {},
+        }),
+      });
+
+      await client.verify(paymentPayload, paymentRequirements);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://facilitator.test/verify",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer verify-token",
+            "X-Api-Key": "key123",
+          }),
+        }),
+      );
+    });
+
+    it("includes auth headers in settle requests", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ success: true, transaction: "0xabc", network: "eip155:8453" }),
+          { status: 200 },
+        ),
+      );
+      vi.stubGlobal("fetch", mockFetch);
+
+      const client = new HTTPFacilitatorClient({
+        url: "https://facilitator.test",
+        createAuthHeaders: async () => ({
+          verify: {},
+          settle: { Authorization: "Bearer settle-token" },
+          supported: {},
+        }),
+      });
+
+      await client.settle(paymentPayload, paymentRequirements);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://facilitator.test/settle",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer settle-token",
+          }),
+        }),
+      );
+    });
+
+    it("includes auth headers in getSupported requests", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" }],
+          }),
+          { status: 200 },
+        ),
+      );
+      vi.stubGlobal("fetch", mockFetch);
+
+      const client = new HTTPFacilitatorClient({
+        url: "https://facilitator.test",
+        createAuthHeaders: async () => ({
+          verify: {},
+          settle: {},
+          supported: { Authorization: "Bearer supported-token" },
+        }),
+      });
+
+      await client.getSupported();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://facilitator.test/supported",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer supported-token",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("error message truncation", () => {
+    it("truncates long error bodies in verify failure messages", async () => {
+      const longBody = "x".repeat(500);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(longBody, { status: 503 })),
+      );
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      const error = await client
+        .verify(paymentPayload, paymentRequirements)
+        .catch(e => e as Error);
+
+      expect(error.message.length).toBeLessThan(300);
+      expect(error.message).toContain("...");
+    });
+
+    it("includes full short error body without truncation in settle failure messages", async () => {
+      const shortBody = "payment rejected";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(shortBody, { status: 503 })),
+      );
+
+      const client = new HTTPFacilitatorClient({ url: "https://facilitator.test" });
+      const error = await client
+        .settle(paymentPayload, paymentRequirements)
+        .catch(e => e as Error);
+
+      expect(error.message).toContain(shortBody);
+    });
+  });
+
   describe("redirect handling", () => {
     it("passes redirect: follow to fetch on getSupported", async () => {
       const mockFetch = vi.fn().mockResolvedValue(
