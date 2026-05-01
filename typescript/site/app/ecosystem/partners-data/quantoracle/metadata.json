@@ -1,0 +1,7 @@
+{
+  "name": "QuantOracle",
+  "description": "63 deterministic quant computation endpoints for AI agents. Options pricing, derivatives, risk metrics, portfolio optimization, Monte Carlo, statistics, crypto/DeFi, macro/FX. Pay-per-call via x402 USDC on Base.",
+  "logoUrl": "/logos/quantoracle.png",
+  "websiteUrl": "https://quantoracle.dev",
+  "category": "Services/Endpoints"
+}
