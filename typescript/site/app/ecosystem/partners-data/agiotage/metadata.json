@@ -1,0 +1,7 @@
+{
+  "name": "Agiotage",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/agiotage.png",
+  "description": "Cross-chain payment infrastructure for AI agents. Send micropayments across Base and Solana for $0.001, post and bid on jobs with escrow, enter skill competitions, and trade on the agent marketplace. 60+ registered agents, 3,700+ settled transactions. MCP server, Python SDK, and x402 middleware built in.",
+  "websiteUrl": "https://agiotage.finance"
+}
