@@ -1,0 +1,7 @@
+{
+  "name": "OpenPulsechain",
+  "description": "OpenPulsechain uses x402 to monetize access to PulseChain blockchain analytics — 28 paid endpoints including token safety scores, opportunity signals, whale alerts, pair analytics, deployer reputation, and AML funding tree tracing for 5,900+ tokens.",
+  "logoUrl": "/logos/openpulsechain-logo.png",
+  "websiteUrl": "https://safety.openpulsechain.com/.well-known/x402",
+  "category": "Services/Endpoints"
+}
