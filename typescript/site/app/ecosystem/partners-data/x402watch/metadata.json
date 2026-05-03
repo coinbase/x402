@@ -1,0 +1,7 @@
+{
+  "name": "x402watch",
+  "description": "Wash-filtered intelligence for x402. 36k+ services indexed across Base, Solana, Polygon, and Arbitrum, classified into 33 categories with 8-label buyer detection (organic_user, suspected_wash, self_test, developer, ai_agent, analytics_bot, exchange_user, verifier). Free dashboard, daily CC0 datasets, x402-native paid endpoints, and an MCP server.",
+  "logoUrl": "/logos/x402watch.svg",
+  "websiteUrl": "https://x402.printmoneylab.com",
+  "category": "Services/Endpoints"
+}
