@@ -1,0 +1,7 @@
+{
+  "name": "TickersFeed",
+  "description": "Pay-per-call US stock data API for AI agents. Real-time and 15-min delayed quotes, earnings, and OHLC data for 8,400+ NYSE/NASDAQ/AMEX symbols. $0.003 USDC per call via x402 micropayments — no API keys, no subscriptions.",
+  "logoUrl": "/logos/tickersfeed.svg",
+  "websiteUrl": "https://v6v2xu4ode.execute-api.us-east-1.amazonaws.com/catalog",
+  "category": "Services/Endpoints"
+}
