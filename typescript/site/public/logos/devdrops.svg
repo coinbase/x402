@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" rx="24" fill="#0a0a0b"/>
+  <text x="100" y="80" font-family="monospace" font-size="48" font-weight="700" fill="#22c55e" text-anchor="middle">dd</text>
+  <text x="100" y="130" font-family="monospace" font-size="18" fill="#9d9b95" text-anchor="middle">devdrops</text>
+  <text x="100" y="158" font-family="monospace" font-size="13" fill="#5c5b57" text-anchor="middle">x402 APIs</text>
+</svg>
