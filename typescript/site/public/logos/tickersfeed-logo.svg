@@ -1,0 +1,63 @@
+<svg width="680" height="680" viewBox="0 0 680 680" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>TickersFeed logo</title>
+<desc>TickersFeed - pay-per-call stock data API logo featuring ascending candlestick chart in green on dark background</desc>
+<rect width="680" height="680" fill="#060b15"/>
+<!-- Subtle grid lines -->
+<g stroke="#ffffff" stroke-opacity="0.035" stroke-width="1" stroke-dasharray="3,8">
+  <line x1="130" y1="138" x2="550" y2="138"/>
+  <line x1="130" y1="186" x2="550" y2="186"/>
+  <line x1="130" y1="234" x2="550" y2="234"/>
+  <line x1="130" y1="282" x2="550" y2="282"/>
+  <line x1="130" y1="330" x2="550" y2="330"/>
+</g>
+<!-- Outer frame -->
+<rect x="128" y="62" width="424" height="558" fill="none" stroke="#00e676" stroke-width="0.8" stroke-opacity="0.12" rx="6"/>
+<!-- Candle 1 - small, bearish/neutral, muted -->
+<line x1="247" y1="303" x2="247" y2="358" stroke="#253a4e" stroke-width="2.5"/>
+<rect x="228" y="313" width="38" height="37" fill="#1a2b3c" rx="2"/>
+<!-- Candle 2 - medium bullish, dim green -->
+<line x1="309" y1="265" x2="309" y2="354" stroke="#1a5437" stroke-width="2.5"/>
+<rect x="290" y="277" width="38" height="66" fill="#13402b" rx="2"/>
+<!-- Candle 3 - tall bullish, medium green -->
+<line x1="371" y1="222" x2="371" y2="352" stroke="#1d6e42" stroke-width="2.5"/>
+<rect x="352" y="237" width="38" height="100" fill="#175232" rx="2"/>
+<!-- Candle 4 - hero, tallest bullish, bright green -->
+<line x1="433" y1="108" x2="433" y2="360" stroke="#3dba6e" stroke-width="2.5"/>
+<rect x="414" y="128" width="38" height="210" fill="#00b84a" rx="2"/>
+<rect x="414" y="128" width="38" height="210" fill="none" stroke="#00e676" stroke-width="1.5" rx="2"/>
+<!-- Signal dot on hero candle peak -->
+<circle cx="433" cy="106" r="4.5" fill="#00e676"/>
+<circle cx="433" cy="106" r="9" fill="none" stroke="#00e676" stroke-width="1" opacity="0.4"/>
+<!-- Baseline -->
+<line x1="165" y1="352" x2="515" y2="352" stroke="#00e676" stroke-width="1.5" opacity="0.45"/>
+<circle cx="165" cy="352" r="2.5" fill="#00e676" opacity="0.45"/>
+<circle cx="515" cy="352" r="2.5" fill="#00e676" opacity="0.45"/>
+<!-- Wordmark -->
+<text x="340" y="437"
+  font-family="'Courier New', Courier, monospace"
+  font-size="52"
+  font-weight="700"
+  fill="#e8f0fe"
+  text-anchor="middle"
+  letter-spacing="2">TICKERSFEED</text>
+<!-- Divider -->
+<line x1="190" y1="449" x2="490" y2="449" stroke="#00e676" stroke-width="0.8" opacity="0.3"/>
+<!-- Tagline -->
+<text x="340" y="474"
+  font-family="'Courier New', Courier, monospace"
+  font-size="12"
+  fill="#00e676"
+  text-anchor="middle"
+  letter-spacing="5"
+  opacity="0.75">PAY · PER · CALL · STOCK · DATA</text>
+<!-- x402 badge -->
+<rect x="273" y="494" width="134" height="24" rx="12" fill="#00e676" opacity="0.1"/>
+<rect x="273" y="494" width="134" height="24" rx="12" fill="none" stroke="#00e676" stroke-width="0.8" opacity="0.35"/>
+<text x="340" y="511"
+  font-family="'Courier New', Courier, monospace"
+  font-size="10.5"
+  fill="#00e676"
+  text-anchor="middle"
+  letter-spacing="2.5"
+  opacity="0.85">x402 PROTOCOL</text>
+</svg>
