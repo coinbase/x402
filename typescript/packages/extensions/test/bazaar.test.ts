@@ -8,6 +8,10 @@ import {
   declareDiscoveryExtension,
   validateDiscoveryExtension,
   isValidRouteTemplate,
+  isValidServiceName,
+  sanitizeTags,
+  isValidIconUrl,
+  sanitizeResourceServiceMetadata,
   extractDiscoveryInfo,
   extractDiscoveryInfoFromExtension,
   extractDiscoveryInfoV1,
@@ -2051,6 +2055,189 @@ describe("Bazaar Discovery Extension", () => {
     it("rejects percent-encoded traversal sequences", () => {
       expect(isValidRouteTemplate("/users/%2e%2e/admin")).toBe(false);
       expect(isValidRouteTemplate("/users/%2E%2E/admin")).toBe(false);
+    });
+  });
+
+  describe("isValidServiceName", () => {
+    it("accepts non-empty strings up to 32 chars", () => {
+      expect(isValidServiceName("Example Weather")).toBe(true);
+      expect(isValidServiceName("a")).toBe(true);
+      expect(isValidServiceName("a".repeat(32))).toBe(true);
+    });
+
+    it("rejects empty, undefined, and over-cap strings", () => {
+      expect(isValidServiceName(undefined)).toBe(false);
+      expect(isValidServiceName("")).toBe(false);
+      expect(isValidServiceName("a".repeat(33))).toBe(false);
+    });
+  });
+
+  describe("sanitizeTags", () => {
+    it("returns undefined for non-arrays", () => {
+      expect(sanitizeTags(undefined)).toBeUndefined();
+      expect(sanitizeTags("weather")).toBeUndefined();
+      expect(sanitizeTags({ tag: "weather" })).toBeUndefined();
+    });
+
+    it("drops non-string and out-of-range entries", () => {
+      const result = sanitizeTags(["weather", "", "a".repeat(33), 42, null, "forecast"]);
+      expect(result).toEqual(["weather", "forecast"]);
+    });
+
+    it("truncates to 5 valid entries", () => {
+      const result = sanitizeTags(["a", "b", "c", "d", "e", "f", "g"]);
+      expect(result).toEqual(["a", "b", "c", "d", "e"]);
+    });
+
+    it("returns undefined when nothing survives", () => {
+      expect(sanitizeTags(["", "a".repeat(33), 7])).toBeUndefined();
+      expect(sanitizeTags([])).toBeUndefined();
+    });
+  });
+
+  describe("isValidIconUrl", () => {
+    it("accepts plain https and http urls", () => {
+      expect(isValidIconUrl("https://api.example.com/icon.png")).toBe(true);
+      expect(isValidIconUrl("http://api.example.com/icon")).toBe(true);
+    });
+
+    it("rejects empty, undefined, and over-cap strings", () => {
+      expect(isValidIconUrl(undefined)).toBe(false);
+      expect(isValidIconUrl("")).toBe(false);
+      expect(isValidIconUrl("https://example.com/" + "a".repeat(2048))).toBe(false);
+    });
+
+    it("rejects non-http schemes", () => {
+      expect(isValidIconUrl("data:image/png;base64,iVBOR")).toBe(false);
+      expect(isValidIconUrl("file:///etc/passwd")).toBe(false);
+      expect(isValidIconUrl("javascript:alert(1)")).toBe(false);
+      expect(isValidIconUrl("ftp://example.com/icon.png")).toBe(false);
+    });
+
+    it("rejects userinfo in the authority", () => {
+      expect(isValidIconUrl("https://user@example.com/icon.png")).toBe(false);
+      expect(isValidIconUrl("https://user:pass@example.com/icon.png")).toBe(false);
+    });
+
+    it("rejects IP literal hosts", () => {
+      expect(isValidIconUrl("http://10.0.0.1/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://127.0.0.1/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://[::1]/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://[2001:db8::1]/icon.png")).toBe(false);
+    });
+
+    it("rejects localhost", () => {
+      expect(isValidIconUrl("http://localhost/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://LOCALHOST/icon.png")).toBe(false);
+    });
+
+    it("rejects control characters", () => {
+      expect(isValidIconUrl("https://example.com/\x00icon.png")).toBe(false);
+      expect(isValidIconUrl("https://example.com/icon\n.png")).toBe(false);
+      expect(isValidIconUrl("https://example.com/icon\x7f.png")).toBe(false);
+    });
+
+    it("rejects relative paths", () => {
+      expect(isValidIconUrl("/icon.png")).toBe(false);
+      expect(isValidIconUrl("icon.png")).toBe(false);
+    });
+  });
+
+  describe("sanitizeResourceServiceMetadata", () => {
+    it("preserves all valid fields", () => {
+      const out = sanitizeResourceServiceMetadata({
+        url: "https://api.example.com/x",
+        serviceName: "Example Weather",
+        tags: ["weather", "forecast"],
+        iconUrl: "https://api.example.com/icon.png",
+      });
+      expect(out).toEqual({
+        serviceName: "Example Weather",
+        tags: ["weather", "forecast"],
+        iconUrl: "https://api.example.com/icon.png",
+      });
+    });
+
+    it("soft-drops only the invalid fields", () => {
+      const out = sanitizeResourceServiceMetadata({
+        serviceName: "a".repeat(33),
+        tags: ["weather", "forecast"],
+        iconUrl: "data:image/png;base64,iVBOR",
+      });
+      expect(out).toEqual({ tags: ["weather", "forecast"] });
+    });
+
+    it("returns empty object for missing or non-object input", () => {
+      expect(sanitizeResourceServiceMetadata(undefined)).toEqual({});
+      expect(sanitizeResourceServiceMetadata(null)).toEqual({});
+    });
+  });
+
+  describe("extractDiscoveryInfo - service metadata", () => {
+    it("surfaces sanitized serviceName / tags / iconUrl on the discovered resource", () => {
+      const declared = declareDiscoveryExtension({
+        method: "GET",
+        input: { city: "NYC" },
+        inputSchema: { properties: { city: { type: "string" } } },
+      });
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://api.example.com/weather",
+          description: "Weather API",
+          mimeType: "application/json",
+          serviceName: "Example Weather",
+          tags: ["weather", "forecast"],
+          iconUrl: "https://api.example.com/icon.png",
+        },
+        extensions: {
+          [BAZAAR.key]: declared.bazaar,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.serviceName).toBe("Example Weather");
+      expect(discovered!.tags).toEqual(["weather", "forecast"]);
+      expect(discovered!.iconUrl).toBe("https://api.example.com/icon.png");
+    });
+
+    it("soft-drops invalid metadata fields independently", () => {
+      const declared = declareDiscoveryExtension({
+        method: "GET",
+        input: {},
+        inputSchema: { properties: {} },
+      });
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://api.example.com/weather",
+          serviceName: "a".repeat(33),
+          tags: ["weather", "", "forecast"],
+          iconUrl: "http://localhost/icon.png",
+        },
+        extensions: {
+          [BAZAAR.key]: declared.bazaar,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.serviceName).toBeUndefined();
+      expect(discovered!.tags).toEqual(["weather", "forecast"]);
+      expect(discovered!.iconUrl).toBeUndefined();
     });
   });
 });
