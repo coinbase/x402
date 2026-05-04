@@ -385,13 +385,21 @@ discarded; the surrounding metadata is preserved.
 
 | Field         | Rule                                                                                                                                                                                                                  | On violation                                                            |
 |---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| `serviceName` | Non-empty string, length ≤ 32 characters.                                                                                                                                                                            | Drop the field.                                                         |
-| `tags`        | Array of strings, at most 5 entries; each entry non-empty and length ≤ 32 characters.                                                                                                                                | Truncate to the first 5 valid entries; drop individual invalid entries. |
+| `serviceName` | Non-empty string of printable ASCII (U+0020–U+007E), length ≤ 32 characters.                                                                                                                                          | Drop the field.                                                         |
+| `tags`        | Array of strings; at most 5 entries; each entry non-empty, printable ASCII (U+0020–U+007E), length ≤ 32 characters.                                                                                                  | Truncate to the first 5 valid entries; drop individual invalid entries. |
 | `iconUrl`     | String of length ≤ 2048; parses as an absolute `http://` or `https://` URL; no `data:` / `file:` / other non-http schemes; no userinfo (`user@`); host is not an IP literal (v4 or v6), not `localhost`, not an all-digit hostname (decimal IP encodings like `2130706433`), and not a hex literal (`0x7f000001`); contains no control characters. | Drop the field.                                                         |
 
 Implementations MUST percent-decode the iconUrl host before applying the IP /
 `localhost` checks (parallel to how `routeTemplate` is decoded before its `..`
 and `://` checks).
+
+The `serviceName` and `tags` ASCII restriction follows the same convention as
+`paymentidentifier.id`: bounding the character set to printable ASCII keeps
+length checks identical across all three SDKs (where `len()` semantics
+otherwise diverge — UTF-16 code units in TypeScript, code points in Python,
+bytes in Go) and avoids non-ASCII display ambiguity in catalog UIs. Providers
+that need to display localized names should rely on the consuming UI for
+internationalization rather than encoding non-ASCII characters in this field.
 
 All SDK implementations expose helpers that apply these rules identically:
 `isValidServiceName`, `sanitizeTags`, `isValidIconUrl`, and a combined

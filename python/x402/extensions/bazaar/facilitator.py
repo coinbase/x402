@@ -54,6 +54,11 @@ _MAX_ICON_URL_LEN = 2048
 
 # Matches ASCII control characters: C0 range (U+0000–U+001F) plus DEL (U+007F).
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+# Printable ASCII range (U+0020–U+007E). `service_name` and `tags` are
+# constrained to this range so that String.length (UTF-16 code units) in TS,
+# len() (code points) here, and len() (UTF-8 bytes) in Go all agree on the
+# character count. Same convention as paymentidentifier.id.
+_PRINTABLE_ASCII_RE = re.compile(r"^[\x20-\x7e]+$")
 # SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
 # is purely numeric. Catches decimal-encoded IPs (`http://2130706433/` → 127.0.0.1)
 # and short-form IPs (`http://0/` → 0.0.0.0, treated as loopback on Linux).
@@ -101,7 +106,10 @@ def _is_valid_route_template(value: str | None) -> bool:
 def _is_valid_service_name(value: Any) -> bool:
     """Check whether a serviceName value is structurally valid.
 
-    Non-empty string of at most 32 characters.
+    Non-empty string of printable ASCII (U+0020–U+007E), length ≤ 32.
+
+    The ASCII restriction matches the ``paymentidentifier.id`` convention
+    and keeps ``len()`` semantics identical across TS / Python / Go.
 
     Mirrors `isValidServiceName` (TypeScript, Go).
     All three implementations must stay in sync.
@@ -110,15 +118,20 @@ def _is_valid_service_name(value: Any) -> bool:
         return False
     if len(value) == 0 or len(value) > _MAX_SERVICE_NAME_LEN:
         return False
+    if not _PRINTABLE_ASCII_RE.match(value):
+        return False
     return True
 
 
 def _sanitize_tags(value: Any) -> list[str] | None:
     """Sanitize a tags array.
 
-    Drops entries that are not non-empty strings of at most 32 characters,
-    then truncates to the first 5 valid entries. Returns None when nothing
-    survives so the field can be omitted from the catalog.
+    Drops entries that are not non-empty printable-ASCII strings of at most
+    32 characters, then truncates to the first 5 valid entries. Returns None
+    when nothing survives so the field can be omitted from the catalog.
+
+    The ASCII restriction matches the ``paymentidentifier.id`` convention
+    and keeps ``len()`` semantics identical across TS / Python / Go.
 
     Mirrors `sanitizeTags` (TypeScript, Go).
     All three implementations must stay in sync.
@@ -130,6 +143,8 @@ def _sanitize_tags(value: Any) -> list[str] | None:
         if not isinstance(entry, str):
             continue
         if len(entry) == 0 or len(entry) > _MAX_TAG_LEN:
+            continue
+        if not _PRINTABLE_ASCII_RE.match(entry):
             continue
         out.append(entry)
         if len(out) == _MAX_TAGS:

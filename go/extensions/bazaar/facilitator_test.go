@@ -120,6 +120,27 @@ func TestIsValidServiceName(t *testing.T) {
 		assert.False(t, isValidServiceName(""))
 		assert.False(t, isValidServiceName(strings.Repeat("a", 33)))
 	})
+
+	t.Run("rejects non-ASCII characters", func(t *testing.T) {
+		// Multi-byte chars in UTF-8 — would otherwise diverge across SDKs
+		// (UTF-16 code units in TS, code points in Python, bytes here).
+		assert.False(t, isValidServiceName("Café Service"))
+		assert.False(t, isValidServiceName("東京 Weather"))
+		assert.False(t, isValidServiceName("🚀 Service"))
+	})
+
+	t.Run("rejects ASCII control characters", func(t *testing.T) {
+		assert.False(t, isValidServiceName("Service\x00"))
+		assert.False(t, isValidServiceName("Line\nBreak"))
+		assert.False(t, isValidServiceName("Tab\there"))
+	})
+
+	t.Run("accepts printable ASCII with spaces and punctuation", func(t *testing.T) {
+		assert.True(t, isValidServiceName("Example Weather"))
+		assert.True(t, isValidServiceName("AT&T"))
+		assert.True(t, isValidServiceName("Coinbase, Inc."))
+		assert.True(t, isValidServiceName("Service v2.0!"))
+	})
 }
 
 func TestSanitizeTags(t *testing.T) {
@@ -140,6 +161,11 @@ func TestSanitizeTags(t *testing.T) {
 
 	t.Run("returns nil when nothing survives", func(t *testing.T) {
 		assert.Nil(t, sanitizeTags([]string{"", strings.Repeat("a", 33)}))
+	})
+
+	t.Run("drops non-ASCII tags but keeps ASCII siblings", func(t *testing.T) {
+		got := sanitizeTags([]string{"weather", "café", "東京", "🚀", "forecast"})
+		assert.Equal(t, []string{"weather", "forecast"}, got)
 	})
 }
 

@@ -2070,6 +2070,27 @@ describe("Bazaar Discovery Extension", () => {
       expect(isValidServiceName("")).toBe(false);
       expect(isValidServiceName("a".repeat(33))).toBe(false);
     });
+
+    it("rejects non-ASCII characters", () => {
+      // Multi-byte chars in UTF-8 — would otherwise diverge across SDKs
+      // (UTF-16 code units in TS, code points in Python, bytes in Go).
+      expect(isValidServiceName("Café Service")).toBe(false);
+      expect(isValidServiceName("東京 Weather")).toBe(false);
+      expect(isValidServiceName("🚀 Service")).toBe(false);
+    });
+
+    it("rejects ASCII control characters", () => {
+      expect(isValidServiceName("Service\x00")).toBe(false);
+      expect(isValidServiceName("Line\nBreak")).toBe(false);
+      expect(isValidServiceName("Tab\there")).toBe(false);
+    });
+
+    it("accepts printable ASCII with spaces and punctuation", () => {
+      expect(isValidServiceName("Example Weather")).toBe(true);
+      expect(isValidServiceName("AT&T")).toBe(true);
+      expect(isValidServiceName("Coinbase, Inc.")).toBe(true);
+      expect(isValidServiceName("Service v2.0!")).toBe(true);
+    });
   });
 
   describe("sanitizeTags", () => {
@@ -2092,6 +2113,11 @@ describe("Bazaar Discovery Extension", () => {
     it("returns undefined when nothing survives", () => {
       expect(sanitizeTags(["", "a".repeat(33), 7])).toBeUndefined();
       expect(sanitizeTags([])).toBeUndefined();
+    });
+
+    it("drops non-ASCII tags but keeps ASCII siblings", () => {
+      const result = sanitizeTags(["weather", "café", "東京", "🚀", "forecast"]);
+      expect(result).toEqual(["weather", "forecast"]);
     });
   });
 
