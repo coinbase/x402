@@ -98,7 +98,7 @@ type DiscoveredResource struct {
 	Description   string
 	MimeType      string
 	RouteTemplate string
-	// Sanitized service metadata. See sanitizeResourceServiceMetadata for rules.
+	// Sanitized service metadata. See SanitizeResourceServiceMetadata for rules.
 	ServiceName string
 	Tags        []string
 	IconUrl     string
@@ -153,7 +153,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	var mimeType string
 	var routeTemplate string
 	var rawInput map[string]interface{}
-	var serviceMetadata sanitizedResourceServiceMetadata
+	var serviceMetadata SanitizedResourceServiceMetadata
 	version := versionCheck.X402Version
 
 	switch version {
@@ -169,7 +169,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 			resourceURL = payload.Resource.URL
 			description = payload.Resource.Description
 			mimeType = payload.Resource.MimeType
-			serviceMetadata = sanitizeResourceServiceMetadata(payload.Resource)
+			serviceMetadata = SanitizeResourceServiceMetadata(payload.Resource)
 		}
 
 		// Extract discovery info from extensions
@@ -313,6 +313,15 @@ const (
 // matches a bare IPv4 dotted-quad. IPv6 literals are detected via net.ParseIP.
 var ipv4Regex = regexp.MustCompile(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`)
 
+// SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
+// is purely numeric. Catches decimal-encoded IPs (http://2130706433/ → 127.0.0.1)
+// and short-form IPs (http://0/ → 0.0.0.0, treated as loopback on Linux).
+var allDigitsRegex = regexp.MustCompile(`^\d+$`)
+
+// SSRF defense: hex-encoded IPs (http://0x7f000001/ → 127.0.0.1) — same family
+// of bypasses as the decimal form above.
+var hexLiteralRegex = regexp.MustCompile(`(?i)^0x[0-9a-f]+$`)
+
 // hasControlChar reports whether s contains any ASCII control character
 // (C0 range U+0000–U+001F or DEL U+007F).
 func hasControlChar(s string) bool {
@@ -377,6 +386,8 @@ func sanitizeTags(tags []string) []string {
 //   - Parses as an absolute http:// or https:// URL
 //   - No userinfo (user@host)
 //   - Host is not an IP literal (v4 or v6) and not "localhost"
+//   - Host is not a decimal IP encoding (e.g. 2130706433 → 127.0.0.1) or
+//     hex literal (e.g. 0x7f000001) — common SSRF bypass forms
 //
 // Percent-decoding is applied to the hostname before the IP / "localhost"
 // checks, parallel to the routeTemplate decoder.
@@ -423,26 +434,34 @@ func isValidIconUrl(s string) bool {
 		// Defensive: any colon-bearing host after IPv6 bracket-stripping.
 		return false
 	}
+	if allDigitsRegex.MatchString(host) {
+		return false
+	}
+	if hexLiteralRegex.MatchString(host) {
+		return false
+	}
 	return true
 }
 
-// sanitizedResourceServiceMetadata holds the surviving service metadata fields
-// after applying the soft-drop validation rules.
-type sanitizedResourceServiceMetadata struct {
+// SanitizedResourceServiceMetadata holds the surviving service metadata fields
+// after applying the soft-drop validation rules. Mirrors the
+// `SanitizedResourceServiceMetadata` type in TypeScript and the
+// `SanitizedResourceServiceMetadata` dataclass in Python.
+type SanitizedResourceServiceMetadata struct {
 	ServiceName string
 	Tags        []string
 	IconUrl     string
 }
 
-// sanitizeResourceServiceMetadata applies the bazaar service-metadata
+// SanitizeResourceServiceMetadata applies the bazaar service-metadata
 // validation rules to a resource and returns only the fields that survive.
 // Missing or invalid fields are dropped silently (soft-drop semantics — see
 // spec).
-func sanitizeResourceServiceMetadata(r *x402types.ResourceInfo) sanitizedResourceServiceMetadata {
+func SanitizeResourceServiceMetadata(r *x402types.ResourceInfo) SanitizedResourceServiceMetadata {
 	if r == nil {
-		return sanitizedResourceServiceMetadata{}
+		return SanitizedResourceServiceMetadata{}
 	}
-	out := sanitizedResourceServiceMetadata{}
+	out := SanitizedResourceServiceMetadata{}
 	if isValidServiceName(r.ServiceName) {
 		out.ServiceName = r.ServiceName
 	}
@@ -530,7 +549,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 	var mimeType string
 	var routeTemplate string
 	var rawInput map[string]interface{}
-	var serviceMetadata sanitizedResourceServiceMetadata
+	var serviceMetadata SanitizedResourceServiceMetadata
 	version := versionCheck.X402Version
 
 	switch version {
@@ -546,7 +565,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 			resourceURL = paymentRequired.Resource.URL
 			description = paymentRequired.Resource.Description
 			mimeType = paymentRequired.Resource.MimeType
-			serviceMetadata = sanitizeResourceServiceMetadata(paymentRequired.Resource)
+			serviceMetadata = SanitizeResourceServiceMetadata(paymentRequired.Resource)
 		}
 
 		// First check PaymentRequired.extensions for bazaar extension

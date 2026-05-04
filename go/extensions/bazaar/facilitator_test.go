@@ -220,6 +220,19 @@ func TestIsValidIconUrl(t *testing.T) {
 		assert.False(t, isValidIconUrl("http://[2001:db8::1]/icon.png"))
 	})
 
+	t.Run("rejects decimal-encoded and short-form IP hosts", func(t *testing.T) {
+		// 2130706433 == 127.0.0.1; 0 expands to 0.0.0.0 on Linux.
+		assert.False(t, isValidIconUrl("http://2130706433/icon.png"))
+		assert.False(t, isValidIconUrl("http://0/icon.png"))
+		assert.False(t, isValidIconUrl("http://3232235521/icon.png"))
+	})
+
+	t.Run("rejects hex-encoded IP hosts", func(t *testing.T) {
+		// 0x7f000001 == 127.0.0.1.
+		assert.False(t, isValidIconUrl("http://0x7f000001/icon.png"))
+		assert.False(t, isValidIconUrl("http://0X7F000001/icon.png"))
+	})
+
 	t.Run("rejects localhost", func(t *testing.T) {
 		assert.False(t, isValidIconUrl("http://localhost/icon.png"))
 		assert.False(t, isValidIconUrl("http://LOCALHOST/icon.png"))
@@ -239,7 +252,7 @@ func TestIsValidIconUrl(t *testing.T) {
 
 func TestSanitizeResourceServiceMetadata(t *testing.T) {
 	t.Run("preserves all valid fields", func(t *testing.T) {
-		out := sanitizeResourceServiceMetadata(&x402types.ResourceInfo{
+		out := SanitizeResourceServiceMetadata(&x402types.ResourceInfo{
 			URL:         "https://api.example.com/x",
 			ServiceName: "Example Weather",
 			Tags:        []string{"weather", "forecast"},
@@ -251,7 +264,7 @@ func TestSanitizeResourceServiceMetadata(t *testing.T) {
 	})
 
 	t.Run("soft-drops only invalid fields", func(t *testing.T) {
-		out := sanitizeResourceServiceMetadata(&x402types.ResourceInfo{
+		out := SanitizeResourceServiceMetadata(&x402types.ResourceInfo{
 			ServiceName: strings.Repeat("a", 33),
 			Tags:        []string{"weather", "forecast"},
 			IconUrl:     "data:image/png;base64,iVBOR",
@@ -262,7 +275,7 @@ func TestSanitizeResourceServiceMetadata(t *testing.T) {
 	})
 
 	t.Run("nil input returns empty struct", func(t *testing.T) {
-		out := sanitizeResourceServiceMetadata(nil)
+		out := SanitizeResourceServiceMetadata(nil)
 		assert.Equal(t, "", out.ServiceName)
 		assert.Nil(t, out.Tags)
 		assert.Equal(t, "", out.IconUrl)

@@ -657,6 +657,17 @@ class TestIsValidIconUrl:
         assert _is_valid_icon_url("http://[::1]/icon.png") is False
         assert _is_valid_icon_url("http://[2001:db8::1]/icon.png") is False
 
+    def test_rejects_decimal_and_short_form_ip_hosts(self) -> None:
+        # 2130706433 == 127.0.0.1; 0 expands to 0.0.0.0 on Linux.
+        assert _is_valid_icon_url("http://2130706433/icon.png") is False
+        assert _is_valid_icon_url("http://0/icon.png") is False
+        assert _is_valid_icon_url("http://3232235521/icon.png") is False
+
+    def test_rejects_hex_encoded_ip_hosts(self) -> None:
+        # 0x7f000001 == 127.0.0.1.
+        assert _is_valid_icon_url("http://0x7f000001/icon.png") is False
+        assert _is_valid_icon_url("http://0X7F000001/icon.png") is False
+
     def test_rejects_localhost(self) -> None:
         assert _is_valid_icon_url("http://localhost/icon.png") is False
         assert _is_valid_icon_url("http://LOCALHOST/icon.png") is False
