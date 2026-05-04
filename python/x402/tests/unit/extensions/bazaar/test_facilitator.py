@@ -675,31 +675,37 @@ class TestSanitizeResourceServiceMetadata:
     """Direct unit tests for the _sanitize_resource_service_metadata helper."""
 
     def test_preserves_all_valid_fields(self) -> None:
-        out = _sanitize_resource_service_metadata({
-            "url": "https://api.example.com/x",
-            "serviceName": "Example Weather",
-            "tags": ["weather", "forecast"],
-            "iconUrl": "https://api.example.com/icon.png",
-        })
+        out = _sanitize_resource_service_metadata(
+            {
+                "url": "https://api.example.com/x",
+                "serviceName": "Example Weather",
+                "tags": ["weather", "forecast"],
+                "iconUrl": "https://api.example.com/icon.png",
+            }
+        )
         assert out.service_name == "Example Weather"
         assert out.tags == ["weather", "forecast"]
         assert out.icon_url == "https://api.example.com/icon.png"
 
     def test_soft_drops_only_invalid_fields(self) -> None:
-        out = _sanitize_resource_service_metadata({
-            "serviceName": "a" * 33,
-            "tags": ["weather", "forecast"],
-            "iconUrl": "data:image/png;base64,iVBOR",
-        })
+        out = _sanitize_resource_service_metadata(
+            {
+                "serviceName": "a" * 33,
+                "tags": ["weather", "forecast"],
+                "iconUrl": "data:image/png;base64,iVBOR",
+            }
+        )
         assert out.service_name is None
         assert out.tags == ["weather", "forecast"]
         assert out.icon_url is None
 
     def test_accepts_snake_case_keys(self) -> None:
-        out = _sanitize_resource_service_metadata({
-            "service_name": "Example",
-            "icon_url": "https://api.example.com/icon.png",
-        })
+        out = _sanitize_resource_service_metadata(
+            {
+                "service_name": "Example",
+                "icon_url": "https://api.example.com/icon.png",
+            }
+        )
         assert out.service_name == "Example"
         assert out.icon_url == "https://api.example.com/icon.png"
 
@@ -733,14 +739,16 @@ class TestExtractDiscoveryInfoServiceMetadata:
         }
 
     def test_surfaces_sanitized_metadata(self) -> None:
-        payload = self._build_payload({
-            "url": "https://api.example.com/weather",
-            "description": "Weather API",
-            "mimeType": "application/json",
-            "serviceName": "Example Weather",
-            "tags": ["weather", "forecast"],
-            "iconUrl": "https://api.example.com/icon.png",
-        })
+        payload = self._build_payload(
+            {
+                "url": "https://api.example.com/weather",
+                "description": "Weather API",
+                "mimeType": "application/json",
+                "serviceName": "Example Weather",
+                "tags": ["weather", "forecast"],
+                "iconUrl": "https://api.example.com/icon.png",
+            }
+        )
         discovered = extract_discovery_info(payload, {}, validate=False)
         assert discovered is not None
         assert discovered.service_name == "Example Weather"
@@ -748,12 +756,14 @@ class TestExtractDiscoveryInfoServiceMetadata:
         assert discovered.icon_url == "https://api.example.com/icon.png"
 
     def test_soft_drops_invalid_fields_independently(self) -> None:
-        payload = self._build_payload({
-            "url": "https://api.example.com/weather",
-            "serviceName": "a" * 33,
-            "tags": ["weather", "", "forecast"],
-            "iconUrl": "http://localhost/icon.png",
-        })
+        payload = self._build_payload(
+            {
+                "url": "https://api.example.com/weather",
+                "serviceName": "a" * 33,
+                "tags": ["weather", "", "forecast"],
+                "iconUrl": "http://localhost/icon.png",
+            }
+        )
         discovered = extract_discovery_info(payload, {}, validate=False)
         assert discovered is not None
         assert discovered.service_name is None

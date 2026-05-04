@@ -90,6 +90,9 @@ const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
  * Mirrors `_is_valid_service_name` (Python) and `isValidServiceName` (Go).
  * All three implementations must stay in sync.
  *
+ * @param value - The raw serviceName string from the resource object
+ * @returns true if the value is a valid serviceName, false otherwise
+ *
  * @internal Exported for facilitator use.
  */
 export function isValidServiceName(value: string | undefined): value is string {
@@ -106,6 +109,10 @@ export function isValidServiceName(value: string | undefined): value is string {
  *
  * Mirrors `_sanitize_tags` (Python) and `sanitizeTags` (Go).
  * All three implementations must stay in sync.
+ *
+ * @param value - The raw tags value from the resource object (typed as unknown
+ *   because callers pass it directly from a parsed JSON payload)
+ * @returns The sanitized tags array, or undefined if no entries survive
  *
  * @internal Exported for facilitator use.
  */
@@ -137,6 +144,9 @@ export function sanitizeTags(value: unknown): string[] | undefined {
  *
  * Mirrors `_is_valid_icon_url` (Python) and `isValidIconUrl` (Go).
  * All three implementations must stay in sync.
+ *
+ * @param value - The raw iconUrl string from the resource object
+ * @returns true if the value is a structurally safe iconUrl, false otherwise
  *
  * @internal Exported for facilitator use.
  */
