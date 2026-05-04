@@ -65,6 +65,9 @@ export const ResourceInfoSchema = z.object({
   url: NonEmptyString,
   description: z.string().optional(),
   mimeType: z.string().optional(),
+  serviceName: z.string().min(1).max(32).optional(),
+  tags: z.array(z.string().min(1).max(32)).max(5).optional(),
+  iconUrl: z.string().max(2048).optional(),
 });
 export type ResourceInfo = z.infer<typeof ResourceInfoSchema>;
 

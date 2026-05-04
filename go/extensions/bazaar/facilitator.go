@@ -3,6 +3,7 @@ package bazaar
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -97,6 +98,10 @@ type DiscoveredResource struct {
 	Description   string
 	MimeType      string
 	RouteTemplate string
+	// Sanitized service metadata. See sanitizeResourceServiceMetadata for rules.
+	ServiceName string
+	Tags        []string
+	IconUrl     string
 }
 
 // ExtractDiscoveredResourceFromPaymentPayload extracts a discovered resource from a client's payment payload and requirements.
@@ -148,6 +153,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	var mimeType string
 	var routeTemplate string
 	var rawInput map[string]interface{}
+	var serviceMetadata sanitizedResourceServiceMetadata
 	version := versionCheck.X402Version
 
 	switch version {
@@ -163,6 +169,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 			resourceURL = payload.Resource.URL
 			description = payload.Resource.Description
 			mimeType = payload.Resource.MimeType
+			serviceMetadata = sanitizeResourceServiceMetadata(payload.Resource)
 		}
 
 		// Extract discovery info from extensions
@@ -250,6 +257,9 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
 		RouteTemplate: routeTemplate,
+		ServiceName:   serviceMetadata.ServiceName,
+		Tags:          serviceMetadata.Tags,
+		IconUrl:       serviceMetadata.IconUrl,
 	}, nil
 }
 
@@ -289,6 +299,158 @@ func isValidRouteTemplate(s string) bool {
 		return false
 	}
 	return true
+}
+
+// Maximum lengths for resource service metadata fields. Spec: see
+// specs/extensions/bazaar.md "Service Metadata on `resource`".
+const (
+	maxServiceNameLen = 32
+	maxTagLen         = 32
+	maxTags           = 5
+	maxIconURLLen     = 2048
+)
+
+// matches a bare IPv4 dotted-quad. IPv6 literals are detected via net.ParseIP.
+var ipv4Regex = regexp.MustCompile(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`)
+
+// hasControlChar reports whether s contains any ASCII control character
+// (C0 range U+0000–U+001F or DEL U+007F).
+func hasControlChar(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c <= 0x1f || c == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidServiceName checks whether a serviceName value is structurally valid
+// for the bazaar resource.serviceName field. Non-empty string of at most 32
+// characters.
+//
+// Mirrors isValidServiceName (TypeScript) and _is_valid_service_name (Python).
+// All three implementations must stay in sync.
+func isValidServiceName(s string) bool {
+	if s == "" {
+		return false
+	}
+	if len(s) > maxServiceNameLen {
+		return false
+	}
+	return true
+}
+
+// sanitizeTags sanitizes a tags array. Drops entries that are not non-empty
+// strings of at most 32 characters, then truncates to the first 5 valid
+// entries. Returns nil when nothing survives so the field can be omitted from
+// the catalog.
+//
+// Mirrors sanitizeTags (TypeScript) and _sanitize_tags (Python).
+// All three implementations must stay in sync.
+func sanitizeTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	out := make([]string, 0, maxTags)
+	for _, t := range tags {
+		if t == "" || len(t) > maxTagLen {
+			continue
+		}
+		out = append(out, t)
+		if len(out) == maxTags {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// isValidIconUrl checks whether an iconUrl value is structurally safe for the
+// bazaar resource.iconUrl field.
+//
+// Rules (see specs/extensions/bazaar.md "Service Metadata on `resource`"):
+//   - String of length ≤ 2048
+//   - No ASCII control characters
+//   - Parses as an absolute http:// or https:// URL
+//   - No userinfo (user@host)
+//   - Host is not an IP literal (v4 or v6) and not "localhost"
+//
+// Percent-decoding is applied to the hostname before the IP / "localhost"
+// checks, parallel to the routeTemplate decoder.
+//
+// Mirrors isValidIconUrl (TypeScript) and _is_valid_icon_url (Python).
+// All three implementations must stay in sync.
+func isValidIconUrl(s string) bool {
+	if s == "" || len(s) > maxIconURLLen {
+		return false
+	}
+	if hasControlChar(s) {
+		return false
+	}
+	parsed, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if parsed.User != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return false
+	}
+	decoded, err := url.PathUnescape(host)
+	if err != nil {
+		return false
+	}
+	host = strings.ToLower(decoded)
+	if host == "" || host == "localhost" {
+		return false
+	}
+	if ipv4Regex.MatchString(host) {
+		return false
+	}
+	if net.ParseIP(host) != nil {
+		// Catches IPv6 literals (url.URL.Hostname() strips the brackets).
+		return false
+	}
+	if strings.Contains(host, ":") {
+		// Defensive: any colon-bearing host after IPv6 bracket-stripping.
+		return false
+	}
+	return true
+}
+
+// sanitizedResourceServiceMetadata holds the surviving service metadata fields
+// after applying the soft-drop validation rules.
+type sanitizedResourceServiceMetadata struct {
+	ServiceName string
+	Tags        []string
+	IconUrl     string
+}
+
+// sanitizeResourceServiceMetadata applies the bazaar service-metadata
+// validation rules to a resource and returns only the fields that survive.
+// Missing or invalid fields are dropped silently (soft-drop semantics — see
+// spec).
+func sanitizeResourceServiceMetadata(r *x402types.ResourceInfo) sanitizedResourceServiceMetadata {
+	if r == nil {
+		return sanitizedResourceServiceMetadata{}
+	}
+	out := sanitizedResourceServiceMetadata{}
+	if isValidServiceName(r.ServiceName) {
+		out.ServiceName = r.ServiceName
+	}
+	out.Tags = sanitizeTags(r.Tags)
+	if isValidIconUrl(r.IconUrl) {
+		out.IconUrl = r.IconUrl
+	}
+	return out
 }
 
 // stripQueryParams removes query parameters and fragments from a URL for cataloging
@@ -368,6 +530,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 	var mimeType string
 	var routeTemplate string
 	var rawInput map[string]interface{}
+	var serviceMetadata sanitizedResourceServiceMetadata
 	version := versionCheck.X402Version
 
 	switch version {
@@ -383,6 +546,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 			resourceURL = paymentRequired.Resource.URL
 			description = paymentRequired.Resource.Description
 			mimeType = paymentRequired.Resource.MimeType
+			serviceMetadata = sanitizeResourceServiceMetadata(paymentRequired.Resource)
 		}
 
 		// First check PaymentRequired.extensions for bazaar extension
@@ -476,6 +640,9 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
 		RouteTemplate: routeTemplate,
+		ServiceName:   serviceMetadata.ServiceName,
+		Tags:          serviceMetadata.Tags,
+		IconUrl:       serviceMetadata.IconUrl,
 	}, nil
 }
 

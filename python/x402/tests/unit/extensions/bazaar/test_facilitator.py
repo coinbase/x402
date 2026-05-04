@@ -10,7 +10,13 @@ from x402.extensions.bazaar import (
     validate_and_extract,
     validate_discovery_extension,
 )
-from x402.extensions.bazaar.facilitator import _is_valid_route_template
+from x402.extensions.bazaar.facilitator import (
+    _is_valid_icon_url,
+    _is_valid_route_template,
+    _is_valid_service_name,
+    _sanitize_resource_service_metadata,
+    _sanitize_tags,
+)
 from x402.extensions.bazaar.resource_service import (
     DeclareMcpDiscoveryConfig,
     declare_mcp_discovery_extension,
@@ -584,3 +590,172 @@ class TestExtractDiscoveryInfoMCP:
         result = extract_discovery_info(payload, {}, validate=False)
 
         assert result is None
+class TestIsValidServiceName:
+    """Direct unit tests for the _is_valid_service_name helper."""
+
+    def test_accepts_strings_up_to_32_chars(self) -> None:
+        assert _is_valid_service_name("Example Weather") is True
+        assert _is_valid_service_name("a") is True
+        assert _is_valid_service_name("a" * 32) is True
+
+    def test_rejects_empty_none_and_over_cap(self) -> None:
+        assert _is_valid_service_name(None) is False
+        assert _is_valid_service_name("") is False
+        assert _is_valid_service_name("a" * 33) is False
+
+    def test_rejects_non_string(self) -> None:
+        assert _is_valid_service_name(42) is False
+        assert _is_valid_service_name(["x"]) is False
+
+
+class TestSanitizeTags:
+    """Direct unit tests for the _sanitize_tags helper."""
+
+    def test_returns_none_for_non_lists(self) -> None:
+        assert _sanitize_tags(None) is None
+        assert _sanitize_tags("weather") is None
+        assert _sanitize_tags({"tag": "weather"}) is None
+
+    def test_drops_invalid_entries(self) -> None:
+        result = _sanitize_tags(["weather", "", "a" * 33, 42, None, "forecast"])
+        assert result == ["weather", "forecast"]
+
+    def test_truncates_to_5_entries(self) -> None:
+        result = _sanitize_tags(["a", "b", "c", "d", "e", "f", "g"])
+        assert result == ["a", "b", "c", "d", "e"]
+
+    def test_returns_none_when_nothing_survives(self) -> None:
+        assert _sanitize_tags(["", "a" * 33, 7]) is None
+        assert _sanitize_tags([]) is None
+
+
+class TestIsValidIconUrl:
+    """Direct unit tests for the _is_valid_icon_url helper."""
+
+    def test_accepts_plain_http_and_https_urls(self) -> None:
+        assert _is_valid_icon_url("https://api.example.com/icon.png") is True
+        assert _is_valid_icon_url("http://api.example.com/icon") is True
+
+    def test_rejects_empty_none_and_over_cap(self) -> None:
+        assert _is_valid_icon_url(None) is False
+        assert _is_valid_icon_url("") is False
+        assert _is_valid_icon_url("https://example.com/" + "a" * 2048) is False
+
+    def test_rejects_non_http_schemes(self) -> None:
+        assert _is_valid_icon_url("data:image/png;base64,iVBOR") is False
+        assert _is_valid_icon_url("file:///etc/passwd") is False
+        assert _is_valid_icon_url("javascript:alert(1)") is False
+        assert _is_valid_icon_url("ftp://example.com/icon.png") is False
+
+    def test_rejects_userinfo(self) -> None:
+        assert _is_valid_icon_url("https://user@example.com/icon.png") is False
+        assert _is_valid_icon_url("https://user:pass@example.com/icon.png") is False
+
+    def test_rejects_ip_literals(self) -> None:
+        assert _is_valid_icon_url("http://10.0.0.1/icon.png") is False
+        assert _is_valid_icon_url("http://127.0.0.1/icon.png") is False
+        assert _is_valid_icon_url("http://[::1]/icon.png") is False
+        assert _is_valid_icon_url("http://[2001:db8::1]/icon.png") is False
+
+    def test_rejects_localhost(self) -> None:
+        assert _is_valid_icon_url("http://localhost/icon.png") is False
+        assert _is_valid_icon_url("http://LOCALHOST/icon.png") is False
+
+    def test_rejects_control_characters(self) -> None:
+        assert _is_valid_icon_url("https://example.com/\x00icon.png") is False
+        assert _is_valid_icon_url("https://example.com/icon\n.png") is False
+        assert _is_valid_icon_url("https://example.com/icon\x7f.png") is False
+
+    def test_rejects_relative_paths(self) -> None:
+        assert _is_valid_icon_url("/icon.png") is False
+        assert _is_valid_icon_url("icon.png") is False
+
+
+class TestSanitizeResourceServiceMetadata:
+    """Direct unit tests for the _sanitize_resource_service_metadata helper."""
+
+    def test_preserves_all_valid_fields(self) -> None:
+        out = _sanitize_resource_service_metadata({
+            "url": "https://api.example.com/x",
+            "serviceName": "Example Weather",
+            "tags": ["weather", "forecast"],
+            "iconUrl": "https://api.example.com/icon.png",
+        })
+        assert out.service_name == "Example Weather"
+        assert out.tags == ["weather", "forecast"]
+        assert out.icon_url == "https://api.example.com/icon.png"
+
+    def test_soft_drops_only_invalid_fields(self) -> None:
+        out = _sanitize_resource_service_metadata({
+            "serviceName": "a" * 33,
+            "tags": ["weather", "forecast"],
+            "iconUrl": "data:image/png;base64,iVBOR",
+        })
+        assert out.service_name is None
+        assert out.tags == ["weather", "forecast"]
+        assert out.icon_url is None
+
+    def test_accepts_snake_case_keys(self) -> None:
+        out = _sanitize_resource_service_metadata({
+            "service_name": "Example",
+            "icon_url": "https://api.example.com/icon.png",
+        })
+        assert out.service_name == "Example"
+        assert out.icon_url == "https://api.example.com/icon.png"
+
+    def test_returns_empty_for_missing_or_non_dict(self) -> None:
+        empty = _sanitize_resource_service_metadata(None)
+        assert empty.service_name is None
+        assert empty.tags is None
+        assert empty.icon_url is None
+
+
+class TestExtractDiscoveryInfoServiceMetadata:
+    """End-to-end tests that service metadata round-trips through extraction."""
+
+    def _build_payload(self, resource: dict) -> dict:
+        declared = declare_discovery_extension(
+            input={"city": "NYC"},
+            input_schema={"properties": {"city": {"type": "string"}}},
+        )
+        ext = declared[BAZAAR.key]
+        if hasattr(ext, "model_dump"):
+            ext = ext.model_dump(by_alias=True)
+        ext["info"]["input"]["method"] = "GET"
+        return {
+            "x402Version": 2,
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "payload": {},
+            "accepted": {},
+            "resource": resource,
+            "extensions": {BAZAAR.key: ext},
+        }
+
+    def test_surfaces_sanitized_metadata(self) -> None:
+        payload = self._build_payload({
+            "url": "https://api.example.com/weather",
+            "description": "Weather API",
+            "mimeType": "application/json",
+            "serviceName": "Example Weather",
+            "tags": ["weather", "forecast"],
+            "iconUrl": "https://api.example.com/icon.png",
+        })
+        discovered = extract_discovery_info(payload, {}, validate=False)
+        assert discovered is not None
+        assert discovered.service_name == "Example Weather"
+        assert discovered.tags == ["weather", "forecast"]
+        assert discovered.icon_url == "https://api.example.com/icon.png"
+
+    def test_soft_drops_invalid_fields_independently(self) -> None:
+        payload = self._build_payload({
+            "url": "https://api.example.com/weather",
+            "serviceName": "a" * 33,
+            "tags": ["weather", "", "forecast"],
+            "iconUrl": "http://localhost/icon.png",
+        })
+        discovered = extract_discovery_info(payload, {}, validate=False)
+        assert discovered is not None
+        assert discovered.service_name is None
+        assert discovered.tags == ["weather", "forecast"]
+        assert discovered.icon_url is None

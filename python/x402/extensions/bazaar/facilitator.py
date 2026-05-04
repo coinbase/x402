@@ -8,6 +8,7 @@ Supports both v2 (extensions in PaymentRequired) and v1 (output_schema in Paymen
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 from dataclasses import dataclass, field
@@ -45,6 +46,17 @@ logger = logging.getLogger(__name__)
 _ROUTE_TEMPLATE_RE = re.compile(r"^/[a-zA-Z0-9_/:.\-~%]+$")
 
 
+# Maximum lengths for resource service metadata fields. Spec: see
+# specs/extensions/bazaar.md "Service Metadata on `resource`".
+_MAX_SERVICE_NAME_LEN = 32
+_MAX_TAG_LEN = 32
+_MAX_TAGS = 5
+_MAX_ICON_URL_LEN = 2048
+
+# Matches ASCII control characters: C0 range (U+0000–U+001F) plus DEL (U+007F).
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
 def _is_valid_route_template(value: str | None) -> bool:
     """Check whether a routeTemplate value is structurally valid.
 
@@ -80,6 +92,136 @@ def _is_valid_route_template(value: str | None) -> bool:
     return True
 
 
+def _is_valid_service_name(value: Any) -> bool:
+    """Check whether a serviceName value is structurally valid.
+
+    Non-empty string of at most 32 characters.
+
+    Mirrors `isValidServiceName` (TypeScript, Go).
+    All three implementations must stay in sync.
+    """
+    if not isinstance(value, str):
+        return False
+    if len(value) == 0 or len(value) > _MAX_SERVICE_NAME_LEN:
+        return False
+    return True
+
+
+def _sanitize_tags(value: Any) -> list[str] | None:
+    """Sanitize a tags array.
+
+    Drops entries that are not non-empty strings of at most 32 characters,
+    then truncates to the first 5 valid entries. Returns None when nothing
+    survives so the field can be omitted from the catalog.
+
+    Mirrors `sanitizeTags` (TypeScript, Go).
+    All three implementations must stay in sync.
+    """
+    if not isinstance(value, list):
+        return None
+    out: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            continue
+        if len(entry) == 0 or len(entry) > _MAX_TAG_LEN:
+            continue
+        out.append(entry)
+        if len(out) == _MAX_TAGS:
+            break
+    return out if out else None
+
+
+def _is_valid_icon_url(value: Any) -> bool:
+    """Check whether an iconUrl value is structurally safe.
+
+    Rules (see specs/extensions/bazaar.md "Service Metadata on `resource`"):
+      - String of length ≤ 2048
+      - No ASCII control characters
+      - Parses as an absolute http:// or https:// URL
+      - No userinfo (user@host)
+      - Host is not an IP literal (v4 or v6) and not "localhost"
+
+    Percent-decoding is applied to the hostname before the IP / "localhost"
+    checks, parallel to the routeTemplate decoder.
+
+    Mirrors `isValidIconUrl` (TypeScript, Go).
+    All three implementations must stay in sync.
+    """
+    if not isinstance(value, str):
+        return False
+    if len(value) == 0 or len(value) > _MAX_ICON_URL_LEN:
+        return False
+    if _CONTROL_CHAR_RE.search(value):
+        return False
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if parsed.username or parsed.password:
+        return False
+    raw_host = parsed.hostname
+    if not raw_host:
+        return False
+    try:
+        host = unquote(raw_host).lower()
+    except ValueError:
+        return False
+    if host == "" or host == "localhost":
+        return False
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
+    # urlparse strips IPv6 brackets from .hostname; if the original netloc had
+    # brackets but the bare host failed ip_address parsing (e.g. "::1"), still
+    # reject any colon-bearing host as an IPv6 literal candidate.
+    if ":" in host:
+        return False
+    return True
+
+
+@dataclass
+class SanitizedResourceServiceMetadata:
+    """Sanitized service metadata extracted from a ``resource`` object."""
+
+    service_name: str | None = None
+    tags: list[str] | None = None
+    icon_url: str | None = None
+
+
+def _sanitize_resource_service_metadata(
+    resource: dict[str, Any] | None,
+) -> SanitizedResourceServiceMetadata:
+    """Apply the bazaar service-metadata validation rules to a ``resource`` object.
+
+    Returns only the fields that survive. Missing or invalid fields are dropped
+    silently (soft-drop semantics — see spec).
+
+    Accepts both camelCase (``serviceName`` / ``iconUrl``) and snake_case
+    (``service_name`` / ``icon_url``) keys, matching the dual-naming convention
+    used elsewhere when extracting from raw payload dicts.
+    """
+    out = SanitizedResourceServiceMetadata()
+    if not isinstance(resource, dict):
+        return out
+    raw_name = resource.get("serviceName")
+    if raw_name is None:
+        raw_name = resource.get("service_name")
+    if _is_valid_service_name(raw_name):
+        out.service_name = raw_name
+    out.tags = _sanitize_tags(resource.get("tags"))
+    raw_icon = resource.get("iconUrl")
+    if raw_icon is None:
+        raw_icon = resource.get("icon_url")
+    if _is_valid_icon_url(raw_icon):
+        out.icon_url = raw_icon
+    return out
+
+
 @dataclass
 class ValidationResult:
     """Result of validating a discovery extension."""
@@ -100,6 +242,10 @@ class DiscoveredResource:
     description: str | None = None
     mime_type: str | None = None
     route_template: str | None = None
+    # Sanitized service metadata. See `_sanitize_resource_service_metadata`.
+    service_name: str | None = None
+    tags: list[str] | None = None
+    icon_url: str | None = None
 
 
 @dataclass
@@ -288,15 +434,17 @@ def extract_discovery_info(
     # Extract description and mime_type from resource info (V2) or requirements (V1)
     description: str | None = None
     mime_type: str | None = None
+    service_metadata = SanitizedResourceServiceMetadata()
 
     if version == 2:
-        # V2: description and mime_type are in PaymentPayload.resource
+        # V2: description, mime_type, and service metadata are in PaymentPayload.resource
         resource = payload_dict.get("resource", {})
         if isinstance(resource, dict):
             description = resource.get("description") or None
             mime_type = resource.get("mimeType") or resource.get("mime_type") or None
+            service_metadata = _sanitize_resource_service_metadata(resource)
     else:
-        # V1: description and mime_type are in PaymentRequirements
+        # V1: description and mime_type are in PaymentRequirements; no service metadata.
         description = requirements_dict.get("description") or None
         mime_type = requirements_dict.get("mimeType") or requirements_dict.get("mime_type") or None
 
@@ -309,6 +457,9 @@ def extract_discovery_info(
         description=description,
         mime_type=mime_type,
         route_template=route_template,
+        service_name=service_metadata.service_name,
+        tags=service_metadata.tags,
+        icon_url=service_metadata.icon_url,
     )
 
 

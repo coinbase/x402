@@ -71,6 +71,142 @@ export function validateRouteTemplate(value: string | undefined): string | undef
 }
 
 /**
+ * Maximum lengths for resource service metadata fields. Spec: see
+ * `specs/extensions/bazaar.md` "Service Metadata on `resource`".
+ */
+const MAX_SERVICE_NAME_LEN = 32;
+const MAX_TAG_LEN = 32;
+const MAX_TAGS = 5;
+const MAX_ICON_URL_LEN = 2048;
+// Matches ASCII control characters (C0 + DEL).
+const CONTROL_CHAR_REGEX = /[\x00-\x1f\x7f]/;
+// Matches a bare IPv4 dotted-quad. IPv6 literals are detected via hostname brackets.
+const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+/**
+ * Checks whether a serviceName value is structurally valid for the bazaar
+ * `resource.serviceName` field. Non-empty string of at most 32 characters.
+ *
+ * Mirrors `_is_valid_service_name` (Python) and `isValidServiceName` (Go).
+ * All three implementations must stay in sync.
+ *
+ * @internal Exported for facilitator use.
+ */
+export function isValidServiceName(value: string | undefined): value is string {
+  if (typeof value !== "string") return false;
+  if (value.length === 0 || value.length > MAX_SERVICE_NAME_LEN) return false;
+  return true;
+}
+
+/**
+ * Sanitizes a tags array for the bazaar `resource.tags` field. Drops entries
+ * that are not non-empty strings of at most 32 characters, then truncates
+ * to the first 5 valid entries. Returns undefined when no entries survive
+ * (so the field can be omitted from the catalog).
+ *
+ * Mirrors `_sanitize_tags` (Python) and `sanitizeTags` (Go).
+ * All three implementations must stay in sync.
+ *
+ * @internal Exported for facilitator use.
+ */
+export function sanitizeTags(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    if (entry.length === 0 || entry.length > MAX_TAG_LEN) continue;
+    out.push(entry);
+    if (out.length === MAX_TAGS) break;
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Checks whether an iconUrl value is structurally safe for the bazaar
+ * `resource.iconUrl` field.
+ *
+ * Rules (see `specs/extensions/bazaar.md` "Service Metadata on `resource`"):
+ *   - String of length ≤ 2048
+ *   - No ASCII control characters
+ *   - Parses as an absolute http:// or https:// URL
+ *   - No userinfo (user@host)
+ *   - Host is not an IP literal (v4 or v6) and not "localhost"
+ *
+ * Percent-decoding is applied to the hostname before the IP / "localhost"
+ * checks, parallel to the routeTemplate decoder.
+ *
+ * Mirrors `_is_valid_icon_url` (Python) and `isValidIconUrl` (Go).
+ * All three implementations must stay in sync.
+ *
+ * @internal Exported for facilitator use.
+ */
+export function isValidIconUrl(value: string | undefined): value is string {
+  if (typeof value !== "string") return false;
+  if (value.length === 0 || value.length > MAX_ICON_URL_LEN) return false;
+  if (CONTROL_CHAR_REGEX.test(value)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  if (parsed.username !== "" || parsed.password !== "") return false;
+  // URL.hostname strips IPv6 brackets, so detect IPv6 from the bracketed host instead.
+  if (parsed.host.startsWith("[")) return false;
+  let hostname: string;
+  try {
+    hostname = decodeURIComponent(parsed.hostname);
+  } catch {
+    return false;
+  }
+  hostname = hostname.toLowerCase();
+  if (hostname === "" || hostname === "localhost") return false;
+  if (IPV4_REGEX.test(hostname)) return false;
+  return true;
+}
+
+/**
+ * Sanitized service metadata extracted from a `resource` object.
+ */
+export interface SanitizedResourceServiceMetadata {
+  serviceName?: string;
+  tags?: string[];
+  iconUrl?: string;
+}
+
+/**
+ * Applies the bazaar service-metadata validation rules to a `resource` object
+ * and returns only the fields that survive. Missing or invalid fields are
+ * dropped silently (soft-drop semantics — see spec).
+ *
+ * @param resource - The raw `resource` object from a PaymentRequired or
+ *   PaymentPayload, or undefined.
+ * @returns An object containing only the valid serviceName / tags / iconUrl.
+ *
+ * @internal Exported for facilitator use.
+ */
+export function sanitizeResourceServiceMetadata(
+  resource: Record<string, unknown> | undefined | null,
+): SanitizedResourceServiceMetadata {
+  if (!resource || typeof resource !== "object") return {};
+  const out: SanitizedResourceServiceMetadata = {};
+  const rawName = (resource as { serviceName?: unknown }).serviceName;
+  if (typeof rawName === "string" && isValidServiceName(rawName)) {
+    out.serviceName = rawName;
+  }
+  const tags = sanitizeTags((resource as { tags?: unknown }).tags);
+  if (tags) {
+    out.tags = tags;
+  }
+  const rawIcon = (resource as { iconUrl?: unknown }).iconUrl;
+  if (typeof rawIcon === "string" && isValidIconUrl(rawIcon)) {
+    out.iconUrl = rawIcon;
+  }
+  return out;
+}
+
+/**
  * Validation result for discovery extensions
  */
 export interface ValidationResult {
@@ -238,10 +374,15 @@ export function extractDiscoveryInfo(
   // Extract description and mimeType from resource info (v2) or requirements (v1)
   let description: string | undefined;
   let mimeType: string | undefined;
+  let serviceMetadata: SanitizedResourceServiceMetadata = {};
 
   if (paymentPayload.x402Version === 2) {
     description = paymentPayload.resource?.description;
     mimeType = paymentPayload.resource?.mimeType;
+    // Service metadata only exists in v2; v1 had no equivalent.
+    serviceMetadata = sanitizeResourceServiceMetadata(
+      paymentPayload.resource as Record<string, unknown> | undefined,
+    );
   } else if (paymentPayload.x402Version === 1) {
     const requirementsV1 = paymentRequirements as PaymentRequirementsV1;
     description = requirementsV1.description;
@@ -252,6 +393,7 @@ export function extractDiscoveryInfo(
     resourceUrl: canonicalUrl,
     description,
     mimeType,
+    ...serviceMetadata,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,
   };
