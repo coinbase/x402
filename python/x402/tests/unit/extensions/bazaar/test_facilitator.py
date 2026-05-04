@@ -607,6 +607,24 @@ class TestIsValidServiceName:
         assert _is_valid_service_name(42) is False
         assert _is_valid_service_name(["x"]) is False
 
+    def test_rejects_non_ascii_characters(self) -> None:
+        # Multi-byte chars in UTF-8 — would otherwise diverge across SDKs
+        # (UTF-16 code units in TS, code points here, bytes in Go).
+        assert _is_valid_service_name("Café Service") is False
+        assert _is_valid_service_name("東京 Weather") is False
+        assert _is_valid_service_name("🚀 Service") is False
+
+    def test_rejects_ascii_control_characters(self) -> None:
+        assert _is_valid_service_name("Service\x00") is False
+        assert _is_valid_service_name("Line\nBreak") is False
+        assert _is_valid_service_name("Tab\there") is False
+
+    def test_accepts_printable_ascii_with_spaces_and_punctuation(self) -> None:
+        assert _is_valid_service_name("Example Weather") is True
+        assert _is_valid_service_name("AT&T") is True
+        assert _is_valid_service_name("Coinbase, Inc.") is True
+        assert _is_valid_service_name("Service v2.0!") is True
+
 
 class TestSanitizeTags:
     """Direct unit tests for the _sanitize_tags helper."""
@@ -627,6 +645,10 @@ class TestSanitizeTags:
     def test_returns_none_when_nothing_survives(self) -> None:
         assert _sanitize_tags(["", "a" * 33, 7]) is None
         assert _sanitize_tags([]) is None
+
+    def test_drops_non_ascii_tags_but_keeps_ascii_siblings(self) -> None:
+        result = _sanitize_tags(["weather", "café", "東京", "🚀", "forecast"])
+        assert result == ["weather", "forecast"]
 
 
 class TestIsValidIconUrl:

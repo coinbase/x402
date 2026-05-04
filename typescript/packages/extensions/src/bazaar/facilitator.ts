@@ -85,6 +85,11 @@ const MAX_TAGS = 5;
 const MAX_ICON_URL_LEN = 2048;
 // Matches ASCII control characters (C0 + DEL).
 const CONTROL_CHAR_REGEX = /[\x00-\x1f\x7f]/;
+// Printable ASCII range (U+0020–U+007E). `serviceName` and `tags` are
+// constrained to this range so that String.length (UTF-16 code units),
+// len() in Python (code points), and len() in Go (UTF-8 bytes) all agree
+// on the character count. Same convention as paymentidentifier.id.
+const PRINTABLE_ASCII_REGEX = /^[\x20-\x7e]+$/;
 // Matches a bare IPv4 dotted-quad. IPv6 literals are detected via hostname brackets.
 const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 // SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
@@ -97,7 +102,11 @@ const HEX_LITERAL_REGEX = /^0x[0-9a-f]+$/i;
 
 /**
  * Checks whether a serviceName value is structurally valid for the bazaar
- * `resource.serviceName` field. Non-empty string of at most 32 characters.
+ * `resource.serviceName` field. Non-empty string of printable ASCII
+ * (U+0020–U+007E), length ≤ 32.
+ *
+ * The ASCII restriction matches the `paymentidentifier.id` convention and
+ * keeps `len()` semantics identical across TS / Python / Go.
  *
  * Mirrors `_is_valid_service_name` (Python) and `isValidServiceName` (Go).
  * All three implementations must stay in sync.
@@ -110,14 +119,18 @@ const HEX_LITERAL_REGEX = /^0x[0-9a-f]+$/i;
 export function isValidServiceName(value: string | undefined): value is string {
   if (typeof value !== "string") return false;
   if (value.length === 0 || value.length > MAX_SERVICE_NAME_LEN) return false;
+  if (!PRINTABLE_ASCII_REGEX.test(value)) return false;
   return true;
 }
 
 /**
  * Sanitizes a tags array for the bazaar `resource.tags` field. Drops entries
- * that are not non-empty strings of at most 32 characters, then truncates
- * to the first 5 valid entries. Returns undefined when no entries survive
- * (so the field can be omitted from the catalog).
+ * that are not non-empty printable-ASCII strings of at most 32 characters,
+ * then truncates to the first 5 valid entries. Returns undefined when no
+ * entries survive (so the field can be omitted from the catalog).
+ *
+ * The ASCII restriction matches the `paymentidentifier.id` convention and
+ * keeps `len()` semantics identical across TS / Python / Go.
  *
  * Mirrors `_sanitize_tags` (Python) and `sanitizeTags` (Go).
  * All three implementations must stay in sync.
@@ -134,6 +147,7 @@ export function sanitizeTags(value: unknown): string[] | undefined {
   for (const entry of value) {
     if (typeof entry !== "string") continue;
     if (entry.length === 0 || entry.length > MAX_TAG_LEN) continue;
+    if (!PRINTABLE_ASCII_REGEX.test(entry)) continue;
     out.push(entry);
     if (out.length === MAX_TAGS) break;
   }

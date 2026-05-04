@@ -322,6 +322,12 @@ var allDigitsRegex = regexp.MustCompile(`^\d+$`)
 // of bypasses as the decimal form above.
 var hexLiteralRegex = regexp.MustCompile(`(?i)^0x[0-9a-f]+$`)
 
+// Printable ASCII range (U+0020–U+007E). serviceName and tags are constrained
+// to this range so that String.length (UTF-16 code units) in TS, len() (code
+// points) in Python, and len() (UTF-8 bytes) here all agree on the character
+// count. Same convention as paymentidentifier.id.
+var printableASCIIRegex = regexp.MustCompile(`^[\x20-\x7e]+$`)
+
 // hasControlChar reports whether s contains any ASCII control character
 // (C0 range U+0000–U+001F or DEL U+007F).
 func hasControlChar(s string) bool {
@@ -335,8 +341,11 @@ func hasControlChar(s string) bool {
 }
 
 // isValidServiceName checks whether a serviceName value is structurally valid
-// for the bazaar resource.serviceName field. Non-empty string of at most 32
-// characters.
+// for the bazaar resource.serviceName field. Non-empty string of printable
+// ASCII (U+0020–U+007E), length ≤ 32.
+//
+// The ASCII restriction matches the paymentidentifier.id convention and keeps
+// len() semantics identical across TS / Python / Go.
 //
 // Mirrors isValidServiceName (TypeScript) and _is_valid_service_name (Python).
 // All three implementations must stay in sync.
@@ -347,13 +356,19 @@ func isValidServiceName(s string) bool {
 	if len(s) > maxServiceNameLen {
 		return false
 	}
+	if !printableASCIIRegex.MatchString(s) {
+		return false
+	}
 	return true
 }
 
 // sanitizeTags sanitizes a tags array. Drops entries that are not non-empty
-// strings of at most 32 characters, then truncates to the first 5 valid
-// entries. Returns nil when nothing survives so the field can be omitted from
-// the catalog.
+// printable-ASCII strings of at most 32 characters, then truncates to the
+// first 5 valid entries. Returns nil when nothing survives so the field can
+// be omitted from the catalog.
+//
+// The ASCII restriction matches the paymentidentifier.id convention and keeps
+// len() semantics identical across TS / Python / Go.
 //
 // Mirrors sanitizeTags (TypeScript) and _sanitize_tags (Python).
 // All three implementations must stay in sync.
@@ -364,6 +379,9 @@ func sanitizeTags(tags []string) []string {
 	out := make([]string, 0, maxTags)
 	for _, t := range tags {
 		if t == "" || len(t) > maxTagLen {
+			continue
+		}
+		if !printableASCIIRegex.MatchString(t) {
 			continue
 		}
 		out = append(out, t)
