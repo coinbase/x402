@@ -2126,6 +2126,19 @@ describe("Bazaar Discovery Extension", () => {
       expect(isValidIconUrl("http://[2001:db8::1]/icon.png")).toBe(false);
     });
 
+    it("rejects decimal-encoded and short-form IP hosts", () => {
+      // 2130706433 == 127.0.0.1; 0 expands to 0.0.0.0 on Linux.
+      expect(isValidIconUrl("http://2130706433/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://0/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://3232235521/icon.png")).toBe(false);
+    });
+
+    it("rejects hex-encoded IP hosts", () => {
+      // 0x7f000001 == 127.0.0.1.
+      expect(isValidIconUrl("http://0x7f000001/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://0X7F000001/icon.png")).toBe(false);
+    });
+
     it("rejects localhost", () => {
       expect(isValidIconUrl("http://localhost/icon.png")).toBe(false);
       expect(isValidIconUrl("http://LOCALHOST/icon.png")).toBe(false);
@@ -2160,6 +2173,7 @@ describe("Bazaar Discovery Extension", () => {
 
     it("soft-drops only the invalid fields", () => {
       const out = sanitizeResourceServiceMetadata({
+        url: "https://api.example.com/x",
         serviceName: "a".repeat(33),
         tags: ["weather", "forecast"],
         iconUrl: "data:image/png;base64,iVBOR",

@@ -54,6 +54,13 @@ _MAX_ICON_URL_LEN = 2048
 
 # Matches ASCII control characters: C0 range (U+0000–U+001F) plus DEL (U+007F).
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+# SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
+# is purely numeric. Catches decimal-encoded IPs (`http://2130706433/` → 127.0.0.1)
+# and short-form IPs (`http://0/` → 0.0.0.0, treated as loopback on Linux).
+_ALL_DIGITS_RE = re.compile(r"^\d+$")
+# SSRF defense: hex-encoded IPs (`http://0x7f000001/` → 127.0.0.1) — same family
+# of bypasses as the decimal form above.
+_HEX_LITERAL_RE = re.compile(r"^0x[0-9a-f]+$", re.IGNORECASE)
 
 
 def _is_valid_route_template(value: str | None) -> bool:
@@ -139,6 +146,8 @@ def _is_valid_icon_url(value: Any) -> bool:
       - Parses as an absolute http:// or https:// URL
       - No userinfo (user@host)
       - Host is not an IP literal (v4 or v6) and not "localhost"
+      - Host is not a decimal IP encoding (e.g. ``2130706433`` → 127.0.0.1) or
+        hex literal (e.g. ``0x7f000001``) — common SSRF bypass forms
 
     Percent-decoding is applied to the hostname before the IP / "localhost"
     checks, parallel to the routeTemplate decoder.
@@ -179,6 +188,10 @@ def _is_valid_icon_url(value: Any) -> bool:
     # brackets but the bare host failed ip_address parsing (e.g. "::1"), still
     # reject any colon-bearing host as an IPv6 literal candidate.
     if ":" in host:
+        return False
+    if _ALL_DIGITS_RE.match(host):
+        return False
+    if _HEX_LITERAL_RE.match(host):
         return False
     return True
 

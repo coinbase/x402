@@ -8,7 +8,12 @@
  */
 
 import Ajv from "ajv/dist/2020.js";
-import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
+import type {
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequirementsV1,
+  ResourceInfo,
+} from "@x402/core/types";
 import type { DiscoveryExtension, DiscoveryInfo } from "./types";
 import type { McpDiscoveryInfo } from "./mcp/types";
 import type { DiscoveredHTTPResource } from "./http/types";
@@ -82,6 +87,13 @@ const MAX_ICON_URL_LEN = 2048;
 const CONTROL_CHAR_REGEX = /[\x00-\x1f\x7f]/;
 // Matches a bare IPv4 dotted-quad. IPv6 literals are detected via hostname brackets.
 const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+// SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
+// is purely numeric. Catches decimal-encoded IPs (`http://2130706433/` → 127.0.0.1)
+// and short-form IPs (`http://0/` → 0.0.0.0, treated as loopback on Linux).
+const ALL_DIGITS_REGEX = /^\d+$/;
+// SSRF defense: hex-encoded IPs (`http://0x7f000001/` → 127.0.0.1) — same family
+// of bypasses as the decimal form above.
+const HEX_LITERAL_REGEX = /^0x[0-9a-f]+$/i;
 
 /**
  * Checks whether a serviceName value is structurally valid for the bazaar
@@ -138,6 +150,8 @@ export function sanitizeTags(value: unknown): string[] | undefined {
  *   - Parses as an absolute http:// or https:// URL
  *   - No userinfo (user@host)
  *   - Host is not an IP literal (v4 or v6) and not "localhost"
+ *   - Host is not a decimal IP encoding (e.g. `2130706433` → 127.0.0.1) or
+ *     hex literal (e.g. `0x7f000001`) — common SSRF bypass forms
  *
  * Percent-decoding is applied to the hostname before the IP / "localhost"
  * checks, parallel to the routeTemplate decoder.
@@ -173,6 +187,8 @@ export function isValidIconUrl(value: string | undefined): value is string {
   hostname = hostname.toLowerCase();
   if (hostname === "" || hostname === "localhost") return false;
   if (IPV4_REGEX.test(hostname)) return false;
+  if (ALL_DIGITS_REGEX.test(hostname)) return false;
+  if (HEX_LITERAL_REGEX.test(hostname)) return false;
   return true;
 }
 
@@ -197,21 +213,19 @@ export interface SanitizedResourceServiceMetadata {
  * @internal Exported for facilitator use.
  */
 export function sanitizeResourceServiceMetadata(
-  resource: Record<string, unknown> | undefined | null,
+  resource: ResourceInfo | undefined | null,
 ): SanitizedResourceServiceMetadata {
-  if (!resource || typeof resource !== "object") return {};
+  if (!resource) return {};
   const out: SanitizedResourceServiceMetadata = {};
-  const rawName = (resource as { serviceName?: unknown }).serviceName;
-  if (typeof rawName === "string" && isValidServiceName(rawName)) {
-    out.serviceName = rawName;
+  if (isValidServiceName(resource.serviceName)) {
+    out.serviceName = resource.serviceName;
   }
-  const tags = sanitizeTags((resource as { tags?: unknown }).tags);
+  const tags = sanitizeTags(resource.tags);
   if (tags) {
     out.tags = tags;
   }
-  const rawIcon = (resource as { iconUrl?: unknown }).iconUrl;
-  if (typeof rawIcon === "string" && isValidIconUrl(rawIcon)) {
-    out.iconUrl = rawIcon;
+  if (isValidIconUrl(resource.iconUrl)) {
+    out.iconUrl = resource.iconUrl;
   }
   return out;
 }
@@ -390,9 +404,7 @@ export function extractDiscoveryInfo(
     description = paymentPayload.resource?.description;
     mimeType = paymentPayload.resource?.mimeType;
     // Service metadata only exists in v2; v1 had no equivalent.
-    serviceMetadata = sanitizeResourceServiceMetadata(
-      paymentPayload.resource as Record<string, unknown> | undefined,
-    );
+    serviceMetadata = sanitizeResourceServiceMetadata(paymentPayload.resource);
   } else if (paymentPayload.x402Version === 1) {
     const requirementsV1 = paymentRequirements as PaymentRequirementsV1;
     description = requirementsV1.description;
