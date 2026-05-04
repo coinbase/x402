@@ -1,0 +1,8 @@
+{
+  "name": "TickersFeed",
+  "description": "Pay-per-call market data API for AI agents. Stock quotes, earnings, news, crypto prices (1,000+ coins), DeFi yield pools, protocol TVL rankings, and gas prices on Ethereum & Base - all via x402 micropayments. No API keys, no subscriptions. $0.001-$0.005 USDC per call.",
+  "logoUrl": "/logos/tickersfeed-logo.svg",
+  "websiteUrl": "https://tickersfeed.net",
+  "category": "Services/Endpoints"
+}
+
