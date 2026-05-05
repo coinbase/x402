@@ -3424,6 +3424,7 @@ all = [
     { name = "fastapi", extra = ["standard"] },
     { name = "flask" },
     { name = "httpx" },
+    { name = "idna" },
     { name = "jsonschema" },
     { name = "mcp" },
     { name = "requests" },
@@ -3444,6 +3445,7 @@ evm = [
     { name = "web3" },
 ]
 extensions = [
+    { name = "idna" },
     { name = "jsonschema" },
 ]
 fastapi = [
@@ -3491,6 +3493,7 @@ dev = [
     { name = "fastapi", extra = ["standard"] },
     { name = "flask" },
     { name = "httpx" },
+    { name = "idna" },
     { name = "jsonschema" },
     { name = "mcp" },
     { name = "mypy" },
@@ -3515,6 +3518,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], marker = "extra == 'fastapi'", specifier = ">=0.115.0" },
     { name = "flask", marker = "extra == 'flask'", specifier = ">=3.0.0" },
     { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1" },
+    { name = "idna", marker = "extra == 'extensions'", specifier = ">=3.4" },
     { name = "jsonschema", marker = "extra == 'extensions'", specifier = ">=4.0.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
     { name = "nest-asyncio", specifier = ">=1.6.0" },
@@ -3542,6 +3546,7 @@ dev = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
     { name = "flask", specifier = ">=3.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "idna", specifier = ">=3.4" },
     { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "mcp", specifier = ">=1.26.0" },
     { name = "mypy", specifier = ">=1.0.0" },

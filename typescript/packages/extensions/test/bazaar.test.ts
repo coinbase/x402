@@ -2119,6 +2119,11 @@ describe("Bazaar Discovery Extension", () => {
       const result = sanitizeTags(["weather", "café", "東京", "🚀", "forecast"]);
       expect(result).toEqual(["weather", "forecast"]);
     });
+
+    it("dedupes case-insensitively keeping first occurrence", () => {
+      const result = sanitizeTags(["Weather", "weather", "WEATHER", "forecast"]);
+      expect(result).toEqual(["Weather", "forecast"]);
+    });
   });
 
   describe("isValidIconUrl", () => {
@@ -2168,6 +2173,17 @@ describe("Bazaar Discovery Extension", () => {
     it("rejects localhost", () => {
       expect(isValidIconUrl("http://localhost/icon.png")).toBe(false);
       expect(isValidIconUrl("http://LOCALHOST/icon.png")).toBe(false);
+    });
+
+    it("rejects loopback aliases from /etc/hosts", () => {
+      expect(isValidIconUrl("http://localhost.localdomain/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://ip6-localhost/icon.png")).toBe(false);
+      expect(isValidIconUrl("http://ip6-loopback/icon.png")).toBe(false);
+    });
+
+    it("rejects IDN / full-width localhost confusables", () => {
+      // Full-width Latin "ｌｏｃａｌｈｏｓｔ" normalizes to "localhost" via UTS #46.
+      expect(isValidIconUrl("http://ｌｏｃａｌｈｏｓｔ/icon.png")).toBe(false);
     });
 
     it("rejects control characters", () => {

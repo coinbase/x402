@@ -167,6 +167,11 @@ func TestSanitizeTags(t *testing.T) {
 		got := sanitizeTags([]string{"weather", "café", "東京", "🚀", "forecast"})
 		assert.Equal(t, []string{"weather", "forecast"}, got)
 	})
+
+	t.Run("dedupes case-insensitively keeping first occurrence", func(t *testing.T) {
+		got := sanitizeTags([]string{"Weather", "weather", "WEATHER", "forecast"})
+		assert.Equal(t, []string{"Weather", "forecast"}, got)
+	})
 }
 
 func TestIsValidIconUrl(t *testing.T) {
@@ -215,6 +220,17 @@ func TestIsValidIconUrl(t *testing.T) {
 	t.Run("rejects localhost", func(t *testing.T) {
 		assert.False(t, isValidIconUrl("http://localhost/icon.png"))
 		assert.False(t, isValidIconUrl("http://LOCALHOST/icon.png"))
+	})
+
+	t.Run("rejects loopback aliases from /etc/hosts", func(t *testing.T) {
+		assert.False(t, isValidIconUrl("http://localhost.localdomain/icon.png"))
+		assert.False(t, isValidIconUrl("http://ip6-localhost/icon.png"))
+		assert.False(t, isValidIconUrl("http://ip6-loopback/icon.png"))
+	})
+
+	t.Run("rejects IDN / full-width localhost confusables", func(t *testing.T) {
+		// Full-width Latin "ｌｏｃａｌｈｏｓｔ" normalizes to "localhost" via UTS #46.
+		assert.False(t, isValidIconUrl("http://ｌｏｃａｌｈｏｓｔ/icon.png"))
 	})
 
 	t.Run("rejects control characters", func(t *testing.T) {

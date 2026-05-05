@@ -11,9 +11,17 @@ from __future__ import annotations
 import ipaddress
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse, urlunparse
+
+try:
+    import idna
+except ImportError as e:
+    raise ImportError(
+        "Extensions validation requires idna. Install with: pip install x402[extensions]"
+    ) from e
 
 from .types import (
     BAZAAR,
@@ -59,6 +67,32 @@ _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 # len() (code points) here, and len() (UTF-8 bytes) in Go all agree on the
 # character count. Same convention as paymentidentifier.id.
 _PRINTABLE_ASCII_RE = re.compile(r"^[\x20-\x7e]+$")
+
+# Loopback hostnames that must be rejected for SSRF defense. Includes the
+# common /etc/hosts aliases on Linux/macOS (`localhost.localdomain`,
+# `ip6-localhost`, `ip6-loopback`) — without these, a hostile provider could
+# route the facilitator's image fetcher to its own loopback interface.
+_LOOPBACK_HOSTNAMES = frozenset(
+    {
+        "localhost",
+        "localhost.localdomain",
+        "ip6-localhost",
+        "ip6-loopback",
+    }
+)
+
+
+def _contains_control_char(s: str) -> bool:
+    """Report whether s contains any Unicode control character (category Cc).
+
+    Defense-in-depth: the printable-ASCII regex used by
+    ``_is_valid_service_name`` / ``_sanitize_tags`` already rejects every
+    control character, but this explicit check documents intent and would
+    survive any future relaxation of the ASCII restriction.
+    """
+    return any(unicodedata.category(c) == "Cc" for c in s)
+
+
 # SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
 # is purely numeric. Catches decimal-encoded IPs (`http://2130706433/` → 127.0.0.1)
 # and short-form IPs (`http://0/` → 0.0.0.0, treated as loopback on Linux).
@@ -118,6 +152,8 @@ def _is_valid_service_name(value: Any) -> bool:
         return False
     if len(value) == 0 or len(value) > _MAX_SERVICE_NAME_LEN:
         return False
+    if _contains_control_char(value):
+        return False
     if not _PRINTABLE_ASCII_RE.match(value):
         return False
     return True
@@ -139,13 +175,22 @@ def _sanitize_tags(value: Any) -> list[str] | None:
     if not isinstance(value, list):
         return None
     out: list[str] = []
+    # Case-insensitive dedup: keeps the first occurrence's casing.
+    # Prevents catalog noise like ["Weather", "weather", "WEATHER"].
+    seen: set[str] = set()
     for entry in value:
         if not isinstance(entry, str):
             continue
         if len(entry) == 0 or len(entry) > _MAX_TAG_LEN:
             continue
+        if _contains_control_char(entry):
+            continue
         if not _PRINTABLE_ASCII_RE.match(entry):
             continue
+        key = entry.lower()
+        if key in seen:
+            continue
+        seen.add(key)
         out.append(entry)
         if len(out) == _MAX_TAGS:
             break
@@ -160,12 +205,18 @@ def _is_valid_icon_url(value: Any) -> bool:
       - No ASCII control characters
       - Parses as an absolute http:// or https:// URL
       - No userinfo (user@host)
-      - Host is not an IP literal (v4 or v6) and not "localhost"
+      - Host is IDN-normalized (UTS #46) before checks, so confusable
+        full-width / Unicode forms (e.g. ``ｌｏｃａｌｈｏｓｔ``) collapse to
+        their ASCII canonical and get caught by the loopback check
+      - Host is not an IP literal (v4 or v6), not in the loopback set
+        (``localhost``, ``localhost.localdomain``, ``ip6-localhost``,
+        ``ip6-loopback``)
       - Host is not a decimal IP encoding (e.g. ``2130706433`` → 127.0.0.1) or
         hex literal (e.g. ``0x7f000001``) — common SSRF bypass forms
 
-    Percent-decoding is applied to the hostname before the IP / "localhost"
-    checks, parallel to the routeTemplate decoder.
+    Percent-decoding is applied to the hostname before IDN normalization, and
+    IDN normalization runs before the IP / loopback checks (parallel to the
+    routeTemplate decoder).
 
     Mirrors `isValidIconUrl` (TypeScript, Go).
     All three implementations must stay in sync.
@@ -188,10 +239,20 @@ def _is_valid_icon_url(value: Any) -> bool:
     if not raw_host:
         return False
     try:
-        host = unquote(raw_host).lower()
+        decoded = unquote(raw_host)
     except ValueError:
         return False
-    if host == "" or host == "localhost":
+    # IDN/full-width normalization: e.g. "ｌｏｃａｌｈｏｓｔ" (full-width Latin)
+    # → "localhost". Without this the loopback alias check would miss
+    # confusable Unicode hostnames. uts46=True applies the same UTS #46
+    # mapping that idna.Lookup.ToASCII (Go) and domainToASCII (Node) use.
+    try:
+        host = idna.encode(decoded, uts46=True).decode("ascii").lower()
+    except idna.IDNAError:
+        return False
+    if host == "":
+        return False
+    if host in _LOOPBACK_HOSTNAMES:
         return False
     try:
         ipaddress.ip_address(host)
