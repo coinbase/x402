@@ -13,8 +13,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@x402/core": "npm:@x402/core@2.11.0",
-    "@x402/evm": "npm:@x402/evm@2.11.0"
+    "@x402/core": "^2.11.0",
+    "@x402/evm": "^2.11.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.159",

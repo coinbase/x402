@@ -2297,10 +2297,10 @@ importers:
   servers/cloudfront-lambda-edge/lambda:
     dependencies:
       '@x402/core':
-        specifier: npm:@x402/core@2.11.0
+        specifier: ^2.11.0
         version: 2.11.0
       '@x402/evm':
-        specifier: npm:@x402/evm@2.11.0
+        specifier: ^2.11.0
         version: 2.11.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
     devDependencies:
       '@types/aws-lambda':
