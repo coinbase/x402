@@ -1,6 +1,8 @@
 packages:
   - "clients/*"
   - "servers/*"
+  - "servers/*/lambda"
+  - "servers/*/cdk"
   - "fullstack/*"
   - "facilitator/*"
   - "../../typescript/packages/core"

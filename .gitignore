@@ -12,6 +12,7 @@ e2e/facilitators/external-proxies/*
 !e2e/facilitators/external-proxies/README.md
 typescript/package-lock.json
 .pnpm-store/
+cdk.out/
 
 # e2e Go build artifacts (compiled binaries)
 e2e/clients/go-http/client
