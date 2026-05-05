@@ -27,7 +27,10 @@ The `info.input` object uses a discriminated union type, distinguished by the `t
   "resource": {
     "url": "https://api.example.com/weather",
     "description": "Weather data endpoint",
-    "mimeType": "application/json"
+    "mimeType": "application/json",
+    "serviceName": "Example Weather",
+    "tags": ["weather", "forecast"],
+    "iconUrl": "https://api.example.com/icon.png"
   },
   "accepts": [ ... ],
   "extensions": {
@@ -350,6 +353,68 @@ Facilitators **must** validate `info` against `schema` before cataloging.
   "required": ["input"]
 }
 ```
+
+---
+
+## Service Metadata on `resource`
+
+Resource servers MAY publish provider-level metadata describing the service that
+hosts the resource. Facilitators use these fields to enrich Bazaar search results
+with a human-readable name, topical tags, and an icon, without any out-of-band
+admin step. The fields live on the **top-level `resource` object** of the
+`PaymentRequired` response (alongside `url`, `description`, `mimeType`) and are
+echoed by clients in the `PaymentPayload.resource` exactly like `description`
+and `mimeType`.
+
+All fields are optional and purely additive. Servers that omit them produce
+byte-identical 402 bodies; clients that don't recognize them ignore them.
+
+| Field         | Type            | Required | Description                                                                                  |
+|---------------|-----------------|----------|----------------------------------------------------------------------------------------------|
+| `serviceName` | string          | No       | Human-readable name for the service (the authority that hosts the resource).                 |
+| `tags`        | array of string | No       | Short topical tags describing the service. Used for facilitator-side filtering and search.   |
+| `iconUrl`     | string          | No       | Absolute `https`/`http` URL to an icon image representing the service.                       |
+
+### Validation Rules
+
+The facilitator is a trust boundary: clients echo the `resource` block from
+`PaymentRequired` into `PaymentPayload`, so a malicious client could submit
+hostile metadata to poison the catalog. SDKs and facilitators MUST apply the
+following soft-drop rules during extraction. A field that fails its rule is
+discarded; the surrounding metadata is preserved.
+
+| Field         | Rule                                                                                                                                                                                                                  | On violation                                                            |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| `serviceName` | Non-empty string of printable ASCII (U+0020–U+007E), length ≤ 32 characters; contains no Unicode control characters (category Cc).                                                                                   | Drop the field.                                                         |
+| `tags`        | Array of strings; at most 5 entries; each entry non-empty, printable ASCII (U+0020–U+007E), length ≤ 32 characters, no Unicode control characters; entries deduplicated case-insensitively (first occurrence wins). | Truncate to the first 5 valid entries; drop individual invalid entries. |
+| `iconUrl`     | String of length ≤ 2048; parses as an absolute `http://` or `https://` URL; no `data:` / `file:` / other non-http schemes; no userinfo (`user@`); host is IDN-normalized (UTS #46) before checks; not an IP literal (v4 or v6), not in the loopback set (`localhost`, `localhost.localdomain`, `ip6-localhost`, `ip6-loopback`), not an all-digit hostname (decimal IP encodings like `2130706433`), and not a hex literal (`0x7f000001`); contains no control characters. | Drop the field.                                                         |
+
+Implementations MUST percent-decode the iconUrl host before applying the IP /
+`localhost` checks (parallel to how `routeTemplate` is decoded before its `..`
+and `://` checks).
+
+The `serviceName` and `tags` ASCII restriction follows the same convention as
+`paymentidentifier.id`: bounding the character set to printable ASCII keeps
+length checks identical across all three SDKs (where `len()` semantics
+otherwise diverge — UTF-16 code units in TypeScript, code points in Python,
+bytes in Go) and avoids non-ASCII display ambiguity in catalog UIs. Providers
+that need to display localized names should rely on the consuming UI for
+internationalization rather than encoding non-ASCII characters in this field.
+
+All SDK implementations expose helpers that apply these rules identically:
+`isValidServiceName`, `sanitizeTags`, `isValidIconUrl`, and a combined
+`sanitizeResourceServiceMetadata` (TypeScript, Go) or `_is_valid_service_name`,
+`_sanitize_tags`, `_is_valid_icon_url`, `_sanitize_resource_service_metadata`
+(Python). **All three copies must stay in sync.**
+
+> **SDK implementers:** If you add a fourth SDK, copy these validation rules
+> exactly, including the percent-decoding step before the IP / `localhost`
+> checks for `iconUrl`.
+
+Hard rejection only happens at the JSON envelope level (handled by existing
+extraction error paths). Image content-type, size, and dimension validation
+are out of scope for the SDK helpers and remain the facilitator's
+responsibility (e.g. via Cloudinary at serve time).
 
 ---
 
