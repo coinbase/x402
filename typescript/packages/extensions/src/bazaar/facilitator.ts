@@ -7,6 +7,7 @@
  * Supports both v2 (extensions in PaymentRequired) and v1 (outputSchema in PaymentRequirements).
  */
 
+import { domainToASCII } from "node:url";
 import Ajv from "ajv/dist/2020.js";
 import type {
   PaymentPayload,
@@ -90,6 +91,22 @@ const CONTROL_CHAR_REGEX = /[\x00-\x1f\x7f]/;
 // len() in Python (code points), and len() in Go (UTF-8 bytes) all agree
 // on the character count. Same convention as paymentidentifier.id.
 const PRINTABLE_ASCII_REGEX = /^[\x20-\x7e]+$/;
+// Unicode control characters (category Cc). Defense-in-depth: the printable
+// ASCII regex already rejects every control character, but this explicit
+// check documents intent and would survive any future relaxation of the
+// ASCII restriction. Mirrors `unicode.IsControl` (Go).
+const UNICODE_CONTROL_REGEX = /\p{Cc}/u;
+
+// Loopback hostnames that must be rejected for SSRF defense. Includes the
+// common /etc/hosts aliases on Linux/macOS (`localhost.localdomain`,
+// `ip6-localhost`, `ip6-loopback`) — without these, a hostile provider could
+// route the facilitator's image fetcher to its own loopback interface.
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "localhost.localdomain",
+  "ip6-localhost",
+  "ip6-loopback",
+]);
 // Matches a bare IPv4 dotted-quad. IPv6 literals are detected via hostname brackets.
 const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 // SSRF defense: any all-digit hostname is suspect because no legitimate DNS name
@@ -119,6 +136,7 @@ const HEX_LITERAL_REGEX = /^0x[0-9a-f]+$/i;
 export function isValidServiceName(value: string | undefined): value is string {
   if (typeof value !== "string") return false;
   if (value.length === 0 || value.length > MAX_SERVICE_NAME_LEN) return false;
+  if (UNICODE_CONTROL_REGEX.test(value)) return false;
   if (!PRINTABLE_ASCII_REGEX.test(value)) return false;
   return true;
 }
@@ -144,10 +162,17 @@ export function isValidServiceName(value: string | undefined): value is string {
 export function sanitizeTags(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out: string[] = [];
+  // Case-insensitive dedup: keeps the first occurrence's casing.
+  // Prevents catalog noise like ["Weather", "weather", "WEATHER"].
+  const seen = new Set<string>();
   for (const entry of value) {
     if (typeof entry !== "string") continue;
     if (entry.length === 0 || entry.length > MAX_TAG_LEN) continue;
+    if (UNICODE_CONTROL_REGEX.test(entry)) continue;
     if (!PRINTABLE_ASCII_REGEX.test(entry)) continue;
+    const key = entry.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(entry);
     if (out.length === MAX_TAGS) break;
   }
@@ -163,12 +188,17 @@ export function sanitizeTags(value: unknown): string[] | undefined {
  *   - No ASCII control characters
  *   - Parses as an absolute http:// or https:// URL
  *   - No userinfo (user@host)
- *   - Host is not an IP literal (v4 or v6) and not "localhost"
+ *   - Host is IDN-normalized (UTS #46) before checks, so confusable
+ *     full-width / Unicode forms (e.g. `ｌｏｃａｌｈｏｓｔ`) collapse to their
+ *     ASCII canonical and get caught by the loopback check
+ *   - Host is not an IP literal (v4 or v6), not in the loopback set
+ *     (`localhost`, `localhost.localdomain`, `ip6-localhost`, `ip6-loopback`)
  *   - Host is not a decimal IP encoding (e.g. `2130706433` → 127.0.0.1) or
  *     hex literal (e.g. `0x7f000001`) — common SSRF bypass forms
  *
- * Percent-decoding is applied to the hostname before the IP / "localhost"
- * checks, parallel to the routeTemplate decoder.
+ * Percent-decoding is applied to the hostname before IDN normalization, and
+ * IDN normalization runs before the IP / loopback checks (parallel to the
+ * routeTemplate decoder).
  *
  * Mirrors `_is_valid_icon_url` (Python) and `isValidIconUrl` (Go).
  * All three implementations must stay in sync.
@@ -198,8 +228,16 @@ export function isValidIconUrl(value: string | undefined): value is string {
   } catch {
     return false;
   }
-  hostname = hostname.toLowerCase();
-  if (hostname === "" || hostname === "localhost") return false;
+  // IDN/full-width normalization: e.g. "ｌｏｃａｌｈｏｓｔ" (full-width Latin)
+  // → "localhost". Without this the loopback alias check would miss
+  // confusable Unicode hostnames. domainToASCII applies the same WHATWG /
+  // UTS #46 mapping that idna.Lookup.ToASCII (Go) and idna.encode (Python)
+  // use; returns "" on failure.
+  const asciiHost = domainToASCII(hostname);
+  if (asciiHost === "") return false;
+  hostname = asciiHost.toLowerCase();
+  if (hostname === "") return false;
+  if (LOOPBACK_HOSTNAMES.has(hostname)) return false;
   if (IPV4_REGEX.test(hostname)) return false;
   if (ALL_DIGITS_REGEX.test(hostname)) return false;
   if (HEX_LITERAL_REGEX.test(hostname)) return false;

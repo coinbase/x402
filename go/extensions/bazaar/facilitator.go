@@ -7,12 +7,14 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 
 	x402 "github.com/x402-foundation/x402/go"
 	"github.com/x402-foundation/x402/go/extensions/types"
 	v1 "github.com/x402-foundation/x402/go/extensions/v1"
 	x402types "github.com/x402-foundation/x402/go/types"
 	"github.com/xeipuuv/gojsonschema"
+	"golang.org/x/net/idna"
 )
 
 // ValidationResult represents the result of validating a discovery extension
@@ -328,12 +330,38 @@ var hexLiteralRegex = regexp.MustCompile(`(?i)^0x[0-9a-f]+$`)
 // count. Same convention as paymentidentifier.id.
 var printableASCIIRegex = regexp.MustCompile(`^[\x20-\x7e]+$`)
 
+// Loopback hostnames that must be rejected for SSRF defense. Includes the
+// common /etc/hosts aliases on Linux/macOS (`localhost.localdomain`,
+// `ip6-localhost`, `ip6-loopback`) — without these, a hostile provider could
+// route the facilitator's image fetcher to its own loopback interface.
+var loopbackHostnames = map[string]struct{}{
+	"localhost":             {},
+	"localhost.localdomain": {},
+	"ip6-localhost":         {},
+	"ip6-loopback":          {},
+}
+
 // hasControlChar reports whether s contains any ASCII control character
-// (C0 range U+0000–U+001F or DEL U+007F).
+// (C0 range U+0000–U+001F or DEL U+007F). Used by isValidIconUrl on the raw
+// URL byte string before parsing.
 func hasControlChar(s string) bool {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c <= 0x1f || c == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
+// containsControlChar reports whether s contains any Unicode control character
+// (Unicode category Cc). Defense-in-depth: the printable-ASCII regex used by
+// isValidServiceName / sanitizeTags already rejects every control character,
+// but this explicit check documents intent and would survive any future
+// relaxation of the ASCII restriction.
+func containsControlChar(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) {
 			return true
 		}
 	}
@@ -354,6 +382,9 @@ func isValidServiceName(s string) bool {
 		return false
 	}
 	if len(s) > maxServiceNameLen {
+		return false
+	}
+	if containsControlChar(s) {
 		return false
 	}
 	if !printableASCIIRegex.MatchString(s) {
@@ -377,13 +408,24 @@ func sanitizeTags(tags []string) []string {
 		return nil
 	}
 	out := make([]string, 0, maxTags)
+	// Case-insensitive dedup: keeps the first occurrence's casing.
+	// Prevents catalog noise like ["Weather", "weather", "WEATHER"].
+	seen := make(map[string]struct{}, maxTags)
 	for _, t := range tags {
 		if t == "" || len(t) > maxTagLen {
+			continue
+		}
+		if containsControlChar(t) {
 			continue
 		}
 		if !printableASCIIRegex.MatchString(t) {
 			continue
 		}
+		key := strings.ToLower(t)
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
 		out = append(out, t)
 		if len(out) == maxTags {
 			break
@@ -403,12 +445,17 @@ func sanitizeTags(tags []string) []string {
 //   - No ASCII control characters
 //   - Parses as an absolute http:// or https:// URL
 //   - No userinfo (user@host)
-//   - Host is not an IP literal (v4 or v6) and not "localhost"
+//   - Host is IDN-normalized (UTS #46 via idna.Lookup.ToASCII) before checks,
+//     so confusable full-width / Unicode forms (e.g. "ｌｏｃａｌｈｏｓｔ")
+//     collapse to their ASCII canonical and get caught by the loopback check
+//   - Host is not an IP literal (v4 or v6), not in the loopback set
+//     (localhost, localhost.localdomain, ip6-localhost, ip6-loopback)
 //   - Host is not a decimal IP encoding (e.g. 2130706433 → 127.0.0.1) or
 //     hex literal (e.g. 0x7f000001) — common SSRF bypass forms
 //
-// Percent-decoding is applied to the hostname before the IP / "localhost"
-// checks, parallel to the routeTemplate decoder.
+// Percent-decoding is applied to the hostname before IDN normalization, and
+// IDN normalization runs before the IP / loopback checks (parallel to the
+// routeTemplate decoder).
 //
 // Mirrors isValidIconUrl (TypeScript) and _is_valid_icon_url (Python).
 // All three implementations must stay in sync.
@@ -437,8 +484,19 @@ func isValidIconUrl(s string) bool {
 	if err != nil {
 		return false
 	}
-	host = strings.ToLower(decoded)
-	if host == "" || host == "localhost" {
+	// IDN/full-width normalization: e.g. "ｌｏｃａｌｈｏｓｔ" (full-width Latin)
+	// → "localhost". Without this the loopback alias check would miss
+	// confusable Unicode hostnames. idna.Lookup is the strict profile; it
+	// rejects malformed IDN as well as normalizing.
+	asciiHost, err := idna.Lookup.ToASCII(decoded)
+	if err != nil {
+		return false
+	}
+	host = strings.ToLower(asciiHost)
+	if host == "" {
+		return false
+	}
+	if _, isLoopback := loopbackHostnames[host]; isLoopback {
 		return false
 	}
 	if ipv4Regex.MatchString(host) {

@@ -650,6 +650,10 @@ class TestSanitizeTags:
         result = _sanitize_tags(["weather", "café", "東京", "🚀", "forecast"])
         assert result == ["weather", "forecast"]
 
+    def test_dedupes_case_insensitively_keeping_first_occurrence(self) -> None:
+        result = _sanitize_tags(["Weather", "weather", "WEATHER", "forecast"])
+        assert result == ["Weather", "forecast"]
+
 
 class TestIsValidIconUrl:
     """Direct unit tests for the _is_valid_icon_url helper."""
@@ -693,6 +697,15 @@ class TestIsValidIconUrl:
     def test_rejects_localhost(self) -> None:
         assert _is_valid_icon_url("http://localhost/icon.png") is False
         assert _is_valid_icon_url("http://LOCALHOST/icon.png") is False
+
+    def test_rejects_loopback_aliases(self) -> None:
+        assert _is_valid_icon_url("http://localhost.localdomain/icon.png") is False
+        assert _is_valid_icon_url("http://ip6-localhost/icon.png") is False
+        assert _is_valid_icon_url("http://ip6-loopback/icon.png") is False
+
+    def test_rejects_idn_full_width_localhost_confusables(self) -> None:
+        # Full-width Latin "ｌｏｃａｌｈｏｓｔ" normalizes to "localhost" via UTS #46.
+        assert _is_valid_icon_url("http://ｌｏｃａｌｈｏｓｔ/icon.png") is False
 
     def test_rejects_control_characters(self) -> None:
         assert _is_valid_icon_url("https://example.com/\x00icon.png") is False

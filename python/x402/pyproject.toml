@@ -51,7 +51,7 @@ svm = [
 mcp = ["mcp>=1.0.0"]
 
 # Extensions - optional functionality
-extensions = ["jsonschema>=4.0.0"]
+extensions = ["jsonschema>=4.0.0", "idna>=3.4"]
 
 # Convenience bundles
 clients = ["x402[httpx,requests]"]
@@ -87,6 +87,7 @@ dev = [
     "nest-asyncio>=1.6.0",
     # Extensions dependencies
     "jsonschema>=4.0.0",
+    "idna>=3.4",
 ]
 
 [project.urls]
