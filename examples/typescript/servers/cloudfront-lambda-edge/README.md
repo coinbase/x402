@@ -79,11 +79,6 @@ See [Lambda@Edge quotas](https://docs.aws.amazon.com/AmazonCloudFront/latest/Dev
 
 Copy `lambda/src/` into your project and adapt the build to your tooling.
 
-> **Note**: Replace `workspace:*` dependencies with specific versions:
-> ```json
-> "@x402/core": "^2.2.0",
-> "@x402/evm": "^2.2.0"
-> ```
 
 ### 2. Configure Payment Settings
 
