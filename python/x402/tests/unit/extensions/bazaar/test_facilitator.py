@@ -590,6 +590,8 @@ class TestExtractDiscoveryInfoMCP:
         result = extract_discovery_info(payload, {}, validate=False)
 
         assert result is None
+
+
 class TestIsValidServiceName:
     """Direct unit tests for the _is_valid_service_name helper."""
 
