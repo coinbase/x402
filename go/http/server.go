@@ -180,6 +180,18 @@ type HTTPProcessResult struct {
 	Response            *HTTPResponseInstructions
 	PaymentPayload      *types.PaymentPayload      // V2 only
 	PaymentRequirements *types.PaymentRequirements // V2 only
+	// DeclaredExtensions is the route's enriched extension declaration map.
+	// Carried through verify → settle so per-extension hooks gate on declared
+	// keys both in the verify and settle phases. Mirrors TS
+	// `paymentRequiredResponse.extensions` flowing into both calls.
+	DeclaredExtensions map[string]interface{}
+	// SkipHandler is set when an AfterVerifyHook signals that the resource handler
+	// should be bypassed and settlement performed inline (e.g. cooperative refund).
+	SkipHandler *x402.SkipHandlerDirective
+	// CancellationDispatcher fires onVerifiedPaymentCanceled hooks if the resource
+	// handler errors or returns a non-2xx status before settlement runs. Set when
+	// Type is ResultPaymentVerified.
+	CancellationDispatcher *x402.PaymentCancellationDispatcher
 }
 
 // Result type constants
@@ -601,17 +613,25 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		}
 	}
 
-	// Verify payment (type-safe)
-	_, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
+	// Verify payment (type-safe). Pass `extensions` so per-extension hooks
+	// (registered via ResourceServerExtensionHookProvider) gate on declared
+	// extension keys — mirrors TS `verifyPayment(..., declaredExtensions)`.
+	verifyResp, verifyErr := s.VerifyPaymentWithExtensions(ctx, *typedPayload, *matchingReqs, extensions)
 	if verifyErr != nil {
 		err = verifyErr
+		// Prefer InvalidReason (the protocol error code) over the free-form
+		// message so enrichers can match on a stable identifier.
 		errorMsg := err.Error()
+		if ve, ok := verifyErr.(*x402.VerifyError); ok && ve.InvalidReason != "" {
+			errorMsg = ve.InvalidReason
+		}
 
-		paymentRequired := s.CreatePaymentRequiredResponse(
+		paymentRequired := s.CreatePaymentRequiredResponseWithPayload(
 			requirements,
 			resourceInfo,
 			errorMsg,
 			extensions,
+			typedPayload,
 		)
 
 		response, err := s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil)
@@ -632,11 +652,21 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Payment verified
-	return HTTPProcessResult{
+	result := HTTPProcessResult{
 		Type:                ResultPaymentVerified,
 		PaymentPayload:      typedPayload,
 		PaymentRequirements: matchingReqs,
+		DeclaredExtensions:  extensions,
 	}
+	if verifyResp != nil {
+		result.SkipHandler = verifyResp.SkipHandler
+	}
+	// Skip-handler runs inline; only attach a cancellation dispatcher when there
+	// is a downstream resource handler whose outcome can fail.
+	if result.SkipHandler == nil {
+		result.CancellationDispatcher = s.CreatePaymentCancellationDispatcherWithExtensions(ctx, *typedPayload, *matchingReqs, extensions)
+	}
+	return result
 }
 
 // RequiresPayment checks if a request requires payment based on route configuration
@@ -662,12 +692,30 @@ func MarshalSettlementOverrides(overrides *x402.SettlementOverrides) string {
 	return string(data)
 }
 
-// ProcessSettlement handles settlement after successful response.
+// ProcessSettlement handles settlement after successful response with no
+// declared extensions. Equivalent to ProcessSettlementWithExtensions(...,
+// nil). Kept for transport adapters that don't yet thread extensions
+// through.
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *x402.SettlementOverrides, transportContext *HTTPTransportContext) *ProcessSettleResult {
+	return s.ProcessSettlementWithExtensions(ctx, payload, requirements, overrides, transportContext, nil)
+}
+
+// ProcessSettlementWithExtensions handles settlement after successful response.
 // If overrides is non-nil, it takes precedence. Otherwise, falls back to reading
 // the settlement-overrides header from the transport context's ResponseHeaders
 // (set by the route handler via SetSettlementOverrides). The header is deleted
 // from ResponseHeaders to prevent it from being sent to the client.
-func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *x402.SettlementOverrides, transportContext *HTTPTransportContext) *ProcessSettleResult {
+//
+// `declaredExtensions` is forwarded to SettlePaymentWithExtensions so per-
+// extension settle hooks fire only when their key is declared on the route.
+func (s *x402HTTPResourceServer) ProcessSettlementWithExtensions(
+	ctx context.Context,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
+	overrides *x402.SettlementOverrides,
+	transportContext *HTTPTransportContext,
+	declaredExtensions map[string]interface{},
+) *ProcessSettleResult {
 	resolved := overrides
 	if resolved == nil && transportContext != nil && transportContext.ResponseHeaders != nil {
 		if val := transportContext.ResponseHeaders.Get(SettlementOverridesHeader); val != "" {
@@ -679,7 +727,7 @@ func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload 
 		}
 	}
 
-	settleResult, err := s.SettlePayment(ctx, payload, requirements, resolved)
+	settleResult, err := s.SettlePaymentWithExtensions(ctx, payload, requirements, resolved, declaredExtensions)
 	if err != nil {
 		return s.buildSettlementFailureResult(err.Error(), x402.Network(requirements.Network), "", nil)
 	}
@@ -720,6 +768,7 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResult(errorReason string
 	if settleResult != nil {
 		failureResponse.Network = settleResult.Network
 		failureResponse.Payer = settleResult.Payer
+		failureResponse.ErrorMessage = settleResult.ErrorMessage
 	}
 
 	headers, err := s.createSettlementHeaders(&failureResponse)
