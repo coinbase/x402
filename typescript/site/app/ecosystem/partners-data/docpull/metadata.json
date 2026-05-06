@@ -1,0 +1,7 @@
+{
+  "name": "docpull",
+  "description": "PDF to Markdown API for AI agents. Send any PDF URL, receive structured Markdown. Pay $0.001 USDC per page on Base mainnet — no accounts, no API keys.",
+  "logoUrl": "/logos/docpull.png",
+  "websiteUrl": "https://docpull.ai",
+  "category": "Services/Endpoints"
+}
