@@ -1,0 +1,7 @@
+{
+  "name": "SwapEazi",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/swapeazi.png",
+  "description": "Cross-chain stablecoin routing for the SADC corridor. The only x402 listing that routes USDT (Tron) ↔ USDC (Base) — the pair generic aggregators won't serve. 0.5% all-in, 7 chains + Tron. Pay-per-call: $0.02 USDC on Base via x402. OpenAPI + MCP manifests published.",
+  "websiteUrl": "https://swapeazi.io"
+}
