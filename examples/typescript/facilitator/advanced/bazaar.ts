@@ -87,6 +87,25 @@ class BazaarCatalog {
 
 const bazaarCatalog = new BazaarCatalog();
 
+const EXTENSION_RESPONSES_HEADER = "EXTENSION-RESPONSES";
+
+/**
+ * Attach an example bazaar extension response header for clients to read back.
+ *
+ * @param res - Express response
+ */
+function setExtensionResponsesHeader(res: express.Response): void {
+  const extensionResponses = {
+    bazaar: {
+      status: "success",
+    },
+  };
+  res.setHeader(
+    EXTENSION_RESPONSES_HEADER,
+    Buffer.from(JSON.stringify(extensionResponses), "utf8").toString("base64"),
+  );
+}
+
 // Initialize the x402 Facilitator with discovery hooks
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
@@ -243,6 +262,7 @@ app.post("/verify", async (req, res) => {
       paymentRequirements,
     );
 
+    setExtensionResponsesHeader(res);
     res.json(response);
   } catch (error) {
     console.error("Verify error:", error);
@@ -271,6 +291,7 @@ app.post("/settle", async (req, res) => {
       paymentRequirements as PaymentRequirements,
     );
 
+    setExtensionResponsesHeader(res);
     res.json(response);
   } catch (error) {
     console.error("Settle error:", error);
