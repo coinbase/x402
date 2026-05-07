@@ -1,0 +1,8 @@
+{
+  "name": "Crinkl",
+  "description": "Verified commerce data API - access privacy-safe aggregate purchase signals for retail demand, CPG planning, and campaign measurement. Agents pay $0.001-$0.10 USDC per request over x402 on Base or Solana without API keys, accounts, raw receipts, wallet histories, or identifiable purchase records.",
+  "logoUrl": "/logos/crinkl.png",
+  "websiteUrl": "https://www.crinkl.xyz/developers",
+  "category": "Services/Endpoints",
+  "typeLabel": "Data"
+}
