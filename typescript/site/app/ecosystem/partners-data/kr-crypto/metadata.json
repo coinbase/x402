@@ -1,0 +1,7 @@
+{
+  "name": "KR Crypto Intelligence",
+  "description": "Korean crypto market data and AI sentiment for AI agents. 11 endpoints covering Kimchi Premium, exchange intelligence, AI-translated Korean sentiment, divergence analysis, and arbitrage scanning across 189+ tokens. x402 native on Base, Polygon, and Solana.",
+  "logoUrl": "/logos/kr-crypto.png",
+  "websiteUrl": "https://api.printmoneylab.com",
+  "category": "Services/Endpoints"
+}
