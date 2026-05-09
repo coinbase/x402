@@ -1,0 +1,2 @@
+kind: added
+body: Add unit tests for ExactPermit2Payload and UptoPermit2Payload types (ToMap, PayloadFromMap, IsUptoPermit2Payload) in go/mechanisms/evm
