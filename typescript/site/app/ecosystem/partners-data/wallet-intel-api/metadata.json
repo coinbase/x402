@@ -1,0 +1,7 @@
+{
+  "name": "Wallet Intel API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/wallet-intel-api.svg",
+  "description": "Crypto intelligence API for AI agents. 8 endpoints: wallet threat + reputation scoring (dual-score model with sanctions, phishing, darkweb detection), token security (honeypot, rug pull, tax analysis across 7 chains), identity resolution (ENS, wallet age, DeFi protocols, behavioral labels), Polymarket prediction markets, perpetual funding rates, and cross-exchange arbitrage spreads. Pay $0.01–$0.02 USDC per call on Base — no API key required.",
+  "websiteUrl": "https://wallet-intel-api-production-3ec7.up.railway.app"
+}
