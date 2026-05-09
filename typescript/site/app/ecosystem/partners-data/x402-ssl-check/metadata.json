@@ -1,0 +1,7 @@
+{
+  "name": "x402 SSL Check",
+  "description": "SSL/TLS certificate and connection analyzer for AI agents. Checks certificate validity, chain of trust, expiry, DV/OV/EV type, TLS protocol version, cipher strength, and Subject Alternative Names. Returns security score and grade. $0.01 USDC on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-ssl-check.fly.dev",
+  "category": "Services/Endpoints"
+}

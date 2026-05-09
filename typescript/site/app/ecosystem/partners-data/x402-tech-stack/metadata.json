@@ -1,0 +1,7 @@
+{
+  "name": "x402 Tech Stack",
+  "description": "Technology stack detection for AI agents. Identifies 100+ technologies from HTTP headers, HTML patterns, and cookies — frameworks, CMS, hosting, CDN, analytics, payment providers, and more. $0.01 USDC per detection on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-tech-stack.fly.dev",
+  "category": "Services/Endpoints"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "x402 Page Meta",
+  "description": "Page metadata extractor for AI agents. Extracts Open Graph tags, Twitter Cards, JSON-LD structured data, RSS/Atom feeds, favicons, canonical URLs, hreflang, and standard meta tags from any URL. $0.01 USDC on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-page-meta.fly.dev",
+  "category": "Services/Endpoints"
+}
