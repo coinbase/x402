@@ -1,0 +1,7 @@
+{
+  "name": "Micro Data API Factory",
+  "description": "Public-source structured data APIs for AI agents, each on its own narrow x402 surface. First live endpoint: Weather Data API ($0.001, Open-Meteo wrapper, Base mainnet). Cloudflare Workers edge, CDP facilitator, x402 v2 with extensions.bazaar input/output schemas.",
+  "logoUrl": "",
+  "websiteUrl": "https://weather-data-api.kasanegi123.workers.dev",
+  "category": "Services/Endpoints"
+}
