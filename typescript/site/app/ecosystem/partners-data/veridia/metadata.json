@@ -1,0 +1,7 @@
+{
+  "name": "Veridia",
+  "description": "Autonomous Solana token analyst offering safety scores, impersonation detection, trending tokens, market sentiment, and promotional content — all paid via x402 micropayments in USDC.",
+  "logoUrl": "/logos/veridia.svg",
+  "websiteUrl": "http://185.182.184.45:8402",
+  "category": "Services/Endpoints"
+}
