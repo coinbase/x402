@@ -1,0 +1,7 @@
+{
+  "name": "AutoPayAgent",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/autopayagent.png",
+  "description": "Autonomous x402 payment agent on Base \u2014 5 USDC-gated API endpoints for wallet risk scoring, AI queries, bot commerce intelligence, payment verification, and network registration. Built with @x402/express SDK. Discovery at autopayagent.com/.well-known/x402.",
+  "websiteUrl": "https://autopayagent.com"
+}
