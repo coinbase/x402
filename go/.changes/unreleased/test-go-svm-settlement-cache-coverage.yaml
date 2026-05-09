@@ -1,0 +1,3 @@
+kind: added
+body: Add unit tests for SVM SettlementCache (NewSettlementCache, IsDuplicate, TTL-based prune, concurrency safety)
+time: 2026-04-19T06:20:00.000000+00:00
