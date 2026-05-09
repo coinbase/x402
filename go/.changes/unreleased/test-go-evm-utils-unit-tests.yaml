@@ -1,0 +1,3 @@
+kind: added
+body: Add unit tests for utility functions in go/mechanisms/evm (GetEvmChainId, CreateNonce, CreatePermit2Nonce, MaxUint256, NormalizeAddress, IsValidAddress, ParseAmount, FormatAmount, GetNetworkConfig, GetAssetInfo, CreateValidityWindow, HexToBytes, BytesToHex)
+time: 2026-04-20T00:20:00Z
