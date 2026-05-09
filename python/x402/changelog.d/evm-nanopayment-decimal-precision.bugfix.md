@@ -1,0 +1,1 @@
+Fix silent truncation of nanopayment amounts in Python EVM server. Added `number_to_decimal_string` and `convert_to_token_amount` utilities that use `Decimal` arithmetic and raise `ValueError` when a non-zero USD price is too small to represent in the token's atomic units (mirrors TypeScript nanopayment precision fix).

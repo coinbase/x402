@@ -5,8 +5,10 @@ from collections.abc import Callable
 from ....schemas import AssetAmount, Network, PaymentRequirements, Price, SupportedKind
 from ..constants import SCHEME_EXACT
 from ..utils import (
+    convert_to_token_amount,
     get_asset_info,
     get_network_config,
+    number_to_decimal_string,
     parse_amount,
     parse_money_to_decimal,
 )
@@ -181,7 +183,11 @@ class ExactEvmScheme:
                 "use register_money_parser or specify an explicit AssetAmount"
             )
 
-        token_amount = int(amount * (10 ** asset["decimals"]))
+        # Convert float → plain decimal string → atomic units via Decimal arithmetic.
+        # This avoids float-precision truncation and mirrors the TypeScript
+        # `numberToDecimalString` + `convertToTokenAmount` fix for nanopayments.
+        decimal_str = number_to_decimal_string(amount)
+        token_amount = convert_to_token_amount(decimal_str, asset["decimals"])
 
         atm = asset.get("asset_transfer_method")
         include_eip712_domain = not atm or asset.get("supports_eip2612", False)
@@ -194,7 +200,7 @@ class ExactEvmScheme:
             extra["assetTransferMethod"] = atm
 
         return AssetAmount(
-            amount=str(token_amount),
+            amount=token_amount,
             asset=asset["address"],
             extra=extra,
         )

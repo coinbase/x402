@@ -183,6 +183,79 @@ def is_valid_address(address: str) -> bool:
         return False
 
 
+def number_to_decimal_string(n: float | int) -> str:
+    """Convert a number to a plain decimal string, expanding scientific notation.
+
+    Mirrors the TypeScript ``numberToDecimalString`` utility added in the
+    nanopayment precision fix. Python's ``float`` shares the same scientific-
+    notation stringification problem as JavaScript (e.g. ``str(1e-7)`` yields
+    ``'1e-07'`` instead of ``'0.0000001'``).
+
+    Args:
+        n: The number to convert.
+
+    Returns:
+        A plain decimal string with no scientific notation (e.g. ``'0.0000001'``).
+
+    Examples:
+        >>> number_to_decimal_string(1e-7)
+        '0.0000001'
+        >>> number_to_decimal_string(4.02)
+        '4.02'
+    """
+    s = str(n)
+    if "e" not in s.lower():
+        return s
+    # Use Decimal to expand the scientific notation without float round-tripping
+    return format(Decimal(s), "f")
+
+
+def convert_to_token_amount(decimal_amount: str, decimals: int) -> str:
+    """Convert a plain decimal string to token smallest units.
+
+    Mirrors the TypeScript ``convertToTokenAmount`` utility.  Accepts only
+    plain decimal strings — scientific notation strings are rejected.  Raises
+    a ``ValueError`` when the non-zero amount is too small to be represented
+    with the given decimal precision (i.e. it would silently round to zero),
+    preventing silent fund-loss bugs for nanopayments.
+
+    Args:
+        decimal_amount: The decimal amount as a plain string (e.g. ``'0.10'``).
+            Must not use scientific notation.
+        decimals: The number of decimals for the token (e.g. 6 for USDC).
+
+    Returns:
+        The amount in smallest units as a string.
+
+    Raises:
+        ValueError: If *decimal_amount* uses scientific notation, is not a
+            valid number, or is non-zero but too small to represent at the
+            requested precision.
+
+    Examples:
+        >>> convert_to_token_amount('0.10', 6)
+        '100000'
+        >>> convert_to_token_amount('0.000001', 6)
+        '1'
+    """
+    if re.search(r"[eE]", decimal_amount):
+        raise ValueError(
+            f"Invalid amount: {decimal_amount!r} — use decimal notation, not scientific notation"
+        )
+    try:
+        d = Decimal(decimal_amount)
+    except Exception as exc:
+        raise ValueError(f"Invalid amount: {decimal_amount!r}") from exc
+
+    token_amount_dec = d * Decimal(10**decimals)
+    token_amount = int(token_amount_dec)
+    if token_amount == 0 and d != 0:
+        raise ValueError(
+            f"Amount {decimal_amount!r} is too small to represent with {decimals} decimal places"
+        )
+    return str(token_amount)
+
+
 def parse_amount(amount: str, decimals: int) -> int:
     """Convert decimal string to smallest unit (wei).
 
