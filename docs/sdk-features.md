@@ -35,16 +35,16 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 
 ## Mechanisms
 
-| Mechanism | TypeScript | Go | Python |
-|-----------|------------|-----|--------|
-| exact/evm (EIP-3009) | ✅ | ✅ | ✅ |
-| exact/evm (Permit2) | ✅ | ✅ | ✅ |
-| exact/svm (SPL) | ✅ | ✅ | ✅ |
-| exact/avm (ASA) | ✅ | ❌ | ❌ |
-| exact/stellar (Soroban) | ✅ | ❌ | ❌ |
-| exact/aptos (Fungible Assets) | ✅ | ❌ | ❌ |
-| exact/hedera (HBAR + HTS) | ✅ | ❌ | ❌ |
-| upto/evm (Permit2) | ✅ | ✅ | ✅ |
+| Scheme | Network | `assetTransferMethod` | TypeScript | Go | Python |
+|--------|---------|------------------------|------------|-----|--------|
+| exact | evm | `eip3009` | ✅ | ✅ | ✅ |
+| exact | evm | `permit2` | ✅ | ✅ | ✅ |
+| exact | svm | - | ✅ | ✅ | ✅ |
+| exact | avm | - | ✅ | ❌ | ❌ |
+| exact | stellar | - | ✅ | ❌ | ❌ |
+| exact | aptos | - | ✅ | ❌ | ❌ |
+| exact | hedera | - | ✅ | ❌ | ❌ |
+| upto | evm | `permit2` | ✅ | ✅ | ✅ |
 
 ## Extensions
 
@@ -66,6 +66,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | onBeforePaymentCreation | ✅ | ✅ | ✅ |
 | onAfterPaymentCreation | ✅ | ✅ | ✅ |
 | onPaymentCreationFailure | ✅ | ✅ | ✅ |
+| onPaymentResponse | ✅ | ✅ | ❌ |
 | onPaymentRequired (HTTP) | ✅ | ❌ | ❌ |
 
 ## Server Hooks
@@ -78,6 +79,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | onBeforeSettle | ✅ | ✅ | ✅ |
 | onAfterSettle | ✅ | ✅ | ✅ |
 | onSettleFailure | ✅ | ✅ | ✅ |
+| onVerifiedPaymentCanceled | ✅ | ✅ | ❌ |
 | onProtectedRequest (HTTP) | ✅ | ✅ | ❌ |
 
 ## Facilitator Hooks
@@ -98,6 +100,13 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | enrichDeclaration | ✅ | ✅ | ✅ |
 | enrichPaymentRequiredResponse | ✅ | ❌ | ❌ |
 | enrichSettlementResponse | ✅ | ❌ | ❌ |
+
+## Hook Adapter Features
+
+| Feature | TypeScript | Go | Python |
+|---------|------------|-----|--------|
+| Scheme-level lifecycle hook adapters | ✅ | ✅ | ❌ |
+| Extension-level lifecycle hook adapters | ✅ | ✅ | ❌ |
 
 ## MCP (Model Context Protocol)
 
