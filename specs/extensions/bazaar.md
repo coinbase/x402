@@ -184,7 +184,7 @@ The `info.input` object uses a discriminated union type, distinguished by the `t
       "info": {
         "input": {
           "type": "mcp",
-          "tool": "financial_analysis",
+          "toolName": "financial_analysis",
           "description": "Advanced AI-powered financial analysis",
           "inputSchema": {
             "type": "object",
@@ -215,13 +215,13 @@ The `info.input` object uses a discriminated union type, distinguished by the `t
             "type": "object",
             "properties": {
               "type": { "type": "string", "const": "mcp" },
-              "tool": { "type": "string" },
+              "toolName": { "type": "string" },
               "description": { "type": "string" },
               "transport": { "type": "string", "enum": ["streamable-http", "sse"] },
               "inputSchema": { "type": "object" },
               "example": { "type": "object" }
             },
-            "required": ["type", "tool", "inputSchema"],
+            "required": ["type", "toolName", "inputSchema"],
             "additionalProperties": false
           },
           "output": {
@@ -273,13 +273,13 @@ The `info.input` object describes how to call the endpoint or tool.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | Yes | Always `"mcp"` |
-| `tool` | string | Yes | MCP tool name (matches what's passed to `tools/call`) |
+| `toolName` | string | Yes | MCP tool name (matches what's passed to `tools/call`) |
 | `description` | string | No | Human-readable description of the tool |
 | `inputSchema` | object | Yes | JSON Schema for the tool's `arguments`, following the MCP [`Tool.inputSchema`](https://spec.modelcontextprotocol.io/) format (a JSON Schema subset with `type: "object"`, `properties`, and `required`). Servers should reuse the same schema their MCP tool already declares. |
 | `transport` | string | No | MCP transport protocol. One of `"streamable-http"` or `"sse"`. Defaults to `"streamable-http"` if omitted. |
 | `example` | object | No | Example `arguments` object |
 
-> **Note:** For MCP tools, the unique resource identifier is the tuple (`resource.url`, `input.tool`). Since MCP multiplexes multiple tools over a single server endpoint, `resource.url` alone may not be unique. Facilitators **must** use both fields when cataloging MCP tools.
+> **Note:** For MCP tools, the unique resource identifier is the tuple (`resource.url`, `input.toolName`). Since MCP multiplexes multiple tools over a single server endpoint, `resource.url` alone may not be unique. Facilitators **must** use both fields when cataloging MCP tools.
 
 ### Output Types
 
@@ -317,7 +317,7 @@ The `schema` field contains a JSON Schema (Draft 2020-12) that validates the str
 - May define an `output` property (optional)
 - Must validate that `input.type` equals `"http"` (for HTTP endpoints) or `"mcp"` (for MCP tools)
 - For HTTP endpoints: Must validate the appropriate `method` enum based on operation type
-- For MCP tools: Must require `tool` and `inputSchema` fields
+- For MCP tools: Must require `toolName` and `inputSchema` fields
 
 Facilitators **must** validate `info` against `schema` before cataloging.
 
@@ -332,13 +332,13 @@ Facilitators **must** validate `info` against `schema` before cataloging.
       "type": "object",
       "properties": {
         "type": { "type": "string", "const": "mcp" },
-        "tool": { "type": "string" },
+        "toolName": { "type": "string" },
         "description": { "type": "string" },
         "transport": { "type": "string", "enum": ["streamable-http", "sse"] },
         "inputSchema": { "type": "object" },
         "example": { "type": "object" }
       },
-      "required": ["type", "tool", "inputSchema"],
+      "required": ["type", "toolName", "inputSchema"],
       "additionalProperties": false
     },
     "output": {
