@@ -59,7 +59,8 @@
           "core-concepts/client-server",
           "core-concepts/facilitator",
           "core-concepts/wallet",
-          "core-concepts/network-and-token-support"
+          "core-concepts/network-and-token-support",
+          "core-concepts/batch-settlement"
         ]
       },
       {

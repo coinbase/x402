@@ -39,7 +39,11 @@ x402 supports two asset transfer methods on EVM, selected automatically based on
 
 Both methods provide gasless transfers (facilitator sponsors gas), signature-based authorization, and secure payments. EIP-3009 is preferred when available (simpler, no approval step). Permit2 serves as the universal fallback.
 
-**Permit2 approval**: Requires a one-time on-chain approval. x402 supports two gas sponsoring extensions that make this step gasless — see [EIP-2612 Gas Sponsoring](/extensions/eip2612-gas-sponsoring) and [ERC-20 Approval Gas Sponsoring](/extensions/erc20-approval-gas-sponsoring).
+**Permit2 approval**: Requires a one-time onchain approval. x402 supports two gas sponsoring extensions that make this step gasless — see [EIP-2612 Gas Sponsoring](/extensions/eip2612-gas-sponsoring) and [ERC-20 Approval Gas Sponsoring](/extensions/erc20-approval-gas-sponsoring).
+
+### EVM: Batch settlement (`batch-settlement`)
+
+For high-frequency or repeated micropayment flows where settling every request onchain is too costly, x402 supports the **`batch-settlement`** scheme on EVM: the buyer deposits once into an escrow contract, signs off-chain vouchers per request, and sellers redeem in batches onchain. Per-request pricing still uses an **up-to** ceiling (`PaymentRequirements.amount`); actual charges can vary per request within that limit—see **[Batch settlement](/core-concepts/batch-settlement)**.
 
 ### Specifying Payment Amounts
 

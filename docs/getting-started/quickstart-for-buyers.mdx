@@ -568,6 +568,62 @@ If you need to interact with services that use the `upto` payment scheme (usage-
 
 **Note:** The `upto` scheme is currently available on EVM networks only. When registered, the SDK automatically selects the correct scheme based on what the server advertises in its 402 response.
 
+### Batch settlement (`batch-settlement`)
+
+If a resource advertises **`scheme: "batch-settlement"`** (EVM micropayments with escrow and **off-chain** vouchers), you must register the **`BatchSettlementEvmScheme`** on **`eip155:*`** in addition to **`ExactEvmScheme`** / **`UptoEvmScheme`**. The client deposits into escrow when needed, signs vouchers per request, and the seller redeems value **onchain** in batches—see **[Batch settlement](/core-concepts/batch-settlement)**. Python client support is not available yet.
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { createPublicClient, http } from "viem";
+    import { baseSepolia } from "viem/chains";
+    import { privateKeyToAccount } from "viem/accounts";
+    import { x402Client } from "@x402/core/client";
+    import { toClientEvmSigner } from "@x402/evm";
+    import { ExactEvmScheme } from "@x402/evm/exact/client";
+    import { BatchSettlementEvmScheme } from "@x402/evm/batch-settlement/client";
+
+    const account = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+    const publicClient = createPublicClient({ chain: baseSepolia, transport: http() });
+    const evmSigner = toClientEvmSigner(account, publicClient);
+
+    const client = new x402Client();
+    client.register("eip155:*", new ExactEvmScheme(account));
+    client.register(
+      "eip155:*",
+      new BatchSettlementEvmScheme(evmSigner, {
+        depositPolicy: { depositMultiplier: 5 },
+      }),
+    );
+    ```
+    Full example: [`examples/typescript/clients/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/typescript/clients/batch-settlement).
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402 "github.com/x402-foundation/x402/go"
+        exactevm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/client"
+        batchedclient "github.com/x402-foundation/x402/go/mechanisms/evm/batch-settlement/client"
+        evmsigners "github.com/x402-foundation/x402/go/signers/evm"
+    )
+
+    evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+
+    batchScheme := batchedclient.NewBatchSettlementEvmScheme(evmSigner, &batchedclient.BatchSettlementEvmSchemeOptions{
+        DepositMultiplier: 5,
+    })
+
+    x402Client := x402.Newx402Client().
+        Register("eip155:*", exactevm.NewExactEvmScheme(evmSigner)).
+        Register("eip155:*", batchScheme)
+    ```
+    Full example: [`examples/go/clients/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/go/clients/batch-settlement).
+  </Tab>
+  <Tab title="Python">
+    Register **`BatchSettlementEvmScheme`** when Python support ships; use TypeScript or Go today.
+  </Tab>
+</Tabs>
+
 ### 4. Discover Available Services (Optional)
 
 Instead of hardcoding endpoints, you can use the x402 Bazaar to dynamically discover available services. This is especially powerful for building autonomous agents.
@@ -620,7 +676,7 @@ try {
 
 * Install x402 client packages (`@x402/fetch` or `@x402/axios`) and mechanism packages (`@x402/evm`, `@x402/svm`, `@x402/aptos`)
 * Create a wallet signer
-* Create an `x402Client` and register payment schemes (`exact` for fixed-price, `upto` for usage-based billing)
+* Create an `x402Client` and register payment schemes (`exact` for fixed-price, `upto` for usage-based billing, `batch-settlement` for batched EVM micropayments when the server advertises it)
 * Use the provided wrapper/interceptor to make paid API requests
 * (Optional) Use the x402 Bazaar to discover services dynamically
 * Payment flows are handled automatically for you -- including `upto` where you only pay the actual usage

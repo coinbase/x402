@@ -1,0 +1,49 @@
+---
+title: "Batch settlement"
+description: "High-throughput EVM payments with escrow, off-chain vouchers, and batched onchain redemption—ideal for agents and metered APIs."
+---
+
+The **`batch-settlement`** payment scheme lets buyers fund an onchain channel once, then authorize many HTTP-paid requests with off-chain signatures (vouchers). Value moves onchain later in batches, instead of every request carrying its own settlement transaction.
+
+That matches workloads where per-request gas or facilitator overhead would dominate tiny charges—for example agents, streaming, or metered inference where each call can cost a different amount.
+
+### How it relates to `exact` and `upto`
+
+| Scheme | Typical use | When value moves onchain |
+|--------|-------------|---------------------------|
+| **`exact`** | Fixed price per request | With each settled payment |
+| **`upto`** | Variable amount up to a signed maximum | With each settled payment |
+| **`batch-settlement`** | Same “up to” pricing idea, but across **many** requests over one funded channel | Later, in claim/settle batches (network-specific) |
+
+For **`batch-settlement`**, the payment requirement’s **`amount`** is still a per-request ceiling. The seller records actual usage up to that maximum (aligned with **upto** semantics). Settlement batches accumulate those charges, rather than executing a full transfer on every call.
+
+### What happens on EVM (capital-backed)
+
+The reference binding uses stateless unidirectional channels: the payer deposits ERC-20 into an escrow contract, then signs monotonic cumulative vouchers (`maxClaimableAmount`) per request. The seller verifies vouchers cheaply (signature check), then submits batched claims and a separate settle step when redeeming—see the [EVM binding specification](https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md).
+
+Deposits typically use **EIP-3009** or **Permit2**, consistent with other EVM schemes. Which chains are available depends on **[network](/core-concepts/network-and-token-support)** support and whether the batch-settlement contracts are deployed for that chain.
+
+### Protocol vs. SDK docs
+
+* **Abstract scheme** (all transports): [`specs/schemes/batch-settlement/scheme_batch_settlement.md`](https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement.md)
+* **EVM binding** (payloads, EIP-712, contract lifecycle): [`scheme_batch_settlement_evm.md`](https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md)
+
+### Reference implementations
+
+| SDK | Status | Package / module |
+|-----|--------|------------------|
+| **TypeScript** | Supported | [`@x402/evm/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/typescript/packages/mechanisms/evm/src/batch-settlement) (`client`, `server`, `facilitator`) |
+| **Go** | Supported | [`go/mechanisms/evm/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/go/mechanisms/evm/batch-settlement) |
+| **Python** | Not yet | Planned |
+
+Examples:
+
+* TypeScript: [`examples/typescript/servers/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/batch-settlement), [`examples/typescript/clients/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/typescript/clients/batch-settlement), [`examples/typescript/facilitator/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/typescript/facilitator/batch-settlement)
+* Go: [`examples/go/servers/batch-settlement`](https://github.com/x402-foundation/x402/tree/main/examples/go/servers/batch-settlement) (and sibling client/facilitator folders)
+
+Feature parity across SDKs is summarized on **[SDK Features](/sdk-features)**.
+
+### See also
+
+* **[Networks & token support](/core-concepts/network-and-token-support)** — CAIP-2 IDs and asset defaults
+* **[Facilitator](/core-concepts/facilitator)** — verification and relay of settlements
