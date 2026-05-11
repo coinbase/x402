@@ -239,7 +239,7 @@ When the server returns a 402 response, the client checks the `network` field in
 - `eip155:*` networks use the registered EVM schemes (`exact`, `upto`, **`batch-settlement`**, etc.)
 - `solana:*` networks use the SVM scheme
 
-**Batch settlement:** Paid APIs that advertise **`scheme: "batch-settlement"`** require **`BatchSettlementEvmScheme`** on **`eip155:*`** (in addition to `ExactEvmScheme`). The **Implementation** section and the snippet above register both so tools work against **`exact`** servers and **batch-settlement** APIs. See **[Batch settlement](/core-concepts/batch-settlement)**.
+**Batch settlement:** Paid APIs that advertise **`scheme: "batch-settlement"`** require **`BatchSettlementEvmScheme`** on **`eip155:*`** (in addition to `ExactEvmScheme`). The **Implementation** section and the snippet above register both so tools work against **`exact`** servers and **batch-settlement** APIs. See **[Batch settlement](/schemes/batch-settlement)**.
 
 ***
 

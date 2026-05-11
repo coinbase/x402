@@ -51,7 +51,7 @@ There is no single answer, but common patterns are:
 * **Flat per‑call** (e.g., `$0.001` per request)
 * **Tiered** (`/basic` vs `/pro` endpoints with different prices)
 * **Up‑to** (`scheme: "upto"`): The client authorizes a maximum amount but is only charged for actual usage (tokens, compute time, bandwidth, etc.). Available on EVM networks in TypeScript, Go, and Python. See the [Seller Quickstart](/getting-started/quickstart-for-sellers#payment-schemes-exact-upto-and-batch-settlement) for setup.
-* **Batch settlement** (`scheme: "batch-settlement"`): For many small payments on EVM, the buyer deposits into escrow once and pays with off-chain vouchers; settlement is batched onchain. Still uses a per-request maximum; actual charges can vary within that limit. TypeScript and Go SDKs today; Python planned. See [Batch settlement](/core-concepts/batch-settlement).
+* **Batch settlement** (`scheme: "batch-settlement"`): For many small payments on EVM, the buyer deposits into escrow once and pays with off-chain vouchers; settlement is batched onchain. Still uses a per-request maximum; actual charges can vary within that limit. TypeScript and Go SDKs today; Python planned. See [Batch settlement](/schemes/batch-settlement).
 
 #### Can I integrate x402 with a usage / plan manager like Metronome?
 
@@ -90,7 +90,7 @@ No. The recommended pattern is:
 The **`exact`** scheme is a _push payment_—irreversible once executed. Options:
 
 1. **Business‑logic refunds:** Seller sends a new token transfer back to the buyer.
-2. **`batch-settlement` on EVM:** Cooperative refunds and timed withdrawals from channel escrow are defined in the scheme—see [Batch settlement](/core-concepts/batch-settlement).
+2. **`batch-settlement` on EVM:** Cooperative refunds and timed withdrawals from channel escrow are defined in the scheme—see [Batch settlement](/schemes/batch-settlement).
 
 ### Usage by AI Agents
 

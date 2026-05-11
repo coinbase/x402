@@ -767,7 +767,7 @@ interface RouteConfig {
 
 When a request is made to these routes without payment, your server will respond with the HTTP 402 Payment Required code and payment instructions.
 
-### Payment Schemes: Exact, Upto, and Batch settlement
+### Payment Schemes: Exact, Upto, and Batch Settlement
 
 x402 supports several payment schemes that control how charges are calculated:
 
@@ -775,7 +775,7 @@ x402 supports several payment schemes that control how charges are calculated:
 
 **`upto`** — The client authorizes a **maximum** amount, but the server settles **only what was actually used**. This enables usage-based billing where the final charge depends on work performed (LLM token count, compute time, bytes served, etc.). Currently available on EVM networks only (Permit2), in TypeScript, Go, and Python SDKs.
 
-**`batch-settlement`** — For high-frequency or repeated micropayment traffic on EVM, the buyer funds a channel once, signs off-chain vouchers per request, and the seller settles onchain in batches (not every request). Each call still advertises a per-request maximum (`price`); you can charge actual usage up to that cap using the same **`setSettlementOverrides`** pattern as `upto`. Reference implementations: **TypeScript** and **Go**; Python is not available yet. See **[Batch settlement](/core-concepts/batch-settlement)** and the [examples in the repo](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/batch-settlement).
+**`batch-settlement`** — For high-frequency or repeated micropayment traffic, the buyer funds a channel once, signs off-chain vouchers per request, and the seller settles onchain in batches (not every request). Each call still advertises a per-request maximum (`price`); you can charge actual usage up to that cap using the same **`setSettlementOverrides`** pattern as `upto`. See **[Batch settlement](/schemes/batch-settlement)** and the [Payment Schemes overview](/schemes/overview).
 
 The examples in step 2 above all use the `exact` scheme. To use `upto` instead, there are two key differences:
 

@@ -59,8 +59,16 @@
           "core-concepts/client-server",
           "core-concepts/facilitator",
           "core-concepts/wallet",
-          "core-concepts/network-and-token-support",
-          "core-concepts/batch-settlement"
+          "core-concepts/network-and-token-support"
+        ]
+      },
+      {
+        "group": "Payment Schemes",
+        "pages": [
+          "schemes/overview",
+          "schemes/exact",
+          "schemes/upto",
+          "schemes/batch-settlement"
         ]
       },
       {

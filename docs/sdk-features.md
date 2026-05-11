@@ -28,6 +28,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 |---------|------------|-----|--------|
 | evm (EIP-155) | ✅ | ✅ | ✅ |
 | svm (Solana) | ✅ | ✅ | ✅ |
+| tvm (TON) | ❌ | ❌ | ✅ |
 | avm (Algorand) | ✅ | ❌ | ❌ |
 | stellar | ✅ | ❌ | ❌ |
 | aptos | ✅ | ❌ | ❌ |
@@ -44,6 +45,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | exact | stellar | - | ✅ | ❌ | ❌ |
 | exact | aptos | - | ✅ | ❌ | ❌ |
 | exact | hedera | - | ✅ | ❌ | ❌ |
+| exact | tvm | - | ❌ | ❌ | ✅ |
 | upto | evm | `permit2` | ✅ | ✅ | ✅ |
 | batch-settlement | evm | `eip3009` | ✅ | ✅ | ❌ |
 | batch-settlement | evm | `permit2` | ✅ | ✅ | ❌ |

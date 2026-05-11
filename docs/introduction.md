@@ -19,7 +19,7 @@ x402 offers:
 
 - **No fees and minimal friction** x402 as a standard has 0 fees built in.
 - **Native support for machine-to-machine payments**, enabling seamless use by AI agents
-- **Built-in micropayment support**, making it easy to monetize usage-based services (including **[batch settlement](/core-concepts/batch-settlement)** on EVM for high-volume, batched **onchain** redemption)
+- **Built-in micropayment support**, making it easy to monetize usage-based services (including **[batch settlement](/schemes/batch-settlement)** on EVM for high-volume, batched **onchain** redemption)
 
 ### Who is x402 for?
 
@@ -53,7 +53,7 @@ For more detail, see:
 - [Client / Server](/core-concepts/client-server)
 - [Facilitator](/core-concepts/facilitator)
 - [HTTP 402](/core-concepts/http-402)
-- [Batch settlement](/core-concepts/batch-settlement)
+- [Batch settlement](/schemes/batch-settlement)
 
 The goal is to make programmatic commerce accessible, permissionless, and developer-friendly.
 
@@ -64,5 +64,5 @@ Ready to build? Start here:
 - [Quickstart for Sellers](/getting-started/quickstart-for-sellers)
 - [Quickstart for Buyers](/getting-started/quickstart-for-buyers)
 - [Explore Core Concepts](/core-concepts/http-402)
-- [Batch settlement](/core-concepts/batch-settlement) (EVM micropayments / batched redemption)
+- [Batch settlement](/schemes/batch-settlement) (EVM micropayments / batched redemption)
 - [Join our community on Discord](https://discord.gg/invite/cdp)
