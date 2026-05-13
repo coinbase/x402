@@ -2,6 +2,20 @@
 
 <!-- towncrier release notes start -->
 
+## [2.10.0] - 2026-05-13
+
+### Added
+
+- Add Radius Network (chain ID 723487) and Radius Testnet (chain ID 72344) support with SBC as the default stablecoin ([#radius-network-default-asset](https://github.com/x402-foundation/x402/pull/radius-network-default-asset))
+- Added the TVM exact-payment mechanism to the Python SDK, including client, server, facilitator, and example coverage for TON testnet/mainnet flows. ([#tvm-python-sdk](https://github.com/x402-foundation/x402/pull/tvm-python-sdk))
+- Added Bazaar service metadata fields (`service_name`, `tags`, `icon_url`) on `ResourceInfo`, plus `_is_valid_service_name` / `_sanitize_tags` / `_is_valid_icon_url` / `_sanitize_resource_service_metadata` helpers in `x402.extensions.bazaar.facilitator` that `extract_discovery_info` now applies with soft-drop semantics. ([#150](https://github.com/x402-foundation/x402/pull/150))
+- Log the `EXTENSION-RESPONSES` header from facilitator verify/settle responses. The HTTP facilitator client decodes the header and logs allowlisted fields (`status`, `rejectedReason`, `reason`, `code`) without attaching data to `VerifyResponse` or `SettleResponse`. ([#2161](https://github.com/x402-foundation/x402/pull/2161))
+
+### Misc
+
+- Expose `DEFAULT_MAX_FEE_PER_GAS` and `DEFAULT_MAX_PRIORITY_FEE_PER_GAS` from `x402.mechanisms.evm.constants` and use them as the fallback when fee estimation is unavailable in `sign_erc20_approval_transaction`. Mirrors the TypeScript SDK's named constants; numeric defaults (1 gwei / 0.1 gwei) are unchanged. ([#erc20-approval-default-gas-fees](https://github.com/x402-foundation/x402/pull/erc20-approval-default-gas-fees))
+
+
 ## [2.9.0] - 2026-04-27
 
 ### Added
