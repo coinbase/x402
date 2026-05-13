@@ -40,6 +40,6 @@
     "eslint-plugin-prettier": "^5.2.6",
     "prettier": "3.5.2",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5.7.3"
   }
 }
