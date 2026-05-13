@@ -9,5 +9,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[tool.uv]
+exclude-newer = "3 days"
+
 [tool.uv.sources]
 x402 = { path = "../../../../python/x402", editable = true }

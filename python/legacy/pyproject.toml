@@ -44,3 +44,6 @@ packages = ["src/x402"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.uv]
+exclude-newer = "3 days"

@@ -114,6 +114,8 @@ include = [
     "*.py",
     "**/*.py",
     "py.typed",
+    "mcp/CHANGELOG.md",
+    "mcp/README.md",
 ]
 exclude = [
     "tests/",
@@ -199,3 +201,6 @@ name = "Removals"
 
 [tool.towncrier.fragment.misc]
 name = "Misc"
+
+[tool.uv]
+exclude-newer = "3 days"
