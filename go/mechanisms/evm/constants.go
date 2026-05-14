@@ -79,6 +79,8 @@ var (
 	ChainIDPolygon       = big.NewInt(137)
 	ChainIDArbOne        = big.NewInt(42161)
 	ChainIDArbSepolia    = big.NewInt(421614)
+	ChainIDHPP           = big.NewInt(190415)
+	ChainIDHPPSepolia    = big.NewInt(181228)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -192,6 +194,26 @@ var (
 			DefaultAsset: AssetInfo{
 				Address:  "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // USDC on ArbSepolia
 				Name:     "USD Coin",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// HPP Mainnet
+		"eip155:190415": {
+			ChainID: ChainIDHPP,
+			DefaultAsset: AssetInfo{
+				Address:  "0x401eCb1D350407f13ba348573E5630B83638E30D", // USDC.e (Bridged USDC) on HPP
+				Name:     "Bridged USDC",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// HPP Sepolia
+		"eip155:181228": {
+			ChainID: ChainIDHPPSepolia,
+			DefaultAsset: AssetInfo{
+				Address:  "0x401eCb1D350407f13ba348573E5630B83638E30D", // USDC.e (Bridged USDC) on HPP Sepolia
+				Name:     "Bridged USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
