@@ -1,16 +1,7 @@
 name: Check Paywall Template
 
 on:
-  pull_request:
-    paths:
-      - "typescript/packages/http/paywall/**"
-      - "typescript/packages/mechanisms/evm/**"
-      - "typescript/pnpm-lock.yaml"
-      - "python/x402/http/paywall/**"
-      - "go/http/evm_paywall_template.go"
-      - "go/http/svm_paywall_template.go"
-      - "go/http/avm_paywall_template.go"
-      - ".github/workflows/check_paywall_template.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

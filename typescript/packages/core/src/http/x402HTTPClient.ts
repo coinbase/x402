@@ -168,7 +168,7 @@ export class x402HTTPClient {
   }
 
   /**
-   * Parses response headers into protocol types, fires payment response hooks,
+   * Parses response headers into protocol types, fires payment response hooks (v2 only),
    * and returns whether a hook signaled recovery.
    *
    * Called by transport wrappers (fetch, axios) after the paid request completes.
@@ -183,13 +183,15 @@ export class x402HTTPClient {
     getHeader: (name: string) => string | null | undefined,
     status: number,
   ): Promise<{ recovered: boolean; settleResponse?: SettleResponse }> {
-    const requirements = paymentPayload.accepted;
-
     let settleResponse: SettleResponse | undefined;
     try {
       settleResponse = this.getPaymentSettleResponse(getHeader);
     } catch {
       /* no header */
+    }
+
+    if (paymentPayload.x402Version === 1) {
+      return { recovered: false, settleResponse };
     }
 
     let paymentRequired: PaymentRequired | undefined;
@@ -201,9 +203,14 @@ export class x402HTTPClient {
       }
     }
 
+    const requirements = paymentPayload.accepted;
+    if (!requirements) {
+      throw new Error("Invalid x402 v2 payment payload: missing `accepted`");
+    }
+
     const ctx: PaymentResponseContext = {
       paymentPayload,
-      requirements: requirements!,
+      requirements,
       ...(settleResponse ? { settleResponse } : {}),
       ...(paymentRequired ? { paymentRequired } : {}),
     };
