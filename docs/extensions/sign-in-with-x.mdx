@@ -31,22 +31,19 @@ This is a **Server ↔ Client** extension. The Facilitator is not involved in th
 
 ## Server Usage
 
-### Recommended: Hooks (Automatic)
+### Recommended: Extension Factories
 
-The easiest way to implement SIWX is using the provided hooks, which handle all the complexity automatically:
+The easiest way to implement SIWX is registering the provided extension factories:
 
 <Tabs>
   <Tab title="TypeScript">
     ```typescript
     import {
       declareSIWxExtension,
-      siwxResourceServerExtension,
-      createSIWxSettleHook,
-      createSIWxRequestHook,
+      createSIWxResourceServerExtension,
       InMemorySIWxStorage,
     } from '@x402/extensions/sign-in-with-x';
     import { x402ResourceServer } from '@x402/core/server';
-    import { x402HTTPResourceServer } from '@x402/core/http';
     import { HTTPFacilitatorClient } from '@x402/core/http';
     import { ExactEvmScheme } from '@x402/evm/exact/server';
 
@@ -60,11 +57,10 @@ The easiest way to implement SIWX is using the provided hooks, which handle all 
       url: 'https://x402.org/facilitator'
     });
 
-    // 1. Register extension for time-based field refreshment
+    // 1. Register extension
     const resourceServer = new x402ResourceServer(facilitatorClient)
       .register(NETWORK, new ExactEvmScheme())
-      .registerExtension(siwxResourceServerExtension)  // Refreshes nonce/timestamps
-      .onAfterSettle(createSIWxSettleHook({ storage }));  // Records payments
+      .registerExtension(createSIWxResourceServerExtension({ storage }));
 
     // 2. Declare SIWX support in routes
     const routes = {
@@ -89,17 +85,11 @@ The easiest way to implement SIWX is using the provided hooks, which handle all 
       },
     };
 
-    // 3. Verify incoming SIWX proofs
-    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
-      .onProtectedRequest(createSIWxRequestHook({ storage }));  // Grants access for auth-only or paid routes
     ```
   </Tab>
 </Tabs>
 
-The hooks automatically:
-- **siwxResourceServerExtension**: Derives `network` from `accepts`, `domain`/`uri` from request URL, refreshes `nonce`/`issuedAt`/`expirationTime` per request
-- **createSIWxSettleHook**: Records payment when settlement succeeds
-- **createSIWxRequestHook**: Validates and verifies SIWX proofs, grants access for auth-only routes (`accepts: []`) or when wallet has paid
+The server extension derives `network` from `accepts`, derives `domain`/`uri` from the request URL, refreshes nonce/timestamps per request, records successful payments, and validates SIWX proofs for declared HTTP routes.
 
 **Auth-only routes** (declared with `accepts: []`) grant access based on a valid SIWX signature alone, without requiring payment. This is useful for wallet-gated content that doesn't need micropayments.
 
@@ -118,8 +108,9 @@ By default, only EOA (Externally Owned Account) signatures are verified. To supp
       transport: http()
     });
 
-    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
-      .onProtectedRequest(createSIWxRequestHook({
+    const resourceServer = new x402ResourceServer(facilitatorClient)
+      .register(NETWORK, new ExactEvmScheme())
+      .registerExtension(createSIWxResourceServerExtension({
         storage,
         verifyOptions: { evmVerifier: publicClient.verifyMessage },
       }));
@@ -195,14 +186,14 @@ For custom implementations, you can use the low-level functions directly:
 
 ## Client Usage
 
-### Recommended: Client Hook (Automatic)
+### Recommended: Client Extension
 
-The easiest way to use SIWX as a client is with the provided hook:
+The easiest way to use SIWX as a client is with the provided client extension:
 
 <Tabs>
   <Tab title="TypeScript">
     ```typescript
-    import { createSIWxClientHook } from '@x402/extensions/sign-in-with-x';
+    import { createSIWxClientExtension } from '@x402/extensions/sign-in-with-x';
     import { x402HTTPClient } from '@x402/fetch';
     import { x402Client } from '@x402/core/client';
     import { privateKeyToAccount } from 'viem/accounts';
@@ -210,9 +201,8 @@ The easiest way to use SIWX as a client is with the provided hook:
     const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
     const client = new x402Client();
 
-    // Configure client with SIWX hook - automatically tries SIWX auth before payment
-    const httpClient = new x402HTTPClient(client)
-      .onPaymentRequired(createSIWxClientHook(signer));
+    client.registerExtension(createSIWxClientExtension({ signers: [signer] }));
+    const httpClient = new x402HTTPClient(client);
 
     // Requests automatically use SIWX auth when server supports it
     const response = await httpClient.fetch('https://api.example.com/data');
@@ -220,7 +210,7 @@ The easiest way to use SIWX as a client is with the provided hook:
   </Tab>
 </Tabs>
 
-The client hook automatically:
+The client extension automatically:
 - Detects SIWX support in 402 responses
 - Matches your wallet's chain with server's `supportedChains`
 - Signs and sends the authentication proof
@@ -329,7 +319,7 @@ Clients match their wallet's `chainId` against `supportedChains` and use the fir
 
 ### `declareSIWxExtension(options?)`
 
-Creates the extension object for servers to include in PaymentRequired. Most fields are derived automatically from request context when using `siwxResourceServerExtension`.
+Creates the extension declaration for servers to include in PaymentRequired. Most fields are derived automatically from request context when using `createSIWxResourceServerExtension`.
 
 ```typescript
 declareSIWxExtension({
@@ -344,6 +334,14 @@ declareSIWxExtension({
 ```
 
 **Note for auth-only routes:** When using `accepts: []`, the `network` parameter cannot be inferred from payment requirements and must be provided explicitly.
+
+### `createSIWxResourceServerExtension(options)`
+
+Creates the server extension that enriches SIWX challenges, records successful payments, and verifies HTTP SIWX proofs for declared routes.
+
+### `createSIWxClientExtension({ signers })`
+
+Creates the client extension that signs compatible SIWX challenges before falling back to payment.
 
 ### `parseSIWxHeader(header)`
 

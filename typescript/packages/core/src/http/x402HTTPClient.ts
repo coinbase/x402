@@ -22,6 +22,19 @@ export type PaymentRequiredHook = (
   context: PaymentRequiredContext,
 ) => Promise<{ headers: Record<string, string> } | void>;
 
+export interface HTTPClientExtensionHooks {
+  onPaymentRequired?: (
+    declaration: unknown,
+    context: PaymentRequiredContext,
+  ) => Promise<{ headers: Record<string, string> } | void>;
+}
+
+type HTTPClientTransportExtension = {
+  transportHooks?: {
+    http?: HTTPClientExtensionHooks;
+  };
+};
+
 /**
  * HTTP-specific client for handling x402 payment protocol over HTTP.
  *
@@ -59,7 +72,7 @@ export class x402HTTPClient {
   async handlePaymentRequired(
     paymentRequired: PaymentRequired,
   ): Promise<Record<string, string> | null> {
-    for (const hook of this.paymentRequiredHooks) {
+    for (const hook of this.getPaymentRequiredHooks(paymentRequired)) {
       const result = await hook({ paymentRequired });
       if (result?.headers) {
         return result.headers;
@@ -242,6 +255,28 @@ export class x402HTTPClient {
     }
 
     return { kind: "error", response, status: response.status, body };
+  }
+
+  /**
+   * Manual HTTP hooks run before extension hooks scoped to the 402 response.
+   *
+   * @param paymentRequired - The payment required response from the server
+   * @returns Hooks in invocation order
+   */
+  private getPaymentRequiredHooks(paymentRequired: PaymentRequired): PaymentRequiredHook[] {
+    const hooks = [...this.paymentRequiredHooks];
+    const declaredExtensions = paymentRequired.extensions;
+    if (!declaredExtensions) return hooks;
+
+    for (const extension of this.client.getExtensions()) {
+      const httpExtension = extension as HTTPClientTransportExtension;
+      const hook = httpExtension.transportHooks?.http?.onPaymentRequired;
+      if (!hook || !(extension.key in declaredExtensions)) continue;
+
+      hooks.push(context => hook(declaredExtensions[extension.key], context));
+    }
+
+    return hooks;
   }
 }
 
