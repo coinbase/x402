@@ -44,6 +44,16 @@ Both contracts:
 | Base Mainnet | [Deployed](https://basescan.org/address/0x402085c248EeA27D92E8b30b2C58ed07f9E20001) | — |
 | Base Sepolia | [Deployed](https://sepolia.basescan.org/address/0x402085c248EeA27D92E8b30b2C58ed07f9E20001) | [Legacy\*](https://sepolia.basescan.org/address/0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002) |
 
+**Batch settlement deployments**
+
+| Chain | x402BatchSettlement | ERC3009DepositCollector | Permit2DepositCollector |
+|-------|---------------------|------------------------|------------------------|
+| Base Mainnet | [Deployed](https://basescan.org/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) | [Deployed](https://basescan.org/address/0x4020806089470a89826cB9fB1f4059150b550004) | [Deployed](https://basescan.org/address/0x4020425FAf3B746C082C2f942b4E5159887B0005) |
+| Arbitrum Mainnet | [Deployed](https://arbiscan.io/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) | [Deployed](https://arbiscan.io/address/0x4020806089470a89826cB9fB1f4059150b550004) | [Deployed](https://arbiscan.io/address/0x4020425FAf3B746C082C2f942b4E5159887B0005) |
+| World Chain | [Deployed](https://worldscan.org/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) | [Deployed](https://worldscan.org/address/0x4020806089470a89826cB9fB1f4059150b550004) | [Deployed](https://worldscan.org/address/0x4020425FAf3B746C082C2f942b4E5159887B0005) |
+| World Chain Sepolia | [Deployed](https://sepolia.worldscan.org/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) | [Deployed](https://sepolia.worldscan.org/address/0x4020806089470a89826cB9fB1f4059150b550004) | [Deployed](https://sepolia.worldscan.org/address/0x4020425FAf3B746C082C2f942b4E5159887B0005) |
+| Polygon Mainnet | [Deployed](https://polygonscan.com/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) · [Sourcify](https://sourcify.dev/#/lookup/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003) | [Deployed](https://polygonscan.com/address/0x4020806089470a89826cB9fB1f4059150b550004) · [Sourcify](https://sourcify.dev/#/lookup/0x4020806089470a89826cB9fB1f4059150b550004) | [Deployed](https://polygonscan.com/address/0x4020425FAf3B746C082C2f942b4E5159887B0005) · [Sourcify](https://sourcify.dev/#/lookup/0x4020425FAf3B746C082C2f942b4E5159887B0005) |
+
 > \*Older testnet deployments may use prior vanity salts; the canonical **Upto** address for
 > CREATE2 deployments from this tree is `0x402015c7…313a0002` (see `forge script script/ComputeAddress.s.sol`).
 
@@ -227,14 +237,27 @@ forge script script/ComputeAddress.s.sol --sig "computeBatchStack(bytes32,bytes3
   <BATCH_SALT> <ERC3009_SALT> <PERMIT2_COLLECTOR_SALT> 0x000000000022D473030F116dDEE9F6B43aC78BA3
 ```
 
-### Deploy batch stack (e.g. Base Sepolia)
+### Deploy batch stack
 
-Prerequisites: [Permit2](https://github.com/Uniswap/permit2) at `0x000000000022D473030F116dDEE9F6B43aC78BA3`, Arachnid [CREATE2 deployer](https://github.com/Arachnid/deterministic-deployment-proxy) at `0x4e59b44847b379578588920cA78FbF26c0B4956C`, Cancun-compatible chain (transient storage), and ETH for gas.
+Prerequisites: [Permit2](https://github.com/Uniswap/permit2) at `0x000000000022D473030F116dDEE9F6B43aC78BA3`, Arachnid [CREATE2 deployer](https://github.com/Arachnid/deterministic-deployment-proxy) at `0x4e59b44847b379578588920cA78FbF26c0B4956C`, Cancun-compatible chain (transient storage), and native gas on the target chain.
 
+**Base Sepolia:**
 ```bash
 export PRIVATE_KEY="..."
 forge script script/DeployBatchSettlement.s.sol \
   --rpc-url https://sepolia.base.org \
+  --broadcast \
+  --verify
+```
+
+**Polygon Mainnet:**
+```bash
+export PRIVATE_KEY="..."
+export POLYGON_RPC_URL="https://polygon-rpc.com"   # or your own node
+export POLYGONSCAN_API_KEY="..."
+
+forge script script/DeployBatchSettlement.s.sol \
+  --rpc-url polygon \
   --broadcast \
   --verify
 ```
