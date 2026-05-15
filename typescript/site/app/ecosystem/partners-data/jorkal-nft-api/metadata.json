@@ -1,0 +1,7 @@
+{
+  "name": "Jorkal NFT Data API",
+  "description": "Pay-per-request Solana NFT market data — floor prices, active listings, collection stats, and wallet NFTs. Payments via USDC on Base mainnet.",
+  "logoUrl": "/logos/jorkal-nft-api.png",
+  "websiteUrl": "https://vercel-deploy-alpha-puce.vercel.app",
+  "category": "Services/Endpoints"
+}
