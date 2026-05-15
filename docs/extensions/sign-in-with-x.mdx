@@ -124,6 +124,52 @@ This enables:
 
 Note: Smart wallet verification requires RPC calls, while EOA verification is purely local.
 
+### Using Hook Adapters Directly
+
+If you need more control over the integration, you can use the individual hook adapter functions instead of `createSIWxResourceServerExtension`. This is useful when you want to attach SIWX behavior to an existing server setup:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import {
+      createSIWxSettleHook,
+      createSIWxRequestHook,
+      InMemorySIWxStorage,
+    } from '@x402/extensions/sign-in-with-x';
+    import { x402ResourceServer } from '@x402/core/server';
+    import { x402HTTPResourceServer } from '@x402/core/http';
+
+    const storage = new InMemorySIWxStorage();
+
+    // Attach settle hook to record payments after settlement
+    const resourceServer = new x402ResourceServer(facilitatorClient)
+      .register(NETWORK, new ExactEvmScheme())
+      .onAfterSettle(createSIWxSettleHook({ storage }));
+
+    // Attach request hook to validate SIWX proofs on incoming requests
+    const httpServer = new x402HTTPResourceServer(resourceServer, routes)
+      .onProtectedRequest(createSIWxRequestHook({ storage }));
+    ```
+  </Tab>
+</Tabs>
+
+Similarly, on the client side you can use `createSIWxClientHook` for a single signer, or attach it directly to an HTTP client:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { createSIWxClientHook } from '@x402/extensions/sign-in-with-x';
+    import { x402HTTPClient } from '@x402/fetch';
+    import { privateKeyToAccount } from 'viem/accounts';
+
+    const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+
+    const httpClient = new x402HTTPClient(client)
+      .onPaymentRequired(createSIWxClientHook(signer));
+    ```
+  </Tab>
+</Tabs>
+
 ### Manual Usage (Advanced)
 
 For custom implementations, you can use the low-level functions directly:
@@ -337,11 +383,45 @@ declareSIWxExtension({
 
 ### `createSIWxResourceServerExtension(options)`
 
-Creates the server extension that enriches SIWX challenges, records successful payments, and verifies HTTP SIWX proofs for declared routes.
+Creates the server extension that enriches SIWX challenges, records successful payments, and verifies HTTP SIWX proofs for declared routes. Internally uses `createSIWxSettleHook` and `createSIWxRequestHook`.
+
+### `createSIWxSettleHook(options)`
+
+Creates an `onAfterSettle` hook that records payments for SIWX. Use this when you want to attach SIWX payment recording to an existing `x402ResourceServer` without registering the full extension.
+
+```typescript
+createSIWxSettleHook({
+  storage: SIWxStorage;          // Storage for tracking paid addresses
+  onEvent?: (event) => void;     // Optional callback for logging/debugging
+})
+// Returns: hook function for x402ResourceServer.onAfterSettle()
+```
+
+### `createSIWxRequestHook(options)`
+
+Creates an `onProtectedRequest` hook that validates SIWX proofs on incoming HTTP requests. For paid routes, grants access when the signature is valid and the address has paid. For auth-only routes (`accepts: []`), grants access on a valid signature alone.
+
+```typescript
+createSIWxRequestHook({
+  storage: SIWxStorage;                  // Storage for tracking paid addresses
+  verifyOptions?: SIWxVerifyOptions;     // Optional smart wallet verification settings
+  onEvent?: (event) => void;             // Optional callback for logging/debugging
+})
+// Returns: hook function for x402HTTPResourceServer.onProtectedRequest()
+```
+
+### `createSIWxClientHook(signer)`
+
+Creates an `onPaymentRequired` hook for a single wallet signer. Matches the signer type (EVM or Solana) to a compatible chain in the server's `supportedChains` and signs the SIWX challenge.
+
+```typescript
+createSIWxClientHook(signer: SIWxSigner)
+// Returns: hook function for x402HTTPClient.onPaymentRequired()
+```
 
 ### `createSIWxClientExtension({ signers })`
 
-Creates the client extension that signs compatible SIWX challenges before falling back to payment.
+Creates the client extension that signs compatible SIWX challenges before falling back to payment. Accepts multiple signers (tried in order until one succeeds).
 
 ### `parseSIWxHeader(header)`
 
@@ -378,18 +458,36 @@ Client helper that creates and signs a complete payload.
 
 Encodes a payload as base64 for the SIGN-IN-WITH-X header.
 
+### `SIWxHookEvent`
+
+Event type emitted by SIWX hooks when `onEvent` is configured. Useful for logging and debugging:
+
+```typescript
+type SIWxHookEvent =
+  | { type: "payment_recorded"; resource: string; address: string }
+  | { type: "access_granted"; resource: string; address: string }
+  | { type: "validation_failed"; resource: string; error?: string }
+  | { type: "nonce_reused"; resource: string; nonce: string }
+  | { type: "siwx_header_sent"; resource: string };
+```
+
 ### Storage Interface
 
 Implement `SIWxStorage` to track which wallets have paid:
 
 ```typescript
 interface SIWxStorage {
-  hasPaid(address: string, resourceUri: string): Promise<boolean>;
-  recordPayment(address: string, resourceUri: string): Promise<void>;
+  hasPaid(resource: string, address: string): boolean | Promise<boolean>;
+  recordPayment(resource: string, address: string): void | Promise<void>;
+  // Optional: nonce tracking to prevent signature replay attacks
+  hasUsedNonce?(nonce: string): boolean | Promise<boolean>;
+  recordNonce?(nonce: string): void | Promise<void>;
 }
 ```
 
 The package includes `InMemorySIWxStorage` for development. For production, implement persistent storage (database, Redis, etc.).
+
+Optionally implement `hasUsedNonce` and `recordNonce` to prevent replay attacks where an intercepted SIWX header could be reused. Both methods must be implemented together — implementing only one will throw an error at startup.
 
 ## Security Considerations
 
