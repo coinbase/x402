@@ -1,0 +1,7 @@
+{
+  "name": "Crest x402 Data",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/crest-deployment-systems.svg",
+  "description": "Crypto market data at $0.01/call. Top 25 prices, token lookups, multi-chain gas oracle, trending tokens, and DeFi TVL per chain. Real-time data from CoinGecko and DeFi Llama. Pay in USDC on Base via x402.",
+  "websiteUrl": "https://data.crestsystems.ai"
+}

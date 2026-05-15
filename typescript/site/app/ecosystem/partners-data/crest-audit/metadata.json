@@ -1,0 +1,7 @@
+{
+  "name": "Crest x402 Audit",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/crest-deployment-systems.svg",
+  "description": "Smart contract security audit ($1.00), code vulnerability scan ($0.50), and wallet risk profiling ($0.25). AI-powered analysis with OWASP classification, CWE IDs, and fix recommendations. Pay per call in USDC on Base via x402. No API keys.",
+  "websiteUrl": "https://audit.crestsystems.ai"
+}
