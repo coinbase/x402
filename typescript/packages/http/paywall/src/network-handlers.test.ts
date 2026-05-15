@@ -152,18 +152,29 @@ describe("Network Handlers", () => {
       expect(getDefaultTokenDecimals(req)).toBe(6);
     });
 
-    it("NETWORK_DECIMALS stays in sync with DEFAULT_STABLECOINS", () => {
+    it("NETWORK_DECIMALS overrides stay in sync with DEFAULT_STABLECOINS", () => {
       // The generated `src/evm/gen/decimals.ts` file is emitted by
-      // `src/evm/build.ts` from `@x402/evm`'s `DEFAULT_STABLECOINS`. This
-      // test pins the drift invariant in-process so a forgotten
-      // `pnpm run build:paywall` after a `DEFAULT_STABLECOINS` change is
-      // caught here (complements the CI regen-diff guard in #2054).
+      // `src/evm/build.ts` from `@x402/evm`'s `DEFAULT_STABLECOINS`. Only
+      // networks whose decimals !== 6 are listed; others rely on the fallback
+      // in `getDefaultTokenDecimals`. This pins the drift invariant in-process
+      // (complements the CI regen-diff guard in #2054).
+      const fallbackDecimals = 6;
       for (const [network, info] of Object.entries(DEFAULT_STABLECOINS)) {
-        expect(NETWORK_DECIMALS[network], `drift on ${network}`).toBe(info.decimals);
+        expect(
+          NETWORK_DECIMALS[network] ?? fallbackDecimals,
+          `effective decimals drift on ${network}`,
+        ).toBe(info.decimals);
       }
-      expect(Object.keys(NETWORK_DECIMALS).sort()).toStrictEqual(
-        Object.keys(DEFAULT_STABLECOINS).sort(),
-      );
+      const stablecoinKeys = new Set(Object.keys(DEFAULT_STABLECOINS));
+      for (const network of Object.keys(NETWORK_DECIMALS)) {
+        expect(stablecoinKeys.has(network)).toBe(true);
+        const info = DEFAULT_STABLECOINS[network];
+        expect(NETWORK_DECIMALS[network]).toBe(info!.decimals);
+        expect(
+          info!.decimals,
+          `${network} should be omitted when decimals are ${fallbackDecimals}`,
+        ).not.toBe(fallbackDecimals);
+      }
     });
   });
 
