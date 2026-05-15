@@ -1146,7 +1146,7 @@ importers:
         version: link:../../../../typescript/packages/mechanisms/svm
       axios:
         specifier: ^1.13.2
-        version: 1.13.4
+        version: 1.13.2
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
