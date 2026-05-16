@@ -105,6 +105,18 @@ See [CONTRIBUTING.md — Paywall Changes](CONTRIBUTING.md#paywall-changes) for t
 
 Include the chain name and rationale for the asset selection. If the chain team has officially endorsed a stablecoin, mention that.
 
+## Paywall faucet link (recommended for testnets)
+
+The paywall renders a "Need {token} on {chain}? Request some here." link on testnet payment requirements. Without a configured faucet URL, the paywall renders "No faucet configured." instead.
+
+To provide a working faucet link for your testnet, add one line to `typescript/packages/http/paywall/src/faucetUrls.ts`:
+
+```typescript
+"eip155:YOUR_TESTNET_CHAIN_ID": "https://your-faucet-url",
+```
+
+Paywall-only file; recommended for testnet entries; N/A for mainnet (paywall faucet UI is testnet-gated). No cross-SDK lockstep required — the map is rendered exclusively by the TypeScript paywall bundle and is read by the Python and Go paywall handlers through the bundled template.
+
 ## Asset Selection Policy
 
 The default asset is chosen **per chain** based on:

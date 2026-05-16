@@ -3,6 +3,8 @@ import { DEFAULT_STABLECOINS } from "@x402/evm";
 import { evmPaywall, getDefaultTokenDecimals } from "./evm";
 import { NETWORK_DECIMALS } from "./evm/gen/decimals";
 import { svmPaywall } from "./svm";
+import { FAUCET_URLS, resolveFaucetUrl } from "./faucetUrls";
+import { isTestnetNetwork, SOLANA_NETWORK_REFS } from "./paywallUtils";
 import type { PaymentRequired, PaymentRequirements } from "./types";
 
 const evmRequirement: PaymentRequirements = {
@@ -175,6 +177,40 @@ describe("Network Handlers", () => {
           `${network} should be omitted when decimals are ${fallbackDecimals}`,
         ).not.toBe(fallbackDecimals);
       }
+    });
+  });
+
+  describe("resolveFaucetUrl", () => {
+    it("returns the curated map URL for a known testnet", () => {
+      expect(resolveFaucetUrl("eip155:84532", {})).toBe(FAUCET_URLS["eip155:84532"]);
+    });
+
+    it("returns undefined for unmapped chains so the paywall renders fallback text", () => {
+      expect(resolveFaucetUrl("eip155:9999999", {})).toBeUndefined();
+    });
+
+    it("server faucetUrls override wins over the curated map", () => {
+      const url = resolveFaucetUrl("eip155:84532", {
+        faucetUrls: { "eip155:84532": "https://custom.example/faucet" },
+      });
+      expect(url).toBe("https://custom.example/faucet");
+    });
+
+    it("falls back to the curated map when faucetUrls has no entry for the chain", () => {
+      const url = resolveFaucetUrl("eip155:84532", {
+        faucetUrls: { "eip155:421614": "https://other-chain.example/faucet" },
+      });
+      expect(url).toBe(FAUCET_URLS["eip155:84532"]);
+    });
+  });
+
+  describe("isTestnetNetwork", () => {
+    it("recognizes Solana Devnet as a testnet", () => {
+      expect(isTestnetNetwork(`solana:${SOLANA_NETWORK_REFS.DEVNET}`)).toBe(true);
+    });
+
+    it("rejects Solana Mainnet", () => {
+      expect(isTestnetNetwork(`solana:${SOLANA_NETWORK_REFS.MAINNET}`)).toBe(false);
     });
   });
 
