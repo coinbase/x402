@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/ethereum/go-ethereum v1.16.7
-	github.com/x402-foundation/x402/go/v2 v2.0.0
+	github.com/x402-foundation/x402/go/v2 v2.9.0
 )
 
 require (

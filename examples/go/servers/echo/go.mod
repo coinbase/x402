@@ -7,7 +7,7 @@ toolchain go1.24.1
 replace github.com/x402-foundation/x402/go/v2 => ../../../../go
 
 require (
-	github.com/x402-foundation/x402/go/v2 v2.0.0
+	github.com/x402-foundation/x402/go/v2 v2.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.15.1
 )
