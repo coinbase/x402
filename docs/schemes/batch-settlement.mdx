@@ -150,11 +150,11 @@ Register `BatchSettlementEvmScheme` for `eip155:*`. The client SDK handles depos
   <Tab title="Go">
     ```go
     import (
-        x402 "github.com/x402-foundation/x402/go"
-        x402http "github.com/x402-foundation/x402/go/http"
+        x402 "github.com/x402-foundation/x402/go/v2"
+        x402http "github.com/x402-foundation/x402/go/v2/http"
         "github.com/ethereum/go-ethereum/ethclient"
-        batchedclient "github.com/x402-foundation/x402/go/mechanisms/evm/batch-settlement/client"
-        evmsigners "github.com/x402-foundation/x402/go/signers/evm"
+        batchedclient "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/client"
+        evmsigners "github.com/x402-foundation/x402/go/v2/signers/evm"
     )
 
     ethClient, err := ethclient.Dial("https://sepolia.base.org")
@@ -271,7 +271,7 @@ Client channel state is stored in memory by default. Persistent client storage i
   </Tab>
   <Tab title="Go">
     ```go
-    import "github.com/x402-foundation/x402/go/mechanisms/evm/batch-settlement"
+    import "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement"
 
     batchScheme := batchedclient.NewBatchSettlementEvmScheme(evmSigner, &batchedclient.BatchSettlementEvmSchemeOptions{
         Storage: batchedclient.NewFileClientChannelStorage(batchsettlement.FileChannelStorageOptions{

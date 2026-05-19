@@ -184,8 +184,8 @@ Fetch the list of available x402 services using the facilitator client:
         "fmt"
         "strconv"
 
-        "github.com/x402-foundation/x402/go/extensions/bazaar"
-        x402http "github.com/x402-foundation/x402/go/http"
+        "github.com/x402-foundation/x402/go/v2/extensions/bazaar"
+        x402http "github.com/x402-foundation/x402/go/v2/http"
     )
 
     func main() {
@@ -683,12 +683,12 @@ To enhance your listing with descriptions and schemas, include them when setting
     package main
 
     import (
-        x402 "github.com/x402-foundation/x402/go"
-        "github.com/x402-foundation/x402/go/extensions/bazaar"
-        "github.com/x402-foundation/x402/go/extensions/types"
-        x402http "github.com/x402-foundation/x402/go/http"
-        ginmw "github.com/x402-foundation/x402/go/http/gin"
-        evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/server"
+        x402 "github.com/x402-foundation/x402/go/v2"
+        "github.com/x402-foundation/x402/go/v2/extensions/bazaar"
+        "github.com/x402-foundation/x402/go/v2/extensions/types"
+        x402http "github.com/x402-foundation/x402/go/v2/http"
+        ginmw "github.com/x402-foundation/x402/go/v2/http/gin"
+        evm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/server"
         "github.com/gin-gonic/gin"
     )
 
@@ -842,9 +842,9 @@ To make paid MCP tools discoverable, pass the discovery extension in your paymen
   <Tab title="Go">
     ```go
     import (
-        "github.com/x402-foundation/x402/go/extensions/bazaar"
-        mcp402 "github.com/x402-foundation/x402/go/mcp"
-        "github.com/x402-foundation/x402/go/types"
+        "github.com/x402-foundation/x402/go/v2/extensions/bazaar"
+        mcp402 "github.com/x402-foundation/x402/go/v2/mcp"
+        "github.com/x402-foundation/x402/go/v2/types"
     )
 
     weatherDiscovery, _ := bazaar.DeclareMcpDiscoveryExtension(bazaar.DeclareMcpDiscoveryConfig{
