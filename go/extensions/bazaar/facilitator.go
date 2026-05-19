@@ -9,10 +9,10 @@ import (
 	"strings"
 	"unicode"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/types"
-	v1 "github.com/x402-foundation/x402/go/extensions/v1"
-	x402types "github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/types"
+	v1 "github.com/x402-foundation/x402/go/v2/extensions/v1"
+	x402types "github.com/x402-foundation/x402/go/v2/types"
 	"github.com/xeipuuv/gojsonschema"
 	"golang.org/x/net/idna"
 )

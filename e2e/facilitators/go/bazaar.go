@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	exttypes "github.com/x402-foundation/x402/go/extensions/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	exttypes "github.com/x402-foundation/x402/go/v2/extensions/types"
 )
 
 type DiscoveredResource struct {

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/bazaar"
-	x402http "github.com/x402-foundation/x402/go/http"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/bazaar"
+	x402http "github.com/x402-foundation/x402/go/v2/http"
 )
 
 // SetSettlementOverrides sets settlement overrides on the response for partial settlement.

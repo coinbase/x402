@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	x402 "github.com/x402-foundation/x402/go"
-	eip2612gassponsor "github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
-	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
-	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/facilitator"
-	uptoevm "github.com/x402-foundation/x402/go/mechanisms/evm/upto/facilitator"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	eip2612gassponsor "github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
+	evm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/facilitator"
+	uptoevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/upto/facilitator"
 )
 
 /**

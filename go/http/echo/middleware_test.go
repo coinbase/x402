@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	x402 "github.com/x402-foundation/x402/go"
-	x402http "github.com/x402-foundation/x402/go/http"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	x402http "github.com/x402-foundation/x402/go/v2/http"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // ============================================================================

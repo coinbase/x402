@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/bazaar"
-	v1 "github.com/x402-foundation/x402/go/extensions/v1"
-	x402http "github.com/x402-foundation/x402/go/http"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/bazaar"
+	v1 "github.com/x402-foundation/x402/go/v2/extensions/v1"
+	x402http "github.com/x402-foundation/x402/go/v2/http"
 )
 
 func TestBazaarConstant(t *testing.T) {

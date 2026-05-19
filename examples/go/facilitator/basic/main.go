@@ -10,13 +10,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	x402 "github.com/x402-foundation/x402/go"
-	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/facilitator"
-	evmv1 "github.com/x402-foundation/x402/go/mechanisms/evm/exact/v1/facilitator"
-	uptoevm "github.com/x402-foundation/x402/go/mechanisms/evm/upto/facilitator"
-	svmmech "github.com/x402-foundation/x402/go/mechanisms/svm"
-	svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/facilitator"
-	svmv1 "github.com/x402-foundation/x402/go/mechanisms/svm/exact/v1/facilitator"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	evm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/facilitator"
+	evmv1 "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/v1/facilitator"
+	uptoevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/upto/facilitator"
+	svmmech "github.com/x402-foundation/x402/go/v2/mechanisms/svm"
+	svm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/facilitator"
+	svmv1 "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/v1/facilitator"
 )
 
 const (

@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/paymentidentifier"
-	evm "github.com/x402-foundation/x402/go/mechanisms/evm/exact/facilitator"
-	svm "github.com/x402-foundation/x402/go/mechanisms/svm/exact/facilitator"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/paymentidentifier"
+	evm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/facilitator"
+	svm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/facilitator"
 )
 
 /**
