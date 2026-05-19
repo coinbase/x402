@@ -139,7 +139,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
-8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment PaymentRequirements` to the `/settle` endpoint of a `facilitator server`.
+8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `PaymentRequirements` to the `/settle` endpoint of a `facilitator server`.
 
 9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `network` of the `Payment Payload`.
 
