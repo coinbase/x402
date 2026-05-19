@@ -765,7 +765,7 @@ routes := x402http.RoutesConfig{
 
 **V1:**
 ```go
-import "github.com/x402-foundation/x402/go/v2/middleware/gin"
+import "github.com/x402-foundation/x402/go/middleware/gin"
 ```
 
 **V2:**
