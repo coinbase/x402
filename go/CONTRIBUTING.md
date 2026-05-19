@@ -333,7 +333,7 @@ module github.com/x402-foundation/x402/examples/go/your-example
 
 go 1.24
 
-require github.com/x402-foundation/x402/go/v2 v0.0.0
+require github.com/x402-foundation/x402/go/v2 v2.9.0
 
 replace github.com/x402-foundation/x402/go/v2 => ../../../go
 ```

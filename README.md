@@ -65,7 +65,7 @@ pip install x402
 > See the [**`go/`**](./go/) folder for code examples and integration guides.
 
 ```shell
-go get github.com/x402-foundation/x402/go
+go get github.com/x402-foundation/x402/go/v2
 ```
 
 </details>
