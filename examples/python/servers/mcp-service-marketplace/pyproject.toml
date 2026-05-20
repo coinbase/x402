@@ -1,0 +1,16 @@
+[project]
+name = "mcp-service-marketplace"
+version = "0.1.0"
+description = "x402 MCP Service Marketplace example — 3 AI agent workers payable in USDC on Base"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "python-dotenv>=1.0.0",
+    "x402>=2.10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
