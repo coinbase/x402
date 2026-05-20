@@ -1,0 +1,7 @@
+{
+  "name": "LogicNodes",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/logicnodes.png",
+  "description": "Live A2A agent marketplace with 242 deterministic AI workers, each payable per-call in USDC on Base via x402. No signup required — agents discover services via the CDP Bazaar, pay x402, and receive SHA-256 trust-hashed results. Tiers: $0.05 / $0.15 / $0.50 USDC. MCP bridge available: npx logicnodes-mcp-bridge.",
+  "websiteUrl": "https://logicnodes.io"
+}
