@@ -1,0 +1,7 @@
+{
+  "name": "Carbon & Cashmere",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/carbon-cashmere.png",
+  "description": "Crypto trading intelligence API with 177 x402-paid endpoints across 7 networks (Base, Polygon, Arbitrum, World Chain, Solana, Algorand, Stellar). Proprietary Bitcoin Core, Kaspa, Subtensor, and Ethereum beacon nodes provide unique on-chain data unavailable elsewhere. ML ensemble predictions, funding-rate analysis, mempool analytics, regime detection. AWS Bedrock AgentCore + Coinbase AgentKit + Anthropic Claude MCP compatible. MCP server @carbon-cashmere/x402-mcp published on Anthropic MCP Registry, Smithery, Glama, and npm.",
+  "websiteUrl": "https://www.carbon-cashmere.de"
+}
