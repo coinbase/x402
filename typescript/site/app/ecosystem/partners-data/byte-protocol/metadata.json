@@ -1,6 +1,6 @@
 {
   "name": "Byte Protocol",
-  "description": "Per-byte data marketplace for AI agents — pay publishers in USDC per byte via x402, no API keys. Publishers stake reputation that's slashed on-chain for bad data.",
+  "description": "Per-byte data marketplace for AI agents — pay publishers in USDC per byte via x402, no API keys. Publishers stake reputation that's slashed on-chain for bad data. Currently live on Arbitrum Sepolia testnet; mainnet launch pending.",
   "logoUrl": "/logos/byte-protocol.png",
   "websiteUrl": "https://www.payperbyte.io",
   "category": "Services/Endpoints"
