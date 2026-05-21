@@ -10,11 +10,16 @@ Run with:
 
 Environment variables:
     RESOURCE_SERVER_URL              Required. e.g. http://localhost:4021
-    ENDPOINT_PATH                    Required. e.g. /weather
+    ENDPOINT_PATH                    Optional. e.g. /weather (default /weather)
     EVM_PRIVATE_KEY                  Required. Payer (client) private key.
+    EVM_VOUCHER_SIGNER_PRIVATE_KEY   Optional. Dedicated voucher-signing key (payerAuthorizer).
     EVM_RPC_URL                      Optional. Defaults to https://sepolia.base.org.
-    REQUEST_COUNT                    Optional. Number of paid requests (default 3).
-    REFUND_AFTER                     Optional. If "true", issue a cooperative refund after the last request.
+    CHANNEL_SALT                     Optional. 32-byte hex salt for channel ID derivation.
+    DEPOSIT_MULTIPLIER               Optional. Deposit = multiplier * request_price (default 5).
+    STORAGE_DIR                      Optional. Directory for persistent file-backed channel storage.
+    NUMBER_OF_REQUESTS               Optional. Number of paid requests to issue (default 3).
+    REFUND_AFTER_REQUESTS            Optional. Set to "true" to issue a cooperative refund at the end.
+    REFUND_AMOUNT                    Optional. Base-unit amount for partial refund (default: full balance).
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 
 from dotenv import load_dotenv
 from eth_account import Account
@@ -32,19 +38,32 @@ from x402.http import decode_payment_response_header
 from x402.http.clients import x402_httpx_transport
 from x402.mechanisms.evm import EthAccountSignerWithRPC
 from x402.mechanisms.evm.batch_settlement.client import (
+    BatchSettlementDepositPolicy,
     BatchSettlementEvmScheme,
     BatchSettlementEvmSchemeOptions,
+    FileChannelStorageOptions,
+    FileClientChannelStorage,
     InMemoryClientChannelStorage,
+    RefundOptions,
 )
+from x402.mechanisms.evm.signers import EthAccountSigner
 
 load_dotenv()
 
 RESOURCE_SERVER_URL = os.getenv("RESOURCE_SERVER_URL")
 ENDPOINT_PATH = os.getenv("ENDPOINT_PATH", "/weather")
 EVM_PRIVATE_KEY = os.getenv("EVM_PRIVATE_KEY")
+EVM_VOUCHER_SIGNER_PRIVATE_KEY = os.getenv("EVM_VOUCHER_SIGNER_PRIVATE_KEY", "").strip() or None
 EVM_RPC_URL = os.getenv("EVM_RPC_URL", "https://sepolia.base.org")
-REQUEST_COUNT = int(os.getenv("REQUEST_COUNT", "3"))
-REFUND_AFTER = os.getenv("REFUND_AFTER", "").lower() == "true"
+CHANNEL_SALT = (
+    os.getenv("CHANNEL_SALT")
+    or "0x0000000000000000000000000000000000000000000000000000000000000000"
+)
+DEPOSIT_MULTIPLIER = int(os.getenv("DEPOSIT_MULTIPLIER", "5"))
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+NUMBER_OF_REQUESTS = int(os.getenv("NUMBER_OF_REQUESTS", "3"))
+REFUND_AFTER_REQUESTS = os.getenv("REFUND_AFTER_REQUESTS", "").lower() == "true"
+REFUND_AMOUNT = os.getenv("REFUND_AMOUNT", "").strip() or None
 
 if not (RESOURCE_SERVER_URL and EVM_PRIVATE_KEY):
     print("Missing required RESOURCE_SERVER_URL or EVM_PRIVATE_KEY")
@@ -54,40 +73,70 @@ if not (RESOURCE_SERVER_URL and EVM_PRIVATE_KEY):
 async def main() -> None:
     account = Account.from_key(EVM_PRIVATE_KEY)
     signer = EthAccountSignerWithRPC(account, rpc_url=EVM_RPC_URL)
-    print(f"Payer: {account.address}")
+
+    voucher_signer: EthAccountSigner | None = None
+    if EVM_VOUCHER_SIGNER_PRIVATE_KEY:
+        voucher_signer = EthAccountSigner(Account.from_key(EVM_VOUCHER_SIGNER_PRIVATE_KEY))
+
+    storage = (
+        FileClientChannelStorage(FileChannelStorageOptions(directory=STORAGE_DIR))
+        if STORAGE_DIR
+        else InMemoryClientChannelStorage()
+    )
 
     batch_scheme = BatchSettlementEvmScheme(
         signer,
         BatchSettlementEvmSchemeOptions(
-            storage=InMemoryClientChannelStorage(),
+            deposit_policy=BatchSettlementDepositPolicy(deposit_multiplier=DEPOSIT_MULTIPLIER),
+            salt=CHANNEL_SALT,
+            storage=storage,
+            voucher_signer=voucher_signer,
         ),
     )
     client = x402Client().register("eip155:*", batch_scheme)
 
     url = f"{RESOURCE_SERVER_URL}{ENDPOINT_PATH}"
-    print(f"Issuing {REQUEST_COUNT} paid request(s) to {url}\n")
+
+    payer_authorizer = voucher_signer.address if voucher_signer else account.address
+    print(f"Base URL: {RESOURCE_SERVER_URL}, endpoint: {ENDPOINT_PATH}")
+    print(f"payer: {account.address}")
+    print(f"payerAuthorizer: {payer_authorizer}\n")
+    print(f"Issuing {NUMBER_OF_REQUESTS} paid request(s) to {url}\n")
 
     timeout = httpx.Timeout(30.0, connect=10.0)
     async with httpx.AsyncClient(
         timeout=timeout, transport=x402_httpx_transport(client)
     ) as http:
-        for i in range(REQUEST_COUNT):
+        for i in range(NUMBER_OF_REQUESTS):
+            t0 = time.perf_counter()
             response = await http.get(url)
+            elapsed = time.perf_counter() - t0
+
             payment_header = response.headers.get(
                 "PAYMENT-RESPONSE"
             ) or response.headers.get("X-PAYMENT-RESPONSE")
             label = "deposit" if i == 0 else "voucher"
-            print(f"[{i + 1}/{REQUEST_COUNT}] ({label}) status={response.status_code}")
-            print(f"        body: {response.text}")
+            print(f"Request {i + 1} — RESPONSE ({label})")
+            print(f"  status: {response.status_code}")
+            print(f"  body: {response.text}")
             if payment_header:
                 settle = decode_payment_response_header(payment_header)
-                print(f"        tx: {settle.transaction} success={settle.success}")
-            print()
+                print(f"  tx: {settle.transaction}  success={settle.success}")
+            print(f"Request {i + 1} — completed in {elapsed:.3f}s\n")
 
-    if REFUND_AFTER:
-        print("Issuing cooperative refund…")
-        refund = await asyncio.to_thread(batch_scheme.refund, url)
-        print(f"  refund success={refund.success} tx={refund.transaction}")
+    if REFUND_AFTER_REQUESTS:
+        if REFUND_AMOUNT:
+            print(f"REQUESTING PARTIAL REFUND of {REFUND_AMOUNT} base units")
+        else:
+            print("REQUESTING FULL REFUND of remaining channel balance")
+
+        t0 = time.perf_counter()
+        refund = await asyncio.to_thread(
+            batch_scheme.refund, url, RefundOptions(amount=REFUND_AMOUNT)
+        )
+        elapsed = time.perf_counter() - t0
+        print(f"  success={refund.success}  tx={refund.transaction}")
+        print(f"Refund completed in {elapsed:.3f}s")
 
 
 if __name__ == "__main__":

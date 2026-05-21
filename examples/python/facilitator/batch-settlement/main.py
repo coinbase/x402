@@ -50,7 +50,15 @@ receiver_authorizer_pk = (
 authorizer_signer = LocalAuthorizerSigner(receiver_authorizer_pk)
 print(f"Receiver authorizer: {authorizer_signer.address}")
 
-facilitator = x402Facilitator()
+facilitator = (
+    x402Facilitator()
+    .on_before_verify(lambda ctx: print(f"Before verify: {ctx}"))
+    .on_after_verify(lambda ctx: print(f"After verify: {ctx}"))
+    .on_verify_failure(lambda ctx: print(f"Verify failure: {ctx}"))
+    .on_before_settle(lambda ctx: print(f"Before settle: {ctx}"))
+    .on_after_settle(lambda ctx: print(f"After settle: {ctx}"))
+    .on_settle_failure(lambda ctx: print(f"Settle failure: {ctx}"))
+)
 facilitator.register(
     [EVM_NETWORK],
     BatchSettlementEvmFacilitator(evm_signer, authorizer_signer),
