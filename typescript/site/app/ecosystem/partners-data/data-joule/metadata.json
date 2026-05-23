@@ -1,0 +1,7 @@
+{
+  "name": "Data-Joule",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/data-joule.png",
+  "description": "AI inference node on a Raspberry Pi that curtails compute in response to OpenADR 3.0 demand-response events. Price scales with the live grid DR tier. Each curtailed kWh is verified by Chainlink and minted as a Joule Credit (JLC) on Polygon Mainnet.",
+  "websiteUrl": "https://data-joule.com/method"
+}
