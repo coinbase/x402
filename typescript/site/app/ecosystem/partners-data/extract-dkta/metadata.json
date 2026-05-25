@@ -1,0 +1,6 @@
+{
+  "name": "extract.dkta.dev",
+  "category": "Services/Endpoints",
+  "description": "Extract clean, LLM-ready markdown from any URL. No account or API key required \u2014 agents pay per request using x402 on Base.",
+  "websiteUrl": "https://extract.dkta.dev"
+}
