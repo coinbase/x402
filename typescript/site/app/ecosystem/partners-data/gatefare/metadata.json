@@ -1,0 +1,7 @@
+{
+  "name": "Gatefare",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/gatefare.png",
+  "description": "Marketplace of paid HTTP APIs with USDC micropayments via x402 on Base. AI agents discover, call, and publish APIs through an MCP server — non-custodial, no API keys.",
+  "websiteUrl": "https://gatefare.io"
+}
