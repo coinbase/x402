@@ -264,9 +264,9 @@ func TestHTTPIntegration(t *testing.T) {
 // No real blockchain or external service is used.
 func TestHTTPIntegration_FacilitatorReturnsIsValidFalse(t *testing.T) {
 	for _, tc := range []struct {
-		name           string
-		invalidReason  string
-		wantReason     string
+		name          string
+		invalidReason string
+		wantReason    string
 	}{
 		{
 			name:          "isValid false with reason",
