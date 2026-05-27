@@ -93,7 +93,11 @@ def validate_bazaar_extensions(routes: RoutesConfig) -> None:
             continue
 
         bazaar_ext = extensions["bazaar"]
-        if not isinstance(bazaar_ext, dict) or "info" not in bazaar_ext or "schema" not in bazaar_ext:
+        if (
+            not isinstance(bazaar_ext, dict)
+            or "info" not in bazaar_ext
+            or "schema" not in bazaar_ext
+        ):
             warnings.warn(
                 f'x402: Route "{pattern}" declares a bazaar extension but it is malformed '
                 f'(expected a dict with "info" and "schema" fields)',
