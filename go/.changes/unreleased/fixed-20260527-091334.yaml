@@ -1,0 +1,3 @@
+kind: fixed
+body: Fixed SVM exact facilitator deduplication to key on the transaction message hash rather than the full signed-transaction bytes, preventing an attacker from bypassing the cache by randomizing the mutable fee-payer signature slot.
+time: 2026-05-27T09:13:34.236144-07:00
