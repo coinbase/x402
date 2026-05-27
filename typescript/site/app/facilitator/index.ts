@@ -118,10 +118,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
   ];
 
   const facilitator = new x402Facilitator()
-    .register(
-      "eip155:84532",
-      new ExactEvmScheme(evmSigner, { eip6492AllowedFactories }),
-    )
+    .register("eip155:84532", new ExactEvmScheme(evmSigner, { eip6492AllowedFactories }))
     .registerV1(
       "base-sepolia" as Network,
       new ExactEvmSchemeV1(evmSigner, { eip6492AllowedFactories }),
