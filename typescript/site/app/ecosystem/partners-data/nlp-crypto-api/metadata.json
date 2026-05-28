@@ -1,0 +1,6 @@
+{
+  "name": "NLP & Crypto Research API",
+  "category": "Services/Endpoints",
+  "description": "Pay-per-use NLP and crypto research for AI agents — sentiment analysis ($0.05), extractive summarization ($0.08), keyword extraction ($0.05), crypto protocol briefs ($0.10), and live crypto prices ($0.02). USDC on Base mainnet via x402 v2. No auth, no API keys, instant response.",
+  "websiteUrl": "https://695995eb457b2055-201-170-130-122.serveousercontent.com"
+}
