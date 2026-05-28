@@ -501,15 +501,17 @@ Each `SupportedKind` object in the `kinds` array contains:
 | `scheme`       | `string` | Required | Payment scheme identifier (e.g., "exact")                                                                         |
 | `network`      | `string` | Required | Blockchain network identifier in CAIP-2 format                                                                    |
 | `extra`        | `object` | Optional | Additional scheme-specific configuration                                                                          |
-| `capabilities` | `object` | Optional | Discriminator-keyed capability constraints; see section 7.3.2. Absence implies full support for the scheme.       |
+| `capabilities` | `object` | Optional | Restricts which values the facilitator accepts for scheme-specific `PaymentRequirements.extra` fields; see §7.3.2. Absence implies full support. |
 
 **7.3.2 Capabilities**
 
-The optional `capabilities` object on a `SupportedKind` entry declares which discriminated variants of that scheme the facilitator supports on a given network. Each key in `capabilities` matches a discriminator field name in `PaymentRequirements.extra` for that scheme; each value is the array of accepted string values for that field.
+The optional `capabilities` object on a `SupportedKind` entry declares which values the facilitator will accept for specific fields in the server's `PaymentRequirements.extra` — the payment requirements the server advertises to clients. It does not describe the facilitator kind's own `extra` field above.
 
-**Default behavior:** If `capabilities` is absent from a kind, the facilitator is assumed to support all variants the scheme defines. This is the backwards-compatible default for facilitators that predate this field.
+Each key in `capabilities` is the name of a field in `PaymentRequirements.extra` for that scheme. Each value is an array of the strings the facilitator will accept for that field. Servers must not advertise a `PaymentRequirements.extra` field value that is absent from the corresponding `capabilities` array for the matched kind.
 
-**Scheme obligation:** Scheme specifications that introduce discriminator fields in `PaymentRequirements.extra` must document the corresponding `capabilities` key and enumerate its valid values.
+**Default behavior:** If `capabilities` is absent from a kind, the facilitator is assumed to accept all values the scheme defines for that field. This is the backwards-compatible default for facilitators that predate this field.
+
+**Scheme obligation:** Scheme specifications that introduce selectable fields in `PaymentRequirements.extra` must document the corresponding `capabilities` key and enumerate its valid values.
 
 **8. Discovery API**
 
