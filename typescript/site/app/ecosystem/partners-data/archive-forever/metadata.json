@@ -2,6 +2,6 @@
   "name": "Archive Forever",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/archive-forever.svg",
-  "description": "Permanently store any file on Arweave for a few cents via x402 — public, or zero-knowledge private (unlocked by your wallet, with a recovery-code backup). The agent-native 'save this forever' primitive: pay-per-use USDC on Base, no accounts.",
+  "description": "Permanently store any file on Arweave for a few cents via x402 — zero-knowledge encrypted: you encrypt client-side, so the service only ever holds ciphertext it can't read. Unlocked by your wallet signature, with a recovery-code backup. The agent-native 'save this forever' primitive: pay-per-use USDC on Base, no accounts.",
   "websiteUrl": "https://archive-forever-api-production.up.railway.app"
 }
