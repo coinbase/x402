@@ -1,0 +1,7 @@
+{
+  "name": "MainStreet",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/mainstreet.png",
+  "description": "Reputation oracle for AI agents on Base. Free 0-100 trust score cross-referenced against 17 multi-source identity proofs. ERC-8004 agentId 53953. 9 paid x402 endpoints in USDC on Base, including /audit ($0.25, full due-diligence). Validated by an ERC-4337 smart-wallet buyer onchain.",
+  "websiteUrl": "https://avisradar.app"
+}
