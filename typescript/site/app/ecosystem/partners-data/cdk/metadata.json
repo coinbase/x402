@@ -1,6 +1,6 @@
 {
-  "name": "CDK",
-  "description": "CDK is an agent-native REST API and MCP server that lets AI agents buy video game keys, gift cards, and digital products using x402 USDC payments on Base. One call to purchase, onchain-verified instant delivery, no registration.",
+  "name": "CDK Bot",
+  "description": "CDK Bot is an agent-native REST API and MCP server that lets AI agents buy game keys, gift cards, and digital products — settling onchain in stablecoins and other crypto (USDC, USDT, EURC) on Base via x402. One call to purchase, onchain-verified instant delivery, no registration.",
   "logoUrl": "/logos/cdk.png",
   "websiteUrl": "https://cdk.bot",
   "category": "Services/Endpoints"
