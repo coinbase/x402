@@ -121,7 +121,11 @@ def __getattr__(name: str):
         from .types import PaymentRequiredError
 
         return PaymentRequiredError
-    if name in ("is_object", "create_payment_required_error", "extract_payment_required_from_error"):
+    if name in (
+        "is_object",
+        "create_payment_required_error",
+        "extract_payment_required_from_error",
+    ):
         from . import utils as _utils
 
         return getattr(_utils, name)
