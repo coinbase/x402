@@ -1,0 +1,7 @@
+{
+  "name": "PipRail",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/piprail.png",
+  "description": "Backendless, no-fee x402 SDK and MCP server. Take or make agent payments across 28 chains in 10 families (every major EVM chain plus Solana, TON, Tron, NEAR, Sui, Aptos, Algorand, Stellar & XRPL). Self-custodial — the payer broadcasts their own transfer, verified locally against your own RPC, no facilitator.",
+  "websiteUrl": "https://piprail.com"
+}
