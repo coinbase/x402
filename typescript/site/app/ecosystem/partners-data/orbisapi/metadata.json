@@ -1,0 +1,7 @@
+{
+  "name": "Orbis API Marketplace",
+  "description": "x402-native API marketplace with 24,000+ pay-per-call APIs and an OpenAI-compatible LLM gateway. No account or API key required — agents pay $0.005 USDC per call on Base.",
+  "logoUrl": "/logos/orbisapi.png",
+  "websiteUrl": "https://orbisapi.com",
+  "category": "Services/Endpoints"
+}
