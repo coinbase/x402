@@ -867,14 +867,36 @@ func TestVerifyPermit2InvalidInputs(t *testing.T) {
 func TestAssetContractValidation(t *testing.T) {
 	ctx := context.Background()
 	eoaAsset := "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+	// Payer address used in defaultEIP3009Payload.
+	payerAddr := "0x1234567890123456789012345678901234567890"
+
+	// The EIP-3009 asset check fires after all cheap payload checks and signature
+	// verification — so tests need the signature path to succeed first. We use a
+	// >65-byte (smart-wallet) signature with an EIP-1271 mock that returns the
+	// magic value, and set the payer as a deployed contract via codeByAddress.
+	// The asset address is intentionally absent, so it falls through to code=nil (EOA).
+	smartWalletSig := "0x" + strings.Repeat("cc", 66) // 66 bytes → smart-wallet branch
+
+	makeEIP3009SignerWithEOAAsset := func() *mockFacilitatorSigner {
+		return &mockFacilitatorSigner{
+			// Payer is a deployed contract; asset (USDC addr) is absent → nil → EOA.
+			codeByAddress: map[string][]byte{
+				strings.ToLower(payerAddr): {0x60},
+			},
+			readContractFn: func(_ string, _ []byte, fn string, _ ...interface{}) (interface{}, error) {
+				if fn == "isValidSignature" {
+					return []byte{0x16, 0x26, 0xba, 0x7e}, nil // EIP-1271 magic value
+				}
+				return nil, fmt.Errorf("unsupported: %s", fn)
+			},
+		}
+	}
 
 	t.Run("EIP-3009: rejects EOA asset", func(t *testing.T) {
-		signer := &mockFacilitatorSigner{
-			// code == nil → GetCode returns nil for all addresses (EOA)
-		}
+		signer := makeEIP3009SignerWithEOAAsset()
 		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
 
-		_, err := scheme.Verify(ctx, defaultEIP3009Payload(mockSignature65Bytes()), defaultEIP3009Requirements(), nil)
+		_, err := scheme.Verify(ctx, defaultEIP3009Payload(smartWalletSig), defaultEIP3009Requirements(), nil)
 		if err == nil {
 			t.Fatal("expected error for EOA asset")
 		}
@@ -884,17 +906,19 @@ func TestAssetContractValidation(t *testing.T) {
 	})
 
 	t.Run("EIP-3009: GetCode RPC failure propagates as internal error", func(t *testing.T) {
-		signer := &mockFacilitatorSigner{
-			getCodeError: fmt.Errorf("rpc: connection refused"),
-		}
+		signer := makeEIP3009SignerWithEOAAsset()
+		signer.getCodeError = fmt.Errorf("rpc: connection refused")
+		// getCodeError overrides codeByAddress in the mock, so both payer and asset
+		// GetCode calls fail. The payer call happens first (EIP-1271 path) and returns
+		// the RPC error, which propagates as an internal error — not asset_not_deployed_contract.
 		scheme := evmfacilitator.NewExactEvmScheme(signer, nil)
 
-		_, err := scheme.Verify(ctx, defaultEIP3009Payload(mockSignature65Bytes()), defaultEIP3009Requirements(), nil)
+		_, err := scheme.Verify(ctx, defaultEIP3009Payload(smartWalletSig), defaultEIP3009Requirements(), nil)
 		if err == nil {
 			t.Fatal("expected error on GetCode failure")
 		}
-		if ve, ok := err.(interface{ InvalidReason() string }); ok && ve.InvalidReason() == evm.ErrAssetNotDeployedContract {
-			t.Error("RPC error should not produce a 400 verify error; expected internal error")
+		if strings.Contains(err.Error(), evm.ErrAssetNotDeployedContract) {
+			t.Error("RPC error should not produce asset_not_deployed_contract; expected internal error")
 		}
 	})
 

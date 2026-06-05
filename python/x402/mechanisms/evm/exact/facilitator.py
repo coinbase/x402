@@ -173,12 +173,6 @@ class ExactEvmScheme:
 
         token_address = normalize_address(requirements.asset)
 
-        code = self._signer.get_code(token_address)
-        if len(code) == 0:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_ASSET_NOT_DEPLOYED_CONTRACT, payer=payer
-            )
-
         # Check EIP-712 domain params
         extra = requirements.extra or {}
         if "name" not in extra or "version" not in extra:
@@ -248,6 +242,12 @@ class ExactEvmScheme:
                 invalid_reason=ERR_FAILED_TO_VERIFY_SIGNATURE,
                 invalid_message=str(e),
                 payer=payer,
+            )
+
+        code = self._signer.get_code(token_address)
+        if len(code) == 0:
+            return VerifyResponse(
+                is_valid=False, invalid_reason=ERR_ASSET_NOT_DEPLOYED_CONTRACT, payer=payer
             )
 
         if not simulate:

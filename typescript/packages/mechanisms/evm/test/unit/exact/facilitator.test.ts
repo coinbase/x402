@@ -1850,7 +1850,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should reject settlement when allowlist is empty and wallet is undeployed", async () => {
-      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
       const scheme = new ExactEvmScheme(mockFacilitatorSigner, {
         eip6492AllowedFactories: [],
       });
@@ -1866,7 +1868,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should deploy and settle when factory is in allowlist", async () => {
-      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
       const scheme = new ExactEvmScheme(mockFacilitatorSigner, {
         eip6492AllowedFactories: [SETTLE_FACTORY],
       });
@@ -1882,7 +1886,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should match factory address case-insensitively", async () => {
-      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
       const scheme = new ExactEvmScheme(mockFacilitatorSigner, {
         eip6492AllowedFactories: [SETTLE_FACTORY.toUpperCase() as `0x${string}`],
       });
@@ -1897,7 +1903,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should reject when factory does not match any allowlist entry", async () => {
-      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
       const scheme = new ExactEvmScheme(mockFacilitatorSigner, {
         eip6492AllowedFactories: ["0x3333333333333333333333333333333333333333"],
       });
@@ -1929,7 +1937,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should not call factory deployment for EOA payer", async () => {
-      mockFacilitatorSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockFacilitatorSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
       const eoaSig = ("0x" + "aa".repeat(66)) as `0x${string}`;
       const scheme = new ExactEvmScheme(mockFacilitatorSigner, {
         eip6492AllowedFactories: [],

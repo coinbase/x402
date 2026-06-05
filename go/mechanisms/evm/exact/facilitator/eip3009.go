@@ -44,12 +44,6 @@ func (f *ExactEvmScheme) verifyEIP3009(
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
 
-	if errReason, err := evm.ValidateAssetIsContract(ctx, f.signer, requirements.Asset); err != nil {
-		return nil, fmt.Errorf("asset contract check failed: %w", err)
-	} else if errReason != "" {
-		return nil, x402.NewVerifyError(errReason, evmPayload.Authorization.From, fmt.Sprintf("asset %s is not a deployed contract", requirements.Asset))
-	}
-
 	if !strings.EqualFold(evmPayload.Authorization.To, requirements.PayTo) {
 		return nil, x402.NewVerifyError(ErrRecipientMismatch, "", fmt.Sprintf("recipient mismatch: %s != %s", evmPayload.Authorization.To, requirements.PayTo))
 	}
@@ -108,6 +102,12 @@ func (f *ExactEvmScheme) verifyEIP3009(
 
 	if !classification.Valid && !classification.IsSmartWallet {
 		return nil, x402.NewVerifyError(ErrInvalidSignature, evmPayload.Authorization.From, fmt.Sprintf("invalid signature: %s", evmPayload.Signature))
+	}
+
+	if errReason, err := evm.ValidateAssetIsContract(ctx, f.signer, requirements.Asset); err != nil {
+		return nil, fmt.Errorf("asset contract check failed: %w", err)
+	} else if errReason != "" {
+		return nil, x402.NewVerifyError(errReason, evmPayload.Authorization.From, fmt.Sprintf("asset %s is not a deployed contract", requirements.Asset))
 	}
 
 	if simulate {
