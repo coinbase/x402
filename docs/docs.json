@@ -76,6 +76,7 @@
         "pages": [
           "extensions/overview",
           "extensions/bazaar",
+          "extensions/builder-code",
           "extensions/payment-identifier",
           "extensions/sign-in-with-x",
           "extensions/offer-receipt",
@@ -94,6 +95,15 @@
         "pages": [
           "guides/mcp-server-with-x402",
           "guides/migration-v1-to-v2"
+        ]
+      },
+      {
+        "group": "Developer Tools",
+        "pages": [
+          "dev-tools/overview",
+          "dev-tools/third-party-sdks",
+          "dev-tools/third-party-extensions",
+          "dev-tools/facilitators"
         ]
       },
       {

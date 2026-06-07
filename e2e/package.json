@@ -14,9 +14,15 @@
     "clean": "rm -rf dist",
     "clean:ports": "lsof -ti:4022-4060 | xargs kill -9 2>/dev/null || echo 'Ports cleared'",
     "permit2:approve": "tsx scripts/permit2-approval.ts approve",
-    "permit2:revoke": "tsx scripts/permit2-approval.ts revoke"
+    "permit2:revoke": "tsx scripts/permit2-approval.ts revoke",
+    "swig:setup": "tsx scripts/swig-setup.ts"
   },
   "dependencies": {
+    "@scure/base": "^1.2.6",
+    "@solana-program/token-2022": "^0.6.1",
+    "@solana/kit": "^6.1.0",
+    "@swig-wallet/kit": "^2.0.0",
+    "@swig-wallet/lib": "^2.0.0",
     "dotenv": "^17.0.1",
     "prompts": "^2.4.2",
     "tsx": "^4.21.0",

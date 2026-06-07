@@ -273,6 +273,7 @@ export function wrapAxiosWithPaymentFromConfig(
 // Re-export types and utilities for convenience
 export { x402Client, x402HTTPClient } from "@x402/core/client";
 export type {
+  HTTPResourceResponse,
   PaymentPolicy,
   SchemeRegistration,
   SelectPaymentRequirements,

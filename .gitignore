@@ -4,6 +4,7 @@ node_modules/
 dist/
 .turbo/
 .next/
+next-env.d.ts
 proxy
 .env
 __pycache__/
@@ -36,6 +37,9 @@ examples/go/servers/upto/upto
 examples/go/clients/batch-settlement/batch-settlement
 examples/go/servers/batch-settlement/batch-settlement
 examples/go/facilitator/batch-settlement/batch-settlement
+examples/go/servers/builder-codes/builder-codes
+examples/go/facilitator/builder-codes/builder-codes
+examples/go/clients/builder-codes/builder-codes
 
 # Agent artifacts
 TASK.md

@@ -14,6 +14,7 @@ import {
   EIP2612_GAS_SPONSORING,
   createErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
+import { BuilderCodeFacilitatorExtension } from "@x402/extensions/builder-code";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
@@ -110,12 +111,25 @@ async function createFacilitator(): Promise<x402Facilitator> {
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
   // Create and configure the facilitator with all networks
+  // EIP6492 allowed factory addresses for x402.org testnet facilitator
+  // To extend support for new factories, add more factory addresses to the array.
+  const eip6492AllowedFactories = [
+    "0x0BA5ED0c6AA8c49038F819E587E2633c4A9F428a", // CoinbaseSmartWalletFactory v1
+    "0xBA5ED110eFDBa3D005bfC882d75358ACBbB85842", // CoinbaseSmartWalletFactory v1.1
+  ];
+
   const facilitator = new x402Facilitator()
-    .register("eip155:84532", new ExactEvmScheme(evmSigner))
-    .registerV1("base-sepolia" as Network, new ExactEvmSchemeV1(evmSigner))
+    .register("eip155:84532", new ExactEvmScheme(evmSigner, { eip6492AllowedFactories }))
+    .registerV1(
+      "base-sepolia" as Network,
+      new ExactEvmSchemeV1(evmSigner, { eip6492AllowedFactories }),
+    )
     .register("eip155:84532", new UptoEvmScheme(evmSigner))
     .register("eip155:84532", new BatchSettlementEvmScheme(evmSigner, receiverAuthorizerSigner))
-    .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
+    .register(
+      "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      new ExactSvmScheme(svmSigner, undefined, { enableSmartWalletVerification: true }),
+    )
     .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
 
   // Optionally register Algorand if configured
@@ -181,8 +195,13 @@ async function createFacilitator(): Promise<x402Facilitator> {
     },
   };
 
-  // Register gas sponsorship extensions for Permit2 support
+  // Register facilitator extensions for builder attribution and Permit2 support
   facilitator
+    .registerExtension(
+      new BuilderCodeFacilitatorExtension({
+        builderCode: process.env.FACILITATOR_BUILDER_CODE,
+      }),
+    )
     .registerExtension(EIP2612_GAS_SPONSORING)
     .registerExtension(createErc20ApprovalGasSponsoringExtension(erc20ApprovalSigner));
 

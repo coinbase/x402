@@ -472,6 +472,37 @@ describe("paymentMiddleware", () => {
     expect(result).toBe(payload);
   });
 
+  it("strips settlement override header from client response", async () => {
+    setupMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
+    );
+
+    const { app, hooks } = createMockApp();
+    paymentMiddleware(
+      app,
+      mockRoutes,
+      {} as unknown as x402ResourceServer,
+      undefined,
+      undefined,
+      false,
+    );
+
+    const request = createMockRequest();
+    const reply = createMockReply();
+    reply._headers["Settlement-Overrides"] = JSON.stringify({ amount: "32%" });
+
+    await hooks.onRequest[0](request, reply);
+    await hooks.onSend[0](request, reply, JSON.stringify({ data: "premium content" }));
+
+    expect(reply.removeHeader).toHaveBeenCalledWith("Settlement-Overrides");
+    expect(reply._headers["Settlement-Overrides"]).toBeUndefined();
+  });
+
   it("passes Buffer payload bytes to settlement without JSON stringifying them", async () => {
     setupMockHttpServer(
       {
@@ -553,10 +584,13 @@ describe("paymentMiddleware", () => {
     await hooks.onRequest[0](request, reply);
 
     reply.statusCode = 500;
+    reply._headers["Settlement-Overrides"] = JSON.stringify({ amount: "32%" });
     const payload = JSON.stringify({ error: "Server error" });
     const result = await hooks.onSend[0](request, reply, payload);
 
     expect(mockProcessSettlement).not.toHaveBeenCalled();
+    expect(reply.removeHeader).toHaveBeenCalledWith("Settlement-Overrides");
+    expect(reply._headers["Settlement-Overrides"]).toBeUndefined();
     expect(request.x402Context?.cancellationDispatcher.cancel).toHaveBeenCalledWith(
       expect.objectContaining({
         reason: "handler_failed",
@@ -604,9 +638,12 @@ describe("paymentMiddleware", () => {
     await hooks.onRequest[0](request, reply);
 
     reply.type("application/octet-stream");
+    reply._headers["Settlement-Overrides"] = JSON.stringify({ amount: "32%" });
     const payload = JSON.stringify({ data: "premium content" });
     const result = await hooks.onSend[0](request, reply, payload);
 
+    expect(reply.removeHeader).toHaveBeenCalledWith("Settlement-Overrides");
+    expect(reply._headers["Settlement-Overrides"]).toBeUndefined();
     expect(reply.status).toHaveBeenCalledWith(402);
     expect(reply.header).toHaveBeenCalledWith("PAYMENT-RESPONSE", "failed");
     expect(reply.type).toHaveBeenCalledWith("application/json");
@@ -636,9 +673,11 @@ describe("paymentMiddleware", () => {
 
     await hooks.onRequest[0](request, reply);
 
+    reply._headers["Settlement-Overrides"] = JSON.stringify({ amount: "32%" });
     const payload = JSON.stringify({ data: "premium content" });
     const result = await hooks.onSend[0](request, reply, payload);
 
+    expect(reply.removeHeader).toHaveBeenCalledWith("Settlement-Overrides");
     expect(reply.status).toHaveBeenCalledWith(402);
     expect(reply.type).toHaveBeenCalledWith("application/json");
     expect(result).toBe(JSON.stringify({}));

@@ -1,6 +1,7 @@
 import {
   PaymentPayload,
   PaymentRequirements,
+  FacilitatorContext,
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
@@ -10,6 +11,7 @@ import { FacilitatorEvmSigner } from "../../signer";
 import { getEvmChainId } from "../../utils";
 import { ExactEIP3009Payload } from "../../types";
 import * as Errors from "./errors";
+import { resolveDataSuffix } from "../../shared/extensions";
 import {
   diagnoseEip3009SimulationFailure,
   executeTransferWithAuthorization,
@@ -24,12 +26,17 @@ export interface VerifyEIP3009Options {
 
 export interface EIP3009FacilitatorConfig {
   /**
-   * If enabled, the facilitator will deploy ERC-4337 smart wallets
-   * via EIP-6492 when encountering undeployed contract signatures.
+   * Allowlist of factory contract addresses (hex strings, case-insensitive) that the facilitator
+   * will call when deploying an undeployed smart wallet via ERC-6492.
    *
-   * @default false
+   * A non-empty list enables ERC-4337 smart wallet deployment via EIP-6492. Facilitators must
+   * explicitly list every factory they trust to prevent arbitrary transaction injection via
+   * attacker-controlled ERC-6492 signature wrappers. An empty or omitted list denies all factory
+   * deployment calls.
+   *
+   * @default []
    */
-  deployERC4337WithEIP6492: boolean;
+  eip6492AllowedFactories?: string[];
   /**
    * If enabled, simulates transaction before settling. Defaults to false, ie only simulate during verify.
    *
@@ -207,6 +214,14 @@ export async function verifyEIP3009(
     };
   }
 
+  // Reject payments whose asset is an EOA — eth_call on an EOA silently returns
+  // empty data without reverting, so simulation would pass but no Transfer event
+  // would be emitted, producing a silent no-op settlement.
+  const assetBytecode = await signer.getCode({ address: erc20Address });
+  if (!assetBytecode || assetBytecode === "0x") {
+    return { isValid: false, invalidReason: Errors.ErrAssetNotDeployedContract, payer };
+  }
+
   // Transaction simulation
   if (options?.simulate !== false) {
     const simulationSucceeded = await simulateEip3009Transfer(
@@ -241,6 +256,7 @@ export async function verifyEIP3009(
  * @param requirements - The payment requirements
  * @param eip3009Payload - The EIP-3009 specific payload
  * @param config - Facilitator configuration
+ * @param context - Optional facilitator context for extension capabilities
  * @returns Promise resolving to settlement response
  */
 export async function settleEIP3009(
@@ -249,6 +265,7 @@ export async function settleEIP3009(
   requirements: PaymentRequirements,
   eip3009Payload: ExactEIP3009Payload,
   config: EIP3009FacilitatorConfig,
+  context?: FacilitatorContext,
 ): Promise<SettleResponse> {
   const payer = eip3009Payload.authorization.from;
 
@@ -272,9 +289,8 @@ export async function settleEIP3009(
       eip3009Payload.signature!,
     );
 
-    // Deploy ERC-4337 smart wallet via EIP-6492 if configured and needed
+    // Deploy ERC-4337 smart wallet via EIP-6492 if factory is in the allowlist
     if (
-      config.deployERC4337WithEIP6492 &&
       factoryAddress &&
       factoryCalldata &&
       !isAddressEqual(factoryAddress, "0x0000000000000000000000000000000000000000")
@@ -283,6 +299,20 @@ export async function settleEIP3009(
       const bytecode = await signer.getCode({ address: payer });
 
       if (!bytecode || bytecode === "0x") {
+        const normalizedFactory = factoryAddress.toLowerCase();
+        const isAllowed = (config.eip6492AllowedFactories ?? []).some(
+          allowed => allowed.toLowerCase() === normalizedFactory,
+        );
+        if (!isAllowed) {
+          return {
+            success: false,
+            errorReason: Errors.ErrFactoryNotAllowed,
+            transaction: "",
+            network: payload.accepted.network,
+            payer,
+          };
+        }
+
         // Wallet not deployed - attempt deployment
         const deployTx = await signer.sendTransaction({
           to: factoryAddress as Hex,
@@ -294,10 +324,16 @@ export async function settleEIP3009(
       }
     }
 
+    const dataSuffix = await resolveDataSuffix(context, {
+      paymentPayload: payload,
+      paymentRequirements: requirements,
+    });
+
     const tx = await executeTransferWithAuthorization(
       signer,
       getAddress(requirements.asset),
       eip3009Payload,
+      dataSuffix,
     );
 
     // Wait for transaction confirmation

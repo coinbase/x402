@@ -98,7 +98,10 @@ function makeRequirements(overrides: Partial<PaymentRequirements> = {}): Payment
 function buildSigner(overrides: Partial<FacilitatorEvmSigner> = {}): FacilitatorEvmSigner {
   return {
     getAddresses: () => [FACILITATOR_ADDRESS],
-    readContract: vi.fn().mockResolvedValue(undefined),
+    readContract: vi.fn().mockImplementation(args => {
+      if (args.functionName === "receivers") return Promise.resolve([2500n, 0n]);
+      return Promise.resolve(undefined);
+    }),
     verifyTypedData: vi.fn().mockResolvedValue(true),
     writeContract: vi.fn().mockResolvedValue("0xtxhash" as `0x${string}`),
     sendTransaction: vi.fn(),
@@ -893,6 +896,36 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     );
   });
 
+  it("submits settle with an explicit gas limit (not an auto-estimate)", async () => {
+    // `settle` is bimodal on-chain — a no-op early-return when nothing is
+    // claimed, an ERC-20 transfer otherwise. An auto-estimate that races a
+    // node lagging the just-mined `claim` budgets the no-op path and reverts
+    // out of gas. executeSettle must pass an explicit `gas`.
+    const signer = buildSigner({
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({
+        status: "success",
+        logs: [buildSettledLog({ amount: "4321" })],
+      }),
+    });
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const sp: BatchSettlementSettlePayload = {
+      type: "settle",
+      receiver: RECEIVER,
+      token: ASSET,
+    };
+    const result = await scheme.settle(
+      envelopeSettle(sp as unknown as Record<string, unknown>),
+      makeRequirements(),
+    );
+    expect(result.success).toBe(true);
+    const settleCall = (signer.writeContract as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([arg]) => arg?.functionName === "settle",
+    );
+    expect(settleCall).toBeDefined();
+    expect(typeof settleCall?.[0].gas).toBe("bigint");
+    expect(settleCall?.[0].gas).toBeGreaterThan(0n);
+  });
+
   it("returns zero amount for no-op settle receipts without a Settled event", async () => {
     const signer = buildSigner({
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success", logs: [] }),
@@ -909,6 +942,30 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     );
     expect(result.success).toBe(true);
     expect(result.amount).toBe("0");
+  });
+
+  it("returns ErrNothingToSettle without submitting when receiver has no pending settlement", async () => {
+    const signer = buildSigner({
+      readContract: vi.fn().mockImplementation(args => {
+        if (args.functionName === "receivers") return Promise.resolve([2500n, 2500n]);
+        return Promise.resolve(undefined);
+      }),
+    });
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const sp: BatchSettlementSettlePayload = {
+      type: "settle",
+      receiver: RECEIVER,
+      token: ASSET,
+    };
+
+    const result = await scheme.settle(
+      envelopeSettle(sp as unknown as Record<string, unknown>),
+      makeRequirements(),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe(Errors.ErrNothingToSettle);
+    expect(signer.writeContract).not.toHaveBeenCalled();
   });
 
   it("returns empty amount when settle receipt logs are unavailable", async () => {
@@ -1019,6 +1076,39 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     );
   });
 
+  it("returns RefundNoBalance without submitting when a refund would transfer zero tokens", async () => {
+    const signer = buildSigner();
+    mockedMulticall.mockResolvedValue([
+      { status: "success", result: [10000n, 10000n] },
+      { status: "success", result: [0n, 0n] },
+      { status: "success", result: 0n },
+    ]);
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const config = buildChannelConfig({ receiverAuthorizer: authorizer.address });
+    const channelId = computeChannelId(config);
+    const rp: BatchSettlementEnrichedRefundPayload = {
+      type: "refund",
+      channelConfig: config,
+      voucher: {
+        channelId,
+        maxClaimableAmount: "10000",
+        signature: "0xdead",
+      },
+      amount: "9000",
+      refundNonce: "0",
+      claims: [],
+    };
+
+    const result = await scheme.settle(
+      envelopeSettle(rp as unknown as Record<string, unknown>),
+      makeRequirements(),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe(Errors.ErrRefundNoBalance);
+    expect(signer.writeContract).not.toHaveBeenCalled();
+  });
+
   it("polls post-refund state when a withdrawal is pending", async () => {
     const signer = buildSigner();
     mockedMulticall
@@ -1068,7 +1158,10 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
 
   it("returns ErrSettleSimulationFailed when settle simulation reverts", async () => {
     const signer = buildSigner({
-      readContract: vi.fn().mockRejectedValue(new Error("revert")),
+      readContract: vi.fn().mockImplementation(args => {
+        if (args.functionName === "receivers") return Promise.resolve([2500n, 0n]);
+        return Promise.reject(new Error("revert"));
+      }),
     });
     const scheme = new BatchSettlementEvmScheme(signer, authorizer);
     const sp: BatchSettlementSettlePayload = {

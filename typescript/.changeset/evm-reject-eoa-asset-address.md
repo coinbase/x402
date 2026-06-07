@@ -1,0 +1,5 @@
+---
+"@x402/evm": patch
+---
+
+Fixed a bug where EVM facilitator verify accepted payments whose asset address was an EOA. Calling any function on an EOA via `eth_call` silently returns empty data without reverting, causing on-chain simulation to pass and the subsequent settlement to land as a no-op with no `Transfer` event emitted. The fix checks `eth_getCode` on the asset address early in `verifyEIP3009`, `verifyPermit2`, and `verifyUptoPermit2`; any address with no bytecode is rejected with `asset_not_deployed_contract`.

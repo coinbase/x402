@@ -1,8 +1,6 @@
 import { toClientEvmSigner } from "@x402/evm";
-import {
-  BatchSettlementEvmScheme,
-  FileClientChannelStorage,
-} from "@x402/evm/batch-settlement/client";
+import { BatchSettlementEvmScheme } from "@x402/evm/batch-settlement/client";
+import { FileClientChannelStorage } from "@x402/evm/batch-settlement/client/file-storage";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
@@ -72,12 +70,12 @@ async function main(): Promise<void> {
     const response = await fetchWithPayment(url, { method: "GET" });
     const result = await httpClient.processResponse(response);
 
-    if (result.kind === "success") {
+    if (result.paymentStatus === "settled") {
       console.log(`Request ${i + 1} — RESPONSE`);
       console.log(result.body);
-      console.log(JSON.stringify(result.settleResponse, null, 2));
+      console.log(JSON.stringify(result.header, null, 2));
     } else {
-      console.log(`Request ${i + 1} — ${result.kind}`);
+      console.log(`Request ${i + 1} — no settlement`);
       console.log(JSON.stringify(result, null, 2));
     }
     console.log(

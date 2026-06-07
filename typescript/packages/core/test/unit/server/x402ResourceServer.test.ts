@@ -8,6 +8,7 @@ import {
   MockSchemeNetworkServer,
   buildPaymentPayload,
   buildPaymentRequirements,
+  buildPaymentRequired,
   buildSupportedResponse,
   buildVerifyResponse,
   buildSettleResponse,
@@ -1534,8 +1535,124 @@ describe("x402ResourceServer", () => {
     });
   });
 
+  describe("validateExtensions", () => {
+    const serverExtensions = {
+      bazaar: { info: { tool: "search", version: 1 } },
+      builder: { info: { code: "abc" } },
+    };
+
+    it("passes when server has no extensions", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: undefined });
+      const payload = buildPaymentPayload({
+        extensions: { bazaar: { info: { tool: "wrong" } } },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes when client omits extensions", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload();
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes when client echoes with additive info fields", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          bazaar: { info: { tool: "search", version: 1, extraField: "ok" } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes when client echoes subset of server keys only", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          bazaar: { info: { tool: "search", version: 1 } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes when client includes client-only extension key", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          clientOnly: { info: { anything: true } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes with flat extension values and additive fields", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({
+        extensions: { bazaar: { tool: "search", version: 1 } },
+      });
+      const payload = buildPaymentPayload({
+        extensions: { bazaar: { tool: "search", version: 1, extra: "ok" } },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("fails when client changes a server info field value", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          bazaar: { info: { tool: "search", version: 2 } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({
+        valid: false,
+        invalidReason: "extension_echo_mismatch",
+        extensionKey: "bazaar",
+      });
+    });
+
+    it("fails when client deletes a server info field", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          bazaar: { info: { tool: "search" } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({
+        valid: false,
+        invalidReason: "extension_echo_mismatch",
+        extensionKey: "bazaar",
+      });
+    });
+
+    it("passes for v1 payloads", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        x402Version: 1,
+        extensions: { bazaar: { info: { tool: "wrong" } } },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+  });
+
   describe("findMatchingRequirements", () => {
-    it("should match v2 requirements by deep equality", () => {
+    it("should match v2 requirements when server-declared terms are unchanged", () => {
       const server = new x402ResourceServer();
 
       const req1 = buildPaymentRequirements({
@@ -1560,6 +1677,128 @@ describe("x402ResourceServer", () => {
       const result = server.findMatchingRequirements([req1, req2], payload);
 
       expect(result).toEqual(req1);
+    });
+
+    it("should match v2 requirements with additive accepted.extra fields", () => {
+      const server = new x402ResourceServer();
+
+      const req = buildPaymentRequirements({
+        scheme: "batch-settlement",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+        asset: "USDC",
+        extra: {
+          name: "USDC",
+          version: "2",
+          nested: { required: true },
+        },
+      });
+
+      const payload = buildPaymentPayload({
+        x402Version: 2,
+        accepted: {
+          ...req,
+          extra: {
+            ...req.extra,
+            nested: { required: true, clientOnly: "ok" },
+            channelState: { chargedCumulativeAmount: "2000" },
+          },
+        },
+      });
+
+      const result = server.findMatchingRequirements([req], payload);
+
+      expect(result).toEqual(req);
+    });
+
+    it("should match v2 requirements when server extra has undefined fields omitted by transport", () => {
+      const server = new x402ResourceServer();
+
+      const req = buildPaymentRequirements({
+        scheme: "batch-settlement",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+        asset: "USDC",
+        extra: {
+          name: "USDC",
+          version: "2",
+          assetTransferMethod: undefined,
+        },
+      });
+
+      const payload = buildPaymentPayload({
+        x402Version: 2,
+        accepted: {
+          ...req,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      });
+
+      const result = server.findMatchingRequirements([req], payload);
+
+      expect(result).toEqual(req);
+    });
+
+    it("should not match v2 requirements when accepted.extra overwrites server fields", () => {
+      const server = new x402ResourceServer();
+
+      const req = buildPaymentRequirements({
+        scheme: "batch-settlement",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+        asset: "USDC",
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      });
+
+      const payload = buildPaymentPayload({
+        x402Version: 2,
+        accepted: {
+          ...req,
+          extra: {
+            ...req.extra,
+            version: "3",
+          },
+        },
+      });
+
+      const result = server.findMatchingRequirements([req], payload);
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should not match v2 requirements when accepted.extra omits server fields", () => {
+      const server = new x402ResourceServer();
+
+      const req = buildPaymentRequirements({
+        scheme: "batch-settlement",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+        asset: "USDC",
+        extra: {
+          name: "USDC",
+          version: "2",
+        },
+      });
+
+      const payload = buildPaymentPayload({
+        x402Version: 2,
+        accepted: {
+          ...req,
+          extra: {
+            name: "USDC",
+          },
+        },
+      });
+
+      const result = server.findMatchingRequirements([req], payload);
+
+      expect(result).toBeUndefined();
     });
 
     it("should match v1 requirements by scheme and network", () => {

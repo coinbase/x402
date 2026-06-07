@@ -166,6 +166,10 @@ export type OnVerifiedPaymentCanceledHook = (
  * partial settlement, such as the `upto` scheme. Using this with standard
  * x402 schemes (e.g., `exact`) will likely cause settlement verification to fail.
  */
+export type ExtensionValidationResult =
+  | { valid: true }
+  | { valid: false; invalidReason: "extension_echo_mismatch"; extensionKey: string };
+
 export interface SettlementOverrides {
   /**
    * Amount to settle. Supports three formats:
@@ -1250,15 +1254,68 @@ export class x402ResourceServer {
    * @param paymentPayload - The payment payload
    * @returns Matching payment requirements or undefined
    */
+  /**
+   * Validates optional client extension echoes against server-advertised extension info.
+   * When the client omits extensions entirely, validation passes.
+   *
+   * @param paymentRequired - Server payment required response used for matching
+   * @param paymentPayload - Client payment payload
+   * @returns Whether echoed extension info preserves server-advertised values
+   */
+  validateExtensions(
+    paymentRequired: PaymentRequired,
+    paymentPayload: PaymentPayload,
+  ): ExtensionValidationResult {
+    if (paymentPayload.x402Version !== 2) {
+      return { valid: true };
+    }
+
+    const serverExtensions = paymentRequired.extensions;
+    if (!serverExtensions || Object.keys(serverExtensions).length === 0) {
+      return { valid: true };
+    }
+
+    const clientExtensions = paymentPayload.extensions;
+    if (!clientExtensions || Object.keys(clientExtensions).length === 0) {
+      return { valid: true };
+    }
+
+    for (const [key, echoedValue] of Object.entries(clientExtensions)) {
+      if (!Object.prototype.hasOwnProperty.call(serverExtensions, key)) {
+        continue;
+      }
+
+      const advertisedInfo = getExtensionInfo(serverExtensions[key]);
+      const echoedInfo = getExtensionInfo(echoedValue);
+      if (!extensionInfoMatchesAdvertised(advertisedInfo, echoedInfo)) {
+        return {
+          valid: false,
+          invalidReason: "extension_echo_mismatch",
+          extensionKey: key,
+        };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Finds the server-advertised requirement that matches a client payment payload.
+   *
+   * @param availableRequirements - Payment requirements advertised for the resource.
+   * @param paymentPayload - Signed payment payload from the client.
+   * @returns The matching requirement, or undefined when none match.
+   */
   findMatchingRequirements(
     availableRequirements: PaymentRequirements[],
     paymentPayload: PaymentPayload,
   ): PaymentRequirements | undefined {
     switch (paymentPayload.x402Version) {
       case 2:
-        // For v2, match by accepted requirements
+        // For v2, all server-declared requirements must match.
+        // The client may include additive scheme-specific metadata under `accepted.extra`.
         return availableRequirements.find(paymentRequirements =>
-          deepEqual(paymentRequirements, paymentPayload.accepted),
+          paymentRequirementsMatchAccepted(paymentRequirements, paymentPayload.accepted),
         );
       case 1:
         // For v1, match by scheme and network
@@ -1514,6 +1571,90 @@ export class x402ResourceServer {
     // Use findByNetworkAndScheme for pattern matching
     return findByNetworkAndScheme(versionMap, scheme, network);
   }
+}
+
+/**
+ * Normalizes an extension declaration or echo to its comparable `info` payload.
+ *
+ * @param value - Extension value that may wrap its payload under `info`.
+ * @returns The nested `info` value when present; otherwise `value` unchanged.
+ */
+function getExtensionInfo(value: unknown): unknown {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, "info")
+  ) {
+    return (value as Record<string, unknown>).info;
+  }
+  return value;
+}
+
+/**
+ * Returns whether a client-echoed extension payload preserves the server advertisement.
+ *
+ * @param advertised - Extension info advertised by the server.
+ * @param echoed - Extension info echoed back by the client.
+ * @returns True when `echoed` contains every field from `advertised`.
+ */
+function extensionInfoMatchesAdvertised(advertised: unknown, echoed: unknown): boolean {
+  return objectContainsSubset(advertised, echoed);
+}
+
+/**
+ * Returns whether a client-selected requirement satisfies a server-advertised requirement.
+ *
+ * Core payment terms and all server-declared `extra` fields must match exactly,
+ * but clients may include additive scheme-specific metadata under `accepted.extra`.
+ *
+ * @param required - Server-advertised payment requirement.
+ * @param accepted - Client-selected payment requirement from the payment payload.
+ * @returns True when `accepted` preserves every server-declared requirement.
+ */
+function paymentRequirementsMatchAccepted(
+  required: PaymentRequirements,
+  accepted: PaymentRequirements,
+): boolean {
+  const { extra: requiredExtra, ...requiredCore } = required;
+  const { extra: acceptedExtra, ...acceptedCore } = accepted;
+
+  if (!deepEqual(requiredCore, acceptedCore)) {
+    return false;
+  }
+
+  if (requiredExtra === undefined) {
+    return true;
+  }
+
+  return objectContainsSubset(requiredExtra, acceptedExtra);
+}
+
+/**
+ * Recursively checks that `actual` contains every field and value from `expected`.
+ * Object values may contain additional fields; arrays and primitives must match exactly.
+ *
+ * @param expected - Required subset.
+ * @param actual - Candidate object.
+ * @returns True when `actual` contains `expected`.
+ */
+function objectContainsSubset(expected: unknown, actual: unknown): boolean {
+  if (expected === null || typeof expected !== "object" || Array.isArray(expected)) {
+    return deepEqual(expected, actual);
+  }
+
+  if (actual === null || typeof actual !== "object" || Array.isArray(actual)) {
+    return false;
+  }
+
+  const actualRecord = actual as Record<string, unknown>;
+  return Object.entries(expected as Record<string, unknown>).every(([key, value]) => {
+    const hasActualKey = Object.prototype.hasOwnProperty.call(actualRecord, key);
+    if (!hasActualKey) {
+      return value === undefined;
+    }
+    return objectContainsSubset(value, actualRecord[key]);
+  });
 }
 
 export default x402ResourceServer;

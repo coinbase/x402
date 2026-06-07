@@ -46,6 +46,7 @@ vi.mock("@x402/core/server", () => ({
     }
     return null;
   },
+  SETTLEMENT_OVERRIDES_HEADER: "Settlement-Overrides",
   x402ResourceServer: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     registerExtension: vi.fn(),

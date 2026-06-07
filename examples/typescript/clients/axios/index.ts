@@ -40,16 +40,16 @@ async function main(): Promise<void> {
   client.register("solana:*", new ExactSvmScheme(svmSigner));
 
   const api = wrapAxiosWithPayment(axios.create(), client);
+  const httpClient = new x402HTTPClient(client);
 
   console.log(`Making request to: ${url}\n`);
   const response = await api.get(url);
-  const body = response.data;
-  console.log("Response body:", body);
-
-  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
-    name => response.headers[name.toLowerCase()],
-  );
-  console.log("\nPayment response:", paymentResponse);
+  const result = httpClient.parsePaymentResult({
+    status: response.status,
+    getHeader: name => response.headers[name.toLowerCase()],
+    body: response.data,
+  });
+  console.dir(result, { depth: null });
 }
 
 main().catch(error => {

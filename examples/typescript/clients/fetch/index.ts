@@ -39,19 +39,12 @@ async function main(): Promise<void> {
   client.register("solana:*", new ExactSvmScheme(svmSigner));
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+  const httpClient = new x402HTTPClient(client);
 
   console.log(`Making request to: ${url}\n`);
   const response = await fetchWithPayment(url, { method: "GET" });
-  const contentType = response.headers.get("content-type") ?? "";
-  const body = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
-  console.log("Response body:", body);
-
-  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
-    response.headers.get(name),
-  );
-  console.log("\nPayment response:", JSON.stringify(paymentResponse, null, 2));
+  const result = await httpClient.processResponse(response);
+  console.dir(result, { depth: null });
 }
 
 main().catch(error => {

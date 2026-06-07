@@ -22,6 +22,7 @@ import { verifyVoucher } from "./voucher";
 import { executeClaimWithSignature } from "./claim";
 import { executeSettle } from "./settle";
 import { executeRefundWithSignature } from "./refund";
+import { resolveDataSuffix } from "../../shared/extensions";
 import * as Errors from "../errors";
 
 /**
@@ -76,12 +77,14 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
    * @param payload - The x402 payment payload envelope.
    * @param requirements - Server payment requirements (scheme, network, asset, amount).
    * @param context - Optional facilitator extension context.
+   * @param _ - Payment required extensions (unused; reserved for interface parity)
    * @returns A {@link VerifyResponse} indicating validity with payer and channel state in `extra`.
    */
   async verify(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
     context?: FacilitatorContext,
+    _?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
     const rawPayload = payload.payload;
 
@@ -132,8 +135,13 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload;
 
+    const dataSuffix = await resolveDataSuffix(context, {
+      paymentPayload: payload,
+      paymentRequirements: requirements,
+    });
+
     if (isBatchSettlementDepositPayload(rawPayload)) {
-      return settleDeposit(this.signer, payload, rawPayload, requirements, context);
+      return settleDeposit(this.signer, payload, rawPayload, requirements, context, dataSuffix);
     }
 
     if (isBatchSettlementClaimPayload(rawPayload)) {
@@ -142,6 +150,7 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
         rawPayload,
         requirements,
         this.authorizerSigner,
+        dataSuffix,
       );
     }
 
@@ -151,11 +160,12 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
         rawPayload,
         requirements,
         this.authorizerSigner,
+        dataSuffix,
       );
     }
 
     if (isBatchSettlementSettlePayload(rawPayload)) {
-      return executeSettle(this.signer, rawPayload, requirements);
+      return executeSettle(this.signer, rawPayload, requirements, dataSuffix);
     }
 
     return {

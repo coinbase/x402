@@ -24,6 +24,7 @@ from ....schemas import (  # noqa: E402
 )
 from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
+    ERR_ASSET_NOT_DEPLOYED_CONTRACT,
     ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
@@ -51,6 +52,7 @@ from ..constants import (  # noqa: E402
     X402_UPTO_PERMIT2_PROXY_ADDRESS,
     X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI,
 )
+from ..erc6492 import parse_erc6492_signature  # noqa: E402
 
 # Reuse exact's allowance verification and settle error mapping
 from ..exact.permit2_utils import (  # noqa: E402
@@ -109,6 +111,12 @@ def verify_upto_permit2(
             is_valid=False, invalid_reason=ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG, payer=payer
         )
     token_address = normalize_address(requirements.asset)
+
+    code = signer.get_code(token_address)
+    if len(code) == 0:
+        return VerifyResponse(
+            is_valid=False, invalid_reason=ERR_ASSET_NOT_DEPLOYED_CONTRACT, payer=payer
+        )
 
     # 3. Spender check
     try:
@@ -568,7 +576,9 @@ def _build_upto_permit2_settle_args(
 
     Returns (permit_tuple, amount, owner_addr, witness_tuple, sig_bytes).
     """
-    sig_bytes = hex_to_bytes(permit2_payload.signature or "")
+    sig_bytes = parse_erc6492_signature(
+        hex_to_bytes(permit2_payload.signature or "")
+    ).inner_signature
     permit_tuple = (
         (
             to_checksum_address(permit2_payload.permit2_authorization.permitted.token),

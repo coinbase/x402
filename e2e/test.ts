@@ -8,7 +8,7 @@ import { base, baseSepolia } from 'viem/chains';
 import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult, ServerConfig, TestScenario, endpointAssetTransferMethod, endpointPaymentScheme, endpointUsesBatchSettlement } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger, createComboLogger } from './src/logger';
-import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
+import { handleDiscoveryValidation, shouldRunDiscoveryValidation, type TestedDiscoveryScenario } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
 import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
@@ -126,6 +126,80 @@ async function revokePermit2Approval(tokenAddress?: string): Promise<boolean> {
 
     child.on('error', (error) => {
       errorLog(`  ❌ Failed to run Permit2 revoke: ${error.message}`);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Prepare Swig smart-wallet state for svm-smart-wallet e2e client tests.
+ * Called before each endpoint; creates/funds via scripts/swig-setup.ts when balance is low.
+ */
+async function setupSwigWallet(svmRpcUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    verboseLog('  🔧 Running Swig wallet setup...');
+
+    const child = spawn('tsx', ['scripts/swig-setup.ts'], {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      shell: true,
+      env: {
+        ...process.env,
+        SVM_RPC_URL: svmRpcUrl,
+      },
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      const text = data.toString();
+      stdout += text;
+      verboseLog(text.trim());
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      verboseLog(data.toString().trim());
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        errorLog(`  ❌ Swig setup failed (exit code ${code})`);
+        if (stderr) {
+          errorLog(`  Error: ${stderr}`);
+        }
+        resolve(false);
+        return;
+      }
+
+      const lines = stdout.trim().split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const parsed = JSON.parse(lines[i]!) as { ok?: boolean; swigAccountAddress?: string };
+          if (parsed.ok && parsed.swigAccountAddress) {
+            process.env.SWIG_ACCOUNT_ADDRESS = parsed.swigAccountAddress;
+            verboseLog(`  ✅ Swig setup complete: ${parsed.swigAccountAddress}`);
+            resolve(true);
+            return;
+          }
+        } catch {
+          // not JSON — keep scanning
+        }
+      }
+
+      if (process.env.SWIG_ACCOUNT_ADDRESS) {
+        verboseLog(`  ✅ Swig setup complete (using SWIG_ACCOUNT_ADDRESS=${process.env.SWIG_ACCOUNT_ADDRESS})`);
+        resolve(true);
+        return;
+      }
+
+      errorLog('  ❌ Swig setup succeeded but no swigAccountAddress in output');
+      resolve(false);
+    });
+
+    child.on('error', (error) => {
+      errorLog(`  ❌ Failed to run Swig setup: ${error.message}`);
       resolve(false);
     });
   });
@@ -782,6 +856,15 @@ async function runTest() {
     }
   }
 
+  const hasSwigSmartWalletScenarios = filteredScenarios.some(
+    s => s.client.name === 'svm-smart-wallet',
+  );
+
+  if (hasSwigSmartWalletScenarios) {
+    log('🔧 Swig smart-wallet scenarios detected — swig-setup runs before each endpoint when balance is low');
+    log('');
+  }
+
   // Collect unique facilitators and servers
   const uniqueFacilitators = new Map<string, any>();
   const uniqueServers = new Map<string, any>();
@@ -815,6 +898,7 @@ async function runTest() {
     'TVM_NETWORK',
     'EVM_RPC_URL',
     'SVM_RPC_URL',
+    'SWIG_ACCOUNT_ADDRESS',
     'APTOS_RPC_URL',
     'HEDERA_NODE_URL',
     'STELLAR_RPC_URL',
@@ -1008,7 +1092,7 @@ async function runTest() {
   }
   log('');
 
-  // Track which facilitators processed which servers (for discovery validation)
+  // Track which facilitators processed which servers (legacy discovery fallback)
   const facilitatorServerMap = new Map<string, Set<string>>(); // facilitatorName -> Set<serverName>
 
   // ── Helper: run a single test scenario ────────────────────────────────
@@ -1036,6 +1120,8 @@ async function runTest() {
       endpointPath: scenario.endpoint.path,
       evmNetwork: networks.evm.caip2,
       evmRpcUrl: networks.evm.rpcUrl,
+      svmNetwork: networks.svm.caip2,
+      svmRpcUrl: networks.svm.rpcUrl,
       hederaNetwork: networks.hedera.caip2,
       hederaNodeUrl: networks.hedera.rpcUrl,
       tvmNetwork: networks.tvm.caip2,
@@ -1268,6 +1354,7 @@ async function runTest() {
     const facilitatorSupportsAptos = facilitatorConfig?.protocolFamilies?.includes('aptos') ?? false;
     const facilitatorSupportsHedera = facilitatorConfig?.protocolFamilies?.includes('hedera') ?? false;
     const facilitatorSupportsStellar = facilitatorConfig?.protocolFamilies?.includes('stellar') ?? false;
+    const facilitatorSupportsTvm = facilitatorConfig?.protocolFamilies?.includes('tvm') ?? false;
 
     const serverConfig: ServerConfig = {
       port,
@@ -1284,7 +1371,7 @@ async function runTest() {
       hederaAsset: process.env.HEDERA_ASSET,
       hederaAmount: process.env.HEDERA_AMOUNT,
       stellarPayTo: facilitatorSupportsStellar ? (serverStellarAddress || '') : '',
-      tvmPayTo: serverTvmAddress || '',
+      tvmPayTo: facilitatorSupportsTvm ? (serverTvmAddress || '') : '',
       networks,
       facilitatorUrl,
       mockFacilitatorUrl,
@@ -1325,6 +1412,10 @@ async function runTest() {
       for (const scenario of scenarios) {
         const tn = nextTestNumber();
         const isEvm = scenario.protocolFamily === 'evm';
+
+        if (scenario.client.name === 'svm-smart-wallet') {
+          await setupSwigWallet(networks.svm.rpcUrl);
+        }
 
         if (scenario.endpoint.schemeOptions?.permit2Direct === true) {
           await approvePermit2Approval(evmPermit2Asset);
@@ -1411,11 +1502,31 @@ async function runTest() {
 
   const serversArray = Array.from(uniqueServers.values());
 
-  // Build a serverName→port map for discovery validation (first combo per server).
+  // Build a serverName→port map for legacy discovery validation fallback.
   const discoveryServerPorts = new Map<string, number>();
   for (const combo of serverFacilitatorCombos) {
     if (!discoveryServerPorts.has(combo.serverName)) {
       discoveryServerPorts.set(combo.serverName, combo.port);
+    }
+  }
+
+  // Expected discovery entries must use the port from each facilitator+server combo.
+  const testedDiscoveryScenarios: TestedDiscoveryScenario[] = [];
+  for (const combo of serverFacilitatorCombos) {
+    if (!combo.facilitatorName) {
+      continue;
+    }
+    const server = uniqueServers.get(combo.serverName);
+    if (!server) {
+      continue;
+    }
+    for (const scenario of combo.scenarios) {
+      testedDiscoveryScenarios.push({
+        facilitatorName: combo.facilitatorName,
+        server,
+        serverPort: combo.port,
+        endpoint: scenario.endpoint,
+      });
     }
   }
 
@@ -1428,7 +1539,8 @@ async function runTest() {
       facilitatorsWithConfig,
       serversArray,
       discoveryServerPorts,
-      facilitatorServerMap
+      facilitatorServerMap,
+      testedDiscoveryScenarios,
     );
     discoveryFailed = !discoveryResult.success;
   }

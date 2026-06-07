@@ -3,16 +3,17 @@ package facilitator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
-	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
-	"github.com/x402-foundation/x402/go/mechanisms/evm"
-	exactfacilitator "github.com/x402-foundation/x402/go/mechanisms/evm/exact/facilitator"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	exactfacilitator "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/facilitator"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // VerifyUptoPermit2 verifies an upto Permit2 payment payload against the given requirements.
@@ -42,6 +43,12 @@ func VerifyUptoPermit2(
 	}
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
+
+	if errReason, err := evm.ValidateAssetIsContract(ctx, signer, requirements.Asset); err != nil {
+		return nil, fmt.Errorf("asset contract check failed: %w", err)
+	} else if errReason != "" {
+		return nil, x402.NewVerifyError(errReason, payer, fmt.Sprintf("asset %s is not a deployed contract", requirements.Asset))
+	}
 
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Spender, evm.X402UptoPermit2ProxyAddress) {
 		return nil, x402.NewVerifyError(ErrPermit2InvalidSpender, payer, "invalid spender")

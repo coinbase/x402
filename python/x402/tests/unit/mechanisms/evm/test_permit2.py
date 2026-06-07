@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from x402.mechanisms.evm.constants import (
+    ERR_ASSET_NOT_DEPLOYED_CONTRACT,
     ERR_INSUFFICIENT_BALANCE,
     ERR_NETWORK_MISMATCH,
     ERR_PERMIT2_ALLOWANCE_REQUIRED,
@@ -170,6 +171,9 @@ class MockFacilitatorSigner:
         return 84532
 
     def get_code(self, address: str) -> bytes:
+        # Token contract is always deployed; other addresses (payer) default to EOA.
+        if address.lower() == TOKEN_ADDRESS.lower():
+            return b"\x60"
         return b""
 
 
@@ -367,6 +371,18 @@ class TestVerifyPermit2:
             result = self._verify(facilitator)
         assert result.is_valid is False
         assert result.invalid_reason == ERR_INSUFFICIENT_BALANCE
+
+    def test_verify_rejects_eoa_asset(self):
+        # Asset address with no bytecode must be rejected before signature checks.
+        # The mock returns non-empty code for TOKEN_ADDRESS by default; override to EOA.
+        class _EOAAssetSigner(MockFacilitatorSigner):
+            def get_code(self, address: str) -> bytes:
+                return b""  # all addresses, including token, are EOAs
+
+        facilitator = ExactEvmFacilitatorScheme(_EOAAssetSigner())
+        result = self._verify(facilitator)
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_ASSET_NOT_DEPLOYED_CONTRACT
 
 
 # ============================================================================

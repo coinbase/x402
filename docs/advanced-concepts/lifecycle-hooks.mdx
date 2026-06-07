@@ -73,7 +73,7 @@ These server-level hooks run for every payment regardless of which extensions ar
   </Tab>
   <Tab title="Go">
     ```go
-    import x402 "github.com/x402-foundation/x402/go"
+    import x402 "github.com/x402-foundation/x402/go/v2"
 
     server := x402.Newx402ResourceServer(facilitatorClient)
 
@@ -118,14 +118,28 @@ Register hooks for HTTP-specific request handling before payment processing. Use
     ```
   </Tab>
   <Tab title="Python">
-    *Coming soon.*
+    ```python
+    from x402 import x402ResourceServer
+    from x402.http import x402HTTPResourceServer
+    from x402.schemas.hooks import GrantAccessResult
+
+    server = x402ResourceServer(facilitator_client)
+    http_server = x402HTTPResourceServer(server, routes)
+
+    async def allow_subscribers(context, route_config):
+        api_key = context.adapter.get_header("X-API-Key")
+        if api_key and await is_valid_api_key(api_key):
+            return GrantAccessResult()
+
+    http_server.on_protected_request(allow_subscribers)
+    ```
   </Tab>
   <Tab title="Go">
     ```go
     import (
         "context"
-        x402 "github.com/x402-foundation/x402/go"
-        x402http "github.com/x402-foundation/x402/go/http"
+        x402 "github.com/x402-foundation/x402/go/v2"
+        x402http "github.com/x402-foundation/x402/go/v2/http"
     )
 
     // Create resource server
@@ -179,8 +193,7 @@ Register hooks on the core client for payment payload creation lifecycle events.
   </Tab>
   <Tab title="Python">
     ```python
-    from x402 import x402Client
-    from x402.types import AbortResult
+    from x402 import x402Client, AbortResult
 
     client = x402Client()
 
@@ -189,7 +202,7 @@ Register hooks on the core client for payment payload creation lifecycle events.
         requested_amount = int(context.selected_requirements.amount)
 
         if requested_amount > max_amount:
-            return AbortResult(abort=True, reason="Payment exceeds spending limit")
+            return AbortResult(reason="Payment exceeds spending limit")
 
     client.on_before_payment_creation(enforce_spending_limit)
     ```
@@ -197,8 +210,7 @@ Register hooks on the core client for payment payload creation lifecycle events.
     For synchronous applications, use `x402ClientSync`:
 
     ```python
-    from x402 import x402ClientSync
-    from x402.types import AbortResult
+    from x402 import x402ClientSync, AbortResult
 
     client = x402ClientSync()
 
@@ -207,14 +219,14 @@ Register hooks on the core client for payment payload creation lifecycle events.
         requested_amount = int(context.selected_requirements.amount)
 
         if requested_amount > max_amount:
-            return AbortResult(abort=True, reason="Payment exceeds spending limit")
+            return AbortResult(reason="Payment exceeds spending limit")
 
     client.on_before_payment_creation(enforce_spending_limit)
     ```
   </Tab>
   <Tab title="Go">
     ```go
-    import x402 "github.com/x402-foundation/x402/go"
+    import x402 "github.com/x402-foundation/x402/go/v2"
 
     client := x402.Newx402Client()
 
@@ -262,7 +274,25 @@ Register hooks for HTTP-specific payment required handling. Use cases include tr
     ```
   </Tab>
   <Tab title="Python">
-    *Coming soon.*
+    ```python
+    import os
+
+    from x402 import x402Client
+    from x402.http import x402HTTPClient
+    from x402.schemas.hooks import PaymentRequiredHeadersResult
+
+    client = x402Client()
+    http_client = x402HTTPClient(client)
+
+    async def try_api_key(context):
+        api_key = os.environ.get("API_KEY")
+        if api_key:
+            return PaymentRequiredHeadersResult(
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
+
+    http_client.on_payment_required(try_api_key)
+    ```
   </Tab>
   <Tab title="Go">
     *Coming soon.*
@@ -346,7 +376,7 @@ Register hooks on the facilitator for verification and settlement lifecycle even
   </Tab>
   <Tab title="Go">
     ```go
-    import x402 "github.com/x402-foundation/x402/go"
+    import x402 "github.com/x402-foundation/x402/go/v2"
 
     facilitator := x402.Newx402Facilitator()
 
@@ -366,6 +396,68 @@ Register hooks on the facilitator for verification and settlement lifecycle even
     ```
   </Tab>
 </Tabs>
+
+## MCP Hooks
+
+### x402MCPClient (MCP client)
+
+Register hooks on the MCP client for payment lifecycle events specific to tool calls. Use cases include logging payments, enforcing per-tool spending limits or auditing payment receipts.
+
+* **onPaymentRequired** — Runs when a 402 payment required response is received from a tool call. First hook to return a result wins. Return `{ abort: true }` to cancel, `{ payment }` to supply a pre-built payload, or `void` to proceed with normal payment flow.
+* **onBeforePayment** — Runs after payment approval but before the payment payload is created.
+* **onAfterPayment** — Runs after the payment payload is submitted and the tool result is received.
+
+```typescript
+import { x402MCPClient } from "@x402/mcp";
+
+const client = new x402MCPClient(mcpClient, paymentClient);
+
+client
+  .onPaymentRequired(async ({ toolName, paymentRequired }) => {
+    if (blocklist.has(toolName)) {
+      return { abort: true };
+    }
+    // Return undefined to proceed with normal payment flow
+  })
+  .onBeforePayment(async ({ toolName, paymentRequired }) => {
+    console.log(`Creating payment for tool: ${toolName}`);
+  })
+  .onAfterPayment(async ({ toolName, paymentPayload, result, settleResponse }) => {
+    await auditLog.record({
+      tool: toolName,
+      transaction: settleResponse?.transaction,
+    });
+  });
+```
+
+### x402MCPServer payment wrapper (MCP server)
+
+Register hooks in the `PaymentWrapperConfig.hooks` object when creating a payment wrapper. Use cases include rate limiting, logging tool executions or sending payment receipts.
+
+* **onBeforeExecution** — Runs after payment verification, before the tool handler executes. Return `false` to abort execution.
+* **onAfterExecution** — Runs after the tool handler returns, before settlement.
+* **onAfterSettlement** — Runs after successful payment settlement.
+
+```typescript
+import { createPaymentWrapper } from "@x402/mcp";
+
+const paid = createPaymentWrapper(resourceServer, {
+  accepts,
+  hooks: {
+    onBeforeExecution: async ({ toolName, paymentPayload }) => {
+      if (await isRateLimited(paymentPayload.payer)) {
+        return false; // Abort execution
+      }
+    },
+    onAfterExecution: async ({ toolName, result }) => {
+      console.log(`Tool ${toolName} executed successfully`);
+    },
+    onAfterSettlement: async ({ settlement }) => {
+      await sendReceipt({ transaction: settlement.transaction });
+    },
+  },
+});
+```
 
 ## Hook Chaining
 

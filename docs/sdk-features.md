@@ -47,8 +47,8 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | exact | hedera | - | ✅ | ❌ | ❌ |
 | exact | tvm | - | ❌ | ❌ | ✅ |
 | upto | evm | `permit2` | ✅ | ✅ | ✅ |
-| batch-settlement | evm | `eip3009` | ✅ | ✅ | ❌ |
-| batch-settlement | evm | `permit2` | ✅ | ✅ | ❌ |
+| batch-settlement | evm | `eip3009` | ✅ | ✅ | ✅ |
+| batch-settlement | evm | `permit2` | ✅ | ✅ | ✅ |
 
 ## Extensions
 
@@ -57,7 +57,8 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | bazaar (server) | ✅ | ✅ | ✅ |
 | bazaar (facilitator client - list) | ✅ | ✅ | ✅ |
 | bazaar (facilitator client - search) | ✅ | ✅ | ✅ |
-| sign-in-with-x | ✅ | ❌ | ❌ |
+| builder-code | ✅ | ❌ | ❌ |
+| sign-in-with-x | ✅ | ❌ | ✅ |
 | payment-identifier | ✅ | ✅ | ✅ |
 | offer-receipt | ✅ | ❌ | ❌ |
 | eip2612-gas-sponsoring | ✅ | ✅ | ✅ |
@@ -70,8 +71,8 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | onBeforePaymentCreation | ✅ | ✅ | ✅ |
 | onAfterPaymentCreation | ✅ | ✅ | ✅ |
 | onPaymentCreationFailure | ✅ | ✅ | ✅ |
-| onPaymentResponse | ✅ | ✅ | ❌ |
-| onPaymentRequired (HTTP) | ✅ | ❌ | ❌ |
+| onPaymentResponse | ✅ | ✅ | ✅ |
+| onPaymentRequired (HTTP) | ✅ | ❌ | ✅ |
 
 ## Server Hooks
 
@@ -83,8 +84,8 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | onBeforeSettle | ✅ | ✅ | ✅ |
 | onAfterSettle | ✅ | ✅ | ✅ |
 | onSettleFailure | ✅ | ✅ | ✅ |
-| onVerifiedPaymentCanceled | ✅ | ✅ | ❌ |
-| onProtectedRequest (HTTP) | ✅ | ✅ | ❌ |
+| onVerifiedPaymentCanceled | ✅ | ✅ | ✅ |
+| onProtectedRequest (HTTP) | ✅ | ✅ | ✅ |
 
 ## Facilitator Hooks
 
@@ -102,15 +103,18 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | Hook | TypeScript | Go | Python |
 |------|------------|-----|--------|
 | enrichDeclaration | ✅ | ✅ | ✅ |
-| enrichPaymentRequiredResponse | ✅ | ❌ | ❌ |
-| enrichSettlementResponse | ✅ | ❌ | ❌ |
+| enrichPaymentRequiredResponse | ✅ | ❌ | ✅ |
+| enrichSettlementResponse | ✅ | ❌ | ✅ |
 
 ## Hook Adapter Features
 
 | Feature | TypeScript | Go | Python |
 |---------|------------|-----|--------|
-| Scheme-level lifecycle hook adapters | ✅ | ✅ | ❌ |
-| Extension-level lifecycle hook adapters | ✅ | ✅ | ❌ |
+| Scheme-level lifecycle hook adapters | ✅ | ✅ | ✅ |
+| Extension-level server lifecycle hook adapters | ✅ | ✅ | ✅ |
+| Extension-level server HTTP transport hook adapters | ✅ | ❌ | ✅ |
+| Extension-level client lifecycle hook adapters | ✅ | ❌ | ✅ |
+| Extension-level client HTTP transport hook adapters | ✅ | ❌ | ✅ |
 
 ## MCP (Model Context Protocol)
 
@@ -119,6 +123,22 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | MCP server payment wrapper | ✅ | ✅ | ✅ |
 | MCP client (auto-pay tools) | ✅ | ✅ | ✅ |
 | Bazaar discovery for MCP tools | ✅ | ✅ | ✅ |
+
+### MCP Client Hooks
+
+| Hook | TypeScript | Go | Python |
+|------|------------|-----|--------|
+| onPaymentRequired | ✅ | ❌ | ❌ |
+| onBeforePayment | ✅ | ❌ | ❌ |
+| onAfterPayment | ✅ | ❌ | ❌ |
+
+### MCP Server Hooks (payment wrapper)
+
+| Hook | TypeScript | Go | Python |
+|------|------------|-----|--------|
+| onBeforeExecution | ✅ | ❌ | ❌ |
+| onAfterExecution | ✅ | ❌ | ❌ |
+| onAfterSettlement | ✅ | ❌ | ❌ |
 
 ## HTTP Server Features
 

@@ -322,9 +322,11 @@ X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI = [
 ]
 
 # Error codes
+ERR_ASSET_NOT_DEPLOYED_CONTRACT = "asset_not_deployed_contract"
 ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
 ERR_UNDEPLOYED_SMART_WALLET = "invalid_exact_evm_payload_undeployed_smart_wallet"
 ERR_SMART_WALLET_DEPLOYMENT_FAILED = "smart_wallet_deployment_failed"
+ERR_FACTORY_NOT_ALLOWED = "eip6492_factory_not_allowed"
 ERR_RECIPIENT_MISMATCH = "invalid_exact_evm_payload_recipient_mismatch"
 ERR_AUTHORIZATION_VALUE_MISMATCH = "invalid_exact_evm_payload_authorization_value_mismatch"
 ERR_VALID_BEFORE_EXPIRED = "invalid_exact_evm_payload_authorization_valid_before"
@@ -532,6 +534,36 @@ NETWORK_CONFIGS: dict[str, NetworkConfig] = {
             "decimals": 6,
             "asset_transfer_method": "permit2",
             "supports_eip2612": True,
+        },
+    },
+    # ADI Chain
+    "eip155:36900": {
+        "chain_id": 36900,
+        "default_asset": {
+            "address": "0x9cb8142aEBBcdc60AF7c97Af897A67A8f3CA71C2",
+            "name": "USDC.e",
+            "version": "2",
+            "decimals": 6,
+        },
+    },
+    # HPP Mainnet
+    "eip155:190415": {
+        "chain_id": 190415,
+        "default_asset": {
+            "address": "0x401eCb1D350407f13ba348573E5630B83638E30D",
+            "name": "Bridged USDC",
+            "version": "2",
+            "decimals": 6,
+        },
+    },
+    # HPP Sepolia
+    "eip155:181228": {
+        "chain_id": 181228,
+        "default_asset": {
+            "address": "0x401eCb1D350407f13ba348573E5630B83638E30D",
+            "name": "Bridged USDC",
+            "version": "2",
+            "decimals": 6,
         },
     },
 }

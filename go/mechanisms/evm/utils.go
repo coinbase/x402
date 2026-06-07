@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -228,4 +229,18 @@ func HexToBytes(hexStr string) ([]byte, error) {
 // BytesToHex converts bytes to a hex string with 0x prefix
 func BytesToHex(data []byte) string {
 	return "0x" + hex.EncodeToString(data)
+}
+
+// ValidateAssetIsContract checks whether the payment asset is a deployed contract.
+// Returns (ErrAssetNotDeployedContract, nil) for an EOA/empty address,
+// ("", nil) for a deployed contract, or ("", err) if eth_getCode itself fails.
+func ValidateAssetIsContract(ctx context.Context, signer FacilitatorEvmSigner, asset string) (string, error) {
+	code, err := signer.GetCode(ctx, NormalizeAddress(asset))
+	if err != nil {
+		return "", fmt.Errorf("failed to check whether asset is a contract: %w", err)
+	}
+	if len(code) == 0 {
+		return ErrAssetNotDeployedContract, nil
+	}
+	return "", nil
 }

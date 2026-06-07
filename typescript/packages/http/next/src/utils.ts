@@ -9,6 +9,7 @@ import {
   FacilitatorResponseError,
   getFacilitatorResponseError as getCoreFacilitatorResponseError,
   PaymentCancellationDispatcher,
+  SETTLEMENT_OVERRIDES_HEADER,
 } from "@x402/core/server";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -154,7 +155,7 @@ export function handlePaymentError(response: HTTPResponseInstructions): NextResp
  * @param paymentRequirements - The payment requirements for the route
  * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
  * @param cancellationDispatcher - Cancels verified payments that should not settle
- * @param httpContext - Optional HTTP request context for extensions
+ * @param httpContext - HTTP request context for extensions
  * @returns The response with settlement headers or an error response if settlement fails
  */
 export async function handleSettlement(
@@ -164,7 +165,7 @@ export async function handleSettlement(
   paymentRequirements: PaymentRequirements,
   declaredExtensions: Record<string, unknown> | undefined,
   cancellationDispatcher: PaymentCancellationDispatcher,
-  httpContext?: HTTPRequestContext,
+  httpContext: HTTPRequestContext,
 ): Promise<NextResponse> {
   // If the response from the protected route is >= 400, do not settle payment
   if (response.status >= 400) {
@@ -172,6 +173,7 @@ export async function handleSettlement(
       reason: "handler_failed",
       responseStatus: response.status,
     });
+    response.headers.delete(SETTLEMENT_OVERRIDES_HEADER);
     return response;
   }
 
@@ -179,11 +181,16 @@ export async function handleSettlement(
     // Get response body for extensions
     const responseBody = Buffer.from(await response.clone().arrayBuffer());
 
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+
     const result = await httpServer.processSettlement(
       paymentPayload,
       paymentRequirements,
       declaredExtensions,
-      httpContext ? { request: httpContext, responseBody } : undefined,
+      { request: httpContext, responseBody, responseHeaders },
     );
 
     if (!result.success) {
@@ -200,6 +207,9 @@ export async function handleSettlement(
     Object.entries(result.headers).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
+
+    // Strip internal settlement override header before sending to client.
+    response.headers.delete(SETTLEMENT_OVERRIDES_HEADER);
 
     return response;
   } catch (error) {

@@ -33,6 +33,26 @@ export function numberToDecimalString(n: number): string {
 }
 
 /**
+ * Parses a money string into a finite, non-negative decimal number.
+ * Accepts plain decimal strings with an optional leading dollar sign.
+ *
+ * @param money - The money string to parse
+ * @returns Decimal number
+ */
+export function parseMoneyString(money: string): number {
+  const cleaned = money.replace(/^\$/, "").trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(cleaned) || /[eE]/.test(cleaned)) {
+    throw new Error(`Invalid money format: ${money}`);
+  }
+
+  const amount = Number(cleaned);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error(`Invalid money format: ${money}`);
+  }
+  return amount;
+}
+
+/**
  * Convert a decimal amount to token smallest units.
  * Accepts only plain decimal strings — scientific notation is not allowed.
  * Throws if the amount is non-zero but too small to represent with the given decimal precision.
@@ -70,6 +90,17 @@ export interface SchemeData<T> {
   pattern: Network;
 }
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const networkPatternToRegExp = (pattern: Network): RegExp => {
+  const source = escapeRegExp(pattern).replace(/\\\*/g, ".*");
+  return new RegExp(`^${source}$`);
+};
+
+export const networkMatchesPattern = (pattern: Network, network: Network): boolean => {
+  return networkPatternToRegExp(pattern).test(network);
+};
+
 export const findSchemesByNetwork = <T>(
   map: Map<string, Map<string, T>>,
   network: Network,
@@ -80,15 +111,7 @@ export const findSchemesByNetwork = <T>(
   if (!implementationsByScheme) {
     // Try pattern matching for registered network patterns
     for (const [registeredNetworkPattern, implementations] of map.entries()) {
-      // Convert the registered network pattern to a regex
-      // e.g., "eip155:*" becomes /^eip155:.*$/
-      const pattern = registeredNetworkPattern
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // Escape special regex chars except *
-        .replace(/\\\*/g, ".*"); // Replace escaped * with .*
-
-      const regex = new RegExp(`^${pattern}$`);
-
-      if (regex.test(network)) {
+      if (networkMatchesPattern(registeredNetworkPattern as Network, network)) {
         implementationsByScheme = implementations;
         break;
       }
@@ -129,8 +152,7 @@ export const findFacilitatorBySchemeAndNetwork = <T>(
   }
 
   // Try pattern matching
-  const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
-  if (patternRegex.test(network)) {
+  if (networkMatchesPattern(schemeData.pattern, network)) {
     return schemeData.facilitator;
   }
 

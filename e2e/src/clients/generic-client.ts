@@ -31,6 +31,8 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
         ENDPOINT_PATH: config.endpointPath,
         EVM_NETWORK: config.evmNetwork,
         EVM_RPC_URL: config.evmRpcUrl,
+        SVM_NETWORK: config.svmNetwork,
+        SVM_RPC_URL: config.svmRpcUrl,
         HEDERA_NETWORK: config.hederaNetwork,
         HEDERA_NODE_URL: config.hederaNodeUrl,
         TVM_NETWORK: config.tvmNetwork,

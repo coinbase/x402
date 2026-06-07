@@ -7,7 +7,7 @@
 // carry no policy/business semantics.
 package facilitator
 
-import batchsettlement "github.com/x402-foundation/x402/go/mechanisms/evm/batch-settlement"
+import batchsettlement "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement"
 
 const (
 	// Payload parsing errors
@@ -101,4 +101,6 @@ const (
 
 	// Settle action errors
 	ErrUnknownSettleAction = "invalid_batch_settlement_evm_unknown_settle_action"
+	ErrNothingToSettle     = "invalid_batch_settlement_evm_nothing_to_settle"
+	ErrRefundNoBalance     = batchsettlement.ErrRefundNoBalance
 )

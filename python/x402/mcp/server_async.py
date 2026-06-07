@@ -18,7 +18,7 @@ from .types import (
     SettlementContext,
 )
 from .utils import (
-    create_tool_resource_url,
+    build_tool_resource_info,
     extract_payment_from_meta,
 )
 
@@ -272,6 +272,14 @@ def create_payment_wrapper(
                     resource_server, tool_name, config, str(e)
                 )
 
+            if not settle_result.success:
+                return await _create_settlement_failed_result_async(
+                    resource_server,
+                    tool_name,
+                    config,
+                    settle_result.error_reason or "Unknown settlement failure",
+                )
+
             # Run onAfterSettlement hook if present
             if config.hooks and config.hooks.on_after_settlement:
                 settlement_context = SettlementContext(
@@ -322,13 +330,7 @@ async def _create_payment_required_result_async(
     Returns:
         Structured 402 error result with payment requirements
     """
-    from ..schemas import ResourceInfo as CoreResourceInfo
-
-    resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
-        mime_type=config.resource.mime_type if config.resource else "application/json",
-    )
+    resource_info = build_tool_resource_info(tool_name, config.resource)
 
     payment_required = await resource_server.create_payment_required_response(
         config.accepts,
@@ -371,13 +373,7 @@ async def _create_settlement_failed_result_async(
     Returns:
         Structured 402 error result with settlement failure details
     """
-    from ..schemas import ResourceInfo as CoreResourceInfo
-
-    resource_info = CoreResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
-        mime_type=config.resource.mime_type if config.resource else "application/json",
-    )
+    resource_info = build_tool_resource_info(tool_name, config.resource)
 
     payment_required = await resource_server.create_payment_required_response(
         config.accepts,

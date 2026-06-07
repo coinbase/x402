@@ -76,6 +76,17 @@ function makeRequirements(overrides?: Partial<PaymentRequirements>): PaymentRequ
   };
 }
 
+// Returns deployed-contract bytecode for the token/asset address, EOA ("0x") for everything else.
+// Used in payer-is-EOA tests where the token contract must still appear deployed.
+const mockGetCodeEOAPayer =
+  (assetAddress: string) =>
+  ({ address }: { address: `0x${string}` }): Promise<`0x${string}`> =>
+    Promise.resolve(
+      address.toLowerCase() === assetAddress.toLowerCase()
+        ? ("0x6080604052" as `0x${string}`)
+        : ("0x" as `0x${string}`),
+    );
+
 describe("UptoEvmScheme (Facilitator)", () => {
   let mockSigner: FacilitatorEvmSigner;
   let scheme: UptoEvmScheme;
@@ -88,7 +99,9 @@ describe("UptoEvmScheme (Facilitator)", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash1234" as `0x${string}`),
       sendTransaction: vi.fn(),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
-      getCode: vi.fn(),
+      // Default: asset is a deployed contract. Tests that need an EOA payer
+      // should use mockGetCodeEOAPayer() to keep the asset as a contract.
+      getCode: vi.fn().mockResolvedValue("0x6080604052"),
     };
     scheme = new UptoEvmScheme(mockSigner);
   });
@@ -240,6 +253,9 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
     it("should reject if signature is invalid", async () => {
       mockSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+      mockSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
@@ -450,6 +466,9 @@ describe("UptoEvmScheme (Facilitator)", () => {
   describe("verify edge cases", () => {
     it("should handle verifyTypedData throwing an exception", async () => {
       mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("RPC unavailable"));
+      mockSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
@@ -461,7 +480,9 @@ describe("UptoEvmScheme (Facilitator)", () => {
   describe("ERC-6492 / smart contract wallet signature fallback", () => {
     it("should reject undeployed EOA with invalid signature", async () => {
       mockSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
-      mockSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 
@@ -489,7 +510,9 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
     it("should reject undeployed contract when verifyTypedData throws", async () => {
       mockSigner.verifyTypedData = vi.fn().mockRejectedValue(new Error("unsupported"));
-      mockSigner.getCode = vi.fn().mockResolvedValue("0x");
+      mockSigner.getCode = vi
+        .fn()
+        .mockImplementation(mockGetCodeEOAPayer("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
 
       const result = await scheme.verify(makePayload(), makeRequirements());
 

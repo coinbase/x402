@@ -17,7 +17,7 @@ from .types import (
     SyncPaymentWrapperConfig,
 )
 from .utils import (
-    create_tool_resource_url,
+    build_tool_resource_info,
     extract_payment_from_meta,
 )
 
@@ -158,6 +158,14 @@ def create_payment_wrapper_sync(
                     resource_server, tool_name, config, str(e)
                 )
 
+            if not settle_result.success:
+                return _create_settlement_failed_result_sync(
+                    resource_server,
+                    tool_name,
+                    config,
+                    settle_result.error_reason or "Unknown settlement failure",
+                )
+
             if config.hooks and config.hooks.on_after_settlement:
                 settlement_context = SettlementContext(
                     tool_name=tool_name,
@@ -193,13 +201,7 @@ def _create_payment_required_result_sync(
     error_message: str,
 ) -> MCPToolResult:
     """Create a 402 payment required result (sync)."""
-    from ..schemas import ResourceInfo as SchemaResourceInfo
-
-    resource_info = SchemaResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
-        mime_type=(config.resource.mime_type if config.resource else "application/json"),
-    )
+    resource_info = build_tool_resource_info(tool_name, config.resource)
 
     payment_required = resource_server.create_payment_required_response(
         config.accepts,
@@ -230,13 +232,7 @@ def _create_settlement_failed_result_sync(
     error_message: str,
 ) -> MCPToolResult:
     """Create a 402 settlement failed result (sync)."""
-    from ..schemas import ResourceInfo as SchemaResourceInfo
-
-    resource_info = SchemaResourceInfo(
-        url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
-        description=(config.resource.description if config.resource else f"Tool: {tool_name}"),
-        mime_type=(config.resource.mime_type if config.resource else "application/json"),
-    )
+    resource_info = build_tool_resource_info(tool_name, config.resource)
 
     payment_required = resource_server.create_payment_required_response(
         config.accepts,

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/mechanisms/evm"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // verifyEIP3009 verifies an EIP-3009 payment payload.
@@ -104,6 +104,12 @@ func (f *ExactEvmScheme) verifyEIP3009(
 		return nil, x402.NewVerifyError(ErrInvalidSignature, evmPayload.Authorization.From, fmt.Sprintf("invalid signature: %s", evmPayload.Signature))
 	}
 
+	if errReason, err := evm.ValidateAssetIsContract(ctx, f.signer, requirements.Asset); err != nil {
+		return nil, fmt.Errorf("asset contract check failed: %w", err)
+	} else if errReason != "" {
+		return nil, x402.NewVerifyError(errReason, evmPayload.Authorization.From, fmt.Sprintf("asset %s is not a deployed contract", requirements.Asset))
+	}
+
 	if simulate {
 		simulationSucceeded, err := SimulateEIP3009Transfer(
 			ctx,
@@ -176,8 +182,8 @@ func (f *ExactEvmScheme) settleEIP3009(
 		}
 
 		if len(code) == 0 {
-			if !f.config.DeployERC4337WithEIP6492 {
-				return nil, x402.NewSettleError(ErrUndeployedSmartWallet, verifyResp.Payer, network, "", "")
+			if !IsFactoryAllowed(sigData.Factory, f.config.EIP6492AllowedFactories) {
+				return nil, x402.NewSettleError(ErrFactoryNotAllowed, verifyResp.Payer, network, "", "")
 			}
 
 			if err := DeploySmartWallet(ctx, f.signer, sigData); err != nil {

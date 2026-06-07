@@ -86,6 +86,8 @@ export interface ClientConfig {
   endpointPath: string;
   evmNetwork: string;
   evmRpcUrl: string;
+  svmNetwork: string;
+  svmRpcUrl: string;
   hederaNetwork: string;
   hederaNodeUrl: string;
   tvmNetwork: string;

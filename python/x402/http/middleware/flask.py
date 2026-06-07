@@ -18,13 +18,14 @@ except ImportError as e:
         "Flask middleware requires the flask package. Install with: uv add x402[flask]"
     ) from e
 
+from ...schemas import VerifiedPaymentCancelOptions
 from ..constants import SETTLEMENT_OVERRIDES_HEADER
 from ..facilitator_client_base import FacilitatorResponseError
 from ..types import (
     HTTPAdapter,
     HTTPRequestContext,
+    HTTPTransportContext,
     PaywallConfig,
-    RouteConfig,
     RoutesConfig,
 )
 from ..x402_http_server import PaywallProvider, x402HTTPResourceServerSync
@@ -37,54 +38,15 @@ if TYPE_CHECKING:
 # Extension Auto-Registration
 # ============================================================================
 
-
-def _check_if_bazaar_needed(routes: RoutesConfig) -> bool:
-    """Check if any routes in the configuration declare bazaar extensions.
-
-    Args:
-        routes: Route configuration.
-
-    Returns:
-        True if any route has extensions.bazaar defined.
-    """
-    # Handle single RouteConfig instance
-    if isinstance(routes, RouteConfig):
-        return bool(routes.extensions and "bazaar" in routes.extensions)
-
-    # Handle dict of routes
-    if isinstance(routes, dict):
-        # Check if it's a single route config dict (has "accepts" key)
-        if "accepts" in routes:
-            extensions = routes.get("extensions", {})
-            return bool(extensions and "bazaar" in extensions)
-
-        # Handle multiple routes
-        for route_config in routes.values():
-            if isinstance(route_config, RouteConfig):
-                if route_config.extensions and "bazaar" in route_config.extensions:
-                    return True
-            elif isinstance(route_config, dict):
-                extensions = route_config.get("extensions", {})
-                if extensions and "bazaar" in extensions:
-                    return True
-
-    return False
-
-
-def _register_bazaar_extension(server: x402ResourceServerSync) -> None:
-    """Register bazaar extension with server if available.
-
-    Args:
-        server: x402ResourceServerSync to register extension with.
-    """
-    try:
-        from ...extensions.bazaar import bazaar_resource_server_extension
-
-        server.register_extension(bazaar_resource_server_extension)
-    except ImportError:
-        # Bazaar extension not available, skip silently
-        pass
-
+from ._bazaar_utils import (
+    check_if_bazaar_needed as _check_if_bazaar_needed,
+)
+from ._bazaar_utils import (
+    register_bazaar_extension as _register_bazaar_extension,
+)
+from ._bazaar_utils import (
+    validate_bazaar_extensions as _validate_bazaar_extensions,
+)
 
 # ============================================================================
 # Flask Adapter
@@ -330,6 +292,7 @@ class PaymentMiddleware:
         # Auto-register bazaar extension if routes declare it
         if _check_if_bazaar_needed(routes):
             _register_bazaar_extension(server)
+            _validate_bazaar_extensions(routes)
 
         self._app = app
         self._http_server = x402HTTPResourceServerSync(server, routes)
@@ -425,13 +388,33 @@ class PaymentMiddleware:
                 # Store in Flask g object
                 g.payment_payload = result.payment_payload
                 g.payment_requirements = result.payment_requirements
+                dispatcher = result.cancellation_dispatcher
+                transport_context = HTTPTransportContext(request=context)
 
                 # Capture response
                 response_wrapper = ResponseWrapper(start_response)
                 body_chunks: list[bytes] = []
 
-                for chunk in self._original_wsgi(environ, response_wrapper):
-                    body_chunks.append(chunk)
+                try:
+                    for chunk in self._original_wsgi(environ, response_wrapper):
+                        body_chunks.append(chunk)
+                except BaseException as error:
+                    if dispatcher is not None:
+                        dispatcher.cancel_sync(
+                            VerifiedPaymentCancelOptions(reason="handler_threw", error=error)
+                        )
+                    raise
+
+                if response_wrapper.status_code is not None and response_wrapper.status_code >= 400:
+                    if dispatcher is not None:
+                        dispatcher.cancel_sync(
+                            VerifiedPaymentCancelOptions(
+                                reason="handler_failed",
+                                response_status=response_wrapper.status_code,
+                            )
+                        )
+                    response_wrapper.send_response(body_chunks)
+                    return []
 
                 # Check if successful response
                 if (
@@ -447,6 +430,7 @@ class PaymentMiddleware:
                         for k, v in response_wrapper.headers
                         if k.lower() != SETTLEMENT_OVERRIDES_HEADER.lower()
                     ]
+                    transport_context.response_headers = dict(response_wrapper.headers)
 
                     # Settle payment
                     try:
@@ -455,6 +439,8 @@ class PaymentMiddleware:
                             result.payment_requirements,
                             context=context,
                             settlement_overrides=overrides,
+                            declared_extensions=result.declared_extensions,
+                            transport_context=transport_context,
                         )
 
                         if settle_result.success:

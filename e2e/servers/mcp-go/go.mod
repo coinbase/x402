@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.3.0
-	github.com/x402-foundation/x402/go v0.0.0
+	github.com/x402-foundation/x402/go/v2 v2.14.0
 )
 
 require (
@@ -35,9 +35,11 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )
 
-replace github.com/x402-foundation/x402/go => ../../../go
+replace github.com/x402-foundation/x402/go/v2 => ../../../go

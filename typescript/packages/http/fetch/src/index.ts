@@ -171,7 +171,7 @@ export function wrapFetchWithPaymentFromConfig(
 
 // Re-export types and utilities for convenience
 export { x402Client, x402HTTPClient } from "@x402/core/client";
-export type { x402PaymentResult } from "@x402/core/client";
+export type { HTTPResourceResponse } from "@x402/core/client";
 export type {
   PaymentPolicy,
   SchemeRegistration,

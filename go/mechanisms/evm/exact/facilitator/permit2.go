@@ -3,15 +3,16 @@ package facilitator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
-	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
-	"github.com/x402-foundation/x402/go/mechanisms/evm"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // VerifyPermit2Options controls optional behaviour for VerifyPermit2.
@@ -55,6 +56,12 @@ func VerifyPermit2(
 	}
 
 	tokenAddress := evm.NormalizeAddress(requirements.Asset)
+
+	if errReason, err := evm.ValidateAssetIsContract(ctx, signer, requirements.Asset); err != nil {
+		return nil, fmt.Errorf("asset contract check failed: %w", err)
+	} else if errReason != "" {
+		return nil, x402.NewVerifyError(errReason, payer, fmt.Sprintf("asset %s is not a deployed contract", requirements.Asset))
+	}
 
 	// Verify spender is x402ExactPermit2Proxy
 	if !strings.EqualFold(permit2Payload.Permit2Authorization.Spender, evm.X402ExactPermit2ProxyAddress) {
