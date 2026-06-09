@@ -1,0 +1,7 @@
+{
+  "name": "Scry",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/scry.png",
+  "description": "Scry is an x402-paid Solana wallet-intelligence API for agents — forensic evidence before you act. Endpoints return wallet dossiers, funding lineage, bundler and coordination-cluster detection, KOL identity context, and memecoin mint-risk, each with explicit coverage and freshness metadata. Solana-native, evidence not predictions.",
+  "websiteUrl": "https://scry.solanahub.de"
+}
