@@ -1,0 +1,7 @@
+{
+  "name": "n0brains",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/n0brains.png",
+  "description": "Agent-native crypto intelligence with a public, auditable win-rate. Six pay-per-call x402 endpoints on Base (USDC, $0.005/signal, no account): signals, rotation, correlation, liquidation map, S/R levels, macro. Discovery at /.well-known/x402.json.",
+  "websiteUrl": "https://n0brains.com"
+}
