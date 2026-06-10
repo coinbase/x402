@@ -2,6 +2,6 @@
   "name": "fresh-feeds",
   "description": "Daily-refreshed data feeds for AI agents, starting with the MCP server registry: 1,500+ servers deduped and quality-scored, re-validated every day. Free preview endpoint; full snapshot $0.005 per call via x402 (USDC on Base, CDP facilitator).",
   "logoUrl": "/logos/fresh-feeds.png",
-  "websiteUrl": "https://fresh-feeds.timbaru-r136.workers.dev",
+  "websiteUrl": "https://fresh-feeds.foomworks.workers.dev",
   "category": "Services/Endpoints"
 }
