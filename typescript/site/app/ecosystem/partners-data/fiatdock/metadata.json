@@ -1,0 +1,7 @@
+{
+  "name": "FiatDock",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/fiatdock.png",
+  "description": "Non-custodial USDC on/off-ramp API for AI agents. Agents pay $0.05 USDC per call via x402 to create bank cash-out (SELL) or top-up (BUY) sessions; quotes and order tracking are free. Conversion, KYC and custody by Transak (licensed provider). Also exposed as MCP tools (remote + npm).",
+  "websiteUrl": "https://fiatdock.com"
+}
