@@ -1,0 +1,7 @@
+{
+  "name": "invinoveritas",
+  "description": "invinoveritas is the verification layer for autonomous agents: paid x402 endpoints for pre-action review (signed verdicts with a public, on-chain-outcome-linked track record), live Hyperliquid market data and crypto regime signals, sandboxed code execution, and browser actions. 16 resources settling USDC on Base through the CDP facilitator.",
+  "logoUrl": "/logos/invinoveritas.png",
+  "websiteUrl": "https://api.babyblueviper.com",
+  "category": "Services/Endpoints"
+}
