@@ -1,0 +1,14 @@
+{
+  "name": "Merktop",
+  "description": "Managed x402 facilitator: gasless USDC settlement (EIP-3009) on Base. API-key access with per-transaction billing, monthly quota, idempotent ledger and anti-abuse controls.",
+  "logoUrl": "/logos/merktop.png",
+  "websiteUrl": "https://facilitator.merktop.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.merktop.com",
+    "networks": ["base", "base-sepolia"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
