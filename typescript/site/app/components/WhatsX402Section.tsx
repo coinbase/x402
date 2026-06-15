@@ -24,7 +24,7 @@ export function WhatsX402Section() {
           variants={fadeInUp}
           className="text-sm sm:text-base font-medium text-gray-70 max-w-[691px] leading-relaxed"
         >
-          Payments on the internet are fundamentally flawed. Filling out a form is a human behavor
+          Payments on the internet are fundamentally flawed. Filling out a form is a human behavior
           that doesn't match the programmatic nature of the internet. It&apos;s time for an open,
           internet-native form of payments. Payments that are amazing for humans and AI agents.
         </motion.p>
