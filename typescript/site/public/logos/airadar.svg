@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" rx="24" fill="#0f0f0f"/>
+  <!-- Radar rings -->
+  <circle cx="100" cy="110" r="70" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.25"/>
+  <circle cx="100" cy="110" r="50" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.4"/>
+  <circle cx="100" cy="110" r="30" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.6"/>
+  <!-- Radar sweep -->
+  <line x1="100" y1="110" x2="100" y2="40" stroke="#22d3ee" stroke-width="2" opacity="0.9"/>
+  <line x1="100" y1="110" x2="155" y2="72" stroke="#22d3ee" stroke-width="1" opacity="0.3"/>
+  <!-- Center dot -->
+  <circle cx="100" cy="110" r="4" fill="#22d3ee"/>
+  <!-- Blip -->
+  <circle cx="128" cy="82" r="4" fill="#f97316" opacity="0.9"/>
+  <!-- Text -->
+  <text x="100" y="34" font-family="monospace" font-size="15" font-weight="bold" fill="#22d3ee" text-anchor="middle" letter-spacing="3">AIRADAR</text>
+</svg>
