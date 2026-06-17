@@ -1,0 +1,7 @@
+{
+  "name": "eltociear Security APIs",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/eltociear-security-apis.svg",
+  "description": "Pay-per-call security & onchain-intelligence APIs over x402 (USDC on Base): tokenguard (ERC-20 rug/safety scan), skill-audit (MCP & AI-agent skill malicious-pattern scan), and contract-guard (EVM contract risk check). No signup — wallet is auth.",
+  "websiteUrl": "https://github.com/eltociear/skill-audit-mcp"
+}
