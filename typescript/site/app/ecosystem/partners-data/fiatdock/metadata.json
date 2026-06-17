@@ -1,0 +1,7 @@
+{
+  "name": "FiatDock",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/fiatdock.png",
+  "description": "Non-custodial marketplace where AI agents discover and pay for MCP services per call in USDC via x402 on Base. Three MCP tools (search_services, get_service, call_service); each paid call settles directly buyer-wallet to seller-wallet, with the 1% platform fee taken as an on-chain split (0% for a seller's first 30 days) — never custodial. Sellers list free and keep 99%. Also offers a non-custodial USDC<->bank on/off-ramp. Remote MCP + npm package (fiatdock-mcp).",
+  "websiteUrl": "https://fiatdock.com"
+}
