@@ -1,0 +1,7 @@
+{
+  "name": "402Sentinel",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/402sentinel.png",
+  "description": "Pre-payment counterparty risk + compliance gate for AI agents. Seller risk scoring (allow/review/block), a buyer-side payment firewall (prompt-injection-destination + intent-mismatch hard blocks), OFAC/FATF compliance screening, and a tokenized-RWA transfer-restriction gate. x402 pay-per-call, USDC on Base + Solana.",
+  "websiteUrl": "https://402sentinel.com"
+}
