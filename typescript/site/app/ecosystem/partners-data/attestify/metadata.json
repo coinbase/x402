@@ -2,6 +2,6 @@
   "name": "Attestify OS",
   "description": "Financial control plane and execution router for AI agents. x402-native payments on Base — per-tenant API keys, USDC spend budgets, governance policies, SLA enforcement, heuristic verification, lane reputation scoring, and cryptographic receipts on every agent run. Seven specialised lanes (comedian, support, writer, analyst, coder, strategist, researcher) routed automatically by task type.",
   "websiteUrl": "https://attestifyos.com",
-  "logoUrl": "/logos/attestify.jpg",
+  "logoUrl": "/logos/attestify.svg",
   "category": "Ecosystem Infrastructure & Tooling"
 }
