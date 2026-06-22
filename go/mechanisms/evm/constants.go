@@ -79,6 +79,8 @@ var (
 	ChainIDPolygon       = big.NewInt(137)
 	ChainIDArbOne        = big.NewInt(42161)
 	ChainIDArbSepolia    = big.NewInt(421614)
+	ChainIDXDC           = big.NewInt(50)
+	ChainIDXDCApothem    = big.NewInt(51)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -192,6 +194,26 @@ var (
 			DefaultAsset: AssetInfo{
 				Address:  "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // USDC on ArbSepolia
 				Name:     "USD Coin",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// XDC Network Mainnet
+		"eip155:50": {
+			ChainID: ChainIDXDC,
+			DefaultAsset: AssetInfo{
+				Address:  "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1", // USDC on XDC (Circle, native)
+				Name:     "USDC",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// XDC Apothem Testnet
+		"eip155:51": {
+			ChainID: ChainIDXDCApothem,
+			DefaultAsset: AssetInfo{
+				Address:  "0xb5AB69F7bBada22B28e79C8FFAECe55eF1c771D4", // USDC on XDC Apothem (Circle, native)
+				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
