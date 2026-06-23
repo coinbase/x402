@@ -1,0 +1,7 @@
+{
+  "name": "PatternFetch",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/patternfetch.png",
+  "description": "Agent-first crypto market-state-brief API and remote MCP server. One call returns a compact, token-efficient market state (candles, patterns, support/resistance, interpreted indicators) instead of raw OHLCV dumps. Free tier; pay with USDC on Base via x402 or Stripe.",
+  "websiteUrl": "https://patternfetch.com"
+}
