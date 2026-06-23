@@ -1,0 +1,7 @@
+{
+  "name": "Magpie",
+  "description": "Magpie is x402-native, permissionless agent lending on Solana. Over HTTP 402 pay-per-call (no signup, no API key, zero custody), an autonomous agent borrows SOL against its own memecoin or tokenized-stock/RWA collateral across 170+ tokens, arms self-owned in-vault take-profit and stop-loss exits, and repays with borrower-signed transactions. The @magpieloans/magpie-agent SDK and @magpieloans/magpie-mcp tools sign locally so the service never holds keys.",
+  "logoUrl": "/logos/magpie.png",
+  "websiteUrl": "https://x402.magpie.capital",
+  "category": "Services/Endpoints"
+}
