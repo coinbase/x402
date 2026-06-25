@@ -1,0 +1,7 @@
+{
+  "name": "OmniCall",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/omnicall.png",
+  "description": "Agent-tools gateway: 248 LLMs plus image/video/voice/music generation and live crypto/DeFi/markets/web-search in one keyless, pay-per-call endpoint. USDC on Base/Solana, no API key.",
+  "websiteUrl": "https://omnicall.gocreativeai.com"
+}

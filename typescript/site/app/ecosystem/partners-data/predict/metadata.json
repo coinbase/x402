@@ -1,0 +1,7 @@
+{
+  "name": "Predict",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/predict.png",
+  "description": "Prediction-market data for AI agents: Polymarket + Kalshi market search, prices, odds, and order books by keyword. Keyless, pay-per-call USDC.",
+  "websiteUrl": "https://predict.gocreativeai.com"
+}

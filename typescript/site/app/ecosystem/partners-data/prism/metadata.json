@@ -1,0 +1,7 @@
+{
+  "name": "Prism",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/prism.png",
+  "description": "Data enrichment for AI agents: people-enrich (verified work email + phone from a name + company domain), company/domain enrichment, email validation. Keyless, pay-per-call USDC.",
+  "websiteUrl": "https://enrich.gocreativeai.com"
+}
