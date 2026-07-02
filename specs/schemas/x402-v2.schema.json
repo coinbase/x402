@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coinbase/x402/specs/schemas/x402-v2.schema.json",
+  "title": "x402 v2 core message schemas",
+  "description": "Machine-readable JSON Schemas for the x402 v2 core data structures, derived from specs/x402-specification-v2.md. The exact-EVM scheme payload is included as the reference scheme.",
+  "$defs": {
+    "ResourceInfo": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "URL of the protected resource" },
+        "description": { "type": "string" },
+        "mimeType": { "type": "string" }
+      },
+      "required": ["url"]
+    },
+    "PaymentRequirements": {
+      "type": "object",
+      "description": "An acceptable payment method (spec 5.1.2).",
+      "properties": {
+        "scheme": { "type": "string", "description": "Payment scheme identifier, e.g. \"exact\"" },
+        "network": { "type": "string", "description": "CAIP-2 network id, e.g. \"eip155:84532\"" },
+        "asset": { "type": "string", "description": "Token contract address or ISO 4217 currency code" },
+        "payTo": { "type": "string", "description": "Recipient address or role constant" },
+        "amount": { "type": "string", "description": "Amount in atomic units, as a base-10 integer string" },
+        "maxTimeoutSeconds": { "type": "integer", "minimum": 0 },
+        "extra": { "type": "object" }
+      },
+      "required": ["scheme", "network", "asset", "payTo"]
+    },
+    "Authorization": {
+      "type": "object",
+      "description": "EIP-3009 authorization parameters for the exact-EVM scheme.",
+      "properties": {
+        "from": { "type": "string", "description": "Payer wallet address" },
+        "to": { "type": "string", "description": "Recipient wallet address" },
+        "value": { "type": "string", "description": "Amount in atomic units, base-10 integer string" },
+        "validAfter": { "type": "string", "description": "Unix timestamp (string) when authorization becomes valid" },
+        "validBefore": { "type": "string", "description": "Unix timestamp (string) when authorization expires" },
+        "nonce": { "type": "string", "description": "32-byte random nonce (0x hex)" }
+      },
+      "required": ["from", "to", "value", "validAfter", "validBefore", "nonce"]
+    },
+    "ExactEvmPayload": {
+      "type": "object",
+      "description": "Scheme-specific payload for scheme=\"exact\" on EVM networks.",
+      "properties": {
+        "signature": { "type": "string", "description": "EIP-712 signature (0x hex)" },
+        "authorization": { "$ref": "#/$defs/Authorization" }
+      },
+      "required": ["signature", "authorization"]
+    },
+    "PaymentRequired": {
+      "type": "object",
+      "description": "402 response body: what the resource server requires (spec 5.1).",
+      "properties": {
+        "x402Version": { "const": 2 },
+        "error": { "type": "string" },
+        "resource": { "$ref": "#/$defs/ResourceInfo" },
+        "accepts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/PaymentRequirements" }
+        }
+      },
+      "required": ["x402Version", "accepts"]
+    },
+    "PaymentPayload": {
+      "type": "object",
+      "description": "Client payment authorization (spec 5.2).",
+      "properties": {
+        "x402Version": { "const": 2 },
+        "resource": { "$ref": "#/$defs/ResourceInfo" },
+        "accepted": { "$ref": "#/$defs/PaymentRequirements" },
+        "payload": {
+          "type": "object",
+          "description": "Scheme-specific payment data. For scheme=\"exact\" (EVM), see ExactEvmPayload.",
+          "$ref": "#/$defs/ExactEvmPayload"
+        },
+        "extensions": { "type": "object" }
+      },
+      "required": ["x402Version", "accepted", "payload"]
+    },
+    "SettlementResponse": {
+      "type": "object",
+      "description": "Settlement result returned by the server (spec 5.3).",
+      "properties": {
+        "success": { "type": "boolean" },
+        "transaction": { "type": "string", "description": "Settlement transaction hash/id" },
+        "network": { "type": "string" },
+        "payer": { "type": "string" },
+        "errorReason": { "type": "string" }
+      },
+      "required": ["success", "transaction", "network"]
+    }
+  }
+}
