@@ -1,6 +1,6 @@
 {
   "name": "relay402",
-  "description": "Pay-per-call structured data endpoints for AI agents. Amazon product data and more, priced from $0.01 USDC on Base, paid via x402 — no signup, no API keys. Validated JSON output, machine-readable catalog at /index.json.",
+  "description": "Pay-per-call structured data endpoints for AI agents: Amazon product data, company job openings (Greenhouse ATS), and OFAC sanctions screening. From $0.01 USDC on Base via x402, no signup, no API keys. Schema-validated JSON, machine-readable catalog at /index.json.",
   "logoUrl": "/logos/relay402.png",
   "websiteUrl": "https://relay402.georgespring.workers.dev",
   "category": "Services/Endpoints"
