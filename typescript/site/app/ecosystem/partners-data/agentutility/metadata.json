@@ -1,6 +1,6 @@
 {
   "name": "agentutility",
-  "description": "Pay-per-call API catalog for AI agents — hundreds of x402 endpoints (PDF/document conversion, web scraping, transcription, image & video generation, on-chain & finance data, dev tools) payable in USDC on Base and Solana. No signup or API key; ERC-8004 identity; OpenAPI at /openapi.json.",
+  "description": "Pay-per-call API catalog for AI agents: 750+ x402 endpoints across documents, web/data, search & news, crypto & on-chain, finance, brand, text/NLP, plus higher-order composite workflows — all payable in USDC on Base and Solana. No signup or API keys. Discoverable via the Bazaar, an MCP catalog, and /openapi.json; ERC-8004 on-chain identity.",
   "logoUrl": "/logos/agentutility.png",
   "websiteUrl": "https://x402.agentutility.ai/",
   "category": "Services/Endpoints"
