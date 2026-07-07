@@ -10,13 +10,14 @@ const resourceUrl =
   process.env.RESOURCE_URL || "https://api.stelardigital.com/pricecheck?asset=BTC";
 
 /**
- * Example demonstrating how to call a LIVE, production x402 API from a TypeScript client.
+ * Example demonstrating how to buy from ANY live x402 endpoint with a TypeScript client.
  *
- * Unlike most x402 examples, this one does not spin up a local server — it targets a real
- * endpoint running on Base mainnet, so you see the full 402 -> pay -> 200 flow against
- * actual infrastructure instead of localhost. The demo endpoint used here
- * (api.stelardigital.com/pricecheck) is just one live x402 API among many; point
- * RESOURCE_URL at any x402-protected URL and the flow is identical.
+ * Unlike most x402 examples, this one does not spin up a local server — it targets a real,
+ * already-deployed endpoint on Base mainnet, so you see the full 402 -> pay -> 200 flow
+ * against actual infrastructure instead of localhost. RESOURCE_URL is bring-your-own: point
+ * it at any live x402-protected URL and the flow is identical. Browse Coinbase Bazaar
+ * (https://docs.cdp.coinbase.com/x402/bazaar) to discover live endpoints to try. The default
+ * below is just one illustrative example of a live endpoint.
  *
  * How it works:
  * 1. wrapFetchWithPayment sends the initial request.
@@ -33,7 +34,8 @@ const resourceUrl =
  *   Base mainnet)
  *
  * Optional environment variables:
- * - RESOURCE_URL: the x402-protected URL to call (defaults to a live demo endpoint)
+ * - RESOURCE_URL: the x402-protected URL to call (defaults to one illustrative live
+ *   endpoint; point it at any live x402 endpoint, e.g. one found via Coinbase Bazaar)
  */
 async function main(): Promise<void> {
   const evmSigner = privateKeyToAccount(evmPrivateKey);

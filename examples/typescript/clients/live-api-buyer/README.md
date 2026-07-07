@@ -1,13 +1,19 @@
 # Live API Buyer Example
 
-An x402 client example that calls a **live, production** x402-protected API instead of a
-local demo server — so you can see the real 402 → pay → 200 flow end to end.
+An x402 client example that buys from **any live, production** x402-protected API instead
+of a local demo server — so you can see the real 402 → pay → 200 flow end to end, against
+real infrastructure, real facilitator verification, and real settlement.
+
+This example is bring-your-own-endpoint: set `RESOURCE_URL` to whatever x402-protected API
+you want to call. To find live endpoints to try, browse
+[Coinbase Bazaar](https://docs.cdp.coinbase.com/x402/bazaar), a directory of deployed x402
+services.
 
 ## What this demonstrates
 
 Most x402 examples run against `localhost` servers started for the demo. This one targets
-a real endpoint already running in production on Base mainnet, so every step — the 402
-challenge, the payment signature, the settlement — is the real thing:
+a real, already-deployed endpoint on Base mainnet, so every step — the 402 challenge, the
+payment signature, the settlement — is the real thing:
 
 1. **Request** — the client calls the resource URL with `fetch`.
 2. **402 Payment Required** — the server returns `402` with a `PAYMENT-REQUIRED` header
@@ -19,9 +25,9 @@ challenge, the payment signature, the settlement — is the real thing:
 5. **200 OK** — the server (via its facilitator) verifies and settles the payment onchain,
    then returns the actual response body plus a `PAYMENT-RESPONSE` settlement receipt.
 
-The demo target is `https://api.stelardigital.com/pricecheck` (a live x402 API returning
-crypto price/signal data) — used here only because it's a real, working endpoint. Point
-`RESOURCE_URL` at any x402-protected API and the flow is identical.
+`.env-local` ships with one illustrative default (`https://api.stelardigital.com/pricecheck`,
+a live x402 endpoint returning crypto price/signal data) purely as a working example URL —
+swap in any live x402 endpoint via `RESOURCE_URL` and the flow is identical.
 
 ## Prerequisites
 
@@ -52,7 +58,9 @@ Required environment variables:
 
 Optional environment variables:
 
-- `RESOURCE_URL` - the x402-protected URL to call (defaults to the live demo endpoint above)
+- `RESOURCE_URL` - the x402-protected URL to call. Defaults to one illustrative live
+  endpoint; browse [Coinbase Bazaar](https://docs.cdp.coinbase.com/x402/bazaar) to find
+  others to try.
 
 3. Run the client:
 
