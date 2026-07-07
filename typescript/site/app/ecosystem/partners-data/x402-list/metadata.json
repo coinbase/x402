@@ -1,0 +1,7 @@
+{
+  "name": "x402 List",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402-list.png",
+  "description": "Agent-first directory of x402 API services with on-chain-verified settlement volume per facilitator, live uptime monitoring, a machine-readable JSON API, an MCP server, and llms.txt for agent discovery.",
+  "websiteUrl": "https://x402-list.com"
+}
