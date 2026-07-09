@@ -1,0 +1,7 @@
+{
+  "name": "Second Eyes",
+  "description": "Deterministic survival diagnostics for AI agents over x402 — 20 session-less recovery doors (loop detection, 402 debugging, schema repair, context triage) at $0.01–$0.25 USDC on Base, with discovery via /.well-known/x402, llms.txt, and per-door OpenAPI guidance.",
+  "logoUrl": "/logos/second-eyes.png",
+  "websiteUrl": "https://secondeyesai.com",
+  "category": "Services/Endpoints"
+}
