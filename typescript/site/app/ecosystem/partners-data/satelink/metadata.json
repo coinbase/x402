@@ -1,0 +1,7 @@
+{
+  "name": "Satelink",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/satelink.png",
+  "description": "Pay-per-call blockchain RPC over x402: one $0.10 USDC settlement on Base buys a 1,000-call Polygon JSON-RPC bundle — no account, no subscription. Machine-readable pricing, market comparison and capability APIs.",
+  "websiteUrl": "https://rpc.satelink.network"
+}
