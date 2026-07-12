@@ -1,0 +1,7 @@
+{
+  "name": "B20 Check",
+  "description": "Signed legitimacy verdicts for B20 tokens on Base: retained issuer powers (mint, freeze, seize, pause, admin) and imposter detection, returned as a block-pinned EIP-712 attestation. $0.01 per call via x402.",
+  "logoUrl": "/logos/b20-check.png",
+  "websiteUrl": "https://b20check.com",
+  "category": "Services/Endpoints"
+}
