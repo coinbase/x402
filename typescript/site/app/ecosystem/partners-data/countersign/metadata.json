@@ -1,0 +1,7 @@
+{
+  "name": "Countersign",
+  "description": "Spend governance for agents that pay over x402: parse a 402 challenge, check it against policy before paying (caps, allowlists, decoy-resistant asset pinning), pay only on allow — with a sub-second kill switch and a signed audit ledger behind it.",
+  "logoUrl": "/logos/countersign.svg",
+  "websiteUrl": "https://countersign.network/docs/x402.html",
+  "category": "Infrastructure & Tooling"
+}
