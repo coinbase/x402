@@ -1,0 +1,7 @@
+{
+  "name": "AgentFeed",
+  "description": "Live crypto market data for AI agents: liquidations across ~600 USDT perps, funding rates, positioning, spot prices and token rug-risk. Paid per call in USDC via x402 on Solana and Base. No API keys, no signup. Also available as an MCP server and an elizaOS plugin.",
+  "logoUrl": "/logos/agentfeed.svg",
+  "websiteUrl": "https://x402.ochinimus.app",
+  "category": "Services/Endpoints"
+}
