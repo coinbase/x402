@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="AgentFeed">
+  <rect width="64" height="64" rx="14" fill="#12141A"/>
+  <!-- liquidation tape: shorts above the line, longs below -->
+  <rect x="14" y="20" width="3.5" height="10" rx="1.5" fill="#5CD6A6"/>
+  <rect x="21" y="14" width="3.5" height="16" rx="1.5" fill="#5CD6A6"/>
+  <rect x="28" y="24" width="3.5" height="6"  rx="1.5" fill="#5CD6A6"/>
+  <rect x="35" y="17" width="3.5" height="13" rx="1.5" fill="#5CD6A6"/>
+  <rect x="42" y="22" width="3.5" height="8"  rx="1.5" fill="#5CD6A6"/>
+  <rect x="12" y="31" width="40" height="1.6" rx="0.8" fill="#3A414C"/>
+  <rect x="14" y="34" width="3.5" height="7"  rx="1.5" fill="#FF7A59"/>
+  <rect x="21" y="34" width="3.5" height="12" rx="1.5" fill="#FF7A59"/>
+  <rect x="28" y="34" width="3.5" height="16" rx="1.5" fill="#FF7A59"/>
+  <rect x="35" y="34" width="3.5" height="9"  rx="1.5" fill="#FF7A59"/>
+  <rect x="42" y="34" width="3.5" height="5"  rx="1.5" fill="#FF7A59"/>
+</svg>
