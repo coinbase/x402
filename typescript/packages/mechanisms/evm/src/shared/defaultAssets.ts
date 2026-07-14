@@ -105,6 +105,18 @@ export const DEFAULT_STABLECOINS: Record<string, ExactDefaultAssetInfo> = {
     assetTransferMethod: "permit2",
     supportsEip2612: true,
   }, // Mezo Testnet mUSD (no EIP-3009, supports EIP-2612)
+  "eip155:42220": {
+    address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+    name: "USDC",
+    version: "2",
+    decimals: 6,
+  }, // Celo mainnet USDC
+  "eip155:11142220": {
+    address: "0x01C5C0122039549AD1493B8220cABEdD739BC44E",
+    name: "USDC",
+    version: "2",
+    decimals: 6,
+  }, // Celo Sepolia USDC
 };
 
 /**
