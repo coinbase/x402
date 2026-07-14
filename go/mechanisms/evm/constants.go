@@ -79,6 +79,8 @@ var (
 	ChainIDPolygon       = big.NewInt(137)
 	ChainIDArbOne        = big.NewInt(42161)
 	ChainIDArbSepolia    = big.NewInt(421614)
+	ChainIDCelo          = big.NewInt(42220)
+	ChainIDCeloSepolia   = big.NewInt(11142220)
 
 	// Network configurations
 	// See DEFAULT_ASSET.md for guidelines on adding new chains
@@ -192,6 +194,26 @@ var (
 			DefaultAsset: AssetInfo{
 				Address:  "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // USDC on ArbSepolia
 				Name:     "USD Coin",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// Celo Mainnet
+		"eip155:42220": {
+			ChainID: ChainIDCelo,
+			DefaultAsset: AssetInfo{
+				Address:  "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", // USDC on Celo
+				Name:     "USDC",
+				Version:  "2",
+				Decimals: DefaultDecimals,
+			},
+		},
+		// Celo Sepolia Testnet
+		"eip155:11142220": {
+			ChainID: ChainIDCeloSepolia,
+			DefaultAsset: AssetInfo{
+				Address:  "0x01C5C0122039549AD1493B8220cABEdD739BC44E", // USDC on Celo Sepolia
+				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
