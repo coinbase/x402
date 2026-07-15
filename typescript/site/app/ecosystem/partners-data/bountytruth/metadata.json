@@ -1,0 +1,7 @@
+{
+  "name": "BountyTruth",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/bountytruth.svg",
+  "description": "A five-cent Base USDC x402 API that audits public GitHub bounty issues for stale status, claimant signals, competing pull requests, and solver saturation.",
+  "websiteUrl": "https://sparky-works.vercel.app/bounty-truth"
+}
