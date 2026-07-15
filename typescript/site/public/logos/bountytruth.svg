@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">BountyTruth</title>
+  <desc id="desc">A stamped bounty document with a check mark.</desc>
+  <rect width="512" height="512" rx="72" fill="#f5f0df"/>
+  <rect x="54" y="54" width="404" height="404" rx="38" fill="#fffaf0" stroke="#1d1b16" stroke-width="18"/>
+  <rect x="92" y="92" width="328" height="74" rx="12" fill="#b8ff2c" stroke="#1d1b16" stroke-width="10"/>
+  <text x="256" y="140" text-anchor="middle" font-family="monospace" font-size="35" font-weight="700" fill="#1d1b16">BOUNTY TRUTH</text>
+  <path d="M122 238h188M122 290h136M122 342h96" stroke="#1d1b16" stroke-width="18" stroke-linecap="round"/>
+  <path d="M295 326l42 42 78-106" fill="none" stroke="#ff6b2d" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="91" y="390" width="180" height="48" rx="8" fill="#1d1b16"/>
+  <text x="181" y="422" text-anchor="middle" font-family="monospace" font-size="24" font-weight="700" fill="#fffaf0">x402 · 5¢</text>
+</svg>
