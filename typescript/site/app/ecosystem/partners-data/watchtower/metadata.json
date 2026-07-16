@@ -1,0 +1,7 @@
+{
+  "name": "Watchtower",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/watchtower.png",
+  "description": "Deterministic sanctions & export-control screening for AI agents. Screen names and crypto addresses against OFAC (SDN + Consolidated), UN, EU, UK OFSI, Canada, Australia and US BIS/State export-control lists (~48,000 parties, refreshed daily) via x402 (USDC on Base), a remote MCP server, or an API key. Typo/alias/non-Latin-tolerant matching with reproducible, auditable results.",
+  "websiteUrl": "https://watchtower-api.com"
+}
