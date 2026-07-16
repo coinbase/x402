@@ -1,0 +1,7 @@
+{
+  "name": "Agent Utility API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agent-utility-api.png",
+  "description": "8 pay-per-call utility tools for AI agents over HTTP and MCP: company enrichment, email verification, Chainlink prices, webpage-to-text, PDF extraction, X/LinkedIn profiles, Amazon/KDP data, and YouTube transcription. USDC on Base, no API keys.",
+  "websiteUrl": "https://agent-api-production-169b.up.railway.app"
+}
