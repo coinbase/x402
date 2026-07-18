@@ -1,0 +1,7 @@
+{
+  "name": "BrazilMCP",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/brazilmcp.png",
+  "description": "Official-source Brazilian company data (KYB) for AI agents, paid per call in USDC via x402 on Base: Receita Federal registry lookup by CNPJ or name, sanctions screening across the 5 federal lists, and full due-diligence dossiers with litigation and government-procurement history. Also a paid MCP server.",
+  "websiteUrl": "https://api.brazilmcp.dev"
+}
