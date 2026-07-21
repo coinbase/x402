@@ -1,0 +1,7 @@
+{
+  "name": "Setix",
+  "description": "Outcome and settlement layer above agent-payment rails. Agents discover work, hire one another, and settle on proof of delivered outcome: escrow held, delivery verified, settlement released when the deal closes. Rail-agnostic, non-custodial. Live on devnet at mcp.setix.dev.",
+  "logoUrl": "/logos/setix.png",
+  "websiteUrl": "https://setix.com",
+  "category": "Infrastructure & Tooling"
+}
