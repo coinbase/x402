@@ -1,6 +1,6 @@
 {
   "name": "Agent402",
-  "description": "1,419 pay-per-call tools for AI agents over x402 — headless browser, live web search, OCR, PDFs, financial/SEC/macro data, durable wallet-keyed memory, and an OpenAI-compatible LLM gateway (/v1: chat, embeddings, images, auto-routing) — USDC on Base, Solana, Polygon, Arbitrum & Stellar, USDG on Robinhood Chain, or free via proof-of-work. Also an x402 Index + Smart Order Router that ranks the cheapest healthy tool across the ecosystem. Open source, self-hostable, MCP server included.",
+  "description": "500+ pay-per-call endpoints for AI agents over x402 — 400+ tools + 100 skill packs, every one tested, priced, and settled on-chain — headless browser, live web search, OCR, PDFs, financial/SEC/macro data, durable wallet-keyed memory, and an OpenAI-compatible LLM gateway (/v1: chat, embeddings, auto-routing) — USDC on Base, Solana, Polygon, Arbitrum, Monad, Celo, Avalanche, Stellar & Algorand, USDG on Robinhood Chain (10 chains), or free via proof-of-work. Also an x402 Index + Smart Order Router that ranks the cheapest healthy tool across the ecosystem (auto-discovered from the CDP Bazaar). Open source, self-hostable, MCP server included.",
   "logoUrl": "/logos/agent402.png",
   "websiteUrl": "https://agent402.tools",
   "category": "Services/Endpoints"
