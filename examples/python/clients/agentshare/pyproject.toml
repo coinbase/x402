@@ -1,0 +1,25 @@
+[project]
+name = "x402-agentshare-example"
+version = "0.1.0"
+description = "Buy AgentShare Meteora brief with x402 (Base USDC)"
+requires-python = ">=3.10"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "x402[httpx,evm]",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+x402 = { path = "../../../../python/x402", editable = true }
