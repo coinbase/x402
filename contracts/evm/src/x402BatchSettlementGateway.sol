@@ -157,6 +157,8 @@ contract x402BatchSettlementGateway is
     error NotGatewayChannel();
     error DuplicateChannel();
     error DuplicateReceiver();
+    error UnsortedChannels();
+    error UnsortedReceivers();
     error AccountingMismatch();
     error GatewayConfigChannelMismatch();
     error InvalidSignature();
@@ -191,11 +193,11 @@ contract x402BatchSettlementGateway is
     /// @dev For each distribution (`config = voucher.channel`, `channelId = getChannelId(config)`,
     ///      `token = config.token`) the gateway enforces:
     ///        1. **Gateway binding.** `config.receiver` and `config.receiverAuthorizer` MUST both equal this contract,
-    ///           and no `channelId` may appear twice in the batch.
+    ///           and distributions MUST be strictly ordered by `channelId`.
     ///        2. **Exclusive-path accounting.** Base `totalClaimed` MUST equal `distributedByChannel[channelId]`; a
     ///           mismatch means a claim happened outside this path and the call reverts.
-    ///        3. **Per-receiver authorization.** For each `GatewayVoucherClaim`: no other row for the same
-    ///           `(channelId, voucher.config.receiver)`; `voucher.config.channelId == channelId`; a valid payer
+    ///        3. **Per-receiver authorization.** Each distribution's claims MUST be strictly ordered by
+    ///           `voucher.config.receiver`; `voucher.config.channelId == channelId`; a valid payer
     ///           signature over the `GatewayVoucher` digest (`gatewayId`, `maxClaimableAmount`); a matching
     ///           `claim.gatewayVoucherDigest`; a valid `receiverAuthorizer` signature over the
     ///           `GatewayClaimAuthorization` digest; and `claim.totalClaimed <= voucher.maxClaimableAmount`. Rows at
@@ -221,14 +223,17 @@ contract x402BatchSettlementGateway is
         bytes32[] memory channelIds = new bytes32[](n);
         address[] memory tokens = new address[](n);
         uint256 tokenCount;
+        bytes32 previousChannelId;
 
         for (uint256 i = 0; i < n; ++i) {
             bytes32 channelId = X402_BATCH_SETTLEMENT.getChannelId(
                 distributions[i].voucher.channel
             );
-            for (uint256 j = 0; j < i; ++j) {
-                if (channelIds[j] == channelId) revert DuplicateChannel();
+            if (i != 0) {
+                if (channelId == previousChannelId) revert DuplicateChannel();
+                if (channelId < previousChannelId) revert UnsortedChannels();
             }
+            previousChannelId = channelId;
             channelIds[i] = channelId;
 
             claims[i] = _validateDistribution(distributions[i], channelId);
@@ -363,13 +368,15 @@ contract x402BatchSettlementGateway is
         GatewayVoucherClaim[] calldata claims = dist.claims;
         uint256 m = claims.length;
         uint128 channelDelta;
+        address previousReceiver;
         for (uint256 k = 0; k < m; ++k) {
-            for (uint256 l = 0; l < k; ++l) {
-                if (
-                    claims[l].voucher.config.receiver ==
-                    claims[k].voucher.config.receiver
-                ) revert DuplicateReceiver();
+            address receiver = claims[k].voucher.config.receiver;
+            if (k != 0) {
+                if (receiver == previousReceiver) revert DuplicateReceiver();
+                if (uint160(receiver) < uint160(previousReceiver))
+                    revert UnsortedReceivers();
             }
+            previousReceiver = receiver;
             channelDelta += _validateGatewayVoucherClaim(
                 claims[k],
                 channelId,
