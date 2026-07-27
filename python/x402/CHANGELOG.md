@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## [2.17.0] - 2026-07-27
+
+### Fixed
+
+- Cap builder-code service codes to 5 entries. ([#2912](https://github.com/x402-foundation/x402/pull/2912)) - Thanks [@phdargen](https://github.com/phdargen)!
+- Preserve streaming request bodies when retrying an HTTPX request with payment headers. ([#2899](https://github.com/x402-foundation/x402/pull/2899)) - Thanks [@realmehmetali](https://github.com/realmehmetali)!
+
+### Added
+
+- Add SVM server blockhash hints and client fallback behavior. ([#2937](https://github.com/x402-foundation/x402/pull/2937)) - Thanks [@phdargen](https://github.com/phdargen)!
+
+
 ## [2.16.0] - 2026-07-17
 
 ### Fixed
