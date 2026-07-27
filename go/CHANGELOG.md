@@ -1,3 +1,14 @@
+## v2.20.0 - 2026-07-27
+### Added
+- Support server-provided recent blockhashes for Go SVM exact payment challenges ([#2731](https://github.com/x402-foundation/x402/pull/2731)) - Thanks [@wnjoon](https://github.com/wnjoon)!
+### Changed
+- 'Cap builder-code service codes (`s`) to five onchain entries at settlement. Facilitators now truncate excess valid codes, the server schema advertises `maxItems: 5`, and `MAX_SERVICE_CODES` is exported.' ([#2912](https://github.com/x402-foundation/x402/pull/2912)) - Thanks [@phdargen](https://github.com/phdargen)!
+### Fixed
+- Return a spec-compatible invalid_payload error for malformed PAYMENT-SIGNATURE headers in the Go HTTP server ([#2907](https://github.com/x402-foundation/x402/pull/2907)) - Thanks [@wnjoon](https://github.com/wnjoon)!
+- Preserved one-shot request bodies across payment retries. ([#2914](https://github.com/x402-foundation/x402/pull/2914)) - Thanks [@wnjoon](https://github.com/wnjoon)!
+- Propagated client storage errors during batch settlement and refunds. ([#2917](https://github.com/x402-foundation/x402/pull/2917)) - Thanks [@wnjoon](https://github.com/wnjoon)!
+- Rejected small-order Ed25519 public keys in SIWx Solana signature verification. ([#2933](https://github.com/x402-foundation/x402/pull/2933)) - Thanks [@phdargen](https://github.com/phdargen)!
+
 ## v2.19.0 - 2026-07-17
 ### Changed
 - SIWX validation and verification results now use IsValid, InvalidReason, InvalidMessage, and Payer instead of Valid, Error, and Address. Each failure includes a machine-readable invalid_siwx_* code aligned with the TypeScript SDK. ([#2889](https://github.com/x402-foundation/x402/pull/2889)) - Thanks [@phdargen](https://github.com/phdargen)!

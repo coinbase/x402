@@ -1,3 +1,0 @@
-kind: changed
-body: 'Cap builder-code service codes (`s`) to five onchain entries at settlement. Facilitators now truncate excess valid codes, the server schema advertises `maxItems: 5`, and `MAX_SERVICE_CODES` is exported.'
-time: 2026-07-20T16:27:48.794777+02:00
