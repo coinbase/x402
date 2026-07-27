@@ -279,36 +279,46 @@ func TestRecentBlockhashResolution(t *testing.T) {
 		assert.Equal(t, int32(1), atomic.LoadInt32(&blockhashCalls))
 	})
 
-	t.Run("rejects malformed recentBlockhash", func(t *testing.T) {
-		var blockhashCalls int32
-		var accountInfoCalls int32
-		server := httptest.NewServer(mockSolanaRPCHandlerWithCounts(t, func() string {
-			return fixedBlockhashAlt
-		}, &blockhashCalls, &accountInfoCalls))
-		defer server.Close()
+	for name, provided := range map[string]interface{}{
+		"empty":      "",
+		"non-string": 12345,
+		"malformed":  "not-a-blockhash",
+	} {
+		t.Run("falls back to RPC when recentBlockhash is "+name, func(t *testing.T) {
+			var blockhashCalls int32
+			var accountInfoCalls int32
+			server := httptest.NewServer(mockSolanaRPCHandlerWithCounts(t, func() string {
+				return fixedBlockhashAlt
+			}, &blockhashCalls, &accountInfoCalls))
+			defer server.Close()
 
-		signer := &mockClientSigner{keypair: solana.NewWallet().PrivateKey}
-		client := NewExactSvmScheme(signer, &svm.ClientConfig{RPCURL: server.URL})
+			signer := &mockClientSigner{keypair: solana.NewWallet().PrivateKey}
+			client := NewExactSvmScheme(signer, &svm.ClientConfig{RPCURL: server.URL})
 
-		requirements := types.PaymentRequirements{
-			Scheme:            "exact",
-			Network:           "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-			Asset:             "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-			Amount:            "100000",
-			PayTo:             solana.NewWallet().PublicKey().String(),
-			MaxTimeoutSeconds: 3600,
-			Extra: map[string]interface{}{
-				"feePayer":        solana.NewWallet().PublicKey().String(),
-				"recentBlockhash": "not-a-blockhash",
-			},
-		}
+			requirements := types.PaymentRequirements{
+				Scheme:            "exact",
+				Network:           "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+				Asset:             "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+				Amount:            "100000",
+				PayTo:             solana.NewWallet().PublicKey().String(),
+				MaxTimeoutSeconds: 3600,
+				Extra: map[string]interface{}{
+					"feePayer":        solana.NewWallet().PublicKey().String(),
+					"recentBlockhash": provided,
+				},
+			}
 
-		_, err := client.CreatePaymentPayload(context.Background(), requirements)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), ErrInvalidRecentBlockhash)
-		assert.Equal(t, int32(0), atomic.LoadInt32(&blockhashCalls))
-		assert.Equal(t, int32(1), atomic.LoadInt32(&accountInfoCalls))
-	})
+			payload, err := client.CreatePaymentPayload(context.Background(), requirements)
+			require.NoError(t, err)
+
+			decoded, err := svm.DecodeTransaction(payload.Payload["transaction"].(string))
+			require.NoError(t, err)
+
+			assert.Equal(t, solana.MustHashFromBase58(fixedBlockhashAlt), decoded.Message.RecentBlockhash)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&blockhashCalls))
+			assert.Equal(t, int32(1), atomic.LoadInt32(&accountInfoCalls))
+		})
+	}
 }
 
 func TestFixedBlockhashProducesDistinctTransactions(t *testing.T) {

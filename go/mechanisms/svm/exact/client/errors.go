@@ -14,7 +14,6 @@ const (
 	ErrInvalidFeePayerAddress       = "invalid_exact_solana_client_invalid_fee_payer_address"
 	ErrFailedToDecodeMintData       = "invalid_exact_solana_client_failed_to_decode_mint_data"
 	ErrFailedToGetLatestBlockhash   = "invalid_exact_solana_client_failed_to_get_latest_blockhash"
-	ErrInvalidRecentBlockhash       = "invalid_exact_solana_client_invalid_recent_blockhash"
 	ErrFailedToBuildComputeLimitIx  = "invalid_exact_solana_client_failed_to_build_compute_limit_instruction"
 	ErrFailedToBuildComputePriceIx  = "invalid_exact_solana_client_failed_to_build_compute_price_instruction"
 	ErrFailedToBuildTransferIx      = "invalid_exact_solana_client_failed_to_build_transfer_instruction"

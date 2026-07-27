@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  getBase58Encoder,
   getBase64Encoder,
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
@@ -174,7 +175,7 @@ export function createRpcClient(
  * Prefers a server-provided blockhash carried in the 402 challenge
  * (`extra.recentBlockhash` + `extra.lastValidBlockHeight`) so the client needn't
  * make its own RPC round-trip. Falls back to fetching one from `rpc` when the
- * challenge omits it.
+ * challenge omits it or contains a malformed value.
  *
  * @param rpc - RPC client used for the fallback fetch
  * @param requirements - The payment requirements (challenge) being paid
@@ -185,10 +186,28 @@ export async function resolveBlockhash(
   requirements: PaymentRequirements,
 ): Promise<{ blockhash: Blockhash; lastValidBlockHeight: bigint }> {
   const provided = requirements.extra?.recentBlockhash;
-  if (typeof provided === "string") {
-    const lastValid = requirements.extra?.lastValidBlockHeight as string | number | undefined;
-    return { blockhash: provided as Blockhash, lastValidBlockHeight: BigInt(lastValid ?? 0) };
+  if (typeof provided === "string" && provided !== "") {
+    try {
+      if (getBase58Encoder().encode(provided).length === 32) {
+        const lastValid = requirements.extra?.lastValidBlockHeight;
+        let lastValidBlockHeight = 0n;
+        if (typeof lastValid === "string" && /^\d+$/.test(lastValid)) {
+          lastValidBlockHeight = BigInt(lastValid);
+        } else if (
+          typeof lastValid === "number" &&
+          Number.isSafeInteger(lastValid) &&
+          lastValid >= 0
+        ) {
+          lastValidBlockHeight = BigInt(lastValid);
+        }
+
+        return { blockhash: provided as Blockhash, lastValidBlockHeight };
+      }
+    } catch {
+      // Invalid optional hints are ignored; fetch a usable blockhash below.
+    }
   }
+
   const { value } = await rpc.getLatestBlockhash().send();
   return value;
 }

@@ -228,10 +228,9 @@ func (c *ExactSvmScheme) resolveRecentBlockhash(
 ) (solana.Hash, error) {
 	if blockhash, ok := requirements.Extra["recentBlockhash"].(string); ok && blockhash != "" {
 		recentBlockhash, err := solana.HashFromBase58(blockhash)
-		if err != nil {
-			return solana.Hash{}, fmt.Errorf(ErrInvalidRecentBlockhash+": %w", err)
+		if err == nil {
+			return recentBlockhash, nil
 		}
-		return recentBlockhash, nil
 	}
 
 	latestBlockhash, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
