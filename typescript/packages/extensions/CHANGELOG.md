@@ -1,5 +1,17 @@
 # @x402/extensions Changelog
 
+## 2.20.0
+
+### Minor Changes
+
+- Updated dependencies [4453a92](https://github.com/x402-foundation/x402/commit/4453a92)
+  - @x402/core@2.20.0
+
+### Patch Changes
+
+- [b7bfa69](https://github.com/x402-foundation/x402/commit/b7bfa69): Cap builder-code service codes (`s`) to 5 entries. ([#2912](https://github.com/x402-foundation/x402/pull/2912)) - Thanks [@phdargen](https://github.com/phdargen)!
+- [32464a2](https://github.com/x402-foundation/x402/commit/32464a2): Rejected small-order Ed25519 public keys in SIWx Solana signature verification. ([#2933](https://github.com/x402-foundation/x402/pull/2933)) - Thanks [@phdargen](https://github.com/phdargen)!
+
 ## 2.19.0
 
 ### Minor Changes

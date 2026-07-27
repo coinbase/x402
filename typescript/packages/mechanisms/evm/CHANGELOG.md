@@ -1,5 +1,13 @@
 # @x402/evm Changelog
 
+## 2.20.0
+
+### Minor Changes
+
+- Updated dependencies [4453a92](https://github.com/x402-foundation/x402/commit/4453a92)
+  - @x402/core@2.20.0
+- [e5c5051](https://github.com/x402-foundation/x402/commit/e5c5051): Fixed `batch-settlement` throwing `No default asset configured for network …` on EVM networks outside `DEFAULT_STABLECOINS` when the caller supplies an explicit `amount` + `asset`. Asset metadata now flows through `parsePrice`/the caller instead of being re-derived from the registry in `enhancePaymentRequirements`, `createChannelManager` accepts an optional explicit token, and `defaultMoneyConversion` sets `assetTransferMethod` for permit2 tokens (matching the `exact` scheme). ([#2924](https://github.com/x402-foundation/x402/pull/2924)) - Thanks [@fretchen](https://github.com/fretchen)!
+
 ## 2.19.0
 
 ### Minor Changes

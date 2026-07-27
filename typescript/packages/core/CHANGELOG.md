@@ -1,5 +1,11 @@
 # @x402/core Changelog
 
+## 2.20.0
+
+### Minor Changes
+
+- [4453a92](https://github.com/x402-foundation/x402/commit/4453a92): Throw a clear error when the `HTTPFacilitatorClient` `createAuthHeaders` callback returns a flat headers object instead of one keyed by facilitator path (`verify`/`settle`/`supported`). Previously this silently dropped authentication on every request. Also documented the expected shape on the `createAuthHeaders` option. ([#2957](https://github.com/x402-foundation/x402/pull/2957)) - Thanks [@cristianizzo](https://github.com/cristianizzo)!
+
 ## 2.19.0
 
 ### Minor Changes
