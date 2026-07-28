@@ -1,0 +1,7 @@
+﻿{
+  "name": "SQLGuard",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/sqlguard.png",
+  "description": "Execution Certificate Firewall — agents buy x402 USDC credits on Base, sandbox-validate SQL, and verify Ed25519 certs before production writes. Live Exact micro-buy at $0.10.",
+  "websiteUrl": "https://sqlguard.io"
+}
