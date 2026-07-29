@@ -528,6 +528,55 @@ describe("paymentMiddleware", () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
+  it("does not surface an eager initialization failure as an unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      // Hand-rolled instead of vi.fn(): the spy instruments promise results to
+      // record settlements, which attaches a rejection handler and would mask
+      // the unhandled rejection this test exists to detect.
+      let initializeCalls = 0;
+      const initialize = (): Promise<void> => {
+        initializeCalls += 1;
+        return initializeCalls === 1
+          ? Promise.reject(new Error("facilitator request timed out"))
+          : Promise.resolve(undefined);
+      };
+      vi.mocked(HTTPResourceServer).mockImplementation(
+        (server, routes) =>
+          ({
+            initialize,
+            processHTTPRequest: mockProcessHTTPRequest,
+            processSettlement: mockProcessSettlement,
+            registerPaywallProvider: mockRegisterPaywallProvider,
+            requiresPayment: mockRequiresPayment,
+            routes,
+            server: server || {
+              hasExtension: vi.fn().mockReturnValue(false),
+              registerExtension: vi.fn(),
+            },
+          }) as unknown as x402HTTPResourceServer,
+      );
+      mockProcessHTTPRequest.mockResolvedValue({ type: "no-payment-required" });
+
+      const middleware = paymentMiddleware(mockRoutes, {} as unknown as x402ResourceServer);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(unhandled).toHaveLength(0);
+
+      await expect(middleware(createMockContext(), vi.fn())).rejects.toThrow(
+        "facilitator request timed out",
+      );
+      await middleware(createMockContext(), vi.fn().mockResolvedValue(undefined));
+      expect(initializeCalls).toBe(2);
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
   it("returns 402 when settlement returns success: false", async () => {
     setupMockHttpServer(
       {

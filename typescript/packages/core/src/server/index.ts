@@ -45,7 +45,11 @@ export type { SettleResponseCoreSnapshot } from "./hookPolicy";
 
 export { HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 export type { FacilitatorClient, FacilitatorConfig } from "../http/httpFacilitatorClient";
-export { FacilitatorResponseError, getFacilitatorResponseError } from "../types";
+export {
+  FacilitatorResponseError,
+  FacilitatorTimeoutError,
+  getFacilitatorResponseError,
+} from "../types";
 
 export {
   x402HTTPResourceServer,

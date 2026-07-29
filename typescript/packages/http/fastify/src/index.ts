@@ -268,6 +268,11 @@ export function paymentMiddlewareFromHTTPServer(
   app.decorateRequest("x402RawGuard", undefined);
 
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  // Attach a no-op rejection handler so an early failure (e.g. a facilitator
+  // request timeout) cannot become an unhandled rejection before the first
+  // protected request awaits initPromise. The original promise is kept, so that
+  // request still observes the failure and triggers the retry path.
+  void initPromise?.catch(() => {});
   let isInitialized = false;
 
   /**
