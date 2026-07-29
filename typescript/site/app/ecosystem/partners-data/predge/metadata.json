@@ -1,0 +1,7 @@
+{
+  "name": "Predge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/predge.png",
+  "description": "Signed, offline-verifiable settled outcomes plus prediction-market whale intelligence as a pay-per-call x402 API. Ranks wallets by outcome-verified win rate on resolved markets (edge over the market's own price times capital deployed, not activity heuristics). Its differentiator: four flagship ed25519 attestations — settled Polymarket outcomes, sports results, Kalshi market resolutions, and wallet track records — each cryptographically signed and verifiable offline against a published key, so an agent can prove an outcome, not just assert it. Pay-per-call in USDC on Base or Solana, no keys, no accounts.",
+  "websiteUrl": "https://data.predge.io"
+}
