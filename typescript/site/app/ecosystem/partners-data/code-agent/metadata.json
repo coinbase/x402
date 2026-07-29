@@ -1,0 +1,7 @@
+{
+  "name": "Code Agent",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/code-agent.png",
+  "description": "Pay-per-request AI developer tools in USDC on Base via x402 v2: code gen, contract analysis, diff audits, summaries, and a $0.01 tip-jar. OpenAPI + /.well-known/x402 discovery. Indexed on x402scan.",
+  "websiteUrl": "https://code.mamenesia.com"
+}
