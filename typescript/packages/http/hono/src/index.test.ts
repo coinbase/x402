@@ -58,49 +58,53 @@ function createMockPaymentCancellationDispatcher(): PaymentVerifiedResult["cance
   } as unknown as PaymentVerifiedResult["cancellationDispatcher"];
 }
 
-vi.mock("@x402/core/server", () => ({
-  SETTLEMENT_OVERRIDES_HEADER: "Settlement-Overrides",
-  FacilitatorResponseError: class FacilitatorResponseError extends Error {
-    /**
-     * Creates a mock facilitator response error.
-     *
-     * @param message - Error message.
-     */
-    constructor(message: string) {
-      super(message);
-      this.name = "FacilitatorResponseError";
-    }
-  },
-  getFacilitatorResponseError: (error: unknown) => {
-    let current = error;
-    while (current instanceof Error) {
-      if (current.name === "FacilitatorResponseError") {
-        return current;
+vi.mock("@x402/core/server", async importOriginal => {
+  const actual = await importOriginal<typeof import("@x402/core/server")>();
+  return {
+    ...actual,
+    SETTLEMENT_OVERRIDES_HEADER: "Settlement-Overrides",
+    FacilitatorResponseError: class FacilitatorResponseError extends Error {
+      /**
+       * Creates a mock facilitator response error.
+       *
+       * @param message - Error message.
+       */
+      constructor(message: string) {
+        super(message);
+        this.name = "FacilitatorResponseError";
       }
-      current = (current as Error & { cause?: unknown }).cause;
-    }
-    return null;
-  },
-  x402ResourceServer: vi.fn().mockImplementation(() => ({
-    initialize: vi.fn().mockResolvedValue(undefined),
-    registerExtension: vi.fn(),
-    register: vi.fn(),
-    hasExtension: vi.fn().mockReturnValue(false),
-  })),
-  x402HTTPResourceServer: vi.fn().mockImplementation((server, routes) => ({
-    initialize: vi.fn().mockResolvedValue(undefined),
-    processHTTPRequest: mockProcessHTTPRequest,
-    processSettlement: mockProcessSettlement,
-    registerPaywallProvider: mockRegisterPaywallProvider,
-    requiresPayment: mockRequiresPayment,
-    routes: routes,
-    server: server || {
-      hasExtension: vi.fn().mockReturnValue(false),
-      registerExtension: vi.fn(),
     },
-  })),
-  checkIfBazaarNeeded: vi.fn().mockReturnValue(false),
-}));
+    getFacilitatorResponseError: (error: unknown) => {
+      let current = error;
+      while (current instanceof Error) {
+        if (current.name === "FacilitatorResponseError") {
+          return current;
+        }
+        current = (current as Error & { cause?: unknown }).cause;
+      }
+      return null;
+    },
+    x402ResourceServer: vi.fn().mockImplementation(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      registerExtension: vi.fn(),
+      register: vi.fn(),
+      hasExtension: vi.fn().mockReturnValue(false),
+    })),
+    x402HTTPResourceServer: vi.fn().mockImplementation((server, routes) => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      processHTTPRequest: mockProcessHTTPRequest,
+      processSettlement: mockProcessSettlement,
+      registerPaywallProvider: mockRegisterPaywallProvider,
+      requiresPayment: mockRequiresPayment,
+      routes: routes,
+      server: server || {
+        hasExtension: vi.fn().mockReturnValue(false),
+        registerExtension: vi.fn(),
+      },
+    })),
+    checkIfBazaarNeeded: vi.fn().mockReturnValue(false),
+  };
+});
 
 // --- Mock Factories ---
 /**

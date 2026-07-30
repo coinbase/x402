@@ -55,6 +55,8 @@ export {
   x402HTTPResourceServer,
   RouteConfigurationError,
   SETTLEMENT_OVERRIDES_HEADER,
+  PAYMENT_REQUIRED_CACHE_CONTROL,
+  withPrivateCacheControl,
   checkIfBazaarNeeded,
 } from "../http/x402HTTPResourceServer";
 export type {

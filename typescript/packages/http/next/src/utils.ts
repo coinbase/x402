@@ -10,6 +10,7 @@ import {
   getFacilitatorResponseError as getCoreFacilitatorResponseError,
   PaymentCancellationDispatcher,
   SETTLEMENT_OVERRIDES_HEADER,
+  withPrivateCacheControl,
 } from "@x402/core/server";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { NextAdapter } from "./adapter";
@@ -212,6 +213,10 @@ export async function handleSettlement(
     Object.entries(result.headers).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
+    response.headers.set(
+      "Cache-Control",
+      withPrivateCacheControl(response.headers.get("Cache-Control")),
+    );
 
     // Strip internal settlement override header before sending to client.
     response.headers.delete(SETTLEMENT_OVERRIDES_HEADER);

@@ -11,6 +11,7 @@ import {
   SETTLEMENT_OVERRIDES_HEADER,
   SettlementOverrides,
   checkIfBazaarNeeded,
+  withPrivateCacheControl,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { Context, MiddlewareHandler } from "hono";
@@ -264,6 +265,10 @@ export function paymentMiddlewareFromHTTPServer(
             Object.entries(settleResult.headers).forEach(([key, value]) => {
               res.headers.set(key, value);
             });
+            res.headers.set(
+              "Cache-Control",
+              withPrivateCacheControl(res.headers.get("Cache-Control")),
+            );
             res.headers.delete(SETTLEMENT_OVERRIDES_HEADER);
           }
         } catch (error) {

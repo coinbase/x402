@@ -77,7 +77,6 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
   return JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse;
 }
 
-// Export HTTP service and types
 export {
   x402HTTPResourceServer,
   HTTPAdapter,
@@ -104,6 +103,9 @@ export {
   ProtectedRequestHook,
   HTTPResourceServerExtensionHooks,
   ResourceServerTransportExtensionHooks,
+  SETTLEMENT_OVERRIDES_HEADER,
+  PAYMENT_REQUIRED_CACHE_CONTROL,
+  withPrivateCacheControl,
 } from "./x402HTTPResourceServer";
 export {
   HTTPFacilitatorClient,

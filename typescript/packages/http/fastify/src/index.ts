@@ -13,6 +13,7 @@ import {
   SettlementOverrides,
   checkIfBazaarNeeded,
   PaymentCancellationDispatcher,
+  withPrivateCacheControl,
 } from "@x402/core/server";
 import {
   SchemeNetworkServer,
@@ -469,6 +470,14 @@ export function paymentMiddlewareFromHTTPServer(
       for (const [key, value] of Object.entries(settleResult.headers)) {
         reply.header(key, value);
       }
+      reply.header(
+        "Cache-Control",
+        withPrivateCacheControl(
+          reply.getHeader("Cache-Control") != null
+            ? String(reply.getHeader("Cache-Control"))
+            : null,
+        ),
+      );
       reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
       return effectivePayload;
     } catch (error) {

@@ -17,7 +17,8 @@ import {
 let mockInitialize: ReturnType<typeof vi.fn>;
 
 // Mock @x402/core/server
-vi.mock("@x402/core/server", () => {
+vi.mock("@x402/core/server", async importOriginal => {
+  const actual = await importOriginal<typeof import("@x402/core/server")>();
   const MockHTTPResourceServer = vi.fn().mockImplementation(() => ({
     initialize: mockInitialize,
     registerPaywallProvider: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@x402/core/server", () => {
     requiresPayment: vi.fn().mockReturnValue(true),
   }));
   return {
+    ...actual,
     FacilitatorResponseError: class FacilitatorResponseError extends Error {
       /**
        * Creates a mock facilitator response error.
@@ -360,6 +362,7 @@ describe("handleSettlement", () => {
 
     expect(result.status).toBe(200);
     expect(result.headers.get("PAYMENT-RESPONSE")).toBe("settled");
+    expect(result.headers.get("Cache-Control")).toBe("private");
     expect(mockHttpServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockRequirements,
@@ -370,6 +373,25 @@ describe("handleSettlement", () => {
         responseHeaders: expect.any(Object),
       }),
     );
+  });
+
+  it("merges private into existing Cache-Control on successful settlement", async () => {
+    const response = new NextResponse("OK", {
+      status: 200,
+      headers: { "Cache-Control": "max-age=60" },
+    });
+
+    const result = await handleSettlement(
+      mockHttpServer,
+      response,
+      mockPaymentPayload,
+      mockRequirements,
+      mockDeclaredExtensions,
+      mockPaymentCancellationDispatcher,
+      mockHttpContext,
+    );
+
+    expect(result.headers.get("Cache-Control")).toBe("max-age=60, private");
   });
 
   it("forwards response headers to processSettlement for settlement overrides", async () => {

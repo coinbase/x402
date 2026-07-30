@@ -30,6 +30,7 @@ from ..types import (
     RoutesConfig,
 )
 from ..x402_http_server import PaywallProvider, x402HTTPResourceServerSync
+from ..x402_http_server_base import PAYMENT_REQUIRED_CACHE_CONTROL, with_private_cache_control
 
 if TYPE_CHECKING:
     from ...server import x402ResourceServerSync
@@ -447,6 +448,31 @@ class PaymentMiddleware:
                             # Add settlement headers
                             for key, value in settle_result.headers.items():
                                 response_wrapper.add_header(key, value)
+                            existing_cache_control = next(
+                                (
+                                    value
+                                    for key, value in response_wrapper.headers
+                                    if key.lower() == "cache-control"
+                                ),
+                                None,
+                            )
+                            private_cache_control = with_private_cache_control(
+                                existing_cache_control
+                            )
+                            cache_control_updated = False
+                            for index, (key, _) in enumerate(response_wrapper.headers):
+                                if key.lower() == "cache-control":
+                                    response_wrapper.headers[index] = (
+                                        key,
+                                        private_cache_control,
+                                    )
+                                    cache_control_updated = True
+                                    break
+                            if not cache_control_updated:
+                                response_wrapper.add_header(
+                                    "Cache-Control",
+                                    private_cache_control,
+                                )
                         else:
                             # Settlement failed - use response from process_settlement
                             # (includes PAYMENT-RESPONSE header and empty body by default)
@@ -495,7 +521,11 @@ class PaymentMiddleware:
                         )
                         start_response(
                             "402 Payment Required",
-                            [("Content-Type", "application/json"), *settle_headers.items()],
+                            [
+                                ("Content-Type", "application/json"),
+                                ("Cache-Control", PAYMENT_REQUIRED_CACHE_CONTROL),
+                                *settle_headers.items(),
+                            ],
                         )
                         return [json.dumps({}).encode("utf-8")]
 

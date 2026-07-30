@@ -11,6 +11,7 @@ import {
   SETTLEMENT_OVERRIDES_HEADER,
   SettlementOverrides,
   checkIfBazaarNeeded,
+  withPrivateCacheControl,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
@@ -349,6 +350,14 @@ export function paymentMiddlewareFromHTTPServer(
           Object.entries(settleResult.headers).forEach(([key, value]) => {
             res.setHeader(key, value);
           });
+          res.setHeader(
+            "Cache-Control",
+            withPrivateCacheControl(
+              res.getHeader("Cache-Control") != null
+                ? String(res.getHeader("Cache-Control"))
+                : null,
+            ),
+          );
         } catch (error) {
           if (error instanceof FacilitatorResponseError) {
             bufferedCalls = [];

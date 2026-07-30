@@ -3,6 +3,8 @@ import {
   x402HTTPResourceServer,
   HTTPRequestContext,
   HTTPAdapter,
+  PAYMENT_REQUIRED_CACHE_CONTROL,
+  withPrivateCacheControl,
 } from "../../../src/http/x402HTTPResourceServer";
 import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
@@ -772,6 +774,7 @@ describe("x402HTTPResourceServer", () => {
       if (result.type === "payment-error") {
         expect(result.response.status).toBe(402);
         expect(result.response.headers["PAYMENT-REQUIRED"]).toBeDefined();
+        expect(result.response.headers["Cache-Control"]).toBe("no-store");
       }
     });
 
@@ -872,6 +875,7 @@ describe("x402HTTPResourceServer", () => {
         // Should return 412 for permit2_allowance_required
         expect(result.response.status).toBe(412);
         expect(result.response.headers["PAYMENT-REQUIRED"]).toBeDefined();
+        expect(result.response.headers["Cache-Control"]).toBe("no-store");
       }
     });
 
@@ -996,6 +1000,7 @@ describe("x402HTTPResourceServer", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.headers["PAYMENT-RESPONSE"]).toBeDefined();
+        expect(result.headers["Cache-Control"]).toBeUndefined();
       }
       expect(mockFacilitator.settleCalls.length).toBe(1);
     });
@@ -1035,6 +1040,7 @@ describe("x402HTTPResourceServer", () => {
         expect(result.errorReason).toBe("Insufficient funds");
         expect(result.headers).toBeDefined();
         expect(result.headers["PAYMENT-RESPONSE"]).toBeDefined();
+        expect(result.response.headers["Cache-Control"]).toBe("no-store");
       }
     });
 
@@ -1371,6 +1377,7 @@ describe("x402HTTPResourceServer", () => {
       if (result.type === "payment-error") {
         expect(result.response.status).toBe(200);
         expect(result.response.headers["PAYMENT-RESPONSE"]).toBeDefined();
+        expect(result.response.headers["Cache-Control"]).toBe("private");
         expect(result.response.body).toEqual({ message: "Refund acknowledged" });
       }
     });
@@ -1405,6 +1412,30 @@ describe("x402HTTPResourceServer", () => {
       if (result.type === "payment-error") {
         expect(result.response.isHtml).toBeFalsy();
       }
+    });
+  });
+
+  describe("withPrivateCacheControl", () => {
+    it("exports no-store for payment-required responses", () => {
+      expect(PAYMENT_REQUIRED_CACHE_CONTROL).toBe("no-store");
+    });
+
+    it("returns private when no existing header is set", () => {
+      expect(withPrivateCacheControl(null)).toBe("private");
+      expect(withPrivateCacheControl("")).toBe("private");
+    });
+
+    it("appends private to existing directives", () => {
+      expect(withPrivateCacheControl("max-age=60")).toBe("max-age=60, private");
+    });
+
+    it("is idempotent when private is already present", () => {
+      expect(withPrivateCacheControl("max-age=60, private")).toBe("max-age=60, private");
+      expect(withPrivateCacheControl("private")).toBe("private");
+    });
+
+    it("detects private case-insensitively", () => {
+      expect(withPrivateCacheControl("max-age=60, Private")).toBe("max-age=60, Private");
     });
   });
 });
