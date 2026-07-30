@@ -293,7 +293,12 @@ class x402ClientBase:
         return self
 
     def register_extension(self, extension: ClientExtension) -> Self:
-        """Register a client extension."""
+        """Register a client extension that can enrich payment payloads.
+
+        Every registered extension's ``enrich_payment_payload`` hook is called
+        after the scheme creates the base payload. Server-declared fields are
+        preserved via merge after enrichment.
+        """
         self._registered_extensions[extension.key] = extension
         return self
 
@@ -385,14 +390,11 @@ class x402ClientBase:
         payment_payload: PaymentPayload,
         payment_required: PaymentRequired,
     ) -> PaymentPayload:
-        extensions = payment_required.extensions
-        if not extensions or not self._registered_extensions:
+        if not self._registered_extensions:
             return payment_payload
 
         enriched = payment_payload
-        for key, extension in self._registered_extensions.items():
-            if key not in extensions:
-                continue
+        for extension in self._registered_extensions.values():
             enrich = getattr(extension, "enrich_payment_payload", None)
             if enrich is None:
                 continue
@@ -402,7 +404,12 @@ class x402ClientBase:
         # extensions: the server's declared entry is preserved while the client
         # overlays only the new fields it populated.
         return enriched.model_copy(
-            update={"extensions": _merge_extensions(extensions, enriched.extensions)}
+            update={
+                "extensions": _merge_extensions(
+                    payment_required.extensions,
+                    enriched.extensions,
+                )
+            }
         )
 
     async def _enrich_payment_payload_with_extensions_async(
@@ -410,14 +417,11 @@ class x402ClientBase:
         payment_payload: PaymentPayload,
         payment_required: PaymentRequired,
     ) -> PaymentPayload:
-        extensions = payment_required.extensions
-        if not extensions or not self._registered_extensions:
+        if not self._registered_extensions:
             return payment_payload
 
         enriched = payment_payload
-        for key, extension in self._registered_extensions.items():
-            if key not in extensions:
-                continue
+        for extension in self._registered_extensions.values():
             enrich = getattr(extension, "enrich_payment_payload", None)
             if enrich is None:
                 continue
@@ -431,7 +435,12 @@ class x402ClientBase:
         # extensions: the server's declared entry is preserved while the client
         # overlays only the new fields it populated.
         return enriched.model_copy(
-            update={"extensions": _merge_extensions(extensions, enriched.extensions)}
+            update={
+                "extensions": _merge_extensions(
+                    payment_required.extensions,
+                    enriched.extensions,
+                )
+            }
         )
 
     # ========================================================================

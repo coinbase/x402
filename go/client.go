@@ -100,9 +100,10 @@ func (c *x402Client) RegisterPolicy(policy PaymentPolicy) *x402Client {
 }
 
 // RegisterExtension registers a client extension that can enrich payment payloads.
-// Extensions are invoked after the scheme creates the base payload. If the extension's
-// key is present in paymentRequired.Extensions, the extension's EnrichPaymentPayload
-// method is called to modify the payload.
+// Extensions are invoked after the scheme creates the base payload and the payload
+// is wrapped with extensions/resource/accepted data. Every registered extension's
+// EnrichPaymentPayload hook is called to modify the payload. Server-declared fields
+// are preserved via merge after enrichment.
 func (c *x402Client) RegisterExtension(ext ClientExtension) *x402Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -522,26 +523,24 @@ func (c *x402Client) GetRegisteredSchemes() map[int][]struct {
 	return result
 }
 
-// enrichPaymentPayloadWithExtensions invokes registered client extensions
-// to enrich the payment payload. For each registered extension whose key is
-// present in the PaymentRequired extensions, calls EnrichPaymentPayload.
+// enrichPaymentPayloadWithExtensions invokes EnrichPaymentPayload for every
+// registered extension, then merges server-declared extension fields back into
+// the result.
 func (c *x402Client) enrichPaymentPayloadWithExtensions(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	required types.PaymentRequired,
 ) (types.PaymentPayload, error) {
-	if len(required.Extensions) == 0 || len(c.extensions) == 0 {
+	if len(c.extensions) == 0 {
 		return payload, nil
 	}
 
 	enriched := payload
 	for key, ext := range c.extensions {
-		if _, exists := required.Extensions[key]; exists {
-			var err error
-			enriched, err = ext.EnrichPaymentPayload(ctx, enriched, required)
-			if err != nil {
-				return types.PaymentPayload{}, fmt.Errorf("extension %s enrichment failed: %w", key, err)
-			}
+		var err error
+		enriched, err = ext.EnrichPaymentPayload(ctx, enriched, required)
+		if err != nil {
+			return types.PaymentPayload{}, fmt.Errorf("extension %s enrichment failed: %w", key, err)
 		}
 	}
 

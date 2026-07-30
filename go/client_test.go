@@ -135,6 +135,22 @@ func (e mockClientExtension) EnrichPaymentPayload(_ context.Context, payload typ
 	return payload, nil
 }
 
+type enrichingClientExtension struct {
+	key      string
+	enrichFn func(types.PaymentPayload, types.PaymentRequired) (types.PaymentPayload, error)
+}
+
+func (e enrichingClientExtension) Key() string {
+	return e.key
+}
+
+func (e enrichingClientExtension) EnrichPaymentPayload(_ context.Context, payload types.PaymentPayload, required types.PaymentRequired) (types.PaymentPayload, error) {
+	if e.enrichFn != nil {
+		return e.enrichFn(payload, required)
+	}
+	return payload, nil
+}
+
 func TestClientSelectPaymentRequirements(t *testing.T) {
 	client := Newx402Client()
 	mockClient := &mockSchemeNetworkClientV2{scheme: "exact"}
@@ -308,6 +324,70 @@ func TestClientCreatePaymentPayloadEchoesRegisteredExtensions(t *testing.T) {
 
 	require.Contains(t, payload.Extensions, "auth")
 	require.Contains(t, payload.Extensions, "keep")
+}
+
+func TestClientCreatePaymentPayloadEnrichesRegisteredExtensionWithoutServerDeclaration(t *testing.T) {
+	ctx := context.Background()
+	client := Newx402Client()
+	client.Register("eip155:1", &mockSchemeNetworkClientV2{scheme: "exact"})
+
+	var enrichCalled bool
+	client.RegisterExtension(enrichingClientExtension{
+		key: "clientOwnedExtension",
+		enrichFn: func(payload types.PaymentPayload, _ types.PaymentRequired) (types.PaymentPayload, error) {
+			enrichCalled = true
+			if payload.Extensions == nil {
+				payload.Extensions = map[string]interface{}{}
+			}
+			payload.Extensions["clientOwnedExtension"] = map[string]interface{}{
+				"info": map[string]interface{}{"s": "client_data"},
+			}
+			return payload, nil
+		},
+	})
+
+	payload, err := client.CreatePaymentPayload(ctx, types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000",
+		PayTo:   "0xrecipient",
+	}, nil, nil)
+	require.NoError(t, err)
+	require.True(t, enrichCalled)
+	require.Equal(t, map[string]interface{}{
+		"info": map[string]interface{}{"s": "client_data"},
+	}, payload.Extensions["clientOwnedExtension"])
+}
+
+func TestClientCreatePaymentPayloadServerGatedExtensionNoOpsWithoutDeclaration(t *testing.T) {
+	ctx := context.Background()
+	client := Newx402Client()
+	client.Register("eip155:1", &mockSchemeNetworkClientV2{scheme: "exact"})
+
+	var enrichCalled bool
+	client.RegisterExtension(enrichingClientExtension{
+		key: "testGasSponsoring",
+		enrichFn: func(payload types.PaymentPayload, required types.PaymentRequired) (types.PaymentPayload, error) {
+			if required.Extensions == nil || required.Extensions["testGasSponsoring"] == nil {
+				return payload, nil
+			}
+			enrichCalled = true
+			return payload, nil
+		},
+	})
+
+	_, err := client.CreatePaymentPayload(ctx, types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000",
+		PayTo:   "0xrecipient",
+	}, nil, map[string]interface{}{
+		"other-extension": map[string]interface{}{},
+	})
+	require.NoError(t, err)
+	require.False(t, enrichCalled)
 }
 
 func TestClientCreatePaymentPayloadValidation(t *testing.T) {

@@ -9,7 +9,7 @@ This package implements ERC-8021 **Schema 2** (CBOR-encoded). See the [protocol 
 ## How it works
 
 1. **Servers** declare their app code (`a`) in the 402 `PaymentRequired.extensions`.
-2. **Clients** echo the server's `a` and attach their own service code(s) (`s`) to `PaymentPayload.extensions`.
+2. **Clients** attach their own service code(s) (`s`) to `PaymentPayload.extensions` whenever `BuilderCodeClientExtension` is registered. When the server declared `builder-code`, the core client merge also preserves the server's `a`.
 3. **Facilitators** add their wallet code (`w`) at settlement, CBOR-encode the combined fields, and append the ERC-8021 suffix to the settlement calldata.
 
 All codes must match `^[a-z0-9_]{1,32}$` (1-32 characters, lowercase alphanumeric and underscores). Invalid codes throw at construction/declaration time.
@@ -33,7 +33,9 @@ const paymentRequired = {
 
 ## For clients
 
-Register the client extension so your service code(s) (`s`) are attached to every payment. Pass a single code or an array of codes so layered clients (e.g. an MCP middleware) can attribute multiple participants.
+Register the client extension so your service code(s) (`s`) are attached to every payment when the extension is registered. Pass a single code or an array of codes so layered clients (e.g. an MCP middleware) can attribute multiple participants.
+
+When the server declared `builder-code` in the 402 response, the core client merge preserves the server-declared `a` and schema after enrichment. When the server did not declare `builder-code`, only `s` is attached.
 
 ```typescript
 import { BuilderCodeClientExtension } from "@x402/extensions/builder-code";
@@ -47,7 +49,7 @@ client.registerExtension(new BuilderCodeClientExtension("bc_my_client"));
 client.registerExtension(new BuilderCodeClientExtension(["bc_mcp", "bc_demo_app"]));
 ```
 
-The client never sets `w` — that is added by the facilitator. The core client merge preserves the server-declared `a` and schema after enrichment.
+The client never sets `w` — that is added by the facilitator.
 
 ## For facilitators
 

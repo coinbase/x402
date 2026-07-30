@@ -92,13 +92,25 @@ The application declares its builder code per-route in the payment middleware co
 
 ## `PaymentPayload`
 
-The client echoes the server's app code (`a`) and attaches its own service code(s) (`s`).
+The client attaches its own service code(s) (`s`) when the `BuilderCodeClientExtension` is registered. When the server declared `builder-code` in `PaymentRequired`, the client also echoes the server's app code (`a`).
 
 ```json
 {
   "extensions": {
     "builder-code": {
       "a": "my_app",
+      "s": "my_client"
+    }
+  }
+}
+```
+
+When the server did not declare `builder-code`, the client still attaches `s` but MUST NOT set `a`:
+
+```json
+{
+  "extensions": {
+    "builder-code": {
       "s": "my_client"
     }
   }
@@ -128,7 +140,13 @@ The `w` (wallet) field is **not** set by the client. It is added by the facilita
 | ----- | ----------- | ---------------------------------- | -------------------------------------------------------- |
 | `a`   | Application | Per-route middleware configuration | Identifies the application exposing the paid endpoint    |
 | `w`   | Facilitator | Settlement                         | Identifies the facilitator settling the payment on-chain |
-| `s`   | Client      | Payment payload construction       | Identifies the client or intermediary that participated |
+| `s`   | Client      | Payment payload construction       | Identifies the client or intermediary that participated  |
+
+| Field | Server advertises `builder-code`? | Client behavior |
+| ----- | --------------------------------- | --------------- |
+| `a`   | Yes                               | Echo server value (via core merge) |
+| `a`   | No                                | MUST NOT set |
+| `s`   | Either                            | SHOULD attach when `BuilderCodeClientExtension` is registered |
 
 ---
 
@@ -136,7 +154,7 @@ The `w` (wallet) field is **not** set by the client. It is added by the facilita
 
 When a facilitator settles a payment containing the `builder-code` extension, it:
 
-1. Verifies that `PaymentPayload.extensions["builder-code"].a` matches `PaymentRequired.extensions["builder-code"].info.a`
+1. When the resource server declared `builder-code.info.a`, verifies that `PaymentPayload.extensions["builder-code"].a` matches `PaymentRequired.extensions["builder-code"].info.a`
 2. Reads `a` (app code) and `s` (service codes) from the payment payload extensions
 3. Adds its own builder code as the `w` (wallet) field
 4. Encodes the combined data as an ERC-8021 Schema 2 CBOR suffix
@@ -255,7 +273,7 @@ Invalid codes must be rejected at declaration time (application) and at construc
 
 ### App Code Echo Validation
 
-The facilitator MUST verify that the `a` field echoed by the client in `PaymentPayload.extensions["builder-code"]` exactly matches the `a` field declared by the application in `PaymentRequired.extensions["builder-code"].info`. A mismatch indicates the client tampered with the attribution and the payment MUST be rejected.
+When the resource server declared `builder-code` in `PaymentRequired`, the facilitator MUST verify that the `a` field echoed by the client in `PaymentPayload.extensions["builder-code"]` exactly matches the `a` field declared by the application in `PaymentRequired.extensions["builder-code"].info`. A mismatch indicates the client tampered with the attribution and the payment MUST be rejected.
 
 
 ### Schema Validation
@@ -282,5 +300,5 @@ Off-chain parsers can extract builder code attribution from settlement calldata 
 | Role            | Responsibility                                                                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Application** | Declares `a` (app code) per-route in the payment middleware configuration                                   |
-| **Client**      | Echoes `a` from `PaymentRequired`; attaches its own service code as `s` in `PaymentPayload` |
+| **Client**      | Attaches service code(s) as `s` when `BuilderCodeClientExtension` is registered; echoes `a` only when the server declared `builder-code` |
 | **Facilitator** | Adds `w` (wallet code) at settlement, encodes the full CBOR suffix (`a`, `s`, `w`), appends to calldata    |

@@ -66,7 +66,7 @@ describe("Builder Code Integration Tests", () => {
     });
   });
 
-  it("does not enrich when builder-code is absent from payment required", async () => {
+  it("attaches service codes when builder-code is absent from payment required", async () => {
     const accepts = [buildCashPaymentRequirements("merchant@example.com", "USD", "1")];
     const resource = {
       url: "https://example.com/api/weather",
@@ -77,7 +77,9 @@ describe("Builder Code Integration Tests", () => {
 
     const paymentPayload = await client.createPaymentPayload(paymentRequired);
 
-    expect(paymentPayload.extensions?.[BUILDER_CODE]).toBeUndefined();
+    expect(paymentPayload.extensions?.[BUILDER_CODE]).toEqual({
+      info: { s: [SERVICE] },
+    });
   });
 
   it("produces a parseable settlement suffix from client and server extensions", async () => {
@@ -138,7 +140,7 @@ describe("Builder Code Integration Tests", () => {
     expect(parsed).toEqual({ w: WALLET, a: APP, s: ["bc_base_mcp", "bc_demo_app"] });
   });
 
-  it("settlement suffix encodes only wallet code when server did not declare builder-code", async () => {
+  it("settlement suffix encodes wallet and service codes when server did not declare builder-code", async () => {
     const accepts = [buildCashPaymentRequirements("merchant@example.com", "USD", "1")];
     const resource = {
       url: "https://example.com/api/weather",
@@ -148,7 +150,9 @@ describe("Builder Code Integration Tests", () => {
     const paymentRequired = await server.createPaymentRequiredResponse(accepts, resource);
 
     const paymentPayload = await client.createPaymentPayload(paymentRequired);
-    expect(paymentPayload.extensions?.[BUILDER_CODE]).toBeUndefined();
+    expect(paymentPayload.extensions?.[BUILDER_CODE]).toEqual({
+      info: { s: [SERVICE] },
+    });
 
     const builderExt = facilitator.getExtension<BuilderCodeFacilitatorExtensionType>(BUILDER_CODE)!;
     const suffix = builderExt.buildDataSuffix!({
@@ -160,6 +164,6 @@ describe("Builder Code Integration Tests", () => {
     }
 
     const parsed = parseBuilderCodeSuffixFromCalldata(`0x${"00".repeat(4)}${suffix.slice(2)}`);
-    expect(parsed).toEqual({ w: WALLET });
+    expect(parsed).toEqual({ w: WALLET, s: [SERVICE] });
   });
 });

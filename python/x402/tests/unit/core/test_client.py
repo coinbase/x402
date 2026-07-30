@@ -422,6 +422,55 @@ class TestRegisterExtension:
         assert payload.extensions is not None
         assert payload.extensions["test-ext"]["enriched"] is True
 
+    @pytest.mark.asyncio
+    async def test_register_extension_enriches_without_server_declaration(self):
+        class Ext:
+            key = "clientOwnedExtension"
+
+            def enrich_payment_payload(self, payload, payment_required):
+                extensions = dict(payload.extensions or {})
+                extensions["clientOwnedExtension"] = {"info": {"s": "client_data"}}
+                return payload.model_copy(update={"extensions": extensions})
+
+        client = x402Client()
+        client.register("eip155:8453", MockSchemeClient("exact"))
+        client.register_extension(Ext())
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[_make_payment_requirements()],
+            extensions={},
+        )
+        payload = await client.create_payment_payload(payment_required)
+        assert payload.extensions is not None
+        assert payload.extensions["clientOwnedExtension"] == {"info": {"s": "client_data"}}
+
+    @pytest.mark.asyncio
+    async def test_server_gated_extension_noops_without_declaration(self):
+        class Ext:
+            key = "testGasSponsoring"
+
+            def enrich_payment_payload(self, payload, payment_required):
+                if not payment_required.extensions or "testGasSponsoring" not in (
+                    payment_required.extensions
+                ):
+                    return payload
+                extensions = dict(payload.extensions or {})
+                extensions["testGasSponsoring"] = {"enriched": True}
+                return payload.model_copy(update={"extensions": extensions})
+
+        client = x402Client()
+        client.register("eip155:8453", MockSchemeClient("exact"))
+        client.register_extension(Ext())
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[_make_payment_requirements()],
+            extensions={"other-extension": {}},
+        )
+        payload = await client.create_payment_payload(payment_required)
+        assert payload.extensions is None or "testGasSponsoring" not in payload.extensions
+
 
 # =============================================================================
 # get_registered_schemes Tests

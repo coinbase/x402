@@ -109,9 +109,10 @@ export interface ClientExtension {
   key: string;
 
   /**
-   * Called after payload creation when the extension key is present in
-   * paymentRequired.extensions. Allows the extension to enrich the payload
-   * with extension-specific data (e.g., signing an EIP-2612 permit).
+   * Called after payload creation for every registered extension. Allows the
+   * extension to enrich the payload with extension-specific data. Extensions
+   * that require a server declaration must no-op internally when the server
+   * did not advertise them in paymentRequired.extensions.
    *
    * @param paymentPayload - The payment payload to enrich
    * @param paymentRequired - The original PaymentRequired response
@@ -281,9 +282,9 @@ export class x402Client {
    * Registers a client extension that can enrich payment payloads.
    *
    * Extensions are invoked after the scheme creates the base payload and the
-   * payload is wrapped with extensions/resource/accepted data. If the extension's
-   * key is present in `paymentRequired.extensions`, the extension's
-   * `enrichPaymentPayload` hook is called to modify the payload.
+   * payload is wrapped with extensions/resource/accepted data. Every registered
+   * extension's `enrichPaymentPayload` hook is called to modify the payload.
+   * Server-declared fields are preserved via merge after enrichment.
    *
    * @param extension - The client extension to register
    * @returns The x402Client instance for chaining
@@ -550,8 +551,8 @@ export class x402Client {
 
   /**
    * Enriches a payment payload by calling registered extension hooks.
-   * For each extension key present in the PaymentRequired response,
-   * invokes the corresponding extension's enrichPaymentPayload callback.
+   * Invokes enrichPaymentPayload for every registered extension, then merges
+   * server-declared extension fields back into the result.
    *
    * @param paymentPayload - The payment payload to enrich with extension data
    * @param paymentRequired - The PaymentRequired response containing extension declarations
@@ -561,13 +562,13 @@ export class x402Client {
     paymentPayload: PaymentPayload,
     paymentRequired: PaymentRequired,
   ): Promise<PaymentPayload> {
-    if (!paymentRequired.extensions || this.registeredExtensions.size === 0) {
+    if (this.registeredExtensions.size === 0) {
       return paymentPayload;
     }
 
     let enriched = paymentPayload;
-    for (const [key, extension] of this.registeredExtensions) {
-      if (key in paymentRequired.extensions && extension.enrichPaymentPayload) {
+    for (const [, extension] of this.registeredExtensions) {
+      if (extension.enrichPaymentPayload) {
         enriched = await extension.enrichPaymentPayload(enriched, paymentRequired);
       }
     }

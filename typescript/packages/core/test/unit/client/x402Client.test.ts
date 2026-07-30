@@ -768,17 +768,23 @@ describe("x402Client", () => {
       });
     });
 
-    it("should NOT invoke extension when key is not in paymentRequired.extensions", async () => {
+    it("should invoke registered extension enrichPaymentPayload even when key is not in paymentRequired.extensions", async () => {
       const client = new x402Client();
       const mockClient = new MockSchemeNetworkClient("exact");
       client.register("eip155:84532" as Network, mockClient);
 
       let enrichCalled = false;
       client.registerExtension({
-        key: "missingExtension",
+        key: "clientOwnedExtension",
         enrichPaymentPayload: async payload => {
           enrichCalled = true;
-          return payload;
+          return {
+            ...payload,
+            extensions: {
+              ...payload.extensions,
+              clientOwnedExtension: { info: { s: "client_data" } },
+            },
+          };
         },
       });
 
@@ -792,9 +798,12 @@ describe("x402Client", () => {
         extensions: {},
       });
 
-      await client.createPaymentPayload(paymentRequired);
+      const result = await client.createPaymentPayload(paymentRequired);
 
-      expect(enrichCalled).toBe(false);
+      expect(enrichCalled).toBe(true);
+      expect((result.extensions as Record<string, unknown>)?.clientOwnedExtension).toEqual({
+        info: { s: "client_data" },
+      });
     });
 
     it("should support chaining registerExtension", () => {

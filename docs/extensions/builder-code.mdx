@@ -145,7 +145,7 @@ app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 
 ## Quickstart for Buyers (Clients)
 
-Register the `BuilderCodeClientExtension` on your x402 client. It automatically echoes the server's app code (`a`) and attaches your service code (`s`) to every payment payload:
+Register the `BuilderCodeClientExtension` on your x402 client. It attaches your service code (`s`) to every payment payload when registered. When the server declared `builder-code`, the core client merge also preserves the server's app code (`a`):
 
 <Tabs>
   <Tab title="TypeScript">
@@ -374,7 +374,7 @@ client.registerExtension(new BuilderCodeClientExtension("bc_my_client"));
 client.registerExtension(new BuilderCodeClientExtension(["bc_mcp_server", "bc_my_app"]));
 ```
 
-Accepts a single string or an array of strings. Automatically echoes the server's `a` code and attaches the client's `s` code(s) to every payment payload. Multiple codes are useful for layered clients (e.g. an MCP server acting as middleware) that need to attribute multiple participants.
+Accepts a single string or an array of strings. Attaches the client's `s` code(s) to every payment payload when registered. When the server declared `builder-code`, the core client merge also preserves the server's `a` code. Multiple codes are useful for layered clients (e.g. an MCP server acting as middleware) that need to attribute multiple participants.
 
 <Note>Facilitators cap `s` to the first **5** entries (`MAX_SERVICE_CODES`) at settlement to bound calldata size. Extra entries are silently dropped.</Note>
 
