@@ -1,0 +1,7 @@
+{
+  "name": "dex-data",
+  "description": "Live multi-chain DEX market data over x402: USD price for any ERC-20 by ticker or contract address, per-venue liquidity depth, raw pool reserves, best execution venue, liquidity-risk depth class and pre-trade price impact across BNB Chain, Polygon, Arbitrum, Base and Avalanche. Free tier needs no wallet; beyond it, x402 micropayments in USDC on Base. Also available as an MCP server.",
+  "logoUrl": "/logos/dex-data.svg",
+  "websiteUrl": "https://x402.donnyautomation.com/llms.txt",
+  "category": "Services/Endpoints"
+}

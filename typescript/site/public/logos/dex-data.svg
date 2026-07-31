@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="dex-data">
+  <title>dex-data</title>
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <!-- depth bars: the product is liquidity depth across venues -->
+  <rect x="13" y="36" width="7" height="15" rx="2" fill="#3B82F6"/>
+  <rect x="24" y="27" width="7" height="24" rx="2" fill="#60A5FA"/>
+  <rect x="35" y="19" width="7" height="32" rx="2" fill="#93C5FD"/>
+  <rect x="46" y="30" width="7" height="21" rx="2" fill="#3B82F6"/>
+  <!-- price line across them -->
+  <path d="M13 30 L28 22 L39 14 L51 24" fill="none" stroke="#F59E0B" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
