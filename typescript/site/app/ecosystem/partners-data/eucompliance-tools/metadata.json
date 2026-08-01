@@ -2,6 +2,6 @@
   "name": "eucompliance.tools",
   "category": "Services",
   "logoUrl": "/logos/eucompliance-tools.png",
-  "description": "EU compliance and on-chain pre-flight checks, priced per call. Transaction pre-flight (gas, simulation with decoded revert reason, stuck nonces, allowance, sanctions screen of the counterparty), ERC-20 allowance and balance on five chains, transaction status with revert reason, plus sanctions screening (EU/UN/UK), VAT ID and IBAN validation, EU VAT treatment with EN 16931 codes, e-invoice validation and agent spend bookkeeping. From $0.002 per call, no account. Every answer carries an EIP-191 signed receipt that verifies offline. Also an MCP server.",
+  "description": "EU compliance and on-chain pre-flight checks, priced per call. Transaction pre-flight (gas, simulation with decoded revert reason, stuck nonces, allowance, sanctions screen of the counterparty), ERC-20 allowance and balance on five chains, transaction status with revert reason, plus sanctions screening (EU/UN/UK), VAT ID and IBAN validation, EU VAT treatment with EN 16931 codes, e-invoice validation and agent spend bookkeeping. From $0.002 per call, no account. Every answer carries an EIP-191 signed receipt that verifies offline. Also an MCP server. Operated from Vienna, Austria.",
   "websiteUrl": "https://eucompliance.tools"
 }
