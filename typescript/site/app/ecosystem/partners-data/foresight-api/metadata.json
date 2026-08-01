@@ -1,0 +1,7 @@
+{
+  "name": "Foresight API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/foresight-api.svg",
+  "description": "One API for the economy. Jobs, prices, housing, government budgets — accurate numbers served as time series and natural prose.",
+  "websiteUrl": "https://api.creativeforesight.io"
+}
