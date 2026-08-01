@@ -1,0 +1,7 @@
+{
+  "name": "LedgerProof LAIN",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/ledgerproof.png",
+  "description": "Cryptographically anchored, tamper-evident evidence receipts for AI agents, purchasable inline over x402 (receipt $0.25 / certificate $0.50 USDC on Base). Each receipt proves an item's existence and integrity against a public, append-only log and is independently verifiable for free — never an assertion of truth.",
+  "websiteUrl": "https://ledgerproofhq.io"
+}
