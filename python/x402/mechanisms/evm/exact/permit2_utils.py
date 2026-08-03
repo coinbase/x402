@@ -36,6 +36,7 @@ from ..constants import (  # noqa: E402
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
     ERR_TRANSACTION_FAILED,
     ERR_UNSUPPORTED_SCHEME,
     PERMIT2_ADDRESS,
@@ -491,6 +492,47 @@ def _build_permit2_settle_args(
     return permit_tuple, owner_addr, witness_tuple, sig_bytes
 
 
+def _wait_for_receipt_and_build_response(
+    signer: Any,
+    tx_hash: str,
+    network: str,
+    payer: str,
+) -> SettleResponse:
+    """Waits for a transaction receipt and builds the corresponding settlement response.
+
+    A receipt-wait failure (RPC error, timeout) after broadcast is non-terminal: the transfer
+    may still land on chain, so it is reported as `settlement_pending` with the broadcast
+    transaction hash instead of a false-negative terminal failure.
+    """
+    try:
+        receipt = signer.wait_for_transaction_receipt(tx_hash)
+    except Exception as e:
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLEMENT_PENDING,
+            error_message=str(e),
+            transaction=tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    if receipt.status != TX_STATUS_SUCCESS:
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_TRANSACTION_FAILED,
+            transaction=tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    return SettleResponse(
+        success=True,
+        transaction=tx_hash,
+        network=network,
+        payer=payer,
+    )
+
+
 def _settle_permit2_direct(
     signer: FacilitatorEvmSigner,
     payload: PaymentPayload,
@@ -517,22 +559,7 @@ def _settle_permit2_direct(
             data_suffix=data_suffix,
         )
 
-        receipt = signer.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
-                transaction=tx_hash,
-                network=network,
-                payer=payer,
-            )
-
-        return SettleResponse(
-            success=True,
-            transaction=tx_hash,
-            network=network,
-            payer=payer,
-        )
+        return _wait_for_receipt_and_build_response(signer, tx_hash, network, payer)
 
     except Exception as e:
         return _map_settle_error(e, network, payer)
@@ -584,22 +611,7 @@ def _settle_permit2_with_eip2612(
             data_suffix=data_suffix,
         )
 
-        receipt = signer.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
-                transaction=tx_hash,
-                network=network,
-                payer=payer,
-            )
-
-        return SettleResponse(
-            success=True,
-            transaction=tx_hash,
-            network=network,
-            payer=payer,
-        )
+        return _wait_for_receipt_and_build_response(signer, tx_hash, network, payer)
 
     except Exception as e:
         return _map_settle_error(e, network, payer)
@@ -637,23 +649,9 @@ def _settle_permit2_with_erc20_approval(
         )
 
         settle_tx_hash = tx_hashes[-1] if tx_hashes else ""
-        receipt = extension_signer.wait_for_transaction_receipt(settle_tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
-                transaction=settle_tx_hash,
-                network=network,
-                payer=payer,
-            )
-
-        return SettleResponse(
-            success=True,
-            transaction=settle_tx_hash,
-            network=network,
-            payer=payer,
+        return _wait_for_receipt_and_build_response(
+            extension_signer, settle_tx_hash, network, payer
         )
-
     except Exception as e:
         return _map_settle_error(e, network, payer)
 

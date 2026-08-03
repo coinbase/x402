@@ -18,6 +18,7 @@ from x402.mechanisms.evm.constants import (
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
     ERR_UNSUPPORTED_SCHEME,
     X402_EXACT_PERMIT2_PROXY_ADDRESS,
 )
@@ -456,6 +457,29 @@ class TestSettlePermit2:
             result = facilitator.settle(payload, requirements)
 
         assert result.success is False
+
+    def test_settle_receipt_wait_failure_returns_settlement_pending(self):
+        # A receipt-wait failure after broadcast (RPC error, timeout) is non-terminal: the
+        # transfer may still land on chain, so settle must report `settlement_pending` with
+        # the broadcast transaction hash instead of losing it behind a generic error.
+        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+        requirements = make_requirements()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(payload, requirements)
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
 
 # ============================================================================

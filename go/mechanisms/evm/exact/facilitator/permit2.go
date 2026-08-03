@@ -365,7 +365,7 @@ func SettlePermit2(
 	}
 	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrFailedToGetReceipt, payer, network, txHash, err.Error())
+		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash, err.Error())
 	}
 
 	if receipt.Status != evm.TxStatusSuccess {

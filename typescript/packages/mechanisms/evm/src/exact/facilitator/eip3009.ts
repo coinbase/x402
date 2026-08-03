@@ -376,8 +376,22 @@ export async function settleEIP3009(
       dataSuffix,
     );
 
-    // Wait for transaction confirmation
-    const receipt = await signer.waitForTransactionReceipt({ hash: tx });
+    // Wait for transaction confirmation. A failure here (RPC error, timeout) is non-terminal:
+    // the transaction was already broadcast and may still land on chain, so this must not be
+    // conflated with the generic catch below, which would discard the transaction hash.
+    let receipt;
+    try {
+      receipt = await signer.waitForTransactionReceipt({ hash: tx });
+    } catch (error) {
+      return {
+        success: false,
+        errorReason: Errors.ErrSettlementPending,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        transaction: tx,
+        network: payload.accepted.network,
+        payer,
+      };
+    }
 
     if (receipt.status !== "success") {
       return {

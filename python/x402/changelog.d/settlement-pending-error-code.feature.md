@@ -1,0 +1,1 @@
+Add a `settlement_pending` error reason for the `exact` EVM scheme. A receipt-wait failure after a settlement transaction broadcast (e.g. an RPC error or timeout) now returns `settlement_pending` with the broadcast transaction hash and network instead of a terminal error, since the transaction may still confirm on chain.

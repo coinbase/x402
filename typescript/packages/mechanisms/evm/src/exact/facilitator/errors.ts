@@ -76,3 +76,10 @@ export const ErrUnsupportedPayloadType = "unsupported_payload_type";
 export const ErrInvalidTransactionState = "invalid_transaction_state";
 export const ErrFactoryNotAllowed = "eip6492_factory_not_allowed";
 export const ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed";
+/**
+ * The settlement transaction was broadcast but its confirmation could not be established
+ * (e.g. RPC error or timeout waiting for the receipt). Non-terminal: the transfer may still
+ * land on chain, so this is returned instead of a false-negative terminal failure, with the
+ * broadcast transaction hash so the caller can reconcile on chain before retrying.
+ */
+export const ErrSettlementPending = "settlement_pending";

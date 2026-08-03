@@ -337,6 +337,11 @@ ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_conf
 ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
 ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
+# The settlement transaction was broadcast but its confirmation could not be established
+# (e.g. RPC error or timeout waiting for the receipt). Non-terminal: the transfer may still
+# land on chain, so this is returned instead of a false-negative terminal failure, with the
+# broadcast transaction hash so the caller can reconcile on chain before retrying.
+ERR_SETTLEMENT_PENDING = "settlement_pending"
 ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
 ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
 ERR_EIP3009_NOT_SUPPORTED = "invalid_exact_evm_eip3009_not_supported"

@@ -582,6 +582,57 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
     });
 
+    it("should report settlement_pending with the broadcast tx hash when the receipt wait fails", async () => {
+      // Broadcast succeeded (writeContract resolved) but confirmation could not be
+      // established (RPC error, timeout). Non-terminal — the transfer may still land
+      // on chain — so it must surface as settlement_pending with the tx hash instead
+      // of falling into the generic catch, which would discard it.
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      mockFacilitatorSigner.readContract = rcWithSig(undefined);
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("rpc: timeout waiting for receipt"));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(Errors.ErrSettlementPending);
+      expect(result.transaction).toBe("0xtxhash");
+      expect(result.payer).toBe(mockClientSigner.address);
+    });
+
     it("should fail Permit2 settlement when signature verification fails", async () => {
       const requirements: PaymentRequirements = {
         scheme: "exact",
@@ -627,6 +678,42 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe("invalid_permit2_signature");
       expect(result.payer).toBe(mockClientSigner.address);
+    });
+  });
+
+  describe("EIP-3009 settlement", () => {
+    it("should report settlement_pending with the broadcast tx hash when the receipt wait fails", async () => {
+      // Broadcast succeeded (writeContract resolved) but confirmation could not be
+      // established (RPC error, timeout). Non-terminal — the transfer may still land
+      // on chain — so it must surface as settlement_pending with the tx hash instead
+      // of falling into the generic catch, which would discard it.
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2" },
+      };
+
+      const paymentPayload = await client.createPaymentPayload(2, requirements);
+      const fullPayload: PaymentPayload = {
+        ...paymentPayload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xbroadcasttx");
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("rpc: timeout waiting for receipt"));
+
+      const result = await facilitator.settle(fullPayload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(Errors.ErrSettlementPending);
+      expect(result.transaction).toBe("0xbroadcasttx");
     });
   });
 

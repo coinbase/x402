@@ -13,6 +13,7 @@ import {
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
 } from "../../../src/upto/facilitator/errors";
+import { ErrSettlementPending } from "../../../src/exact/facilitator/errors";
 import type { UptoPermit2Payload } from "../../../src/types";
 import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/upto/extensions";
 
@@ -630,6 +631,22 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(makePayload(), makeRequirements());
 
       expect(result.success).toBe(false);
+    });
+
+    it("should report settlement_pending with the broadcast tx hash when the receipt wait fails", async () => {
+      // Broadcast succeeded (writeContract resolved) but confirmation could not be
+      // established (RPC error, timeout). This is non-terminal — the transfer may
+      // still land on chain — so it must surface as settlement_pending with the tx
+      // hash rather than a generic/terminal failure that discards it.
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("rpc: timeout waiting for receipt"));
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrSettlementPending);
+      expect(result.transaction).toBe("0xtxhash1234");
     });
   });
 

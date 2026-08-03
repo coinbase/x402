@@ -22,6 +22,7 @@ from ..constants import (
     ERR_MISSING_EIP712_DOMAIN,
     ERR_NETWORK_MISMATCH,
     ERR_RECIPIENT_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
     ERR_SMART_WALLET_DEPLOYMENT_FAILED,
     ERR_TRANSACTION_FAILED,
     ERR_TRANSACTION_SIMULATION_FAILED,
@@ -439,7 +440,28 @@ class ExactEvmScheme:
                 sig_data,
                 data_suffix=data_suffix,
             )
-            receipt = self._signer.wait_for_transaction_receipt(tx_hash)
+
+            try:
+                receipt = self._signer.wait_for_transaction_receipt(tx_hash)
+            except Exception as e:
+                # Broadcast succeeded but confirmation could not be established (RPC error,
+                # timeout). Non-terminal: the transfer may still land on chain, so this must
+                # not be conflated with the generic except below, which discards tx_hash.
+                logger.warning(
+                    "exact settle: wait_for_transaction_receipt failed payer=%s tx=%s: %s",
+                    payer,
+                    tx_hash,
+                    e,
+                )
+                return SettleResponse(
+                    success=False,
+                    error_reason=ERR_SETTLEMENT_PENDING,
+                    error_message=str(e),
+                    transaction=tx_hash,
+                    network=network,
+                    payer=payer,
+                )
+
             if receipt.status != TX_STATUS_SUCCESS:
                 return SettleResponse(
                     success=False,

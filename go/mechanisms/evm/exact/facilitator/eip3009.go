@@ -231,7 +231,7 @@ func (f *ExactEvmScheme) settleEIP3009(
 
 	receipt, err := f.signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrFailedToGetReceipt, verifyResp.Payer, network, txHash, err.Error())
+		return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash, err.Error())
 	}
 
 	if receipt.Status != evm.TxStatusSuccess {

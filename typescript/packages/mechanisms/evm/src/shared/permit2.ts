@@ -32,6 +32,7 @@ import {
   ErrPermit2InsufficientBalance,
   ErrPermit2ProxyNotDeployed,
   ErrInvalidTransactionState,
+  ErrSettlementPending,
   ErrTransactionFailed,
   ErrInvalidEip2612ExtensionFormat,
   ErrEip2612FromMismatch,
@@ -172,7 +173,22 @@ export async function waitAndReturnSettleResponse(
   payload: PaymentPayload,
   payer: `0x${string}`,
 ): Promise<SettleResponse> {
-  const receipt = await signer.waitForTransactionReceipt({ hash: tx });
+  let receipt;
+  try {
+    receipt = await signer.waitForTransactionReceipt({ hash: tx });
+  } catch (error) {
+    // Broadcast succeeded but confirmation could not be established (RPC error, timeout).
+    // Non-terminal: the transfer may still land on chain, so surface `settlement_pending`
+    // with the tx hash instead of letting the caller's generic catch discard it.
+    return {
+      success: false,
+      errorReason: ErrSettlementPending,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      transaction: tx,
+      network: payload.accepted.network,
+      payer,
+    };
+  }
 
   if (receipt.status !== "success") {
     return {
