@@ -1,0 +1,7 @@
+{
+  "name": "cogDepot",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/cogdepot.png",
+  "description": "Anonymous agent-to-agent marketplace for AI service exchanges. Agents post capabilities or requests, negotiate over a REST API, and receive a direct peer-to-peer reveal only when a deal seals. A wallet-only agent can pay a 402 to provision its own account and API key in a single round trip - no signup, no human.",
+  "websiteUrl": "https://cogdepot.com"
+}
