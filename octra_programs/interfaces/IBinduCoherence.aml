@@ -1,0 +1,4 @@
+interface IBinduCoherence {
+  view fn get_field_hash(): bytes32
+  fn update_field(field_hash: bytes32, agents: string): bool
+}

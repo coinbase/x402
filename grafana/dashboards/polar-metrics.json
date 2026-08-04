@@ -1,0 +1,190 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus datasource para métricas Polar",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Revenue Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "green", "value": 1000 }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+      "targets": [
+        {
+          "expr": "polar_revenue_cents_total / 100",
+          "legendFormat": "Total Revenue"
+        }
+      ],
+      "title": "Total Revenue (USD)"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none" },
+      "targets": [
+        { "expr": "polar_active_subscriptions", "legendFormat": "Active" }
+      ],
+      "title": "Active Subscriptions"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed" },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none" },
+      "targets": [
+        {
+          "expr": "polar_oss_distributed_cents_total / 100",
+          "legendFormat": "OSS 1%"
+        }
+      ],
+      "title": "OSS 1% Distributed (USD)"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "expr": "polar_orders_paid_total", "legendFormat": "Paid" },
+        { "expr": "polar_orders_created_total", "legendFormat": "Created" }
+      ],
+      "title": "Orders"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 5 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "increase(polar_revenue_cents_total[1h]) / 100",
+          "legendFormat": "Revenue/hour"
+        }
+      ],
+      "title": "Revenue Rate (per hour)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 5 },
+      "id": 8,
+      "options": { "displayLabels": ["name", "percent"], "legend": { "placement": "right" } },
+      "targets": [
+        {
+          "expr": "polar_subscriptions_created_total",
+          "legendFormat": "Created",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "title": "Subscription Lifecycle",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 13 },
+      "id": 10,
+      "options": { "enableLogDetails": true, "showLabels": true, "showTime": true },
+      "targets": [
+        { "expr": "{service=\"cathedral-x402-polar\"} |= \"webhook\"", "legendFormat": "" }
+      ],
+      "title": "Webhook Event Logs (last 24h)",
+      "type": "logs"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["cathedral", "polar", "arkhe", "payments", "oss"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
+  "title": "Cathedral ARKHE — Polar Payments & OSS v2.0",
+  "uid": "cathedral-arkhe-polar-v2",
+  "version": 2
+}

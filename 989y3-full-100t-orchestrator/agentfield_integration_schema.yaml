@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════════════════════
+# ARKHE x AgentField Integration Schema
+# Schema para integração do 100T-ORCHESTRATOR (989.y.3) no ecossistema AgentField
+# ═══════════════════════════════════════════════════════════════════
+
+schema_version: "1.0.0"
+integration:
+  name: "agentfield-orchestrator-bridge"
+  type: "ai_backend_provider"
+
+components:
+  - id: "agentfield_reasoner"
+    target: "OmniAgent (939)"
+    description: "Os decorators @app.reasoner de agentes AgentField materializam tarefas para o ARKHE OmniAgent local."
+    interfaces:
+      - "Python Decorator"
+      - "TypeScript Decorator"
+
+  - id: "agentfield_ai_call"
+    target: "FULL-100T-ORCHESTRATOR (989.y.3)"
+    description: "Chamadas app.ai() em agentes são roteadas via RPC para a Catedral (Full100TOrchestrator) para inferência titânica."
+    protocol:
+      primary: "gRPC"
+      fallback: "WebSocket"
+
+  - id: "agentfield_shared_memory"
+    target: "Bindu (952)"
+    description: "Memória compartilhada do AgentField é sincronizada com o substrato Bindu da Catedral."
+
+  - id: "agentfield_governance"
+    target: "Passport-Gateway (989.x) / Axiarchy (954)"
+    description: "Identidade criptográfica (DIDs) e policy enforcement delegados à governança da Catedral."
+
+communication:
+  grpc:
+    service: "ArkheOrchestratorService"
+    methods:
+      - name: "SubmitJob"
+        input: "JobRequest (prompt, task_type, priority, schema)"
+        output: "JobResponse (job_id, model_id, status)"
+      - name: "PollJobStatus"
+        input: "JobIdRequest"
+        output: "JobResultResponse (status, result, seal)"
+
+  websocket:
+    endpoint: "wss://arkhe-cathedral.org/ws/orchestrator/989y3"
+    events:
+      - "JOB_SUBMITTED"
+      - "JOB_RUNNING"
+      - "JOB_COMPLETED"
+      - "JOB_FAILED"
+
+execution_flow:
+  1: "AgentField agent chama app.ai(system, user, schema)"
+  2: "Bridge intercepta a chamada e serializa em gRPC Request"
+  3: "Catedral recebe via gRPC e encaminha para Zeus (Full100TOrchestrator)"
+  4: "Athena escolhe o modelo ideal; Hephaestus processa no RTL/GPU"
+  5: "Zeus retorna o resultado imutável via gRPC"
+  6: "Bridge deserializa e retorna Pydantic/Zod typings para o agente"

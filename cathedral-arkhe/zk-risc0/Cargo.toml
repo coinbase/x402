@@ -1,0 +1,12 @@
+[package]
+name = "arkhe-zk-risc0"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bincode.workspace = true
+risc0-zkvm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+arkhe-zk-circuits = { path = "../zk-circuits" }

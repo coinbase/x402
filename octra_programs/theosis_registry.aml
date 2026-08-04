@@ -1,0 +1,37 @@
+// ARKHE-ONCHAIN — Theosis Registry
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface ITheosisRegistry {
+  view fn get_theosis(agent: address): int
+  fn update_theosis(agent: address, delta: int): bool
+}
+
+program TheosisRegistry implements ITheosisRegistry {
+  state {
+    owner: address
+    theosis_scores: map[address]int
+    epochs: map[address]int
+  }
+
+  event TheosisUpdated(agent: address, value: int, epoch: int)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn get_theosis(agent: address): int {
+    return self.theosis_scores[agent]
+  }
+
+  fn update_theosis(agent: address, delta: int): bool {
+    only_owner()
+    self.theosis_scores[agent] += delta
+    self.epochs[agent] += 1
+    emit TheosisUpdated(agent, self.theosis_scores[agent], self.epochs[agent])
+    return true
+  }
+}

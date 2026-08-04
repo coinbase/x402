@@ -1,0 +1,59 @@
+# prometheus.yml
+# Configuração do Prometheus para Cathedral ARKHE
+# Coleta métricas do MCP Server (porta 8788) e outros componentes
+#
+# Selo: CATHEDRAL-ARKHE-8000-PROMETHEUS-v2.0.0-2026-06-19
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cathedral-arkhe'
+    environment: 'production'
+
+scrape_configs:
+  # ============================================================
+  # MCP Server (Headroom + Seal + Circuit Breaker)
+  # ============================================================
+  - job_name: 'cathedral-mcp'
+    static_configs:
+      - targets: ['cathedral-mcp:8788']
+        labels:
+          service: 'headroom-mcp'
+          component: 'core'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # ============================================================
+  # PostgreSQL (WormGraph)
+  # ============================================================
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+        labels:
+          service: 'postgres'
+          component: 'wormgraph'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # ============================================================
+  # Redis (DLQ + Cache)
+  # ============================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'redis'
+          component: 'dlq-cache'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # ============================================================
+  # Prometheus self-monitoring
+  # ============================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

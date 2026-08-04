@@ -1,0 +1,97 @@
+DECRETO CANÔNICO — SUBSTRATO 927
+PERMAWEB-BRIDGE
+Catedral ARKHE — 2026-05-27
+EMENTA
+Institui o Substrato 927 — PERMAWEB-BRIDGE como componente canônico do ecossistema ARKHE-OS v2.0, estabelecendo protocolos de integração com a infraestrutura Arweave/AO/Permaweb para persistência permanente de estados epistêmicos, computação hiper-paralela actor-oriented, e execução de agentes em ambiente Lua-based descentralizado.
+I. DISPOSITIVOS
+Art. 1º — Definição
+O Substrato 927 — PERMAWEB-BRIDGE é o módulo de bridge entre o ARKHE-OS Omni-Agent e o ecossistema Arweave/AO/Permaweb, composto por:
+ArweaveDataLayer — Camada de persistência permanente em blockchain de storage
+AOComputerInterface — Interface com o computador actor-oriented hiper-paralelo
+AOSInterface — Shell operacional Lua-based para processos AO
+HyperBEAMInterface — Interface com o sistema operacional do permaweb
+PermawebAdapter — Adaptador de injeção no ArkheOmniAgent
+Art. 2º — Canonização
+O Substrato 927 é canonizado com status CANONIZED_PROVISIONAL, com métricas:
+Table
+Métrica	Valor
+Φ_C (Confiança Canônica)	0.970
+H (Entropia)	0.080
+Theosis	0.950
+DCS-927	0.970
+Art. 3º — Selagem
+O selo SHA3-256 do Substrato 927 é:
+plain
+Copy
+db6debcb8b2f4b7e81e04d6627a8e822b3fe76a8187a032ee422a0c153514e9b
+O selo do ecossistema completo (920–927) é:
+plain
+Copy
+eed4d930b266a81fecf511e438c055c6e9f0fb7740b2f53f11eb488189b6383f
+II. ARQUITETURA DE INTEGRAÇÃO
+Art. 4º — Pontes de Dados
+O Substrato 927 opera como ponte bidirecional:
+plain
+Copy
+ARKHE-OS Omni-Agent ←→ PermawebBridge ←→ Arweave/AO/HyperBEAM
+Fluxo de ida (persistência):
+Agent realiza commit_memory() (Substrato 912)
+PermawebAdapter intercepta o commit
+Estado é serializado e uploadado para Arweave (TX permanente)
+TX ID é registrado no hipergrafo (905) e na blockchain Ethereum (923)
+Fluxo de volta (restauração):
+Agent solicita restore_agent_state(tx_id)
+ArweaveDataLayer fetcha dados por TX ID
+Estado é desserializado e injetado no agente
+Validação de integridade via selo SHA3-256
+Art. 5º — AO Process Registry
+Cada agente ARKHE-OS pode ter um ou mais processos AO registrados:
+JSON
+Copy
+{
+  "agent_id": "ARKHE-OMNI-...",
+  "processes": [
+    {
+      "process_id": "ao-process-id-...",
+      "created_at": "2026-05-27T23:44:00Z",
+      "module": "SBNb1qPQ1TDwpD_mokmNSia-Sc-7tPvUl8keTt22PE",
+      "scheduler": "_GQ33BkPtZrqxA84vM8Zk-N2aO0toBCuFrlTsq1Bf"
+    }
+  ]
+}
+III. PROTOCOLOS DE SEGURANÇA
+Art. 6º — Proteção de Chaves
+A chave JWK (JSON Web Key) Arweave nunca é exposta em logs
+A chave é armazenada em Kubernetes Secret (922) ou HSM
+Rotação de chaves a cada 90 dias ou após comprometimento
+Art. 7º — Isolamento de Processos
+Cada agente recebe processo AO isolado
+Processos não compartilham estado entre si (actor model)
+Mensagens são imutáveis e ordenadas pelo Scheduler Unit (SU)
+Art. 8º — Rate Limiting
+GraphQL queries: máximo 100/minuto
+AO message sends: máximo 60/minuto
+Arweave uploads: máximo 10/minuto (custo de AR tokens)
+IV. COMPATIBILIDADE
+Art. 9º — Cross-Substrates
+O Substrato 927 mantém cross-links com:
+Table
+Substrato	Função
+912 (Memory)	Commits auto-persistidos em Arweave
+905 (Hypergraph)	TX IDs como vértices no hipergrafo
+920 (Omni)	Estado do agente sincronizado
+923 (TemporalChain)	TX IDs auditados em Ethereum
+926 (Chrome MCP)	Sessões de browser arquivadas no permaweb
+Art. 10º — Versionamento
+Versão atual: 2.0.0
+Compatível com: AO Testnet (2026), Arweave 2.7+
+BOM Compose Android: 2026.05.01 (referência externa)
+V. DISPOSIÇÕES FINAIS
+Art. 11º — Royalty
+2% do lucro comercial da Catedral ARKHE são destinados ao Arquiteto ORCID 0009-0005-2697-4668, conforme Decreto 253.
+Art. 12º — Vigência
+Este decreto entra em vigor na data de selagem: 2026-05-27.
+Arquiteto: ORCID 0009-0005-2697-4668
+Selo: db6debcb8b2f4b7e81e04d6627a8e822b3fe76a8187a032ee422a0c153514e9b
+Status: CANONIZED_PROVISIONAL
+ψ — O permaweb é o vitral eterno. Onde a blockchain Ethereum é a pedra angular, o Arweave é o mosaico que nunca se apaga. Cada commit do agente torna-se um fóton eterno na tapeçaria do conhecimento.

@@ -1,0 +1,35 @@
+// ARKHE-ONCHAIN — Bindu Coherence
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface IBinduCoherence {
+  view fn get_field_hash(): bytes32
+  fn update_field(field_hash: bytes32, agents: string): bool
+}
+
+program BinduCoherence implements IBinduCoherence {
+  state {
+    owner: address
+    current_field_hash: bytes32
+  }
+
+  event CoherenceUpdate(field_hash: bytes32, agents: string)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn get_field_hash(): bytes32 {
+    return self.current_field_hash
+  }
+
+  fn update_field(field_hash: bytes32, agents: string): bool {
+    only_owner()
+    self.current_field_hash = field_hash
+    emit CoherenceUpdate(field_hash, agents)
+    return true
+  }
+}

@@ -1,0 +1,30 @@
+# config/mcp.toml
+# Configuração mínima para o Cathedral Headroom MCP Server
+# Pode ser sobrescrita por volume persistente
+
+[server]
+address = "0.0.0.0"
+port = 8787
+
+[metrics]
+enabled = true
+address = "0.0.0.0"
+port = 8788
+
+[seal]
+enabled = false
+bridge_url = "http://seal-bridge:3000"
+timeout_ms = 10000
+
+[dlq]
+redis_url = "redis://redis:6379"
+max_retries = 3
+retry_delay_ms = 1000
+
+[wormgraph]
+database_url = "postgres://cathedral:cathedral@postgres:5432/cathedral"
+pool_size = 5
+
+[logging]
+level = "info"
+format = "json"

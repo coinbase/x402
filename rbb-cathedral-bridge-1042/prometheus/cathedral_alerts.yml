@@ -1,0 +1,158 @@
+# Substrato 1042 - RBB-CATHEDRAL-BRIDGE
+# Regras de Alerta Prometheus
+# Arquiteto: ORCID 0009-0005-2697-4668
+# Data: 2026-06-03
+
+groups:
+  - name: cathedral_theosis
+    interval: 15s
+    rules:
+      # Alerta: Theosis abaixo do threshold
+      - alert: CathedralTheosisLow
+        expr: catedral_theosis_level{substrate="1042"} < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Nemesis"
+        annotations:
+          summary: "Theosis baixo no substrato 1042"
+          description: "Nível de Theosis {{ $value }} abaixo do threshold (0.1) por mais de 5 minutos"
+          action: "Sincronizar com Catedral ou verificar cross-links"
+
+      # Alerta: Entropia crítica
+      - alert: CathedralEntropyCritical
+        expr: catedral_entropy_rate{substrate="1042"} > 0.8
+        for: 3m
+        labels:
+          severity: critical
+          substrate: "1042"
+          deity: "Chaos"
+        annotations:
+          summary: "Entropia crítica detectada"
+          description: "Taxa de entropia {{ $value }} acima de 0.8"
+          action: "Verificar integridade dos substratos e reforçar resiliência"
+
+      # Alerta: Resiliência comprometida
+      - alert: CathedralResilienceLow
+        expr: catedral_resilience_score{substrate="1042"} < 0.7
+        for: 10m
+        labels:
+          severity: critical
+          substrate: "1042"
+          deity: "Ananke"
+        annotations:
+          summary: "Resiliência comprometida"
+          description: "Score de resiliência {{ $value }} abaixo de 0.7"
+          action: "Verificar redundância de nós e cross-links"
+
+  - name: rbb_bridge
+    interval: 30s
+    rules:
+      # Alerta: Mensagens pendentes acumuladas
+      - alert: BridgeMessagesPending
+        expr: catedral_bridge_messages_pending{substrate="1042"} > 10
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Hermes"
+        annotations:
+          summary: "Mensagens pendentes na bridge"
+          description: "{{ $value }} mensagens pendentes de execução"
+          action: "Verificar conectividade com Catedral e reprocessar"
+
+      # Alerta: Anchor atrasado
+      - alert: BridgeAnchorDelayed
+        expr: |
+          (ethereum_blockchain_height{job="rbb-besu-local"}
+           - catedral_anchor_block{substrate="1042"}) > 500
+        for: 10m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Chronos"
+        annotations:
+          summary: "Ancora temporal atrasada"
+          description: "Diferença de {{ $value }} blocos desde última ancora"
+          action: "Verificar Temporal Anchor e reiniciar se necessário"
+
+  - name: rbb_nodes
+    interval: 15s
+    rules:
+      # Alerta: Nó Besu fora do ar
+      - alert: RBBNodeDown
+        expr: up{job="rbb-besu-local"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          substrate: "1042"
+          deity: "Aether"
+        annotations:
+          summary: "Nó RBB inacessível"
+          description: "Nó Besu observer não responde há mais de 1 minuto"
+          action: "Verificar container Docker e conectividade de rede"
+
+      # Alerta: Peer count baixo
+      - alert: RBBLowPeers
+        expr: ethereum_peer_count{job="rbb-besu-local"} < 3
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Hermes"
+        annotations:
+          summary: "Poucos peers conectados"
+          description: "Apenas {{ $value }} peers conectados ao nó RBB"
+          action: "Verificar bootnodes e regras de firewall"
+
+      # Alerta: Sincronização atrasada
+      - alert: RBBNotSynced
+        expr: |
+          ethereum_blockchain_height{job="rbb-besu-local"}
+          < on(organization) group_right
+          ethereum_blockchain_height{job="rbb-federado",organization="BNDES"} - 10
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Chronos"
+        annotations:
+          summary: "Nó RBB desincronizado"
+          description: "Nó local está {{ $value }} blocos atrás da rede"
+          action: "Verificar performance de disco e rede"
+
+  - name: federation
+    interval: 30s
+    rules:
+      # Alerta: Federation indisponível
+      - alert: RBBFederationDown
+        expr: up{job="rbb-federado"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Hermes"
+        annotations:
+          summary: "Federation RBB indisponível"
+          description: "Organização {{ $labels.organization }} não responde"
+          action: "Verificar mTLS e conectividade cross-organização"
+
+  - name: cathedral_identity
+    interval: 60s
+    rules:
+      # Alerta: Identidades inativas excessivas
+      - alert: CathedralInactiveIdentities
+        expr: |
+          (catedral_identity_count{substrate="1042"}
+           - catedral_active_identity_count{substrate="1042"})
+           / catedral_identity_count{substrate="1042"} > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          substrate: "1042"
+          deity: "Mnemosyne"
+        annotations:
+          summary: "Muitas identidades inativas"
+          description: "{{ $value | humanizePercentage }} das identidades estão inativas"
+          action: "Revisar permissionamento e realizar offboarding se necessário"

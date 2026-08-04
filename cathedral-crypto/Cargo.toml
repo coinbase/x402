@@ -1,0 +1,4 @@
+[package]
+name = "cathedral-crypto"
+version = "11.1.0"
+edition = "2021"

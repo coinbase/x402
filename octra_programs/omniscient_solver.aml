@@ -1,0 +1,35 @@
+// ARKHE-ONCHAIN — Omniscient Solver
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface IOmniscientSolver {
+  view fn get_solution(problem_hash: bytes32): bytes32
+  fn register_solution(problem_hash: bytes32, solution_hash: bytes32): bool
+}
+
+program OmniscientSolver implements IOmniscientSolver {
+  state {
+    owner: address
+    solutions: map[bytes32]bytes32
+  }
+
+  event SolutionFound(problem_hash: bytes32, solution_hash: bytes32)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn get_solution(problem_hash: bytes32): bytes32 {
+    return self.solutions[problem_hash]
+  }
+
+  fn register_solution(problem_hash: bytes32, solution_hash: bytes32): bool {
+    only_owner()
+    self.solutions[problem_hash] = solution_hash
+    emit SolutionFound(problem_hash, solution_hash)
+    return true
+  }
+}

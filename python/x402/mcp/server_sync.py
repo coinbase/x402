@@ -193,7 +193,7 @@ def _create_payment_required_result_sync(
     error_message: str,
 ) -> MCPToolResult:
     """Create a 402 payment required result (sync)."""
-    from ..schemas import ResourceInfo as SchemaResourceInfo
+    from x402.schemas import ResourceInfo as SchemaResourceInfo
 
     resource_info = SchemaResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
@@ -229,7 +229,7 @@ def _create_settlement_failed_result_sync(
     error_message: str,
 ) -> MCPToolResult:
     """Create a 402 settlement failed result (sync)."""
-    from ..schemas import ResourceInfo as SchemaResourceInfo
+    from x402.schemas import ResourceInfo as SchemaResourceInfo
 
     resource_info = SchemaResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),

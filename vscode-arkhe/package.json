@@ -1,0 +1,29 @@
+{
+  "name": "vscode-arkhe",
+  "displayName": "ARKHE Ontology SDK",
+  "version": "894.0.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "arkhe.applyTransformation",
+        "title": "Arkhe: Apply Transformation"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^18.x",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: 'telco-core'
+    # In production, replace with your network functions’ exporters
+    static_configs:
+      - targets: ['upf-exporter:9092', 'amf-exporter:9093']

@@ -1,0 +1,211 @@
+cat << 'EOF2' > cathedral-arkhe/proto/cathedral/v1/bridge.proto
+syntax = "proto3";
+
+package cathedral.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service CathedralBridge {
+    rpc Ingest(IngestRequest) returns (IngestResponse);
+    rpc RequestGovernance(GovernanceRequest) returns (GovernanceResponse);
+    rpc QueryProvenance(QueryProvenanceRequest) returns (QueryProvenanceResponse);
+    rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse);
+    rpc MutateAgent(AgentSelfMutation) returns (MutateAgentResponse);
+    rpc RequestMetaGovernance(MetaGovernanceRequest) returns (MetaGovernanceResponse);
+}
+
+message AgentIdentity {
+    string agent_id = 1;
+    optional string parent_agent_id = 2;
+    optional string tree_id = 3;
+    repeated string subagent_ids = 4;
+    string role = 5;
+    uint32 depth = 6;
+    optional string reputation_hash = 7;
+    map<string, string> metadata = 8;
+}
+
+message CreateAgentRequest {
+    string parent_agent_id = 1;
+    string new_agent_id = 2;
+    string role = 3;
+    map<string, string> config = 4;
+    optional string tree_id = 5;
+    bool recursive = 6;
+}
+
+message CreateAgentResponse {
+    bool success = 1;
+    string agent_id = 2;
+    string tree_id = 3;
+    string message = 4;
+}
+
+message AgentSelfMutation {
+    string agent_id = 1;
+    string mutation_type = 2;
+    optional string new_role = 3;
+    map<string, string> new_config = 4;
+    optional string patch = 5;
+    bool recursive_to_subagents = 6;
+    optional string tree_id = 7;
+}
+
+message MutateAgentResponse {
+    bool success = 1;
+    string message = 2;
+    uint32 affected_agents = 3;
+}
+
+message IngestRequest {
+    string project_id = 1;
+    string agent_id = 2;
+    repeated Event events = 3;
+    optional string batch_id = 4;
+    optional bytes agent_signature = 5;
+    optional bytes batch_hash = 6;
+    optional AgentIdentity agent_identity = 7;
+}
+
+message IngestResponse {
+    bool success = 1;
+    string message = 2;
+    uint32 events_accepted = 3;
+    repeated string rejected_event_ids = 4;
+    string bridge_timestamp = 5;
+    optional bytes merkle_root = 6;
+    optional bytes tree_provenance_hash = 7;
+}
+
+message Event {
+    string event_id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+    EventType event_type = 3;
+    string design_hash = 4;
+    repeated string parent_hashes = 5;
+    string payload_json = 6;
+    EventMetadata metadata = 7;
+    optional ZkProofRef zk_proof = 8;
+    AgentIdentity agent_identity = 9;
+    optional bytes agent_signature = 10;
+}
+
+enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    DESIGN_PROPOSED = 1;
+    SIMULATION_COMPLETED = 2;
+    DESIGN_OPTIMIZED = 3;
+    AGENT_MUTATION = 4;
+    FABRICATION_PLANNED = 5;
+    FABRICATION_COMPLETED = 6;
+    TEST_RESULT = 7;
+    HUMAN_REVIEW = 8;
+    PARAMETER_CHANGE = 9;
+    ZK_VERIFICATION = 10;
+}
+
+message EventMetadata {
+    string domain = 1;
+    double confidence = 2;
+    double compute_cost_usd = 3;
+    repeated string tags = 4;
+}
+
+message ZkProofRef {
+    string circuit_id = 1;
+    bytes proof_hash = 2;
+}
+
+message GovernanceRequest {
+    string request_id = 1;
+    string project_id = 2;
+    string agent_id = 3;
+    EventType event_type = 4;
+    string proposed_state_json = 5;
+    string current_state_json = 6;
+    double agent_risk_score = 7;
+    optional string domain = 8;
+    map<string, string> metadata = 9;
+    optional AgentIdentity agent_identity = 10;
+}
+
+message GovernanceResponse {
+    string request_id = 1;
+    GovernanceVerdict verdict = 2;
+    string rationale = 3;
+    repeated string conditions = 4;
+    string evaluated_by = 5;
+    google.protobuf.Timestamp evaluated_at = 6;
+    bytes decision_hash = 7;
+}
+
+enum GovernanceVerdict {
+    GOVERNANCE_VERDICT_UNSPECIFIED = 0;
+    GOV_APPROVED = 1;
+    GOV_REJECTED = 2;
+    REQUIRES_HUMAN = 3;
+    GOV_CONDITIONAL = 4;
+    TIMEOUT = 5;
+}
+
+message QueryProvenanceRequest {
+    string project_id = 1;
+    optional string design_hash = 2;
+    optional string agent_id = 3;
+    optional string tree_id = 4;
+    uint32 limit = 5;
+}
+
+message QueryProvenanceResponse {
+    repeated ProvenanceEntry entries = 1;
+    bool has_more = 2;
+    uint64 total_count = 3;
+    repeated string nostr_event_ids = 4;
+    optional string tree_snapshot = 5;
+}
+
+message ProvenanceEntry {
+    string id = 1;
+    uint64 version = 2;
+    string decision_type = 3;
+    string before_state_json = 4;
+    string after_state_json = 5;
+    optional string rationale = 6;
+    google.protobuf.Timestamp timestamp = 7;
+    string agent_id = 8;
+    optional AgentIdentity agent_identity = 9;
+}
+
+message MetaGovernanceRequest {
+    string request_id = 1;
+    string agent_id = 2;
+    string tree_id = 3;
+    string action = 4;
+    string rationale = 5;
+    double risk_score = 6;
+    repeated string affected_agent_ids = 7;
+    optional bytes proof_hash = 8;
+    google.protobuf.Timestamp detected_at = 9;
+    map<string, string> metadata = 10;
+}
+
+message MetaGovernanceResponse {
+    string request_id = 1;
+    MetaGovernanceVerdict verdict = 2;
+    string rationale = 3;
+    repeated string conditions = 4;
+    string evaluated_by = 5;
+    google.protobuf.Timestamp evaluated_at = 6;
+    optional bytes decision_hash = 7;
+    optional string jira_issue_key = 8;
+}
+
+enum MetaGovernanceVerdict {
+    META_GOVERNANCE_UNSPECIFIED = 0;
+    META_APPROVED = 1;
+    META_REJECTED = 2;
+    REQUIRES_CEM_REVIEW = 3;
+    META_CONDITIONAL = 4;
+    DEFERRED = 5;
+}
+EOF2

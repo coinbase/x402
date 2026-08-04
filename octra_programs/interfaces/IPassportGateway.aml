@@ -1,0 +1,4 @@
+interface IPassportGateway {
+  view fn is_human(npub: string): bool
+  fn verify_humanity(npub: string, score: int, threshold: int): bool
+}

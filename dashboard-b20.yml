@@ -1,0 +1,19 @@
+# dashboard-b20.yml
+panels:
+  - title: "B20 Compliance Rate"
+    expr: rate(b20_compliance_passed_total[5m]) / rate(b20_compliance_checked_total[5m])
+
+  - title: "B20 Policy Denials"
+    expr: rate(b20_policy_denied_total[5m])
+
+  - title: "B20 Settlement Volume"
+    expr: sum(b20_settlement_amount) by (token)
+
+  - title: "B20 ↔ XRPL Bridge Volume"
+    expr: rate(b20_xrpl_bridge_transfers_total[5m])
+
+  - title: "Memo Events Indexed"
+    expr: rate(b20_memo_indexed_total[5m])
+
+  - title: "Freeze-and-Seize Operations"
+    expr: rate(b20_freeze_seize_total[5m])

@@ -1,0 +1,86 @@
+# docker-compose.alpine.yml
+# Stack Cathedral Headroom MCP (Alpine Linux)
+# Selo: CATHEDRAL-ARKHE-8000-ALPINE-COMPOSE-v2.1.0-2026-06-19
+
+version: '3.8'
+
+services:
+  cathedral-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpine
+      target: alpine-runtime
+    image: cathedral-arkhe/headroom-mcp:alpine
+    container_name: cathedral-mcp
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "8787:8787"
+      - "8788:8788"
+    volumes:
+      - mcp-config:/etc/cathedral
+      - mcp-data:/var/lib/headroom
+      - mcp-persist:/mnt/persist
+    environment:
+      - RUST_LOG=info
+      - MCP_ADDRESS=0.0.0.0
+      - MCP_PORT=8787
+      - METRICS_ENABLED=true
+      - TZ=America/Sao_Paulo
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8787/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # Opcional: Prometheus + Grafana (recomendado)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cathedral-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cathedral-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=cathedral
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  mcp-config:
+  mcp-data:
+  mcp-persist:
+  prometheus-data:
+  grafana-data:

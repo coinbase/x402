@@ -1,0 +1,20 @@
+[agent]
+name = "edge-agent-001"
+mode = "edge"
+
+[core]
+max_iterations = 5
+memory_limit_mb = 64
+
+[memory]
+hybrid_enabled = true
+cache_size = 100
+time_decay_half_life_days = 7
+
+[mcp]
+server_url = "https://mcp.cathedral.arkhe"
+timeout_secs = 30
+
+[payment]
+x402_enabled = true
+cln_socket = "/tmp/lightning-rpc"

@@ -1,0 +1,208 @@
+version: "3.8"
+
+services:
+  arkhe-llm:
+    image: ghcr.io/ggerganov/llama.cpp:server-cuda
+    container_name: arkhe-llm-server
+    restart: unless-stopped
+
+    environment:
+      - ARKHE_GGUF_PATH=/models/arkhe-8b-Q4_K_M.gguf
+      - ARKHE_CONTEXT=32768
+      - ARKHE_THREADS=8
+      - ARKHE_PORT=8080
+      - CUDA_VISIBLE_DEVICES=0
+
+    volumes:
+      - ./models:/models:ro
+      - ./logs:/logs
+
+    ports:
+      - "8080:8080"
+
+    command: >
+      /server
+      -m /models/arkhe-8b-Q4_K_M.gguf
+      -c 32768
+      -t 8
+      --port 8080
+      --host 0.0.0.0
+      --metrics
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    labels:
+      - "arkhe.cathedral/substrate=836"
+      - "arkhe.cathedral/phi_c=0.998"
+      - "arkhe.cathedral/version=inf.Omega"
+      - "arkhe.cathedral/architect=0009-0005-2697-4668"
+
+  arkhe-proxy:
+    image: arkhe-sagemaker-proxy:latest
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: arkhe-sagemaker-proxy
+    restart: unless-stopped
+
+    environment:
+      - RUST_LOG=info
+      - ARKHE_LLM_URL=http://arkhe-llm:8080
+
+    ports:
+      - "8242:8242"
+
+    depends_on:
+      arkhe-llm:
+        condition: service_healthy
+
+    labels:
+      - "arkhe.cathedral/substrate=824"
+      - "arkhe.cathedral/phi_c=0.998"
+
+  arkhe-assistant:
+    image: arkhe-assistant:latest
+    build:
+      context: ./assistant
+      dockerfile: Dockerfile
+    container_name: arkhe-assistant
+    restart: unless-stopped
+
+    environment:
+      - ARKHE_LLM_URL=http://arkhe-llm:8080
+      - ARKHE_PROXY_URL=http://arkhe-proxy:8242
+
+    stdin_open: true
+    tty: true
+
+    depends_on:
+      - arkhe-llm
+      - arkhe-proxy
+
+    labels:
+      - "arkhe.cathedral/substrate=829"
+      - "arkhe.cathedral/phi_c=0.998"
+
+  octra-node:
+    image: octra-labs/node:latest
+    container_name: octra-fhe-node
+    ports:
+      - "8443:8443"
+      - "9735:9735"
+    volumes:
+      - octra-data:/var/lib/octra
+    environment:
+      - OCTRA_NETWORK=testnet
+      - OCTRA_CIRCLE_ENABLED=true
+      - OCTRA_FHE_MODE=hfhe
+      - OCTRA_BOOTSTRAP_INTERVAL=3600
+    networks:
+      - bridge-network
+    restart: unless-stopped
+
+  gno-node:
+    image: gnolang/gno:latest
+    container_name: gno-tendermint2
+    ports:
+      - "26657:26657"
+      - "26656:26656"
+    volumes:
+      - gno-data:/root/.gno
+    environment:
+      - GNO_CHAIN_ID=gno-local
+      - GNO_MONIKER=arkhe-bridge-node
+    networks:
+      - bridge-network
+    restart: unless-stopped
+
+  bridge-relay:
+    build: ./gno_octra_relay
+    container_name: bridge-relay-840
+    ports:
+      - "7474:7474"
+    environment:
+      - GNO_ENDPOINT=http://gno-node:26657
+      - OCTRA_ENDPOINT=http://octra-node:8443
+      - ARKHE_ENDPOINT=http://arkhe-container:7473
+      - BRIDGE_ID=840-OCTRA-FHE-BRIDGE
+      - PHI_COHERENCE=0.835
+    depends_on:
+      - gno-node
+      - octra-node
+    networks:
+      - bridge-network
+    restart: unless-stopped
+
+  arkhe-container:
+    image: arkhe-os:latest
+    container_name: arkhe-os-840
+    ports:
+      - "7473:7473"
+      - "7475:7475"
+    volumes:
+      - arkhe-data:/var/lib/arkhe
+      - ./arkhe_fhe_integration:/app/integrations/840-octra
+    environment:
+      - ARKHE_SUBSTRATE_ID=840
+      - ARKHE_PHI_C=0.835
+      - OCTRA_BRIDGE_ENDPOINT=http://bridge-relay:7474
+      - MCP_STATELESS_ENABLED=true
+    depends_on:
+      - bridge-relay
+    networks:
+      - bridge-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-840
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - bridge-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-840
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - bridge-network
+
+volumes:
+  octra-data:
+  gno-data:
+  arkhe-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    name: arkhe-cathedral
+    driver: bridge
+  bridge-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

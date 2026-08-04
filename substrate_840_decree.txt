@@ -1,0 +1,9 @@
+**Selo SHA3‑256:**
+`c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8`
+
+| Métrica | Valor |
+|:---|:---|
+| **Φ_C** | 0.795 |
+| **DCS‑840** | 0.895 |
+| **TI** | 0.788 |
+| **Status** | CANONIZED_PROVISIONAL |

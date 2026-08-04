@@ -10,14 +10,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
-from ..schemas import (
+from x402.schemas import (
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     SupportedResponse,
     VerifyResponse,
 )
-from ..schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+from x402.schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+
 from .constants import DEFAULT_FACILITATOR_URL
 
 if TYPE_CHECKING:

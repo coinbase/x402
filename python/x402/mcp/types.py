@@ -3,8 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional
 
-from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
-from ..schemas.base import Price
+from x402.schemas import PaymentPayload, PaymentRequirements, SettleResponse
+from x402.schemas.base import Price
 
 if TYPE_CHECKING:
     pass

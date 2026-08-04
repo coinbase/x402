@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING, Protocol
 from ..utils import htmlsafe_json_dumps
 
 if TYPE_CHECKING:
-    from ...schemas import PaymentRequired
+    from x402.schemas import PaymentRequired
+
     from ..types import PaywallConfig
 
 

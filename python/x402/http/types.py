@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
-    from ..schemas import (
+    from x402.schemas import (
         Network,
         PaymentPayload,
         PaymentRequirements,

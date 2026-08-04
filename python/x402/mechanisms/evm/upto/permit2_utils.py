@@ -15,13 +15,14 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
-from ....interfaces import FacilitatorContext  # noqa: E402
-from ....schemas import (  # noqa: E402
+from x402.schemas import (  # noqa: E402
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     VerifyResponse,
 )
+
+from ....interfaces import FacilitatorContext  # noqa: E402
 from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
     ERR_ERC20_APPROVAL_BROADCAST_FAILED,

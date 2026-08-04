@@ -1,0 +1,18 @@
+syntax = "proto3";
+package agent.v1;
+
+service Agent {
+    rpc GetReputation(GetReputationRequest) returns (GetReputationResponse);
+    rpc VoteOnGovernance(VoteRequest) returns (VoteResponse);
+}
+
+message GetReputationRequest { string agent_id = 1; }
+message GetReputationResponse { double reputation = 1; }
+
+message VoteRequest {
+    string request_id = 1;
+    string action = 2;
+    string rationale = 3;
+    double risk_score = 4;
+}
+message VoteResponse { bool approve = 1; }

@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+LABEL maintainer="ORCID 0009-0005-2697-4668"
+LABEL substrate="1042.1"
+LABEL deity="Hermes"
+LABEL scope="BRICS+"
+
+WORKDIR /app
+
+# Instalar dependências
+RUN apt-get update && apt-get install -y --no-install-recommends     curl     jq     && rm -rf /var/lib/apt/lists/*
+
+COPY adapter/brics_adapter.py /app/
+COPY contracts/BRICS_Cathedral_Mesh.sol /contracts/
+
+RUN pip install --no-cache-dir urllib3
+
+EXPOSE 10421 10422
+
+ENV MESH_CONTRACT=0x0000000000000000000000000000000000010421
+ENV COORDINATOR_ORCID=0009-0005-2697-4668
+ENV SUBSTRATE=1042.1
+
+CMD ["python3", "brics_adapter.py", "mesh"]

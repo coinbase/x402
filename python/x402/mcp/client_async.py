@@ -6,7 +6,8 @@ import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..schemas import PaymentPayload, PaymentRequired
+from x402.schemas import PaymentPayload, PaymentRequired
+
 from .types import (
     AfterPaymentContext,
     MCPToolCallResult,

@@ -1,0 +1,32 @@
+[package]
+name = "arkhe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7.5"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+ethers = "2.0"
+reqwest = { version = "0.11", features = ["json"] }
+bytes = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+clap = { version = "4.0", features = ["derive"] }
+inquire = "0.6"
+hex = "0.4"
+nostr-sdk = "0.33"
+
+[dev-dependencies]
+mockito = "1.0"
+
+[[bin]]
+name = "migrate_pix_key"
+path = "src/bin/migrate_pix_key.rs"
+
+[[bin]]
+name = "deploy_drex_contract"
+path = "src/bin/deploy_drex_contract.rs"

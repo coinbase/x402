@@ -1,0 +1,133 @@
+# Substrato 1042.1 — BRICS+ CATHEDRAL MESH
+# Docker Compose — Stack BRICS+ completa
+# Arquiteto: ORCID 0009-0005-2697-4668
+
+version: '3.8'
+
+services:
+  # ─── RBB Observer (Brasil — DREX) ───
+  rbb-observer:
+    extends:
+      file: docker-compose.yml
+      service: rbb-observer
+    labels:
+      - "country=BRAZIL"
+      - "cbdc=DREX"
+      - "theosis=3500"
+
+  # ─── BRICS Mesh Coordinator ───
+  brics-mesh:
+    build:
+      context: .
+      dockerfile: Dockerfile.brics
+    container_name: brics-mesh-coordinator
+    restart: unless-stopped
+    ports:
+      - "10421:10421"    # API Mesh
+      - "10422:10422"    # Metrics
+    environment:
+      - MESH_CONTRACT=0x0000000000000000000000000000000000010421
+      - COORDINATOR_ORCID=0009-0005-2697-4668
+      - SUBSTRATE=1042.1
+      - COUNTRIES=BRAZIL,RUSSIA,INDIA,CHINA,SOUTH_AFRICA,EGYPT,ETHIOPIA,IRAN,SAUDI_ARABIA,UAE,INDONESIA
+    volumes:
+      - ./contracts:/contracts:ro
+      - ./adapter/brics_adapter.py:/app/brics_adapter.py:ro
+    networks:
+      - rbb-cathedral
+      - brics-mesh
+    labels:
+      - "substrato=1042.1"
+      - "deidade=Hermes"
+      - "componente=brics-mesh"
+
+  # ─── Prometheus BRICS+ ───
+  prometheus-brics:
+    image: prom/prometheus:v2.51.0
+    container_name: brics-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus/prometheus-brics.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/brics_alerts.yml:/etc/prometheus/rules/brics_alerts.yml:ro
+      - prometheus-brics-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
+      - '--web.enable-lifecycle'
+    networks:
+      - brics-mesh
+    labels:
+      - "substrato=1042.1"
+      - "deidade=Mnemosyne"
+
+  # ─── Grafana BRICS+ ───
+  grafana-brics:
+    image: grafana/grafana:10.4.0
+    container_name: brics-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-brics-data:/var/lib/grafana
+      - ./grafana/brics-dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${BRICS_GRAFANA_PASSWORD:-brics10421}
+    depends_on:
+      - prometheus-brics
+    networks:
+      - brics-mesh
+    labels:
+      - "substrato=1042.1"
+      - "deidade=Athena"
+
+  # ─── NGINX mTLS (Gateway internacional) ───
+  nginx-brics:
+    image: nginx:1.25.4
+    container_name: brics-nginx
+    restart: unless-stopped
+    ports:
+      - "4443:443"
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx-brics.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs/brics:/etc/nginx/certs:ro
+    networks:
+      - brics-mesh
+    labels:
+      - "substrato=1042.1"
+      - "deidade=Themis"
+
+  # ─── Ollama BRICS+ (Oráculo multilíngue) ───
+  ollama-brics:
+    image: ollama/ollama:latest
+    container_name: brics-ollama
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+      - ./adapter/Modelfile:/Modelfile:ro
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - brics-mesh
+    labels:
+      - "substrato=1042.1"
+      - "deidade=Thoth"
+
+networks:
+  rbb-cathedral:
+    external: true
+  brics-mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  prometheus-brics-data:
+  grafana-brics-data:
+  ollama-models:

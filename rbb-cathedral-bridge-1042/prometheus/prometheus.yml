@@ -1,0 +1,113 @@
+# Substrato 1042 - RBB-CATHEDRAL-BRIDGE
+# Configuração Prometheus para integração RBB-Catedral
+# Arquiteto: ORCID 0009-0005-2697-4668
+# Data: 2026-06-03
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    organization: 'CATEDRAL'
+    substrate: '1042'
+    monitor: 'rbb-cathedral-bridge'
+
+# Regras de alerta
+rule_files:
+  - /etc/prometheus/rules/cathedral_alerts.yml
+
+# Scrape configs
+scrape_configs:
+  # ─── Métricas locais da Catedral ───
+  - job_name: 'cathedral-theosis'
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          node: 'theosis-tracker-01'
+          organization: 'CATEDRAL'
+          substrate: '1042'
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # ─── Métricas do nó Besu RBB (local) ───
+  - job_name: 'rbb-besu-local'
+    static_configs:
+      - targets: ['localhost:9545']
+        labels:
+          node: 'besu-observer-01'
+          organization: 'CATEDRAL'
+          substrate: '1042'
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # ─── Federation: Métricas de outras organizações RBB ───
+  - job_name: 'rbb-federado'
+    honor_labels: true
+    scheme: https
+    tls_config:
+      cert_file: /etc/prometheus/certs/client.crt
+      key_file: /etc/prometheus/certs/client.key
+      ca_file: /etc/prometheus/certs/ca.crt
+      insecure_skip_verify: false
+    static_configs:
+      # BNDES
+      - targets: ['prometheus.bndes.gov.br:9090']
+        labels:
+          organization: 'BNDES'
+          role: 'patrono'
+      # TCU
+      - targets: ['prometheus.tcu.gov.br:9090']
+        labels:
+          organization: 'TCU'
+          role: 'patrono'
+      # Dataprev
+      - targets: ['prometheus.dataprev.gov.br:9090']
+        labels:
+          organization: 'DATAPREV'
+          role: 'associado'
+      # CPQD
+      - targets: ['prometheus.cpqd.com.br:9090']
+        labels:
+          organization: 'CPQD'
+          role: 'associado'
+      # RNP
+      - targets: ['prometheus.rnp.br:9090']
+        labels:
+          organization: 'RNP'
+          role: 'associado'
+    scrape_interval: 30s
+
+  # ─── Métricas da Bridge (contract events) ───
+  - job_name: 'rbb-bridge-events'
+    static_configs:
+      - targets: ['localhost:9101']
+        labels:
+          node: 'bridge-monitor-01'
+          contract: 'RBB_Cathedral_Bridge'
+          substrate: '1042'
+    metrics_path: /metrics
+    scrape_interval: 60s
+
+  # ─── Health checks dos nós RBB ───
+  - job_name: 'rbb-node-health'
+    static_configs:
+      - targets:
+          - 'localhost:8545'  # RPC local
+        labels:
+          node_type: 'observer'
+          organization: 'CATEDRAL'
+    metrics_path: /health
+    scrape_interval: 10s
+
+# Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+# Remote write (opcional - para dashboard unificado Catedral)
+remote_write:
+  - url: 'http://cathedral-dashboard:9200/api/v1/write'
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'catedral_.*'
+        action: keep

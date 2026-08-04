@@ -1,0 +1,17 @@
+[package]
+name = "arkhe_proxy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aes-gcm = "0.10.3"
+aws-config = "1.8.17"
+aws-sdk-s3 = "1.133.0"
+aws-sdk-sagemaker = "1.202.0"
+rustls = "0.23.40"
+rustls-pemfile = "2.2.0"
+serde = "1.0.228"
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["full"] }
+tokio-rustls = "0.26.4"
+uuid = { version = "1.23.1", features = ["v4"] }

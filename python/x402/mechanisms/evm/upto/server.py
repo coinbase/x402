@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 
-from ....schemas import AssetAmount, Network, PaymentRequirements, Price, SupportedKind
+from x402.schemas import AssetAmount, Network, PaymentRequirements, Price, SupportedKind
+
 from ..constants import SCHEME_UPTO
 from ..utils import (
     get_asset_info,

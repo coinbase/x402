@@ -1,0 +1,20 @@
+[package]
+name = "cathedral-inference-runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cathedral-llm-core = { path = "../cathedral-llm-core" }
+cathedral-identity = { path = "../cathedral-identity" }
+cathedral-reputation = { path = "../cathedral-reputation" }
+cathedral-wormgraph = { path = "../cathedral-wormgraph" }
+cathedral-zk = { path = "../cathedral-zk" }
+cathedral-arkheobex = { path = "../cathedral-arkheobex" }
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true

@@ -1,0 +1,30 @@
+{
+  "substrato": "1104.2",
+  "version": "1.0.0",
+  "selo": "CATHEDRAL-1104.2-ARTIFACTS-v1.0.0-2026-06-13",
+  "arquiteto": "ORCID 0009-0005-2697-4668",
+  "timestamp": "2026-06-13T18:37:00Z",
+  "artifacts": [
+    "arkhe_1104_2_engine.rs — Extended InferenceEngine enum (Rio35 variant)",
+    "vllm_rio35.yaml — vLLM server configuration with Arkhe extensions",
+    "run_chat_rio35.py — SwiReasoning execution script with entropy logging",
+    "Makefile_rio35 — Build/deployment automation",
+    "calibration_report_template.json — Calibration grid search template"
+  ],
+  "dependencies": [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "vllm>=0.5.0",
+    "sglang>=0.2.0",
+    "numpy",
+    "arkhe-cognitive>=2.0.0",
+    "arkhe-security>=12.9.0",
+    "arkhe-chain>=1.0.0"
+  ],
+  "hardware_requirements": {
+    "gpus": 8,
+    "vram_per_gpu_gb": 80,
+    "system_ram_gb": 512,
+    "storage_tb": 2
+  }
+}

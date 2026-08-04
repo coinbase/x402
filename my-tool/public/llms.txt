@@ -1,0 +1,102 @@
+# my-tool
+
+> ARKHE HTTP GATEWAY tool
+
+This is an ERC-8257 compliant AI agent tool built with @opensea/tool-sdk.
+
+## Manifest
+
+- [Tool Manifest](/.well-known/ai-tool/my-tool.json): Full ERC-8257 manifest with inputs, outputs, and endpoint
+
+## Calling this tool
+
+Endpoint: POST http://localhost:3000/api
+
+Authentication depends on which gates the tool uses (check the [manifest](/.well-known/ai-tool/my-tool.json)):
+- **Predicate gate (SIWE)**: `Authorization: SIWE <base64url(siwe_message)>.<signature>`. Build a SIWE message for the domain of `http://localhost:3000`, sign with a qualifying wallet, chain ID 8453 (Base).
+- **x402 payment gate**: `X-Payment` header with a signed USDC transfer authorization. The endpoint returns `402` with payment requirements when this gate is active.
+- Tools may use one gate, both, or neither.
+
+Input: JSON body matching the manifest's `inputs` schema. See the [manifest](/.well-known/ai-tool/my-tool.json) for the exact format.
+
+## Using the CLI
+
+```
+# Predicate-gated tool (SIWE auth)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk auth http://localhost:3000/api --body '{"query": "hello"}'
+
+# x402-paid tool (USDC payment, no SIWE)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk pay http://localhost:3000/api --body '{"query": "hello"}'
+
+# Smoke-test (auto-detects gate type)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk smoke --endpoint http://localhost:3000/api --expect 200
+```
+
+## Programmatic usage (wallet adapters)
+
+```typescript
+import { createWalletFromEnv, walletAdapterToClient } from "@opensea/tool-sdk"
+import { base } from "viem/chains"
+
+// createWalletFromEnv auto-detects provider from env vars:
+//   Privy > Fireblocks > Turnkey > PrivateKey
+const adapter = createWalletFromEnv()
+const client = await walletAdapterToClient(adapter, base)
+```
+
+For **predicate-gated** tools (SIWE auth):
+
+```typescript
+import { authenticatedFetch } from "@opensea/tool-sdk"
+
+const res = await authenticatedFetch(
+  "http://localhost:3000/api",
+  { account: client.account, method: "POST", body: JSON.stringify({ query: "hello" }) },
+)
+const data = await res.json()
+```
+
+For **x402-paid** tools (USDC payment, no SIWE):
+
+```typescript
+import { paidFetch } from "@opensea/tool-sdk"
+
+const res = await paidFetch(
+  "http://localhost:3000/api",
+  { signer: adapter, method: "POST", body: JSON.stringify({ query: "hello" }) },
+)
+const data = await res.json()
+```
+
+For tools with **both** gates (SIWE + x402):
+
+```typescript
+import { paidAuthenticatedFetch } from "@opensea/tool-sdk"
+
+const res = await paidAuthenticatedFetch(
+  "http://localhost:3000/api",
+  { account: client.account, signer: adapter, method: "POST", body: JSON.stringify({ query: "hello" }) },
+)
+const data = await res.json()
+```
+
+## Wallet providers
+
+Set env vars and `createWalletFromEnv()` auto-detects the provider:
+- `PRIVATE_KEY` + `RPC_URL` — Local private key (simplest)
+- `PRIVY_APP_ID` — Privy server wallet
+- `TURNKEY_API_PUBLIC_KEY` — Turnkey signing
+- `FIREBLOCKS_API_KEY` — Fireblocks vault
+
+CLI commands also accept `--wallet-provider privy|turnkey|fireblocks|private-key`.
+
+## Response codes
+
+- 200: Success (JSON body matching outputs schema)
+- 401: Missing or invalid SIWE auth
+- 402: Payment required (x402-gated tool — use `pay` command or `paidAuthenticatedFetch`)
+- 403: Access predicate denied (wallet does not meet requirements)
+
+## Creator
+
+0x0000000000000000000000000000000000000000

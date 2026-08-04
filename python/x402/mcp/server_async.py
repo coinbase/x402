@@ -6,7 +6,8 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..schemas import PaymentRequirements, ResourceInfo
+from x402.schemas import PaymentRequirements, ResourceInfo
+
 from ..server import x402ResourceServer as x402ResourceServerAsync
 from .types import (
     MCP_PAYMENT_RESPONSE_META_KEY,
@@ -317,7 +318,7 @@ async def _create_payment_required_result_async(
     Returns:
         Structured 402 error result with payment requirements
     """
-    from ..schemas import ResourceInfo as CoreResourceInfo
+    from x402.schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),
@@ -365,7 +366,7 @@ async def _create_settlement_failed_result_async(
     Returns:
         Structured 402 error result with settlement failure details
     """
-    from ..schemas import ResourceInfo as CoreResourceInfo
+    from x402.schemas import ResourceInfo as CoreResourceInfo
 
     resource_info = CoreResourceInfo(
         url=create_tool_resource_url(tool_name, config.resource.url if config.resource else None),

@@ -1,0 +1,35 @@
+services:
+  cathedral-x402-polar:
+    build:
+      context: ./substrato-7001
+      dockerfile: Dockerfile
+      args:
+        FEATURES: "webhooks,oss,metrics-export"
+    container_name: cathedral-x402-polar
+    ports:
+      - "8787:8787"   # Webhooks
+      - "9097:9097"   # Prometheus metrics
+    environment:
+      RUST_LOG: "info,cathedral_x402_polar=debug"
+      POLAR_ACCESS_TOKEN: "${POLAR_ACCESS_TOKEN}"
+      POLAR_ORGANIZATION_ID: "${POLAR_ORGANIZATION_ID}"
+      POLAR_WEBHOOK_SECRET: "${POLAR_WEBHOOK_SECRET}"
+      POLAR_WEBHOOK_PORT: "8787"
+      POLAR_METRICS_PORT: "9097"
+      WORMGRAPH_URL: "http://cathedral-wormgraph:8787"
+      POLAR_OSS_ENABLED: "true"
+      POLAR_OSS_PERCENTAGE: "0.01"
+      POLAR_OSS_CONTRIBUTORS: >-
+        [{"github_handle":"dev-substrato-8000","share":0.4},{"github_handle":"dev-substrato-9000","share":0.35},{"github_handle":"dev-substrato-4003","share":0.25}]
+      POLAR_OSS_MIN_PAYOUT: "100"
+    depends_on:
+      cathedral-wormgraph:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - cathedral-network

@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - training-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - training-net
+
+  train-world-model:
+    image: arkhe/cathedral:920-latest
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "pip install torch numpy; python /arkhe/scripts/world_model_v3_trainer.py
+      --prometheus-url http://prometheus:9090
+      --epochs 50
+      --kolmogorov-lambda 1e-5
+      --output /arkhe/models/world_model_v3.pt"
+    volumes:
+      - ./models:/arkhe/models
+    networks:
+      - training-net
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  training-net:
+    driver: bridge

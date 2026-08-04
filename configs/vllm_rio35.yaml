@@ -1,0 +1,64 @@
+# File: configs/vllm_rio35.yaml
+# Substrato 1104.2 — vLLM Configuration for Rio-3.5-Open-397B
+# Selo: CATHEDRAL-1104.2-VLLM-CONFIG-2026-06-13
+# Arquiteto: ORCID 0009-0005-2697-4668
+
+model: "prefeitura-rio/Rio-3.5-Open-397B"
+
+# --- Hardware Configuration ---
+tensor_parallel_size: 8
+gpu_memory_utilization: 0.92
+max_model_len: 1048576          # 1M context window (Rio-3.5 native)
+max_num_seqs: 256
+
+# --- Trust Remote Code (REQUIRED for Rio-3.5) ---
+# SECURITY: This is mitigated by TEE enclave + FIG 1091.0 monitoring
+trust_remote_code: true
+
+# --- SwiReasoning Integration ---
+# Rio-3.5 has native SwiReasoning; we expose entropy logging via custom hooks
+enable_prefix_caching: true
+
+# --- Quantization (optional, for memory-constrained deploys) ---
+# quantization: "fp8"            # Uncomment for 8-bit inference
+# load_format: "auto"
+
+# --- Sampling Defaults (calibrated for Portuguese technical domain) ---
+sampling:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 40
+  repetition_penalty: 1.05
+
+# --- Arkhe-Specific Extensions ---
+arkhe:
+  # SwiReasoning telemetry endpoint
+  entropy_log_endpoint: "http://localhost:9106/swi/metrics"
+
+  # PQC anchor configuration
+  pqc_anchor:
+    enabled: true
+    chain_id: "rbb-testnet-1"
+    sphincs_key_path: "/etc/arkhe/pqc/rio35_sphincs.pub"
+    anchor_interval_blocks: 100
+
+  # FIG 1091.0 integration
+  fig_monitor:
+    enabled: true
+    voltage_threshold_mv: 950
+    temp_threshold_c: 85
+    jitter_threshold_ns: 500
+    hard_reset_on_anomaly: true
+
+  # Caster 319.1 tunnel
+  caster_tunnel:
+    enabled: true
+    tunnel_type: "boringtun_native"
+    pqc_encapsulation: true
+
+  # CreekGuard 2140.8 covert channel detection
+  creek_guard:
+    enabled: true
+    entropy_window: 128
+    chi_square_threshold: 0.05
+    simhash_threshold: 0.85

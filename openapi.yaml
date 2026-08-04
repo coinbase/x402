@@ -1,0 +1,103 @@
+openapi: 3.0.3
+info:
+  title: ARKHE LLM Server API
+  description: |
+    API de inferencia canonica para o modelo arkhe.gguf via llama.cpp server.
+    Toda requisicao e resposta e validada contra os invariantes ARKHE.
+  version: "inf.Omega"
+  contact:
+    name: "Arquiteto ARKHE"
+    url: "https://arkhe.cathedral"
+  license:
+    name: "ARKHE-CATHEDRAL-LICENSE-v1.0"
+
+servers:
+  - url: http://localhost:8080
+    description: Servidor local ARKHE
+
+paths:
+  /health:
+    get:
+      summary: Verificar saude do servidor
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Servidor operacional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+  /completion:
+    post:
+      summary: Gerar texto com constraints canonicas ARKHE
+      operationId: generateCanonical
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                  description: Prompt canônico ARKHE
+                  example: "<|ARKHE_START|>\n<|SUBSTRATE|> 226\nQual e o status?\n<|THOUGHT|>\n"
+                n_predict:
+                  type: integer
+                  default: 4096
+                  description: Max tokens a gerar
+                temperature:
+                  type: number
+                  default: 0.3
+                  minimum: 0
+                  maximum: 2
+                top_p:
+                  type: number
+                  default: 0.9
+                  minimum: 0
+                  maximum: 1
+                repeat_penalty:
+                  type: number
+                  default: 1.1
+                  minimum: 1
+                stop:
+                  type: array
+                  items:
+                    type: string
+                  default: ["<|ARKHE_END|>"]
+      responses:
+        "200":
+          description: Texto gerado com metadados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                  stop_type:
+                    type: string
+                  generation_settings:
+                    type: object
+                  timings:
+                    type: object
+                  tokens_cached:
+                    type: integer
+                  tokens_predicted:
+                    type: integer
+  /metrics:
+    get:
+      summary: Metricas de performance do servidor
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Metricas Prometheus
+          content:
+            text/plain:
+              schema:
+                type: string

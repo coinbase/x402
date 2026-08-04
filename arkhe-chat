@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# Wrapper script for arkhe_chat.py
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+python3 "$DIR/arkhe_chat.py" "$@"

@@ -1,0 +1,72 @@
+# ═══════════════════════════════════════════════════════════════════
+# SUBSTRATE 1010 — zkCBDC
+# Canonical Schema YAML
+# ═══════════════════════════════════════════════════════════════════
+# Architect ORCID: 0009-0005-2697-4668
+# Seal: ZKCBDC-1010-2026-05-31
+# Status: CANONIZED_PROVISIONAL
+# ═══════════════════════════════════════════════════════════════════
+
+substrate:
+  id: 1010
+  name: ZKCBDC
+  type: "Financial Infrastructure / Privacy / ZK-Proofs"
+  era: 10
+  status: CANONIZED_PROVISIONAL
+
+metadata:
+  seal: "ZKCBDC-1010-2026-05-31"
+  timestamp_canonization: "2026-05-31T00:00:00+00:00"
+  architect_orcid: "0009-0005-2697-4668"
+  deities:
+    - Hestia    # Home and privacy
+    - Hermes    # Commerce
+    - Themis    # Justice and law
+  languages:
+    - Python 3.12+
+    - Go
+    - TypeScript
+    - Java
+    - Solidity
+    - YAML
+    - Markdown
+
+cross_links:
+  - id: 955
+    name: Safe-Core-PQC
+    role: "Post-quantum cryptography for Pedersen commitments"
+  - id: 954
+    name: Axiarchy
+    role: "Ethical validation (P1-P7) of each transaction"
+  - id: 923
+    name: TemporalChain
+    role: "Immutable anchoring of nullifiers and mint proofs"
+  - id: 990
+    name: Compliance
+    role: "AML/KYC verification without data exposure"
+  - id: 979
+    name: DAO Governance
+    role: "Changes to monetary policy require consensus"
+  - id: 989.x
+    name: Passport Gateway
+    role: "Proof of humanity for KYC (zk-SANCTIONS)"
+
+cryptography:
+  zk_snarks: "Groth16 or Plonk"
+  elliptic_curve: "BN254 or BLS12-381"
+  hash: "Poseidon (optimized for ZK)"
+  commitments: "Pedersen Commitments"
+  nullifier: "Hash(secret_key, tx_id) — prevents double spending"
+
+invariants:
+  - "amount > 0"
+  - "sum(balances) = total_supply (supply preservation)"
+  - "unique nullifier per transaction"
+  - "valid kyc_proof (via Passport Gateway)"
+  - "valid sanctions_proof (via zk-SANCTIONS)"
+
+tests:
+  framework: pytest, go test, etc.
+  suites:
+    - test_zkcbdc.py
+    - zkcbdc_engine_test.go

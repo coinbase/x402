@@ -1,0 +1,12 @@
+{%- for message in messages %}
+  {%- if message['role'] == 'system' -%}
+    {{- '<|system|>\n' + message['content'] + '<|end|>\n' -}}
+  {%- elif message['role'] == 'user' -%}
+    {{- '<|user|>\n' + message['content'] + '<|end|>\n' -}}
+  {%- elif message['role'] == 'assistant' -%}
+    {{- '<|assistant|>\n' + message['content'] + '<|end|>\n' -}}
+  {%- endif -%}
+{%- endfor %}
+{%- if add_generation_prompt -%}
+  {{- '<|assistant|>\n' -}}
+{%- endif -%}

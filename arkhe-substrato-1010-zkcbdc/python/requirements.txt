@@ -1,0 +1,2 @@
+# ARKHE Cathedral — Substrate 1010 zkCBDC
+pytest>=8.0.0

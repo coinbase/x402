@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+LABEL maintainer="ORCID 0009-0005-2697-4668"
+LABEL substrate="1042"
+LABEL deity="Athena"
+
+WORKDIR /app
+
+COPY theosis_exporter.py /app/
+
+RUN pip install --no-cache-dir urllib3
+
+EXPOSE 9100
+
+ENV RBB_RPC_URL=http://rbb-observer:8545
+ENV BRIDGE_CONTRACT=0x0000000000000000000000000000000000010420
+ENV PERMISSIONAMENTO_CONTRACT=0x0000000000000000000000000000000000010421
+ENV UPDATE_INTERVAL=15
+ENV SUBSTRATE=1042
+
+CMD ["python3", "theosis_exporter.py", "--port", "9100"]

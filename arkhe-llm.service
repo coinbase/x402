@@ -1,0 +1,41 @@
+[Unit]
+Description=ARKHE LLM Server — Inferencia Canonica
+After=network.target
+Documentation=https://arkhe.cathedral/docs/836-server
+
+[Service]
+Type=simple
+User=arkhe
+Group=arkhe
+WorkingDirectory=/opt/arkhe
+
+Environment="ARKHE_GGUF_PATH=/opt/arkhe/models/arkhe-8b-Q4_K_M.gguf"
+Environment="LLAMA_CPP_PATH=/opt/llama.cpp"
+Environment="ARKHE_CONTEXT=32768"
+Environment="ARKHE_THREADS=8"
+Environment="ARKHE_PORT=8080"
+Environment="ARKHE_HOST=0.0.0.0"
+Environment="LD_LIBRARY_PATH=/opt/llama.cpp/build/bin"
+
+ExecStart=/opt/arkhe/bin/arkhe_llama_server.sh
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+
+# Limites de recursos
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Seguranca
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/arkhe/logs /opt/arkhe/models
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arkhe-llm
+
+[Install]
+WantedBy=multi-user.target

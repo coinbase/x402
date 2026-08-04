@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "title": "Cathedral ARKHE v28.3 — Emergence Dashboard",
+    "panels": [
+      {
+        "title": "Mean Compression Score",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "arkhe_avg_compression_ratio",
+            "legendFormat": "Average Compression Ratio"
+          }
+        ]
+      },
+      {
+        "title": "Active Specialist Agents",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "arkhe_active_specialist_agents"
+          }
+        ]
+      },
+      {
+        "title": "Compression Improvement",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "arkhe_compression_improvement"
+          }
+        ]
+      }
+    ]
+  }
+}

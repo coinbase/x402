@@ -1,0 +1,93 @@
+[package]
+name = "cathedral-cse"
+version = "14.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Cathedral ARKHE Team"]
+description = "Cathedral Cognitive Singularity Engine — v14.1"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+k8s-openapi = { version = "0.23.0", features = ["v1_30"] }
+# =====================================================================
+# Async Runtime & Streams
+# =====================================================================
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "fs", "process", "sync", "time"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# =====================================================================
+# HTTP / API (Axum 0.8)
+# =====================================================================
+axum = { version = "0.8", features = ["json", "macros"] }
+tower = "0.4"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-full"] }
+
+# =====================================================================
+# Serialização
+# =====================================================================
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# =====================================================================
+# Logging & Tracing
+# =====================================================================
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+anyhow = "1.0"
+thiserror = "2.0"
+
+# =====================================================================
+# Tokenização (MTP) — ✅ CSE-HIGH-008
+# =====================================================================
+tokenizers = "0.19"
+
+# =====================================================================
+# Computação Numérica (Spatial Attention) — ✅ CSE-CRIT-001
+# =====================================================================
+ndarray = "0.15"
+rayon = "1.8"
+
+# =====================================================================
+# Crypto (PAX / ML-DSA) — reutilizado dos substratos
+# =====================================================================
+ark-ff = "0.5"
+ark-bls12-381 = "0.5"
+ml-dsa = "0.1"
+blake3 = "1.3"
+
+# =====================================================================
+# K8s / Hot Reload
+# =====================================================================
+kube = { version = "0.95", features = ["client", "derive"], default-features = false }
+
+# =====================================================================
+# Monitorização
+# =====================================================================
+prometheus = { version = "0.13", features = ["process"] }
+lazy_static = "1.4"
+
+# =====================================================================
+# Utilitários
+# =====================================================================
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = { version = "1.10", features = ["std"] }
+once_cell = "1.19"
+rand = "0.8"
+base64 = "0.22"
+async-trait = "0.1"
+
+# =====================================================================
+# Substratos Cathedral — reutilização da v13.1
+# =====================================================================
+cathedral-trinity = { path = "../cathedral-trinity", version = "13.1" }
+cathedral-eac = { path = "../cathedral-eac", version = "13.0" }
+cathedral-mesh = { path = "../cathedral-mesh", version = "10.1" }
+cathedral-crypto = { path = "../cathedral-crypto", version = "11.1" }
+cathedral-tools = { path = "../cathedral-tools", version = "13.1" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockito = "1.0"

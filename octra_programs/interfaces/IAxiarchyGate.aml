@@ -1,0 +1,8 @@
+// ARKHE-ONCHAIN — Axiarchy Gate Interface
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface IAxiarchyGate {
+  view fn is_verified(code_hash: bytes32): bool
+  fn verify_code(code_hash: bytes32, lean_proof: bytes): bool
+  fn revoke_verification(code_hash: bytes32): bool
+}

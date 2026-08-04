@@ -1,0 +1,47 @@
+// ARKHE-ONCHAIN — Axiarchy Gate
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+// Arquiteto ORCID: 0009-0005-2697-4668
+
+import "./interfaces/IAxiarchyGate.aml"
+
+program AxiarchyGate implements IAxiarchyGate {
+  state {
+    owner: address
+    verified_codes: map[bytes32]bool
+    proofs: map[bytes32]bytes
+    theosis_threshold: int
+  }
+
+  event CodeVerified(code_hash: bytes32, proof: bytes, theosis: int)
+  event CodeRevoked(code_hash: bytes32, reason: string)
+
+  constructor(threshold: int) {
+    self.owner = caller
+    self.theosis_threshold = threshold
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn is_verified(code_hash: bytes32): bool {
+    return self.verified_codes[code_hash]
+  }
+
+  fn verify_code(code_hash: bytes32, lean_proof: bytes): bool {
+    require(len(lean_proof) > 0, "Axiarchy P2: proof required")
+    // Stub: verificação Lean 4 do proof contra P1-P7
+    // Em Octra real, esta verificação seria computada via HFHE
+    self.verified_codes[code_hash] = true
+    self.proofs[code_hash] = lean_proof
+    emit CodeVerified(code_hash, lean_proof, self.theosis_threshold)
+    return true
+  }
+
+  fn revoke_verification(code_hash: bytes32): bool {
+    only_owner()
+    self.verified_codes[code_hash] = false
+    emit CodeRevoked(code_hash, "Axiarchy P7: ethical violation")
+    return true
+  }
+}

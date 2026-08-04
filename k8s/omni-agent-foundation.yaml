@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arkhe-foundation
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arkhe-memory-pvc
+  namespace: arkhe-foundation
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omni-agent
+  namespace: arkhe-foundation
+  labels:
+    app: omni-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: omni-agent
+  template:
+    metadata:
+      labels:
+        app: omni-agent
+    spec:
+      containers:
+        - name: arkhe-os
+          image: arkhe/cathedral:920-latest   # built with multi-arch pipeline
+          ports:
+            - containerPort: 9290
+              name: http
+            - containerPort: 8700
+              name: grpc
+          env:
+            - name: ARKHE_MATURITY
+              value: "adult"
+            - name: ETHERSCAN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arkhe-secrets
+                  key: etherscan-key
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arkhe-secrets
+                  key: google-api-key
+            - name: GOOGLE_CX
+              valueFrom:
+                secretKeyRef:
+                  name: arkhe-secrets
+                  key: google-cx
+            - name: ARKHE_P257_SEED
+              value: "vitral-da-catedral-oculta"
+            - name: ARKHE_QEMU_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: memory
+              mountPath: /arkhe/memory
+          command:
+            - "python"
+            - "/arkhe/arkhe_os.py"
+            - "--maturity"
+            - "adult"
+      volumes:
+        - name: memory
+          persistentVolumeClaim:
+            claimName: arkhe-memory-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: omni-agent-svc
+  namespace: arkhe-foundation
+spec:
+  selector:
+    app: omni-agent
+  ports:
+    - name: http
+      port: 9290
+      targetPort: 9290
+    - name: grpc
+      port: 8700
+      targetPort: 8700

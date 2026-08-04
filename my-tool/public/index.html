@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>my-tool — an ERC-8257 AI Tool</title>
+    <style>
+      body {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        max-width: 720px;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+        color: #1a1a1a;
+      }
+      h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+      h2 { font-size: 1.1rem; margin-top: 2rem; }
+      .tagline { color: #666; margin-top: 0; }
+      code {
+        background: #f4f4f4;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.85rem;
+      }
+      a { color: #0070f3; }
+      .meta {
+        color: #888;
+        font-size: 0.85rem;
+        margin-top: 2rem;
+        border-top: 1px solid #eee;
+        padding-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>my-tool</h1>
+    <p class="tagline">ARKHE HTTP GATEWAY tool</p>
+
+    <h2>Manifest</h2>
+    <p>The ERC-8257 tool manifest lives at:</p>
+    <pre>GET /.well-known/ai-tool/my-tool.json</pre>
+
+    <h2>Endpoint</h2>
+    <p>POST to <code>/api</code> with a JSON body matching the manifest's <code>inputs</code> schema. See the <a href="/.well-known/ai-tool/my-tool.json">manifest</a> for the exact input format.</p>
+
+    <h2>Authentication</h2>
+    <p>This tool may use one or both of the following gates (check the <a href="/.well-known/ai-tool/my-tool.json">manifest</a> for details):</p>
+    <ul>
+      <li><strong>Predicate gate (SIWE)</strong> — requires a <a href="https://eips.ethereum.org/EIPS/eip-4361">SIWE</a> authorization header: <code>Authorization: SIWE &lt;base64url(message)&gt;.&lt;signature&gt;</code>. Build the SIWE message for the domain of <code>http://localhost:3000</code> and sign with a qualifying wallet.</li>
+      <li><strong>x402 payment gate</strong> — requires an <code>X-Payment</code> header with a signed USDC transfer authorization. The endpoint returns <code>402</code> with payment requirements if this gate is active.</li>
+    </ul>
+
+    <h2>Agent quick start</h2>
+    <p>Using <a href="https://www.npmjs.com/package/@opensea/tool-sdk"><code>@opensea/tool-sdk</code></a> CLI:</p>
+    <pre># Predicate-gated tool (SIWE auth)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk auth \
+  http://localhost:3000/api --body '{"query": "hello"}'
+
+# x402-paid tool (USDC payment, no SIWE)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk pay \
+  http://localhost:3000/api --body '{"query": "hello"}'
+
+# Smoke-test (auto-detects gate type)
+PRIVATE_KEY=0x... RPC_URL=https://mainnet.base.org npx @opensea/tool-sdk smoke \
+  --endpoint http://localhost:3000/api --expect 200</pre>
+
+    <p>Or programmatically with <a href="https://www.npmjs.com/package/@opensea/wallet-adapters">wallet adapters</a>:</p>
+    <pre>import { createWalletFromEnv, walletAdapterToClient } from "@opensea/tool-sdk"
+import { base } from "viem/chains"
+
+// createWalletFromEnv auto-detects provider from env vars:
+//   Privy > Fireblocks > Turnkey > PrivateKey
+const adapter = createWalletFromEnv()
+const client = await walletAdapterToClient(adapter, base)</pre>
+
+    <p>For <strong>predicate-gated</strong> tools (SIWE auth):</p>
+    <pre>import { authenticatedFetch } from "@opensea/tool-sdk"
+
+const res = await authenticatedFetch(
+  "http://localhost:3000/api",
+  { account: client.account, method: "POST", body: JSON.stringify({ query: "hello" }) },
+)
+const data = await res.json()</pre>
+
+    <p>For <strong>x402-paid</strong> tools (USDC payment, no SIWE):</p>
+    <pre>import { paidFetch } from "@opensea/tool-sdk"
+
+const res = await paidFetch(
+  "http://localhost:3000/api",
+  { signer: adapter, method: "POST", body: JSON.stringify({ query: "hello" }) },
+)
+const data = await res.json()</pre>
+
+    <p>For tools with <strong>both</strong> gates (SIWE + x402):</p>
+    <pre>import { paidAuthenticatedFetch } from "@opensea/tool-sdk"
+
+const res = await paidAuthenticatedFetch(
+  "http://localhost:3000/api",
+  {
+    account: client.account,
+    signer: adapter,
+    method: "POST",
+    body: JSON.stringify({ query: "hello" }),
+  },
+)
+const data = await res.json()</pre>
+
+    <h2>Wallet providers</h2>
+    <p>The SDK supports multiple wallet providers via <code>@opensea/wallet-adapters</code>. Set the corresponding env vars and <code>createWalletFromEnv()</code> auto-detects the provider:</p>
+    <pre>PRIVATE_KEY + RPC_URL — Local private key (simplest)
+PRIVY_APP_ID          — Privy server wallet
+TURNKEY_API_PUBLIC_KEY — Turnkey signing
+FIREBLOCKS_API_KEY    — Fireblocks vault</pre>
+    <p>CLI commands also accept <code>--wallet-provider privy|turnkey|fireblocks|private-key</code>.</p>
+
+    <h2>Response</h2>
+    <p>On success, returns <code>200</code> with a JSON body matching the manifest's <code>outputs</code> schema. On auth failure, returns <code>401</code> (missing/invalid SIWE) or <code>403</code> (access predicate denied). For x402-gated tools, <code>402</code> indicates payment is required.</p>
+
+    <p class="meta">
+      Built with <a href="https://github.com/ProjectOpenSea/opensea-devtools/tree/main/packages/tool-sdk">@opensea/tool-sdk</a>
+      · Creator: <code>0x0000000000000000000000000000000000000000</code>
+    </p>
+  </body>
+</html>

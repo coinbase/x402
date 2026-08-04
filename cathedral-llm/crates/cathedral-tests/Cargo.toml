@@ -1,0 +1,9 @@
+[package]
+name = "cathedral-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cathedral-inference-runtime = { path = "../cathedral-inference-runtime" }
+cathedral-identity = { path = "../cathedral-identity" }
+tokio.workspace = true

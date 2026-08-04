@@ -1,0 +1,127 @@
+{
+  "dashboard": {
+    "title": "Cathedral ARKHE — WormGraph + Memória Híbrida",
+    "tags": ["cathedral", "wormgraph", "memoria-hibrida", "agent-memory"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "title": "Eventos WormGraph por Tipo (última hora)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "rate(wormgraph_events_total[5m])",
+            "legendFormat": "{{record_type}}"
+          }
+        ]
+      },
+      {
+        "title": "Tamanho da Memória Híbrida (agent_memory)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "agent_memory_total"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "orange", "value": 50000 },
+                { "color": "red", "value": 200000 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Média de Relevância das Memórias",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "avg(agent_memory_relevance)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 0.4 },
+                { "color": "green", "value": 0.7 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Falhas de Compensação (Compensation Failures)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "increase(compensation_failures_total[10m])",
+            "legendFormat": "Falhas de Compensação"
+          }
+        ]
+      },
+      {
+        "title": "Eventos de Pagamento (Lightning + x402)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(payment_events_total[5m])",
+            "legendFormat": "{{service}} - {{status}}"
+          }
+        ]
+      },
+      {
+        "title": "Top 10 Entidades mais Frequentes na Memória",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "topk(10, sum by (entity) (agent_memory_entities_count))",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "title": "Distribuição de Relevância das Memórias",
+        "type": "histogram",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "agent_memory_relevance"
+          }
+        ]
+      },
+      {
+        "title": "Taxa de Crescimento da Memória Híbrida",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "targets": [
+          {
+            "expr": "rate(agent_memory_total[30m])",
+            "legendFormat": "Novas memórias / 30m"
+          }
+        ]
+      }
+    ],
+    "time": { "from": "now-6h", "to": "now" }
+  },
+  "overwrite": true
+}

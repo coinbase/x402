@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package cathedral.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ============================================================
+// SERVIÇO PRINCIPAL
+// ============================================================
+service CathedralBridge {
+    // Envia um lote de eventos de proveniência (design, simulação, mutação, etc.)
+    rpc Ingest(IngestRequest) returns (IngestResponse);
+
+    // Consulta síncrona de governança (EthicalGuardian)
+    rpc RequestGovernance(GovernanceRequest) returns (GovernanceResponse);
+
+    // Consulta de histórico de proveniência (futuro / opcional)
+    rpc QueryProvenance(QueryProvenanceRequest) returns (QueryProvenanceResponse);
+}
+
+// ============================================================
+// INGEST
+// ============================================================
+message IngestRequest {
+    string project_id = 1;
+    string agent_id = 2;
+    repeated Event events = 3;
+    optional string batch_id = 4;
+}
+
+message IngestResponse {
+    bool success = 1;
+    string message = 2;
+    uint32 events_accepted = 3;
+    repeated string rejected_event_ids = 4;
+}
+
+message Event {
+    string event_id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+    EventType event_type = 3;
+    string design_hash = 4;
+    repeated string parent_hashes = 5;
+    string payload_json = 6;           // JSON serializado (flexível)
+    EventMetadata metadata = 7;
+}
+
+enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    DESIGN_PROPOSED = 1;
+    SIMULATION_COMPLETED = 2;
+    DESIGN_OPTIMIZED = 3;
+    AGENT_MUTATION = 4;
+    FABRICATION_PLANNED = 5;
+    FABRICATION_COMPLETED = 6;
+    TEST_RESULT = 7;
+    HUMAN_REVIEW = 8;
+    PARAMETER_CHANGE = 9;
+    ZK_VERIFICATION = 10;
+}
+
+message EventMetadata {
+    string domain = 1;
+    double confidence = 2;
+    double compute_cost_usd = 3;
+    repeated string tags = 4;
+}
+
+// ============================================================
+// GOVERNANCE
+// ============================================================
+message GovernanceRequest {
+    string request_id = 1;
+    string project_id = 2;
+    string agent_id = 3;
+    EventType event_type = 4;
+    string proposed_state_json = 5;     // Estado que o agente quer aplicar
+    string current_state_json = 6;
+    double agent_risk_score = 7;        // 0.0 - 1.0
+    string domain = 8;
+    map<string, string> metadata = 9;
+}
+
+message GovernanceResponse {
+    string request_id = 1;
+    GovernanceVerdict verdict = 2;
+    string rationale = 3;
+    repeated string conditions = 4;
+    string evaluated_by = 5;            // "ethical_guardian", "multi_agent", etc.
+    google.protobuf.Timestamp evaluated_at = 6;
+}
+
+enum GovernanceVerdict {
+    GOVERNANCE_VERDICT_UNSPECIFIED = 0;
+    APPROVED = 1;
+    REJECTED = 2;
+    REQUIRES_HUMAN = 3;
+    CONDITIONAL = 4;
+    TIMEOUT = 5;
+}
+
+// ============================================================
+// QUERY (FUTURO)
+// ============================================================
+message QueryProvenanceRequest {
+    string project_id = 1;
+    optional string design_hash = 2;
+    optional string agent_id = 3;
+    optional uint64 from_version = 4;
+    optional uint64 to_version = 5;
+    uint32 limit = 6;
+}
+
+message QueryProvenanceResponse {
+    repeated ProvenanceEntry entries = 1;
+    bool has_more = 2;
+}
+
+message ProvenanceEntry {
+    string id = 1;
+    uint64 version = 2;
+    string decision_type = 3;
+    string before_state_json = 4;
+    string after_state_json = 5;
+    optional string rationale = 6;
+    google.protobuf.Timestamp timestamp = 7;
+}

@@ -12,13 +12,14 @@ except ImportError as e:
         "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
     ) from e
 
-from ....schemas import (
+from x402.schemas import (
     Network,
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     VerifyResponse,
 )
+
 from ..constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ERR_AMOUNT_INSUFFICIENT,

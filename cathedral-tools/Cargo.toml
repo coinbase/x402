@@ -1,0 +1,10 @@
+[package]
+name = "cathedral-tools"
+version = "13.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.40", features = ["full"] }
+uuid = "1.0"

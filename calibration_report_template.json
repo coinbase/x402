@@ -1,0 +1,67 @@
+{
+  "report_meta": {
+    "substrato": "1104.2",
+    "version": "1.0.0",
+    "selo": "CATHEDRAL-1104.2-CALIBRATION-REPORT-2026-06-13",
+    "arquiteto": "ORCID 0009-0005-2697-4668",
+    "timestamp": "2026-06-13T18:37:00Z",
+    "engine": "rio35-open-397b",
+    "method": "swir",
+    "domain": "portuguese_technical_legal"
+  },
+  "hyperparameters_tested": {
+    "entropy_ref_x1000": [
+      350,
+      380,
+      400,
+      420,
+      450,
+      480,
+      500
+    ],
+    "max_switches": [
+      4,
+      6,
+      8,
+      10,
+      12
+    ],
+    "block_size": 64,
+    "latent_depth": 3,
+    "explicit_commit_threshold": 750
+  },
+  "expected_outputs": {
+    "best_entropy_ref_x1000": "TBD (estimated 400-450 for PT domain)",
+    "best_max_switches": "TBD (estimated 6-8 for efficiency)",
+    "target_entropy_std": "< 0.15 (consistent reasoning)",
+    "target_switch_efficiency": "< 0.05 switches/token",
+    "target_latency_per_token": "< 5000μs (GPU-dependent)"
+  },
+  "calibration_samples": [
+    "PCT temporal non-interference principle",
+    "Retrocausality ethics in blockchain governance",
+    "Floquet crystal + Majorana qubit hybrid emulator",
+    "Post-quantum security for sovereign digital cathedrals",
+    "Quantum Byzantine consensus latency at 1200km",
+    "CNPq BRICS research proposal for AI + quantum",
+    "CreekGuard 2140.8 covert channel detection",
+    "SwiReasoning token efficiency in 397B MoE models"
+  ],
+  "metrics_to_log": [
+    "entropy_series (per token)",
+    "entropy_mean, entropy_std, entropy_max, entropy_min",
+    "switch_count, switch_points",
+    "explicit_blocks, latent_blocks",
+    "latency_total_us, latency_per_token_us",
+    "output_tokens, confidence_final",
+    "pqc_anchor_tx, pqc_anchor_block"
+  ],
+  "next_steps": [
+    "Execute calibration grid search (make calibrate)",
+    "Analyze entropy distributions per domain (PT legal vs STEM)",
+    "Correlate switch count with output quality (human eval)",
+    "Validate PQC anchor latency on RBB testnet",
+    "Integrate best config into InferenceEngine enum",
+    "Update Substrato 1106 with Rio-35 native SwiReasoning hooks"
+  ]
+}

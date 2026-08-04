@@ -1,0 +1,28 @@
+[package]
+name = "arkhe_jax_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+bumpalo = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+sha3 = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+matrixmultiply.workspace = true
+rand_chacha = "0.3"
+
+[[bench]]
+name = "matmul_bench"
+path = "../benches/matmul_bench.rs"
+harness = false

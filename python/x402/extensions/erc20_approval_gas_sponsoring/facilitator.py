@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 
+from x402.schemas import PaymentPayload
+
 from ...mechanisms.evm.constants import PERMIT2_ADDRESS
-from ...schemas import PaymentPayload
 from .types import ERC20_APPROVAL_GAS_SPONSORING_KEY, Erc20ApprovalGasSponsoringInfo
 
 _HEX_ADDRESS = re.compile(r"^0x[a-fA-F0-9]{40}$")

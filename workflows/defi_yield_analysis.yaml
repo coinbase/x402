@@ -1,0 +1,8 @@
+id: "defi-analysis-1"
+name: "DeFi Yield Analysis"
+steps:
+  - sequential: ["oracle", "analyst", "guardian", "coder"]
+input_mapping:
+  user_question: "query"
+output_mapping:
+  analyst_output: "analysis"

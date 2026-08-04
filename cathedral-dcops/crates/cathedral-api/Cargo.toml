@@ -1,0 +1,17 @@
+[package]
+name = "cathedral-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+uuid = { version = "1.10", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+tokio-tungstenite = "0.26"
+cathedral-wormgraph = { path = "../cathedral-wormgraph" }
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }

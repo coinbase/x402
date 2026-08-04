@@ -1,0 +1,75 @@
+{
+  "dashboard": {
+    "title": "Cathedral ARKHE — Overview",
+    "tags": ["cathedral", "mcp", "resilience"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "MCP Request Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(mcp_requests_total[1m])",
+            "legendFormat": "{{method}} {{status}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "title": "Circuit Breaker State",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "circuit_breaker_state"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 }
+      },
+      {
+        "title": "DLQ Size",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "dlq_size",
+            "legendFormat": "Messages in DLQ"
+          }
+        ],
+        "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 }
+      },
+      {
+        "title": "Last-Effort Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "last_effort_success_rate"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 }
+      },
+      {
+        "title": "PostgreSQL Connections",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "pg_stat_activity_count",
+            "legendFormat": "{{state}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 }
+      },
+      {
+        "title": "Redis Memory Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "redis_memory_used_bytes",
+            "legendFormat": "Used Memory"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 }
+      }
+    ],
+    "time": { "from": "now-1h", "to": "now" },
+    "refresh": "10s"
+  }
+}

@@ -10,9 +10,10 @@ import asyncio
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from ..schemas import PaymentPayload, PaymentRequirements, SettleResponse
-from ..schemas.errors import SettleError
-from ..schemas.v1 import PaymentPayloadV1
+from x402.schemas import PaymentPayload, PaymentRequirements, SettleResponse
+from x402.schemas.errors import SettleError
+from x402.schemas.v1 import PaymentPayloadV1
+
 from ..server import ResourceConfig
 from .types import (
     HTTPProcessResult,

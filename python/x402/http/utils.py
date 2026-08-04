@@ -6,12 +6,13 @@ import base64
 import json
 from typing import Any
 
-from ..schemas import (
+from x402.schemas import (
     PaymentPayload,
     PaymentRequired,
     SettleResponse,
 )
-from ..schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
+from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
+
 from .constants import PAYMENT_REQUIRED_HEADER, X_PAYMENT_HEADER
 
 

@@ -1,0 +1,23 @@
+name: Security scan with zkHydra
+on: [pull_request]
+
+jobs:
+  zkhydra-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Security scan with zkHydra
+        run: |
+          mkdir -p test_circuits
+          echo 'template Multiplier2() { signal input in1; signal input in2; signal output out; out <== in1 * in2; } component main = Multiplier2();' > test_circuits/circuit.circom
+          python -m cathedral.zkhydra_gateway analyze \
+            --circuit test_circuits/circuit.circom \
+            --tools all \
+            --fail-on-finding \
+            --output security-report.json

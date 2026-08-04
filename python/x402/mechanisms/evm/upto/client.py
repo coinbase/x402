@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ....schemas import PaymentRequirements
+from x402.schemas import PaymentRequirements
+
 from ..constants import (
     ERC20_ALLOWANCE_ABI,
     PERMIT2_ADDRESS,

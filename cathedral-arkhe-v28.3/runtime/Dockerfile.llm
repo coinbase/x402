@@ -1,0 +1,41 @@
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    git \
+    build-essential \
+    cmake \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build llama.cpp
+WORKDIR /build
+RUN git clone https://github.com/ggerganov/llama.cpp.git .
+RUN cmake -B build -DLLAMA_CUBLAS=ON
+RUN cmake --build build --config Release -j $(nproc)
+
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /build/build/bin/server /usr/local/bin/llama-server
+
+# Expose the server port
+EXPOSE 8000
+
+# Environment variables for configuration
+ENV CATHEDRAL_MODEL_PATH=/models
+ENV HOST=0.0.0.0
+ENV PORT=8000
+
+# Default command to run the server
+CMD ["sh", "-c", "llama-server --host $HOST --port $PORT --model $CATHEDRAL_MODEL_PATH/model.gguf"]

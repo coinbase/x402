@@ -1,0 +1,4 @@
+[package]
+name = "cathedral-mesh"
+version = "10.1.0"
+edition = "2021"

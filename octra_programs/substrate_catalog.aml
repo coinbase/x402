@@ -1,0 +1,37 @@
+// ARKHE-ONCHAIN — Substrate Catalog
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface ISubstrateCatalog {
+  view fn get_substrate_seal(id: string): bytes32
+  fn canonize_substrate(id: string, seal: bytes32, cross_links: string): bool
+}
+
+program SubstrateCatalog implements ISubstrateCatalog {
+  state {
+    owner: address
+    seals: map[string]bytes32
+    links: map[string]string
+  }
+
+  event SubstrateCanonized(id: string, seal: bytes32, cross_links: string)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn get_substrate_seal(id: string): bytes32 {
+    return self.seals[id]
+  }
+
+  fn canonize_substrate(id: string, seal: bytes32, cross_links: string): bool {
+    only_owner()
+    self.seals[id] = seal
+    self.links[id] = cross_links
+    emit SubstrateCanonized(id, seal, cross_links)
+    return true
+  }
+}

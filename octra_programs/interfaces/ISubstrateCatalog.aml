@@ -1,0 +1,4 @@
+interface ISubstrateCatalog {
+  view fn get_substrate_seal(id: string): bytes32
+  fn canonize_substrate(id: string, seal: bytes32, cross_links: string): bool
+}

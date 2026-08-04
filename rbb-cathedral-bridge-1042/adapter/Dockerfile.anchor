@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+LABEL maintainer="ORCID 0009-0005-2697-4668"
+LABEL substrate="1042"
+LABEL deity="Chronos"
+
+WORKDIR /app
+
+COPY temporal_anchor.py /app/
+
+RUN pip install --no-cache-dir urllib3 schedule
+
+ENV RBB_RPC_URL=http://rbb-observer:8545
+ENV BRIDGE_CONTRACT=0x0000000000000000000000000000000000010420
+ENV ANCHOR_INTERVAL=300
+ENV SUBSTRATE=1042
+ENV ORCID=0009-0005-2697-4668
+
+CMD ["python3", "temporal_anchor.py"]

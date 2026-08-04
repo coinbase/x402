@@ -1,0 +1,14 @@
+[package]
+name = "cathedral-test-support"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cathedral-wormgraph = { path = "../cathedral-wormgraph" }
+dashmap = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = "0.1"
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }
+rand = "0.8"
+hex = "0.4"

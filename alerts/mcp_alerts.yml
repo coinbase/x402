@@ -1,0 +1,99 @@
+# alerts/mcp_alerts.yml
+# Regras de alerta para o MCP Server
+#
+# Selo: CATHEDRAL-ARKHE-8000-ALERTS-v2.1.0-2026-06-19
+
+groups:
+  - name: cathedral_mcp_alerts
+    interval: 30s
+    rules:
+      # ============================================================
+      # 1. MCP Server Down
+      # ============================================================
+      - alert: MCPDown
+        expr: up{job="cathedral-mcp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: mcp-server
+        annotations:
+          summary: "MCP Server is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute."
+
+      # ============================================================
+      # 2. High Error Rate
+      # ============================================================
+      - alert: HighMCPErrorRate
+        expr: rate(mcp_requests_total{status=~"5.."}[5m]) / rate(mcp_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: mcp-server
+        annotations:
+          summary: "High error rate on MCP Server"
+          description: "Error rate is {{ $value }}% on {{ $labels.instance }}"
+
+      # ============================================================
+      # 3. Circuit Breaker Open
+      # ============================================================
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 30s
+        labels:
+          severity: critical
+          component: circuit-breaker
+        annotations:
+          summary: "Circuit Breaker is open"
+          description: "Circuit breaker for {{ $labels.component }} is open"
+
+      # ============================================================
+      # 4. DLQ Size Threshold
+      # ============================================================
+      - alert: DLQSizeExceeded
+        expr: dlq_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: dlq
+        annotations:
+          summary: "DLQ size exceeded threshold"
+          description: "DLQ has {{ $value }} messages waiting"
+
+      # ============================================================
+      # 5. High Latency
+      # ============================================================
+      - alert: HighMCPLatency
+        expr: histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: mcp-server
+        annotations:
+          summary: "High MCP Server latency"
+          description: "95th percentile latency is {{ $value }}s on {{ $labels.instance }}"
+
+      # ============================================================
+      # 6. Last-Effort Engine Exhausted
+      # ============================================================
+      - alert: LastEffortExhausted
+        expr: last_effort_exhausted_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: last-effort
+        annotations:
+          summary: "Last-Effort Engine exhausted"
+          description: "{{ $value }} messages were escalated to human"
+
+      # ============================================================
+      # 7. Memory High
+      # ============================================================
+      - alert: MCPMemoryHigh
+        expr: container_memory_usage_bytes{container="cathedral-mcp"} > 400000000
+        for: 5m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "MCP Server memory usage high"
+          description: "Memory usage is {{ $value }} bytes on {{ $labels.instance }}"

@@ -9,12 +9,13 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from ..schemas import (
+from x402.schemas import (
     PaymentPayload,
     PaymentRequired,
     SettleResponse,
 )
-from ..schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
+from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
+
 from .constants import (
     PAYMENT_REQUIRED_HEADER,
     PAYMENT_RESPONSE_HEADER,

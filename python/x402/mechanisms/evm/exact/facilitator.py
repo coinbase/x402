@@ -4,13 +4,14 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from ....schemas import (
+from x402.schemas import (
     Network,
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     VerifyResponse,
 )
+
 from ..constants import (
     ERR_AUTHORIZATION_VALUE_MISMATCH,
     ERR_FAILED_TO_GET_NETWORK_CONFIG,

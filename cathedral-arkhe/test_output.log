@@ -1,0 +1,312 @@
+warning: /app/cathedral-arkhe/Cargo.toml: unused manifest key: workspace.features
+warning: arkhe-integration-tests v0.2.0 (/app/cathedral-arkhe/tests) ignoring invalid dependency `arkhe-bridge` which is missing a lib target
+warning: observer-5d v0.2.0 (/app/cathedral-arkhe/observer-5d) ignoring invalid dependency `arkhe-bridge` which is missing a lib target
+warning: unused import: `anyhow`
+ --> zk-circuits/src/reputation_circuit.rs:1:14
+  |
+1 | use anyhow::{anyhow, Result};
+  |              ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `arkhe-zk-circuits` (lib) generated 1 warning (run `cargo fix --lib -p arkhe-zk-circuits` to apply 1 suggestion)
+warning: unused import: `anyhow`
+ --> wormgraph/src/storage_file.rs:1:14
+  |
+1 | use anyhow::{anyhow, Result};
+  |              ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Path`
+ --> wormgraph/src/storage_file.rs:5:17
+  |
+5 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused imports: `Duration` and `SystemTime`
+ --> wormgraph/src/storage_file.rs:7:17
+  |
+7 | use std::time::{Duration, SystemTime};
+  |                 ^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `tokio::io::AsyncWriteExt`
+ --> wormgraph/src/storage_file.rs:9:5
+  |
+9 | use tokio::io::AsyncWriteExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `debug`, `info`, and `warn`
+  --> wormgraph/src/storage_file.rs:11:15
+   |
+11 | use tracing::{debug, info, warn};
+   |               ^^^^^  ^^^^  ^^^^
+
+warning: unused variable: `s`
+  --> wormgraph/src/storage_file.rs:70:17
+   |
+70 |             let s = storage.clone();
+   |                 ^ help: if this is intentional, prefix it with an underscore: `_s`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `s`
+  --> wormgraph/src/storage_file.rs:75:17
+   |
+75 |             let s = storage.clone();
+   |                 ^ help: if this is intentional, prefix it with an underscore: `_s`
+
+warning: unused variable: `shard_id`
+  --> wormgraph/src/storage_file.rs:98:9
+   |
+98 |         shard_id: u64,
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_shard_id`
+
+warning: unused variable: `events`
+  --> wormgraph/src/storage_file.rs:99:9
+   |
+99 |         events: &[ProvenanceEvent],
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_events`
+
+warning: field `storage` is never read
+ --> wormgraph/src/shard_manager.rs:5:5
+  |
+4 | pub struct ShardManager {
+  |            ------------ field in this struct
+5 |     storage: Arc<QuorumStorage<String>>,
+  |     ^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `node_id` is never read
+   --> wormgraph/src/replication.rs:236:5
+    |
+235 | pub struct MemoryReplicaStorage<T> {
+    |            -------------------- field in this struct
+236 |     node_id: NodeId,
+    |     ^^^^^^^
+
+warning: field `wormgraph` is never read
+ --> wormgraph/src/reputation.rs:2:5
+  |
+1 | pub struct ReputationManager {
+  |            ----------------- field in this struct
+2 |     wormgraph: std::sync::Arc<crate::WormGraphClient>,
+  |     ^^^^^^^^^
+
+warning: fields `node_id`, `fault_rate`, and `fault_type` are never read
+  --> wormgraph/src/test_utils.rs:20:9
+   |
+18 |     pub struct FaultyReplicaStorage<T> {
+   |                -------------------- fields in this struct
+19 |         inner: Arc<dyn ReplicaStorage<T>>,
+20 |         node_id: String,
+   |         ^^^^^^^
+21 |         fault_rate: f64,
+   |         ^^^^^^^^^^
+22 |         fault_type: FaultType,
+   |         ^^^^^^^^^^
+
+warning: field `storage` is never read
+  --> wormgraph/src/lib.rs:21:9
+   |
+20 |     pub struct WormGraphClient {
+   |                --------------- field in this struct
+21 |         storage: Arc<dyn ShardStorage>,
+   |         ^^^^^^^
+
+warning: `arkhe-wormgraph` (lib) generated 14 warnings (run `cargo fix --lib -p arkhe-wormgraph` to apply 9 suggestions)
+warning: use of deprecated method `tonic_build::Builder::compile`: renamed to `compile_protos()`
+ --> observer-5d/build.rs:5:10
+  |
+5 |         .compile(&["../proto/agent/v1/agent.proto"], &["../proto/"])?;
+  |          ^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: `observer-5d` (build script) generated 1 warning
+warning: unused import: `warn`
+ --> observer-5d/src/council_grpc.rs:7:28
+  |
+7 | use tracing::{debug, info, warn};
+  |                            ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `warn`
+  --> observer-5d/src/lib.rs:17:28
+   |
+17 | use tracing::{error, info, warn};
+   |                            ^^^^
+
+warning: unused variable: `tm`
+   --> observer-5d/src/lib.rs:126:17
+    |
+126 |             let tm = self.tree_manager.read().await;
+    |                 ^^ help: if this is intentional, prefix it with an underscore: `_tm`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `observer-5d` (lib) generated 3 warnings (run `cargo fix --lib -p observer-5d` to apply 3 suggestions)
+warning: use of deprecated method `tonic_build::Builder::compile`: renamed to `compile_protos()`
+ --> sdk-rs/build.rs:5:10
+  |
+5 |         .compile(&["../proto/cathedral/v1/bridge.proto"], &["../proto/"])?;
+  |          ^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: `cathedral-sdk` (build script) generated 1 warning
+warning: field `backend` is never read
+  --> sail-zk-pipeline/src/lib.rs:32:5
+   |
+29 | pub struct ZkPipeline {
+   |            ---------- field in this struct
+...
+32 |     backend: Arc<dyn ZkBackend + Send + Sync>,
+   |     ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `debug`
+ --> test-utils/src/granular_partition.rs:6:15
+  |
+6 | use tracing::{debug, warn};
+  |               ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `idx`
+   --> test-utils/src/granular_partition.rs:149:14
+    |
+149 |         for (idx, replica) in visible_again {
+    |              ^^^ help: if this is intentional, prefix it with an underscore: `_idx`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sail-zk-pipeline` (lib) generated 1 warning
+warning: `arkhe-test-utils` (lib) generated 2 warnings (run `cargo fix --lib -p arkhe-test-utils` to apply 2 suggestions)
+warning: unused import: `Instant`
+ --> shard-controller/src/failover.rs:5:27
+  |
+5 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `error`
+ --> shard-controller/src/failover.rs:8:22
+  |
+8 | use tracing::{debug, error, info, warn};
+  |                      ^^^^^
+
+warning: unused import: `VersionedEntry`
+ --> shard-controller/src/lib.rs:4:51
+  |
+4 | use arkhe_wormgraph::replication::{QuorumStorage, VersionedEntry};
+  |                                                   ^^^^^^^^^^^^^^
+
+warning: unused variable: `lock_key`
+  --> shard-controller/src/failover.rs:89:13
+   |
+89 |         let lock_key = "cathedral/leader/lease";
+   |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_lock_key`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `new_lease`
+   --> shard-controller/src/failover.rs:166:25
+    |
+166 |                     let new_lease = lease.clone();
+    |                         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_new_lease`
+
+warning: fields `storage` and `num_shards` are never read
+ --> shard-controller/src/lib.rs:8:5
+  |
+7 | pub struct ShardManager {
+  |            ------------ fields in this struct
+8 |     storage: Arc<QuorumStorage<String>>,
+  |     ^^^^^^^
+9 |     num_shards: usize,
+  |     ^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `tonic_build::Builder::compile`: renamed to `compile_protos()`
+ --> bridge/build.rs:5:10
+  |
+5 |         .compile(
+  |          ^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `tonic_build::Builder::compile`: renamed to `compile_protos()`
+ --> tests/build.rs:5:10
+  |
+5 |         .compile(&["../proto/cathedral/v1/bridge.proto"], &["../proto/"])?;
+  |          ^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: `shard-controller` (lib) generated 6 warnings (run `cargo fix --lib -p shard-controller` to apply 5 suggestions)
+warning: `arkhe-bridge` (build script) generated 1 warning
+warning: `arkhe-integration-tests` (build script) generated 1 warning
+   Compiling arkhe-bridge v0.2.0 (/app/cathedral-arkhe/bridge)
+warning: `sail-zk-pipeline` (lib test) generated 1 warning (1 duplicate)
+warning: `arkhe-test-utils` (lib test) generated 2 warnings (2 duplicates)
+warning: `observer-5d` (lib test) generated 3 warnings (3 duplicates)
+warning: `shard-controller` (lib test) generated 6 warnings (6 duplicates)
+   Compiling arkhe-wormgraph v0.2.0 (/app/cathedral-arkhe/wormgraph)
+   Compiling arkhe-zk-circuits v0.2.0 (/app/cathedral-arkhe/zk-circuits)
+   Compiling arkhe-nostr v0.2.0 (/app/cathedral-arkhe/nostr-replicator)
+error: couldn't read `/app/cathedral-arkhe/target/debug/build/arkhe-bridge-b909c5bbbe75a189/out/cathedral_descriptor.bin`: No such file or directory (os error 2)
+  --> bridge/src/main.rs:13:48
+   |
+13 | ...8] = tonic::include_file_descriptor_set!("cathedral_descriptor");
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `tonic::include_file_descriptor_set` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `arkhe-zk-circuits` (lib test) generated 1 warning (1 duplicate)
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `tower_http`
+   --> bridge/src/main.rs:124:16
+    |
+124 |         .layer(tower_http::compression::CompressionLayer::new())
+    |                ^^^^^^^^^^ use of unresolved module or unlinked crate `tower_http`
+    |
+    = help: if you wanted to use a crate named `tower_http`, use `cargo add tower_http` to add it to your `Cargo.toml`
+
+warning: unused import: `ShardMetadata`
+ --> bridge/src/wormgraph_client.rs:6:46
+  |
+6 | use arkhe_wormgraph::storage::{ShardStorage, ShardMetadata};
+  |                                              ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `cathedral_atlassian::jira_client::JiraClient`
+  --> bridge/src/main.rs:29:5
+   |
+29 | use cathedral_atlassian::jira_client::JiraClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `arkhe-wormgraph` (lib test) generated 14 warnings (14 duplicates)
+warning: use of deprecated method `tonic_reflection::server::Builder::<'b>::build`: use `build_v1()` instead
+   --> bridge/src/main.rs:121:10
+    |
+121 |         .build()?;
+    |          ^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `design_hash`
+  --> bridge/src/wormgraph_client.rs:94:9
+   |
+94 |         design_hash: Option<&str>,
+   |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_design_hash`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0433`.
+warning: `arkhe-bridge` (bin "cathedral-bridge" test) generated 4 warnings
+error: could not compile `arkhe-bridge` (bin "cathedral-bridge" test) due to 2 previous errors; 4 warnings emitted

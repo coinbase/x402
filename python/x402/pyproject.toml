@@ -113,6 +113,7 @@ exclude = [
 # Force inclusion with package name remapping
 [tool.hatch.build.targets.wheel.force-include]
 "__init__.py" = "x402/__init__.py"
+"agentfield_bridge.py" = "x402/agentfield_bridge.py"
 "client.py" = "x402/client.py"
 "client_base.py" = "x402/client_base.py"
 "server.py" = "x402/server.py"

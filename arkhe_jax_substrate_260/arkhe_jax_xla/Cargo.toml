@@ -1,0 +1,23 @@
+[package]
+name = "arkhe_jax_xla"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+arkhe_jax_core = { path = "../arkhe_jax_core" }
+wgpu = { workspace = true }
+pollster = { workspace = true }
+bytemuck = { workspace = true }
+serde = { workspace = true }
+flatbuffers = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+bincode.workspace = true

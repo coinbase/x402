@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+LABEL maintainer="ORCID 0009-0005-2697-4668"
+LABEL substrate="1042"
+LABEL deity="Hermes"
+
+WORKDIR /app
+
+COPY cathedral_adapter.py /app/
+
+RUN pip install --no-cache-dir urllib3
+
+ENV RBB_RPC_URL=http://rbb-observer:8545
+ENV CATHEDRAL_API_URL=http://cathedral-api:9230
+ENV SUBSTRATE=1042
+
+ENTRYPOINT ["python3", "cathedral_adapter.py"]

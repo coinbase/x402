@@ -17,7 +17,8 @@ except ImportError as e:
         "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
     ) from e
 
-from ....schemas import PaymentRequirements
+from x402.schemas import PaymentRequirements
+
 from ..constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     DEFAULT_COMPUTE_UNIT_LIMIT,

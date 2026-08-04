@@ -1,0 +1,17 @@
+[package]
+name = "arkhe-test-utils"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+arkhe-wormgraph = { path = "../wormgraph" }
+observer-5d = { path = "../observer-5d" }
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true

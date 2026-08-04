@@ -1,0 +1,39 @@
+// ARKHE-ONCHAIN — Temporal Anchor
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface ITemporalAnchor {
+  view fn get_latest_anchor(): bytes32
+  fn anchor_state(cid: string, seal: bytes32): bool
+}
+
+program TemporalAnchor implements ITemporalAnchor {
+  state {
+    owner: address
+    latest_anchor_seal: bytes32
+    latest_anchor_cid: string
+    anchors: map[bytes32]string
+  }
+
+  event AnchorProof(cid: string, seal: bytes32, timestamp: int)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn get_latest_anchor(): bytes32 {
+    return self.latest_anchor_seal
+  }
+
+  fn anchor_state(cid: string, seal: bytes32): bool {
+    only_owner()
+    self.latest_anchor_seal = seal
+    self.latest_anchor_cid = cid
+    self.anchors[seal] = cid
+    emit AnchorProof(cid, seal, 0) // Placeholder for timestamp
+    return true
+  }
+}

@@ -1,0 +1,10 @@
+[package]
+name = "cathedral-trinity"
+version = "13.1.0"
+edition = "2021"
+
+[dependencies]
+cathedral-eac = { version = "13.0.0", path = "../cathedral-eac" }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.40", features = ["full"] }
+uuid = "1.0"

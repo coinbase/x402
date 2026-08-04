@@ -1,0 +1,471 @@
+openapi: "3.0.3"
+info:
+  title: "ARKHE-OS Permaweb Bridge API"
+  version: "2.0.0"
+  description: |
+    API REST para integração ARKHE-OS ↔ Arweave/AO/Permaweb.
+    Substrate 927 — Permaweb Bridge.
+  contact:
+    name: "Arquiteto ARKHE"
+    orcid: "0009-0005-2697-4668"
+  license:
+    name: "ARKHE-CATHEDRAL-2pct"
+
+servers:
+  - url: "http://localhost:8700/internal/permaweb"
+    description: "Local development"
+  - url: "https://api.arkhe.cathedral/v2/permaweb"
+    description: "Production Cathedral"
+
+tags:
+  - name: "Arweave"
+    description: "Permanent storage operations"
+  - name: "AO Computer"
+    description: "Actor-oriented hyper-parallel computation"
+  - name: "AOS"
+    description: "AO Operating System (Lua shell)"
+  - name: "HyperBEAM"
+    description: "Permaweb OS layer"
+  - name: "Agent Sync"
+    description: "ARKHE-OS agent state synchronization"
+
+paths:
+  /arweave/upload:
+    post:
+      summary: "Upload data to Arweave permanently"
+      tags: ["Arweave"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArweaveUploadRequest'
+      responses:
+        '200':
+          description: "Transaction info"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArweaveUploadResponse'
+
+  /arweave/fetch/{tx_id}:
+    get:
+      summary: "Fetch data from Arweave by TX ID"
+      tags: ["Arweave"]
+      parameters:
+        - name: tx_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Fetched data"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArweaveFetchResponse'
+
+  /arweave/query:
+    post:
+      summary: "Query Arweave transactions via GraphQL"
+      tags: ["Arweave"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArweaveQueryRequest'
+      responses:
+        '200':
+          description: "Query results"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArweaveTransaction'
+
+  /ao/spawn:
+    post:
+      summary: "Spawn new AO process"
+      tags: ["AO Computer"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AOSpawnRequest'
+      responses:
+        '200':
+          description: "Process spawned"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AOProcessResponse'
+
+  /ao/send:
+    post:
+      summary: "Send message to AO process"
+      tags: ["AO Computer"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AOMessageRequest'
+      responses:
+        '200':
+          description: "Message sent"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AOMessageResponse'
+
+  /ao/dry-run:
+    post:
+      summary: "Execute dry-run simulation"
+      tags: ["AO Computer"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AODryRunRequest'
+      responses:
+        '200':
+          description: "Simulation result"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /aos/eval:
+    post:
+      summary: "Evaluate Lua code in AOS"
+      tags: ["AOS"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AOSEvalRequest'
+      responses:
+        '200':
+          description: "Evaluation result"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /aos/blueprint:
+    post:
+      summary: "Load AOS blueprint"
+      tags: ["AOS"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AOSBlueprintRequest'
+      responses:
+        '200':
+          description: "Blueprint loaded"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /hyperbeam/resolve:
+    post:
+      summary: "Resolve HyperBEAM HashPath"
+      tags: ["HyperBEAM"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HyperBEAMResolveRequest'
+      responses:
+        '200':
+          description: "Resolved path"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /agent/sync:
+    post:
+      summary: "Sync ARKHE-OS agent state with Permaweb"
+      tags: ["Agent Sync"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentSyncRequest'
+      responses:
+        '200':
+          description: "Sync result"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSyncResponse'
+
+  /agent/state/{agent_id}:
+    get:
+      summary: "List persisted states for agent"
+      tags: ["Agent Sync"]
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "List of states"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArweaveTransaction'
+
+  /bridge/status:
+    get:
+      summary: "Get bridge status"
+      tags: ["System"]
+      responses:
+        '200':
+          description: "Bridge status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeStatusResponse'
+
+components:
+  schemas:
+    ArweaveUploadRequest:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: string
+          description: "Content to store (base64 or string)"
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+        is_base64:
+          type: boolean
+          default: false
+
+    ArweaveUploadResponse:
+      type: object
+      properties:
+        tx_id:
+          type: string
+        status:
+          type: string
+          enum: [uploaded, mock_uploaded, failed]
+        url:
+          type: string
+        size:
+          type: integer
+        tags:
+          type: object
+        mock:
+          type: boolean
+
+    ArweaveFetchResponse:
+      type: object
+      properties:
+        tx_id:
+          type: string
+        data:
+          type: string
+        size:
+          type: integer
+        status:
+          type: string
+
+    ArweaveQueryRequest:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+        owners:
+          type: array
+          items:
+            type: string
+        limit:
+          type: integer
+          default: 10
+
+    ArweaveTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
+        block:
+          type: object
+          properties:
+            height:
+              type: integer
+            timestamp:
+              type: integer
+        owner:
+          type: object
+          properties:
+            address:
+              type: string
+
+    AOSpawnRequest:
+      type: object
+      properties:
+        module_id:
+          type: string
+        scheduler:
+          type: string
+        tags:
+          type: array
+          items:
+            type: object
+
+    AOProcessResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+
+    AOMessageRequest:
+      type: object
+      required: [process_id, action]
+      properties:
+        process_id:
+          type: string
+        action:
+          type: string
+        data:
+          type: string
+        tags:
+          type: object
+
+    AOMessageResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message_id:
+          type: string
+
+    AODryRunRequest:
+      type: object
+      required: [process_id, action]
+      properties:
+        process_id:
+          type: string
+        action:
+          type: string
+        data:
+          type: string
+
+    AOSEvalRequest:
+      type: object
+      required: [lua_code]
+      properties:
+        lua_code:
+          type: string
+          description: "Lua code to execute in AOS"
+
+    AOSBlueprintRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          enum: [json, base64, sqlite, token, staking, vault]
+
+    HyperBEAMResolveRequest:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: "HashPath to resolve"
+
+    AgentSyncRequest:
+      type: object
+      required: [agent_id]
+      properties:
+        agent_id:
+          type: string
+        include_memory:
+          type: boolean
+          default: true
+        include_hypergraph:
+          type: boolean
+          default: true
+
+    AgentSyncResponse:
+      type: object
+      properties:
+        upload:
+          $ref: '#/components/schemas/ArweaveUploadResponse'
+        state:
+          type: object
+        status:
+          type: string
+
+    BridgeStatusResponse:
+      type: object
+      properties:
+        substrate:
+          type: string
+        arweave_gateway:
+          type: string
+        ao_mu:
+          type: string
+        ao_cu:
+          type: string
+        aos_process:
+          type: string
+        hyperbeam_endpoint:
+          type: string
+        uploads_count:
+          type: integer
+        processes_registered:
+          type: integer
+        wallet_configured:
+          type: boolean
+
+# ═══════════════════════════════════════════════════════════════════
+# ARKHE Substrate Registry
+# ═══════════════════════════════════════════════════════════════════
+x-arkhe-substrates:
+  - id: "927"
+    name: "PERMAWEB-BRIDGE"
+    status: "CANONIZED_PROVISIONAL"
+    phi_c: 0.970
+    h: 0.080
+    theosis: 0.950
+
+x-arkhe-metrics:
+  seal: "927-SCHEMA-2026-05-27"
+  architect: "ORCID 0009-0005-2697-4668"
+  date: "2026-05-27"

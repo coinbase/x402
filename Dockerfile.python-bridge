@@ -1,0 +1,14 @@
+# Cathedral ARKHE v28.2 — Python Bridge Standalone
+# Selo: CATHEDRAL-ARKHE-v28.2-PY-BRIDGE-DOCKER-2026-06-16
+
+FROM python:3.11-slim-bookworm
+
+RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-cache-dir httpx pydantic
+
+WORKDIR /app
+COPY cathedral_agent_bridge.py /app/bridge.py
+COPY multi_agent_orchestrator.py /app/orchestrator.py
+
+EXPOSE 8001
+CMD ["python3", "/app/orchestrator.py"]

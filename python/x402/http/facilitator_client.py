@@ -11,14 +11,15 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import ValidationError
 
-from ..schemas import (
+from x402.schemas import (
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     SupportedResponse,
     VerifyResponse,
 )
-from ..schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+from x402.schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+
 from .facilitator_client_base import (
     AuthHeaders,
     AuthProvider,
@@ -233,7 +234,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         Returns:
             VerifyResponse.
         """
-        from ..schemas.helpers import detect_version
+        from x402.schemas.helpers import detect_version
 
         version = detect_version(payload_bytes)
         payload_dict = json.loads(payload_bytes)
@@ -257,7 +258,7 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         Returns:
             SettleResponse.
         """
-        from ..schemas.helpers import detect_version
+        from x402.schemas.helpers import detect_version
 
         version = detect_version(payload_bytes)
         payload_dict = json.loads(payload_bytes)
@@ -449,7 +450,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         Returns:
             VerifyResponse.
         """
-        from ..schemas.helpers import detect_version
+        from x402.schemas.helpers import detect_version
 
         version = detect_version(payload_bytes)
         payload_dict = json.loads(payload_bytes)
@@ -473,7 +474,7 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         Returns:
             SettleResponse.
         """
-        from ..schemas.helpers import detect_version
+        from x402.schemas.helpers import detect_version
 
         version = detect_version(payload_bytes)
         payload_dict = json.loads(payload_bytes)

@@ -1,0 +1,37 @@
+// ARKHE-ONCHAIN — Passport Gateway
+// Substrato 996.1 — Circle: ARKHE-CATHEDRAL
+
+interface IPassportGateway {
+  view fn is_human(npub: string): bool
+  fn verify_humanity(npub: string, score: int, threshold: int): bool
+}
+
+program PassportGateway implements IPassportGateway {
+  state {
+    owner: address
+    humanity_scores: map[string]int
+    humanity_thresholds: map[string]int
+  }
+
+  event HumanityVerified(npub: string, score: int, threshold: int)
+
+  constructor() {
+    self.owner = caller
+  }
+
+  private fn only_owner() {
+    require(caller == self.owner, "Axiarchy P1: only owner")
+  }
+
+  view fn is_human(npub: string): bool {
+    return self.humanity_scores[npub] >= self.humanity_thresholds[npub] && self.humanity_thresholds[npub] > 0
+  }
+
+  fn verify_humanity(npub: string, score: int, threshold: int): bool {
+    only_owner()
+    self.humanity_scores[npub] = score
+    self.humanity_thresholds[npub] = threshold
+    emit HumanityVerified(npub, score, threshold)
+    return true
+  }
+}

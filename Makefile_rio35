@@ -1,0 +1,72 @@
+# ============================================================
+# Makefile — Arkhe-Cathedral Rio-3.5 Deployment
+# Substrato 1104.2 — v1.0.0
+# Selo: CATHEDRAL-1104.2-MAKEFILE-2026-06-13
+# Arquiteto: ORCID 0009-0005-2697-4668
+# ============================================================
+
+.PHONY: all setup vllm-run swir-run calibrate clean logs
+
+# --- Configuration ---
+VENV_DIR := .venv
+PYTHON := $(VENV_DIR)/bin/python
+PIP := $(VENV_DIR)/bin/pip
+MODEL_ID := prefeitura-rio/Rio-3.5-Open-397B
+VLLM_PORT := 8000
+SWIR_PORT := 9106
+METRICS_FILE := swir_metrics.jsonl
+
+# --- Setup ---
+all: setup
+
+setup:
+	@echo "[Arkhe] Setting up Rio-3.5 environment..."
+	python3 -m venv $(VENV_DIR)
+	$(PIP) install --upgrade pip
+	$(PIP) install torch transformers accelerate vllm sglang numpy
+	$(PIP) install -e .
+	@echo "[Arkhe] Environment ready."
+
+# --- vLLM Server (background) ---
+vllm-run:
+	@echo "[Arkhe] Starting vLLM server for Rio-3.5..."
+	@echo "[Arkhe] Requires 8x GPU, trust_remote_code enabled"
+	vllm serve $(MODEL_ID) 		--tensor-parallel-size 8 		--max-model-len 1048576 		--trust-remote-code 		--gpu-memory-utilization 0.92 		--port $(VLLM_PORT) 		--config configs/vllm_rio35.yaml
+
+# --- Single SwiReasoning run ---
+swir-run:
+	@echo "[Arkhe] Running SwiReasoning inference..."
+	$(PYTHON) run_chat.py 		--method swir 		--engine rio35 		--prompt "$(PROMPT)" 		--max-tokens $(MAX_TOKENS) 		--output-metrics $(METRICS_FILE)
+
+# --- Calibration grid search ---
+calibrate:
+	@echo "[Arkhe] Starting SwiReasoning calibration for lusófono domain..."
+	$(PYTHON) run_chat.py 		--method swir 		--engine rio35 		--calibrate 		--samples $(SAMPLES) 		--prompt-file prompts/pt_calibration.txt
+
+# --- Log analysis ---
+logs:
+	@echo "[Arkhe] Analyzing SwiReasoning metrics..."
+	$(PYTHON) scripts/analyze_swir_metrics.py $(METRICS_FILE)
+
+# --- PQC Anchor ---
+anchor:
+	@echo "[Arkhe] Anchoring last run to RBB Chain..."
+	$(PYTHON) scripts/pqc_anchor.py 		--metrics $(METRICS_FILE) 		--chain rbb-testnet-1 		--key /etc/arkhe/pqc/rio35_sphincs.key
+
+# --- Clean ---
+clean:
+	@echo "[Arkhe] Cleaning artifacts..."
+	rm -f $(METRICS_FILE) calibration_*.json
+	rm -rf __pycache__ .pytest_cache
+
+# --- Help ---
+help:
+	@echo "Arkhe-Cathedral Rio-3.5 Makefile"
+	@echo ""
+	@echo "  make setup          — Install dependencies"
+	@echo "  make vllm-run       — Start vLLM server (8x GPU)"
+	@echo "  make swir-run       — Single SwiReasoning run"
+	@echo "  make calibrate      — Grid search calibration"
+	@echo "  make logs           — Analyze metrics"
+	@echo "  make anchor         — PQC anchor to RBB Chain"
+	@echo "  make clean          — Clean artifacts"

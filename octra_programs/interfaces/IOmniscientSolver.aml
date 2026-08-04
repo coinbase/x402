@@ -1,0 +1,4 @@
+interface IOmniscientSolver {
+  view fn get_solution(problem_hash: bytes32): bytes32
+  fn register_solution(problem_hash: bytes32, solution_hash: bytes32): bool
+}

@@ -1,0 +1,48 @@
+# Schema ARKHE-TCP — Substrato 262.2 (Expansão de Integração)
+substrato:
+  id: 262.2
+  nome: ARKHE-TCP-Integration
+  status: CANONIZED_PROVISIONAL
+  arquiteto: ORCID 0009-0005-2697-4668
+  data: 2026-05-28
+
+componentes:
+  - nome: servidor_tcp
+    porta: 8080
+    funcao: escuta legado, parse JSON canónico
+
+  - nome: servidor_quic
+    porta: 8443
+    funcao: TLS 1.3 + Ed25519, transporte de Cânone
+
+  - nome: mesh_agent_2622
+    funcao: conexões QUIC bidirecionais, roteamento por canal
+
+  - nome: rest_api
+    porta: 9090
+    funcao: HTTP bridge para 260 (tensor), 261 (pix), 255 (zk)
+    endpoints:
+      - POST /api/v1/tensor
+      - POST /api/v1/pix
+      - POST /api/v1/zk
+      - GET /health
+
+canais:
+  - id: arkhe://tensor/260
+    descricao: Tensores do ARKHE-JAX (Substrato 260)
+    payload: TensorMessage {shape, dtype, data, graph_hash, zk_proof, fhe_enabled}
+
+  - id: arkhe://pix/261
+    descricao: Transações Pix do ARKHE-BRASIL-FINANCE (Substrato 261)
+    payload: PixMessage {txid, sender_key, recipient_key, amount, zk_commitment, chain_anchor}
+
+  - id: arkhe://zk/255
+    descricao: Provas ZK do Cripto-Trivium (Substrato 255)
+    payload: ZKProofMessage {scheme, graph_commit, output_hash, proof_bytes}
+
+cross_links:
+  - 255   # Cripto-Trivium
+  - 260   # ARKHE-JAX
+  - 261   # ARKHE-BRASIL-FINANCE
+  - 252   # Protocolo do Cânone
+  - 913   # World Model v2 (Mesh)

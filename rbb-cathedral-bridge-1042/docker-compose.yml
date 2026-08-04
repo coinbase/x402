@@ -1,0 +1,214 @@
+# Substrato 1042 - RBB-CATHEDRAL-BRIDGE
+# Docker Compose - Stack completa de integração
+# Arquiteto: ORCID 0009-0005-2697-4668
+# Data: 2026-06-03
+
+version: '3.8'
+
+services:
+  # ─── Nó Observer RBB (Hyperledger Besu) ───
+  rbb-observer:
+    image: ${IMAGE_BESU:-hyperledger/besu:25.5.0}
+    container_name: rbb-cathedral-observer
+    restart: unless-stopped
+    ports:
+      - "8545:8545"    # RPC HTTP
+      - "8546:8546"    # RPC WS
+      - "9545:9545"    # Metrics Prometheus
+      - "30303:30303"  # P2P
+      - "30303:30303/udp"
+    volumes:
+      - ./start-network/volumes/observer:/var/lib/besu
+      - ./start-network/.env.configs:/config
+    environment:
+      - BESU_DATA_PATH=/var/lib/besu
+      - BESU_GENESIS_FILE=/config/genesis.json
+      - BESU_RPC_HTTP_ENABLED=true
+      - BESU_RPC_HTTP_HOST=0.0.0.0
+      - BESU_RPC_HTTP_PORT=8545
+      - BESU_RPC_HTTP_API=eth,net,web3,debug,trace,txpool
+      - BESU_RPC_HTTP_CORS_ORIGINS="*"
+      - BESU_RPC_WS_ENABLED=true
+      - BESU_RPC_WS_HOST=0.0.0.0
+      - BESU_RPC_WS_PORT=8546
+      - BESU_METRICS_ENABLED=true
+      - BESU_METRICS_HOST=0.0.0.0
+      - BESU_METRICS_PORT=9545
+      - BESU_HOST_ALLOWLIST="*"
+      - BESU_DISCOVERY_ENABLED=true
+      - BESU_PERMISSIONS_ACCOUNTS_CONTRACT_ENABLED=false
+      - BESU_PERMISSIONS_NODES_CONTRACT_ENABLED=false
+      - BESU_PERMISSIONS_ACCOUNTS_CONFIG_FILE_ENABLED=true
+      - BESU_PERMISSIONS_ACCOUNTS_CONFIG_FILE=/var/lib/besu/permissioned-accounts.toml
+      - BESU_XDNS_ENABLED=true
+      - BESU_XDNS_UPDATE_ENABLED=true
+      - BESU_MIN_GAS_PRICE=0
+      - BESUSYNC_MIN_PEERS=1
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Hermes"
+      - "componente=observer"
+
+  # ─── Theosis Tracker (Prometheus Exporter) ───
+  theosis-exporter:
+    build:
+      context: ./prometheus
+      dockerfile: Dockerfile.exporter
+    container_name: cathedral-theosis-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    environment:
+      - RBB_RPC_URL=http://rbb-observer:8545
+      - BRIDGE_CONTRACT=0x0000000000000000000000000000000000010420
+      - PERMISSIONAMENTO_CONTRACT=0x0000000000000000000000000000000000010421
+      - UPDATE_INTERVAL=15
+      - SUBSTRATE=1042
+    depends_on:
+      - rbb-observer
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Athena"
+      - "componente=theosis-tracker"
+
+  # ─── Prometheus ───
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: cathedral-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/cathedral_alerts.yml:/etc/prometheus/rules/cathedral_alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Mnemosyne"
+      - "componente=prometheus"
+
+  # ─── Grafana ───
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: cathedral-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-cathedral1042}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    depends_on:
+      - prometheus
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Athena"
+      - "componente=grafana"
+
+  # ─── NGINX (mTLS para federation) ───
+  nginx:
+    image: nginx:1.25.4
+    container_name: cathedral-nginx
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - prometheus
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Themis"
+      - "componente=nginx"
+
+  # ─── Temporal Anchor (serviço de ancoragem) ───
+  temporal-anchor:
+    build:
+      context: ./adapter
+      dockerfile: Dockerfile.anchor
+    container_name: cathedral-temporal-anchor
+    restart: unless-stopped
+    environment:
+      - RBB_RPC_URL=http://rbb-observer:8545
+      - BRIDGE_CONTRACT=0x0000000000000000000000000000000000010420
+      - ANCHOR_INTERVAL=300
+      - SUBSTRATE=1042
+      - ORCID=0009-0005-2697-4668
+    depends_on:
+      - rbb-observer
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Chronos"
+      - "componente=temporal-anchor"
+
+  # ─── Ollama Llama Agent (Modelfile wrapper) ───
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cathedral-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./adapter:/adapter
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Thoth"
+      - "componente=ollama-agent"
+
+  # ─── Adapter CLI (serviço de background) ───
+  adapter-cli:
+    build:
+      context: ./adapter
+      dockerfile: Dockerfile.cli
+    container_name: cathedral-adapter-cli
+    restart: unless-stopped
+    environment:
+      - RBB_RPC_URL=http://rbb-observer:8545
+      - CATHEDRAL_API_URL=http://cathedral-api:9230
+      - SUBSTRATE=1042
+    depends_on:
+      - rbb-observer
+    networks:
+      - rbb-cathedral
+    labels:
+      - "substrato=1042"
+      - "deidade=Hermes"
+      - "componente=adapter-cli"
+
+networks:
+  rbb-cathedral:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  prometheus-data:
+  grafana-data:

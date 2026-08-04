@@ -1,0 +1,10 @@
+[package]
+name = "cathedral-benchmarks"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+criterion.workspace = true
+
+[lib]
+crate-type = ["lib"]

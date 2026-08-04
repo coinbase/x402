@@ -13,15 +13,16 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 from urllib.parse import unquote
 
-from ..schemas import (
+from x402.schemas import (
     PaymentPayload,
     PaymentRequired,
     PaymentRequirements,
     ResourceInfo,
     SettleResponse,
 )
-from ..schemas.errors import SettleError
-from ..schemas.v1 import PaymentPayloadV1
+from x402.schemas.errors import SettleError
+from x402.schemas.v1 import PaymentPayloadV1
+
 from .constants import (
     PAYMENT_REQUIRED_HEADER,
     PAYMENT_RESPONSE_HEADER,

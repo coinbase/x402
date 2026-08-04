@@ -1,0 +1,99 @@
+# Substrato 1042.1 — BRICS+ CATHEDRAL MESH
+# Regras de Alerta Prometheus BRICS+
+# Arquiteto: ORCID 0009-0005-2697-4668
+
+groups:
+  - name: brics_mesh
+    interval: 30s
+    rules:
+      # Alerta: País BRICS+ offline
+      - alert: BRICSCountryOffline
+        expr: up{job=~"brics-.*"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          substrate: "1042.1"
+          deity: "Aether"
+        annotations:
+          summary: "País BRICS+ offline: {{ $labels.country }}"
+          description: "Nó Prometheus de {{ $labels.country }} não responde há 5 minutos"
+          action: "Verificar conectividade mTLS e firewall internacional"
+
+      # Alerta: Theosis baixo em país BRICS+
+      - alert: BRICSTheosisLow
+        expr: |
+          label_replace(
+            up{job=~"brics-.*"},
+            "theosis_num", "$1", "theosis", "(.*)"
+          ) * on(country) group_left
+          (label_replace(
+            up{job=~"brics-.*"},
+            "theosis_num", "$1", "theosis", "(.*)"
+          ) < 2000)
+        for: 10m
+        labels:
+          severity: warning
+          substrate: "1042.1"
+          deity: "Nemesis"
+        annotations:
+          summary: "Theosis baixo em {{ $labels.country }}"
+          description: "Theosis {{ $labels.theosis }} abaixo do threshold (2000)"
+          action: "Sincronizar com coordenador mesh e verificar cross-links"
+
+      # Alerta: Volume cross-border anômalo
+      - alert: BRICSVolumeAnomaly
+        expr: |
+          rate(brics_cross_border_volume_total[1h]) > 1000000000
+        for: 5m
+        labels:
+          severity: warning
+          substrate: "1042.1"
+          deity: "Hermes"
+        annotations:
+          summary: "Volume cross-border anômalo"
+          description: "Volume > 1B USD/hora detectado"
+          action: "Verificar transações e possível ataque de lavagem"
+
+      # Alerta: CBDC não operacional
+      - alert: BRICSCBDCOffline
+        expr: |
+          up{job=~"brics-.*",cbdc!~"\(research\)|\(exploratory\)"} == 0
+        for: 10m
+        labels:
+          severity: critical
+          substrate: "1042.1"
+          deity: "Prometheus"
+        annotations:
+          summary: "CBDC offline: {{ $labels.country }}"
+          description: "{{ $labels.cbdc }} não está respondendo"
+          action: "Contatar banco central de {{ $labels.country }}"
+
+  - name: brics_bridge
+    interval: 60s
+    rules:
+      # Alerta: Bridge BRICS+ congestionada
+      - alert: BRICSBridgeCongested
+        expr: brics_bridge_pending_messages > 100
+        for: 10m
+        labels:
+          severity: warning
+          substrate: "1042.1"
+          deity: "Chronos"
+        annotations:
+          summary: "Bridge BRICS+ congestionada"
+          description: "{{ $value }} mensagens pendentes"
+          action: "Escalar nós de processamento ou ativar sharding"
+
+      # Alerta: Diferença de Theosis entre países
+      - alert: BRICSTheosisGap
+        expr: |
+          max(brics_theosis_level) - min(brics_theosis_level) > 5000
+        for: 15m
+        labels:
+          severity: warning
+          substrate: "1042.1"
+          deity: "Themis"
+        annotations:
+          summary: "Gap de Theosis excessivo no mesh"
+          description: "Diferença de {{ $value }} entre países"
+          action: "Coordinar governança para equalizar métricas"

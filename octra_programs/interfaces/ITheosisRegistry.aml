@@ -1,0 +1,4 @@
+interface ITheosisRegistry {
+  view fn get_theosis(agent: address): int
+  fn update_theosis(agent: address, delta: int): bool
+}

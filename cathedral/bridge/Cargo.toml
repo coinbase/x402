@@ -1,0 +1,13 @@
+[package]
+name = "cathedral-bridge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tonic = "0.12"
+prost = "0.13"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+prost-types = "0.13"
+
+
+tonic-build = "0.12"

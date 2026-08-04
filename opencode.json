@@ -1,0 +1,33 @@
+{
+  "tools": [
+    {
+      "name": "cathedral-polar-mcp",
+      "type": "mcp",
+      "server": {
+        "command": "cargo",
+        "args": [
+          "run",
+          "--bin", "cathedral-polar-mcp",
+          "--manifest-path", "${workspaceFolder}/substrato-7001/Cargo.toml",
+          "--features", "mcp-server",
+          "--no-default-features"
+        ],
+        "env": {
+          "POLAR_ACCESS_TOKEN": "${env:POLAR_ACCESS_TOKEN}",
+          "POLAR_ORGANIZATION_ID": "${env:POLAR_ORGANIZATION_ID}",
+          "POLAR_API_URL": "https://api.polar.sh",
+          "RUST_LOG": "info"
+        }
+      },
+      "description": "Polar Payments MCP — create products, checkouts, subscriptions, OSS distribution"
+    }
+  ],
+  "env": {
+    "POLAR_ACCESS_TOKEN": "${env:POLAR_ACCESS_TOKEN}",
+    "POLAR_ORGANIZATION_ID": "${env:POLAR_ORGANIZATION_ID}",
+    "POLAR_WEBHOOK_SECRET": "${env:POLAR_WEBHOOK_SECRET}",
+    "POLAR_OSS_ENABLED": "true",
+    "POLAR_OSS_PERCENTAGE": "0.01",
+    "POLAR_OSS_CONTRIBUTORS": "[{\"github_handle\":\"dev-8000\",\"share\":0.4},{\"github_handle\":\"dev-9000\",\"share\":0.35},{\"github_handle\":\"dev-4003\",\"share\":0.25}]"
+  }
+}

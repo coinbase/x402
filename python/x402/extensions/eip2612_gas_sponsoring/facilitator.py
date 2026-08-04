@@ -5,8 +5,9 @@ from __future__ import annotations
 import re
 import time
 
+from x402.schemas import PaymentPayload
+
 from ...mechanisms.evm.constants import PERMIT2_ADDRESS, PERMIT2_DEADLINE_BUFFER
-from ...schemas import PaymentPayload
 from .types import EIP2612_GAS_SPONSORING_KEY, Eip2612GasSponsoringInfo
 
 _HEX_ADDRESS = re.compile(r"^0x[a-fA-F0-9]{40}$")

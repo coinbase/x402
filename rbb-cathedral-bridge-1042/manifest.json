@@ -1,0 +1,112 @@
+{
+  "substrato": "1042",
+  "nome": "RBB-CATHEDRAL-BRIDGE",
+  "status": "CANONIZED_PROVISIONAL",
+  "versao": "1.0.0",
+  "arquiteto": "0009-0005-2697-4668",
+  "data": "2026-06-03",
+  "master_seal": "1042-RBB-CATHEDRAL-BRIDGE-66BA333D0CACAC5F",
+  "chain_id": 12120014,
+  "protocolo": "QBFT",
+  "plataforma": "Hyperledger Besu 25.5.0",
+  "licenca": "GPL-3.0",
+  "artefatos": {
+    "README.md": {
+      "size": 5649,
+      "sha3_256": "f635b5162cb20fc88c3ed2fb2629d4f5d6d81da8b232736a311b7fd458f24c37"
+    },
+    "decree_1042.md": {
+      "size": 3666,
+      "sha3_256": "76f9cf4e401e54d9da14d28ec8b7ab5da512f2412352055763ea1e0938046457"
+    },
+    "docker-compose.yml": {
+      "size": 5731,
+      "sha3_256": "a91fe1d29162d8b599baec6b5c9ab7da09acecd2987da86fa53873d0a74556c4"
+    },
+    "manifest.json": {
+      "size": 2804,
+      "sha3_256": "bb5fed8a105256d8129ed8b4651ec7f5d2117db292957cc82918ec4aedb88802"
+    },
+    "requirements.txt": {
+      "size": 45,
+      "sha3_256": "133f39ce1fce876e8a0a49d95fd9e25cdb9be1bfd5063dedccd5f4eafc8b10fb"
+    },
+    "scripts/deploy.sh": {
+      "size": 11735,
+      "sha3_256": "95abf4e44d69405f0419dd46a9893973d65d454163176db328f41971d869a636"
+    },
+    "adapter/Dockerfile.anchor": {
+      "size": 424,
+      "sha3_256": "1ef53f6814387cda0d554da5b8cab847a5e215a5d92ebb430672e4e96dd5da4a"
+    },
+    "adapter/Dockerfile.cli": {
+      "size": 356,
+      "sha3_256": "a0ed0358b7adc86b66f17ef852d70c4b47c437a08bcda15b0fa56204884cc38c"
+    },
+    "adapter/cathedral_adapter.py": {
+      "size": 13223,
+      "sha3_256": "9f61cd1c3ef59cf46b6681ccdd0dd33e8f36cf740d4e5eb15ffddc3a7e723839"
+    },
+    "adapter/temporal_anchor.py": {
+      "size": 3106,
+      "sha3_256": "4241905bdf3cdfb9d6799e4ebe1d61f92ff36ea8f56a78acff915ee4d5da85f3"
+    },
+    "tests/test_rbb_cathedral_bridge.py": {
+      "size": 12921,
+      "sha3_256": "c5c5d4303feadda30c42ef7236b6bcd28ac2c7283607c8b292d9abc569e2e26a"
+    },
+    "contracts/RBB_Cathedral_Bridge.sol": {
+      "size": 10348,
+      "sha3_256": "8f0a2f426c32391874f9765fbf0b547087005a379cf3c38627f3c907206e385f"
+    },
+    "contracts/RBB_Cathedral_Permissionamento.sol": {
+      "size": 7738,
+      "sha3_256": "3b0f734d1c5fb2905f9ed2a36b9b331a19e620e77e8e53da6964676dd2ae3741"
+    },
+    "prometheus/Dockerfile.exporter": {
+      "size": 489,
+      "sha3_256": "f791921fd70f132a995587a0907d9123f300eaea9d71101ce3e6c92328b76b48"
+    },
+    "prometheus/cathedral_alerts.yml": {
+      "size": 5422,
+      "sha3_256": "8005bbf9ded0c4dc6d30c98431edd4674f24250fa637b8e9a3e2cca1d4b9c435"
+    },
+    "prometheus/prometheus.yml": {
+      "size": 3101,
+      "sha3_256": "09635be93d38694e1049e1fae62c2210385b8b538c0fb3e418db5727c6b87904"
+    },
+    "prometheus/theosis_exporter.py": {
+      "size": 12708,
+      "sha3_256": "dd07a99acb4f0b76069edf89cb52b6d4acf0d5bbe127b3c45727cca1a8f54c6f"
+    }
+  },
+  "cross_links": [
+    923,
+    954,
+    955.1,
+    964,
+    965,
+    966,
+    970,
+    972,
+    972.1,
+    "989.x",
+    "989.y",
+    "989.y.5",
+    "989.y.6.1",
+    1027,
+    1027.2,
+    1028,
+    1028.1,
+    1028.3,
+    1041
+  ],
+  "deidades": [
+    "Themis",
+    "Athena",
+    "Hermes",
+    "Mnemosyne",
+    "Prometheus",
+    "Chronos"
+  ]
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+package octra;
+
+// Substrato 840 — Octra FHE Compute Service
+service OctraCompute {
+    rpc ExecuteGraph (GraphRequest) returns (GraphResponse);
+}
+
+message GraphRequest {
+    bytes serialized_graph = 1;
+    repeated bytes inputs = 2;
+    string scheme = 3;
+}
+
+message GraphResponse {
+    repeated bytes outputs = 1;
+    bytes zk_proof = 2;
+    bytes graph_commitment = 3;
+}

@@ -1,0 +1,157 @@
+{
+  "dashboard": {
+    "title": "Cathedral ARKHE - Resiliência & MCP",
+    "tags": ["cathedral", "resilience", "mcp", "dlq", "circuit-breaker"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 2,
+    "refresh": "15s",
+    "panels": [
+      {
+        "title": "Visão Geral do Sistema",
+        "type": "row",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+      },
+      {
+        "title": "MCP Server Status",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+        "targets": [{ "expr": "up{job=\"cathedral-mcp\"}", "legendFormat": "Status" }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "DLQ Size",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+        "targets": [{ "expr": "dlq_size", "legendFormat": "Mensagens" }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "orange", "value": 200 },
+                { "color": "red", "value": 1000 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Circuit Breakers Open",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+        "targets": [{ "expr": "circuit_breaker_state{state=\"open\"}", "legendFormat": "Open" }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "red", "value": 1 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Poison Pills (última hora)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+        "targets": [{ "expr": "increase(poison_pills_detected_total[1h])", "legendFormat": "Total" }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "orange", "value": 2 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Last-Effort Success Rate",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+        "targets": [{ "expr": "last_effort_success_total / clamp_min(last_effort_success_total + last_effort_failure_total, 1)", "legendFormat": "Sucesso" }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 0.7 },
+                { "color": "green", "value": 0.9 }
+              ]
+            }
+          }
+        }
+      },
+
+      {
+        "title": "Circuit Breaker - Estados ao Longo do Tempo",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+        "targets": [
+          { "expr": "circuit_breaker_state{state=\"open\"}", "legendFormat": "Open - {{component}}" },
+          { "expr": "circuit_breaker_state{state=\"half_open\"}", "legendFormat": "HalfOpen - {{component}}" }
+        ]
+      },
+      {
+        "title": "DLQ - Tamanho e Poison Pills",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+        "targets": [
+          { "expr": "dlq_size", "legendFormat": "DLQ Size" },
+          { "expr": "rate(poison_pills_detected_total[5m])", "legendFormat": "Poison Pills / 5m" }
+        ]
+      },
+
+      {
+        "title": "Last-Effort Engine",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+        "targets": [
+          { "expr": "last_effort_success_total", "legendFormat": "Success" },
+          { "expr": "last_effort_failure_total", "legendFormat": "Failure" },
+          { "expr": "last_effort_escalated_total", "legendFormat": "Escalated to Human" }
+        ]
+      },
+      {
+        "title": "MCP Performance",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+        "targets": [
+          { "expr": "rate(mcp_requests_total[1m])", "legendFormat": "Requests/sec" },
+          { "expr": "histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))", "legendFormat": "P95 Latency" }
+        ]
+      },
+
+      {
+        "title": "Taxa de Erro MCP (5xx)",
+        "type": "timeseries",
+        "gridPos": { "h": 7, "w": 24, "x": 0, "y": 21 },
+        "targets": [
+          { "expr": "rate(mcp_requests_total{status=~\"5..\"}[5m]) / rate(mcp_requests_total[5m])", "legendFormat": "Error Rate" }
+        ]
+      }
+    ],
+    "time": { "from": "now-6h", "to": "now" },
+    "refresh": "15s"
+  },
+  "overwrite": true
+}

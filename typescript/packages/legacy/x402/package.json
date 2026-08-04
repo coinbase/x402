@@ -25,7 +25,7 @@
     "@coinbase/onchainkit": "^0.38.14",
     "@craftamap/esbuild-plugin-html": "^0.9.0",
     "@eslint/js": "^9.24.0",
-    "@types/node": "^22.13.4",
+    "@types/node": "^22.18.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.29.1",

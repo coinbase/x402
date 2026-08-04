@@ -4,13 +4,14 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from ....schemas import (
+from x402.schemas import (
     Network,
     PaymentPayload,
     PaymentRequirements,
     SettleResponse,
     VerifyResponse,
 )
+
 from ..constants import SCHEME_UPTO
 from ..signer import FacilitatorEvmSigner
 from ..types import is_upto_permit2_payload

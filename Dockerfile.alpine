@@ -1,0 +1,84 @@
+# Dockerfile.alpine
+# Imagem otimizada para Cathedral Headroom MCP Server
+# Base: Alpine Linux 3.20 + binário Rust estático (musl)
+# Tamanho final esperado: ~15-20 MB
+#
+# Selo: CATHEDRAL-ARKHE-8000-ALPINE-DOCKER-v2.1.0-2026-06-19
+
+# ============================================================
+# STAGE 1: BUILDER (Rust + musl)
+# ============================================================
+FROM rust:1.75-alpine AS builder
+
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev \
+    openssl-libs-static \
+    git \
+    ca-certificates \
+    protobuf-dev \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /usr/src/cathedral
+
+# Copia manifests primeiro (melhor cache de camadas)
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY src/ src/
+COPY proto/ proto/
+
+# Build estático com otimizações agressivas de tamanho
+ENV RUSTFLAGS="-C target-feature=-crt-static -C opt-level=z -C lto=true -C codegen-units=1"
+ENV PKG_CONFIG_ALLOW_CROSS=1
+
+RUN cargo build \
+    --release \
+    --target x86_64-unknown-linux-musl \
+    --bin cathedral-headroom-mcp \
+    --features "mcp-server,seal,metrics,cache-aligner" \
+    && strip /usr/src/cathedral/target/x86_64-unknown-linux-musl/release/cathedral-headroom-mcp
+
+# ============================================================
+# STAGE 2: RUNTIME (Alpine mínimo)
+# ============================================================
+FROM alpine:3.20 AS runtime
+
+# Instala apenas o essencial
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    wget \
+    && rm -rf /var/cache/apk/*
+
+# Cria usuário não-root
+RUN addgroup -g 1000 cathedral && \
+    adduser -D -u 1000 -G cathedral -s /bin/sh cathedral
+
+# Copia binário estático
+COPY --from=builder \
+    /usr/src/cathedral/target/x86_64-unknown-linux-musl/release/cathedral-headroom-mcp \
+    /usr/local/bin/cathedral-headroom-mcp
+
+# Copia configuração padrão (pode ser sobrescrita por volume)
+COPY config/mcp.toml /etc/cathedral/mcp.toml.default
+
+# Cria diretórios de dados
+RUN mkdir -p /var/lib/headroom/ccr \
+             /var/lib/headroom/logs \
+             /var/lib/headroom/cache \
+             /mnt/persist/config \
+             /mnt/persist/data \
+    && chown -R cathedral:cathedral /usr/local/bin/cathedral-headroom-mcp \
+                                     /var/lib/headroom \
+                                     /mnt/persist
+
+USER cathedral
+
+EXPOSE 8787 8788
+
+# Health check robusto
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost:8787/healthz || exit 1
+
+ENTRYPOINT ["cathedral-headroom-mcp"]
+CMD ["--config", "/etc/cathedral/mcp.toml.default"]

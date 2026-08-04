@@ -37,3 +37,8 @@ TASK.md
 .claude/
 skills/
 REVIEW_PROMPT.md
+arkhe_proxy/target/
+/arkhe_jax_substrate_260/target/
+catedral-coreutils/target/
+target/
+target/

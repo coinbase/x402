@@ -1,0 +1,10 @@
+[package]
+name = "cathedral-identity"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }
+rand = "0.8"
+serde = { workspace = true }
+thiserror = { workspace = true }
