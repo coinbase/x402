@@ -161,6 +161,24 @@ def normalize_address(address: str) -> str:
     return to_checksum_address("0x" + addr)
 
 
+_TX_HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
+
+
+def is_valid_tx_hash(tx_hash: str) -> bool:
+    """Check if string is a well-formed 32-byte transaction hash.
+
+    Used to validate hashes returned by external signers (e.g. multi-transaction
+    extension signers) before trusting them for a receipt wait.
+
+    Args:
+        tx_hash: String to check.
+
+    Returns:
+        True if a canonical 0x-prefixed 64-hex-digit transaction hash.
+    """
+    return bool(_TX_HASH_RE.match(tx_hash))
+
+
 def is_valid_address(address: str) -> bool:
     """Check if string is valid Ethereum address.
 

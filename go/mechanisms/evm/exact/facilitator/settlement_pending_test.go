@@ -171,6 +171,166 @@ func TestSettlePermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *test
 	}
 }
 
+// An extension signer may bundle the approval + settle transactions atomically (e.g.
+// Flashbots, smart account batching) and return a single hash for the bundle rather than
+// one hash per input. Settle must accept this and use that hash as the settlement
+// transaction rather than requiring exactly one hash per submitted transaction.
+func TestSettlePermit2_ERC20ApprovalAtomicBundleSingleHashSucceeds(t *testing.T) {
+	const (
+		payer = "0x1234567890123456789012345678901234567890"
+		token = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+		payTo = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+	)
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:84532",
+		Amount:  "1000000",
+		Asset:   token,
+		PayTo:   payTo,
+	}
+	permit2Payload := &evm.ExactPermit2Payload{
+		Signature: "0x" + strings.Repeat("11", 65),
+		Permit2Authorization: evm.Permit2Authorization{
+			From: payer,
+			Permitted: evm.Permit2TokenPermissions{
+				Token:  token,
+				Amount: "1000000",
+			},
+			Spender:  evm.X402ExactPermit2ProxyAddress,
+			Nonce:    "1",
+			Deadline: fmt.Sprintf("%d", time.Now().Unix()+10000),
+			Witness: evm.Permit2Witness{
+				To:         payTo,
+				ValidAfter: "0",
+			},
+		},
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Payload:     permit2Payload.ToMap(),
+		Accepted:    requirements,
+		Extensions: map[string]interface{}{
+			erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
+				"info": &erc20approvalgassponsor.Info{
+					From:              payer,
+					Asset:             token,
+					Spender:           evm.PERMIT2Address,
+					Amount:            "1000000",
+					SignedTransaction: "0x02",
+					Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
+				},
+			},
+		},
+	}
+	signer := &settleMockSigner{
+		codeByAddress: map[string][]byte{
+			strings.ToLower(token): {0x60, 0x60},
+			strings.ToLower(payer): {0x60, 0x60},
+		},
+	}
+	bundleHash := "0x" + strings.Repeat("ef", 32)
+	extSigner := &mockErc20ApprovalSigner{
+		settleMockSigner: &settleMockSigner{},
+		sendTxHashes:     []string{bundleHash},
+	}
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
+	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
+	})
+
+	resp, err := SettlePermit2(context.Background(), signer, payload, requirements, permit2Payload, facilCtx, nil)
+	if err != nil {
+		t.Fatalf("expected success with a single bundled hash, got error: %v", err)
+	}
+	if resp.Transaction != bundleHash {
+		t.Fatalf("expected transaction %q, got %q", bundleHash, resp.Transaction)
+	}
+}
+
+// A receipt-wait failure on the extension signer (used for the ERC-20 approval gas
+// sponsoring branch) is just as non-terminal as one on the default signer: the settlement
+// transaction was still broadcast, so settle must report `settlement_pending` with the
+// broadcast hash rather than a terminal error.
+func TestSettlePermit2_ERC20ApprovalExtensionReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
+	const (
+		payer = "0x1234567890123456789012345678901234567890"
+		token = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+		payTo = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+	)
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:84532",
+		Amount:  "1000000",
+		Asset:   token,
+		PayTo:   payTo,
+	}
+	permit2Payload := &evm.ExactPermit2Payload{
+		Signature: "0x" + strings.Repeat("11", 65),
+		Permit2Authorization: evm.Permit2Authorization{
+			From: payer,
+			Permitted: evm.Permit2TokenPermissions{
+				Token:  token,
+				Amount: "1000000",
+			},
+			Spender:  evm.X402ExactPermit2ProxyAddress,
+			Nonce:    "1",
+			Deadline: fmt.Sprintf("%d", time.Now().Unix()+10000),
+			Witness: evm.Permit2Witness{
+				To:         payTo,
+				ValidAfter: "0",
+			},
+		},
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Payload:     permit2Payload.ToMap(),
+		Accepted:    requirements,
+		Extensions: map[string]interface{}{
+			erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
+				"info": &erc20approvalgassponsor.Info{
+					From:              payer,
+					Asset:             token,
+					Spender:           evm.PERMIT2Address,
+					Amount:            "1000000",
+					SignedTransaction: "0x02",
+					Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
+				},
+			},
+		},
+	}
+	signer := &settleMockSigner{
+		codeByAddress: map[string][]byte{
+			strings.ToLower(token): {0x60, 0x60},
+			strings.ToLower(payer): {0x60, 0x60},
+		},
+	}
+	settleHash := "0x" + strings.Repeat("ef", 32)
+	extSigner := &mockErc20ApprovalSigner{
+		settleMockSigner: &settleMockSigner{receiptErr: fmt.Errorf("rpc: timeout waiting for receipt")},
+		sendTxHashes:     []string{"0x" + strings.Repeat("11", 32), settleHash},
+	}
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
+	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
+	})
+
+	resp, err := SettlePermit2(context.Background(), signer, payload, requirements, permit2Payload, facilCtx, nil)
+	if err == nil {
+		t.Fatalf("expected settlement_pending error, got success: %+v", resp)
+	}
+
+	se := &x402.SettleError{}
+	if !errors.As(err, &se) {
+		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
+	}
+	if se.ErrorReason != ErrSettlementPending {
+		t.Fatalf("expected reason %q, got %q", ErrSettlementPending, se.ErrorReason)
+	}
+	if se.Transaction != settleHash {
+		t.Fatalf("expected transaction %q preserved despite receipt-wait failure, got %q", settleHash, se.Transaction)
+	}
+}
+
 // Same non-terminal receipt-wait failure, exercised through the Permit2 settle path.
 func TestSettlePermit2_ReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
 	const (

@@ -617,6 +617,94 @@ func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *
 	}
 }
 
+// An extension signer may bundle the approval + settle transactions atomically (e.g.
+// Flashbots, smart account batching) and return a single hash for the bundle rather than
+// one hash per input. Settle must accept this and use that hash as the settlement
+// transaction rather than requiring exactly one hash per submitted transaction.
+func TestSettleUptoPermit2_ERC20ApprovalAtomicBundleSingleHashSucceeds(t *testing.T) {
+	signer := newMockSigner()
+	bundleHash := "0x" + strings.Repeat("ef", 32)
+	extSigner := &mockErc20ApprovalSigner{
+		mockFacilitatorSigner: newMockSigner(),
+		sendTxHashes:          []string{bundleHash},
+	}
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
+	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
+	})
+
+	payload := buildValidPayload(testFacilitatorAddr)
+	payload.Extensions = map[string]interface{}{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
+			"info": &erc20approvalgassponsor.Info{
+				From:              testPayerAddr,
+				Asset:             testTokenAddr,
+				Spender:           evm.PERMIT2Address,
+				Amount:            testAmount,
+				SignedTransaction: "0x02",
+				Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
+			},
+		},
+	}
+
+	resp, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
+	if err != nil {
+		t.Fatalf("expected success with a single bundled hash, got error: %v", err)
+	}
+	if resp.Transaction != bundleHash {
+		t.Fatalf("expected transaction %q, got %q", bundleHash, resp.Transaction)
+	}
+}
+
+// A receipt-wait failure on the extension signer (used for the ERC-20 approval gas
+// sponsoring branch) is just as non-terminal as one on the default signer: the settlement
+// transaction was still broadcast, so settle must report `settlement_pending` with the
+// broadcast hash rather than a terminal error.
+func TestSettleUptoPermit2_ERC20ApprovalExtensionReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
+	signer := newMockSigner()
+	settleHash := "0x" + strings.Repeat("ef", 32)
+	extSigner := &mockErc20ApprovalSigner{
+		mockFacilitatorSigner: func() *mockFacilitatorSigner {
+			s := newMockSigner()
+			s.receiptError = errors.New("rpc: timeout waiting for receipt")
+			return s
+		}(),
+		sendTxHashes: []string{"0x" + strings.Repeat("11", 32), settleHash},
+	}
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
+	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
+	})
+
+	payload := buildValidPayload(testFacilitatorAddr)
+	payload.Extensions = map[string]interface{}{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
+			"info": &erc20approvalgassponsor.Info{
+				From:              testPayerAddr,
+				Asset:             testTokenAddr,
+				Spender:           evm.PERMIT2Address,
+				Amount:            testAmount,
+				SignedTransaction: "0x02",
+				Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
+			},
+		},
+	}
+
+	resp, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
+	if err == nil {
+		t.Fatalf("expected settlement_pending error, got success: %+v", resp)
+	}
+	assertSettleError(t, err, ErrSettlementPending)
+
+	var se *x402.SettleError
+	if !errors.As(err, &se) {
+		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
+	}
+	if se.Transaction != settleHash {
+		t.Fatalf("expected transaction %q preserved despite receipt-wait failure, got %q", settleHash, se.Transaction)
+	}
+}
+
 func TestSettleUptoPermit2_VerifyFails_EOAPayer(t *testing.T) {
 	// Payer is EOA → sig verify fails → settle re-verify returns invalid
 	signer := newMockSigner()

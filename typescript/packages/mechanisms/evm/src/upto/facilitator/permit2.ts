@@ -13,7 +13,7 @@ import {
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../../exact/extensions";
-import { getAddress, encodeFunctionData } from "viem";
+import { getAddress, encodeFunctionData, isHash } from "viem";
 import { appendDataSuffix, resolveDataSuffix } from "../../shared/extensions";
 import {
   PERMIT2_ADDRESS,
@@ -550,13 +550,17 @@ async function settleUptoWithERC20Approval(
       { to: uptoProxyConfig.proxyAddress, data: settleData, gas: BigInt(300_000) },
     ]);
 
-    if (txHashes.length !== 2 || txHashes.some(hash => !hash)) {
+    // The signer owns execution strategy: it may broadcast sequentially (one hash per
+    // input) or bundle atomically (e.g. Flashbots, smart account batching), returning
+    // fewer hashes. Only the final hash — the settlement transaction — needs to be
+    // validated before waiting on its receipt.
+    const settleTxHash = txHashes[txHashes.length - 1];
+    if (!settleTxHash || !isHash(settleTxHash)) {
       throw new Error(
-        "erc20_approval_tx_failed: extension signer returned incomplete transaction hashes",
+        "erc20_approval_tx_failed: extension signer returned no valid settlement transaction hash",
       );
     }
 
-    const settleTxHash = txHashes[txHashes.length - 1];
     const response = await waitAndReturnSettleResponse(
       extensionSigner,
       settleTxHash,

@@ -481,7 +481,11 @@ class TestSettlePermit2:
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
-    def test_settle_erc20_approval_incomplete_hashes_returned_without_error(self):
+    def test_settle_erc20_approval_invalid_settlement_hash_returned_without_error(self):
+        # If the extension signer returns a malformed final hash without raising, settle
+        # must treat it as a broadcast failure rather than proceeding to wait on it (which
+        # would otherwise surface as settlement_pending with an invalid `transaction`,
+        # violating the requirement that settlement_pending always carry a real broadcast hash).
         from x402.extensions.erc20_approval_gas_sponsoring import (
             Erc20ApprovalGasSponsoringInfo,
         )
@@ -489,7 +493,7 @@ class TestSettlePermit2:
             _settle_permit2_with_erc20_approval,
         )
 
-        class _IncompleteHashExtensionSigner:
+        class _InvalidHashExtensionSigner:
             def send_transactions(self, transactions: list[Any]) -> list[str]:
                 return ["0xapproval"]
 
@@ -507,12 +511,100 @@ class TestSettlePermit2:
         )
 
         result = _settle_permit2_with_erc20_approval(
-            _IncompleteHashExtensionSigner(), make_payment_payload(), permit2_payload, erc20_info
+            _InvalidHashExtensionSigner(), make_payment_payload(), permit2_payload, erc20_info
         )
 
         assert result.success is False
         assert result.error_reason != ERR_SETTLEMENT_PENDING
         assert result.transaction == ""
+
+    def test_settle_erc20_approval_atomic_bundle_single_hash_succeeds(self):
+        # The extension signer owns execution strategy: it may bundle the approval +
+        # settle transactions atomically (e.g. Flashbots, smart account batching) and
+        # return a single hash for the bundle rather than one hash per input. Settle must
+        # accept this and use that hash as the settlement transaction.
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.exact.permit2_utils import (
+            _settle_permit2_with_erc20_approval,
+        )
+
+        bundle_hash = "0x" + "ef" * 32
+
+        class _AtomicBundleExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return [bundle_hash]
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                return TransactionReceipt(status=1, block_number=1, tx_hash=tx_hash)
+
+        permit2_payload = ExactPermit2Payload(
+            permit2_authorization=make_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_permit2_with_erc20_approval(
+            _AtomicBundleExtensionSigner(), make_payment_payload(), permit2_payload, erc20_info
+        )
+
+        assert result.success is True
+        assert result.transaction == bundle_hash
+
+    def test_settle_erc20_approval_extension_receipt_wait_failure_returns_settlement_pending(
+        self,
+    ):
+        # A receipt-wait failure on the extension signer (used for the ERC-20 approval gas
+        # sponsoring branch) is just as non-terminal as one on the default signer: the
+        # settlement transaction was still broadcast, so settle must report
+        # `settlement_pending` with the broadcast hash rather than a terminal error.
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.exact.permit2_utils import (
+            _settle_permit2_with_erc20_approval,
+        )
+
+        settle_hash = "0x" + "ef" * 32
+
+        class _ReceiptTimeoutExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return ["0x" + "11" * 32, settle_hash]
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        permit2_payload = ExactPermit2Payload(
+            permit2_authorization=make_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_permit2_with_erc20_approval(
+            _ReceiptTimeoutExtensionSigner(),
+            make_payment_payload(),
+            permit2_payload,
+            erc20_info,
+        )
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == settle_hash
 
 
 # ============================================================================

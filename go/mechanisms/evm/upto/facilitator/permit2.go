@@ -314,11 +314,15 @@ func SettleUptoPermit2(
 				{Serialized: erc20Info.SignedTransaction},
 				{Call: &settle},
 			})
+			// The signer owns execution strategy: it may broadcast sequentially (one hash
+			// per input) or bundle atomically (e.g. Flashbots, smart account batching),
+			// returning fewer hashes. Only the final hash — the settlement transaction —
+			// needs to be validated before waiting on its receipt.
 			switch {
 			case sendErr != nil:
 				err = sendErr
-			case len(txHashes) != 2 || txHashes[0] == "" || txHashes[1] == "":
-				err = fmt.Errorf("erc20_approval_tx_failed: extension signer returned incomplete transaction hashes")
+			case len(txHashes) == 0 || !evm.IsValidTxHash(txHashes[len(txHashes)-1]):
+				err = fmt.Errorf("erc20_approval_tx_failed: extension signer returned no valid settlement transaction hash")
 			default:
 				txHash = txHashes[len(txHashes)-1]
 			}

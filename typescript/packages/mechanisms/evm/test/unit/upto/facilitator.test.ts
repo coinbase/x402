@@ -964,8 +964,8 @@ describe("UptoEvmScheme (Facilitator)", () => {
     }
 
     function makeErc20SettleContext() {
-      const APPROVAL_TX_HASH = "0xapproval_tx_hash_mock" as `0x${string}`;
-      const SETTLE_TX_HASH = "0xsettle_tx_hash_mock" as `0x${string}`;
+      const APPROVAL_TX_HASH = ("0x" + "11".repeat(32)) as `0x${string}`;
+      const SETTLE_TX_HASH = ("0x" + "22".repeat(32)) as `0x${string}`;
       const mockSendTransactions = vi.fn().mockResolvedValue([APPROVAL_TX_HASH, SETTLE_TX_HASH]);
       const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
 
@@ -1022,7 +1022,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(result.success).toBe(true);
     });
 
-    it("should fail when the extension signer returns incomplete transaction hashes", async () => {
+    it("should fail when the extension signer returns an invalid settlement transaction hash", async () => {
       const { parseTransaction, recoverTransactionAddress } = await import("viem");
       vi.mocked(parseTransaction).mockReturnValue({
         to: TOKEN_ADDRESS,
@@ -1065,6 +1065,101 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(result.success).toBe(false);
       expect(result.errorReason).not.toBe(ErrSettlementPending);
       expect(result.transaction).toBe("");
+    });
+
+    it("should succeed when the extension signer bundles approval + settle into a single hash", async () => {
+      // The extension signer owns execution strategy: it may bundle transactions
+      // atomically (e.g. Flashbots, smart account batching) and return a single hash
+      // for the bundle rather than one hash per input.
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      mockSigner.readContract = rcWithSig(undefined);
+
+      const BUNDLE_TX_HASH = ("0x" + "ef".repeat(32)) as `0x${string}`;
+      const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
+      const mockSendTransactions = vi.fn().mockResolvedValue([BUNDLE_TX_HASH]);
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return {
+              key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+              signer: {
+                getAddresses: () => [FACILITATOR_ADDRESS],
+                readContract: mockSigner.readContract,
+                verifyTypedData: mockSigner.verifyTypedData,
+                writeContract: vi.fn(),
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: mockExtWaitForReceipt,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendTransactions: mockSendTransactions,
+              },
+            };
+          }
+          return undefined;
+        }),
+      };
+
+      const result = await scheme.settle(
+        makeErc20UptoPayload(makeValidErc20Extension()),
+        erc20SettleRequirements,
+        mockContext,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.transaction).toBe(BUNDLE_TX_HASH);
+    });
+
+    it("should report settlement_pending when the extension signer's receipt wait fails", async () => {
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      mockSigner.readContract = rcWithSig(undefined);
+
+      const APPROVAL_TX_HASH = ("0x" + "11".repeat(32)) as `0x${string}`;
+      const SETTLE_TX_HASH = ("0x" + "ef".repeat(32)) as `0x${string}`;
+      const mockExtWaitForReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("rpc: timeout waiting for receipt"));
+      const mockSendTransactions = vi.fn().mockResolvedValue([APPROVAL_TX_HASH, SETTLE_TX_HASH]);
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return {
+              key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+              signer: {
+                getAddresses: () => [FACILITATOR_ADDRESS],
+                readContract: mockSigner.readContract,
+                verifyTypedData: mockSigner.verifyTypedData,
+                writeContract: vi.fn(),
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: mockExtWaitForReceipt,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendTransactions: mockSendTransactions,
+              },
+            };
+          }
+          return undefined;
+        }),
+      };
+
+      const result = await scheme.settle(
+        makeErc20UptoPayload(makeValidErc20Extension()),
+        erc20SettleRequirements,
+        mockContext,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrSettlementPending);
+      expect(result.transaction).toBe(SETTLE_TX_HASH);
     });
 
     it("should include settlement amount in ERC-20 approval settle response", async () => {

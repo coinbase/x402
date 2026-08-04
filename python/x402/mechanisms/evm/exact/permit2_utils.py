@@ -61,6 +61,7 @@ from ..utils import (  # noqa: E402
     create_permit2_nonce,
     get_evm_chain_id,
     hex_to_bytes,
+    is_valid_tx_hash,
     normalize_address,
 )
 from ..verify import verify_typed_data_strict  # noqa: E402
@@ -648,9 +649,13 @@ def _settle_permit2_with_erc20_approval(
             ]
         )
 
-        if len(tx_hashes) != 2 or not all(tx_hashes):
+        # The signer owns execution strategy: it may broadcast sequentially (one hash per
+        # input) or bundle atomically (e.g. Flashbots, smart account batching), returning
+        # fewer hashes. Only the final hash — the settlement transaction — needs to be
+        # validated before waiting on its receipt.
+        if not tx_hashes or not is_valid_tx_hash(tx_hashes[-1]):
             raise RuntimeError(
-                "erc20_approval_tx_failed: extension signer returned incomplete transaction hashes"
+                "erc20_approval_tx_failed: extension signer returned no valid settlement transaction hash"
             )
 
         settle_tx_hash = tx_hashes[-1]
