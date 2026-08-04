@@ -1,1 +1,0 @@
-Add Flare mainnet (chain ID 14) support with USD₮0 as the default stablecoin
