@@ -2,7 +2,13 @@ import { x402Version } from "..";
 import { SchemeNetworkClient } from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
 import { Network, PaymentRequired, SettleResponse } from "../types";
-import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
+import {
+  ADDITIVE_ARRAY_INFO_FIELDS,
+  deepEqual,
+  findByNetworkAndScheme,
+  findSchemesByNetwork,
+  toComparableArray,
+} from "../utils";
 
 /**
  * Client Hook Context Interfaces
@@ -487,6 +493,11 @@ export class x402Client {
   /**
    * Merges server-declared extensions with client extension echoes.
    * Client extension data may add fields, but server-declared fields remain intact.
+   * For fields listed in `ADDITIVE_ARRAY_INFO_FIELDS` (e.g. builder-code `s`), a
+   * conflicting array is concatenated with client entries first (so a downstream
+   * length cap trims server entries rather than the client's) and duplicates
+   * removed; a scalar on either side is treated as a single-element array. Every
+   * other conflicting array keeps the server's value, same as any other scalar.
    *
    * @param serverExtensions - Extensions declared by the server in the 402 response
    * @param clientExtensions - Extensions provided by the client or scheme
@@ -516,6 +527,7 @@ export class x402Client {
 
       const serverRecord = serverValue as Record<string, unknown>;
       const clientRecord = clientValue as Record<string, unknown>;
+      const additiveFields = ADDITIVE_ARRAY_INFO_FIELDS[key];
       const extensionValue = { ...serverRecord };
       const pending = [{ target: extensionValue, source: clientRecord }];
       for (const item of pending) {
@@ -536,6 +548,22 @@ export class x402Client {
               source: clientFieldValue as Record<string, unknown>,
             });
             continue;
+          }
+
+          // A scalar on one side (e.g. builder-code `s` sent as a bare string)
+          // merges as a single-element array against an array on the other side.
+          // Only additive fields concatenate; other conflicting arrays keep the
+          // server's value below, same as any other scalar leaf field.
+          if (
+            additiveFields?.has(fieldKey) &&
+            (Array.isArray(serverFieldValue) || Array.isArray(clientFieldValue))
+          ) {
+            const serverArray = toComparableArray(serverFieldValue);
+            const clientArray = toComparableArray(clientFieldValue);
+            if (serverArray && clientArray) {
+              item.target[fieldKey] = mergeArraysUnique(clientArray, serverArray);
+              continue;
+            }
           }
 
           if (!Object.prototype.hasOwnProperty.call(item.target, fieldKey)) {
@@ -780,4 +808,23 @@ export class x402Client {
         return "onPaymentResponse";
     }
   }
+}
+
+/**
+ * Concatenates two arrays, keeping client entries first (so a downstream length
+ * cap trims server entries rather than the client's) and dropping duplicates
+ * (deep equality) wherever they occur, including within either input array.
+ *
+ * @param client - Client-provided array values
+ * @param server - Server-declared array values
+ * @returns Deduplicated concatenation
+ */
+function mergeArraysUnique(client: unknown[], server: unknown[]): unknown[] {
+  const merged: unknown[] = [];
+  for (const item of [...client, ...server]) {
+    if (!merged.some(existing => deepEqual(existing, item))) {
+      merged.push(item);
+    }
+  }
+  return merged;
 }

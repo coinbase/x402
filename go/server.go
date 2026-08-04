@@ -758,8 +758,17 @@ func (s *x402ResourceServer) ValidateExtensions(
 
 	// pair carries an advertised value and its client echo while a worklist walks
 	// nested objects: the echo must contain every advertised field (objects may
-	// add fields; arrays/primitives must match exactly via DeepEqual).
-	type pair struct{ advertised, echoed interface{} }
+	// add fields; primitives must match exactly via DeepEqual). additive marks
+	// pairs whose array values may be extended by the echo (see
+	// additiveArrayInfoFields); all other array fields must match exactly.
+	// field names the object field this pair was read from, used to look up a
+	// combined-length cap for additive array fields (see
+	// additiveArrayMaxLengths); empty for the root pair.
+	type pair struct {
+		advertised, echoed interface{}
+		additive           bool
+		field              string
+	}
 
 	// normalize converts a server-declared value (which may be a typed struct)
 	// into the generic JSON shape the echoed payload already uses.
@@ -803,9 +812,37 @@ func (s *x402ResourceServer) ValidateExtensions(
 			echoed = omitFields(echoed, dynamicFields)
 		}
 
+		additiveFields := additiveArrayInfoFields[key]
+		maxLengths := additiveArrayMaxLengths[key]
 		mismatch := false
-		pending := []pair{{advertised, echoed}}
+		pending := []pair{{advertised, echoed, false, ""}}
 		for i := 0; i < len(pending) && !mismatch; i++ {
+			if pending[i].additive {
+				advSlice, advIsSlice := asSlice(pending[i].advertised)
+				echoSlice, echoIsSlice := asSlice(pending[i].echoed)
+				// A scalar on either side (e.g. builder-code `s` sent as a bare string)
+				// is treated as a single-element array so it compares against an array
+				// on the other side. Two scalars fall through to the plain DeepEqual
+				// comparison below unchanged.
+				if advIsSlice || echoIsSlice {
+					if !advIsSlice {
+						advSlice, advIsSlice = asScalarSingleton(pending[i].advertised)
+					}
+					if !echoIsSlice {
+						echoSlice, echoIsSlice = asScalarSingleton(pending[i].echoed)
+					}
+					if !advIsSlice || !echoIsSlice || !arrayContainsSubset(advSlice, echoSlice) {
+						mismatch = true
+					} else if maxLen := maxLengths[pending[i].field]; maxLen > 0 && len(echoSlice) > maxLen {
+						// A hand-crafted echo may pad an additive field past the
+						// combined reservation of the parties allowed to contribute
+						// to it; reject outright rather than let it through only to
+						// be silently truncated further downstream.
+						mismatch = true
+					}
+					continue
+				}
+			}
 			advertisedMap, isObject := pending[i].advertised.(map[string]interface{})
 			if !isObject {
 				mismatch = !DeepEqual(pending[i].advertised, pending[i].echoed)
@@ -823,7 +860,7 @@ func (s *x402ResourceServer) ValidateExtensions(
 					break
 				}
 				if exists {
-					pending = append(pending, pair{advValue, echoValue})
+					pending = append(pending, pair{advValue, echoValue, additiveFields[field], field})
 				}
 			}
 		}
@@ -838,6 +875,29 @@ func (s *x402ResourceServer) ValidateExtensions(
 	}
 
 	return ExtensionValidationResult{Valid: true}
+}
+
+// additiveArrayInfoFields lists extension info fields, keyed by extension key,
+// where a conflicting array value declared by both server and client is
+// additive rather than exclusive: mergeExtensions concatenates both sides
+// (client first, deduped) and ValidateExtensions accepts any echo that is a
+// superset of the advertised value. Scoped narrowly per extension + field so
+// unrelated extensions (e.g. sign-in-with-x's "resources") keep exact array
+// matching in both directions.
+var additiveArrayInfoFields = map[string]map[string]bool{
+	"builder-code": {"s": true},
+}
+
+// additiveArrayMaxLengths caps the combined echoed length of an additive array
+// field (see additiveArrayInfoFields) so a hand-crafted payload cannot pad the
+// field past the sum of every party's own reservation and later crowd out a
+// legitimately declared entry once truncated further downstream (e.g. by a
+// facilitator extension). A missing or zero entry means no cap is enforced
+// here. Core has no dependency on extension packages, so this value (builder-
+// code's MAX_CLIENT_SERVICE_CODES + MAX_SERVER_SERVICE_CODES) is duplicated
+// from go/extensions/buildercode/types.go and must be kept in sync by hand.
+var additiveArrayMaxLengths = map[string]map[string]int{
+	"builder-code": {"s": 10},
 }
 
 // dynamicInfoFields returns the dynamic `info` field names declared by the

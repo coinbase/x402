@@ -1,0 +1,1 @@
+`builder-code` `s` entries now use dedicated per-party reservations (`MAX_CLIENT_SERVICE_CODES`=5, `MAX_SERVER_SERVICE_CODES`=5, `MAX_FACILITATOR_SERVICE_CODES`=1, summing to `MAX_SERVICE_CODES`=11) instead of one shared cap, and `BuilderCodeFacilitatorExtension` gained a new `service_code` field so the facilitator can append its own service code at settlement.

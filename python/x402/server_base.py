@@ -115,11 +115,78 @@ def _omit_fields(value: Any, fields: list[str] | None) -> Any:
     return {key: item for key, item in value.items() if key not in fields}
 
 
-def _object_contains_subset(expected: Any, actual: Any) -> bool:
+def _to_comparable_list(value: Any) -> list[Any] | None:
+    """Coerce a value for additive list comparison.
+
+    A list passes through unchanged; a bare scalar is wrapped as a
+    single-element list so it can compare against a list on the other side
+    (e.g. builder-code ``s`` accepts a string or a list of strings). Returns
+    ``None`` for values that cannot participate (``None``, dicts).
+    """
+    if isinstance(value, list):
+        return value
+    if value is None or isinstance(value, dict):
+        return None
+    return [value]
+
+
+# Extension info fields, keyed by extension key, where a conflicting list value
+# declared by both server and client is additive rather than exclusive:
+# client_base._merge_extensions concatenates both sides (client first, deduped)
+# and validate_extensions accepts any echo that is a superset of the advertised
+# value. Scoped narrowly per extension + field so unrelated extensions (e.g.
+# sign-in-with-x's "resources") keep exact list matching in both directions.
+_ADDITIVE_LIST_INFO_FIELDS: dict[str, set[str]] = {
+    "builder-code": {"s"},
+}
+
+# Caps the combined echoed length of an additive list field (see
+# _ADDITIVE_LIST_INFO_FIELDS) so a hand-crafted payload cannot pad the field
+# past the sum of every party's own reservation and later crowd out a
+# legitimately declared entry once truncated further downstream (e.g. by a
+# facilitator extension). This package has no dependency on extension
+# packages, so this value (builder-code's MAX_CLIENT_SERVICE_CODES +
+# MAX_SERVER_SERVICE_CODES) is duplicated from
+# x402/extensions/builder_code/types.py and must be kept in sync by hand.
+_ADDITIVE_LIST_MAX_LENGTHS: dict[str, dict[str, int]] = {
+    "builder-code": {"s": 10},
+}
+
+
+def _object_contains_subset(
+    expected: Any,
+    actual: Any,
+    additive_fields: set[str] | None = None,
+    max_lengths: dict[str, int] | None = None,
+    field_key: str | None = None,
+) -> bool:
     """Return whether ``actual`` contains every field/value from ``expected``.
 
-    Object values may add fields; arrays and primitives must match exactly.
+    Object values may add fields. When ``field_key`` names a field in
+    ``additive_fields`` (e.g. builder-code's ``s``) and either side is a list,
+    the list is additive: every element of ``expected`` must appear in
+    ``actual``, and a bare scalar on either side is treated as a single-element
+    list. When ``field_key`` also has an entry in ``max_lengths``, ``actual``
+    is rejected outright if it exceeds that combined length, rather than being
+    accepted and silently truncated downstream. Every other list field must
+    match exactly. Primitives must match exactly.
     """
+    if (
+        field_key is not None
+        and additive_fields
+        and field_key in additive_fields
+        and (isinstance(expected, list) or isinstance(actual, list))
+    ):
+        expected_list = _to_comparable_list(expected)
+        actual_list = _to_comparable_list(actual)
+        if expected_list is None or actual_list is None:
+            return False
+        max_length = (max_lengths or {}).get(field_key)
+        if max_length is not None and len(actual_list) > max_length:
+            return False
+        return all(
+            any(exp_item == act_item for act_item in actual_list) for exp_item in expected_list
+        )
     if not isinstance(expected, dict):
         return expected == actual
     if not isinstance(actual, dict):
@@ -129,7 +196,7 @@ def _object_contains_subset(expected: Any, actual: Any) -> bool:
             if value is None:
                 continue
             return False
-        if not _object_contains_subset(value, actual[key]):
+        if not _object_contains_subset(value, actual[key], additive_fields, max_lengths, key):
             return False
     return True
 
@@ -911,10 +978,14 @@ class x402ResourceServerBase:
 
             extension = self._extensions.get(key)
             dynamic_fields = getattr(extension, "dynamic_info_fields", None)
+            additive_fields = _ADDITIVE_LIST_INFO_FIELDS.get(key)
+            max_lengths = _ADDITIVE_LIST_MAX_LENGTHS.get(key)
 
             if not _object_contains_subset(
                 _omit_fields(advertised_info, dynamic_fields),
                 _omit_fields(echoed_info, dynamic_fields),
+                additive_fields,
+                max_lengths,
             ):
                 return ExtensionValidationResult(
                     valid=False,

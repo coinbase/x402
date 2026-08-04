@@ -1,0 +1,3 @@
+kind: fixed
+body: BuilderCodeFacilitatorExtension.BuildDataSuffix now returns an error for an invalid ServiceCode instead of silently omitting it, and ValidateExtensions now rejects a client echo whose builder-code s exceeds the combined client+server budget instead of accepting it and leaving truncation to the facilitator
+time: 2026-08-03T16:45:00.000000-05:00

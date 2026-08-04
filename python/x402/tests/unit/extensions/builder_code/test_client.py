@@ -5,6 +5,7 @@ import pytest
 from x402 import x402Client
 from x402.extensions.builder_code import (
     BUILDER_CODE,
+    MAX_CLIENT_SERVICE_CODES,
     BuilderCodeClientExtension,
     declare_builder_code_extension,
 )
@@ -42,6 +43,15 @@ class TestConstructorValidation:
     def test_rejects_when_any_array_entry_invalid(self) -> None:
         with pytest.raises(ValueError, match="Invalid builder code"):
             BuilderCodeClientExtension([SERVICE, "Bad-Code"])
+
+    def test_rejects_too_many_service_codes(self) -> None:
+        too_many = [f"bc_{i}" for i in range(MAX_CLIENT_SERVICE_CODES + 1)]
+        with pytest.raises(ValueError, match="Too many service codes"):
+            BuilderCodeClientExtension(too_many)
+
+    def test_accepts_exactly_max_client_service_codes(self) -> None:
+        at_max = [f"bc_{i}" for i in range(MAX_CLIENT_SERVICE_CODES)]
+        BuilderCodeClientExtension(at_max)
 
 
 class TestEnrichPaymentPayload:
@@ -98,3 +108,30 @@ class TestBuilderCodeClientIntegration:
         payload = await client.create_payment_payload(payment_required)
         assert payload.extensions is not None
         assert payload.extensions[BUILDER_CODE] == {"info": {"s": [SERVICE]}}
+
+    @pytest.mark.asyncio
+    async def test_merges_server_and_client_service_codes_when_both_declare_s(self) -> None:
+        client = x402Client()
+        client.register("eip155:8453", _MockSchemeClient())
+        client.register_extension(BuilderCodeClientExtension(SERVICE))
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[
+                PaymentRequirements(
+                    scheme="exact",
+                    network="eip155:8453",
+                    asset="0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    amount="1000",
+                    pay_to="0x0000000000000000000000000000000000000001",
+                    max_timeout_seconds=300,
+                )
+            ],
+            extensions={BUILDER_CODE: declare_builder_code_extension(APP, "bc_server_sdk")},
+        )
+        payload = await client.create_payment_payload(payment_required)
+        assert payload.extensions is not None
+        assert payload.extensions[BUILDER_CODE] == {
+            "info": {"a": APP, "s": [SERVICE, "bc_server_sdk"]},
+            "schema": payment_required.extensions[BUILDER_CODE]["schema"],
+        }
