@@ -300,6 +300,9 @@ export interface ValidationResult {
  * since schema is client-controlled (it arrives in the payment payload) and any external
  * $ref/$id is a CWE-918 SSRF / local file disclosure pattern other JSON Schema tooling
  * (including future Ajv options like `loadSchema`) can act on.
+ *
+ * @param node - The (sub)tree of a decoded JSON Schema document to scan
+ * @returns True if any non-fragment "$ref"/"$id" value is found
  */
 function hasExternalSchemaReference(node: unknown): boolean {
   if (Array.isArray(node)) {

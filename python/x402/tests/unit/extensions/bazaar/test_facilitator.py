@@ -1034,8 +1034,7 @@ class TestValidateDiscoveryExtensionSSRF:
                 "the facilitator to make an outbound HTTP request (CWE-918 SSRF)"
             )
             assert discovered is None, (
-                "a schema containing an external $ref should fail validation, not silently "
-                "succeed"
+                "a schema containing an external $ref should fail validation, not silently succeed"
             )
         finally:
             server.shutdown()

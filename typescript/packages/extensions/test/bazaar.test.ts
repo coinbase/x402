@@ -2583,6 +2583,13 @@ describe("Bazaar Discovery Extension", () => {
     // default `compile` already throws rather than fetching an unregistered external `$ref`,
     // but validateDiscoveryExtension explicitly rejects these up front for a consistent error
     // message across SDKs and as defense-in-depth.
+    /**
+     * Starts a local HTTP server that counts requests it receives, runs the given callback
+     * against it, and tears it down afterwards.
+     *
+     * @param run - Callback invoked with the server's base URL and a hit-count getter
+     * @returns A promise that resolves once the callback has run and the server has shut down
+     */
     async function withHitCountingServer(
       run: (baseUrl: string, getHits: () => number) => void | Promise<void>,
     ): Promise<void> {
