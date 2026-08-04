@@ -1,3 +1,0 @@
-kind: fixed
-body: Merge server and client builder-code s arrays during extension re-merge instead of dropping the client's (fully deduped, including duplicates within either side), treat echoed builder-code s specifically as additive (client-first, with scalar/array coercion) via a JSON round-trip that also handles non-[]interface{} slice types while other extensions' array fields keep exact echo matching, and let DeclareBuilderCodeExtension optionally declare service codes for the application itself
-time: 2026-08-03T15:00:00Z

@@ -1,3 +1,0 @@
-kind: fixed
-body: Registered client extensions now always receive EnrichPaymentPayload, regardless of whether the resource server advertised the extension key in PaymentRequired.Extensions. Server declarations continue to govern field preservation via merge and echo validation. Extensions that require a server declaration must no-op internally when the server did not advertise them.
-time: 2026-07-30T14:48:12.34282+02:00
