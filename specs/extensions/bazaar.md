@@ -320,7 +320,7 @@ The `schema` field contains a JSON Schema (Draft 2020-12) that validates the str
 - For MCP tools: Must require `toolName` and `inputSchema` fields
 - `$ref` and `$id` values must be same-document JSON Pointer fragments (starting with `#`); external references (`http(s)://`, `file://`, or any other absolute/relative URI) are not allowed
 
-Facilitators **must** validate `info` against `schema` before cataloging. Facilitators **must not** resolve external `$ref`/`$id` values (e.g. by fetching a URL or reading a file) when validating an untrusted `schema`; a `schema` containing one must be rejected outright, since resolving it would let an attacker-supplied payload trigger server-side requests or local file reads (SSRF/LFI, CWE-918).
+Facilitators **must** validate `info` against `schema` before cataloging. Facilitators **must not** resolve external `$ref`/`$id` values (e.g. by fetching a URL or reading a file) when validating an untrusted `schema`.
 
 ### MCP Schema Example
 
