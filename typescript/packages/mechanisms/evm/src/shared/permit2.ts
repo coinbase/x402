@@ -15,7 +15,7 @@ import {
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../exact/extensions";
-import { getAddress, encodeFunctionData, parseErc6492Signature } from "viem";
+import { getAddress, encodeFunctionData, isHash, parseErc6492Signature } from "viem";
 import { PERMIT2_ADDRESS, eip3009ABI, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
 import { multicall, ContractCall } from "../multicall";
 import { createPermit2Nonce, getEvmChainId } from "../utils";
@@ -165,6 +165,7 @@ export async function verifyPermit2Allowance(
  * @param tx - The transaction hash to wait for
  * @param payload - The payment payload (for network info)
  * @param payer - The payer address
+ * @param failedStatusReason - Error reason to report when the transaction confirms as reverted
  * @returns Promise resolving to a settlement response indicating success or failure
  */
 export async function waitAndReturnSettleResponse(
@@ -174,6 +175,19 @@ export async function waitAndReturnSettleResponse(
   payer: `0x${string}`,
   failedStatusReason: string = ErrInvalidTransactionState,
 ): Promise<SettleResponse> {
+  // settlement_pending is only meaningful with the broadcast hash to reconcile against, so a
+  // signer that reports success without a usable hash is a terminal failure.
+  if (!isHash(tx)) {
+    return {
+      success: false,
+      errorReason: failedStatusReason,
+      errorMessage: `signer returned an invalid transaction hash: ${tx}`,
+      transaction: "",
+      network: payload.accepted.network,
+      payer,
+    };
+  }
+
   let receipt;
   try {
     receipt = await signer.waitForTransactionReceipt({ hash: tx });

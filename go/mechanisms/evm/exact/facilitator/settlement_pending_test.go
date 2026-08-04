@@ -61,12 +61,17 @@ func deployedCodeSigner(receiptErr error) *settleMockSigner {
 
 func assertSettlementPending(t *testing.T, err error, wantTxHash string) {
 	t.Helper()
+	assertSettleErr(t, err, ErrSettlementPending, wantTxHash)
+}
+
+func assertSettleErr(t *testing.T, err error, wantReason string, wantTxHash string) {
+	t.Helper()
 	se := &x402.SettleError{}
 	if !errors.As(err, &se) {
 		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
 	}
-	if se.ErrorReason != ErrSettlementPending {
-		t.Fatalf("expected reason %q, got %q", ErrSettlementPending, se.ErrorReason)
+	if se.ErrorReason != wantReason {
+		t.Fatalf("expected reason %q, got %q", wantReason, se.ErrorReason)
 	}
 	if se.Transaction != wantTxHash {
 		t.Fatalf("expected transaction %q, got %q", wantTxHash, se.Transaction)
@@ -172,13 +177,58 @@ func TestSettlePermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *test
 	if err == nil {
 		t.Fatal("expected error when extension signer returns incomplete transaction hashes")
 	}
-	se := &x402.SettleError{}
-	if !errors.As(err, &se) {
-		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
+	assertSettleErr(t, err, ErrErc20ApprovalBroadcastFailed, "")
+}
+
+// A signer that reports success without a usable hash must be terminal: settlement_pending is
+// only meaningful when the caller receives the broadcast hash to reconcile with.
+func TestSettlePermit2_InvalidBroadcastHashIsTerminal(t *testing.T) {
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:84532",
+		Amount:  "1000000",
+		Asset:   testToken,
+		PayTo:   testPayTo,
 	}
-	if se.ErrorReason == ErrSettlementPending {
-		t.Errorf("must not report settlement_pending with an empty transaction hash, got reason=%q transaction=%q", se.ErrorReason, se.Transaction)
+	permit2Payload := &evm.ExactPermit2Payload{
+		Signature: "0x" + strings.Repeat("11", 65),
+		Permit2Authorization: evm.Permit2Authorization{
+			From: testPayer,
+			Permitted: evm.Permit2TokenPermissions{
+				Token:  testToken,
+				Amount: "1000000",
+			},
+			Spender:  evm.X402ExactPermit2ProxyAddress,
+			Nonce:    "1",
+			Deadline: fmt.Sprintf("%d", time.Now().Unix()+10000),
+			Witness: evm.Permit2Witness{
+				To:         testPayTo,
+				ValidAfter: "0",
+			},
+		},
 	}
+	payload := types.PaymentPayload{X402Version: 2, Payload: permit2Payload.ToMap(), Accepted: requirements}
+	signer := deployedCodeSigner(fmt.Errorf("rpc: timeout waiting for receipt"))
+	signer.writeTxHash = "0xnothash"
+
+	_, err := SettlePermit2(context.Background(), signer, payload, requirements, permit2Payload, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when the signer returns an invalid transaction hash")
+	}
+	assertSettleErr(t, err, ErrTransactionFailed, "")
+}
+
+func TestSettleEIP3009_InvalidBroadcastHashIsTerminal(t *testing.T) {
+	payload, requirements := plainEIP3009Payload(t)
+	signer := deployedCodeSigner(fmt.Errorf("rpc: timeout waiting for receipt"))
+	signer.writeTxHash = "0xnothash"
+	scheme := NewExactEvmScheme(signer, &ExactEvmSchemeConfig{})
+
+	_, err := scheme.Settle(context.Background(), payload, requirements, nil)
+	if err == nil {
+		t.Fatal("expected error when the signer returns an invalid transaction hash")
+	}
+	assertSettleErr(t, err, ErrTransactionFailed, "")
 }
 
 func TestSettlePermit2_ERC20ApprovalAtomicBundleSingleHashSucceeds(t *testing.T) {

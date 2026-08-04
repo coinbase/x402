@@ -29,6 +29,9 @@ type settleMockSigner struct {
 	// receiptErr, when set, is returned from WaitForTransactionReceipt to model a broadcast
 	// transaction whose confirmation could not be established (RPC error, timeout).
 	receiptErr error
+	// writeTxHash, when set, overrides the hash returned from WriteContract so tests can
+	// model a signer that reports success without a usable transaction hash.
+	writeTxHash string
 }
 
 func (m *settleMockSigner) GetAddresses() []string { return []string{"0xFac11"} }
@@ -49,6 +52,9 @@ func (m *settleMockSigner) VerifyTypedData(ctx context.Context, address string, 
 func (m *settleMockSigner) WriteContract(ctx context.Context, address string, abi []byte, functionName string, dataSuffix []byte, args ...interface{}) (string, error) {
 	if m.writeErr != nil {
 		return "", m.writeErr
+	}
+	if m.writeTxHash != "" {
+		return m.writeTxHash, nil
 	}
 	return "0x" + strings.Repeat("ab", 32), nil
 }

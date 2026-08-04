@@ -48,6 +48,12 @@ function rcWithSig(
   });
 }
 
+// Settle validates the broadcast hash before waiting on it, so mocks must return well-formed ones.
+const MOCK_TX_HASH = ("0x" + "a1".repeat(32)) as `0x${string}`;
+const MOCK_BROADCAST_TX_HASH = ("0x" + "b2".repeat(32)) as `0x${string}`;
+const MOCK_TRANSFER_TX_HASH = ("0x" + "c3".repeat(32)) as `0x${string}`;
+const MOCK_SETTLE_TX_HASH = ("0x" + "d4".repeat(32)) as `0x${string}`;
+
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
   let mockFacilitatorSigner: FacilitatorEvmSigner;
@@ -72,8 +78,8 @@ describe("ExactEvmScheme (Facilitator)", () => {
         return 0n;
       }),
       verifyTypedData: vi.fn().mockResolvedValue(true),
-      writeContract: vi.fn().mockResolvedValue("0xtxhash"),
-      sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
+      writeContract: vi.fn().mockResolvedValue(MOCK_TX_HASH),
+      sendTransaction: vi.fn().mockResolvedValue(MOCK_TX_HASH),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       // Default: asset is a deployed contract. Individual tests that need an EOA payer
       // should use mockGetCodeEOAPayer() to keep the asset as a contract.
@@ -577,7 +583,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.settle(permit2Payload, requirements);
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
       expect(result.payer).toBe(mockClientSigner.address);
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
     });
@@ -625,8 +631,53 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe(Errors.ErrSettlementPending);
-      expect(result.transaction).toBe("0xtxhash");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
       expect(result.payer).toBe(mockClientSigner.address);
+    });
+
+    it("should fail terminally when the signer reports success without a usable tx hash", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      mockFacilitatorSigner.readContract = rcWithSig(undefined);
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xnothash");
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(Errors.ErrInvalidTransactionState);
+      expect(result.transaction).toBe("");
+      expect(mockFacilitatorSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
 
     it("should fail Permit2 settlement when signature verification fails", async () => {
@@ -696,7 +747,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         resource: { url: "", description: "", mimeType: "" },
       };
 
-      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xbroadcasttx");
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue(MOCK_BROADCAST_TX_HASH);
       mockFacilitatorSigner.waitForTransactionReceipt = vi
         .fn()
         .mockRejectedValue(new Error("rpc: timeout waiting for receipt"));
@@ -705,7 +756,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe(Errors.ErrSettlementPending);
-      expect(result.transaction).toBe("0xbroadcasttx");
+      expect(result.transaction).toBe(MOCK_BROADCAST_TX_HASH);
     });
   });
 
@@ -1165,7 +1216,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
         .fn()
         .mockImplementation(mockGetCodeEOAPayer(erc6492Requirements.asset));
       mockFacilitatorSigner.sendTransaction = vi.fn().mockResolvedValue("0xdeploytx");
-      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xtransfertx");
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue(MOCK_TRANSFER_TX_HASH);
       mockFacilitatorSigner.waitForTransactionReceipt = vi
         .fn()
         .mockResolvedValue({ status: "success" });
@@ -1179,7 +1230,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       // Deploy tx was sent, then the transfer was submitted with the inner signature.
       expect(mockFacilitatorSigner.sendTransaction).toHaveBeenCalled();
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
-      expect(result.transaction).toBe("0xtransfertx");
+      expect(result.transaction).toBe(MOCK_TRANSFER_TX_HASH);
     });
 
     it("settle classifies a post-deploy transfer revert (deployed wallet rejects inner sig)", async () => {
@@ -1341,7 +1392,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.settle(payload, permit2Requirements);
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
 
       const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
         .calls[0][0];
@@ -1356,7 +1407,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.settle(payload, permit2Requirements);
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
 
       const writeCall = (mockFacilitatorSigner.writeContract as ReturnType<typeof vi.fn>).mock
         .calls[0][0];
@@ -1976,7 +2027,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(mockExtWaitForReceipt).not.toHaveBeenCalled();
       expect(result.success).toBe(false);
-      expect(result.errorReason).not.toBe(Errors.ErrSettlementPending);
+      expect(result.errorReason).toBe(Errors.ErrErc20ApprovalTxFailed);
       expect(result.transaction).toBe("");
     });
 
@@ -2177,7 +2228,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
     beforeEach(() => {
       mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(true);
       mockFacilitatorSigner.readContract = rcWithSig(0n);
-      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xsettletxhash");
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue(MOCK_SETTLE_TX_HASH);
       mockFacilitatorSigner.sendTransaction = vi.fn().mockResolvedValue("0xdeploytxhash");
       mockFacilitatorSigner.waitForTransactionReceipt = vi
         .fn()

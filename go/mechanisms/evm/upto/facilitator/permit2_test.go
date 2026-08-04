@@ -611,12 +611,36 @@ func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *
 	if err == nil {
 		t.Fatal("expected error when extension signer returns incomplete transaction hashes")
 	}
+	assertSettleError(t, err, ErrErc20ApprovalBroadcastFailed)
+
 	var se *x402.SettleError
 	if !errors.As(err, &se) {
 		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
 	}
-	if se.ErrorReason == ErrSettlementPending {
-		t.Errorf("must not report settlement_pending with an empty transaction hash, got reason=%q transaction=%q", se.ErrorReason, se.Transaction)
+	if se.Transaction != "" {
+		t.Errorf("expected empty transaction hash, got %q", se.Transaction)
+	}
+}
+
+// A signer that reports success without a usable hash must be terminal: settlement_pending is
+// only meaningful when the caller receives the broadcast hash to reconcile with.
+func TestSettleUptoPermit2_InvalidBroadcastHashIsTerminal(t *testing.T) {
+	signer := newMockSigner()
+	signer.writeContractTx = "0xnothash"
+	signer.receiptError = errors.New("timeout")
+
+	_, err := SettleUptoPermit2(context.Background(), signer, buildValidPayload(testFacilitatorAddr), buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), nil, false)
+	if err == nil {
+		t.Fatal("expected error when the signer returns an invalid transaction hash")
+	}
+	assertSettleError(t, err, ErrUptoTransactionFailed)
+
+	var se *x402.SettleError
+	if !errors.As(err, &se) {
+		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
+	}
+	if se.Transaction != "" {
+		t.Errorf("expected empty transaction hash, got %q", se.Transaction)
 	}
 }
 

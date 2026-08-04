@@ -429,6 +429,7 @@ export async function settleEIP3009(
       network: payload.accepted.network,
       payer,
     };
+  } catch (error) {
     // Preserve the raw revert text alongside the mapped code. The mapper collapses many
     // distinct on-chain reverts into a single reason (e.g. ErrInvalidSignature), so without
     // the original message the true cause is invisible to callers/operators.

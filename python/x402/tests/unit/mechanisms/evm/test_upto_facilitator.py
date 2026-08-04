@@ -8,6 +8,7 @@ from typing import Any
 from x402.mechanisms.evm import get_network_config
 from x402.mechanisms.evm.constants import (
     ERR_ASSET_NOT_DEPLOYED_CONTRACT,
+    ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_PERMIT2_AMOUNT_MISMATCH,
     ERR_PERMIT2_DEADLINE_EXPIRED,
     ERR_PERMIT2_INSUFFICIENT_BALANCE,
@@ -511,6 +512,32 @@ class TestSettle:
         assert result.success is False
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
+        # Nothing is known to have settled yet, so no amount is reported.
+        assert result.amount is None
+
+    def test_settle_invalid_broadcast_hash_is_terminal(self):
+        # settlement_pending needs the broadcast hash to be actionable, so a signer that
+        # reports success without a usable hash must fail terminally.
+        from unittest.mock import patch
+
+        class _InvalidHashSigner(MockFacilitatorSigner):
+            def write_contract(self, *args: Any, **kwargs: Any) -> str:
+                return "0xnothash"
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise AssertionError("must not wait on an invalid transaction hash")
+
+        facilitator = UptoEvmFacilitatorScheme(_InvalidHashSigner())
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_UPTO_TRANSACTION_FAILED
+        assert result.transaction == ""
 
     def test_settle_erc20_approval_invalid_settlement_hash_returned_without_error(self):
         # Malformed final hash without error must not proceed to receipt wait.
@@ -547,7 +574,7 @@ class TestSettle:
         )
 
         assert result.success is False
-        assert result.error_reason != ERR_SETTLEMENT_PENDING
+        assert result.error_reason == ERR_ERC20_APPROVAL_BROADCAST_FAILED
         assert result.transaction == ""
 
     def test_settle_erc20_approval_atomic_bundle_single_hash_succeeds(self):

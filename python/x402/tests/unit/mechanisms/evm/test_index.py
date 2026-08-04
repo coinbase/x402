@@ -27,6 +27,7 @@ from x402.mechanisms.evm import (
     hex_to_bytes,
     is_valid_address,
     is_valid_network,
+    is_valid_tx_hash,
     normalize_address,
     parse_amount,
     parse_money_to_decimal,
@@ -92,6 +93,29 @@ class TestIsValidAddress:
     def test_should_reject_addresses_with_invalid_characters(self):
         """Should reject addresses with invalid hex characters."""
         assert is_valid_address("0xGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv") is False
+
+
+class TestIsValidTxHash:
+    """Test is_valid_tx_hash function."""
+
+    def test_should_accept_well_formed_hashes(self):
+        """Should accept 0x-prefixed 32-byte hex hashes in either case."""
+        assert is_valid_tx_hash("0x" + "ab" * 32) is True
+        assert is_valid_tx_hash("0x" + "AB" * 32) is True
+
+    def test_should_reject_malformed_hashes(self):
+        """Should reject wrong lengths, missing prefix, and non-hex payloads."""
+        assert is_valid_tx_hash("") is False
+        assert is_valid_tx_hash("0xnothash") is False
+        assert is_valid_tx_hash("ab" * 32) is False  # Missing 0x prefix
+        assert is_valid_tx_hash("0x" + "ab" * 31) is False  # Too short
+        assert is_valid_tx_hash("0x" + "zz" * 32) is False  # Invalid hex
+
+    def test_should_reject_hex_literal_syntax(self):
+        """Should reject int()-parseable forms that are not valid hashes."""
+        assert is_valid_tx_hash("0x" + "1_" * 32) is False  # Digit separators
+        assert is_valid_tx_hash("0x " + "a" * 63) is False  # Leading whitespace
+        assert is_valid_tx_hash("0x+" + "a" * 63) is False  # Signed
 
 
 class TestNormalizeAddress:

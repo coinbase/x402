@@ -163,13 +163,7 @@ def normalize_address(address: str) -> str:
 
 def is_valid_tx_hash(tx_hash: str) -> bool:
     """True if 0x + 64 hex digits; for external signer hashes before receipt wait."""
-    if not tx_hash.startswith("0x") or len(tx_hash) != 66:
-        return False
-    try:
-        int(tx_hash[2:], 16)
-        return True
-    except ValueError:
-        return False
+    return re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is not None
 
 
 def is_valid_address(address: str) -> bool:

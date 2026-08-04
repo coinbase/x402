@@ -37,7 +37,7 @@ const (
 	ErrFailedToGetReceipt      = "invalid_exact_evm_failed_to_get_receipt"
 	ErrTransactionFailed       = "invalid_exact_evm_transaction_failed"
 	ErrTransferEventMismatch   = "invalid_exact_evm_transfer_event_mismatch"
-	ErrSettlementPending = evm.ErrSettlementPending // shared with upto
+	ErrSettlementPending       = evm.ErrSettlementPending // shared with upto
 
 	// Smart wallet errors (shared by EIP-3009 and Permit2)
 	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"

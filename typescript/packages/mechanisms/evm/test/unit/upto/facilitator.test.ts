@@ -13,7 +13,11 @@ import {
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
 } from "../../../src/upto/facilitator/errors";
-import { ErrSettlementPending } from "../../../src/exact/facilitator/errors";
+import {
+  ErrErc20ApprovalTxFailed,
+  ErrInvalidTransactionState,
+  ErrSettlementPending,
+} from "../../../src/exact/facilitator/errors";
 import type { UptoPermit2Payload } from "../../../src/types";
 import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/upto/extensions";
 
@@ -27,6 +31,9 @@ vi.mock("viem", async importOriginal => {
 });
 
 const FACILITATOR_ADDRESS = "0xFAC11174700123456789012345678901234aBCDe" as `0x${string}`;
+
+// Settle validates the broadcast hash before waiting on it, so mocks must return a well-formed one.
+const MOCK_TX_HASH = ("0x" + "12".repeat(32)) as `0x${string}`;
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -116,7 +123,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       getAddresses: () => [FACILITATOR_ADDRESS],
       readContract: rcWithSig(BigInt("999999999999999999")),
       verifyTypedData: vi.fn().mockResolvedValue(true),
-      writeContract: vi.fn().mockResolvedValue("0xtxhash1234" as `0x${string}`),
+      writeContract: vi.fn().mockResolvedValue(MOCK_TX_HASH),
       sendTransaction: vi.fn(),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       // Default: asset is a deployed contract. Tests that need an EOA payer
@@ -305,7 +312,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(makePayload(), makeRequirements());
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash1234");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
       expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
       expect(mockSigner.writeContract).toHaveBeenCalled();
     });
@@ -341,7 +348,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(makePayload(), makeRequirements({ amount: "500000" }));
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash1234");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
       expect(mockSigner.writeContract).toHaveBeenCalled();
 
       const writeCall = (mockSigner.writeContract as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -444,7 +451,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
         vi.clearAllMocks();
         mockSigner.readContract = rcWithSig(BigInt("999999999999999999"));
         mockSigner.verifyTypedData = vi.fn().mockResolvedValue(true);
-        mockSigner.writeContract = vi.fn().mockResolvedValue("0xtxhash1234" as `0x${string}`);
+        mockSigner.writeContract = vi.fn().mockResolvedValue(MOCK_TX_HASH);
         mockSigner.waitForTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
 
         const p2 = makePermit2Payload();
@@ -642,7 +649,21 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe(ErrSettlementPending);
-      expect(result.transaction).toBe("0xtxhash1234");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
+      // Nothing is known to have settled yet, so no amount is reported.
+      expect(result.amount).toBeUndefined();
+    });
+
+    it("should fail terminally when the signer reports success without a usable tx hash", async () => {
+      mockSigner.writeContract = vi.fn().mockResolvedValue("0xnothash");
+      mockSigner.waitForTransactionReceipt = vi.fn();
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrInvalidTransactionState);
+      expect(result.transaction).toBe("");
+      expect(mockSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
   });
 
@@ -687,7 +708,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(payload, eip2612Requirements);
 
       expect(result.success).toBe(true);
-      expect(result.transaction).toBe("0xtxhash1234");
+      expect(result.transaction).toBe(MOCK_TX_HASH);
 
       const writeCall = (mockSigner.writeContract as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(writeCall.functionName).toBe("settleWithPermit");
@@ -1059,7 +1080,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
       expect(mockExtWaitForReceipt).not.toHaveBeenCalled();
       expect(result.success).toBe(false);
-      expect(result.errorReason).not.toBe(ErrSettlementPending);
+      expect(result.errorReason).toBe(ErrErc20ApprovalTxFailed);
       expect(result.transaction).toBe("");
     });
 
