@@ -88,8 +88,7 @@ describe("hono end-to-end: percent-encoded line terminator under wildcard route"
           false,
         ),
       );
-      // Catch-all so an unprotected route returns 200, not 404, letting us
-      // tell "middleware skipped the route" apart from "framework 404".
+      // Catch-all so a skipped route is 200, distinct from a framework 404.
       app.all("*", c => c.text("ok", 200));
       return app;
     }

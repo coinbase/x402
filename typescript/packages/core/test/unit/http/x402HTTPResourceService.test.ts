@@ -746,11 +746,7 @@ describe("x402HTTPResourceServer", () => {
     });
 
     describe("percent-encoded line terminators (CAT f2e83cec)", () => {
-      // Wildcard patterns compile `*` to `.*?` without the dotAll ('s') flag,
-      // so `.` cannot match an ECMAScript LineTerminator (LF, CR, U+2028,
-      // U+2029). normalizePath() decodes percent-escapes before matching, so
-      // a percent-encoded line terminator in the request path turns into a
-      // literal character the wildcard can no longer match.
+      // Without dotAll, "." (from a "*" wildcard) can't match a decoded LineTerminator.
       it.each([
         ["U+2028 LINE SEPARATOR", "/api/premium/report%E2%80%A8"],
         ["U+2029 PARAGRAPH SEPARATOR", "/api/premium/report%E2%80%A9"],

@@ -72,8 +72,7 @@ describe("next end-to-end: percent-encoded line terminator under wildcard route"
 
   it("returns NextResponse.next() (middleware skipped) for an unrelated path", async () => {
     const res = await buildProxy()(new NextRequest("https://example.com/health"));
-    // NextResponse.next() is a passthrough marker, not a terminal response —
-    // it carries status 200 and the internal middleware-next signal header.
+    // NextResponse.next() is a 200 passthrough carrying this signal header.
     expect(res.status).toBe(200);
     expect(res.headers.get("x-middleware-next")).toBe("1");
   });

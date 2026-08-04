@@ -60,8 +60,7 @@ describe("fastify end-to-end: percent-encoded line terminator under wildcard rou
       // syncFacilitatorOnStart=false so the test does not try to call a real facilitator
       false,
     );
-    // Catch-all so an unprotected route returns 200, not 404, letting us
-    // tell "middleware skipped the route" apart from "framework 404".
+    // Catch-all so a skipped route is 200, distinct from a framework 404.
     app.all("/*", async (_req, reply) => reply.status(200).send("ok"));
 
     await app.listen({ port: 0, host: "127.0.0.1" });
