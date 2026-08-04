@@ -1944,6 +1944,53 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should fail with a terminal error when the extension signer returns no transaction hashes", async () => {
+      // If the extension signer returns no hashes without throwing, settle must treat it as a
+      // broadcast failure rather than proceeding to wait on an empty transaction hash (which
+      // would otherwise surface as settlement_pending with an empty `transaction`, violating
+      // the requirement that settlement_pending always carry the broadcast hash).
+      const { parseTransaction, recoverTransactionAddress } = await import("viem");
+      vi.mocked(parseTransaction).mockReturnValue({
+        to: TOKEN_ADDRESS,
+        data: APPROVE_CALLDATA as `0x${string}`,
+      } as any);
+      vi.mocked(recoverTransactionAddress).mockResolvedValue(PAYER);
+
+      mockFacilitatorSigner.readContract = rcWithSig(undefined);
+
+      const mockSendTransactions = vi.fn().mockResolvedValue([]);
+      const mockExtWaitForReceipt = vi.fn();
+
+      const mockContext = {
+        getExtension: vi.fn().mockImplementation((key: string) => {
+          if (key === ERC20_APPROVAL_GAS_SPONSORING_KEY) {
+            return {
+              key: ERC20_APPROVAL_GAS_SPONSORING_KEY,
+              signer: {
+                getAddresses: vi.fn().mockReturnValue([PAYER]),
+                readContract: mockFacilitatorSigner.readContract,
+                verifyTypedData: mockFacilitatorSigner.verifyTypedData,
+                writeContract: vi.fn(),
+                sendTransaction: vi.fn(),
+                waitForTransactionReceipt: mockExtWaitForReceipt,
+                getCode: vi.fn().mockResolvedValue("0x"),
+                sendTransactions: mockSendTransactions,
+              },
+            };
+          }
+          return undefined;
+        }),
+      };
+
+      const payload = makeErc20Permit2Payload(makeValidErc20Extension());
+      const result = await facilitator.settle(payload, erc20Requirements, mockContext);
+
+      expect(mockExtWaitForReceipt).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      expect(result.errorReason).not.toBe(Errors.ErrSettlementPending);
+      expect(result.transaction).toBe("");
+    });
+
     it("should resolve extension signer by network when signerForNetwork is present", async () => {
       const { parseTransaction, recoverTransactionAddress } = await import("viem");
       vi.mocked(parseTransaction).mockReturnValue({

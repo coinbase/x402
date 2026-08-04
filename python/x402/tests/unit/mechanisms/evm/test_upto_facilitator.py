@@ -15,6 +15,7 @@ from x402.mechanisms.evm.constants import (
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
     ERR_UPTO_FACILITATOR_MISMATCH,
     ERR_UPTO_INVALID_SCHEME,
     ERR_UPTO_NETWORK_MISMATCH,
@@ -490,6 +491,70 @@ class TestSettle:
             result = facilitator.settle(make_payment_payload(), make_requirements())
 
         assert result.success is False
+
+    def test_receipt_wait_failure_returns_settlement_pending(self):
+        # A receipt-wait failure after broadcast (RPC error, timeout) is non-terminal: the
+        # transfer may still land on chain, so settle must report `settlement_pending` with
+        # the broadcast transaction hash instead of a terminal error.
+        from unittest.mock import patch
+
+        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        signer = _ReceiptTimeoutSigner()
+        facilitator = UptoEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
+
+    def test_settle_erc20_approval_no_hashes_returned_without_error(self):
+        # If the extension signer returns no transaction hashes without raising, settle must
+        # treat it as a broadcast failure rather than proceeding to wait on an empty tx hash
+        # (which would otherwise surface as settlement_pending with an empty `transaction`,
+        # violating the requirement that settlement_pending always carry the broadcast hash).
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.upto.permit2_utils import (
+            _settle_upto_with_erc20_approval,
+        )
+
+        class _NoHashExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return []
+
+        permit2_payload = UptoPermit2Payload(
+            permit2_authorization=make_upto_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_UPTO_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_upto_with_erc20_approval(
+            _NoHashExtensionSigner(),
+            make_payment_payload(),
+            permit2_payload,
+            erc20_info,
+            settlement_amount=int(AMOUNT),
+        )
+
+        assert result.success is False
+        assert result.error_reason != ERR_SETTLEMENT_PENDING
+        assert result.transaction == ""
 
     def test_partial_settlement_below_max(self):
         """Settle for 500 when max authorized is 1000."""

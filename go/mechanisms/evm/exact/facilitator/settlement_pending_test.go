@@ -9,6 +9,7 @@ import (
 	"time"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	"github.com/x402-foundation/x402/go/v2/types"
 )
@@ -80,6 +81,94 @@ func TestSettleEIP3009_ReceiptWaitFailureReturnsSettlementPending(t *testing.T) 
 	wantTxHash := "0x" + strings.Repeat("ab", 32) // fixed hash returned by settleMockSigner.WriteContract
 	if se.Transaction != wantTxHash {
 		t.Fatalf("expected transaction %q preserved despite receipt-wait failure, got %q", wantTxHash, se.Transaction)
+	}
+}
+
+// mockErc20ApprovalSigner wraps settleMockSigner with SendTransactions to satisfy
+// erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner for the ERC-20 approval branch.
+type mockErc20ApprovalSigner struct {
+	*settleMockSigner
+	sendTxHashes []string
+	sendTxErr    error
+}
+
+func (m *mockErc20ApprovalSigner) SendTransactions(ctx context.Context, transactions []erc20approvalgassponsor.TransactionRequest) ([]string, error) {
+	return m.sendTxHashes, m.sendTxErr
+}
+
+// If the extension signer returns no transaction hashes without an error, settle must treat
+// it as a broadcast failure rather than proceeding to wait on an empty tx hash (which would
+// otherwise surface as settlement_pending with an empty `transaction`, violating the spec
+// requirement that settlement_pending always carry the broadcast hash).
+func TestSettlePermit2_ERC20ApprovalNoHashesReturnedWithoutError(t *testing.T) {
+	const (
+		payer = "0x1234567890123456789012345678901234567890"
+		token = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+		payTo = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+	)
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:84532",
+		Amount:  "1000000",
+		Asset:   token,
+		PayTo:   payTo,
+	}
+	permit2Payload := &evm.ExactPermit2Payload{
+		Signature: "0x" + strings.Repeat("11", 65),
+		Permit2Authorization: evm.Permit2Authorization{
+			From: payer,
+			Permitted: evm.Permit2TokenPermissions{
+				Token:  token,
+				Amount: "1000000",
+			},
+			Spender:  evm.X402ExactPermit2ProxyAddress,
+			Nonce:    "1",
+			Deadline: fmt.Sprintf("%d", time.Now().Unix()+10000),
+			Witness: evm.Permit2Witness{
+				To:         payTo,
+				ValidAfter: "0",
+			},
+		},
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Payload:     permit2Payload.ToMap(),
+		Accepted:    requirements,
+		Extensions: map[string]interface{}{
+			erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
+				"info": &erc20approvalgassponsor.Info{
+					From:              payer,
+					Asset:             token,
+					Spender:           evm.PERMIT2Address,
+					Amount:            "1000000",
+					SignedTransaction: "0x02",
+					Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
+				},
+			},
+		},
+	}
+	signer := &settleMockSigner{
+		codeByAddress: map[string][]byte{
+			strings.ToLower(token): {0x60, 0x60},
+			strings.ToLower(payer): {0x60, 0x60},
+		},
+	}
+	extSigner := &mockErc20ApprovalSigner{settleMockSigner: &settleMockSigner{}}
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
+	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
+	})
+
+	_, err := SettlePermit2(context.Background(), signer, payload, requirements, permit2Payload, facilCtx, nil)
+	if err == nil {
+		t.Fatal("expected error when extension signer returns no transaction hashes")
+	}
+	se := &x402.SettleError{}
+	if !errors.As(err, &se) {
+		t.Fatalf("expected *x402.SettleError, got %T: %v", err, err)
+	}
+	if se.ErrorReason == ErrSettlementPending {
+		t.Errorf("must not report settlement_pending with an empty transaction hash, got reason=%q transaction=%q", se.ErrorReason, se.Transaction)
 	}
 }
 

@@ -36,6 +36,7 @@ from ..constants import (  # noqa: E402
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
     ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED,
     ERR_UPTO_FACILITATOR_MISMATCH,
     ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG,
@@ -585,6 +586,49 @@ def settle_upto_permit2(
     )
 
 
+def _wait_for_receipt_and_build_response(
+    signer: Any,
+    tx_hash: str,
+    network: str,
+    payer: str,
+    settlement_amount: int,
+) -> SettleResponse:
+    """Waits for a transaction receipt and builds the corresponding settlement response.
+
+    A receipt-wait failure (RPC error, timeout) after broadcast is non-terminal: the transfer
+    may still land on chain, so it is reported as `settlement_pending` with the broadcast
+    transaction hash instead of a false-negative terminal failure.
+    """
+    try:
+        receipt = signer.wait_for_transaction_receipt(tx_hash)
+    except Exception as e:
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLEMENT_PENDING,
+            error_message=str(e),
+            transaction=tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    if receipt.status != TX_STATUS_SUCCESS:
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_UPTO_TRANSACTION_FAILED,
+            transaction=tx_hash,
+            network=network,
+            payer=payer,
+        )
+
+    return SettleResponse(
+        success=True,
+        transaction=tx_hash,
+        network=network,
+        payer=payer,
+        amount=str(settlement_amount),
+    )
+
+
 def _build_upto_permit2_settle_args(
     permit2_payload: UptoPermit2Payload,
     settlement_amount: int,
@@ -641,22 +685,8 @@ def _settle_upto_direct(
             data_suffix=data_suffix,
         )
 
-        receipt = signer.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_UPTO_TRANSACTION_FAILED,
-                transaction=tx_hash,
-                network=network,
-                payer=payer,
-            )
-
-        return SettleResponse(
-            success=True,
-            transaction=tx_hash,
-            network=network,
-            payer=payer,
-            amount=str(settlement_amount),
+        return _wait_for_receipt_and_build_response(
+            signer, tx_hash, network, payer, settlement_amount
         )
 
     except Exception as e:
@@ -711,22 +741,8 @@ def _settle_upto_with_eip2612(
             data_suffix=data_suffix,
         )
 
-        receipt = signer.wait_for_transaction_receipt(tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_UPTO_TRANSACTION_FAILED,
-                transaction=tx_hash,
-                network=network,
-                payer=payer,
-            )
-
-        return SettleResponse(
-            success=True,
-            transaction=tx_hash,
-            network=network,
-            payer=payer,
-            amount=str(settlement_amount),
+        return _wait_for_receipt_and_build_response(
+            signer, tx_hash, network, payer, settlement_amount
         )
 
     except Exception as e:
@@ -765,23 +781,18 @@ def _settle_upto_with_erc20_approval(
             ]
         )
 
-        settle_tx_hash = tx_hashes[-1] if tx_hashes else ""
-        receipt = extension_signer.wait_for_transaction_receipt(settle_tx_hash)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_UPTO_TRANSACTION_FAILED,
-                transaction=settle_tx_hash,
-                network=network,
-                payer=payer,
+        if not tx_hashes:
+            # Extension signer returned no hashes without raising. Treat as a broadcast
+            # failure rather than proceeding to wait on an empty transaction hash (which
+            # would otherwise surface as settlement_pending with an empty `transaction`,
+            # violating the requirement that settlement_pending always carry the hash).
+            raise RuntimeError(
+                "erc20_approval_tx_failed: extension signer returned no transaction hashes"
             )
 
-        return SettleResponse(
-            success=True,
-            transaction=settle_tx_hash,
-            network=network,
-            payer=payer,
-            amount=str(settlement_amount),
+        settle_tx_hash = tx_hashes[-1]
+        return _wait_for_receipt_and_build_response(
+            extension_signer, settle_tx_hash, network, payer, settlement_amount
         )
 
     except Exception as e:

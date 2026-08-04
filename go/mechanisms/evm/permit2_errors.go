@@ -39,3 +39,9 @@ const (
 	ErrErc20ApprovalInsufficientEth = "erc20_approval_insufficient_eth_for_gas"
 	ErrErc20ApprovalBroadcastFailed = "erc20_approval_broadcast_failed"
 )
+
+// ErrSettlementPending indicates a settlement transaction was broadcast but its confirmation
+// could not be established (e.g. RPC error or timeout waiting for the receipt). Non-terminal:
+// the transfer may still land on chain, so this is returned with the broadcast transaction
+// hash instead of a false-negative terminal failure. Shared by the exact and upto facilitators.
+const ErrSettlementPending = "settlement_pending"

@@ -36,11 +36,8 @@ const (
 	ErrFailedToExecuteTransfer = "invalid_exact_evm_failed_to_execute_transfer"
 	ErrTransactionFailed       = "invalid_exact_evm_transaction_failed"
 	ErrTransferEventMismatch   = "invalid_exact_evm_transfer_event_mismatch"
-	// ErrSettlementPending indicates the settlement transaction was broadcast but its
-	// confirmation could not be established (e.g. RPC error or timeout waiting for the
-	// receipt). Non-terminal: the transfer may still land on chain, so this is returned
-	// with the broadcast transaction hash instead of a false-negative terminal failure.
-	ErrSettlementPending = "settlement_pending"
+	// ErrSettlementPending — canonical value lives in evm.ErrSettlementPending (shared with upto).
+	ErrSettlementPending = evm.ErrSettlementPending
 
 	// Smart wallet errors (shared by EIP-3009 and Permit2)
 	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"

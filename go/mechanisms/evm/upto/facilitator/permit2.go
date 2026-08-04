@@ -314,9 +314,14 @@ func SettleUptoPermit2(
 				{Serialized: erc20Info.SignedTransaction},
 				{Call: &settle},
 			})
-			if sendErr != nil {
+			switch {
+			case sendErr != nil:
 				err = sendErr
-			} else if len(txHashes) > 0 {
+			case len(txHashes) == 0:
+				// Extension signer returned no hashes without an error. Treat as a broadcast
+				// failure rather than proceeding to wait on an empty transaction hash.
+				err = fmt.Errorf("erc20_approval_tx_failed: extension signer returned no transaction hashes")
+			default:
 				txHash = txHashes[len(txHashes)-1]
 			}
 		} else {
@@ -364,7 +369,7 @@ func SettleUptoPermit2(
 	}
 	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrUptoFailedToGetReceipt, payer, network, txHash, err.Error())
+		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash, err.Error())
 	}
 
 	if receipt.Status != evm.TxStatusSuccess {
