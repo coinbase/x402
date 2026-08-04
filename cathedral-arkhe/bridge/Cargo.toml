@@ -31,5 +31,6 @@ axum = "0.7"
 prometheus = { version = "0.13", features = ["process"] }
 lazy_static = "1.4"
 cathedral-atlassian = { path = "../cathedral-atlassian" }
+tower-http = { version = "0.7.0", features = ["compression-full"] }
 [build-dependencies]
 tonic-build.workspace = true

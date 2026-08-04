@@ -15,6 +15,7 @@ members = [
     "zk-circuits",
     "test-utils",
     "tests",
+    "timechain",
 ]
 
 [workspace.package]
