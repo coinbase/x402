@@ -546,9 +546,6 @@ func TestSettleUptoPermit2_ReceiptStatusFailed(t *testing.T) {
 }
 
 func TestSettleUptoPermit2_ReceiptError(t *testing.T) {
-	// A receipt-wait failure after broadcast (RPC error, timeout) is non-terminal: the
-	// transfer may still land on chain. Settle must report `settlement_pending` with the
-	// broadcast transaction hash rather than a terminal error.
 	signer := newMockSigner()
 	signer.receiptError = errors.New("timeout")
 
@@ -579,17 +576,18 @@ func (m *mockErc20ApprovalSigner) SendTransactions(ctx context.Context, transact
 	return m.sendTxHashes, m.sendTxErr
 }
 
-func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *testing.T) {
-	signer := newMockSigner()
-	extSigner := &mockErc20ApprovalSigner{
-		mockFacilitatorSigner: newMockSigner(),
-		sendTxHashes:          []string{"0xapproval"},
+func erc20ApprovalSettleCtx(sendTxHashes []string, receiptErr error) (*x402.FacilitatorContext, types.PaymentPayload) {
+	extMock := newMockSigner()
+	extMock.receiptError = receiptErr
+	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
+		Signer: &mockErc20ApprovalSigner{
+			mockFacilitatorSigner: extMock,
+			sendTxHashes:          sendTxHashes,
+		},
 	}
-	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
 	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
 		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
 	})
-
 	payload := buildValidPayload(testFacilitatorAddr)
 	payload.Extensions = map[string]interface{}{
 		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
@@ -603,8 +601,13 @@ func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *
 			},
 		},
 	}
+	return facilCtx, payload
+}
 
-	_, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
+func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *testing.T) {
+	facilCtx, payload := erc20ApprovalSettleCtx([]string{"0xapproval"}, nil)
+
+	_, err := SettleUptoPermit2(context.Background(), newMockSigner(), payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
 	if err == nil {
 		t.Fatal("expected error when extension signer returns incomplete transaction hashes")
 	}
@@ -617,37 +620,11 @@ func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *
 	}
 }
 
-// An extension signer may bundle the approval + settle transactions atomically (e.g.
-// Flashbots, smart account batching) and return a single hash for the bundle rather than
-// one hash per input. Settle must accept this and use that hash as the settlement
-// transaction rather than requiring exactly one hash per submitted transaction.
 func TestSettleUptoPermit2_ERC20ApprovalAtomicBundleSingleHashSucceeds(t *testing.T) {
-	signer := newMockSigner()
 	bundleHash := "0x" + strings.Repeat("ef", 32)
-	extSigner := &mockErc20ApprovalSigner{
-		mockFacilitatorSigner: newMockSigner(),
-		sendTxHashes:          []string{bundleHash},
-	}
-	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
-	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
-		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
-	})
+	facilCtx, payload := erc20ApprovalSettleCtx([]string{bundleHash}, nil)
 
-	payload := buildValidPayload(testFacilitatorAddr)
-	payload.Extensions = map[string]interface{}{
-		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
-			"info": &erc20approvalgassponsor.Info{
-				From:              testPayerAddr,
-				Asset:             testTokenAddr,
-				Spender:           evm.PERMIT2Address,
-				Amount:            testAmount,
-				SignedTransaction: "0x02",
-				Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
-			},
-		},
-	}
-
-	resp, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
+	resp, err := SettleUptoPermit2(context.Background(), newMockSigner(), payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
 	if err != nil {
 		t.Fatalf("expected success with a single bundled hash, got error: %v", err)
 	}
@@ -656,41 +633,14 @@ func TestSettleUptoPermit2_ERC20ApprovalAtomicBundleSingleHashSucceeds(t *testin
 	}
 }
 
-// A receipt-wait failure on the extension signer (used for the ERC-20 approval gas
-// sponsoring branch) is just as non-terminal as one on the default signer: the settlement
-// transaction was still broadcast, so settle must report `settlement_pending` with the
-// broadcast hash rather than a terminal error.
 func TestSettleUptoPermit2_ERC20ApprovalExtensionReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
-	signer := newMockSigner()
 	settleHash := "0x" + strings.Repeat("ef", 32)
-	extSigner := &mockErc20ApprovalSigner{
-		mockFacilitatorSigner: func() *mockFacilitatorSigner {
-			s := newMockSigner()
-			s.receiptError = errors.New("rpc: timeout waiting for receipt")
-			return s
-		}(),
-		sendTxHashes: []string{"0x" + strings.Repeat("11", 32), settleHash},
-	}
-	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
-	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
-		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
-	})
+	facilCtx, payload := erc20ApprovalSettleCtx(
+		[]string{"0x" + strings.Repeat("11", 32), settleHash},
+		errors.New("rpc: timeout waiting for receipt"),
+	)
 
-	payload := buildValidPayload(testFacilitatorAddr)
-	payload.Extensions = map[string]interface{}{
-		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): map[string]interface{}{
-			"info": &erc20approvalgassponsor.Info{
-				From:              testPayerAddr,
-				Asset:             testTokenAddr,
-				Spender:           evm.PERMIT2Address,
-				Amount:            testAmount,
-				SignedTransaction: "0x02",
-				Version:           erc20approvalgassponsor.ERC20ApprovalGasSponsoringVersion,
-			},
-		},
-	}
-
-	resp, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
+	resp, err := SettleUptoPermit2(context.Background(), newMockSigner(), payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
 	if err == nil {
 		t.Fatalf("expected settlement_pending error, got success: %+v", resp)
 	}

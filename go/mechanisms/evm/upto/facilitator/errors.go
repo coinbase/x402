@@ -16,8 +16,7 @@ const (
 	ErrUptoFailedToGetReceipt       = "invalid_upto_evm_failed_to_get_receipt"
 	ErrUptoTransactionFailed        = "invalid_upto_evm_transaction_failed"
 
-	// ErrSettlementPending — canonical value lives in evm.ErrSettlementPending (shared with exact).
-	ErrSettlementPending = evm.ErrSettlementPending
+	ErrSettlementPending = evm.ErrSettlementPending // shared with exact
 
 	// Shared Permit2 error constants — canonical values live in evm.ErrPermit2*
 	ErrPermit2InvalidSpender      = evm.ErrPermit2InvalidSpender
@@ -38,6 +37,7 @@ const (
 	ErrPermit2ProxyNotDeployed    = evm.ErrPermit2ProxyNotDeployed
 	ErrPermit2AllowanceRequired   = evm.ErrPermit2AllowanceRequired
 
+	ErrErc20ApprovalTxFailed        = "erc20_approval_tx_failed"
 	ErrErc20ApprovalInsufficientEth = evm.ErrErc20ApprovalInsufficientEth
 	ErrErc20ApprovalBroadcastFailed = evm.ErrErc20ApprovalBroadcastFailed
 

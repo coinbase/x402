@@ -583,10 +583,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should report settlement_pending with the broadcast tx hash when the receipt wait fails", async () => {
-      // Broadcast succeeded (writeContract resolved) but confirmation could not be
-      // established (RPC error, timeout). Non-terminal — the transfer may still land
-      // on chain — so it must surface as settlement_pending with the tx hash instead
-      // of falling into the generic catch, which would discard it.
       const requirements: PaymentRequirements = {
         scheme: "exact",
         network: "eip155:84532",
@@ -683,10 +679,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
   describe("EIP-3009 settlement", () => {
     it("should report settlement_pending with the broadcast tx hash when the receipt wait fails", async () => {
-      // Broadcast succeeded (writeContract resolved) but confirmation could not be
-      // established (RPC error, timeout). Non-terminal — the transfer may still land
-      // on chain — so it must surface as settlement_pending with the tx hash instead
-      // of falling into the generic catch, which would discard it.
       const requirements: PaymentRequirements = {
         scheme: "exact",
         network: "eip155:84532",
@@ -2034,10 +2026,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
     });
 
     it("should report settlement_pending when the extension signer's receipt wait fails", async () => {
-      // A receipt-wait failure on the extension signer is just as non-terminal as one on
-      // the default signer: the settlement transaction was still broadcast, so settle
-      // must report settlement_pending with the broadcast hash rather than a terminal
-      // error.
       const { parseTransaction, recoverTransactionAddress } = await import("viem");
       vi.mocked(parseTransaction).mockReturnValue({
         to: TOKEN_ADDRESS,

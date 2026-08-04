@@ -337,10 +337,7 @@ ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_conf
 ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
 ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
-# The settlement transaction was broadcast but its confirmation could not be established
-# (e.g. RPC error or timeout waiting for the receipt). Non-terminal: the transfer may still
-# land on chain, so this is returned instead of a false-negative terminal failure, with the
-# broadcast transaction hash so the caller can reconcile on chain before retrying.
+# Broadcast succeeded; receipt wait failed (RPC/timeout). Non-terminal — return with tx hash.
 ERR_SETTLEMENT_PENDING = "settlement_pending"
 ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
 ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
@@ -370,6 +367,7 @@ ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED = "upto_amount_exceeds_permitted"
 ERR_UPTO_UNAUTHORIZED_FACILITATOR = "upto_unauthorized_facilitator"
 ERR_UPTO_TRANSACTION_FAILED = "invalid_upto_evm_transaction_failed"
 ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG = "invalid_upto_evm_failed_to_get_network_config"
+ERR_ERC20_APPROVAL_TX_FAILED = "erc20_approval_tx_failed"
 ERR_ERC20_APPROVAL_BROADCAST_FAILED = "erc20_approval_broadcast_failed"
 
 

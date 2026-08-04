@@ -444,9 +444,7 @@ class ExactEvmScheme:
             try:
                 receipt = self._signer.wait_for_transaction_receipt(tx_hash)
             except Exception as e:
-                # Broadcast succeeded but confirmation could not be established (RPC error,
-                # timeout). Non-terminal: the transfer may still land on chain, so this must
-                # not be conflated with the generic except below, which discards tx_hash.
+                # Must not fall into the outer catch, which discards tx_hash.
                 logger.warning(
                     "exact settle: wait_for_transaction_receipt failed payer=%s tx=%s: %s",
                     payer,

@@ -603,9 +603,6 @@ class TestSettle:
         assert signer.write_calls == 1
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
-        # A receipt-wait failure after broadcast (RPC error, timeout) is non-terminal: the
-        # transfer may still land on chain, so settle must report `settlement_pending` with
-        # the broadcast transaction hash instead of losing it behind a generic error.
         class _ReceiptTimeoutSigner(MockFacilitatorSigner):
             def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
                 raise TimeoutError("rpc: timeout waiting for receipt")

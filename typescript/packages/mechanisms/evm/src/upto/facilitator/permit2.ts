@@ -23,6 +23,7 @@ import {
 } from "../../constants";
 import {
   ErrAssetNotDeployedContract,
+  ErrErc20ApprovalTxFailed,
   ErrPermit2AmountMismatch,
   ErrUptoSettlementExceedsAmount,
   ErrUptoFacilitatorMismatch,
@@ -550,14 +551,11 @@ async function settleUptoWithERC20Approval(
       { to: uptoProxyConfig.proxyAddress, data: settleData, gas: BigInt(300_000) },
     ]);
 
-    // The signer owns execution strategy: it may broadcast sequentially (one hash per
-    // input) or bundle atomically (e.g. Flashbots, smart account batching), returning
-    // fewer hashes. Only the final hash — the settlement transaction — needs to be
-    // validated before waiting on its receipt.
+    // Accept sequential or atomic-bundle hashes; validate final settlement hash only.
     const settleTxHash = txHashes[txHashes.length - 1];
     if (!settleTxHash || !isHash(settleTxHash)) {
       throw new Error(
-        "erc20_approval_tx_failed: extension signer returned no valid settlement transaction hash",
+        `${ErrErc20ApprovalTxFailed}: extension signer returned no valid settlement transaction hash`,
       );
     }
 

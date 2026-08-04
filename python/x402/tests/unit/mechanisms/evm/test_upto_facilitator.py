@@ -493,9 +493,6 @@ class TestSettle:
         assert result.success is False
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
-        # A receipt-wait failure after broadcast (RPC error, timeout) is non-terminal: the
-        # transfer may still land on chain, so settle must report `settlement_pending` with
-        # the broadcast transaction hash instead of a terminal error.
         from unittest.mock import patch
 
         class _ReceiptTimeoutSigner(MockFacilitatorSigner):
@@ -516,10 +513,7 @@ class TestSettle:
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
     def test_settle_erc20_approval_invalid_settlement_hash_returned_without_error(self):
-        # If the extension signer returns a malformed final hash without raising, settle
-        # must treat it as a broadcast failure rather than proceeding to wait on it (which
-        # would otherwise surface as settlement_pending with an invalid `transaction`,
-        # violating the requirement that settlement_pending always carry a real broadcast hash).
+        # Malformed final hash without error must not proceed to receipt wait.
         from x402.extensions.erc20_approval_gas_sponsoring import (
             Erc20ApprovalGasSponsoringInfo,
         )
@@ -557,10 +551,6 @@ class TestSettle:
         assert result.transaction == ""
 
     def test_settle_erc20_approval_atomic_bundle_single_hash_succeeds(self):
-        # The extension signer owns execution strategy: it may bundle the approval +
-        # settle transactions atomically (e.g. Flashbots, smart account batching) and
-        # return a single hash for the bundle rather than one hash per input. Settle must
-        # accept this and use that hash as the settlement transaction.
         from x402.extensions.erc20_approval_gas_sponsoring import (
             Erc20ApprovalGasSponsoringInfo,
         )
@@ -604,10 +594,6 @@ class TestSettle:
     def test_settle_erc20_approval_extension_receipt_wait_failure_returns_settlement_pending(
         self,
     ):
-        # A receipt-wait failure on the extension signer (used for the ERC-20 approval gas
-        # sponsoring branch) is just as non-terminal as one on the default signer: the
-        # settlement transaction was still broadcast, so settle must report
-        # `settlement_pending` with the broadcast hash rather than a terminal error.
         from x402.extensions.erc20_approval_gas_sponsoring import (
             Erc20ApprovalGasSponsoringInfo,
         )

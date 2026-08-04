@@ -6,19 +6,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"regexp"
 	"strings"
 	"time"
 )
 
-// txHashRe matches a canonical 32-byte transaction hash: 0x followed by exactly 64 hex digits.
-var txHashRe = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)
-
-// IsValidTxHash checks whether a string is a well-formed 32-byte transaction hash.
-// Used to validate hashes returned by external signers (e.g. multi-transaction
-// extension signers) before trusting them for a receipt wait.
+// IsValidTxHash validates external-signer hashes before a receipt wait.
 func IsValidTxHash(hash string) bool {
-	return txHashRe.MatchString(hash)
+	if len(hash) != 66 || !strings.HasPrefix(hash, "0x") {
+		return false
+	}
+	_, err := hex.DecodeString(hash[2:])
+	return err == nil
 }
 
 // GetEvmChainId returns the chain ID for a given CAIP-2 network identifier (eip155:CHAIN_ID).

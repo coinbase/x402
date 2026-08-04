@@ -37,6 +37,7 @@ export {
   ErrErc20ApprovalTxInvalidCalldata,
   ErrErc20ApprovalTxSignerMismatch,
   ErrErc20ApprovalTxInvalidSignature,
+  ErrErc20ApprovalTxFailed,
   ErrErc20ApprovalTxParseFailed,
 } from "../../exact/facilitator/errors";
 

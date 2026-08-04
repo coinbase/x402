@@ -481,14 +481,11 @@ async function settlePermit2WithERC20Approval(
       { to: config.proxyAddress, data: settleData, gas: BigInt(300_000) },
     ]);
 
-    // The signer owns execution strategy: it may broadcast sequentially (one hash per
-    // input) or bundle atomically (e.g. Flashbots, smart account batching), returning
-    // fewer hashes. Only the final hash — the settlement transaction — needs to be
-    // validated before waiting on its receipt.
+    // Accept sequential or atomic-bundle hashes; validate final settlement hash only.
     const settleTxHash = txHashes[txHashes.length - 1];
     if (!settleTxHash || !isHash(settleTxHash)) {
       throw new Error(
-        "erc20_approval_tx_failed: extension signer returned no valid settlement transaction hash",
+        `${Errors.ErrErc20ApprovalTxFailed}: extension signer returned no valid settlement transaction hash`,
       );
     }
 

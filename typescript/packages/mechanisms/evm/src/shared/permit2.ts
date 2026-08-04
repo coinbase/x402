@@ -172,14 +172,13 @@ export async function waitAndReturnSettleResponse(
   tx: `0x${string}`,
   payload: PaymentPayload,
   payer: `0x${string}`,
+  failedStatusReason: string = ErrInvalidTransactionState,
 ): Promise<SettleResponse> {
   let receipt;
   try {
     receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
-    // Broadcast succeeded but confirmation could not be established (RPC error, timeout).
-    // Non-terminal: the transfer may still land on chain, so surface `settlement_pending`
-    // with the tx hash instead of letting the caller's generic catch discard it.
+    // Must not fall into the caller's generic catch, which would discard the tx hash.
     return {
       success: false,
       errorReason: ErrSettlementPending,
@@ -193,7 +192,7 @@ export async function waitAndReturnSettleResponse(
   if (receipt.status !== "success") {
     return {
       success: false,
-      errorReason: ErrInvalidTransactionState,
+      errorReason: failedStatusReason,
       transaction: tx,
       network: payload.accepted.network,
       payer,
