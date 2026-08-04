@@ -1165,7 +1165,11 @@ export class x402HTTPResourceServer {
           .replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "[^/]+") // Parameters (Express style :param)
           .replace(/\//g, "\\/") // Escape slashes
       }$`,
-      "i",
+      // "s" (dotAll) so a "*" wildcard's ".*?" also matches literal
+      // LineTerminator code points (LF, CR, U+2028, U+2029) that
+      // normalizePath() may produce via decodeURIComponent; otherwise those
+      // bytes make the route regex fail to match and skip payment entirely.
+      "is",
     );
 
     return { verb: verb.toUpperCase(), regex, path };
