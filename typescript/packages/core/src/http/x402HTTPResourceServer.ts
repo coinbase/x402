@@ -1165,7 +1165,8 @@ export class x402HTTPResourceServer {
           .replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "[^/]+") // Parameters (Express style :param)
           .replace(/\//g, "\\/") // Escape slashes
       }$`,
-      "i",
+      // "s" (dotAll): without it, "." can't match LF/CR/U+2028/U+2029, so a wildcard segment containing one fails to match.
+      "is",
     );
 
     return { verb: verb.toUpperCase(), regex, path };
