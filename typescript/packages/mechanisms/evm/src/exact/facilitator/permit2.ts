@@ -481,12 +481,10 @@ async function settlePermit2WithERC20Approval(
       { to: config.proxyAddress, data: settleData, gas: BigInt(300_000) },
     ]);
 
-    if (txHashes.length === 0) {
-      // Extension signer returned no hashes without throwing. Treat as a broadcast failure
-      // rather than proceeding to wait on an empty transaction hash (which would otherwise
-      // surface as settlement_pending with an empty `transaction`, violating the requirement
-      // that settlement_pending always carry the broadcast hash).
-      throw new Error("erc20_approval_tx_failed: extension signer returned no transaction hashes");
+    if (txHashes.length !== 2 || txHashes.some(hash => !hash)) {
+      throw new Error(
+        "erc20_approval_tx_failed: extension signer returned incomplete transaction hashes",
+      );
     }
 
     const settleTxHash = txHashes[txHashes.length - 1];

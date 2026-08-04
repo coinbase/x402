@@ -34,6 +34,7 @@ const (
 	ErrFailedToParseSignature  = "invalid_exact_evm_failed_to_parse_signature"
 	ErrFailedToCheckDeployment = "invalid_exact_evm_failed_to_check_deployment"
 	ErrFailedToExecuteTransfer = "invalid_exact_evm_failed_to_execute_transfer"
+	ErrFailedToGetReceipt      = "invalid_exact_evm_failed_to_get_receipt"
 	ErrTransactionFailed       = "invalid_exact_evm_transaction_failed"
 	ErrTransferEventMismatch   = "invalid_exact_evm_transfer_event_mismatch"
 	// ErrSettlementPending — canonical value lives in evm.ErrSettlementPending (shared with upto).

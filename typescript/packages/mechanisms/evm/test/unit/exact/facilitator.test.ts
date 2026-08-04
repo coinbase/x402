@@ -1902,8 +1902,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
       // settle's re-verify has simulate=false, so no simulation calls
       mockFacilitatorSigner.readContract = rcWithSig(undefined);
 
+      const APPROVAL_TX_HASH = "0xapproval_tx_hash_mock" as `0x${string}`;
       const SETTLE_TX_HASH = "0xsettle_tx_hash_mock" as `0x${string}`;
-      const mockSendTransactions = vi.fn().mockResolvedValue([SETTLE_TX_HASH]);
+      const mockSendTransactions = vi.fn().mockResolvedValue([APPROVAL_TX_HASH, SETTLE_TX_HASH]);
       const mockExtWaitForReceipt = vi.fn().mockResolvedValue({ status: "success" });
 
       // Extension signer has all FacilitatorEvmSigner methods + sendTransactions
@@ -1944,11 +1945,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.success).toBe(true);
     });
 
-    it("should fail with a terminal error when the extension signer returns no transaction hashes", async () => {
-      // If the extension signer returns no hashes without throwing, settle must treat it as a
-      // broadcast failure rather than proceeding to wait on an empty transaction hash (which
-      // would otherwise surface as settlement_pending with an empty `transaction`, violating
-      // the requirement that settlement_pending always carry the broadcast hash).
+    it("should fail when the extension signer returns incomplete transaction hashes", async () => {
       const { parseTransaction, recoverTransactionAddress } = await import("viem");
       vi.mocked(parseTransaction).mockReturnValue({
         to: TOKEN_ADDRESS,
@@ -1958,7 +1955,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       mockFacilitatorSigner.readContract = rcWithSig(undefined);
 
-      const mockSendTransactions = vi.fn().mockResolvedValue([]);
+      const mockSendTransactions = vi.fn().mockResolvedValue(["0xapproval"]);
       const mockExtWaitForReceipt = vi.fn();
 
       const mockContext = {

@@ -579,13 +579,12 @@ func (m *mockErc20ApprovalSigner) SendTransactions(ctx context.Context, transact
 	return m.sendTxHashes, m.sendTxErr
 }
 
-func TestSettleUptoPermit2_ERC20ApprovalNoHashesReturnedWithoutError(t *testing.T) {
-	// If the extension signer returns no transaction hashes without an error, settle must
-	// treat it as a broadcast failure rather than proceeding to wait on an empty tx hash
-	// (which would otherwise surface as settlement_pending with an empty `transaction`,
-	// violating the spec requirement that settlement_pending always carry the broadcast hash).
+func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *testing.T) {
 	signer := newMockSigner()
-	extSigner := &mockErc20ApprovalSigner{mockFacilitatorSigner: newMockSigner()}
+	extSigner := &mockErc20ApprovalSigner{
+		mockFacilitatorSigner: newMockSigner(),
+		sendTxHashes:          []string{"0xapproval"},
+	}
 	ext := &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{Signer: extSigner}
 	facilCtx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
 		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): ext,
@@ -607,7 +606,7 @@ func TestSettleUptoPermit2_ERC20ApprovalNoHashesReturnedWithoutError(t *testing.
 
 	_, err := SettleUptoPermit2(context.Background(), signer, payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)
 	if err == nil {
-		t.Fatal("expected error when extension signer returns no transaction hashes")
+		t.Fatal("expected error when extension signer returns incomplete transaction hashes")
 	}
 	var se *x402.SettleError
 	if !errors.As(err, &se) {

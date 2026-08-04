@@ -781,13 +781,9 @@ def _settle_upto_with_erc20_approval(
             ]
         )
 
-        if not tx_hashes:
-            # Extension signer returned no hashes without raising. Treat as a broadcast
-            # failure rather than proceeding to wait on an empty transaction hash (which
-            # would otherwise surface as settlement_pending with an empty `transaction`,
-            # violating the requirement that settlement_pending always carry the hash).
+        if len(tx_hashes) != 2 or not all(tx_hashes):
             raise RuntimeError(
-                "erc20_approval_tx_failed: extension signer returned no transaction hashes"
+                "erc20_approval_tx_failed: extension signer returned incomplete transaction hashes"
             )
 
         settle_tx_hash = tx_hashes[-1]

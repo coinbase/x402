@@ -515,11 +515,7 @@ class TestSettle:
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
-    def test_settle_erc20_approval_no_hashes_returned_without_error(self):
-        # If the extension signer returns no transaction hashes without raising, settle must
-        # treat it as a broadcast failure rather than proceeding to wait on an empty tx hash
-        # (which would otherwise surface as settlement_pending with an empty `transaction`,
-        # violating the requirement that settlement_pending always carry the broadcast hash).
+    def test_settle_erc20_approval_incomplete_hashes_returned_without_error(self):
         from x402.extensions.erc20_approval_gas_sponsoring import (
             Erc20ApprovalGasSponsoringInfo,
         )
@@ -527,9 +523,9 @@ class TestSettle:
             _settle_upto_with_erc20_approval,
         )
 
-        class _NoHashExtensionSigner:
+        class _IncompleteHashExtensionSigner:
             def send_transactions(self, transactions: list[Any]) -> list[str]:
-                return []
+                return ["0xapproval"]
 
         permit2_payload = UptoPermit2Payload(
             permit2_authorization=make_upto_permit2_authorization(),
@@ -545,7 +541,7 @@ class TestSettle:
         )
 
         result = _settle_upto_with_erc20_approval(
-            _NoHashExtensionSigner(),
+            _IncompleteHashExtensionSigner(),
             make_payment_payload(),
             permit2_payload,
             erc20_info,

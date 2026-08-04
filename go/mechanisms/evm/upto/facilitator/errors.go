@@ -13,6 +13,7 @@ const (
 	ErrUptoFacilitatorMismatch      = "upto_facilitator_mismatch"
 	ErrUptoVerificationFailed       = "invalid_upto_evm_verification_failed"
 	ErrUptoFailedToGetNetworkConfig = "invalid_upto_evm_failed_to_get_network_config"
+	ErrUptoFailedToGetReceipt       = "invalid_upto_evm_failed_to_get_receipt"
 	ErrUptoTransactionFailed        = "invalid_upto_evm_transaction_failed"
 
 	// ErrSettlementPending — canonical value lives in evm.ErrSettlementPending (shared with exact).
