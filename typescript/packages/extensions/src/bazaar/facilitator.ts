@@ -79,6 +79,38 @@ export interface ValidationResult {
 }
 
 /**
+ * Recursively scans a decoded JSON Schema document for "$ref"/"$id" values that are not
+ * same-document fragments (i.e. do not start with "#").
+ *
+ * Ajv's default `compile()` does not fetch unresolved "$ref"/"$id" targets over the network
+ * (it throws `MissingRefError` instead), but only because this code calls the synchronous
+ * `compile()` rather than `compileAsync()` with a `loadSchema` option. This check makes that
+ * safety explicit and future-proof rather than incidental, and matches the same allowlist
+ * enforced by the Go and Python facilitator implementations (CWE-918 SSRF / local file read).
+ *
+ * @param node - A decoded JSON value (schema or subtree) to scan
+ * @returns true if an external (non-fragment) $ref or $id value is found
+ */
+function hasExternalSchemaReference(node: unknown): boolean {
+  if (Array.isArray(node)) {
+    return node.some(hasExternalSchemaReference);
+  }
+  if (node && typeof node === "object") {
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === "$ref" || key === "$id") {
+        if (typeof value !== "string" || !value.startsWith("#")) {
+          return true;
+        }
+      }
+      if (hasExternalSchemaReference(value)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Validates a discovery extension's info against its schema
  *
  * @param extension - The discovery extension containing info and schema
@@ -98,6 +130,13 @@ export interface ValidationResult {
  */
 export function validateDiscoveryExtension(extension: DiscoveryExtension): ValidationResult {
   try {
+    if (hasExternalSchemaReference(extension.schema)) {
+      return {
+        valid: false,
+        errors: ["schema must not contain external $ref/$id references"],
+      };
+    }
+
     const ajv = new Ajv({ strict: false, allErrors: true });
     const validate = ajv.compile(extension.schema);
 

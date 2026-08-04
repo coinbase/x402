@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import http from "node:http";
 import {
   BAZAAR,
   declareDiscoveryExtension,
@@ -252,6 +253,92 @@ describe("Bazaar Discovery Extension", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
       expect(result.errors!.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("validateDiscoveryExtension - SSRF via $ref/$id", () => {
+    // `schema` arrives in the client's payment payload, so a "$ref"/"$id" pointing at an
+    // absolute or relative URI is a CWE-918 SSRF vector if a validator dereferences it. Ajv's
+    // synchronous compile() already throws MissingRefError instead of fetching such refs (see
+    // go/extensions/bazaar and python/x402/extensions/bazaar for the equivalent Go/Python
+    // vulnerability and fix), but this guard makes that safety explicit and spec-compliant
+    // rather than relying on an Ajv implementation detail.
+    async function startCountingServer(): Promise<{ url: string; getHits: () => number }> {
+      let hits = 0;
+      const server = http.createServer((_req, res) => {
+        hits++;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ type: "object" }));
+      });
+      await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+      const address = server.address();
+      if (address === null || typeof address === "string") {
+        throw new Error("expected server to bind to a port");
+      }
+      return { url: `http://127.0.0.1:${address.port}`, getHits: () => hits };
+    }
+
+    it("should reject a schema with a $ref over http without dereferencing it", async () => {
+      const { url, getHits } = await startCountingServer();
+
+      const extension = {
+        info: { input: { type: "http", method: "GET" } },
+        schema: { $ref: `${url}/attacker-schema.json` },
+      } as unknown as DiscoveryExtension;
+
+      const result = validateDiscoveryExtension(extension);
+
+      expect(getHits()).toBe(0);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(["schema must not contain external $ref/$id references"]);
+    });
+
+    it("should reject a $ref nested inside schema properties", async () => {
+      const { url, getHits } = await startCountingServer();
+
+      const extension = {
+        info: { input: { type: "http", method: "GET" } },
+        schema: {
+          properties: { input: { $ref: `${url}/attacker-schema.json` } },
+        },
+      } as unknown as DiscoveryExtension;
+
+      const result = validateDiscoveryExtension(extension);
+
+      expect(getHits()).toBe(0);
+      expect(result.valid).toBe(false);
+    });
+
+    it("should reject a schema with an external $id", () => {
+      const extension = {
+        info: { input: { type: "http", method: "GET" } },
+        schema: { $id: "https://evil.example.com/schema.json", type: "object" },
+      } as unknown as DiscoveryExtension;
+
+      const result = validateDiscoveryExtension(extension);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(["schema must not contain external $ref/$id references"]);
+    });
+
+    it("should still validate schemas with only same-document fragment $ref", () => {
+      const extension = {
+        info: { input: { type: "http", method: "GET" } },
+        schema: {
+          $ref: "#/definitions/root",
+          definitions: {
+            root: {
+              type: "object",
+              properties: { input: { type: "object" } },
+              required: ["input"],
+            },
+          },
+        },
+      } as unknown as DiscoveryExtension;
+
+      const result = validateDiscoveryExtension(extension);
+
+      expect(result.valid).toBe(true);
     });
   });
 

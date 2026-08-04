@@ -1,5 +1,13 @@
 """Tests for Bazaar facilitator functions."""
 
+import json
+import os
+import pathlib
+import socket
+import subprocess
+import sys
+import threading
+
 from x402.extensions.bazaar import (
     BAZAAR,
     BodyDiscoveryInfo,
@@ -11,6 +19,58 @@ from x402.extensions.bazaar import (
     validate_discovery_extension,
 )
 from x402.extensions.bazaar.facilitator import _is_valid_route_template
+
+# This directory (python/x402/) sits directly on sys.path under pytest's rootdir, which makes
+# its own `http/`, `extensions/`, `mechanisms/`, `schemas/`, and `mcp/` source directories
+# importable as bare top-level names (`import http`, not just `import x402.http`). That shadows
+# the stdlib `http` package, which `urllib.request` (used internally by `jsonschema` to fetch
+# remote `$ref`s) imports internally — turning a real SSRF attempt into an unrelated ImportError
+# instead of an outbound request. The SSRF reproduction tests below run the actual validation
+# call in a subprocess rooted one directory up (`_PYTHON_DIR`, the parent of this `x402/`
+# package directory) so stdlib imports resolve normally, exactly as they would for anyone
+# depending on this package normally rather than running pytest from inside it.
+_PYTHON_DIR = pathlib.Path(__file__).resolve().parents[5]
+
+
+def _validate_discovery_extension_in_subprocess(schema: dict, info: dict) -> dict:
+    script = (
+        "import json, sys\n"
+        "from x402.extensions.bazaar import validate_discovery_extension\n"
+        "schema = json.loads(sys.argv[1])\n"
+        "info = json.loads(sys.argv[2])\n"
+        "result = validate_discovery_extension({'schema': schema, 'info': info})\n"
+        "print(json.dumps({'valid': result.valid, 'errors': result.errors}))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script, json.dumps(schema), json.dumps(info)],
+        cwd=str(_PYTHON_DIR),
+        env={**os.environ, "PYTHONPATH": str(_PYTHON_DIR)},
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert proc.returncode == 0, f"subprocess failed: {proc.stderr}"
+    return json.loads(proc.stdout)
+
+
+def _extract_discovery_info_in_subprocess(payload: dict) -> dict:
+    script = (
+        "import json, sys\n"
+        "from x402.extensions.bazaar import extract_discovery_info\n"
+        "payload = json.loads(sys.argv[1])\n"
+        "discovered = extract_discovery_info(payload, {}, validate=True)\n"
+        "print(json.dumps({'discovered': discovered is not None}))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script, json.dumps(payload)],
+        cwd=str(_PYTHON_DIR),
+        env={**os.environ, "PYTHONPATH": str(_PYTHON_DIR)},
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert proc.returncode == 0, f"subprocess failed: {proc.stderr}"
+    return json.loads(proc.stdout)
 
 
 class TestIsValidRouteTemplate:
@@ -427,3 +487,156 @@ class TestDynamicRoutesFacilitator:
         assert discovered is not None
         assert discovered.resource_url == "http://example.com/search"
         assert discovered.route_template is None
+
+
+class _HitCountingServer:
+    """Minimal raw-socket HTTP server used to prove (or disprove) SSRF.
+
+    Deliberately avoids the stdlib `http.server` module: this package has its own top-level
+    `http` module (x402.http), which shadows the stdlib `http` package during test collection.
+    """
+
+    def __init__(self) -> None:
+        self.hits = 0
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen(5)
+        self.url = f"http://127.0.0.1:{self._sock.getsockname()[1]}"
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _serve(self) -> None:
+        while True:
+            try:
+                conn, _ = self._sock.accept()
+            except OSError:
+                return
+            self.hits += 1
+            conn.recv(4096)
+            body = b'{"type": "object"}'
+            response = (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+                b"Connection: close\r\n\r\n" + body
+            )
+            conn.sendall(response)
+            conn.close()
+
+    def shutdown(self) -> None:
+        self._sock.close()
+
+
+def _start_hit_counting_server() -> _HitCountingServer:
+    return _HitCountingServer()
+
+
+class TestValidateDiscoveryExtensionSSRF:
+    """Reproduces CWE-918: a client-controlled schema `$ref` must never be dereferenced.
+
+    `jsonschema`'s default registry (`_REMOTE_WARNING_REGISTRY`) resolves any unregistered
+    `$ref` via `urllib.request.urlopen`, which fetches both http(s):// and file:// URIs, before
+    only *warning* that the behavior is deprecated. Since `schema` arrives in the client's
+    payment payload, this is a real SSRF / local file disclosure vector
+    (go/extensions/bazaar equivalent: facilitator.go's hasExternalSchemaReference).
+    """
+
+    def test_rejects_ref_over_http_without_dereferencing_it(self) -> None:
+        server = _start_hit_counting_server()
+        url = server.url
+        try:
+            result = _validate_discovery_extension_in_subprocess(
+                schema={"$ref": f"{url}/attacker-schema.json"},
+                info={"input": {"type": "http", "method": "GET"}},
+            )
+
+            assert server.hits == 0, (
+                "an attacker-controlled $ref must never cause an outbound HTTP request "
+                "(CWE-918 SSRF)"
+            )
+            assert result["valid"] is False, "schema with an external $ref must be rejected"
+        finally:
+            server.shutdown()
+
+    def test_rejects_ref_via_file_uri_without_reading_the_file(self) -> None:
+        # Deliberately written inside the repo tree rather than the pytest `tmp_path` fixture's
+        # system temp dir: this test's sandbox denies reads outside the repo, which would mask
+        # the vulnerability by making an unguarded jsonschema.validate() *fail* for the wrong
+        # reason (a read error) instead of the right one (a real local file read succeeding).
+        secret = pathlib.Path(__file__).parent / "_tmp_ssrf_test_secret.json"
+        secret.write_text('{"type": "object"}')
+        try:
+            result = _validate_discovery_extension_in_subprocess(
+                schema={"$ref": secret.as_uri()},
+                info={"input": {"type": "http", "method": "GET"}},
+            )
+
+            assert result["valid"] is False, "schema with a file:// $ref must be rejected"
+        finally:
+            secret.unlink()
+
+    def test_rejects_ref_nested_inside_schema_properties(self) -> None:
+        server = _start_hit_counting_server()
+        url = server.url
+        try:
+            result = _validate_discovery_extension_in_subprocess(
+                schema={"properties": {"input": {"$ref": f"{url}/attacker-schema.json"}}},
+                info={"input": {"type": "http", "method": "GET"}},
+            )
+
+            assert server.hits == 0, "nested $ref must not be dereferenced"
+            assert result["valid"] is False
+        finally:
+            server.shutdown()
+
+    def test_still_validates_schemas_with_only_local_fragment_refs(self) -> None:
+        extension = {
+            "info": {"input": {"type": "http", "method": "GET"}},
+            "schema": {
+                "$ref": "#/definitions/root",
+                "definitions": {"root": {"type": "object"}},
+            },
+        }
+
+        result = validate_discovery_extension(extension)
+        assert result.valid is True, f"local fragment $ref should still work: {result.errors}"
+
+
+class TestExtractDiscoveryInfoSSRF:
+    """End-to-end reproduction matching the real attack path: a client's paymentPayload with a
+    malicious extensions.bazaar.schema, processed via extract_discovery_info(validate=True) the
+    way a facilitator's OnAfterVerify hook does.
+    """
+
+    def test_extract_discovery_info_does_not_dereference_malicious_ref(self) -> None:
+        server = _start_hit_counting_server()
+        url = server.url
+        try:
+            payload = {
+                "x402Version": 2,
+                "scheme": "exact",
+                "network": "eip155:84532",
+                "payload": {},
+                "accepted": {},
+                "resource": {"url": "http://api.example.com/weather"},
+                "extensions": {
+                    BAZAAR.key: {
+                        "info": {"input": {"type": "http", "method": "GET"}},
+                        "schema": {"$ref": f"{url}/attacker-schema.json"},
+                    },
+                },
+            }
+
+            result = _extract_discovery_info_in_subprocess(payload)
+
+            assert server.hits == 0, (
+                "an attacker-controlled $ref in extensions.bazaar.schema must never cause "
+                "the facilitator to make an outbound HTTP request (CWE-918 SSRF)"
+            )
+            assert result["discovered"] is False, (
+                "a schema containing an external $ref should fail validation, not silently "
+                "succeed"
+            )
+        finally:
+            server.shutdown()

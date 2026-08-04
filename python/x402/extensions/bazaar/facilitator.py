@@ -39,6 +39,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _has_external_schema_reference(node: Any) -> bool:
+    """Recursively scan a decoded JSON Schema document for "$ref"/"$id" values that are not
+    same-document fragments (i.e. do not start with "#").
+
+    `jsonschema`'s default registry resolves any other form -- absolute http(s):// URLs,
+    file:// URIs, or relative paths -- via `urllib.request.urlopen` during validation, so any
+    such value in a client-supplied schema is treated as unsafe (CWE-918 SSRF / local file
+    disclosure).
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("$ref", "$id"):
+                if not isinstance(value, str) or not value.startswith("#"):
+                    return True
+            if _has_external_schema_reference(value):
+                return True
+    elif isinstance(node, list):
+        for item in node:
+            if _has_external_schema_reference(item):
+                return True
+    return False
+
+
 # Valid routeTemplate pattern: must start with "/", contain only safe URL path characters
 # and :param identifiers. Expected format: "/users/:userId", "/weather/:country/:city".
 _ROUTE_TEMPLATE_RE = re.compile(r"^/[a-zA-Z0-9_/:.\-~%]+$")
@@ -143,6 +166,17 @@ def validate_discovery_extension(extension: DiscoveryExtension) -> ValidationRes
             info_dict = info.model_dump(by_alias=True, exclude_none=True)
         else:
             info_dict = info
+
+        # The schema is attacker-controlled (it arrives in the client's payment payload).
+        # jsonschema's default registry resolves "$ref"/"$id" values via urllib during
+        # validation, before the instance is ever checked (CWE-918 SSRF / local file read).
+        # Only same-document fragment references (e.g. "#/definitions/foo") are safe, since
+        # they resolve against the in-memory document instead of fetching anything.
+        if _has_external_schema_reference(schema):
+            return ValidationResult(
+                valid=False,
+                errors=["schema must not contain external $ref/$id references"],
+            )
 
         # Validate
         jsonschema.validate(instance=info_dict, schema=schema)

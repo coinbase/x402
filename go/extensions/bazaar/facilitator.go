@@ -20,7 +20,11 @@ type ValidationResult struct {
 	Errors []string
 }
 
-// ValidateDiscoveryExtension validates a discovery extension's info against its schema
+// ValidateDiscoveryExtension validates a discovery extension's info against its schema.
+//
+// Per the bazaar spec's Schema Validation requirements (specs/extensions/bazaar.md), schema
+// "$ref"/"$id" values may only be same-document JSON Pointer fragments (e.g. "#/definitions/foo");
+// any other form is rejected before validation runs. See hasExternalSchemaReference.
 //
 // Args:
 //   - extension: The discovery extension containing info and schema
@@ -39,6 +43,18 @@ type ValidationResult struct {
 //	    fmt.Println("Validation errors:", result.Errors)
 //	}
 func ValidateDiscoveryExtension(extension types.DiscoveryExtension) ValidationResult {
+	// The schema is attacker-controlled (it arrives in the client's payment payload). gojsonschema's
+	// default loader dereferences "$ref"/"$id" values via http.Get or os.Open during schema
+	// compilation, before the document is ever checked (CWE-918 SSRF / local file read). Only
+	// same-document fragment references (e.g. "#/definitions/foo") are safe, since they resolve
+	// against the in-memory document instead of fetching anything.
+	if hasExternalSchemaReference(map[string]interface{}(extension.Schema)) {
+		return ValidationResult{
+			Valid:  false,
+			Errors: []string{"schema must not contain external $ref/$id references"},
+		}
+	}
+
 	// Convert schema to JSON
 	schemaJSON, err := json.Marshal(extension.Schema)
 	if err != nil {
@@ -86,6 +102,35 @@ func ValidateDiscoveryExtension(extension types.DiscoveryExtension) ValidationRe
 		Valid:  false,
 		Errors: errors,
 	}
+}
+
+// hasExternalSchemaReference recursively walks a decoded JSON Schema document looking for
+// "$ref" or "$id" keys whose value is not a same-document fragment (i.e. does not start with
+// "#"). gojsonschema's default loader resolves any other form — absolute http(s):// URLs,
+// file:// URIs, or relative paths — by issuing a real HTTP request or filesystem read, so any
+// such value in a client-supplied schema is treated as unsafe.
+func hasExternalSchemaReference(node interface{}) bool {
+	switch v := node.(type) {
+	case map[string]interface{}:
+		for key, val := range v {
+			if key == "$ref" || key == "$id" {
+				ref, ok := val.(string)
+				if !ok || !strings.HasPrefix(ref, "#") {
+					return true
+				}
+			}
+			if hasExternalSchemaReference(val) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, item := range v {
+			if hasExternalSchemaReference(item) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type DiscoveredResource struct {

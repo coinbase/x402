@@ -2,6 +2,11 @@ package bazaar_test
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -2729,4 +2734,137 @@ func TestDynamicRoutesCatalogConsolidation(t *testing.T) {
 	assert.Equal(t, "http://api.example.com/users/:userId", discovered2.ResourceURL)
 	assert.Equal(t, discovered1.ResourceURL, discovered2.ResourceURL,
 		"requests to the same parameterized route should consolidate to one catalog entry")
+}
+
+// TestExtractDiscoveredResourceFromPaymentPayload_SSRFViaSchemaRef reproduces CWE-918: a
+// client-controlled paymentPayload whose extensions.bazaar.schema contains a "$ref" pointing
+// at an attacker-chosen HTTP URL must not cause the facilitator to issue an outbound request
+// while validating the schema (go/extensions/bazaar/facilitator.go, ValidateDiscoveryExtension).
+// This is the exact call pattern documented facilitators use in OnAfterVerify (see doc.go).
+func TestExtractDiscoveredResourceFromPaymentPayload_SSRFViaSchemaRef(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Write([]byte(`{"type": "object"}`))
+	}))
+	defer server.Close()
+
+	payloadJSON, err := json.Marshal(map[string]interface{}{
+		"x402Version": 2,
+		"scheme":      "exact",
+		"network":     "eip155:84532",
+		"payload":     map[string]interface{}{},
+		"resource":    map[string]interface{}{"url": "http://api.example.com/weather"},
+		"extensions": map[string]interface{}{
+			bazaar.BAZAAR.Key(): map[string]interface{}{
+				"info": map[string]interface{}{
+					"input": map[string]interface{}{
+						"type":   "http",
+						"method": "GET",
+					},
+				},
+				"schema": map[string]interface{}{
+					"$ref": server.URL + "/attacker-schema.json",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// validate=true mirrors production facilitators (per doc.go's documented integration
+	// pattern), which triggers gojsonschema schema compilation on the attacker's schema.
+	_, err = bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadJSON, nil, true)
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(&hits),
+		"an attacker-controlled $ref in extensions.bazaar.schema must never cause the facilitator to make an outbound HTTP request (CWE-918 SSRF)")
+	assert.Error(t, err, "a schema containing an external $ref should fail validation, not silently succeed")
+}
+
+// TestValidateDiscoveryExtension_RejectsExternalSchemaRefs covers the lower-level entry point
+// and both dereference primitives gojsonschema's default loader exposes ($ref).
+func TestValidateDiscoveryExtension_RejectsExternalSchemaRefs(t *testing.T) {
+	t.Run("rejects $ref over HTTP without dereferencing it (SSRF)", func(t *testing.T) {
+		var hits int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			w.Write([]byte(`{"type": "object"}`))
+		}))
+		defer server.Close()
+
+		extension := bazaar.DiscoveryExtension{
+			Info: bazaar.DiscoveryInfo{
+				Input: bazaar.QueryInput{Type: "http", Method: bazaar.MethodGET},
+			},
+			Schema: bazaar.JSONSchema{
+				"$ref": server.URL + "/attacker-schema.json",
+			},
+		}
+
+		result := bazaar.ValidateDiscoveryExtension(extension)
+
+		assert.Equal(t, int32(0), atomic.LoadInt32(&hits),
+			"gojsonschema must never be allowed to dereference an attacker-controlled $ref over HTTP")
+		assert.False(t, result.Valid, "schema with an external $ref must be rejected")
+	})
+
+	t.Run("rejects $ref via file:// without reading the file", func(t *testing.T) {
+		dir := t.TempDir()
+		secretPath := filepath.Join(dir, "secret.json")
+		require.NoError(t, os.WriteFile(secretPath, []byte(`{"type": "object"}`), 0o600))
+
+		extension := bazaar.DiscoveryExtension{
+			Info: bazaar.DiscoveryInfo{
+				Input: bazaar.QueryInput{Type: "http", Method: bazaar.MethodGET},
+			},
+			Schema: bazaar.JSONSchema{
+				"$ref": "file://" + secretPath,
+			},
+		}
+
+		result := bazaar.ValidateDiscoveryExtension(extension)
+
+		assert.False(t, result.Valid, "schema with a file:// $ref must be rejected")
+	})
+
+	t.Run("rejects $ref nested inside schema properties", func(t *testing.T) {
+		var hits int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			w.Write([]byte(`{"type": "string"}`))
+		}))
+		defer server.Close()
+
+		extension := bazaar.DiscoveryExtension{
+			Info: bazaar.DiscoveryInfo{
+				Input: bazaar.QueryInput{Type: "http", Method: bazaar.MethodGET},
+			},
+			Schema: bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"foo": map[string]interface{}{"$ref": server.URL + "/attacker-schema.json"},
+				},
+			},
+		}
+
+		result := bazaar.ValidateDiscoveryExtension(extension)
+
+		assert.Equal(t, int32(0), atomic.LoadInt32(&hits), "nested $ref must not be dereferenced")
+		assert.False(t, result.Valid)
+	})
+
+	t.Run("still validates schemas that only use local fragment refs", func(t *testing.T) {
+		extension := bazaar.DiscoveryExtension{
+			Info: bazaar.DiscoveryInfo{
+				Input: bazaar.QueryInput{Type: "http", Method: bazaar.MethodGET},
+			},
+			Schema: bazaar.JSONSchema{
+				"$ref": "#/definitions/root",
+				"definitions": map[string]interface{}{
+					"root": map[string]interface{}{"type": "object"},
+				},
+			},
+		}
+
+		result := bazaar.ValidateDiscoveryExtension(extension)
+		assert.True(t, result.Valid, "same-document fragment $ref should still work: %v", result.Errors)
+	})
 }
