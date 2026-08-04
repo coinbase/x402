@@ -756,32 +756,35 @@ describe("x402HTTPResourceServer", () => {
         ["U+2029 PARAGRAPH SEPARATOR", "/api/premium/report%E2%80%A9"],
         ["LF", "/api/premium/report%0A"],
         ["CR", "/api/premium/report%0D"],
-      ])("should require payment when the wildcard tail contains an encoded %s", async (_, path) => {
-        const routes = {
-          "/api/premium/*": {
-            accepts: {
-              scheme: "exact",
-              payTo: "0xabc",
-              price: "$1.00" as Price,
-              network: "eip155:8453" as Network,
+      ])(
+        "should require payment when the wildcard tail contains an encoded %s",
+        async (_, path) => {
+          const routes = {
+            "/api/premium/*": {
+              accepts: {
+                scheme: "exact",
+                payTo: "0xabc",
+                price: "$1.00" as Price,
+                network: "eip155:8453" as Network,
+              },
             },
-          },
-        };
+          };
 
-        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+          const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
-        const adapter = new MockHTTPAdapter();
-        const context: HTTPRequestContext = {
-          adapter,
-          path,
-          method: "GET",
-        };
+          const adapter = new MockHTTPAdapter();
+          const context: HTTPRequestContext = {
+            adapter,
+            path,
+            method: "GET",
+          };
 
-        expect(httpServer.requiresPayment(context)).toBe(true);
+          expect(httpServer.requiresPayment(context)).toBe(true);
 
-        const result = await httpServer.processHTTPRequest(context);
-        expect(result.type).toBe("payment-error");
-      });
+          const result = await httpServer.processHTTPRequest(context);
+          expect(result.type).toBe("payment-error");
+        },
+      );
     });
   });
 
