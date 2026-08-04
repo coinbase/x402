@@ -1,9 +1,0 @@
----
-"@x402/core": patch
-"@x402/next": patch
-"@x402/express": patch
-"@x402/hono": patch
-"@x402/fastify": patch
----
-
-Set Cache-Control on x402 HTTP payment responses: `no-store` on 402/412 PAYMENT-REQUIRED and settlement failures, and merge `private` on 200 PAYMENT-RESPONSE success so shared caches cannot store user-specific settlement metadata.

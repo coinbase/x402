@@ -1,5 +1,23 @@
 # @x402/evm Changelog
 
+## 2.21.0
+
+### Minor Changes
+
+- [242d6e9](https://github.com/x402-foundation/x402/commit/242d6e9): Add Celo mainnet (chain ID 42220) and Celo Sepolia (chain ID 11142220) support with USDC as the default stablecoin ([#3025](https://github.com/x402-foundation/x402/pull/3025)) - Thanks [@GigaHierz](https://github.com/GigaHierz) and [@claude](https://github.com/claude)!
+- [db9dabd](https://github.com/x402-foundation/x402/commit/db9dabd): Add Flare mainnet (chain ID 14) support with USD₮0 as the default stablecoin ([#3031](https://github.com/x402-foundation/x402/pull/3031)) - Thanks [@whawk46](https://github.com/whawk46)!
+- Updated dependencies [e805616](https://github.com/x402-foundation/x402/commit/e805616)
+- Updated dependencies [e335d4f](https://github.com/x402-foundation/x402/commit/e335d4f)
+- Updated dependencies [183b270](https://github.com/x402-foundation/x402/commit/183b270)
+- Updated dependencies [ee1b148](https://github.com/x402-foundation/x402/commit/ee1b148)
+- Updated dependencies [e805616](https://github.com/x402-foundation/x402/commit/e805616)
+- Updated dependencies [5192e50](https://github.com/x402-foundation/x402/commit/5192e50)
+  - @x402/core@2.21.0
+
+### Patch Changes
+
+- [dea7937](https://github.com/x402-foundation/x402/commit/dea7937): Verified the Transfer event in the post-settle receipt for exact/eip3009 settle, matching the defensive event-shape check already performed by @x402/evm batch-settlement and @x402/stellar exact. Added ErrTransferEventMismatch (`invalid_exact_evm_transfer_event_mismatch`) so a successful tx that emitted no matching Transfer is no longer reported as a successful settlement. ([#2385](https://github.com/x402-foundation/x402/pull/2385)) - Thanks [@Mameta29](https://github.com/Mameta29) and [@phdargen](https://github.com/phdargen)!
+
 ## 2.20.0
 
 ### Minor Changes
