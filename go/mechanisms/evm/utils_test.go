@@ -8,6 +8,12 @@ import (
 	x402 "github.com/x402-foundation/x402/go/v2"
 )
 
+type programmerError struct{}
+
+func (programmerError) Error() string { return "programmer error" }
+
+func (programmerError) RuntimeError() {}
+
 func TestIsValidTxHash(t *testing.T) {
 	cases := []struct {
 		name string
@@ -27,6 +33,15 @@ func TestIsValidTxHash(t *testing.T) {
 				t.Errorf("IsValidTxHash(%q) = %v, want %v", tc.hash, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsLikelyTransportError(t *testing.T) {
+	if !IsLikelyTransportError(errors.New("rpc timeout")) {
+		t.Error("expected RPC error to be transport-like")
+	}
+	if IsLikelyTransportError(programmerError{}) {
+		t.Error("expected runtime error to be terminal")
 	}
 }
 

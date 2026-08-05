@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
+	"runtime"
 	"strings"
 	"time"
 
@@ -35,6 +37,12 @@ func TruncateErrorMessage(msg string) string {
 		return msg
 	}
 	return msg[:MaxErrorMessageLength]
+}
+
+// IsLikelyTransportError reports whether a receipt-wait error can leave settlement outcome unknown.
+func IsLikelyTransportError(err error) bool {
+	var runtimeErr runtime.Error
+	return !errors.As(err, &runtimeErr)
 }
 
 // InvalidBroadcastHashError builds a terminal SettleError for a signer that reports success

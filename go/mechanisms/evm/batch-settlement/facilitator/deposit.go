@@ -441,6 +441,10 @@ func SettleDeposit(
 	// Wait for receipt
 	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
+		if !evm.IsLikelyTransportError(err) {
+			return nil, x402.NewSettleError(ErrDepositTransactionFailed, config.Payer, network, "",
+				fmt.Sprintf("failed waiting for deposit receipt: %s", evm.TruncateErrorMessage(err.Error())))
+		}
 		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
 			fmt.Sprintf("failed waiting for deposit receipt: %s", evm.TruncateErrorMessage(err.Error())))
 	}

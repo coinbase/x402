@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Protocol
 
 from ...schemas import SettleResponse
 from .constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from .types import TransactionReceipt
 from .utils import is_valid_tx_hash, truncate_error_message
-
-logger = logging.getLogger(__name__)
 
 # Exceptions that signal a bug in the signer's own code (a bad argument, a missing
 # attribute, an out-of-range index) rather than a real RPC/transport failure.
@@ -24,6 +21,10 @@ _PROGRAMMER_ERRORS: tuple[type[BaseException], ...] = (
     IndexError,
     NameError,
     NotImplementedError,
+    ValueError,
+    AssertionError,
+    SyntaxError,
+    UnboundLocalError,
 )
 
 
@@ -57,9 +58,6 @@ def wait_for_receipt_and_build_response(
     # settlement_pending is only meaningful with the broadcast hash to reconcile against, so a
     # signer that reports success without a usable hash is a terminal failure.
     if not is_valid_tx_hash(tx_hash):
-        logger.warning(
-            "settle: signer returned an invalid transaction hash payer=%s tx=%r", payer, tx_hash
-        )
         return SettleResponse(
             success=False,
             error_reason=failed_reason,
@@ -75,12 +73,6 @@ def wait_for_receipt_and_build_response(
         # Only report settlement_pending for failures that plausibly mean "we don't
         # yet know the outcome" — a bug in the signer's own code is not one of those.
         if not is_likely_transport_error(e):
-            logger.warning(
-                "settle: wait_for_transaction_receipt raised a programmer error payer=%s tx=%s: %s",
-                payer,
-                tx_hash,
-                e,
-            )
             return SettleResponse(
                 success=False,
                 error_reason=failed_reason,
@@ -89,9 +81,6 @@ def wait_for_receipt_and_build_response(
                 network=network,
                 payer=payer,
             )
-        logger.warning(
-            "settle: wait_for_transaction_receipt failed payer=%s tx=%s: %s", payer, tx_hash, e
-        )
         return SettleResponse(
             success=False,
             error_reason=ERR_SETTLEMENT_PENDING,

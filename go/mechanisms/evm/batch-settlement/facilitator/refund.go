@@ -231,6 +231,10 @@ func ExecuteRefundWithSignature(
 
 		receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
 		if err != nil {
+			if !evm.IsLikelyTransportError(err) {
+				return nil, x402.NewSettleError(ErrRefundTransactionFailed, payload.ChannelConfig.Payer, network, "",
+					fmt.Sprintf("failed waiting for multicall receipt: %s", evm.TruncateErrorMessage(err.Error())))
+			}
 			return nil, x402.NewSettleError(ErrSettlementPending, payload.ChannelConfig.Payer, network, txHash,
 				fmt.Sprintf("failed waiting for multicall receipt: %s", evm.TruncateErrorMessage(err.Error())))
 		}
@@ -287,6 +291,10 @@ func ExecuteRefundWithSignature(
 
 	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
+		if !evm.IsLikelyTransportError(err) {
+			return nil, x402.NewSettleError(ErrRefundTransactionFailed, payload.ChannelConfig.Payer, network, "",
+				fmt.Sprintf("failed waiting for refundWithSignature receipt: %s", evm.TruncateErrorMessage(err.Error())))
+		}
 		return nil, x402.NewSettleError(ErrSettlementPending, payload.ChannelConfig.Payer, network, txHash,
 			fmt.Sprintf("failed waiting for refundWithSignature receipt: %s", evm.TruncateErrorMessage(err.Error())))
 	}

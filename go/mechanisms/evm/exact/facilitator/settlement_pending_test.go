@@ -92,6 +92,23 @@ func TestSettleEIP3009_ReceiptWaitFailureReturnsSettlementPending(t *testing.T) 
 	assertSettlementPending(t, err, "0x"+strings.Repeat("ab", 32))
 }
 
+type receiptWaitProgrammerError struct{}
+
+func (receiptWaitProgrammerError) Error() string { return "programmer error" }
+
+func (receiptWaitProgrammerError) RuntimeError() {}
+
+func TestSettleEIP3009_ProgrammerReceiptWaitFailureIsTerminal(t *testing.T) {
+	payload, requirements := plainEIP3009Payload(t)
+	scheme := NewExactEvmScheme(
+		deployedCodeSigner(receiptWaitProgrammerError{}),
+		&ExactEvmSchemeConfig{},
+	)
+
+	_, err := scheme.Settle(context.Background(), payload, requirements, nil)
+	assertSettleErr(t, err, ErrTransactionFailed, "")
+}
+
 // mockErc20ApprovalSigner wraps settleMockSigner with SendTransactions to satisfy
 // erc20approvalgassponsor.Erc20ApprovalGasSponsoringSigner for the ERC-20 approval branch.
 type mockErc20ApprovalSigner struct {

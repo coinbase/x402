@@ -40,6 +40,7 @@ const sigValid = "0x1626ba7e";
 describe("isLikelyTransportError", () => {
   it("classifies native fetch failures as transport errors", () => {
     expect(isLikelyTransportError(new TypeError("fetch failed"))).toBe(true);
+    expect(isLikelyTransportError(new TypeError("Failed to fetch"))).toBe(true);
   });
 });
 
@@ -734,7 +735,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe(Errors.ErrInvalidTransactionState);
-      expect(result.transaction).toBe(MOCK_TX_HASH);
+      expect(result.transaction).toBe("");
     });
 
     it("should fail Permit2 settlement when signature verification fails", async () => {

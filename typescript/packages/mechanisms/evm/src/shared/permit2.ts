@@ -82,7 +82,9 @@ const PROGRAMMER_ERROR_CONSTRUCTORS: ReadonlySet<new (...args: never[]) => Error
  */
 export function isLikelyTransportError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  if (error instanceof TypeError && /\bfetch failed\b/i.test(error.message)) return true;
+  if (error instanceof TypeError && /\b(fetch failed|failed to fetch)\b/i.test(error.message)) {
+    return true;
+  }
   for (const ctor of PROGRAMMER_ERROR_CONSTRUCTORS) {
     if (error instanceof ctor) return false;
   }
@@ -232,11 +234,12 @@ export async function waitAndReturnSettleResponse(
     // Must not fall into the caller's generic catch, which would discard the tx hash.
     // Only report settlement_pending for failures that plausibly mean "we don't yet
     // know the outcome" — a bug in the signer's own code is not one of those.
+    const isTransportError = isLikelyTransportError(error);
     return {
       success: false,
-      errorReason: isLikelyTransportError(error) ? ErrSettlementPending : failedStatusReason,
+      errorReason: isTransportError ? ErrSettlementPending : failedStatusReason,
       errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
-      transaction: tx,
+      transaction: isTransportError ? tx : "",
       network: payload.accepted.network,
       payer,
     };

@@ -83,6 +83,10 @@ func ExecuteSettle(
 
 	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
+		if !evm.IsLikelyTransportError(err) {
+			return nil, x402.NewSettleError(ErrSettleTransactionFailed, "", network, "",
+				fmt.Sprintf("failed waiting for settle receipt: %s", evm.TruncateErrorMessage(err.Error())))
+		}
 		return nil, x402.NewSettleError(ErrSettlementPending, "", network, txHash,
 			fmt.Sprintf("failed waiting for settle receipt: %s", evm.TruncateErrorMessage(err.Error())))
 	}

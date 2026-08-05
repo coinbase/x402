@@ -636,6 +636,20 @@ class TestSettle:
         assert result.error_reason == ERR_TRANSACTION_FAILED
         assert result.transaction == ""
 
+    def test_receipt_wait_value_error_is_terminal_not_pending(self):
+        class _BrokenSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise ValueError("invalid receipt")
+
+        signer = _BrokenSigner(code_by_address={PAYER.lower(): b"\x01"})
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_TRANSACTION_FAILED
+        assert result.transaction == ""
+
 
 class TestSettleFactoryAllowlist:
     """ERC-6492 factory allowlist enforcement during settle."""
