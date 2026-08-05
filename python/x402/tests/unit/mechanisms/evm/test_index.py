@@ -117,6 +117,12 @@ class TestIsValidTxHash:
         assert is_valid_tx_hash("0x " + "a" * 63) is False  # Leading whitespace
         assert is_valid_tx_hash("0x+" + "a" * 63) is False  # Signed
 
+    def test_should_reject_non_string_hashes(self):
+        """Should reject non-string values from external signers."""
+        assert is_valid_tx_hash(None) is False
+        assert is_valid_tx_hash(123) is False
+        assert is_valid_tx_hash(b"0x" + b"ab" * 32) is False
+
 
 class TestNormalizeAddress:
     """Test normalize_address function."""

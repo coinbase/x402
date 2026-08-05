@@ -161,8 +161,10 @@ def normalize_address(address: str) -> str:
     return to_checksum_address("0x" + addr)
 
 
-def is_valid_tx_hash(tx_hash: str) -> bool:
+def is_valid_tx_hash(tx_hash: object) -> bool:
     """True if 0x + 64 hex digits; for external signer hashes before receipt wait."""
+    if not isinstance(tx_hash, str):
+        return False
     return re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is not None
 
 

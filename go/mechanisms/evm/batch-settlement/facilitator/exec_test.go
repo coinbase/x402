@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	batchsettlement "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement"
 	bsclient "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/client"
@@ -495,6 +496,67 @@ func TestSettleDeposit_PostReceiptBalanceNotDoubled(t *testing.T) {
 	}
 	if tryAggregateCalls < 2 {
 		t.Fatalf("tryAggregateCalls = %d, want at least pre-submit + post-receipt", tryAggregateCalls)
+	}
+}
+
+type singleHashExtensionSigner struct {
+	*fakeFacilitatorSigner
+	txHash string
+	sent   bool
+}
+
+func (s *singleHashExtensionSigner) SendTransactions(_ context.Context, _ []erc20approvalgassponsor.TransactionRequest) ([]string, error) {
+	s.sent = true
+	return []string{s.txHash}, nil
+}
+
+func TestSettleDeposit_Erc20ApprovalAcceptsSingleExtensionHash(t *testing.T) {
+	const txHash = "0x" + "abababababababababababababababababababababababababababababababab"
+	extensionSigner := &singleHashExtensionSigner{txHash: txHash}
+	signer := &fakeFacilitatorSigner{
+		waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+			return &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: gotTxHash}, nil
+		},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName != evm.FunctionTryAggregate {
+				return nil, errors.New("unexpected rpc")
+			}
+			balance := big.NewInt(0)
+			if extensionSigner.sent {
+				balance.SetInt64(1000)
+			}
+			return multicallChannelStateResult(t, balance, big.NewInt(0), 0, big.NewInt(0)), nil
+		},
+	}
+	extensionSigner.fakeFacilitatorSigner = signer
+	fctx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
+			Signer: extensionSigner,
+		},
+	})
+	payload := &batchsettlement.BatchSettlementDepositPayload{
+		Type:          "deposit",
+		ChannelConfig: goodPermit2Config(),
+		Voucher: batchsettlement.BatchSettlementVoucherFields{
+			ChannelId: testPermit2ChannelId,
+		},
+		Deposit: batchsettlement.BatchSettlementDepositData{
+			Amount: "1000",
+			Authorization: batchsettlement.BatchSettlementDepositAuthorization{
+				Permit2Authorization: goodPermit2Auth(),
+			},
+		},
+	}
+
+	resp, err := SettleDeposit(
+		context.Background(), signer, payload, reqsFor(testNetwork),
+		extensionsWithErc20Approval(goodErc20ApprovalInfo()), fctx, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("SettleDeposit: %v", err)
+	}
+	if resp.Transaction != txHash {
+		t.Fatalf("transaction = %q, want %q", resp.Transaction, txHash)
 	}
 }
 

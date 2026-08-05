@@ -407,13 +407,11 @@ func SettleDeposit(
 			return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, "", network, config.Payer,
 				fmt.Sprintf("erc20 approval + deposit send failed: %s", sendErr))
 		}
-		if len(txHashes) < 2 {
+		if len(txHashes) == 0 {
 			return nil, x402.NewSettleError(ErrDepositTransactionFailed, "", network, config.Payer,
-				fmt.Sprintf("expected 2 tx hashes from extension signer, got %d", len(txHashes)))
+				"extension signer returned no transaction hashes")
 		}
-		// The deposit tx is the second; this is what we wait on and report
-		// back as the settlement transaction.
-		txHash = txHashes[1]
+		txHash = txHashes[len(txHashes)-1]
 	} else {
 		txHash, err = signer.WriteContract(
 			ctx,
