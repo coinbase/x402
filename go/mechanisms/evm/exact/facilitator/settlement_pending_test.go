@@ -170,7 +170,7 @@ func newPermit2ERC20Fixture(sendTxHashes []string, receiptErr error) permit2ERC2
 	}
 }
 
-func TestSettlePermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *testing.T) {
+func TestSettlePermit2_ERC20ApprovalIncompleteHashesFailTerminally(t *testing.T) {
 	f := newPermit2ERC20Fixture([]string{"0xapproval"}, nil)
 
 	_, err := SettlePermit2(context.Background(), f.signer, f.payload, f.requirements, f.permit2Payload, f.facilCtx, nil)

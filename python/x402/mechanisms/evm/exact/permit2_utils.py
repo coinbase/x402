@@ -26,6 +26,7 @@ from ..constants import (  # noqa: E402
     BALANCE_OF_ABI,
     ERC20_ALLOWANCE_ABI,
     ERR_ASSET_NOT_DEPLOYED_CONTRACT,
+    ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_ERC20_APPROVAL_TX_FAILED,
     ERR_INSUFFICIENT_BALANCE,
     ERR_NETWORK_MISMATCH,
@@ -649,7 +650,10 @@ def _map_settle_error(error: Exception, network: str, payer: str) -> SettleRespo
     elif "InvalidNonce" in error_msg:
         error_reason = "permit2_invalid_nonce"
     elif ERR_ERC20_APPROVAL_TX_FAILED in error_msg:
-        error_reason = ERR_ERC20_APPROVAL_TX_FAILED
+        # Matches Go/TS: the extension signer returned no usable settlement hash to
+        # reconcile against, so this maps to the broadcast-failure reason, not the raw
+        # sentinel used to route the message here.
+        error_reason = ERR_ERC20_APPROVAL_BROADCAST_FAILED
 
     return SettleResponse(
         success=False,

@@ -694,6 +694,70 @@ func TestProcessSettlement_Failure(t *testing.T) {
 		t.Error("Expected PAYMENT-RESPONSE header on settlement failure")
 	}
 	if result.Response == nil {
+		t.Fatal("Expected response instructions")
+	}
+	_ = result
+}
+
+// TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction pins that a
+// mechanism-level failure returned as an error (the common path — see
+// go/mechanisms/evm/exact/facilitator/permit2.go's Settle) is not flattened into an
+// opaque err.Error() string. Non-terminal reasons like settlement_pending carry the
+// broadcast transaction hash, which must survive into the PAYMENT-RESPONSE header so
+// the caller can reconcile on chain.
+func TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction(t *testing.T) {
+	ctx := context.Background()
+	pendingTxHash := "0x" + strings.Repeat("ab", 32)
+
+	mockClient := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return nil, x402.NewSettleError("settlement_pending", "0xpayer", "eip155:1", pendingTxHash, "rpc: timeout waiting for receipt")
+		},
+	}
+
+	server := Newx402HTTPResourceServer(
+		RoutesConfig{},
+		x402.WithFacilitatorClient(mockClient),
+	)
+	_ = server.Initialize(ctx)
+
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xtest",
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	result := server.ProcessSettlement(ctx, payload, requirements, nil, nil, nil)
+	if result.Success {
+		t.Fatal("Expected settlement failure")
+	}
+	if result.ErrorReason != "settlement_pending" {
+		t.Errorf("expected ErrorReason %q, got %q", "settlement_pending", result.ErrorReason)
+	}
+	if result.Transaction != pendingTxHash {
+		t.Errorf("expected Transaction %q preserved, got %q", pendingTxHash, result.Transaction)
+	}
+	if result.Headers == nil || result.Headers["PAYMENT-RESPONSE"] == "" {
+		t.Fatal("Expected PAYMENT-RESPONSE header on settlement failure")
+	}
+	decoded, err := decodePaymentResponseHeader(result.Headers["PAYMENT-RESPONSE"])
+	if err != nil {
+		t.Fatalf("failed to decode PAYMENT-RESPONSE header: %v", err)
+	}
+	if decoded.ErrorReason != "settlement_pending" {
+		t.Errorf("expected header errorReason %q, got %q", "settlement_pending", decoded.ErrorReason)
+	}
+	if decoded.Transaction != pendingTxHash {
+		t.Errorf("expected header transaction %q, got %q", pendingTxHash, decoded.Transaction)
+	}
+	if result.Response == nil {
 		t.Fatal("Expected Response to be set on settlement failure")
 	}
 	if result.Response.Status != 402 {

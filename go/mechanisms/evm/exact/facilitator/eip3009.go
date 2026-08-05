@@ -232,13 +232,13 @@ func (f *ExactEvmScheme) settleEIP3009(
 	// A settlement_pending response must carry the broadcast hash, so an unusable hash is
 	// terminal rather than pending.
 	if !evm.IsValidTxHash(txHash) {
-		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "",
-			fmt.Sprintf("signer returned an invalid transaction hash: %q", txHash))
+		return nil, evm.InvalidBroadcastHashError(ErrTransactionFailed, verifyResp.Payer, network, txHash)
 	}
 
 	receipt, err := f.signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash, err.Error())
+		return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash,
+			evm.TruncateErrorMessage(err.Error()))
 	}
 
 	if receipt.Status != evm.TxStatusSuccess {

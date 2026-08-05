@@ -13,8 +13,10 @@ except ImportError as e:
     ) from e
 
 from .....schemas import PaymentRequirements, SettleResponse
-from ...constants import TX_STATUS_SUCCESS
+from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
+from ...settle_receipt import is_likely_transport_error
 from ...signer import FacilitatorEvmSigner
+from ...utils import is_valid_tx_hash, truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
 from ..authorizer_signer import sign_claim_batch, sign_refund
 from ..constants import BATCH_SETTLEMENT_ADDRESS
@@ -32,7 +34,7 @@ from ..types import (
 )
 from ..utils import compute_channel_id
 from .claim import build_voucher_claim_args
-from .utils import read_channel_state, to_contract_channel_config
+from .utils import invalid_broadcast_hash_response, read_channel_state, to_contract_channel_config
 
 _REFUND_STATE_POLL_S = 2.0
 _REFUND_STATE_POLL_INTERVAL_S = 0.15
@@ -263,7 +265,30 @@ def execute_refund_with_signature(
                 data_suffix=data_suffix,
             )
 
-        receipt = signer.wait_for_transaction_receipt(tx)
+        if not is_valid_tx_hash(tx):
+            return invalid_broadcast_hash_response(tx, ERR_REFUND_TRANSACTION_FAILED, network)
+
+        try:
+            receipt = signer.wait_for_transaction_receipt(tx)
+        except Exception as e:
+            # Only report settlement_pending for failures that plausibly mean "we don't
+            # yet know the outcome" — a bug in the signer's own code is not one of those.
+            if not is_likely_transport_error(e):
+                return SettleResponse(
+                    success=False,
+                    error_reason=ERR_REFUND_TRANSACTION_FAILED,
+                    error_message=truncate_error_message(str(e)),
+                    transaction="",
+                    network=network,
+                )
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_SETTLEMENT_PENDING,
+                error_message=truncate_error_message(str(e)),
+                transaction=tx,
+                network=network,
+            )
+
         if receipt.status != TX_STATUS_SUCCESS:
             return SettleResponse(
                 success=False,

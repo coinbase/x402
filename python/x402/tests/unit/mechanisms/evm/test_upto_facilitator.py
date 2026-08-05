@@ -515,6 +515,29 @@ class TestSettle:
         # Nothing is known to have settled yet, so no amount is reported.
         assert result.amount is None
 
+    def test_receipt_wait_programmer_error_is_terminal_not_pending(self):
+        # A TypeError out of wait_for_transaction_receipt means the signer wrapper is
+        # broken, not that the transaction's outcome is unknown — settlement_pending
+        # would wrongly imply the transaction may still confirm.
+        from unittest.mock import patch
+
+        class _BrokenSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TypeError("wait_for_transaction_receipt() missing 1 required argument")
+
+        signer = _BrokenSigner()
+        facilitator = UptoEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_UPTO_TRANSACTION_FAILED
+        assert result.transaction == ""
+
     def test_settle_invalid_broadcast_hash_is_terminal(self):
         # settlement_pending needs the broadcast hash to be actionable, so a signer that
         # reports success without a usable hash must fail terminally.

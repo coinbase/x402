@@ -432,14 +432,18 @@ func SettleDeposit(
 		}
 	}
 
+	if !evm.IsValidTxHash(txHash) {
+		return nil, evm.InvalidBroadcastHashError(ErrDepositTransactionFailed, config.Payer, network, txHash)
+	}
+
 	// Wait for receipt
 	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrWaitForReceipt, txHash, network, config.Payer,
-			fmt.Sprintf("failed waiting for deposit receipt: %s", err))
+		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
+			fmt.Sprintf("failed waiting for deposit receipt: %s", evm.TruncateErrorMessage(err.Error())))
 	}
 	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrTransactionReverted, txHash, network, config.Payer,
+		return nil, x402.NewSettleError(ErrTransactionReverted, config.Payer, network, txHash,
 			"deposit transaction reverted")
 	}
 

@@ -604,7 +604,7 @@ func erc20ApprovalSettleCtx(sendTxHashes []string, receiptErr error) (*x402.Faci
 	return facilCtx, payload
 }
 
-func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesReturnedWithoutError(t *testing.T) {
+func TestSettleUptoPermit2_ERC20ApprovalIncompleteHashesFailTerminally(t *testing.T) {
 	facilCtx, payload := erc20ApprovalSettleCtx([]string{"0xapproval"}, nil)
 
 	_, err := SettleUptoPermit2(context.Background(), newMockSigner(), payload, buildValidRequirements(), buildValidUptoPayload(testFacilitatorAddr), facilCtx, false)

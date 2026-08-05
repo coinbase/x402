@@ -53,3 +53,22 @@ export function createPermit2Nonce(): string {
   const randomBytes = getCrypto().getRandomValues(new Uint8Array(32));
   return BigInt(toHex(randomBytes)).toString();
 }
+
+/**
+ * Bounds error text sourced from RPC/transport failures (e.g. a waitForTransactionReceipt
+ * error) before it is placed in a settle/verify error message. Matches the truncation length
+ * used by the Go and Python SDKs so wire behavior is consistent across languages.
+ */
+export const MAX_ERROR_MESSAGE_LENGTH = 500;
+
+/**
+ * Bounds raw error text (e.g. from an RPC client) before it is placed in a settle/verify
+ * errorMessage. RPC/transport errors can carry node URLs, request bodies, or other verbose
+ * data that should not be echoed to callers unbounded.
+ *
+ * @param message - Raw error text to bound.
+ * @returns `message`, truncated to {@link MAX_ERROR_MESSAGE_LENGTH} characters.
+ */
+export function truncateErrorMessage(message: string): string {
+  return message.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+}

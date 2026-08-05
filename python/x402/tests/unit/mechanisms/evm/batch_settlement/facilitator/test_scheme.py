@@ -8,9 +8,11 @@ try:
     from x402.mechanisms.evm.batch_settlement.constants import SCHEME_BATCH_SETTLEMENT
     from x402.mechanisms.evm.batch_settlement.errors import (
         ERR_AUTHORIZER_NOT_CONFIGURED,
+        ERR_CLAIM_TRANSACTION_FAILED,
         ERR_INVALID_PAYLOAD_TYPE,
         ERR_INVALID_SCHEME,
         ERR_NETWORK_MISMATCH,
+        ERR_SETTLE_TRANSACTION_FAILED,
     )
     from x402.mechanisms.evm.batch_settlement.facilitator import refund as refund_mod
     from x402.mechanisms.evm.batch_settlement.facilitator.claim import (
@@ -22,14 +24,16 @@ try:
     from x402.mechanisms.evm.batch_settlement.facilitator.scheme import (
         BatchSettlementEvmFacilitator,
     )
+    from x402.mechanisms.evm.batch_settlement.facilitator.settle import execute_settle
     from x402.mechanisms.evm.batch_settlement.types import (
         ChannelConfig,
         ChannelState,
         ClaimPayload,
         EnrichedRefundPayload,
+        SettlePayload,
         VoucherClaim,
     )
-    from x402.mechanisms.evm.constants import TX_STATUS_SUCCESS
+    from x402.mechanisms.evm.constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
     from x402.schemas import PaymentPayload, PaymentRequirements
 except ImportError:
     pytest.skip("batch_settlement requires evm extras", allow_module_level=True)
@@ -171,12 +175,15 @@ class _FakeReceipt:
     status = TX_STATUS_SUCCESS
 
 
+_SUCCESSFUL_TX_HASH = "0x" + "ab" * 32
+
+
 class _SuccessfulSigner:
     def read_contract(self, *args, **kwargs):
         return None
 
     def write_contract(self, *args, **kwargs):
-        return "0xtx"
+        return _SUCCESSFUL_TX_HASH
 
     def wait_for_transaction_receipt(self, tx):
         return _FakeReceipt()
@@ -211,7 +218,7 @@ class TestClaimAuthorizerNotConfigured:
         )
 
         assert out.success is True
-        assert out.transaction == "0xtx"
+        assert out.transaction == _SUCCESSFUL_TX_HASH
 
 
 class TestRefundAuthorizerNotConfigured:
@@ -266,3 +273,89 @@ class TestRefundAuthorizerNotConfigured:
 
         assert out.success is False
         assert out.error_reason == ERR_AUTHORIZER_NOT_CONFIGURED
+
+
+class _ReceiptWaitFailsSigner:
+    """Broadcasts successfully but fails to confirm the receipt (RPC error/timeout)."""
+
+    def __init__(self, tx_hash: str = _SUCCESSFUL_TX_HASH) -> None:
+        self._tx_hash = tx_hash
+
+    def read_contract(self, *args, **kwargs):
+        return (1000, 0)
+
+    def write_contract(self, *args, **kwargs):
+        return self._tx_hash
+
+    def wait_for_transaction_receipt(self, tx):
+        raise RuntimeError("rpc: timeout waiting for receipt")
+
+
+class TestSettleReceiptWait:
+    def test_receipt_wait_failure_returns_settlement_pending(self):
+        payload = SettlePayload(
+            receiver="0x3333333333333333333333333333333333333333",
+            token="0x5555555555555555555555555555555555555555",
+        )
+
+        out = execute_settle(
+            _ReceiptWaitFailsSigner(),  # type: ignore[arg-type]
+            payload,
+            _requirements(),
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+
+    def test_invalid_broadcast_hash_is_terminal(self):
+        payload = SettlePayload(
+            receiver="0x3333333333333333333333333333333333333333",
+            token="0x5555555555555555555555555555555555555555",
+        )
+
+        out = execute_settle(
+            _ReceiptWaitFailsSigner(tx_hash="not-a-hash"),  # type: ignore[arg-type]
+            payload,
+            _requirements(),
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLE_TRANSACTION_FAILED
+        assert out.transaction == ""
+
+
+class TestClaimReceiptWait:
+    def test_receipt_wait_failure_returns_settlement_pending(self):
+        payload = ClaimPayload(
+            claims=[_voucher_claim()],
+            claim_authorizer_signature="0x" + "11" * 65,
+        )
+
+        out = execute_claim_with_signature(
+            _ReceiptWaitFailsSigner(),  # type: ignore[arg-type]
+            payload,
+            _requirements(),
+            None,
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+
+    def test_invalid_broadcast_hash_is_terminal(self):
+        payload = ClaimPayload(
+            claims=[_voucher_claim()],
+            claim_authorizer_signature="0x" + "11" * 65,
+        )
+
+        out = execute_claim_with_signature(
+            _ReceiptWaitFailsSigner(tx_hash="not-a-hash"),  # type: ignore[arg-type]
+            payload,
+            _requirements(),
+            None,
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_CLAIM_TRANSACTION_FAILED
+        assert out.transaction == ""

@@ -96,6 +96,38 @@ func TestExecuteClaimWithSignature_SimulationFailed(t *testing.T) {
 	}
 }
 
+func TestExecuteClaimWithSignature_ReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
+	claim := sampleClaim()
+	claim.Voucher.Channel.ReceiverAuthorizer = "0xauthorizer"
+	pendingTxHash := "0x" + strings.Repeat("cd", 32)
+
+	signer := &fakeFacilitatorSigner{
+		addresses: []string{"0xfacilitator"},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			return nil, nil
+		},
+		writeContract: func(functionName string, _ ...interface{}) (string, error) {
+			return pendingTxHash, nil
+		},
+		waitForReceipt: func(txHash string) (*evm.TransactionReceipt, error) {
+			return nil, errors.New("rpc: timeout waiting for receipt")
+		},
+	}
+	payload := &batchsettlement.BatchSettlementClaimPayload{Claims: []batchsettlement.BatchSettlementVoucherClaim{claim}}
+
+	_, err := ExecuteClaimWithSignature(
+		context.Background(), signer, payload, reqsFor(testNetwork), &fakeAuthorizerSigner{addr: "0xauthorizer"}, nil,
+	)
+
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrSettlementPending {
+		t.Fatalf("got err = %v", err)
+	}
+	if se.Transaction != pendingTxHash {
+		t.Fatalf("transaction = %q, want %q", se.Transaction, pendingTxHash)
+	}
+}
+
 // ----- ExecuteRefundWithSignature -----
 
 func TestExecuteRefundWithSignature_BadAmount(t *testing.T) {
@@ -282,6 +314,74 @@ func TestExecuteSettle_NothingToSettle(t *testing.T) {
 	}
 	if signer.writeCalls != 0 {
 		t.Fatalf("writeCalls = %d, want 0", signer.writeCalls)
+	}
+}
+
+func TestExecuteSettle_ReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
+	pendingTxHash := "0x" + strings.Repeat("cd", 32)
+	signer := &fakeFacilitatorSigner{
+		addresses: []string{"0xfacilitator"},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName == "receivers" {
+				return []interface{}{big.NewInt(2500), big.NewInt(0)}, nil
+			}
+			return nil, nil
+		},
+		writeContract: func(functionName string, _ ...interface{}) (string, error) {
+			return pendingTxHash, nil
+		},
+		waitForReceipt: func(txHash string) (*evm.TransactionReceipt, error) {
+			return nil, errors.New("rpc: timeout waiting for receipt")
+		},
+	}
+	payload := &batchsettlement.BatchSettlementSettlePayload{
+		Type:     "settle",
+		Receiver: "0x3333333333333333333333333333333333333333",
+		Token:    "0x5555555555555555555555555555555555555555",
+	}
+
+	_, err := ExecuteSettle(context.Background(), signer, payload, reqsFor(testNetwork), nil)
+
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrSettlementPending {
+		t.Fatalf("got err = %v", err)
+	}
+	if se.Transaction != pendingTxHash {
+		t.Fatalf("transaction = %q, want %q", se.Transaction, pendingTxHash)
+	}
+}
+
+func TestExecuteSettle_InvalidBroadcastHashIsTerminal(t *testing.T) {
+	signer := &fakeFacilitatorSigner{
+		addresses: []string{"0xfacilitator"},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName == "receivers" {
+				return []interface{}{big.NewInt(2500), big.NewInt(0)}, nil
+			}
+			return nil, nil
+		},
+		writeContract: func(functionName string, _ ...interface{}) (string, error) {
+			return "0xnothash", nil
+		},
+		waitForReceipt: func(txHash string) (*evm.TransactionReceipt, error) {
+			t.Fatal("must not wait on an invalid transaction hash")
+			return nil, nil
+		},
+	}
+	payload := &batchsettlement.BatchSettlementSettlePayload{
+		Type:     "settle",
+		Receiver: "0x3333333333333333333333333333333333333333",
+		Token:    "0x5555555555555555555555555555555555555555",
+	}
+
+	_, err := ExecuteSettle(context.Background(), signer, payload, reqsFor(testNetwork), nil)
+
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrSettleTransactionFailed {
+		t.Fatalf("got err = %v", err)
+	}
+	if se.Transaction != "" {
+		t.Fatalf("transaction = %q, want empty", se.Transaction)
 	}
 }
 

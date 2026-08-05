@@ -14,7 +14,7 @@ import {
   ErrUptoNetworkMismatch,
 } from "../../../src/upto/facilitator/errors";
 import {
-  ErrErc20ApprovalTxFailed,
+  ErrErc20ApprovalBroadcastFailed,
   ErrInvalidTransactionState,
   ErrSettlementPending,
 } from "../../../src/exact/facilitator/errors";
@@ -665,6 +665,21 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(result.transaction).toBe("");
       expect(mockSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
+
+    it("should fail terminally (not settlement_pending) when the receipt wait throws a programmer error", async () => {
+      // A TypeError out of waitForTransactionReceipt means the signer wrapper is
+      // broken, not that the transaction's outcome is unknown — settlement_pending
+      // would wrongly imply the transaction may still confirm.
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'status')"));
+
+      const result = await scheme.settle(makePayload(), makeRequirements());
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrInvalidTransactionState);
+      expect(result.transaction).toBe(MOCK_TX_HASH);
+    });
   });
 
   describe("EIP-2612 Gas Sponsoring - Settlement", () => {
@@ -1080,7 +1095,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
 
       expect(mockExtWaitForReceipt).not.toHaveBeenCalled();
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(ErrErc20ApprovalTxFailed);
+      expect(result.errorReason).toBe(ErrErc20ApprovalBroadcastFailed);
       expect(result.transaction).toBe("");
     });
 

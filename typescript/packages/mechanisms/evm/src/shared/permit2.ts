@@ -18,7 +18,7 @@ import {
 import { getAddress, encodeFunctionData, isHash, parseErc6492Signature } from "viem";
 import { PERMIT2_ADDRESS, eip3009ABI, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
 import { multicall, ContractCall } from "../multicall";
-import { createPermit2Nonce, getEvmChainId } from "../utils";
+import { createPermit2Nonce, getEvmChainId, truncateErrorMessage } from "../utils";
 import {
   ErrPermit2612AmountMismatch,
   ErrPermit2InvalidAmount,
@@ -39,6 +39,7 @@ import {
   ErrEip2612AssetMismatch,
   ErrEip2612SpenderNotPermit2,
   ErrEip2612DeadlineExpired,
+  ErrErc20ApprovalBroadcastFailed,
   ErrErc20ApprovalTxFailed,
 } from "../exact/facilitator/errors";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
@@ -54,6 +55,37 @@ import {
  * Both {@link ExactPermit2Payload} and {@link UptoPermit2Payload} satisfy this type.
  */
 export type Permit2PayloadBase = ExactPermit2Payload | UptoPermit2Payload;
+
+/**
+ * Native JS error constructors that signal a bug in the signer's own code
+ * (a bad argument, an undefined property access, an out-of-range index) rather than
+ * a real RPC/transport failure. `settlement_pending` asserts "the transaction may
+ * still confirm on chain," which is not a safe inference for these — a signer
+ * wrapper that throws a `TypeError` is broken, not unlucky with an RPC node.
+ */
+const PROGRAMMER_ERROR_CONSTRUCTORS: ReadonlySet<new (...args: never[]) => Error> = new Set([
+  TypeError,
+  ReferenceError,
+  RangeError,
+  SyntaxError,
+]);
+
+/**
+ * True if `error` looks like a signer/RPC failure rather than a bug in the signer's
+ * implementation. Used to decide whether a `waitForTransactionReceipt` failure is
+ * eligible for `settlement_pending` (unknown outcome, may still confirm) or must be
+ * treated as a terminal failure instead.
+ *
+ * @param error - The error thrown by a receipt-wait call.
+ * @returns True if `error` should be treated as a transient transport failure.
+ */
+export function isLikelyTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  for (const ctor of PROGRAMMER_ERROR_CONSTRUCTORS) {
+    if (error instanceof ctor) return false;
+  }
+  return true;
+}
 
 /**
  * Configuration for the Permit2 proxy contract used during settlement.
@@ -165,7 +197,10 @@ export async function verifyPermit2Allowance(
  * @param tx - The transaction hash to wait for
  * @param payload - The payment payload (for network info)
  * @param payer - The payer address
- * @param failedStatusReason - Error reason to report when the transaction confirms as reverted
+ * @param failedStatusReason - Error reason for terminal failures: an invalid broadcast hash,
+ *   a reverted receipt, or a receipt-wait failure that isn't a likely transport error (see
+ *   {@link isLikelyTransportError}). Transport-like receipt-wait failures report
+ *   `ErrSettlementPending` instead, regardless of this value.
  * @returns Promise resolving to a settlement response indicating success or failure
  */
 export async function waitAndReturnSettleResponse(
@@ -193,10 +228,12 @@ export async function waitAndReturnSettleResponse(
     receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
     // Must not fall into the caller's generic catch, which would discard the tx hash.
+    // Only report settlement_pending for failures that plausibly mean "we don't yet
+    // know the outcome" — a bug in the signer's own code is not one of those.
     return {
       success: false,
-      errorReason: ErrSettlementPending,
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorReason: isLikelyTransportError(error) ? ErrSettlementPending : failedStatusReason,
+      errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
       transaction: tx,
       network: payload.accepted.network,
       payer,
@@ -255,8 +292,11 @@ export function mapSettleError(
       errorReason = ErrPermit2InvalidSignature;
     } else if (message.includes("InvalidNonce")) {
       errorReason = ErrPermit2InvalidNonce;
-    } else if (message.includes("erc20_approval_tx_failed")) {
-      errorReason = ErrErc20ApprovalTxFailed;
+    } else if (message.includes(ErrErc20ApprovalTxFailed)) {
+      // Matches Go/Python: the extension signer returned no usable settlement hash to
+      // reconcile against, so this maps to the broadcast-failure reason, not the raw
+      // sentinel used to route the message here.
+      errorReason = ErrErc20ApprovalBroadcastFailed;
     } else if (message.includes("AmountExceedsPermitted")) {
       errorReason = ErrUptoAmountExceedsPermitted;
     } else if (message.includes("UnauthorizedFacilitator")) {

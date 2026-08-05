@@ -10,8 +10,10 @@ except ImportError as e:
     ) from e
 
 from .....schemas import PaymentRequirements, SettleResponse
-from ...constants import TX_STATUS_SUCCESS
+from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
+from ...settle_receipt import is_likely_transport_error
 from ...signer import FacilitatorEvmSigner
+from ...utils import is_valid_tx_hash, truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
 from ..constants import BATCH_SETTLEMENT_ADDRESS
 from ..errors import (
@@ -21,6 +23,7 @@ from ..errors import (
     ERR_SETTLE_TRANSACTION_FAILED,
 )
 from ..types import SettlePayload
+from .utils import invalid_broadcast_hash_response
 
 
 def execute_settle(
@@ -81,24 +84,6 @@ def execute_settle(
             token,
             data_suffix=data_suffix,
         )
-        receipt = signer.wait_for_transaction_receipt(tx)
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_SETTLE_TRANSACTION_FAILED,
-                error_message=f"transaction reverted (receipt status {receipt.status})",
-                transaction=tx,
-                network=network,
-            )
-
-        amount = _parse_settled_amount(signer, receipt, contract_addr, receiver, token)
-
-        return SettleResponse(
-            success=True,
-            transaction=tx,
-            network=network,
-            amount=amount,
-        )
     except Exception as e:
         return SettleResponse(
             success=False,
@@ -107,6 +92,48 @@ def execute_settle(
             transaction="",
             network=network,
         )
+
+    if not is_valid_tx_hash(tx):
+        return invalid_broadcast_hash_response(tx, ERR_SETTLE_TRANSACTION_FAILED, network)
+
+    try:
+        receipt = signer.wait_for_transaction_receipt(tx)
+    except Exception as e:
+        # Only report settlement_pending for failures that plausibly mean "we don't yet
+        # know the outcome" — a bug in the signer's own code is not one of those.
+        if not is_likely_transport_error(e):
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_SETTLE_TRANSACTION_FAILED,
+                error_message=truncate_error_message(str(e)),
+                transaction="",
+                network=network,
+            )
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLEMENT_PENDING,
+            error_message=truncate_error_message(str(e)),
+            transaction=tx,
+            network=network,
+        )
+
+    if receipt.status != TX_STATUS_SUCCESS:
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLE_TRANSACTION_FAILED,
+            error_message=f"transaction reverted (receipt status {receipt.status})",
+            transaction=tx,
+            network=network,
+        )
+
+    amount = _parse_settled_amount(signer, receipt, contract_addr, receiver, token)
+
+    return SettleResponse(
+        success=True,
+        transaction=tx,
+        network=network,
+        amount=amount,
+    )
 
 
 def _unpack_pair(value) -> tuple[int, int]:

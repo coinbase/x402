@@ -94,14 +94,17 @@ func ExecuteClaimWithSignature(
 		return nil, x402.NewSettleError(ErrClaimTransactionFailed, "", network, "",
 			fmt.Sprintf("claimWithSignature transaction failed: %s", err))
 	}
+	if !evm.IsValidTxHash(txHash) {
+		return nil, evm.InvalidBroadcastHashError(ErrClaimTransactionFailed, "", network, txHash)
+	}
 
 	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrWaitForReceipt, txHash, network, "",
-			fmt.Sprintf("failed waiting for claimWithSignature receipt: %s", err))
+		return nil, x402.NewSettleError(ErrSettlementPending, "", network, txHash,
+			fmt.Sprintf("failed waiting for claimWithSignature receipt: %s", evm.TruncateErrorMessage(err.Error())))
 	}
 	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrTransactionReverted, txHash, network, "",
+		return nil, x402.NewSettleError(ErrTransactionReverted, "", network, txHash,
 			"claimWithSignature transaction reverted")
 	}
 

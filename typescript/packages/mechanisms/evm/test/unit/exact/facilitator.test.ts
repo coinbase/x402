@@ -680,6 +680,55 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
 
+    it("should fail terminally (not settlement_pending) when the receipt wait throws a programmer error", async () => {
+      // A TypeError out of waitForTransactionReceipt means the signer wrapper is
+      // broken, not that the transaction's outcome is unknown — settlement_pending
+      // would wrongly imply the transaction may still confirm.
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0",
+        maxTimeoutSeconds: 300,
+        extra: { name: "USDC", version: "2", assetTransferMethod: "permit2" },
+      };
+
+      mockFacilitatorSigner.readContract = rcWithSig(undefined);
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'status')"));
+
+      const permit2Payload: PaymentPayload = {
+        x402Version: 2,
+        payload: {
+          signature: "0xmocksignature",
+          permit2Authorization: {
+            from: mockClientSigner.address,
+            permitted: {
+              token: requirements.asset,
+              amount: requirements.amount,
+            },
+            spender: x402ExactPermit2ProxyAddress,
+            nonce: "12345",
+            deadline: "999999999999",
+            witness: {
+              to: requirements.payTo,
+              validAfter: "0",
+            },
+          },
+        },
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.settle(permit2Payload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(Errors.ErrInvalidTransactionState);
+      expect(result.transaction).toBe(MOCK_TX_HASH);
+    });
+
     it("should fail Permit2 settlement when signature verification fails", async () => {
       const requirements: PaymentRequirements = {
         scheme: "exact",
@@ -2027,7 +2076,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(mockExtWaitForReceipt).not.toHaveBeenCalled();
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(Errors.ErrErc20ApprovalTxFailed);
+      expect(result.errorReason).toBe(Errors.ErrErc20ApprovalBroadcastFailed);
       expect(result.transaction).toBe("");
     });
 

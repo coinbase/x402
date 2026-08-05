@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"strings"
 	"time"
+
+	x402 "github.com/x402-foundation/x402/go/v2"
 )
 
 // IsValidTxHash validates external-signer hashes before a receipt wait.
@@ -17,6 +19,30 @@ func IsValidTxHash(hash string) bool {
 	}
 	_, err := hex.DecodeString(hash[2:])
 	return err == nil
+}
+
+// MaxErrorMessageLength bounds error text sourced from RPC/transport failures (e.g. a
+// waitForTransactionReceipt error) before it is placed in a settle/verify error message.
+// Matches the truncation length used by the Python and TypeScript SDKs so wire behavior
+// is consistent across languages.
+const MaxErrorMessageLength = 500
+
+// TruncateErrorMessage bounds raw error text (e.g. from an RPC client) before it is placed
+// in a settle/verify ErrorMessage. RPC/transport errors can carry node URLs, request bodies,
+// or other verbose data that should not be echoed to callers unbounded.
+func TruncateErrorMessage(msg string) string {
+	if len(msg) <= MaxErrorMessageLength {
+		return msg
+	}
+	return msg[:MaxErrorMessageLength]
+}
+
+// InvalidBroadcastHashError builds a terminal SettleError for a signer that reports success
+// without a usable transaction hash. settlement_pending is only meaningful with a broadcast
+// hash to reconcile against, so this case is always terminal, never ErrSettlementPending.
+func InvalidBroadcastHashError(reason string, payer string, network x402.Network, txHash string) error {
+	return x402.NewSettleError(reason, payer, network, "",
+		fmt.Sprintf("signer returned an invalid transaction hash: %q", txHash))
 }
 
 // GetEvmChainId returns the chain ID for a given CAIP-2 network identifier (eip155:CHAIN_ID).

@@ -166,6 +166,20 @@ def is_valid_tx_hash(tx_hash: str) -> bool:
     return re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is not None
 
 
+# Bounds error text sourced from RPC/transport failures (e.g. a wait_for_transaction_receipt
+# error) before it is placed in a settle/verify error message. Matches the truncation length
+# used by the Go and TypeScript SDKs so wire behavior is consistent across languages.
+MAX_ERROR_MESSAGE_LENGTH = 500
+
+
+def truncate_error_message(msg: str) -> str:
+    """Bound raw error text (e.g. from an RPC client) before it is placed in a settle/verify
+    error_message. RPC/transport errors can carry node URLs, request bodies, or other verbose
+    data that should not be echoed to callers unbounded.
+    """
+    return msg[:MAX_ERROR_MESSAGE_LENGTH]
+
+
 def is_valid_address(address: str) -> bool:
     """Check if string is valid Ethereum address.
 

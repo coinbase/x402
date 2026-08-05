@@ -5,16 +5,21 @@ import {
   VerifyResponse,
   SettleResponse,
 } from "@x402/core/types";
-import { getAddress, parseErc6492Signature, isAddressEqual } from "viem";
+import { getAddress, parseErc6492Signature, isAddressEqual, isHash } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import type { TransactionRequest } from "../../exact/extensions";
 import { BatchSettlementAssetTransferMethod, BatchSettlementDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
-import { getEvmChainId } from "../../utils";
+import { getEvmChainId, truncateErrorMessage } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "../errors";
+// Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
+// wire value across all EVM schemes.
+import { ErrSettlementPending } from "../../exact/facilitator/errors";
+import { isLikelyTransportError } from "../../shared/permit2";
 import {
+  invalidBroadcastHashResponse,
   readChannelState,
   toContractChannelConfig,
   validateChannelConfig,
@@ -412,7 +417,32 @@ export async function settleDeposit(
             dataSuffix,
           });
 
-    const receipt = await signer.waitForTransactionReceipt({ hash: tx });
+    if (!isHash(tx)) {
+      return invalidBroadcastHashResponse(
+        tx,
+        Errors.ErrDepositTransactionFailed,
+        requirements.network,
+        payer,
+      );
+    }
+
+    let receipt;
+    try {
+      receipt = await signer.waitForTransactionReceipt({ hash: tx });
+    } catch (e) {
+      // Only report settlement_pending for failures that plausibly mean "we don't yet
+      // know the outcome" — a bug in the signer's own code is not one of those.
+      return {
+        success: false,
+        errorReason: isLikelyTransportError(e)
+          ? ErrSettlementPending
+          : Errors.ErrDepositTransactionFailed,
+        errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
+        transaction: tx,
+        network: requirements.network,
+        payer,
+      };
+    }
 
     if (receipt.status !== "success") {
       return {

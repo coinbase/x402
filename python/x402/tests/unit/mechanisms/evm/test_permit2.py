@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from x402.mechanisms.evm.constants import (
     ERR_ASSET_NOT_DEPLOYED_CONTRACT,
-    ERR_ERC20_APPROVAL_TX_FAILED,
+    ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_INSUFFICIENT_BALANCE,
     ERR_NETWORK_MISMATCH,
     ERR_PERMIT2_ALLOWANCE_REQUIRED,
@@ -480,6 +480,27 @@ class TestSettlePermit2:
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
+    def test_settle_receipt_wait_programmer_error_is_terminal_not_pending(self):
+        # A TypeError out of wait_for_transaction_receipt means the signer wrapper is
+        # broken, not that the transaction's outcome is unknown — settlement_pending
+        # would wrongly imply the transaction may still confirm.
+        class _BrokenSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TypeError("wait_for_transaction_receipt() missing 1 required argument")
+
+        signer = _BrokenSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_TRANSACTION_FAILED
+        assert result.transaction == ""
+
     def test_settle_invalid_broadcast_hash_is_terminal(self):
         # settlement_pending needs the broadcast hash to be actionable, so a signer that
         # reports success without a usable hash must fail terminally.
@@ -533,7 +554,7 @@ class TestSettlePermit2:
         )
 
         assert result.success is False
-        assert result.error_reason == ERR_ERC20_APPROVAL_TX_FAILED
+        assert result.error_reason == ERR_ERC20_APPROVAL_BROADCAST_FAILED
         assert result.transaction == ""
 
     def test_settle_erc20_approval_atomic_bundle_single_hash_succeeds(self):

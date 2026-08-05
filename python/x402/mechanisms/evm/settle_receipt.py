@@ -8,9 +8,32 @@ from typing import Protocol
 from ...schemas import SettleResponse
 from .constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from .types import TransactionReceipt
-from .utils import is_valid_tx_hash
+from .utils import is_valid_tx_hash, truncate_error_message
 
 logger = logging.getLogger(__name__)
+
+# Exceptions that signal a bug in the signer's own code (a bad argument, a missing
+# attribute, an out-of-range index) rather than a real RPC/transport failure.
+# settlement_pending asserts "the transaction may still confirm on chain," which is
+# not a safe inference for these — a signer wrapper that raises AttributeError is
+# broken, not unlucky with an RPC node.
+_PROGRAMMER_ERRORS: tuple[type[BaseException], ...] = (
+    TypeError,
+    AttributeError,
+    KeyError,
+    IndexError,
+    NameError,
+    NotImplementedError,
+)
+
+
+def is_likely_transport_error(e: BaseException) -> bool:
+    """True if `e` looks like a signer/RPC failure rather than a bug in the signer's
+    implementation. Used to decide whether a `wait_for_transaction_receipt` failure is
+    eligible for `settlement_pending` (unknown outcome, may still confirm) or must be
+    treated as a terminal failure instead.
+    """
+    return not isinstance(e, _PROGRAMMER_ERRORS)
 
 
 class ReceiptWaiter(Protocol):
@@ -49,13 +72,30 @@ def wait_for_receipt_and_build_response(
     try:
         receipt = signer.wait_for_transaction_receipt(tx_hash)
     except Exception as e:
+        # Only report settlement_pending for failures that plausibly mean "we don't
+        # yet know the outcome" — a bug in the signer's own code is not one of those.
+        if not is_likely_transport_error(e):
+            logger.warning(
+                "settle: wait_for_transaction_receipt raised a programmer error payer=%s tx=%s: %s",
+                payer,
+                tx_hash,
+                e,
+            )
+            return SettleResponse(
+                success=False,
+                error_reason=failed_reason,
+                error_message=truncate_error_message(str(e)),
+                transaction="",
+                network=network,
+                payer=payer,
+            )
         logger.warning(
             "settle: wait_for_transaction_receipt failed payer=%s tx=%s: %s", payer, tx_hash, e
         )
         return SettleResponse(
             success=False,
             error_reason=ERR_SETTLEMENT_PENDING,
-            error_message=str(e),
+            error_message=truncate_error_message(str(e)),
             transaction=tx_hash,
             network=network,
             payer=payer,

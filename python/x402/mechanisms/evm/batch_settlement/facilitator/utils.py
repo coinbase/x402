@@ -14,7 +14,7 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
-from .....schemas import PaymentRequirements
+from .....schemas import PaymentRequirements, SettleResponse
 from ...multicall import MulticallCall, multicall
 from ...signer import FacilitatorEvmSigner
 from ...verify import verify_typed_data_strict
@@ -54,6 +54,27 @@ def to_contract_channel_config(config: ChannelConfig) -> tuple:
         to_checksum_address(config.token),
         int(config.withdraw_delay),
         coerce_bytes32(config.salt),
+    )
+
+
+def invalid_broadcast_hash_response(
+    tx: str,
+    error_reason: str,
+    network: str,
+    payer: str | None = None,
+) -> SettleResponse:
+    """Terminal failure response for a signer that reports success without a usable hash.
+
+    settlement_pending is only meaningful with a broadcast hash to reconcile against, so a
+    write_contract result that isn't a real transaction hash must fail terminally instead.
+    """
+    return SettleResponse(
+        success=False,
+        error_reason=error_reason,
+        error_message=f"signer returned an invalid transaction hash: {tx!r}",
+        transaction="",
+        network=network,
+        payer=payer,
     )
 
 

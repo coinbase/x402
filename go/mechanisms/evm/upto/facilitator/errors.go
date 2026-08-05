@@ -13,8 +13,11 @@ const (
 	ErrUptoFacilitatorMismatch      = "upto_facilitator_mismatch"
 	ErrUptoVerificationFailed       = "invalid_upto_evm_verification_failed"
 	ErrUptoFailedToGetNetworkConfig = "invalid_upto_evm_failed_to_get_network_config"
-	ErrUptoFailedToGetReceipt       = "invalid_upto_evm_failed_to_get_receipt"
-	ErrUptoTransactionFailed        = "invalid_upto_evm_transaction_failed"
+	// ErrUptoFailedToGetReceipt is unreachable: receipt-wait failures now return
+	// ErrSettlementPending instead, since the transaction may still confirm on chain.
+	// Kept only so the string value is not reused for something unrelated.
+	ErrUptoFailedToGetReceipt = "invalid_upto_evm_failed_to_get_receipt"
+	ErrUptoTransactionFailed  = "invalid_upto_evm_transaction_failed"
 
 	ErrSettlementPending = evm.ErrSettlementPending // shared with exact
 

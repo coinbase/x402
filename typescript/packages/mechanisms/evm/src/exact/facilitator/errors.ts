@@ -63,6 +63,7 @@ export const ErrErc20ApprovalTxSignerMismatch = "erc20_approval_tx_signer_mismat
 export const ErrErc20ApprovalTxInvalidSignature = "erc20_approval_tx_invalid_signature";
 export const ErrErc20ApprovalTxParseFailed = "erc20_approval_tx_parse_failed";
 export const ErrErc20ApprovalTxFailed = "erc20_approval_tx_failed";
+export const ErrErc20ApprovalBroadcastFailed = "erc20_approval_broadcast_failed";
 
 // EIP-2612 gas sponsoring verify errors
 export const ErrInvalidEip2612ExtensionFormat = "invalid_eip2612_extension_format";

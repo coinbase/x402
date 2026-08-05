@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getEvmChainId, createNonce } from "../../src/utils";
+import {
+  getEvmChainId,
+  createNonce,
+  truncateErrorMessage,
+  MAX_ERROR_MESSAGE_LENGTH,
+} from "../../src/utils";
 import { getEvmChainIdV1 } from "../../src/v1";
 
 describe("EVM Utils", () => {
@@ -101,6 +106,24 @@ describe("EVM Utils", () => {
         expect(nonce.startsWith("0x")).toBe(true);
         expect(nonce.length).toBe(66); // "0x" + 64 hex characters
       }
+    });
+  });
+
+  describe("truncateErrorMessage", () => {
+    it("should leave short messages unchanged", () => {
+      expect(truncateErrorMessage("connection refused")).toBe("connection refused");
+    });
+
+    it("should truncate long messages to the max length", () => {
+      const long = "x".repeat(MAX_ERROR_MESSAGE_LENGTH + 100);
+      const result = truncateErrorMessage(long);
+      expect(result.length).toBe(MAX_ERROR_MESSAGE_LENGTH);
+      expect(result).toBe(long.slice(0, MAX_ERROR_MESSAGE_LENGTH));
+    });
+
+    it("should leave a message exactly at the max length unchanged", () => {
+      const message = "x".repeat(MAX_ERROR_MESSAGE_LENGTH);
+      expect(truncateErrorMessage(message)).toBe(message);
     });
   });
 });

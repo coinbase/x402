@@ -20,12 +20,13 @@ from .....schemas import (
     SettleResponse,
     VerifyResponse,
 )
-from ...constants import TX_STATUS_SUCCESS
+from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
+from ...settle_receipt import is_likely_transport_error
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData
-from ...utils import bytes_to_hex, get_evm_chain_id
+from ...utils import bytes_to_hex, get_evm_chain_id, is_valid_tx_hash, truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI, ERC20_BALANCE_OF_ABI
 from ..constants import BATCH_SETTLEMENT_ADDRESS
 from ..errors import (
@@ -53,6 +54,7 @@ from .deposit_permit2 import (
     verify_permit2_deposit_authorization,
 )
 from .utils import (
+    invalid_broadcast_hash_response,
     read_channel_state,
     to_contract_channel_config,
     validate_channel_config,
@@ -248,7 +250,34 @@ def settle_deposit(
                 data_suffix=data_suffix,
             )
 
-        receipt = signer.wait_for_transaction_receipt(tx)
+        if not is_valid_tx_hash(tx):
+            return invalid_broadcast_hash_response(
+                tx, ERR_DEPOSIT_TRANSACTION_FAILED, network, payer
+            )
+
+        try:
+            receipt = signer.wait_for_transaction_receipt(tx)
+        except Exception as e:
+            # Only report settlement_pending for failures that plausibly mean "we don't
+            # yet know the outcome" — a bug in the signer's own code is not one of those.
+            if not is_likely_transport_error(e):
+                return SettleResponse(
+                    success=False,
+                    error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+                    error_message=truncate_error_message(str(e)),
+                    transaction="",
+                    network=network,
+                    payer=payer,
+                )
+            return SettleResponse(
+                success=False,
+                error_reason=ERR_SETTLEMENT_PENDING,
+                error_message=truncate_error_message(str(e)),
+                transaction=tx,
+                network=network,
+                payer=payer,
+            )
+
         if receipt.status != TX_STATUS_SUCCESS:
             return SettleResponse(
                 success=False,
