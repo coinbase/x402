@@ -666,10 +666,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       expect(mockSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
 
-    it("should fail terminally (not settlement_pending) when the receipt wait throws a programmer error", async () => {
-      // A TypeError out of waitForTransactionReceipt means the signer wrapper is
-      // broken, not that the transaction's outcome is unknown — settlement_pending
-      // would wrongly imply the transaction may still confirm.
+    it("should report settlement_pending when the receipt wait throws a programmer error", async () => {
       mockSigner.waitForTransactionReceipt = vi
         .fn()
         .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'status')"));
@@ -677,7 +674,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(makePayload(), makeRequirements());
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(ErrInvalidTransactionState);
+      expect(result.errorReason).toBe(ErrSettlementPending);
       expect(result.transaction).toBe(MOCK_TX_HASH);
     });
   });

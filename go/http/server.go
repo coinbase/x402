@@ -1109,11 +1109,15 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResultFromError(err error
 		if network == "" {
 			network = fallbackNetwork
 		}
+		transaction := ""
+		if se.ErrorReason == "settlement_pending" {
+			transaction = se.Transaction
+		}
 		return s.buildSettlementFailureResult(se.ErrorReason, network, se.Payer, &x402.SettleResponse{
 			Success:      false,
 			ErrorReason:  se.ErrorReason,
 			ErrorMessage: se.ErrorMessage,
-			Transaction:  se.Transaction,
+			Transaction:  transaction,
 			Network:      network,
 			Payer:        se.Payer,
 		})

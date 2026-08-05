@@ -868,6 +868,52 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     );
   });
 
+  it("keeps a successful deposit when the post-receipt channel-state read fails", async () => {
+    const signer = buildSigner();
+    mockedMulticall
+      .mockResolvedValueOnce([
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 1_000_000n },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ])
+      .mockRejectedValueOnce(new Error("rpc: channel state unavailable"));
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const config = buildChannelConfig();
+    const channelId = computeChannelId(config);
+    const now = Math.floor(Date.now() / 1000);
+    const dp: BatchSettlementDepositPayload = {
+      type: "deposit",
+      channelConfig: config,
+      voucher: { channelId, maxClaimableAmount: "1000", signature: "0xcafebabe" },
+      deposit: {
+        amount: "10000",
+        authorization: {
+          erc3009Authorization: {
+            validAfter: String(now - 600),
+            validBefore: String(now + 3600),
+            salt: "0x0000000000000000000000000000000000000000000000000000000000000001",
+            signature: "0xfeedface",
+          },
+        },
+      },
+    };
+
+    const result = await scheme.settle(envelopeDeposit(dp), makeRequirements());
+
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBe("0x" + "ab".repeat(32));
+    expect(result.extra).toMatchObject({
+      channelState: {
+        channelId,
+        balance: "10000",
+        totalClaimed: "0",
+        withdrawRequestedAt: 0,
+        refundNonce: "0",
+      },
+    });
+  });
+
   it("returns settlement_pending when the deposit receipt wait fails", async () => {
     const signer = buildSigner({
       waitForTransactionReceipt: vi.fn().mockRejectedValue(new Error("rpc: timeout")),
@@ -1087,7 +1133,7 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     expect(result.transaction).toBe("");
   });
 
-  it("fails terminally (not settlement_pending) when the settle receipt wait throws a programmer error", async () => {
+  it("returns settlement_pending when the settle receipt wait throws a programmer error", async () => {
     const signer = buildSigner({
       waitForTransactionReceipt: vi
         .fn()
@@ -1104,7 +1150,7 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
       makeRequirements(),
     );
     expect(result.success).toBe(false);
-    expect(result.errorReason).toBe(Errors.ErrSettleTransactionFailed);
+    expect(result.errorReason).toBe("settlement_pending");
     expect(result.transaction).toBe("0x" + "ab".repeat(32));
   });
 

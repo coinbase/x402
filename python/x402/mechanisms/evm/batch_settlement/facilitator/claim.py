@@ -11,7 +11,6 @@ except ImportError as e:
 
 from .....schemas import PaymentRequirements, SettleResponse
 from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
-from ...settle_receipt import is_likely_transport_error
 from ...signer import FacilitatorEvmSigner
 from ...utils import is_valid_tx_hash, truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
@@ -114,16 +113,6 @@ def execute_claim_with_signature(
     try:
         receipt = signer.wait_for_transaction_receipt(tx)
     except Exception as e:
-        # Only report settlement_pending for failures that plausibly mean "we don't yet
-        # know the outcome" — a bug in the signer's own code is not one of those.
-        if not is_likely_transport_error(e):
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_CLAIM_TRANSACTION_FAILED,
-                error_message=truncate_error_message(str(e)),
-                transaction="",
-                network=network,
-            )
         return SettleResponse(
             success=False,
             error_reason=ERR_SETTLEMENT_PENDING,

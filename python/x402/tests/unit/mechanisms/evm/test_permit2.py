@@ -480,10 +480,7 @@ class TestSettlePermit2:
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
 
-    def test_settle_receipt_wait_programmer_error_is_terminal_not_pending(self):
-        # A TypeError out of wait_for_transaction_receipt means the signer wrapper is
-        # broken, not that the transaction's outcome is unknown — settlement_pending
-        # would wrongly imply the transaction may still confirm.
+    def test_settle_receipt_wait_type_error_returns_settlement_pending(self):
         class _BrokenSigner(MockFacilitatorSigner):
             def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
                 raise TypeError("wait_for_transaction_receipt() missing 1 required argument")
@@ -498,8 +495,8 @@ class TestSettlePermit2:
             result = facilitator.settle(make_payment_payload(), make_requirements())
 
         assert result.success is False
-        assert result.error_reason == ERR_TRANSACTION_FAILED
-        assert result.transaction == ""
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "ab" * 32
 
     def test_settle_invalid_broadcast_hash_is_terminal(self):
         # settlement_pending needs the broadcast hash to be actionable, so a signer that

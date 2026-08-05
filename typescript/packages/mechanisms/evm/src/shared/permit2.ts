@@ -57,41 +57,6 @@ import {
 export type Permit2PayloadBase = ExactPermit2Payload | UptoPermit2Payload;
 
 /**
- * Native JS error constructors that usually signal a bug in the signer's own code
- * (a bad argument, an undefined property access, an out-of-range index) rather than
- * a real RPC/transport failure. `settlement_pending` asserts "the transaction may
- * still confirm on chain," which is not a safe inference for these — a signer
- * wrapper that throws a `TypeError` is broken, not unlucky with an RPC node. Node's
- * `TypeError: fetch failed` is handled as a transport error below.
- */
-const PROGRAMMER_ERROR_CONSTRUCTORS: ReadonlySet<new (...args: never[]) => Error> = new Set([
-  TypeError,
-  ReferenceError,
-  RangeError,
-  SyntaxError,
-]);
-
-/**
- * True if `error` looks like a signer/RPC failure rather than a bug in the signer's
- * implementation. Used to decide whether a `waitForTransactionReceipt` failure is
- * eligible for `settlement_pending` (unknown outcome, may still confirm) or must be
- * treated as a terminal failure instead.
- *
- * @param error - The error thrown by a receipt-wait call.
- * @returns True if `error` should be treated as a transient transport failure.
- */
-export function isLikelyTransportError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  if (error instanceof TypeError && /\b(fetch failed|failed to fetch)\b/i.test(error.message)) {
-    return true;
-  }
-  for (const ctor of PROGRAMMER_ERROR_CONSTRUCTORS) {
-    if (error instanceof ctor) return false;
-  }
-  return true;
-}
-
-/**
  * Configuration for the Permit2 proxy contract used during settlement.
  * The exact and upto schemes use different proxy addresses and ABIs.
  */
@@ -194,6 +159,8 @@ export async function verifyPermit2Allowance(
   }
 }
 
+type SettleReceipt = Awaited<ReturnType<FacilitatorEvmSigner["waitForTransactionReceipt"]>>;
+
 /**
  * Waits for a transaction receipt and returns the appropriate SettleResponse.
  *
@@ -201,10 +168,10 @@ export async function verifyPermit2Allowance(
  * @param tx - The transaction hash to wait for
  * @param payload - The payment payload (for network info)
  * @param payer - The payer address
- * @param failedStatusReason - Error reason for terminal failures: an invalid broadcast hash,
- *   a reverted receipt, or a receipt-wait failure that isn't a likely transport error (see
- *   {@link isLikelyTransportError}). Transport-like receipt-wait failures report
- *   `ErrSettlementPending` instead, regardless of this value.
+ * @param failedStatusReason - Error reason for terminal failures: an invalid broadcast hash
+ *   or reverted receipt. Receipt-wait failures report `ErrSettlementPending`.
+ * @param validateReceipt - Optional check after a successful receipt (e.g. Transfer event).
+ *   Return a SettleResponse to fail settlement; return undefined to accept success.
  * @returns Promise resolving to a settlement response indicating success or failure
  */
 export async function waitAndReturnSettleResponse(
@@ -213,6 +180,7 @@ export async function waitAndReturnSettleResponse(
   payload: PaymentPayload,
   payer: `0x${string}`,
   failedStatusReason: string = ErrInvalidTransactionState,
+  validateReceipt?: (receipt: SettleReceipt) => SettleResponse | undefined,
 ): Promise<SettleResponse> {
   // settlement_pending is only meaningful with the broadcast hash to reconcile against, so a
   // signer that reports success without a usable hash is a terminal failure.
@@ -232,14 +200,11 @@ export async function waitAndReturnSettleResponse(
     receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
     // Must not fall into the caller's generic catch, which would discard the tx hash.
-    // Only report settlement_pending for failures that plausibly mean "we don't yet
-    // know the outcome" — a bug in the signer's own code is not one of those.
-    const isTransportError = isLikelyTransportError(error);
     return {
       success: false,
-      errorReason: isTransportError ? ErrSettlementPending : failedStatusReason,
+      errorReason: ErrSettlementPending,
       errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
-      transaction: isTransportError ? tx : "",
+      transaction: tx,
       network: payload.accepted.network,
       payer,
     };
@@ -253,6 +218,11 @@ export async function waitAndReturnSettleResponse(
       network: payload.accepted.network,
       payer,
     };
+  }
+
+  const validationFailure = validateReceipt?.(receipt);
+  if (validationFailure) {
+    return validationFailure;
   }
 
   return {

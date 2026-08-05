@@ -8,7 +8,6 @@ import * as Errors from "../errors";
 // Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
 // wire value across all EVM schemes.
 import { ErrSettlementPending } from "../../exact/facilitator/errors";
-import { isLikelyTransportError } from "../../shared/permit2";
 import { truncateErrorMessage } from "../../utils";
 import { invalidBroadcastHashResponse } from "./utils";
 
@@ -117,13 +116,9 @@ export async function executeSettle(
     try {
       receipt = await signer.waitForTransactionReceipt({ hash: tx });
     } catch (e) {
-      // Only report settlement_pending for failures that plausibly mean "we don't yet
-      // know the outcome" — a bug in the signer's own code is not one of those.
       return {
         success: false,
-        errorReason: isLikelyTransportError(e)
-          ? ErrSettlementPending
-          : Errors.ErrSettleTransactionFailed,
+        errorReason: ErrSettlementPending,
         errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
         transaction: tx,
         network,

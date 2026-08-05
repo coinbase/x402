@@ -237,10 +237,6 @@ func (f *ExactEvmScheme) settleEIP3009(
 
 	receipt, err := f.signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		if !evm.IsLikelyTransportError(err) {
-			return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "",
-				evm.TruncateErrorMessage(err.Error()))
-		}
 		return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash,
 			evm.TruncateErrorMessage(err.Error()))
 	}

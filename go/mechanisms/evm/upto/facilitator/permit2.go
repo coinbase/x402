@@ -374,10 +374,6 @@ func SettleUptoPermit2(
 
 	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
-		if !evm.IsLikelyTransportError(err) {
-			return nil, x402.NewSettleError(ErrUptoTransactionFailed, payer, network, "",
-				evm.TruncateErrorMessage(err.Error()))
-		}
 		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash,
 			evm.TruncateErrorMessage(err.Error()))
 	}

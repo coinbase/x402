@@ -280,8 +280,13 @@ class TestRefundAuthorizerNotConfigured:
 class _ReceiptWaitFailsSigner:
     """Broadcasts successfully but fails to confirm the receipt (RPC error/timeout)."""
 
-    def __init__(self, tx_hash: str = _SUCCESSFUL_TX_HASH) -> None:
+    def __init__(
+        self,
+        tx_hash: str = _SUCCESSFUL_TX_HASH,
+        error: Exception | None = None,
+    ) -> None:
         self._tx_hash = tx_hash
+        self._error = error or RuntimeError("rpc: timeout waiting for receipt")
 
     def read_contract(self, *args, **kwargs):
         return (1000, 0)
@@ -290,11 +295,11 @@ class _ReceiptWaitFailsSigner:
         return self._tx_hash
 
     def wait_for_transaction_receipt(self, tx):
-        raise RuntimeError("rpc: timeout waiting for receipt")
+        raise self._error
 
 
 class TestSettleReceiptWait:
-    def test_deposit_accepts_single_hash_atomic_bundle(self, monkeypatch):
+    def test_deposit_post_receipt_read_failure_uses_optimistic_state(self, monkeypatch):
         from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
 
         class BaseSigner:
@@ -335,9 +340,7 @@ class TestSettleReceiptWait:
         monkeypatch.setattr(
             deposit_mod,
             "read_channel_state",
-            lambda *args: ChannelState(
-                balance=100, total_claimed=0, withdraw_requested_at=0, refund_nonce=0
-            ),
+            lambda *args: (_ for _ in ()).throw(RuntimeError("rpc read failed")),
         )
 
         out = deposit_mod.settle_deposit(
@@ -349,6 +352,15 @@ class TestSettleReceiptWait:
 
         assert out.success is True
         assert out.transaction == _SUCCESSFUL_TX_HASH
+        assert out.extra == {
+            "channelState": {
+                "channelId": "0x" + "11" * 32,
+                "balance": "100",
+                "totalClaimed": "0",
+                "withdrawRequestedAt": 0,
+                "refundNonce": "0",
+            }
+        }
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
         payload = SettlePayload(
@@ -358,6 +370,22 @@ class TestSettleReceiptWait:
 
         out = execute_settle(
             _ReceiptWaitFailsSigner(),  # type: ignore[arg-type]
+            payload,
+            _requirements(),
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+
+    def test_receipt_wait_type_error_returns_settlement_pending(self):
+        payload = SettlePayload(
+            receiver="0x3333333333333333333333333333333333333333",
+            token="0x5555555555555555555555555555555555555555",
+        )
+
+        out = execute_settle(
+            _ReceiptWaitFailsSigner(error=TypeError("invalid receipt")),  # type: ignore[arg-type]
             payload,
             _requirements(),
         )

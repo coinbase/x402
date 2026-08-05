@@ -734,7 +734,7 @@ func TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction(t *testin
 		Payload:     map[string]interface{}{},
 	}
 
-	result := server.ProcessSettlement(ctx, payload, requirements, nil, nil, nil)
+	result := server.ProcessSettlement(ctx, payload, requirements, nil, nil, nil, nil, "")
 	if result.Success {
 		t.Fatal("Expected settlement failure")
 	}
@@ -828,6 +828,42 @@ func TestCreateFailurePathSettlementHeaders_FailedCancelReceipt(t *testing.T) {
 	}
 	if decoded.Extra["channelId"] != "channel-123" {
 		t.Fatalf("expected channelId, got %#v", decoded.Extra)
+	}
+}
+
+func TestProcessSettlement_TerminalMechanismErrorDiscardsTransaction(t *testing.T) {
+	ctx := context.Background()
+	payer := "0xpayer"
+	mockClient := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return nil, x402.NewSettleError("invalid_payment", payer, "eip155:1", payer, "payment rejected")
+		},
+	}
+	server := Newx402HTTPResourceServer(RoutesConfig{}, x402.WithFacilitatorClient(mockClient))
+	_ = server.Initialize(ctx)
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xtest",
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	result := server.ProcessSettlement(ctx, payload, requirements, nil, nil, nil, nil, "")
+	if result.Transaction != "" {
+		t.Errorf("expected empty transaction, got %q", result.Transaction)
+	}
+	decoded, err := decodePaymentResponseHeader(result.Headers["PAYMENT-RESPONSE"])
+	if err != nil {
+		t.Fatalf("failed to decode PAYMENT-RESPONSE header: %v", err)
+	}
+	if decoded.Transaction != "" {
+		t.Errorf("expected empty header transaction, got %q", decoded.Transaction)
 	}
 }
 

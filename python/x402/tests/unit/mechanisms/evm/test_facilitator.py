@@ -22,7 +22,6 @@ from x402.mechanisms.evm.constants import (
     ERR_SETTLEMENT_PENDING,
     ERR_TOKEN_NAME_MISMATCH,
     ERR_TOKEN_VERSION_MISMATCH,
-    ERR_TRANSACTION_FAILED,
     ERR_TRANSACTION_SIMULATION_FAILED,
     ERR_UNDEPLOYED_SMART_WALLET,
 )
@@ -619,10 +618,7 @@ class TestSettle:
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "34" * 32  # broadcast tx hash from write_contract
 
-    def test_receipt_wait_programmer_error_is_terminal_not_pending(self):
-        # An AttributeError out of wait_for_transaction_receipt means the signer
-        # wrapper is broken, not that the transaction's outcome is unknown —
-        # settlement_pending would wrongly imply the transaction may still confirm.
+    def test_receipt_wait_attribute_error_returns_settlement_pending(self):
         class _BrokenSigner(MockFacilitatorSigner):
             def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
                 raise AttributeError("'NoneType' object has no attribute 'status'")
@@ -633,10 +629,10 @@ class TestSettle:
         result = facilitator.settle(make_payment_payload(), make_requirements())
 
         assert result.success is False
-        assert result.error_reason == ERR_TRANSACTION_FAILED
-        assert result.transaction == ""
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "34" * 32
 
-    def test_receipt_wait_value_error_is_terminal_not_pending(self):
+    def test_receipt_wait_value_error_returns_settlement_pending(self):
         class _BrokenSigner(MockFacilitatorSigner):
             def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
                 raise ValueError("invalid receipt")
@@ -647,8 +643,8 @@ class TestSettle:
         result = facilitator.settle(make_payment_payload(), make_requirements())
 
         assert result.success is False
-        assert result.error_reason == ERR_TRANSACTION_FAILED
-        assert result.transaction == ""
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "34" * 32
 
 
 class TestSettleFactoryAllowlist:

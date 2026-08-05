@@ -98,7 +98,7 @@ func (receiptWaitProgrammerError) Error() string { return "programmer error" }
 
 func (receiptWaitProgrammerError) RuntimeError() {}
 
-func TestSettleEIP3009_ProgrammerReceiptWaitFailureIsTerminal(t *testing.T) {
+func TestSettleEIP3009_ProgrammerReceiptWaitFailureReturnsSettlementPending(t *testing.T) {
 	payload, requirements := plainEIP3009Payload(t)
 	scheme := NewExactEvmScheme(
 		deployedCodeSigner(receiptWaitProgrammerError{}),
@@ -106,7 +106,7 @@ func TestSettleEIP3009_ProgrammerReceiptWaitFailureIsTerminal(t *testing.T) {
 	)
 
 	_, err := scheme.Settle(context.Background(), payload, requirements, nil)
-	assertSettleErr(t, err, ErrTransactionFailed, "")
+	assertSettlementPending(t, err, "0x"+strings.Repeat("ab", 32))
 }
 
 // mockErc20ApprovalSigner wraps settleMockSigner with SendTransactions to satisfy

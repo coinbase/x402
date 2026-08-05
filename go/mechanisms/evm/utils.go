@@ -4,10 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
-	"runtime"
 	"strings"
 	"time"
 
@@ -19,8 +17,16 @@ func IsValidTxHash(hash string) bool {
 	if len(hash) != 66 || !strings.HasPrefix(hash, "0x") {
 		return false
 	}
-	_, err := hex.DecodeString(hash[2:])
-	return err == nil
+	bytes, err := hex.DecodeString(hash[2:])
+	if err != nil {
+		return false
+	}
+	for _, b := range bytes {
+		if b != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // MaxErrorMessageLength bounds error text sourced from RPC/transport failures (e.g. a
@@ -37,12 +43,6 @@ func TruncateErrorMessage(msg string) string {
 		return msg
 	}
 	return msg[:MaxErrorMessageLength]
-}
-
-// IsLikelyTransportError reports whether a receipt-wait error can leave settlement outcome unknown.
-func IsLikelyTransportError(err error) bool {
-	var runtimeErr runtime.Error
-	return !errors.As(err, &runtimeErr)
 }
 
 // InvalidBroadcastHashError builds a terminal SettleError for a signer that reports success

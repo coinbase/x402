@@ -8,7 +8,6 @@ import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/exact/extensions
 import { MULTICALL3_ADDRESS } from "../../../src/multicall";
 import { concat, encodeAbiParameters } from "viem";
 import * as Errors from "../../../src/exact/facilitator/errors";
-import { isLikelyTransportError } from "../../../src/shared/permit2";
 
 // Mock viem's transaction parsing utilities for ERC-20 approval tests
 // Uses importOriginal to preserve all other viem exports (getAddress, etc.)
@@ -36,13 +35,6 @@ const mockGetCodeEOAPayer =
 // while delegating other calls to `impl`. Keeps "default: valid sig" semantics
 // for tests that override readContract for other purposes (nonce, allowance, etc.).
 const sigValid = "0x1626ba7e";
-
-describe("isLikelyTransportError", () => {
-  it("classifies native fetch failures as transport errors", () => {
-    expect(isLikelyTransportError(new TypeError("fetch failed"))).toBe(true);
-    expect(isLikelyTransportError(new TypeError("Failed to fetch"))).toBe(true);
-  });
-});
 
 function rcWithSig(
   impl: unknown | ((args: { address?: string; functionName?: string }) => unknown),
@@ -689,10 +681,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(mockFacilitatorSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });
 
-    it("should fail terminally (not settlement_pending) when the receipt wait throws a programmer error", async () => {
-      // A TypeError out of waitForTransactionReceipt means the signer wrapper is
-      // broken, not that the transaction's outcome is unknown — settlement_pending
-      // would wrongly imply the transaction may still confirm.
+    it("should report settlement_pending when the receipt wait throws a programmer error", async () => {
       const requirements: PaymentRequirements = {
         scheme: "exact",
         network: "eip155:84532",
@@ -734,8 +723,8 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.settle(permit2Payload, requirements);
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(Errors.ErrInvalidTransactionState);
-      expect(result.transaction).toBe("");
+      expect(result.errorReason).toBe(Errors.ErrSettlementPending);
+      expect(result.transaction).toBe(MOCK_TX_HASH);
     });
 
     it("should fail Permit2 settlement when signature verification fails", async () => {

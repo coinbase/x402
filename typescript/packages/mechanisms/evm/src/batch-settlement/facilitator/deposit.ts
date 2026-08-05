@@ -17,7 +17,6 @@ import * as Errors from "../errors";
 // Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
 // wire value across all EVM schemes.
 import { ErrSettlementPending } from "../../exact/facilitator/errors";
-import { isLikelyTransportError } from "../../shared/permit2";
 import {
   invalidBroadcastHashResponse,
   readChannelState,
@@ -434,13 +433,9 @@ export async function settleDeposit(
     try {
       receipt = await receiptSigner.waitForTransactionReceipt({ hash: tx });
     } catch (e) {
-      // Only report settlement_pending for failures that plausibly mean "we don't yet
-      // know the outcome" — a bug in the signer's own code is not one of those.
       return {
         success: false,
-        errorReason: isLikelyTransportError(e)
-          ? ErrSettlementPending
-          : Errors.ErrDepositTransactionFailed,
+        errorReason: ErrSettlementPending,
         errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
         transaction: tx,
         network: requirements.network,
@@ -474,13 +469,25 @@ export async function settleDeposit(
     // Poll the RPC until it reflects the just-confirmed deposit, so subsequent verify reads are guaranteed to see this balance
     const expectedMinBalance = BigInt(optimisticExtra.channelState.balance);
     const rpcDeadline = Date.now() + 2_000;
-    let postState = await readChannelState(signer, voucher.channelId);
-    while (postState.balance < expectedMinBalance && Date.now() < rpcDeadline) {
-      await new Promise(resolve => setTimeout(resolve, 150));
-      postState = await readChannelState(signer, voucher.channelId);
-    }
+    try {
+      let postState = await readChannelState(signer, voucher.channelId);
+      while (postState.balance < expectedMinBalance && Date.now() < rpcDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        postState = await readChannelState(signer, voucher.channelId);
+      }
 
-    const rpcCaughtUp = postState.balance >= expectedMinBalance;
+      if (postState.balance >= expectedMinBalance) {
+        optimisticExtra.channelState = {
+          channelId: voucher.channelId,
+          balance: postState.balance.toString(),
+          totalClaimed: postState.totalClaimed.toString(),
+          withdrawRequestedAt: postState.withdrawRequestedAt,
+          refundNonce: postState.refundNonce.toString(),
+        };
+      }
+    } catch {
+      // Keep the optimistic channel state after the deposit receipt succeeds.
+    }
 
     return {
       success: true,
@@ -488,18 +495,7 @@ export async function settleDeposit(
       network: requirements.network,
       payer,
       amount: deposit.amount,
-      extra: rpcCaughtUp
-        ? {
-            ...optimisticExtra,
-            channelState: {
-              channelId: voucher.channelId,
-              balance: postState.balance.toString(),
-              totalClaimed: postState.totalClaimed.toString(),
-              withdrawRequestedAt: postState.withdrawRequestedAt,
-              refundNonce: postState.refundNonce.toString(),
-            },
-          }
-        : optimisticExtra,
+      extra: optimisticExtra,
     };
   } catch (e) {
     return {

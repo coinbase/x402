@@ -23,7 +23,6 @@ from .....schemas import (
 from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
-from ...settle_receipt import is_likely_transport_error
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData
 from ...utils import bytes_to_hex, get_evm_chain_id, is_valid_tx_hash, truncate_error_message
@@ -260,17 +259,6 @@ def settle_deposit(
         try:
             receipt = receipt_waiter.wait_for_transaction_receipt(tx)
         except Exception as e:
-            # Only report settlement_pending for failures that plausibly mean "we don't
-            # yet know the outcome" — a bug in the signer's own code is not one of those.
-            if not is_likely_transport_error(e):
-                return SettleResponse(
-                    success=False,
-                    error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
-                    error_message=truncate_error_message(str(e)),
-                    transaction="",
-                    network=network,
-                    payer=payer,
-                )
             return SettleResponse(
                 success=False,
                 error_reason=ERR_SETTLEMENT_PENDING,
@@ -303,22 +291,25 @@ def settle_deposit(
 
         expected_min_balance = int(optimistic["channelState"]["balance"])
         deadline = time.time() + 2.0
-        post_state = read_channel_state(signer, voucher.channel_id)
-        while post_state.balance < expected_min_balance and time.time() < deadline:
-            time.sleep(0.15)
+        try:
             post_state = read_channel_state(signer, voucher.channel_id)
+            while post_state.balance < expected_min_balance and time.time() < deadline:
+                time.sleep(0.15)
+                post_state = read_channel_state(signer, voucher.channel_id)
 
-        if post_state.balance >= expected_min_balance:
-            extra = {
-                "channelState": {
-                    "channelId": voucher.channel_id,
-                    "balance": str(post_state.balance),
-                    "totalClaimed": str(post_state.total_claimed),
-                    "withdrawRequestedAt": post_state.withdraw_requested_at,
-                    "refundNonce": str(post_state.refund_nonce),
+            if post_state.balance >= expected_min_balance:
+                extra = {
+                    "channelState": {
+                        "channelId": voucher.channel_id,
+                        "balance": str(post_state.balance),
+                        "totalClaimed": str(post_state.total_claimed),
+                        "withdrawRequestedAt": post_state.withdraw_requested_at,
+                        "refundNonce": str(post_state.refund_nonce),
+                    }
                 }
-            }
-        else:
+            else:
+                extra = optimistic
+        except Exception:
             extra = optimistic
 
         return SettleResponse(
