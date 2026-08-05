@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 try:
@@ -34,7 +36,7 @@ try:
         VoucherClaim,
     )
     from x402.mechanisms.evm.constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
-    from x402.schemas import PaymentPayload, PaymentRequirements
+    from x402.schemas import PaymentPayload, PaymentRequirements, VerifyResponse
 except ImportError:
     pytest.skip("batch_settlement requires evm extras", allow_module_level=True)
 
@@ -292,6 +294,62 @@ class _ReceiptWaitFailsSigner:
 
 
 class TestSettleReceiptWait:
+    def test_deposit_accepts_single_hash_atomic_bundle(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+
+        class BaseSigner:
+            def wait_for_transaction_receipt(self, tx_hash):
+                raise AssertionError("base signer must not wait for extension transaction")
+
+        class ExtensionSigner:
+            def send_transactions(self, transactions):
+                return [_SUCCESSFUL_TX_HASH]
+
+            def wait_for_transaction_receipt(self, tx_hash):
+                return _FakeReceipt()
+
+        payload = SimpleNamespace(
+            channel_config=SimpleNamespace(payer="0xpayer"),
+            voucher=SimpleNamespace(channel_id="0x" + "11" * 32),
+            deposit=SimpleNamespace(amount="100"),
+        )
+        execution = deposit_mod._DepositExecution(
+            kind="erc20Approval",
+            collector="",
+            collector_data=b"",
+            signed_transaction="0xsigned",
+            extension_signer=ExtensionSigner(),
+        )
+        monkeypatch.setattr(
+            deposit_mod,
+            "verify_deposit",
+            lambda *args: VerifyResponse(is_valid=True, extra={"balance": "0"}),
+        )
+        monkeypatch.setattr(deposit_mod, "_resolve_deposit_execution", lambda *args: execution)
+        monkeypatch.setattr(
+            deposit_mod, "_resolve_deposit_transfer_method", lambda *args: "permit2"
+        )
+        monkeypatch.setattr(
+            deposit_mod, "_build_deposit_write_call", lambda *args, **kwargs: object()
+        )
+        monkeypatch.setattr(
+            deposit_mod,
+            "read_channel_state",
+            lambda *args: ChannelState(
+                balance=100, total_claimed=0, withdraw_requested_at=0, refund_nonce=0
+            ),
+        )
+
+        out = deposit_mod.settle_deposit(
+            BaseSigner(),
+            SimpleNamespace(),
+            payload,
+            _requirements(),  # type: ignore[arg-type]
+        )
+
+        assert out.success is True
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+
     def test_receipt_wait_failure_returns_settlement_pending(self):
         payload = SettlePayload(
             receiver="0x3333333333333333333333333333333333333333",

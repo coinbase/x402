@@ -206,6 +206,7 @@ def settle_deposit(
             payer=verified.payer,
         )
 
+    receipt_waiter = signer
     try:
         execution = _resolve_deposit_execution(signer, payment, payload, requirements, context)
         if isinstance(execution, VerifyResponse):
@@ -237,7 +238,8 @@ def settle_deposit(
             results = execution.extension_signer.send_transactions(
                 [execution.signed_transaction, deposit_call]
             )
-            tx = results[1]
+            tx = results[-1] if results else ""
+            receipt_waiter = execution.extension_signer
         else:
             tx = signer.write_contract(
                 to_checksum_address(BATCH_SETTLEMENT_ADDRESS),
@@ -256,7 +258,7 @@ def settle_deposit(
             )
 
         try:
-            receipt = signer.wait_for_transaction_receipt(tx)
+            receipt = receipt_waiter.wait_for_transaction_receipt(tx)
         except Exception as e:
             # Only report settlement_pending for failures that plausibly mean "we don't
             # yet know the outcome" — a bug in the signer's own code is not one of those.

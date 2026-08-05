@@ -57,11 +57,12 @@ import {
 export type Permit2PayloadBase = ExactPermit2Payload | UptoPermit2Payload;
 
 /**
- * Native JS error constructors that signal a bug in the signer's own code
+ * Native JS error constructors that usually signal a bug in the signer's own code
  * (a bad argument, an undefined property access, an out-of-range index) rather than
  * a real RPC/transport failure. `settlement_pending` asserts "the transaction may
  * still confirm on chain," which is not a safe inference for these — a signer
- * wrapper that throws a `TypeError` is broken, not unlucky with an RPC node.
+ * wrapper that throws a `TypeError` is broken, not unlucky with an RPC node. Node's
+ * `TypeError: fetch failed` is handled as a transport error below.
  */
 const PROGRAMMER_ERROR_CONSTRUCTORS: ReadonlySet<new (...args: never[]) => Error> = new Set([
   TypeError,
@@ -81,6 +82,7 @@ const PROGRAMMER_ERROR_CONSTRUCTORS: ReadonlySet<new (...args: never[]) => Error
  */
 export function isLikelyTransportError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
+  if (error instanceof TypeError && /\bfetch failed\b/i.test(error.message)) return true;
   for (const ctor of PROGRAMMER_ERROR_CONSTRUCTORS) {
     if (error instanceof ctor) return false;
   }

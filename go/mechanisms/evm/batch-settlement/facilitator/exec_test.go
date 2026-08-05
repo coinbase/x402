@@ -512,10 +512,17 @@ func (s *singleHashExtensionSigner) SendTransactions(_ context.Context, _ []erc2
 
 func TestSettleDeposit_Erc20ApprovalAcceptsSingleExtensionHash(t *testing.T) {
 	const txHash = "0x" + "abababababababababababababababababababababababababababababababab"
-	extensionSigner := &singleHashExtensionSigner{txHash: txHash}
+	extensionSigner := &singleHashExtensionSigner{
+		fakeFacilitatorSigner: &fakeFacilitatorSigner{
+			waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+				return &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: gotTxHash}, nil
+			},
+		},
+		txHash: txHash,
+	}
 	signer := &fakeFacilitatorSigner{
 		waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
-			return &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: gotTxHash}, nil
+			return nil, errors.New("base signer must not wait for extension transaction")
 		},
 		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
 			if functionName != evm.FunctionTryAggregate {
@@ -528,7 +535,6 @@ func TestSettleDeposit_Erc20ApprovalAcceptsSingleExtensionHash(t *testing.T) {
 			return multicallChannelStateResult(t, balance, big.NewInt(0), 0, big.NewInt(0)), nil
 		},
 	}
-	extensionSigner.fakeFacilitatorSigner = signer
 	fctx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
 		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
 			Signer: extensionSigner,

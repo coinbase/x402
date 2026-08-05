@@ -8,6 +8,7 @@ import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/exact/extensions
 import { MULTICALL3_ADDRESS } from "../../../src/multicall";
 import { concat, encodeAbiParameters } from "viem";
 import * as Errors from "../../../src/exact/facilitator/errors";
+import { isLikelyTransportError } from "../../../src/shared/permit2";
 
 // Mock viem's transaction parsing utilities for ERC-20 approval tests
 // Uses importOriginal to preserve all other viem exports (getAddress, etc.)
@@ -35,6 +36,13 @@ const mockGetCodeEOAPayer =
 // while delegating other calls to `impl`. Keeps "default: valid sig" semantics
 // for tests that override readContract for other purposes (nonce, allowance, etc.).
 const sigValid = "0x1626ba7e";
+
+describe("isLikelyTransportError", () => {
+  it("classifies native fetch failures as transport errors", () => {
+    expect(isLikelyTransportError(new TypeError("fetch failed"))).toBe(true);
+  });
+});
+
 function rcWithSig(
   impl: unknown | ((args: { address?: string; functionName?: string }) => unknown),
   sigResponse: string = sigValid,

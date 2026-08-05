@@ -390,7 +390,10 @@ func SettleDeposit(
 	//   erc20Approval → broadcast pre-signed approve() then deposit() via the
 	//                   facilitator extension signer's SendTransactions.
 	//   else          → single deposit() write through the facilitator signer.
-	var txHash string
+	var (
+		txHash            string
+		receiptWaitSigner = signer
+	)
 	if permit2Branch != nil && permit2Branch.kind == permit2BranchErc20Approval {
 		settleCall := erc20approvalgassponsor.WriteContractCall{
 			Address:    batchsettlement.BatchSettlementAddress,
@@ -412,6 +415,7 @@ func SettleDeposit(
 				"extension signer returned no transaction hashes")
 		}
 		txHash = txHashes[len(txHashes)-1]
+		receiptWaitSigner = permit2Branch.extensionSigner
 	} else {
 		txHash, err = signer.WriteContract(
 			ctx,
@@ -435,7 +439,7 @@ func SettleDeposit(
 	}
 
 	// Wait for receipt
-	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
+	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
 			fmt.Sprintf("failed waiting for deposit receipt: %s", evm.TruncateErrorMessage(err.Error())))
