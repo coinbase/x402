@@ -1,3 +1,4 @@
+import type { Network, SettleResponse } from "@x402/core/types";
 import { toHex } from "viem";
 
 /**
@@ -71,4 +72,23 @@ export const MAX_ERROR_MESSAGE_LENGTH = 500;
  */
 export function truncateErrorMessage(message: string): string {
   return message.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
+/**
+ * Terminal failure when a signer reports success without a usable transaction hash.
+ */
+export function invalidBroadcastHashResponse(
+  tx: unknown,
+  errorReason: string,
+  network: Network,
+  payer?: string,
+): SettleResponse {
+  return {
+    success: false,
+    errorReason,
+    errorMessage: `signer returned an invalid transaction hash: ${typeof tx === "string" ? tx : JSON.stringify(tx)}`,
+    transaction: "",
+    network,
+    payer,
+  };
 }

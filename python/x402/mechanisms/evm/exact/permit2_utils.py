@@ -64,6 +64,7 @@ from ..utils import (  # noqa: E402
     hex_to_bytes,
     is_valid_tx_hash,
     normalize_address,
+    truncate_error_message,
 )
 from ..verify import verify_typed_data_strict  # noqa: E402
 
@@ -650,15 +651,12 @@ def _map_settle_error(error: Exception, network: str, payer: str) -> SettleRespo
     elif "InvalidNonce" in error_msg:
         error_reason = "permit2_invalid_nonce"
     elif ERR_ERC20_APPROVAL_TX_FAILED in error_msg:
-        # Matches Go/TS: the extension signer returned no usable settlement hash to
-        # reconcile against, so this maps to the broadcast-failure reason, not the raw
-        # sentinel used to route the message here.
         error_reason = ERR_ERC20_APPROVAL_BROADCAST_FAILED
 
     return SettleResponse(
         success=False,
         error_reason=error_reason,
-        error_message=error_msg[:500],
+        error_message=truncate_error_message(error_msg),
         network=network,
         payer=payer,
         transaction="",

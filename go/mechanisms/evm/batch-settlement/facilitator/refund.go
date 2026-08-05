@@ -225,18 +225,9 @@ func ExecuteRefundWithSignature(
 			return nil, x402.NewSettleError(ErrRefundTransactionFailed, "", network, "",
 				fmt.Sprintf("multicall (claim+refund) transaction failed: %s", err))
 		}
-		if !evm.IsValidTxHash(txHash) {
-			return nil, evm.InvalidBroadcastHashError(ErrRefundTransactionFailed, "", network, txHash)
-		}
-
-		receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
-		if err != nil {
-			return nil, x402.NewSettleError(ErrSettlementPending, payload.ChannelConfig.Payer, network, txHash,
-				fmt.Sprintf("failed waiting for multicall receipt: %s", evm.TruncateErrorMessage(err.Error())))
-		}
-		if receipt.Status != evm.TxStatusSuccess {
-			return nil, x402.NewSettleError(ErrTransactionReverted, payload.ChannelConfig.Payer, network, txHash,
-				"multicall (claim+refund) transaction reverted")
+		if _, err := evm.WaitForSettleReceipt(ctx, signer, txHash, payload.ChannelConfig.Payer, network,
+			ErrRefundTransactionFailed, ErrTransactionReverted); err != nil {
+			return nil, err
 		}
 
 		details := computeRefundSettlementDetails(ctx, signer, payload, channelId, preState, refundAmount)
@@ -281,18 +272,9 @@ func ExecuteRefundWithSignature(
 		return nil, x402.NewSettleError(ErrRefundTransactionFailed, "", network, "",
 			fmt.Sprintf("refundWithSignature transaction failed: %s", err))
 	}
-	if !evm.IsValidTxHash(txHash) {
-		return nil, evm.InvalidBroadcastHashError(ErrRefundTransactionFailed, "", network, txHash)
-	}
-
-	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrSettlementPending, payload.ChannelConfig.Payer, network, txHash,
-			fmt.Sprintf("failed waiting for refundWithSignature receipt: %s", evm.TruncateErrorMessage(err.Error())))
-	}
-	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrTransactionReverted, payload.ChannelConfig.Payer, network, txHash,
-			"refundWithSignature transaction reverted")
+	if _, err := evm.WaitForSettleReceipt(ctx, signer, txHash, payload.ChannelConfig.Payer, network,
+		ErrRefundTransactionFailed, ErrTransactionReverted); err != nil {
+		return nil, err
 	}
 
 	details := computeRefundSettlementDetails(ctx, signer, payload, channelId, preState, refundAmount)

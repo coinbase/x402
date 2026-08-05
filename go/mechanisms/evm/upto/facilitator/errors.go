@@ -13,13 +13,11 @@ const (
 	ErrUptoFacilitatorMismatch      = "upto_facilitator_mismatch"
 	ErrUptoVerificationFailed       = "invalid_upto_evm_verification_failed"
 	ErrUptoFailedToGetNetworkConfig = "invalid_upto_evm_failed_to_get_network_config"
-	// ErrUptoFailedToGetReceipt is unreachable: receipt-wait failures now return
-	// ErrSettlementPending instead, since the transaction may still confirm on chain.
-	// Kept only so the string value is not reused for something unrelated.
+	// Reserved wire value; do not reassign.
 	ErrUptoFailedToGetReceipt = "invalid_upto_evm_failed_to_get_receipt"
 	ErrUptoTransactionFailed  = "invalid_upto_evm_transaction_failed"
 
-	ErrSettlementPending = evm.ErrSettlementPending // shared with exact
+	ErrSettlementPending = evm.ErrSettlementPending
 
 	// Shared Permit2 error constants — canonical values live in evm.ErrPermit2*
 	ErrPermit2InvalidSpender      = evm.ErrPermit2InvalidSpender
@@ -40,7 +38,7 @@ const (
 	ErrPermit2ProxyNotDeployed    = evm.ErrPermit2ProxyNotDeployed
 	ErrPermit2AllowanceRequired   = evm.ErrPermit2AllowanceRequired
 
-	ErrErc20ApprovalTxFailed        = "erc20_approval_tx_failed"
+	ErrErc20ApprovalTxFailed        = evm.ErrErc20ApprovalTxFailed
 	ErrErc20ApprovalInsufficientEth = evm.ErrErc20ApprovalInsufficientEth
 	ErrErc20ApprovalBroadcastFailed = evm.ErrErc20ApprovalBroadcastFailed
 

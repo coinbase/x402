@@ -1,6 +1,6 @@
 import { getAddress, hashTypedData, recoverAddress, isAddressEqual } from "viem";
 import { verifyTypedDataSignature } from "../../shared/verifySignature";
-import type { Network, PaymentRequirements, SettleResponse } from "@x402/core/types";
+import type { PaymentRequirements } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
 import { multicall } from "../../multicall";
 import {
@@ -16,35 +16,10 @@ import type {
   ChannelState,
 } from "../types";
 import { computeChannelId, getBatchSettlementEip712Domain } from "../utils";
+import { invalidBroadcastHashResponse } from "../../utils";
 import * as Errors from "../errors";
 
-/**
- * Terminal failure response for a signer that reports success without a usable hash.
- *
- * `settlement_pending` is only meaningful with a broadcast hash to reconcile against, so a
- * `writeContract` result that isn't a real transaction hash must fail terminally instead.
- *
- * @param tx - The value returned by `writeContract` in place of a valid transaction hash.
- * @param errorReason - The scheme/action-specific terminal error reason to report.
- * @param network - Network the transaction was broadcast to.
- * @param payer - Payer address, when known for this action.
- * @returns A failed {@link SettleResponse} with no transaction hash.
- */
-export function invalidBroadcastHashResponse(
-  tx: unknown,
-  errorReason: string,
-  network: Network,
-  payer?: string,
-): SettleResponse {
-  return {
-    success: false,
-    errorReason,
-    errorMessage: `signer returned an invalid transaction hash: ${JSON.stringify(tx)}`,
-    transaction: "",
-    network,
-    payer,
-  };
-}
+export { invalidBroadcastHashResponse };
 
 /**
  * Normalises a {@link ChannelConfig} into the checksummed-address tuple expected by the

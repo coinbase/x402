@@ -1,11 +1,6 @@
 """Error code constants for the batch-settlement EVM scheme.
 
 Strings are part of the wire contract and must match exactly across SDKs.
-
-Note: ERR_SETTLEMENT_PENDING (x402.mechanisms.evm.constants) intentionally is
-not re-exported here — it's a bare cross-scheme value shared with exact/upto,
-not a batch-settlement-namespaced wire constant, so it's imported directly by
-callers instead of living alongside this module's prefixed constants.
 """
 
 ERR_INVALID_SCHEME = "invalid_batch_settlement_evm_scheme"
@@ -89,9 +84,7 @@ ERR_ERC20_APPROVAL_WRONG_SPENDER = "invalid_batch_settlement_evm_erc20_approval_
 ERR_ERC20_APPROVAL_BROADCAST_FAILED = "invalid_batch_settlement_evm_erc20_approval_broadcast_failed"
 
 ERR_RPC_READ_FAILED = "invalid_batch_settlement_evm_rpc_read_failed"
-# ERR_WAIT_FOR_RECEIPT_FAILED is unreachable: receipt-wait failures now return
-# ERR_SETTLEMENT_PENDING instead, since the transaction may still confirm on chain.
-# Kept only so the string value is not reused for something unrelated.
+# Reserved wire value; do not reassign.
 ERR_WAIT_FOR_RECEIPT_FAILED = "invalid_batch_settlement_evm_wait_for_receipt_failed"
 ERR_TRANSACTION_REVERTED = "invalid_batch_settlement_evm_transaction_reverted"
 

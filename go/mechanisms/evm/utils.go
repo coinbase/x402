@@ -53,6 +53,38 @@ func InvalidBroadcastHashError(reason string, payer string, network x402.Network
 		fmt.Sprintf("signer returned an invalid transaction hash: %q", txHash))
 }
 
+// receiptWaiter is the signer capability required to confirm a broadcast transaction.
+type receiptWaiter interface {
+	WaitForTransactionReceipt(ctx context.Context, txHash string) (*TransactionReceipt, error)
+}
+
+// WaitForSettleReceipt waits for a broadcast settlement receipt.
+// Invalid hashes and reverted receipts are terminal; receipt-wait failures return
+// ErrSettlementPending with the broadcast hash preserved.
+func WaitForSettleReceipt(
+	ctx context.Context,
+	signer receiptWaiter,
+	txHash string,
+	payer string,
+	network x402.Network,
+	invalidHashReason string,
+	revertedReason string,
+) (*TransactionReceipt, error) {
+	if !IsValidTxHash(txHash) {
+		return nil, InvalidBroadcastHashError(invalidHashReason, payer, network, txHash)
+	}
+
+	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash,
+			TruncateErrorMessage(err.Error()))
+	}
+	if receipt.Status != TxStatusSuccess {
+		return nil, x402.NewSettleError(revertedReason, payer, network, txHash, "")
+	}
+	return receipt, nil
+}
+
 // GetEvmChainId returns the chain ID for a given CAIP-2 network identifier (eip155:CHAIN_ID).
 func GetEvmChainId(network string) (*big.Int, error) {
 	if strings.HasPrefix(network, "eip155:") {

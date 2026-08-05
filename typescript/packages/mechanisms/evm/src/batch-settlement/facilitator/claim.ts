@@ -1,16 +1,14 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
-import { getAddress, isHash } from "viem";
+import { getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import type { AuthorizerSigner, BatchSettlementClaimPayload } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { signClaimBatch } from "../authorizerSigner";
 import * as Errors from "../errors";
-// Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
-// wire value across all EVM schemes.
-import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import { truncateErrorMessage } from "../../utils";
-import { invalidBroadcastHashResponse, toContractChannelConfig } from "./utils";
+import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { toContractChannelConfig } from "./utils";
 
 /**
  * Converts an array of {@link BatchSettlementVoucherClaim} into the onchain tuple format
@@ -109,44 +107,20 @@ export async function executeClaimWithSignature(
       dataSuffix,
     });
 
-    if (!isHash(tx)) {
-      return invalidBroadcastHashResponse(tx, Errors.ErrClaimTransactionFailed, network);
-    }
-
-    let receipt;
-    try {
-      receipt = await signer.waitForTransactionReceipt({ hash: tx });
-    } catch (e) {
-      return {
-        success: false,
-        errorReason: ErrSettlementPending,
-        errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
-        transaction: tx,
-        network,
-      };
-    }
-
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: Errors.ErrClaimTransactionFailed,
-        errorMessage: `transaction reverted (receipt status ${receipt.status})`,
-        transaction: tx,
-        network,
-      };
-    }
-
-    return {
-      success: true,
-      transaction: tx,
+    return waitAndReturnSettleResponse(
+      signer,
+      tx,
       network,
-      amount: "",
-    };
+      "",
+      Errors.ErrClaimTransactionFailed,
+      undefined,
+      "",
+    );
   } catch (e) {
     return {
       success: false,
       errorReason: Errors.ErrClaimTransactionFailed,
-      errorMessage: e instanceof Error ? e.message : String(e),
+      errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
       transaction: "",
       network,
     };

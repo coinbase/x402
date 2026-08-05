@@ -10,9 +10,9 @@ except ImportError as e:
     ) from e
 
 from .....schemas import PaymentRequirements, SettleResponse
-from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
+from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
-from ...utils import is_valid_tx_hash, truncate_error_message
+from ...utils import truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
 from ..authorizer_signer import sign_claim_batch
 from ..constants import BATCH_SETTLEMENT_ADDRESS
@@ -23,7 +23,7 @@ from ..errors import (
     ERR_CLAIM_TRANSACTION_FAILED,
 )
 from ..types import AuthorizerSigner, ClaimPayload, VoucherClaim
-from .utils import invalid_broadcast_hash_response, to_contract_channel_config
+from .utils import to_contract_channel_config
 
 
 def build_voucher_claim_args(claims: list[VoucherClaim]) -> list[tuple]:
@@ -84,7 +84,7 @@ def execute_claim_with_signature(
         return SettleResponse(
             success=False,
             error_reason=ERR_CLAIM_SIMULATION_FAILED,
-            error_message=str(e)[:500],
+            error_message=truncate_error_message(str(e)),
             transaction="",
             network=network,
         )
@@ -102,37 +102,17 @@ def execute_claim_with_signature(
         return SettleResponse(
             success=False,
             error_reason=ERR_CLAIM_TRANSACTION_FAILED,
-            error_message=str(e)[:500],
+            error_message=truncate_error_message(str(e)),
             transaction="",
             network=network,
         )
 
-    if not is_valid_tx_hash(tx):
-        return invalid_broadcast_hash_response(tx, ERR_CLAIM_TRANSACTION_FAILED, network)
-
-    try:
-        receipt = signer.wait_for_transaction_receipt(tx)
-    except Exception as e:
-        return SettleResponse(
-            success=False,
-            error_reason=ERR_SETTLEMENT_PENDING,
-            error_message=truncate_error_message(str(e)),
-            transaction=tx,
-            network=network,
-        )
-
-    if receipt.status != TX_STATUS_SUCCESS:
-        return SettleResponse(
-            success=False,
-            error_reason=ERR_CLAIM_TRANSACTION_FAILED,
-            error_message=f"transaction reverted (receipt status {receipt.status})",
-            transaction=tx,
-            network=network,
-        )
-    return SettleResponse(
-        success=True,
-        transaction=tx,
-        network=network,
+    return wait_for_receipt_and_build_response(
+        signer,
+        tx,
+        network,
+        "",
+        failed_reason=ERR_CLAIM_TRANSACTION_FAILED,
         amount="",
     )
 

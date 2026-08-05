@@ -1,15 +1,12 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
-import { getAddress, isAddressEqual, isHash, parseEventLogs } from "viem";
+import { getAddress, isAddressEqual, parseEventLogs } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import { BatchSettlementSettlePayload } from "../types";
 import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "../errors";
-// Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
-// wire value across all EVM schemes.
-import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import { truncateErrorMessage } from "../../utils";
-import { invalidBroadcastHashResponse } from "./utils";
+import { waitAndReturnSettleResponse } from "../../shared/permit2";
 
 /**
  * Explicit gas limit for the `settle` transaction.
@@ -108,57 +105,36 @@ export async function executeSettle(
       dataSuffix,
     });
 
-    if (!isHash(tx)) {
-      return invalidBroadcastHashResponse(tx, Errors.ErrSettleTransactionFailed, network);
-    }
-
-    let receipt;
-    try {
-      receipt = await signer.waitForTransactionReceipt({ hash: tx });
-    } catch (e) {
-      return {
-        success: false,
-        errorReason: ErrSettlementPending,
-        errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
-        transaction: tx,
-        network,
-      };
-    }
-
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: Errors.ErrSettleTransactionFailed,
-        errorMessage: `transaction reverted (receipt status ${receipt.status})`,
-        transaction: tx,
-        network,
-      };
-    }
-
-    let amount = "";
-    if (receipt.logs) {
-      const logs = parseEventLogs({
-        abi: batchSettlementABI,
-        eventName: "Settled",
-        logs: receipt.logs.filter(log => isAddressEqual(log.address, contractAddr)),
-      });
-      const settledLog = logs.find(
-        log => isAddressEqual(log.args.receiver, receiver) && isAddressEqual(log.args.token, token),
-      );
-      amount = settledLog?.args.amount.toString() ?? "0";
-    }
-
-    return {
-      success: true,
-      transaction: tx,
+    return waitAndReturnSettleResponse(
+      signer,
+      tx,
       network,
-      amount,
-    };
+      "",
+      Errors.ErrSettleTransactionFailed,
+      undefined,
+      undefined,
+      receipt => {
+        let amount = "";
+        if (receipt.logs) {
+          const logs = parseEventLogs({
+            abi: batchSettlementABI,
+            eventName: "Settled",
+            logs: receipt.logs.filter(log => isAddressEqual(log.address, contractAddr)),
+          });
+          const settledLog = logs.find(
+            log =>
+              isAddressEqual(log.args.receiver, receiver) && isAddressEqual(log.args.token, token),
+          );
+          amount = settledLog?.args.amount.toString() ?? "0";
+        }
+        return { success: true, transaction: tx, network, amount };
+      },
+    );
   } catch (e) {
     return {
       success: false,
       errorReason: Errors.ErrSettleTransactionFailed,
-      errorMessage: e instanceof Error ? e.message : String(e),
+      errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
       transaction: "",
       network,
     };

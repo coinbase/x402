@@ -91,14 +91,8 @@ const (
 	ErrSettleTransactionFailed  = "invalid_batch_settlement_evm_settle_transaction_failed"
 	ErrRefundTransactionFailed  = "invalid_batch_settlement_evm_refund_transaction_failed"
 	ErrTransactionReverted      = "invalid_batch_settlement_evm_transaction_reverted"
-	// ErrWaitForReceipt is unreachable: receipt-wait failures now return
-	// ErrSettlementPending instead, since the transaction may still confirm on chain.
-	// Kept only so the string value is not reused for something unrelated.
-	ErrWaitForReceipt = "invalid_batch_settlement_evm_wait_for_receipt_failed"
-	// ErrSettlementPending signals a broadcast settlement/claim/deposit/refund
-	// transaction whose receipt could not be confirmed (RPC error or timeout). The
-	// broadcast hash is included so the caller can reconcile on chain instead of
-	// treating this as a terminal failure.
+	// Reserved wire value; do not reassign.
+	ErrWaitForReceipt    = "invalid_batch_settlement_evm_wait_for_receipt_failed"
 	ErrSettlementPending = evm.ErrSettlementPending
 
 	// Simulation errors

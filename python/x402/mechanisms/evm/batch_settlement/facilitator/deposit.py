@@ -20,12 +20,13 @@ from .....schemas import (
     SettleResponse,
     VerifyResponse,
 )
-from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
+from ...constants import TX_STATUS_SUCCESS
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
+from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData
-from ...utils import bytes_to_hex, get_evm_chain_id, is_valid_tx_hash, truncate_error_message
+from ...utils import bytes_to_hex, get_evm_chain_id, truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI, ERC20_BALANCE_OF_ABI
 from ..constants import BATCH_SETTLEMENT_ADDRESS
 from ..errors import (
@@ -53,7 +54,6 @@ from .deposit_permit2 import (
     verify_permit2_deposit_authorization,
 )
 from .utils import (
-    invalid_broadcast_hash_response,
     read_channel_state,
     to_contract_channel_config,
     validate_channel_config,
@@ -158,7 +158,7 @@ def verify_deposit(
             return VerifyResponse(
                 is_valid=False,
                 invalid_reason=ERR_DEPOSIT_SIMULATION_FAILED,
-                invalid_message=str(e)[:500],
+                invalid_message=truncate_error_message(str(e)),
                 payer=payer,
             )
 
@@ -251,80 +251,65 @@ def settle_deposit(
                 data_suffix=data_suffix,
             )
 
-        if not is_valid_tx_hash(tx):
-            return invalid_broadcast_hash_response(
-                tx, ERR_DEPOSIT_TRANSACTION_FAILED, network, payer
-            )
-
-        try:
-            receipt = receipt_waiter.wait_for_transaction_receipt(tx)
-        except Exception as e:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_SETTLEMENT_PENDING,
-                error_message=truncate_error_message(str(e)),
-                transaction=tx,
-                network=network,
-                payer=payer,
-            )
-
-        if receipt.status != TX_STATUS_SUCCESS:
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
-                error_message=f"transaction reverted (receipt status {receipt.status})",
-                transaction=tx,
-                network=network,
-                payer=payer,
-            )
-
-        verified_extra = verified.extra or {}
-        optimistic = {
-            "channelState": {
-                "channelId": voucher.channel_id,
-                "balance": str(int(str(verified_extra.get("balance", "0"))) + int(deposit.amount)),
-                "totalClaimed": str(verified_extra.get("totalClaimed", "0")),
-                "withdrawRequestedAt": int(verified_extra.get("withdrawRequestedAt", 0)),
-                "refundNonce": str(verified_extra.get("refundNonce", "0")),
-            }
-        }
-
-        expected_min_balance = int(optimistic["channelState"]["balance"])
-        deadline = time.time() + 2.0
-        try:
-            post_state = read_channel_state(signer, voucher.channel_id)
-            while post_state.balance < expected_min_balance and time.time() < deadline:
-                time.sleep(0.15)
-                post_state = read_channel_state(signer, voucher.channel_id)
-
-            if post_state.balance >= expected_min_balance:
-                extra = {
-                    "channelState": {
-                        "channelId": voucher.channel_id,
-                        "balance": str(post_state.balance),
-                        "totalClaimed": str(post_state.total_claimed),
-                        "withdrawRequestedAt": post_state.withdraw_requested_at,
-                        "refundNonce": str(post_state.refund_nonce),
-                    }
+        def _build_deposit_success(_receipt):
+            verified_extra = verified.extra or {}
+            optimistic = {
+                "channelState": {
+                    "channelId": voucher.channel_id,
+                    "balance": str(
+                        int(str(verified_extra.get("balance", "0"))) + int(deposit.amount)
+                    ),
+                    "totalClaimed": str(verified_extra.get("totalClaimed", "0")),
+                    "withdrawRequestedAt": int(verified_extra.get("withdrawRequestedAt", 0)),
+                    "refundNonce": str(verified_extra.get("refundNonce", "0")),
                 }
-            else:
-                extra = optimistic
-        except Exception:
-            extra = optimistic
+            }
 
-        return SettleResponse(
-            success=True,
-            transaction=tx,
-            network=network,
-            payer=payer,
-            amount=deposit.amount,
-            extra=extra,
+            expected_min_balance = int(optimistic["channelState"]["balance"])
+            deadline = time.time() + 2.0
+            try:
+                post_state = read_channel_state(signer, voucher.channel_id)
+                while post_state.balance < expected_min_balance and time.time() < deadline:
+                    time.sleep(0.15)
+                    post_state = read_channel_state(signer, voucher.channel_id)
+
+                if post_state.balance >= expected_min_balance:
+                    extra = {
+                        "channelState": {
+                            "channelId": voucher.channel_id,
+                            "balance": str(post_state.balance),
+                            "totalClaimed": str(post_state.total_claimed),
+                            "withdrawRequestedAt": post_state.withdraw_requested_at,
+                            "refundNonce": str(post_state.refund_nonce),
+                        }
+                    }
+                else:
+                    extra = optimistic
+            except Exception:
+                extra = optimistic
+
+            return SettleResponse(
+                success=True,
+                transaction=tx,
+                network=network,
+                payer=payer,
+                amount=deposit.amount,
+                extra=extra,
+            )
+
+        return wait_for_receipt_and_build_response(
+            receipt_waiter,
+            tx,
+            network,
+            payer,
+            failed_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+            on_success=_build_deposit_success,
         )
     except Exception as e:
         return SettleResponse(
             success=False,
             error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
-            error_message=str(e)[:500],
+            error_message=truncate_error_message(str(e)),
             transaction="",
             network=network,
             payer=payer,
@@ -421,7 +406,7 @@ def _deploy_erc3009_counterfactual_if_needed(
         return SettleResponse(
             success=False,
             error_reason=ERR_SMART_WALLET_DEPLOYMENT_FAILED,
-            error_message=str(e)[:500],
+            error_message=truncate_error_message(str(e)),
             transaction="",
             network=network,
             payer=payer,

@@ -366,20 +366,9 @@ func SettleUptoPermit2(
 			}
 		}
 	}
-	// A settlement_pending response must carry the broadcast hash, so an unusable hash is
-	// terminal rather than pending.
-	if !evm.IsValidTxHash(txHash) {
-		return nil, evm.InvalidBroadcastHashError(ErrUptoTransactionFailed, payer, network, txHash)
-	}
-
-	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash,
-			evm.TruncateErrorMessage(err.Error()))
-	}
-
-	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrUptoTransactionFailed, payer, network, txHash, "")
+	if _, err := evm.WaitForSettleReceipt(ctx, receiptWaitSigner, txHash, payer, network,
+		ErrUptoTransactionFailed, ErrUptoTransactionFailed); err != nil {
+		return nil, err
 	}
 
 	return &x402.SettleResponse{

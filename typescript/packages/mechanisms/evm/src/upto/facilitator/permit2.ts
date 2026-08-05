@@ -461,20 +461,6 @@ export async function settleUptoPermit2(
 }
 
 /**
- * Attaches the settled amount to a successful settle response.
- *
- * `amount` reports what actually settled, so it is omitted for failures — including
- * `settlement_pending`, where the outcome is not yet known.
- *
- * @param response - The settle response to annotate
- * @param settlementAmount - The amount submitted on-chain
- * @returns The response with `amount` set when settlement succeeded
- */
-function withSettledAmount(response: SettleResponse, settlementAmount: bigint): SettleResponse {
-  return response.success ? { ...response, amount: settlementAmount.toString() } : response;
-}
-
-/**
  * Settles an upto Permit2 payment via settleWithPermit, including the EIP-2612 permit atomically.
  *
  * @param signer - The facilitator signer for contract writes
@@ -516,8 +502,15 @@ async function settleUptoWithEIP2612(
       dataSuffix,
     });
 
-    const response = await waitAndReturnSettleResponse(signer, tx, payload, payer);
-    return withSettledAmount(response, settlementAmount);
+    return waitAndReturnSettleResponse(
+      signer,
+      tx,
+      payload.accepted.network,
+      payer,
+      undefined,
+      undefined,
+      settlementAmount.toString(),
+    );
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }
@@ -573,13 +566,15 @@ async function settleUptoWithERC20Approval(
       );
     }
 
-    const response = await waitAndReturnSettleResponse(
+    return waitAndReturnSettleResponse(
       extensionSigner,
       settleTxHash,
-      payload,
+      payload.accepted.network,
       payer,
+      undefined,
+      undefined,
+      settlementAmount.toString(),
     );
-    return withSettledAmount(response, settlementAmount);
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }
@@ -614,8 +609,15 @@ async function settleUptoDirect(
       dataSuffix,
     });
 
-    const response = await waitAndReturnSettleResponse(signer, tx, payload, payer);
-    return withSettledAmount(response, settlementAmount);
+    return waitAndReturnSettleResponse(
+      signer,
+      tx,
+      payload.accepted.network,
+      payer,
+      undefined,
+      undefined,
+      settlementAmount.toString(),
+    );
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }

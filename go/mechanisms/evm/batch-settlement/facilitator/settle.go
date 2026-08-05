@@ -77,18 +77,9 @@ func ExecuteSettle(
 		return nil, x402.NewSettleError(ErrSettleTransactionFailed, "", network, "",
 			fmt.Sprintf("settle transaction failed: %s", err))
 	}
-	if !evm.IsValidTxHash(txHash) {
-		return nil, evm.InvalidBroadcastHashError(ErrSettleTransactionFailed, "", network, txHash)
-	}
-
-	receipt, err := signer.WaitForTransactionReceipt(ctx, txHash)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrSettlementPending, "", network, txHash,
-			fmt.Sprintf("failed waiting for settle receipt: %s", evm.TruncateErrorMessage(err.Error())))
-	}
-	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrTransactionReverted, "", network, txHash,
-			"settle transaction reverted")
+	if _, err := evm.WaitForSettleReceipt(ctx, signer, txHash, "", network,
+		ErrSettleTransactionFailed, ErrTransactionReverted); err != nil {
+		return nil, err
 	}
 
 	return &x402.SettleResponse{

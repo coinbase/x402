@@ -14,8 +14,9 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
-from .....schemas import PaymentRequirements, SettleResponse
+from .....schemas import PaymentRequirements
 from ...multicall import MulticallCall, multicall
+from ...settle_receipt import invalid_broadcast_hash_response
 from ...signer import FacilitatorEvmSigner
 from ...verify import verify_typed_data_strict
 from ..abi import BATCH_SETTLEMENT_ABI
@@ -41,6 +42,17 @@ from ..utils import coerce_bytes32, compute_channel_id, get_batch_settlement_eip
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
+__all__ = [
+    "ZERO_ADDRESS",
+    "to_contract_channel_config",
+    "invalid_broadcast_hash_response",
+    "channel_ids_equal",
+    "erc3009_authorization_time_invalid_reason",
+    "verify_batch_settlement_voucher_typed_data",
+    "validate_channel_config",
+    "read_channel_state",
+]
+
 
 def to_contract_channel_config(config: ChannelConfig) -> tuple:
     """Normalize a ChannelConfig into the checksummed-address tuple expected by the contract."""
@@ -54,27 +66,6 @@ def to_contract_channel_config(config: ChannelConfig) -> tuple:
         to_checksum_address(config.token),
         int(config.withdraw_delay),
         coerce_bytes32(config.salt),
-    )
-
-
-def invalid_broadcast_hash_response(
-    tx: str,
-    error_reason: str,
-    network: str,
-    payer: str | None = None,
-) -> SettleResponse:
-    """Terminal failure response for a signer that reports success without a usable hash.
-
-    settlement_pending is only meaningful with a broadcast hash to reconcile against, so a
-    write_contract result that isn't a real transaction hash must fail terminally instead.
-    """
-    return SettleResponse(
-        success=False,
-        error_reason=error_reason,
-        error_message=f"signer returned an invalid transaction hash: {tx!r}",
-        transaction="",
-        network=network,
-        payer=payer,
     )
 
 
@@ -245,14 +236,3 @@ def _unpack_pair(value: Any) -> tuple[int, int]:
     if isinstance(value, list | tuple) and len(value) >= 2:
         return int(value[0]), int(value[1])
     raise ValueError(f"expected (uint, uint) pair, got {value!r}")
-
-
-__all__ = [
-    "ZERO_ADDRESS",
-    "to_contract_channel_config",
-    "channel_ids_equal",
-    "erc3009_authorization_time_invalid_reason",
-    "verify_batch_settlement_voucher_typed_data",
-    "validate_channel_config",
-    "read_channel_state",
-]

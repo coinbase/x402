@@ -434,19 +434,9 @@ func SettleDeposit(
 		}
 	}
 
-	if !evm.IsValidTxHash(txHash) {
-		return nil, evm.InvalidBroadcastHashError(ErrDepositTransactionFailed, config.Payer, network, txHash)
-	}
-
-	// Wait for receipt
-	receipt, err := receiptWaitSigner.WaitForTransactionReceipt(ctx, txHash)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
-			fmt.Sprintf("failed waiting for deposit receipt: %s", evm.TruncateErrorMessage(err.Error())))
-	}
-	if receipt.Status != evm.TxStatusSuccess {
-		return nil, x402.NewSettleError(ErrTransactionReverted, config.Payer, network, txHash,
-			"deposit transaction reverted")
+	if _, err := evm.WaitForSettleReceipt(ctx, receiptWaitSigner, txHash, config.Payer, network,
+		ErrDepositTransactionFailed, ErrTransactionReverted); err != nil {
+		return nil, err
 	}
 
 	// Optimistic post-deposit extra (fallback if RPC hasn't caught up to

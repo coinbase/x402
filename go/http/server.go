@@ -27,6 +27,10 @@ var (
 	colonParamRegex = exttypes.ColonParamRegex
 )
 
+// Wire value for a broadcast settle whose receipt could not be confirmed.
+// Mirrored from mechanisms/evm to avoid an http→mechanisms import.
+const settlementPendingReason = "settlement_pending"
+
 // ============================================================================
 // HTTP Adapter Interface
 // ============================================================================
@@ -1098,10 +1102,8 @@ func (s *x402HTTPResourceServer) CreateFailurePathSettlementHeaders(
 }
 
 // buildSettlementFailureResultFromError converts a Settle error into a
-// ProcessSettleResult. Mechanism-level failures are returned as *x402.SettleError,
-// which — for non-terminal reasons like settlement_pending — carries the broadcast
-// transaction hash; that hash must survive into the PAYMENT-RESPONSE header rather
-// than being discarded by a plain err.Error() string.
+// ProcessSettleResult. Preserves SettleError metadata (including the broadcast
+// hash for settlement_pending) in PAYMENT-RESPONSE.
 func (s *x402HTTPResourceServer) buildSettlementFailureResultFromError(err error, fallbackNetwork x402.Network) *ProcessSettleResult {
 	var se *x402.SettleError
 	if errors.As(err, &se) {
@@ -1110,7 +1112,7 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResultFromError(err error
 			network = fallbackNetwork
 		}
 		transaction := ""
-		if se.ErrorReason == "settlement_pending" {
+		if se.ErrorReason == settlementPendingReason {
 			transaction = se.Transaction
 		}
 		return s.buildSettlementFailureResult(se.ErrorReason, network, se.Payer, &x402.SettleResponse{

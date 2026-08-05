@@ -70,6 +70,7 @@ from ..utils import (  # noqa: E402
     hex_to_bytes,
     is_valid_tx_hash,
     normalize_address,
+    truncate_error_message,
 )
 from ..verify import verify_typed_data_strict  # noqa: E402
 
@@ -856,7 +857,7 @@ def _map_upto_settle_error(error: Exception, network: str, payer: str) -> Settle
     return SettleResponse(
         success=False,
         error_reason=error_reason,
-        error_message=error_msg[:500],
+        error_message=truncate_error_message(error_msg),
         network=network,
         payer=payer,
         transaction="",

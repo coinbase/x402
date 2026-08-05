@@ -1,4 +1,5 @@
 import {
+  Network,
   PaymentPayload,
   PaymentPayloadResult,
   PaymentRequirements,
@@ -18,7 +19,12 @@ import {
 import { getAddress, encodeFunctionData, isHash, parseErc6492Signature } from "viem";
 import { PERMIT2_ADDRESS, eip3009ABI, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
 import { multicall, ContractCall } from "../multicall";
-import { createPermit2Nonce, getEvmChainId, truncateErrorMessage } from "../utils";
+import {
+  createPermit2Nonce,
+  getEvmChainId,
+  invalidBroadcastHashResponse,
+  truncateErrorMessage,
+} from "../utils";
 import {
   ErrPermit2612AmountMismatch,
   ErrPermit2InvalidAmount,
@@ -166,46 +172,40 @@ type SettleReceipt = Awaited<ReturnType<FacilitatorEvmSigner["waitForTransaction
  *
  * @param signer - Signer with waitForTransactionReceipt capability
  * @param tx - The transaction hash to wait for
- * @param payload - The payment payload (for network info)
+ * @param network - Network the transaction was broadcast to
  * @param payer - The payer address
  * @param failedStatusReason - Error reason for terminal failures: an invalid broadcast hash
  *   or reverted receipt. Receipt-wait failures report `ErrSettlementPending`.
  * @param validateReceipt - Optional check after a successful receipt (e.g. Transfer event).
  *   Return a SettleResponse to fail settlement; return undefined to accept success.
+ * @param amount - Settled amount attached on success when `onSuccess` is omitted
+ * @param onSuccess - Builds the success response from the receipt when set
  * @returns Promise resolving to a settlement response indicating success or failure
  */
 export async function waitAndReturnSettleResponse(
   signer: Pick<FacilitatorEvmSigner, "waitForTransactionReceipt">,
   tx: `0x${string}`,
-  payload: PaymentPayload,
-  payer: `0x${string}`,
+  network: Network,
+  payer: string,
   failedStatusReason: string = ErrInvalidTransactionState,
   validateReceipt?: (receipt: SettleReceipt) => SettleResponse | undefined,
+  amount?: string,
+  onSuccess?: (receipt: SettleReceipt) => SettleResponse | Promise<SettleResponse>,
 ): Promise<SettleResponse> {
-  // settlement_pending is only meaningful with the broadcast hash to reconcile against, so a
-  // signer that reports success without a usable hash is a terminal failure.
   if (!isHash(tx)) {
-    return {
-      success: false,
-      errorReason: failedStatusReason,
-      errorMessage: `signer returned an invalid transaction hash: ${tx}`,
-      transaction: "",
-      network: payload.accepted.network,
-      payer,
-    };
+    return invalidBroadcastHashResponse(tx, failedStatusReason, network, payer);
   }
 
   let receipt;
   try {
     receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
-    // Must not fall into the caller's generic catch, which would discard the tx hash.
     return {
       success: false,
       errorReason: ErrSettlementPending,
       errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
       transaction: tx,
-      network: payload.accepted.network,
+      network,
       payer,
     };
   }
@@ -215,7 +215,7 @@ export async function waitAndReturnSettleResponse(
       success: false,
       errorReason: failedStatusReason,
       transaction: tx,
-      network: payload.accepted.network,
+      network,
       payer,
     };
   }
@@ -225,11 +225,16 @@ export async function waitAndReturnSettleResponse(
     return validationFailure;
   }
 
+  if (onSuccess) {
+    return onSuccess(receipt);
+  }
+
   return {
     success: true,
     transaction: tx,
-    network: payload.accepted.network,
+    network,
     payer,
+    ...(amount !== undefined ? { amount } : {}),
   };
 }
 
@@ -268,16 +273,13 @@ export function mapSettleError(
     } else if (message.includes("InvalidNonce")) {
       errorReason = ErrPermit2InvalidNonce;
     } else if (message.includes(ErrErc20ApprovalTxFailed)) {
-      // Matches Go/Python: the extension signer returned no usable settlement hash to
-      // reconcile against, so this maps to the broadcast-failure reason, not the raw
-      // sentinel used to route the message here.
       errorReason = ErrErc20ApprovalBroadcastFailed;
     } else if (message.includes("AmountExceedsPermitted")) {
       errorReason = ErrUptoAmountExceedsPermitted;
     } else if (message.includes("UnauthorizedFacilitator")) {
       errorReason = ErrUptoUnauthorizedFacilitator;
     } else {
-      errorReason = `${ErrTransactionFailed}: ${message.slice(0, 500)}`;
+      errorReason = `${ErrTransactionFailed}: ${truncateErrorMessage(message)}`;
     }
   }
   return {

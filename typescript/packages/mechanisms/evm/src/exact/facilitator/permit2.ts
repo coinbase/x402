@@ -438,7 +438,7 @@ async function settlePermit2WithEIP2612(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, payload, payer);
+    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer);
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }
@@ -489,7 +489,12 @@ async function settlePermit2WithERC20Approval(
       );
     }
 
-    return waitAndReturnSettleResponse(extensionSigner, settleTxHash, payload, payer);
+    return waitAndReturnSettleResponse(
+      extensionSigner,
+      settleTxHash,
+      payload.accepted.network,
+      payer,
+    );
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }
@@ -522,7 +527,7 @@ async function settlePermit2Direct(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, payload, payer);
+    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer);
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }

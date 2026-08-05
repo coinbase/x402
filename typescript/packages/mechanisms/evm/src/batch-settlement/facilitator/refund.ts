@@ -1,5 +1,5 @@
 import { SettleResponse, PaymentRequirements } from "@x402/core/types";
-import { encodeFunctionData, getAddress, isHash } from "viem";
+import { encodeFunctionData, getAddress } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
 import type {
   AuthorizerSigner,
@@ -11,12 +11,10 @@ import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { computeChannelId } from "../utils";
 import { signClaimBatch, signRefund } from "../authorizerSigner";
 import * as Errors from "../errors";
-// Shared with exact/upto: not batch-settlement-namespaced since it carries the same bare
-// wire value across all EVM schemes.
-import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import { truncateErrorMessage } from "../../utils";
+import { waitAndReturnSettleResponse } from "../../shared/permit2";
 import { buildVoucherClaimArgs } from "./claim";
-import { invalidBroadcastHashResponse, readChannelState, toContractChannelConfig } from "./utils";
+import { readChannelState, toContractChannelConfig } from "./utils";
 
 type RefundSettlementExtra = {
   channelState: {
@@ -349,55 +347,39 @@ export async function executeRefundWithSignature(
       });
     }
 
-    if (!isHash(tx)) {
-      return invalidBroadcastHashResponse(tx, Errors.ErrRefundTransactionFailed, network);
-    }
-
-    let receipt;
-    try {
-      receipt = await signer.waitForTransactionReceipt({ hash: tx });
-    } catch (e) {
-      return {
-        success: false,
-        errorReason: ErrSettlementPending,
-        errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
-        transaction: tx,
-        network,
-      };
-    }
-
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: Errors.ErrRefundTransactionFailed,
-        errorMessage: `transaction reverted (receipt status ${receipt.status})`,
-        transaction: tx,
-        network,
-      };
-    }
-
-    const postState =
-      preState && preState.withdrawRequestedAt !== 0
-        ? await readPostRefundState(signer, channelId, payload.refundNonce)
-        : null;
-    const refundDetails =
-      preState && postState
-        ? buildRefundExtraFromPostState(channelId, preState, postState)
-        : buildRefundExtra(payload, channelId, preState);
-
-    return {
-      success: true,
-      transaction: tx,
+    return waitAndReturnSettleResponse(
+      signer,
+      tx,
       network,
-      payer: payload.channelConfig.payer,
-      amount: refundDetails.amount,
-      extra: refundDetails.extra,
-    };
+      payload.channelConfig.payer,
+      Errors.ErrRefundTransactionFailed,
+      undefined,
+      undefined,
+      async () => {
+        const postState =
+          preState && preState.withdrawRequestedAt !== 0
+            ? await readPostRefundState(signer, channelId, payload.refundNonce)
+            : null;
+        const refundDetails =
+          preState && postState
+            ? buildRefundExtraFromPostState(channelId, preState, postState)
+            : buildRefundExtra(payload, channelId, preState);
+
+        return {
+          success: true,
+          transaction: tx,
+          network,
+          payer: payload.channelConfig.payer,
+          amount: refundDetails.amount,
+          extra: refundDetails.extra,
+        };
+      },
+    );
   } catch (e) {
     return {
       success: false,
       errorReason: Errors.ErrRefundTransactionFailed,
-      errorMessage: e instanceof Error ? e.message : String(e),
+      errorMessage: truncateErrorMessage(e instanceof Error ? e.message : String(e)),
       transaction: "",
       network,
     };
