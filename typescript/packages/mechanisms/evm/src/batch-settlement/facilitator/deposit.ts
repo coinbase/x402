@@ -7,7 +7,7 @@ import {
 } from "@x402/core/types";
 import { getAddress, parseErc6492Signature, isAddressEqual, isHash } from "viem";
 import { FacilitatorEvmSigner } from "../../signer";
-import type { TransactionRequest } from "../../exact/extensions";
+import type { Erc20ApprovalGasSponsoringSigner } from "../../exact/extensions";
 import { BatchSettlementAssetTransferMethod, BatchSettlementDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
@@ -396,26 +396,30 @@ export async function settleDeposit(
 
     const depositTx = buildDepositTransaction(payload, execution.collectorData, dataSuffix);
 
-    const tx =
-      execution.kind === "erc20Approval"
-        ? (
-            await execution.extensionSigner.sendTransactions([
-              execution.signedTransaction,
-              depositTx,
-            ])
-          )[1]
-        : await signer.writeContract({
-            address: getAddress(BATCH_SETTLEMENT_ADDRESS),
-            abi: batchSettlementABI,
-            functionName: "deposit",
-            args: [
-              toContractChannelConfig(config),
-              BigInt(deposit.amount),
-              execution.collector,
-              execution.collectorData,
-            ],
-            dataSuffix,
-          });
+    let tx: `0x${string}` | undefined;
+    let receiptSigner: FacilitatorEvmSigner;
+    if (execution.kind === "erc20Approval") {
+      const txHashes = await execution.extensionSigner.sendTransactions([
+        execution.signedTransaction,
+        depositTx,
+      ]);
+      tx = txHashes[txHashes.length - 1];
+      receiptSigner = execution.extensionSigner;
+    } else {
+      tx = await signer.writeContract({
+        address: getAddress(BATCH_SETTLEMENT_ADDRESS),
+        abi: batchSettlementABI,
+        functionName: "deposit",
+        args: [
+          toContractChannelConfig(config),
+          BigInt(deposit.amount),
+          execution.collector,
+          execution.collectorData,
+        ],
+        dataSuffix,
+      });
+      receiptSigner = signer;
+    }
 
     if (!isHash(tx)) {
       return invalidBroadcastHashResponse(
@@ -428,7 +432,7 @@ export async function settleDeposit(
 
     let receipt;
     try {
-      receipt = await signer.waitForTransactionReceipt({ hash: tx });
+      receipt = await receiptSigner.waitForTransactionReceipt({ hash: tx });
     } catch (e) {
       // Only report settlement_pending for failures that plausibly mean "we don't yet
       // know the outcome" — a bug in the signer's own code is not one of those.
@@ -521,9 +525,7 @@ type DepositExecution =
       collector: `0x${string}`;
       collectorData: `0x${string}`;
       signedTransaction: `0x${string}`;
-      extensionSigner: {
-        sendTransactions(transactions: TransactionRequest[]): Promise<`0x${string}`[]>;
-      };
+      extensionSigner: Erc20ApprovalGasSponsoringSigner;
       skipDirectSimulation: true;
     };
 
