@@ -76,6 +76,12 @@ export function truncateErrorMessage(message: string): string {
 
 /**
  * Terminal failure when a signer reports success without a usable transaction hash.
+ *
+ * @param tx - Value returned in place of a valid transaction hash
+ * @param errorReason - Scheme/action-specific terminal error reason
+ * @param network - Network the transaction was broadcast to
+ * @param payer - Payer address, when known
+ * @returns Failed {@link SettleResponse} with no transaction hash
  */
 export function invalidBroadcastHashResponse(
   tx: unknown,
