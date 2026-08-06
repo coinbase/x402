@@ -235,6 +235,14 @@ def settle_deposit(
             if deploy_err is not None:
                 return deploy_err
 
+        # Set when the extension signer returned a single hash for the two-request
+        # (approve + deposit) send. A single hash is documented to mean the signer
+        # executed both atomically as a bundle, but a non-conforming signer could
+        # return one hash after only broadcasting the approve. A successful receipt
+        # for that hash only proves *some* transaction didn't revert, not that the
+        # deposit call ran, so this case must confirm the deposit landed onchain
+        # (via the balance check in _build_deposit_success) before reporting success.
+        unconfirmed_bundle_hash = False
         if execution.kind == "erc20Approval":
             assert execution.extension_signer is not None
             assert execution.signed_transaction is not None
@@ -248,6 +256,7 @@ def settle_deposit(
                     "expected 1 (atomic bundle) or 2 (sequential) tx hashes from "
                     f"extension signer, got {len(results)}"
                 )
+            unconfirmed_bundle_hash = len(results) == 1
             receipt_waiter = execution.extension_signer
         else:
             tx = signer.write_contract(
@@ -277,6 +286,11 @@ def settle_deposit(
 
             expected_min_balance = int(optimistic["channelState"]["balance"])
             deadline = time.time() + 2.0
+            # True only when a read *succeeds* and definitively shows the deposit
+            # missing — distinct from a read error (e.g. RPC flake), which is
+            # tolerated below via the optimistic fallback since the bundle's own
+            # receipt already confirmed success.
+            balance_read_without_confirmation = False
             try:
                 post_state = read_channel_state(signer, voucher.channel_id)
                 while post_state.balance < expected_min_balance and time.time() < deadline:
@@ -294,9 +308,24 @@ def settle_deposit(
                         }
                     }
                 else:
+                    balance_read_without_confirmation = True
                     extra = optimistic
             except Exception:
                 extra = optimistic
+
+            if unconfirmed_bundle_hash and balance_read_without_confirmation:
+                return SettleResponse(
+                    success=False,
+                    error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+                    error_message=(
+                        "extension signer returned a single transaction hash for the "
+                        "erc20 approval + deposit bundle, but the resulting channel "
+                        "balance does not reflect the deposit"
+                    ),
+                    transaction=tx,
+                    network=network,
+                    payer=payer,
+                )
 
             return SettleResponse(
                 success=True,

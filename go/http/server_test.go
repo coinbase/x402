@@ -696,7 +696,6 @@ func TestProcessSettlement_Failure(t *testing.T) {
 	if result.Response == nil {
 		t.Fatal("Expected response instructions")
 	}
-	_ = result
 }
 
 // TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction pins that a

@@ -40,7 +40,7 @@ def wait_for_receipt_and_build_response(
     signer: ReceiptWaiter,
     tx_hash: str,
     network: str,
-    payer: str,
+    payer: str | None,
     *,
     failed_reason: str,
     amount: str | None = None,

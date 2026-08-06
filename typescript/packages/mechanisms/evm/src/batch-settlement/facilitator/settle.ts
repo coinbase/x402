@@ -105,7 +105,7 @@ export async function executeSettle(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, network, "", {
+    return waitAndReturnSettleResponse(signer, tx, network, undefined, {
       failedStatusReason: Errors.ErrSettleTransactionFailed,
       onSuccess: receipt => {
         let amount = "";

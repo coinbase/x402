@@ -49,11 +49,15 @@ const MaxErrorMessageLength = 500
 // TruncateErrorMessage bounds raw error text (e.g. from an RPC client) before it is placed
 // in a settle/verify ErrorMessage. RPC/transport errors can carry node URLs, request bodies,
 // or other verbose data that should not be echoed to callers unbounded.
+//
+// Truncation counts runes, not bytes, matching the character-based truncation in the
+// Python and TypeScript SDKs and avoiding a cut in the middle of a multi-byte UTF-8 rune.
 func TruncateErrorMessage(msg string) string {
-	if len(msg) <= MaxErrorMessageLength {
+	runes := []rune(msg)
+	if len(runes) <= MaxErrorMessageLength {
 		return msg
 	}
-	return msg[:MaxErrorMessageLength]
+	return string(runes[:MaxErrorMessageLength])
 }
 
 // InvalidBroadcastHashError builds a terminal SettleError for a signer that reports success

@@ -676,7 +676,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
       const result = await facilitator.settle(permit2Payload, requirements);
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(Errors.ErrInvalidTransactionState);
+      expect(result.errorReason).toBe(Errors.ErrTransactionFailed);
       expect(result.transaction).toBe("");
       expect(mockFacilitatorSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });

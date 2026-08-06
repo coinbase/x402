@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { x402HTTPResourceServer, HTTPAdapter } from "../../../src/http/x402HTTPResourceServer";
 import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
-import { FacilitatorResponseError, Network } from "../../../src/types";
+import { FacilitatorResponseError, Network, SettleError } from "../../../src/types";
 import {
   MockFacilitatorClient,
   MockSchemeNetworkServer,
   buildPaymentPayload,
   buildPaymentRequirements,
+  buildSettleResponse,
   buildSupportedResponse,
 } from "../../mocks";
-import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "../../../src/http";
+import {
+  decodePaymentRequiredHeader,
+  decodePaymentResponseHeader,
+  encodePaymentSignatureHeader,
+} from "../../../src/http";
 
 class MockHTTPAdapter implements HTTPAdapter {
   constructor(private readonly headers: Record<string, string> = {}) {}
@@ -142,6 +147,90 @@ describe("x402HTTPResourceServer facilitator response errors", () => {
       expect(facilitator.verifyCalls).toHaveLength(0);
     },
   );
+
+  it("strips the transaction hash from a terminal settle failure (direct response)", async () => {
+    facilitator.setSettleResponse(
+      buildSettleResponse({
+        success: false,
+        errorReason: "invalid_exact_evm_transaction_failed",
+        transaction: "0xshouldnotbeexposed",
+        network,
+      }),
+    );
+
+    const accepted = buildPaymentRequirements({
+      scheme: "exact",
+      network,
+      payTo: "0xabc",
+      asset: "USDC",
+      amount: "1000000",
+    });
+    const result = await httpServer.processSettlement(
+      buildPaymentPayload({ x402Version: 2, accepted }),
+      accepted,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.transaction).toBe("");
+    const decoded = decodePaymentResponseHeader(result.headers["PAYMENT-RESPONSE"]);
+    expect(decoded.transaction).toBe("");
+  });
+
+  it("keeps the transaction hash for a settlement_pending settle failure (direct response)", async () => {
+    facilitator.setSettleResponse(
+      buildSettleResponse({
+        success: false,
+        errorReason: "settlement_pending",
+        transaction: "0xpendingtx",
+        network,
+      }),
+    );
+
+    const accepted = buildPaymentRequirements({
+      scheme: "exact",
+      network,
+      payTo: "0xabc",
+      asset: "USDC",
+      amount: "1000000",
+    });
+    const result = await httpServer.processSettlement(
+      buildPaymentPayload({ x402Version: 2, accepted }),
+      accepted,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.transaction).toBe("0xpendingtx");
+    const decoded = decodePaymentResponseHeader(result.headers["PAYMENT-RESPONSE"]);
+    expect(decoded.transaction).toBe("0xpendingtx");
+  });
+
+  it("strips the transaction hash from a terminal settle failure (thrown SettleError)", async () => {
+    facilitator.setSettleResponse(
+      new SettleError(402, {
+        success: false,
+        errorReason: "invalid_exact_evm_transaction_failed",
+        transaction: "0xshouldnotbeexposed",
+        network,
+      }),
+    );
+
+    const accepted = buildPaymentRequirements({
+      scheme: "exact",
+      network,
+      payTo: "0xabc",
+      asset: "USDC",
+      amount: "1000000",
+    });
+    const result = await httpServer.processSettlement(
+      buildPaymentPayload({ x402Version: 2, accepted }),
+      accepted,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.transaction).toBe("");
+    const decoded = decodePaymentResponseHeader(result.headers["PAYMENT-RESPONSE"]);
+    expect(decoded.transaction).toBe("");
+  });
 
   it("returns payment-error when client extension echo mismatches before facilitator verify", async () => {
     const httpServerWithExtensions = new x402HTTPResourceServer(resourceServer, {

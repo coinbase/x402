@@ -566,6 +566,120 @@ func TestSettleDeposit_Erc20ApprovalAcceptsSingleExtensionHash(t *testing.T) {
 	}
 }
 
+// TestSettleDeposit_Erc20ApprovalSingleHashWithoutBalanceIncreaseFails pins that a
+// single extension-signer hash is not blindly trusted as an atomic bundle. If the
+// hash's receipt succeeds (e.g. because it is only the approve transaction from a
+// non-conforming sequential signer) but the channel balance never reflects the
+// deposit, settlement must fail rather than report success without funds moving.
+func TestSettleDeposit_Erc20ApprovalSingleHashWithoutBalanceIncreaseFails(t *testing.T) {
+	const txHash = "0x" + "abababababababababababababababababababababababababababababababab"
+	extensionSigner := &singleHashExtensionSigner{
+		fakeFacilitatorSigner: &fakeFacilitatorSigner{
+			waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+				return &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: gotTxHash}, nil
+			},
+		},
+		txHash: txHash,
+	}
+	signer := &fakeFacilitatorSigner{
+		waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+			return nil, errors.New("base signer must not wait for extension transaction")
+		},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName != evm.FunctionTryAggregate {
+				return nil, errors.New("unexpected rpc")
+			}
+			// Balance never reflects the deposit, e.g. because the single hash
+			// only broadcast the approve and the deposit call never ran.
+			return multicallChannelStateResult(t, big.NewInt(0), big.NewInt(0), 0, big.NewInt(0)), nil
+		},
+	}
+	fctx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
+			Signer: extensionSigner,
+		},
+	})
+	payload := &batchsettlement.BatchSettlementDepositPayload{
+		Type:          "deposit",
+		ChannelConfig: goodPermit2Config(),
+		Voucher: batchsettlement.BatchSettlementVoucherFields{
+			ChannelId: testPermit2ChannelId,
+		},
+		Deposit: batchsettlement.BatchSettlementDepositData{
+			Amount: "1000",
+			Authorization: batchsettlement.BatchSettlementDepositAuthorization{
+				Permit2Authorization: goodPermit2Auth(),
+			},
+		},
+	}
+
+	_, err := SettleDeposit(
+		context.Background(), signer, payload, reqsFor(testNetwork),
+		extensionsWithErc20Approval(goodErc20ApprovalInfo()), fctx, nil, nil,
+	)
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrDepositTransactionFailed {
+		t.Fatalf("got err = %v, want ErrDepositTransactionFailed", err)
+	}
+}
+
+// TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorKeepsOptimisticSuccess pins
+// that a single extension-signer hash is only rejected when the post-deposit balance
+// read *succeeds* and definitively shows the deposit missing. A read error (e.g. RPC
+// flake) after a receipt that already confirmed success must not be treated the same
+// as evidence the deposit failed — this mirrors the base-signer optimistic fallback.
+func TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorKeepsOptimisticSuccess(t *testing.T) {
+	const txHash = "0x" + "abababababababababababababababababababababababababababababababab"
+	extensionSigner := &singleHashExtensionSigner{
+		fakeFacilitatorSigner: &fakeFacilitatorSigner{
+			waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+				return &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: gotTxHash}, nil
+			},
+		},
+		txHash: txHash,
+	}
+	signer := &fakeFacilitatorSigner{
+		waitForReceipt: func(gotTxHash string) (*evm.TransactionReceipt, error) {
+			return nil, errors.New("base signer must not wait for extension transaction")
+		},
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName != evm.FunctionTryAggregate {
+				return nil, errors.New("unexpected rpc")
+			}
+			return nil, errors.New("rpc: channel state unavailable")
+		},
+	}
+	fctx := x402.NewFacilitatorContext(map[string]x402.FacilitatorExtension{
+		erc20approvalgassponsor.ERC20ApprovalGasSponsoring.Key(): &erc20approvalgassponsor.Erc20ApprovalFacilitatorExtension{
+			Signer: extensionSigner,
+		},
+	})
+	payload := &batchsettlement.BatchSettlementDepositPayload{
+		Type:          "deposit",
+		ChannelConfig: goodPermit2Config(),
+		Voucher: batchsettlement.BatchSettlementVoucherFields{
+			ChannelId: testPermit2ChannelId,
+		},
+		Deposit: batchsettlement.BatchSettlementDepositData{
+			Amount: "1000",
+			Authorization: batchsettlement.BatchSettlementDepositAuthorization{
+				Permit2Authorization: goodPermit2Auth(),
+			},
+		},
+	}
+
+	resp, err := SettleDeposit(
+		context.Background(), signer, payload, reqsFor(testNetwork),
+		extensionsWithErc20Approval(goodErc20ApprovalInfo()), fctx, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("SettleDeposit: %v", err)
+	}
+	if resp.Transaction != txHash {
+		t.Fatalf("transaction = %q, want %q", resp.Transaction, txHash)
+	}
+}
+
 // TestVerifyDeposit_ExtraBalanceIsOnchainNotProjected pins that verify extra
 // reports the current onchain balance, not balance+deposit. Projecting here
 // lets AfterVerifyHook cache unmined escrow and approve later vouchers against it.

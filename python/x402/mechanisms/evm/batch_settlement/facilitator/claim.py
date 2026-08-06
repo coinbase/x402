@@ -10,6 +10,7 @@ except ImportError as e:
     ) from e
 
 from .....schemas import PaymentRequirements, SettleResponse
+from ...constants import ERR_SETTLEMENT_PENDING
 from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
 from ...utils import truncate_error_message
@@ -107,14 +108,25 @@ def execute_claim_with_signature(
             network=network,
         )
 
-    return wait_for_receipt_and_build_response(
-        signer,
-        tx,
-        network,
-        "",
-        failed_reason=ERR_CLAIM_TRANSACTION_FAILED,
-        amount="",
-    )
+    try:
+        return wait_for_receipt_and_build_response(
+            signer,
+            tx,
+            network,
+            None,
+            failed_reason=ERR_CLAIM_TRANSACTION_FAILED,
+        )
+    except Exception as e:
+        # The broadcast already succeeded (we have `tx`); an unexpected error here
+        # (e.g. a malformed receipt) means we can't confirm the outcome, not that it
+        # failed — settlement_pending lets the caller reconcile via the tx hash.
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLEMENT_PENDING,
+            error_message=truncate_error_message(str(e)),
+            transaction=tx,
+            network=network,
+        )
 
 
 __all__ = ["build_voucher_claim_args", "execute_claim_with_signature"]

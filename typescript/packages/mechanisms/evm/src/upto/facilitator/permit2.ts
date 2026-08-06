@@ -29,6 +29,7 @@ import {
   ErrUptoFacilitatorMismatch,
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
+  ErrUptoTransactionFailed,
 } from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload } from "../../types";
@@ -503,6 +504,7 @@ async function settleUptoWithEIP2612(
     });
 
     return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+      failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
     });
   } catch (error) {
@@ -565,6 +567,7 @@ async function settleUptoWithERC20Approval(
       payload.accepted.network,
       payer,
       {
+        failedStatusReason: ErrUptoTransactionFailed,
         amount: settlementAmount.toString(),
       },
     );
@@ -603,6 +606,7 @@ async function settleUptoDirect(
     });
 
     return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+      failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
     });
   } catch (error) {

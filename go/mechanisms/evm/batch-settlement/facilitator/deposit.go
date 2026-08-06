@@ -393,6 +393,15 @@ func SettleDeposit(
 	var (
 		txHash            string
 		receiptWaitSigner = signer
+		// unconfirmedBundleHash is set when the extension signer returned a single
+		// hash for the two-request (approve + deposit) send. A single hash is
+		// documented to mean the signer executed both atomically as a bundle, but a
+		// non-conforming signer could return one hash after only broadcasting the
+		// approve. A successful receipt for that hash only proves *some*
+		// transaction didn't revert, not that the deposit call ran — so this case
+		// must not report success without confirming the deposit landed onchain
+		// (see the balance check below).
+		unconfirmedBundleHash bool
 	)
 	if permit2Branch != nil && permit2Branch.kind == permit2BranchErc20Approval {
 		settleCall := erc20approvalgassponsor.WriteContractCall{
@@ -415,6 +424,7 @@ func SettleDeposit(
 			return nil, x402.NewSettleError(ErrDepositTransactionFailed, "", network, config.Payer,
 				fmt.Sprintf("expected 1 (atomic bundle) or 2 (sequential) tx hashes from extension signer, got %d", len(txHashes)))
 		}
+		unconfirmedBundleHash = len(txHashes) == 1
 		receiptWaitSigner = permit2Branch.extensionSigner
 	} else {
 		txHash, err = signer.WriteContract(
@@ -457,17 +467,28 @@ func SettleDeposit(
 	// verify reads are guaranteed to see this balance.
 	expectedMinBalance := new(big.Int).Set(optimisticBalance)
 	deadline := time.Now().Add(2 * time.Second)
-	postState, _ := ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
+	postState, readErr := ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
 	for postState == nil || postState.Balance == nil || postState.Balance.Cmp(expectedMinBalance) < 0 {
 		if time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(150 * time.Millisecond)
-		postState, _ = ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
+		postState, readErr = ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
+	}
+
+	balanceConfirmed := postState != nil && postState.Balance != nil && postState.Balance.Cmp(expectedMinBalance) >= 0
+	// A definitive (non-error) read that still shows the deposit missing is a real
+	// signal the bundle only broadcast the approve, distinct from an RPC read error
+	// (which we tolerate below via the optimistic fallback, since the deposit's own
+	// receipt already confirmed success in that case).
+	if unconfirmedBundleHash && !balanceConfirmed && readErr == nil {
+		return nil, x402.NewSettleError(ErrDepositTransactionFailed, txHash, network, config.Payer,
+			"extension signer returned a single transaction hash for the erc20 approval + deposit "+
+				"bundle, but the resulting channel balance does not reflect the deposit")
 	}
 
 	finalState := optimisticState
-	if postState != nil && postState.Balance != nil && postState.Balance.Cmp(expectedMinBalance) >= 0 {
+	if balanceConfirmed {
 		finalState = postState
 	}
 

@@ -43,6 +43,7 @@ export {
 } from "../../exact/facilitator/errors";
 
 // Upto-specific errors
+export const ErrUptoTransactionFailed = "invalid_upto_evm_transaction_failed";
 export const ErrUptoInvalidScheme = "invalid_upto_evm_scheme";
 export const ErrUptoNetworkMismatch = "invalid_upto_evm_network_mismatch";
 export const ErrUptoSettlementExceedsAmount = "invalid_upto_evm_payload_settlement_exceeds_amount";

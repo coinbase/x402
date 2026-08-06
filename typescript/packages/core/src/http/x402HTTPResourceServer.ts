@@ -30,6 +30,30 @@ export const SETTLEMENT_OVERRIDES_HEADER = "Settlement-Overrides";
 
 export const PAYMENT_REQUIRED_CACHE_CONTROL = "no-store";
 
+// Wire value for a broadcast settle whose receipt could not be confirmed. Mirrored
+// from mechanisms/evm to avoid a core -> mechanisms import.
+const SETTLEMENT_PENDING_REASON = "settlement_pending";
+
+/**
+ * Returns the broadcast transaction hash for a failed settlement only when the
+ * failure is settlement_pending. Every other terminal reason must not surface a
+ * transaction value, regardless of whether the failure arrived as a `SettleError`
+ * or a direct `SettleResponse` (e.g. from a remote facilitator client).
+ *
+ * @param errorReason - The settlement failure's error reason
+ * @param transaction - The transaction hash reported by the failure
+ * @returns The transaction hash, or an empty string when the failure is terminal
+ */
+function sanitizedFailureTransaction(
+  errorReason: string | undefined,
+  transaction: string | undefined,
+): string {
+  if (errorReason === SETTLEMENT_PENDING_REASON) {
+    return transaction ?? "";
+  }
+  return "";
+}
+
 /**
  * Appends the `private` directive to an existing Cache-Control header value.
  * Shared caches must not store responses with user-specific settlement metadata.
@@ -845,13 +869,19 @@ export class x402HTTPResourceServer {
       );
 
       if (!settleResponse.success) {
-        const failure = {
+        const errorReason = settleResponse.errorReason || "Settlement failed";
+        const sanitizedResponse: SettleResponse = {
           ...settleResponse,
+          transaction: sanitizedFailureTransaction(errorReason, settleResponse.transaction),
+        };
+        const failure = {
+          ...sanitizedResponse,
           success: false as const,
-          errorReason: settleResponse.errorReason || "Settlement failed",
-          errorMessage:
-            settleResponse.errorMessage || settleResponse.errorReason || "Settlement failed",
-          headers: this.createSettlementHeaders(settleResponse),
+          errorReason,
+          errorMessage: settleResponse.errorMessage || errorReason,
+          // Sanitized before header encoding — the PAYMENT-RESPONSE header is built
+          // from this response, so the stripped hash must land there too.
+          headers: this.createSettlementHeaders(sanitizedResponse),
         };
         const response = await this.buildSettlementFailureResponse(failure, transportContext);
         return { ...failure, response };
@@ -875,7 +905,7 @@ export class x402HTTPResourceServer {
           errorMessage: error.errorMessage || errorReason,
           payer: error.payer,
           network: error.network,
-          transaction: error.transaction,
+          transaction: sanitizedFailureTransaction(errorReason, error.transaction),
         };
         const failure = {
           ...settleResponse,

@@ -41,7 +41,7 @@ export async function waitAndReturnSettleResponse(
   signer: Pick<FacilitatorEvmSigner, "waitForTransactionReceipt">,
   tx: `0x${string}`,
   network: Network,
-  payer: string,
+  payer: string | undefined,
   options: WaitForSettleReceiptOptions = {},
 ): Promise<SettleResponse> {
   const {

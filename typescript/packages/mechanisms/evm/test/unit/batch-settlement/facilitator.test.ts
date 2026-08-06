@@ -9,7 +9,16 @@ vi.mock("../../../src/multicall", async importOriginal => {
   return { ...actual, multicall: vi.fn() };
 });
 
+vi.mock("../../../src/batch-settlement/facilitator/deposit-permit2", async importOriginal => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/batch-settlement/facilitator/deposit-permit2")
+    >();
+  return { ...actual, resolvePermit2DepositBranch: vi.fn(actual.resolvePermit2DepositBranch) };
+});
+
 import { multicall } from "../../../src/multicall";
+import { resolvePermit2DepositBranch } from "../../../src/batch-settlement/facilitator/deposit-permit2";
 import { BatchSettlementEvmScheme } from "../../../src/batch-settlement/facilitator/scheme";
 import { computeChannelId as computeChannelIdForNetwork } from "../../../src/batch-settlement/utils";
 import {
@@ -30,9 +39,13 @@ import type {
   BatchSettlementEnrichedRefundPayload,
 } from "../../../src/batch-settlement/types";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
+import type { Erc20ApprovalGasSponsoringSigner } from "../../../src/exact/extensions";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 
 const mockedMulticall = multicall as unknown as MockedFunction<typeof multicall>;
+const mockedResolvePermit2DepositBranch = resolvePermit2DepositBranch as unknown as MockedFunction<
+  typeof resolvePermit2DepositBranch
+>;
 
 const PAYER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as `0x${string}`;
 const RECEIVER = "0x9876543210987654321098765432109876543210" as `0x${string}`;
@@ -183,6 +196,7 @@ function envelopeSettle(payload: Record<string, unknown>): PaymentPayload {
 
 beforeEach(() => {
   mockedMulticall.mockReset();
+  mockedResolvePermit2DepositBranch.mockClear();
 });
 
 describe("BatchSettlementEvmScheme (Facilitator) — construction & metadata", () => {
@@ -952,6 +966,141 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     expect(result.transaction).toBe("0x" + "ab".repeat(32));
   });
 
+  function buildErc20ApprovalPermit2Deposit(): {
+    config: ChannelConfig;
+    channelId: `0x${string}`;
+    dp: BatchSettlementDepositPayload;
+    reqs: PaymentRequirements;
+  } {
+    const config = buildChannelConfig();
+    const channelId = computeChannelId(config);
+    const now = Math.floor(Date.now() / 1000);
+    const dp: BatchSettlementDepositPayload = {
+      type: "deposit",
+      channelConfig: config,
+      voucher: { channelId, maxClaimableAmount: "1000", signature: "0xcafebabe" },
+      deposit: {
+        amount: "10000",
+        authorization: {
+          permit2Authorization: {
+            from: PAYER,
+            permitted: { token: ASSET, amount: "10000" },
+            spender: PERMIT2_DEPOSIT_COLLECTOR_ADDRESS,
+            nonce: "123",
+            deadline: String(now + 3600),
+            witness: { channelId },
+            signature: "0xfeedface",
+          },
+        },
+      },
+    };
+    const reqs = makeRequirements({
+      extra: {
+        assetTransferMethod: "permit2",
+        name: "USDC",
+        version: "2",
+        receiverAuthorizer: RECEIVER_AUTHORIZER,
+      },
+    });
+    return { config, channelId, dp, reqs };
+  }
+
+  /**
+   * Mocks `resolvePermit2DepositBranch` (consumed twice per settle call — once via
+   * `verifyDeposit`, once via `settleDeposit`'s own execution resolution) to force the
+   * erc20Approval branch without needing a full ERC-20-approval-extension payload.
+   */
+  function mockErc20ApprovalBranch(sendTransactions: () => Promise<`0x${string}`[]>): void {
+    const branch = {
+      kind: "erc20Approval" as const,
+      collectorData: "0x" as `0x${string}`,
+      signedTransaction: "0xsigned" as `0x${string}`,
+      extensionSigner: {
+        ...buildSigner(),
+        sendTransactions: vi.fn(sendTransactions),
+      } as Erc20ApprovalGasSponsoringSigner,
+    };
+    mockedResolvePermit2DepositBranch.mockResolvedValueOnce(branch);
+    mockedResolvePermit2DepositBranch.mockResolvedValueOnce(branch);
+  }
+
+  it("accepts a single extension-signer hash for an erc20-approval deposit bundle when the balance confirms", async () => {
+    const signer = buildSigner();
+    const bundleTxHash = ("0x" + "ab".repeat(32)) as `0x${string}`;
+    let sent = false;
+    mockErc20ApprovalBranch(async () => {
+      sent = true;
+      return [bundleTxHash];
+    });
+    mockedMulticall
+      .mockResolvedValueOnce([
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 1_000_000n },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ])
+      .mockImplementation(async () => [
+        { status: "success", result: [sent ? 10_000n : 0n, 0n] },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ]);
+    const scheme = new BatchSettlementEvmScheme(signer, buildAuthorizerSigner());
+    const { dp, reqs } = buildErc20ApprovalPermit2Deposit();
+
+    const result = await scheme.settle(envelopeDeposit(dp), reqs);
+
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBe(bundleTxHash);
+  });
+
+  it("fails an erc20-approval deposit bundle when a single extension-signer hash's balance never confirms", async () => {
+    const signer = buildSigner();
+    const bundleTxHash = ("0x" + "ab".repeat(32)) as `0x${string}`;
+    mockErc20ApprovalBranch(async () => [bundleTxHash]);
+    // Balance never reflects the deposit — e.g. because the single hash only
+    // broadcast the approve and the deposit call never ran.
+    mockedMulticall
+      .mockResolvedValueOnce([
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 1_000_000n },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ])
+      .mockResolvedValue([
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ]);
+    const scheme = new BatchSettlementEvmScheme(signer, buildAuthorizerSigner());
+    const { dp, reqs } = buildErc20ApprovalPermit2Deposit();
+
+    const result = await scheme.settle(envelopeDeposit(dp), reqs);
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe(Errors.ErrDepositTransactionFailed);
+  }, 10_000);
+
+  it("keeps optimistic success for a single-hash erc20-approval bundle when the balance read errors", async () => {
+    const signer = buildSigner();
+    const bundleTxHash = ("0x" + "ab".repeat(32)) as `0x${string}`;
+    mockErc20ApprovalBranch(async () => [bundleTxHash]);
+    mockedMulticall
+      .mockResolvedValueOnce([
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 1_000_000n },
+        { status: "success", result: [0n, 0n] },
+        { status: "success", result: 0n },
+      ])
+      .mockRejectedValue(new Error("rpc: channel state unavailable"));
+    const scheme = new BatchSettlementEvmScheme(signer, buildAuthorizerSigner());
+    const { dp, reqs } = buildErc20ApprovalPermit2Deposit();
+
+    const result = await scheme.settle(envelopeDeposit(dp), reqs);
+
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBe(bundleTxHash);
+  }, 10_000);
+
   it('rejects voucher-less type:"deposit" envelopes as unknown payload type', async () => {
     const scheme = new BatchSettlementEvmScheme(buildSigner(), authorizer);
     const config = buildChannelConfig();
@@ -1173,7 +1322,7 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
       makeRequirements(),
     );
     expect(result.success).toBe(true);
-    expect(result.amount).toBe("");
+    expect(result.amount).toBeUndefined();
     expect(signer.writeContract).toHaveBeenCalledWith(
       expect.objectContaining({ functionName: "claimWithSignature" }),
     );

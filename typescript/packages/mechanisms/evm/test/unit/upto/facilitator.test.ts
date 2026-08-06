@@ -12,10 +12,10 @@ import {
   ErrUptoUnauthorizedFacilitator,
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
+  ErrUptoTransactionFailed,
 } from "../../../src/upto/facilitator/errors";
 import {
   ErrErc20ApprovalBroadcastFailed,
-  ErrInvalidTransactionState,
   ErrSettlementPending,
 } from "../../../src/exact/facilitator/errors";
 import type { UptoPermit2Payload } from "../../../src/types";
@@ -661,7 +661,7 @@ describe("UptoEvmScheme (Facilitator)", () => {
       const result = await scheme.settle(makePayload(), makeRequirements());
 
       expect(result.success).toBe(false);
-      expect(result.errorReason).toBe(ErrInvalidTransactionState);
+      expect(result.errorReason).toBe(ErrUptoTransactionFailed);
       expect(result.transaction).toBe("");
       expect(mockSigner.waitForTransactionReceipt).not.toHaveBeenCalled();
     });

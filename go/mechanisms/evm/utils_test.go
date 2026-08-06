@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
 )
@@ -68,6 +69,19 @@ func TestTruncateErrorMessage(t *testing.T) {
 	}
 	if got != long[:MaxErrorMessageLength] {
 		t.Error("TruncateErrorMessage did not preserve the leading bytes")
+	}
+}
+
+func TestTruncateErrorMessageMultiByteRunes(t *testing.T) {
+	// Each "é" is a 2-byte UTF-8 rune; a byte-based slice at MaxErrorMessageLength
+	// would split one in half and produce invalid UTF-8.
+	long := strings.Repeat("é", MaxErrorMessageLength+100)
+	got := TruncateErrorMessage(long)
+	if !utf8.ValidString(got) {
+		t.Errorf("TruncateErrorMessage produced invalid UTF-8: %q", got)
+	}
+	if got := utf8.RuneCountInString(got); got != MaxErrorMessageLength {
+		t.Errorf("TruncateErrorMessage returned %d runes, want %d", got, MaxErrorMessageLength)
 	}
 }
 

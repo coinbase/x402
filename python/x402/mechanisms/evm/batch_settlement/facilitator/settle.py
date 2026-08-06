@@ -10,6 +10,7 @@ except ImportError as e:
     ) from e
 
 from .....schemas import PaymentRequirements, SettleResponse
+from ...constants import ERR_SETTLEMENT_PENDING
 from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
 from ...utils import truncate_error_message
@@ -91,19 +92,31 @@ def execute_settle(
             network=network,
         )
 
-    return wait_for_receipt_and_build_response(
-        signer,
-        tx,
-        network,
-        "",
-        failed_reason=ERR_SETTLE_TRANSACTION_FAILED,
-        on_success=lambda receipt: SettleResponse(
-            success=True,
+    try:
+        return wait_for_receipt_and_build_response(
+            signer,
+            tx,
+            network,
+            None,
+            failed_reason=ERR_SETTLE_TRANSACTION_FAILED,
+            on_success=lambda receipt: SettleResponse(
+                success=True,
+                transaction=tx,
+                network=network,
+                amount=_parse_settled_amount(signer, receipt, contract_addr, receiver, token),
+            ),
+        )
+    except Exception as e:
+        # The broadcast already succeeded (we have `tx`); an unexpected error here
+        # (e.g. a malformed receipt) means we can't confirm the outcome, not that it
+        # failed — settlement_pending lets the caller reconcile via the tx hash.
+        return SettleResponse(
+            success=False,
+            error_reason=ERR_SETTLEMENT_PENDING,
+            error_message=truncate_error_message(str(e)),
             transaction=tx,
             network=network,
-            amount=_parse_settled_amount(signer, receipt, contract_addr, receiver, token),
-        ),
-    )
+        )
 
 
 def _unpack_pair(value) -> tuple[int, int]:
