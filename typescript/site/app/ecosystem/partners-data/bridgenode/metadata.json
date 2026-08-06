@@ -1,0 +1,7 @@
+{
+  "name": "BridgeNode",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/bridgenode.jpg",
+  "description": "Pay-per-request AI chat completions (LLM inference) via x402 on Solana — no API keys, no accounts, pay with USDC.",
+  "websiteUrl": "https://bridgenode.cc"
+}
