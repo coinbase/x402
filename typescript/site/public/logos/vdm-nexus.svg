@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="VDM Nexus">
+  <!-- guardrails: the two fixed limits the agent operates between -->
+  <path d="M7 6.5V25.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <path d="M25 6.5V25.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <!-- the rein: a line under tension, passing through the node -->
+  <path d="M7 6.5C9.6 10 11.2 12.2 12.6 13.9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <path d="M19.4 18.1C20.8 19.8 22.4 22 25 25.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <!-- the nexus: where the decision happens, and where it gets signed -->
+  <circle cx="16" cy="16" r="3.4" stroke="currentColor" stroke-width="2.6"/>
+</svg>
