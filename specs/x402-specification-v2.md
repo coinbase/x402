@@ -593,7 +593,7 @@ The x402 protocol defines standard error codes that may be returned by facilitat
 - **`invalid_transaction_state`**: Blockchain transaction failed or was rejected
 - **`unexpected_verify_error`**: Unexpected error occurred during payment verification
 - **`unexpected_settle_error`**: Unexpected error occurred during payment settlement
-- **`settlement_pending`**: The settlement transaction was broadcast but its confirmation could not be established (e.g. a node/RPC error or timeout while waiting for the receipt). Unlike the other codes in this list, this is **non-terminal** — the transaction may still confirm on chain. A `SettleResponse` with this `errorReason` MUST carry a non-empty `transaction` (the broadcast hash) and `network` so the caller can reconcile on chain before deciding whether to retry.
+- **`settlement_pending`**: The settlement transaction was broadcast but its confirmation could not be established (e.g. a node/RPC error or timeout while waiting for the receipt). Facilitators MAY return this **non-terminal** code — the transaction may still confirm on chain. A `SettleResponse` with this `errorReason` MUST carry a non-empty `transaction` (the broadcast hash) and `network` so the caller can reconcile on chain before deciding whether to retry.
 
 **10. Security Considerations**
 

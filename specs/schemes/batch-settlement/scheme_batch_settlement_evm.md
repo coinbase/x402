@@ -457,7 +457,7 @@ Example facilitator response for a refund:
 
 `amount` is the amount returned to the payer.
 
-If a `deposit`, `claim`, `settle`, or `refund` transaction broadcasts successfully but its confirmation cannot be established (e.g. a node/RPC error or timeout while waiting for the receipt), the facilitator MUST NOT report a terminal failure — the transaction may still land on chain. It MUST return `settlement_pending` (see [§9 Error Handling](../../x402-specification-v2.md#9-error-handling)) with the broadcast transaction hash in `transaction`, so the caller can reconcile on chain before retrying.
+If a `deposit`, `claim`, `settle`, or `refund` transaction broadcasts successfully but its confirmation cannot be established (e.g. a node/RPC error or timeout while waiting for the receipt), the facilitator MAY return `settlement_pending` (see [§9 Error Handling](../../x402-specification-v2.md#9-error-handling)) with the broadcast transaction hash in `transaction`, so the caller can reconcile on chain before retrying.
 
 ### GET /supported
 
