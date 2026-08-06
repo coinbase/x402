@@ -1,0 +1,7 @@
+{
+  "name": "VDM Nexus",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/vdm-nexus.svg",
+  "description": "Signed-inference rail for autonomous agents: pay-per-call, OpenAI-compatible LLM access via x402 on Solana and Base. Every response carries an Ed25519-signed receipt that anyone can re-verify.",
+  "websiteUrl": "https://vdmnexus.com"
+}
