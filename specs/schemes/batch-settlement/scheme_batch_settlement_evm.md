@@ -646,7 +646,7 @@ The recovery baseline is:
 | `invalid_batch_settlement_evm_unknown_settle_action`                     | Settle payload requested an unknown action                                   |
 | `invalid_batch_settlement_evm_voucher_payload`                           | Voucher payload is malformed                                                 |
 | `invalid_batch_settlement_evm_voucher_signature`                         | EIP-712 voucher signature does not recover to the expected signer          |
-| `invalid_batch_settlement_evm_wait_for_receipt_failed`                   | Reserved; not emitted for receipt-wait failure after broadcast — see `settlement_pending` |
+| `invalid_batch_settlement_evm_wait_for_receipt_failed`                   | Facilitator failed while waiting for the transaction receipt                 |
 | `invalid_batch_settlement_evm_withdraw_delay_mismatch`                   | Channel withdraw delay does not match `extra.withdrawDelay`                  |
 | `invalid_batch_settlement_evm_withdraw_delay_out_of_range`               | Withdraw delay is outside the 15 min - 30 day bounds                         |
 | `settlement_pending`                                                     | Broadcast succeeded but confirmation could not be established — **non-terminal**; carries the broadcast `transaction` hash so the caller can reconcile on chain before retrying |
