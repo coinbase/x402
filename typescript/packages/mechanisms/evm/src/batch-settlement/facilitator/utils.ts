@@ -16,10 +16,7 @@ import type {
   ChannelState,
 } from "../types";
 import { computeChannelId, getBatchSettlementEip712Domain } from "../utils";
-import { invalidBroadcastHashResponse } from "../../utils";
 import * as Errors from "../errors";
-
-export { invalidBroadcastHashResponse };
 
 /**
  * Normalises a {@link ChannelConfig} into the checksummed-address tuple expected by the

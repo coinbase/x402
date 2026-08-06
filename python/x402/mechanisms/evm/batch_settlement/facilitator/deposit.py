@@ -26,7 +26,12 @@ from ...multicall import MulticallCall, multicall
 from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData
-from ...utils import bytes_to_hex, get_evm_chain_id, truncate_error_message
+from ...utils import (
+    bytes_to_hex,
+    final_hash_from_two_request_send,
+    get_evm_chain_id,
+    truncate_error_message,
+)
 from ..abi import BATCH_SETTLEMENT_ABI, ERC20_BALANCE_OF_ABI
 from ..constants import BATCH_SETTLEMENT_ADDRESS
 from ..errors import (
@@ -237,7 +242,12 @@ def settle_deposit(
             results = execution.extension_signer.send_transactions(
                 [execution.signed_transaction, deposit_call]
             )
-            tx = results[-1] if results else ""
+            tx = final_hash_from_two_request_send(results)
+            if tx is None:
+                raise RuntimeError(
+                    "expected 1 (atomic bundle) or 2 (sequential) tx hashes from "
+                    f"extension signer, got {len(results)}"
+                )
             receipt_waiter = execution.extension_signer
         else:
             tx = signer.write_contract(

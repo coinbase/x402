@@ -75,6 +75,18 @@ export function truncateErrorMessage(message: string): string {
 }
 
 /**
+ * Last hash from a two-request extension-signer broadcast (e.g. approve + settle/deposit).
+ * Conforming signers return one hash (atomic bundle) or two (sequential); any other
+ * count means a partial execution.
+ */
+export function finalHashFromTwoRequestSend(txHashes: readonly string[]): string | undefined {
+  if (txHashes.length !== 1 && txHashes.length !== 2) {
+    return undefined;
+  }
+  return txHashes[txHashes.length - 1];
+}
+
+/**
  * Terminal failure when a signer reports success without a usable transaction hash.
  *
  * @param tx - Value returned in place of a valid transaction hash

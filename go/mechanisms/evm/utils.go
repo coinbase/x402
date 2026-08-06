@@ -29,6 +29,17 @@ func IsValidTxHash(hash string) bool {
 	return false
 }
 
+// FinalHashFromTwoRequestSend returns the last hash from a two-request
+// extension-signer broadcast (e.g. approve + settle/deposit). Conforming
+// signers return one hash (atomic bundle) or two (sequential); any other
+// count means a partial execution.
+func FinalHashFromTwoRequestSend(txHashes []string) (string, bool) {
+	if len(txHashes) != 1 && len(txHashes) != 2 {
+		return "", false
+	}
+	return txHashes[len(txHashes)-1], true
+}
+
 // MaxErrorMessageLength bounds error text sourced from RPC/transport failures (e.g. a
 // waitForTransactionReceipt error) before it is placed in a settle/verify error message.
 // Matches the truncation length used by the Python and TypeScript SDKs so wire behavior

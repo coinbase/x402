@@ -6,7 +6,7 @@ import { batchSettlementABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import * as Errors from "../errors";
 import { truncateErrorMessage } from "../../utils";
-import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 
 /**
  * Explicit gas limit for the `settle` transaction.
@@ -105,15 +105,9 @@ export async function executeSettle(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      network,
-      "",
-      Errors.ErrSettleTransactionFailed,
-      undefined,
-      undefined,
-      receipt => {
+    return waitAndReturnSettleResponse(signer, tx, network, "", {
+      failedStatusReason: Errors.ErrSettleTransactionFailed,
+      onSuccess: receipt => {
         let amount = "";
         if (receipt.logs) {
           const logs = parseEventLogs({
@@ -129,7 +123,7 @@ export async function executeSettle(
         }
         return { success: true, transaction: tx, network, amount };
       },
-    );
+    });
   } catch (e) {
     return {
       success: false,

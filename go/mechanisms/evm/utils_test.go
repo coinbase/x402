@@ -31,6 +31,30 @@ func TestIsValidTxHash(t *testing.T) {
 	}
 }
 
+func TestFinalHashFromTwoRequestSend(t *testing.T) {
+	h1 := "0x" + strings.Repeat("ab", 32)
+	h2 := "0x" + strings.Repeat("cd", 32)
+	cases := []struct {
+		name   string
+		in     []string
+		want   string
+		wantOk bool
+	}{
+		{"atomic bundle", []string{h1}, h1, true},
+		{"sequential", []string{h1, h2}, h2, true},
+		{"empty", nil, "", false},
+		{"too many", []string{h1, h2, h1}, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := FinalHashFromTwoRequestSend(tc.in)
+			if ok != tc.wantOk || got != tc.want {
+				t.Errorf("FinalHashFromTwoRequestSend(%v) = (%q, %v), want (%q, %v)", tc.in, got, ok, tc.want, tc.wantOk)
+			}
+		})
+	}
+}
+
 func TestTruncateErrorMessage(t *testing.T) {
 	short := "connection refused"
 	if got := TruncateErrorMessage(short); got != short {

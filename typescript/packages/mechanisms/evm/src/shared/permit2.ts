@@ -1,5 +1,4 @@
 import {
-  Network,
   PaymentPayload,
   PaymentPayloadResult,
   PaymentRequirements,
@@ -16,15 +15,10 @@ import {
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../exact/extensions";
-import { getAddress, encodeFunctionData, isHash, parseErc6492Signature } from "viem";
+import { getAddress, encodeFunctionData, parseErc6492Signature } from "viem";
 import { PERMIT2_ADDRESS, eip3009ABI, erc20AllowanceAbi, permit2WitnessTypes } from "../constants";
 import { multicall, ContractCall } from "../multicall";
-import {
-  createPermit2Nonce,
-  getEvmChainId,
-  invalidBroadcastHashResponse,
-  truncateErrorMessage,
-} from "../utils";
+import { createPermit2Nonce, getEvmChainId, truncateErrorMessage } from "../utils";
 import {
   ErrPermit2612AmountMismatch,
   ErrPermit2InvalidAmount,
@@ -37,8 +31,6 @@ import {
   ErrPermit2SimulationFailed,
   ErrPermit2InsufficientBalance,
   ErrPermit2ProxyNotDeployed,
-  ErrInvalidTransactionState,
-  ErrSettlementPending,
   ErrTransactionFailed,
   ErrInvalidEip2612ExtensionFormat,
   ErrEip2612FromMismatch,
@@ -163,79 +155,6 @@ export async function verifyPermit2Allowance(
 
     return { isValid: false, invalidReason: "permit2_allowance_required", payer };
   }
-}
-
-type SettleReceipt = Awaited<ReturnType<FacilitatorEvmSigner["waitForTransactionReceipt"]>>;
-
-/**
- * Waits for a transaction receipt and returns the appropriate SettleResponse.
- *
- * @param signer - Signer with waitForTransactionReceipt capability
- * @param tx - The transaction hash to wait for
- * @param network - Network the transaction was broadcast to
- * @param payer - The payer address
- * @param failedStatusReason - Error reason for terminal failures: an invalid broadcast hash
- *   or reverted receipt. Receipt-wait failures report `ErrSettlementPending`.
- * @param validateReceipt - Optional check after a successful receipt (e.g. Transfer event).
- *   Return a SettleResponse to fail settlement; return undefined to accept success.
- * @param amount - Settled amount attached on success when `onSuccess` is omitted
- * @param onSuccess - Builds the success response from the receipt when set
- * @returns Promise resolving to a settlement response indicating success or failure
- */
-export async function waitAndReturnSettleResponse(
-  signer: Pick<FacilitatorEvmSigner, "waitForTransactionReceipt">,
-  tx: `0x${string}`,
-  network: Network,
-  payer: string,
-  failedStatusReason: string = ErrInvalidTransactionState,
-  validateReceipt?: (receipt: SettleReceipt) => SettleResponse | undefined,
-  amount?: string,
-  onSuccess?: (receipt: SettleReceipt) => SettleResponse | Promise<SettleResponse>,
-): Promise<SettleResponse> {
-  if (!isHash(tx)) {
-    return invalidBroadcastHashResponse(tx, failedStatusReason, network, payer);
-  }
-
-  let receipt;
-  try {
-    receipt = await signer.waitForTransactionReceipt({ hash: tx });
-  } catch (error) {
-    return {
-      success: false,
-      errorReason: ErrSettlementPending,
-      errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
-      transaction: tx,
-      network,
-      payer,
-    };
-  }
-
-  if (receipt.status !== "success") {
-    return {
-      success: false,
-      errorReason: failedStatusReason,
-      transaction: tx,
-      network,
-      payer,
-    };
-  }
-
-  const validationFailure = validateReceipt?.(receipt);
-  if (validationFailure) {
-    return validationFailure;
-  }
-
-  if (onSuccess) {
-    return onSuccess(receipt);
-  }
-
-  return {
-    success: true,
-    transaction: tx,
-    network,
-    payer,
-    ...(amount !== undefined ? { amount } : {}),
-  };
 }
 
 /**

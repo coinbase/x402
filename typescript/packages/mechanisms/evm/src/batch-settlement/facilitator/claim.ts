@@ -7,7 +7,7 @@ import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { signClaimBatch } from "../authorizerSigner";
 import * as Errors from "../errors";
 import { truncateErrorMessage } from "../../utils";
-import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 import { toContractChannelConfig } from "./utils";
 
 /**
@@ -107,15 +107,10 @@ export async function executeClaimWithSignature(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      network,
-      "",
-      Errors.ErrClaimTransactionFailed,
-      undefined,
-      "",
-    );
+    return waitAndReturnSettleResponse(signer, tx, network, "", {
+      failedStatusReason: Errors.ErrClaimTransactionFailed,
+      amount: "",
+    });
   } catch (e) {
     return {
       success: false,

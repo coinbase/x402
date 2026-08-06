@@ -66,6 +66,7 @@ from ..types import (  # noqa: E402
     UptoPermit2Payload,
 )
 from ..utils import (  # noqa: E402
+    final_hash_from_two_request_send,
     get_evm_chain_id,
     hex_to_bytes,
     is_valid_tx_hash,
@@ -750,13 +751,12 @@ def _settle_upto_with_erc20_approval(
             ]
         )
 
-        # Accept sequential or atomic-bundle hashes; validate final settlement hash only.
-        if not tx_hashes or not is_valid_tx_hash(tx_hashes[-1]):
+        settle_tx_hash = final_hash_from_two_request_send(tx_hashes)
+        if settle_tx_hash is None or not is_valid_tx_hash(settle_tx_hash):
             raise RuntimeError(
                 f"{ERR_ERC20_APPROVAL_TX_FAILED}: extension signer returned no valid settlement transaction hash"
             )
 
-        settle_tx_hash = tx_hashes[-1]
         return wait_for_receipt_and_build_response(
             extension_signer,
             settle_tx_hash,

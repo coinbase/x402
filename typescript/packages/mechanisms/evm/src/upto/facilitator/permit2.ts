@@ -32,12 +32,11 @@ import {
 } from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload } from "../../types";
-import { getEvmChainId } from "../../utils";
+import { finalHashFromTwoRequestSend, getEvmChainId } from "../../utils";
 import { validateErc20ApprovalForPayment } from "../../shared/erc20approval";
 import { verifyTypedDataSignature } from "../../shared/verifySignature";
 import {
   buildUptoPermit2SettleArgs,
-  waitAndReturnSettleResponse,
   mapSettleError,
   splitEip2612Signature,
   simulatePermit2Settle,
@@ -48,6 +47,7 @@ import {
   validateEip2612PermitForPayment,
   type Permit2ProxyConfig,
 } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 import type { Eip2612GasSponsoringInfo } from "../../exact/extensions";
 
 const uptoProxyConfig: Permit2ProxyConfig = {
@@ -502,15 +502,9 @@ async function settleUptoWithEIP2612(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      payload.accepted.network,
-      payer,
-      undefined,
-      undefined,
-      settlementAmount.toString(),
-    );
+    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+      amount: settlementAmount.toString(),
+    });
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }
@@ -558,8 +552,7 @@ async function settleUptoWithERC20Approval(
       { to: uptoProxyConfig.proxyAddress, data: settleData, gas: BigInt(300_000) },
     ]);
 
-    // Accept sequential or atomic-bundle hashes; validate final settlement hash only.
-    const settleTxHash = txHashes[txHashes.length - 1];
+    const settleTxHash = finalHashFromTwoRequestSend(txHashes);
     if (!settleTxHash || !isHash(settleTxHash)) {
       throw new Error(
         `${ErrErc20ApprovalTxFailed}: extension signer returned no valid settlement transaction hash`,
@@ -571,9 +564,9 @@ async function settleUptoWithERC20Approval(
       settleTxHash,
       payload.accepted.network,
       payer,
-      undefined,
-      undefined,
-      settlementAmount.toString(),
+      {
+        amount: settlementAmount.toString(),
+      },
     );
   } catch (error) {
     return mapSettleError(error, payload, payer);
@@ -609,15 +602,9 @@ async function settleUptoDirect(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      payload.accepted.network,
-      payer,
-      undefined,
-      undefined,
-      settlementAmount.toString(),
-    );
+    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+      amount: settlementAmount.toString(),
+    });
   } catch (error) {
     return mapSettleError(error, payload, payer);
   }

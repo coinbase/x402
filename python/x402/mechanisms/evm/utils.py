@@ -168,6 +168,17 @@ def is_valid_tx_hash(tx_hash: object) -> bool:
     return re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is not None
 
 
+def final_hash_from_two_request_send(tx_hashes: list[str]) -> str | None:
+    """Last hash from a two-request extension-signer broadcast (e.g. approve + settle).
+
+    Conforming signers return one hash (atomic bundle) or two (sequential);
+    any other count means a partial execution.
+    """
+    if len(tx_hashes) not in (1, 2):
+        return None
+    return tx_hashes[-1]
+
+
 # Bounds error text sourced from RPC/transport failures (e.g. a wait_for_transaction_receipt
 # error) before it is placed in a settle/verify error message. Matches the truncation length
 # used by the Go and TypeScript SDKs so wire behavior is consistent across languages.

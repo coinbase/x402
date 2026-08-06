@@ -410,11 +410,11 @@ func SettleDeposit(
 			return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, "", network, config.Payer,
 				fmt.Sprintf("erc20 approval + deposit send failed: %s", sendErr))
 		}
-		if len(txHashes) == 0 {
+		var ok bool
+		if txHash, ok = evm.FinalHashFromTwoRequestSend(txHashes); !ok {
 			return nil, x402.NewSettleError(ErrDepositTransactionFailed, "", network, config.Payer,
-				"extension signer returned no transaction hashes")
+				fmt.Sprintf("expected 1 (atomic bundle) or 2 (sequential) tx hashes from extension signer, got %d", len(txHashes)))
 		}
-		txHash = txHashes[len(txHashes)-1]
 		receiptWaitSigner = permit2Branch.extensionSigner
 	} else {
 		txHash, err = signer.WriteContract(

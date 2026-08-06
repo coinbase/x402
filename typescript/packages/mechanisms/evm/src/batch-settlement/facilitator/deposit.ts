@@ -11,10 +11,10 @@ import type { Erc20ApprovalGasSponsoringSigner } from "../../exact/extensions";
 import { BatchSettlementAssetTransferMethod, BatchSettlementDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
 import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
-import { getEvmChainId, truncateErrorMessage } from "../../utils";
+import { finalHashFromTwoRequestSend, getEvmChainId, truncateErrorMessage } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "../errors";
-import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 import {
   readChannelState,
   toContractChannelConfig,
@@ -399,7 +399,13 @@ export async function settleDeposit(
         execution.signedTransaction,
         depositTx,
       ]);
-      tx = txHashes[txHashes.length - 1];
+      const finalHash = finalHashFromTwoRequestSend(txHashes);
+      if (finalHash === undefined) {
+        throw new Error(
+          `expected 1 (atomic bundle) or 2 (sequential) tx hashes from extension signer, got ${txHashes.length}`,
+        );
+      }
+      tx = finalHash as `0x${string}`;
       receiptSigner = execution.extensionSigner;
     } else {
       tx = await signer.writeContract({
@@ -422,53 +428,53 @@ export async function settleDeposit(
       (tx ?? "0x") as `0x${string}`,
       requirements.network,
       payer,
-      Errors.ErrDepositTransactionFailed,
-      undefined,
-      undefined,
-      async () => {
-        const optimisticExtra = {
-          channelState: {
-            channelId: voucher.channelId,
-            balance: (
-              BigInt(String(verified.extra?.balance ?? "0")) + BigInt(deposit.amount)
-            ).toString(),
-            totalClaimed: String(verified.extra?.totalClaimed ?? "0"),
-            withdrawRequestedAt: Number(verified.extra?.withdrawRequestedAt ?? 0),
-            refundNonce: String(verified.extra?.refundNonce ?? "0"),
-          },
-        };
-
-        // Poll until RPC reflects the confirmed deposit so later verify reads see this balance.
-        const expectedMinBalance = BigInt(optimisticExtra.channelState.balance);
-        const rpcDeadline = Date.now() + 2_000;
-        try {
-          let postState = await readChannelState(signer, voucher.channelId);
-          while (postState.balance < expectedMinBalance && Date.now() < rpcDeadline) {
-            await new Promise(resolve => setTimeout(resolve, 150));
-            postState = await readChannelState(signer, voucher.channelId);
-          }
-
-          if (postState.balance >= expectedMinBalance) {
-            optimisticExtra.channelState = {
+      {
+        failedStatusReason: Errors.ErrDepositTransactionFailed,
+        onSuccess: async () => {
+          const optimisticExtra = {
+            channelState: {
               channelId: voucher.channelId,
-              balance: postState.balance.toString(),
-              totalClaimed: postState.totalClaimed.toString(),
-              withdrawRequestedAt: postState.withdrawRequestedAt,
-              refundNonce: postState.refundNonce.toString(),
-            };
-          }
-        } catch {
-          // Keep optimistic channel state when post-deposit reads fail.
-        }
+              balance: (
+                BigInt(String(verified.extra?.balance ?? "0")) + BigInt(deposit.amount)
+              ).toString(),
+              totalClaimed: String(verified.extra?.totalClaimed ?? "0"),
+              withdrawRequestedAt: Number(verified.extra?.withdrawRequestedAt ?? 0),
+              refundNonce: String(verified.extra?.refundNonce ?? "0"),
+            },
+          };
 
-        return {
-          success: true,
-          transaction: tx,
-          network: requirements.network,
-          payer,
-          amount: deposit.amount,
-          extra: optimisticExtra,
-        };
+          // Poll until RPC reflects the confirmed deposit so later verify reads see this balance.
+          const expectedMinBalance = BigInt(optimisticExtra.channelState.balance);
+          const rpcDeadline = Date.now() + 2_000;
+          try {
+            let postState = await readChannelState(signer, voucher.channelId);
+            while (postState.balance < expectedMinBalance && Date.now() < rpcDeadline) {
+              await new Promise(resolve => setTimeout(resolve, 150));
+              postState = await readChannelState(signer, voucher.channelId);
+            }
+
+            if (postState.balance >= expectedMinBalance) {
+              optimisticExtra.channelState = {
+                channelId: voucher.channelId,
+                balance: postState.balance.toString(),
+                totalClaimed: postState.totalClaimed.toString(),
+                withdrawRequestedAt: postState.withdrawRequestedAt,
+                refundNonce: postState.refundNonce.toString(),
+              };
+            }
+          } catch {
+            // Keep optimistic channel state when post-deposit reads fail.
+          }
+
+          return {
+            success: true,
+            transaction: tx,
+            network: requirements.network,
+            payer,
+            amount: deposit.amount,
+            extra: optimisticExtra,
+          };
+        },
       },
     );
   } catch (e) {

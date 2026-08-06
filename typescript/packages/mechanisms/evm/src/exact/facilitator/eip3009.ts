@@ -20,7 +20,7 @@ import {
   simulateEip3009TransferResult,
   verifyEip3009TransferEvent,
 } from "./eip3009-utils";
-import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 
 export interface VerifyEIP3009Options {
   /** Run onchain simulation. Defaults to true. */
@@ -376,13 +376,9 @@ export async function settleEIP3009(
     // Receipt status only proves the tx did not revert.
     // When logs are present, require the expected ERC-20 Transfer event.
     const auth = eip3009Payload.authorization;
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      payload.accepted.network,
-      payer,
-      Errors.ErrTransactionFailed,
-      receipt => {
+    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+      failedStatusReason: Errors.ErrTransactionFailed,
+      validateReceipt: receipt => {
         if (
           receipt.logs != null &&
           !verifyEip3009TransferEvent(receipt.logs, asset, {
@@ -401,7 +397,7 @@ export async function settleEIP3009(
         }
         return undefined;
       },
-    );
+    });
   } catch (error) {
     // Preserve the raw revert text alongside the mapped code. The mapper collapses many
     // distinct on-chain reverts into a single reason (e.g. ErrInvalidSignature), so without

@@ -12,7 +12,7 @@ import { computeChannelId } from "../utils";
 import { signClaimBatch, signRefund } from "../authorizerSigner";
 import * as Errors from "../errors";
 import { truncateErrorMessage } from "../../utils";
-import { waitAndReturnSettleResponse } from "../../shared/permit2";
+import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 import { buildVoucherClaimArgs } from "./claim";
 import { readChannelState, toContractChannelConfig } from "./utils";
 
@@ -347,15 +347,9 @@ export async function executeRefundWithSignature(
       });
     }
 
-    return waitAndReturnSettleResponse(
-      signer,
-      tx,
-      network,
-      payload.channelConfig.payer,
-      Errors.ErrRefundTransactionFailed,
-      undefined,
-      undefined,
-      async () => {
+    return waitAndReturnSettleResponse(signer, tx, network, payload.channelConfig.payer, {
+      failedStatusReason: Errors.ErrRefundTransactionFailed,
+      onSuccess: async () => {
         const postState =
           preState && preState.withdrawRequestedAt !== 0
             ? await readPostRefundState(signer, channelId, payload.refundNonce)
@@ -374,7 +368,7 @@ export async function executeRefundWithSignature(
           extra: refundDetails.extra,
         };
       },
-    );
+    });
   } catch (e) {
     return {
       success: false,

@@ -16,7 +16,6 @@ except ImportError as e:
 
 from .....schemas import PaymentRequirements
 from ...multicall import MulticallCall, multicall
-from ...settle_receipt import invalid_broadcast_hash_response
 from ...signer import FacilitatorEvmSigner
 from ...verify import verify_typed_data_strict
 from ..abi import BATCH_SETTLEMENT_ABI
@@ -45,7 +44,6 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 __all__ = [
     "ZERO_ADDRESS",
     "to_contract_channel_config",
-    "invalid_broadcast_hash_response",
     "channel_ids_equal",
     "erc3009_authorization_time_invalid_reason",
     "verify_batch_settlement_voucher_typed_data",
