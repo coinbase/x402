@@ -41,6 +41,26 @@ describe("EVM Signer Converters", () => {
       expect(result.address).toBe(mockAccount.address);
       expect(result.readContract).toBeUndefined();
     });
+
+    it("should resolve the address from a hoisted account (viem WalletClient shape)", () => {
+      const walletClientLike = {
+        account: { address: "0x1234567890123456789012345678901234567890" as `0x${string}` },
+        signTypedData: async () => "0xsignature" as `0x${string}`,
+      };
+
+      const result = toClientEvmSigner(walletClientLike as unknown as ClientEvmSigner);
+      expect(result.address).toBe(walletClientLike.account.address);
+    });
+
+    it("should throw a descriptive error when the signer has no address at all", () => {
+      const addressless = {
+        signTypedData: async () => "0xsignature" as `0x${string}`,
+      };
+
+      expect(() => toClientEvmSigner(addressless as unknown as ClientEvmSigner)).toThrow(
+        /signer has no address/,
+      );
+    });
   });
 
   describe("toFacilitatorEvmSigner", () => {

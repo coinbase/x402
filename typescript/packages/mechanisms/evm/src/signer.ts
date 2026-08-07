@@ -140,10 +140,25 @@ export function toClientEvmSigner(
     estimateFeesPerGas?(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }>;
   },
 ): ClientEvmSigner {
+  // A viem WalletClient satisfies this shape structurally but keeps its
+  // address one level down at client.account.address, so copying
+  // signer.address blindly builds a payment authorization for address
+  // "undefined" and the failure only surfaces later, deep in payload
+  // creation, as a confusing viem InvalidAddressError. Resolve the
+  // hoisted-account shape, and fail loudly here when no address exists.
+  const address =
+    signer.address ??
+    (signer as { account?: { address?: `0x${string}` } }).account?.address;
+  if (!address) {
+    throw new Error(
+      "toClientEvmSigner: signer has no address. If you are passing a viem WalletClient, pass an account-shaped signer instead - e.g. { address, signTypedData: msg => walletClient.signTypedData({ account: address, ...msg }) } - or a LocalAccount from privateKeyToAccount().",
+    );
+  }
+
   const readContract = signer.readContract ?? publicClient?.readContract.bind(publicClient);
 
   const result: ClientEvmSigner = {
-    address: signer.address,
+    address,
     signTypedData: msg => signer.signTypedData(msg),
   };
 
