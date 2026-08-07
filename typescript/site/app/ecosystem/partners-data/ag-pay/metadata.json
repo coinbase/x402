@@ -1,0 +1,7 @@
+{
+  "name": "AG Pay Server",
+  "description": "Hermes + NVIDIA NIM AI endpoints, paid per request via x402 on Base mainnet (eip155:8453) through the PayAI facilitator. Three endpoints: /api/chat ($0.01) quick conversational replies, /api/reason ($0.02) deep structured chain-of-thought analysis for agent-builders, /api/review ($0.05) AI code review returning structured JSON. Free /health and / for directory listings and uptime monitors.",
+  "logoUrl": "/logos/ag-pay.png",
+  "websiteUrl": "https://ivory-gradually-collaborative-fingers.trycloudflare.com",
+  "category": "Services/Endpoints"
+}
