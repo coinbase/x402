@@ -162,10 +162,15 @@ def normalize_address(address: str) -> str:
 
 
 def is_valid_tx_hash(tx_hash: object) -> bool:
-    """True if 0x + 64 hex digits; for external signer hashes before receipt wait."""
+    """True if 0x + 64 hex digits and non-zero; for external signer hashes before
+    receipt wait. The all-zero hash is rejected so a signer that reports success with
+    a placeholder hash fails terminally rather than surfacing settlement_pending with
+    a hash that reconciles to nothing. Matches the Go and TypeScript SDKs."""
     if not isinstance(tx_hash, str):
         return False
-    return re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is not None
+    if re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is None:
+        return False
+    return int(tx_hash, 16) != 0
 
 
 def final_hash_from_two_request_send(tx_hashes: list[str]) -> str | None:

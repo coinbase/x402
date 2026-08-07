@@ -14,6 +14,7 @@ import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
 import { finalHashFromTwoRequestSend, getEvmChainId, truncateErrorMessage } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "../errors";
+import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
 import {
   readChannelState,
@@ -432,7 +433,7 @@ export async function settleDeposit(
       receiptSigner = signer;
     }
 
-    return waitAndReturnSettleResponse(
+    return await waitAndReturnSettleResponse(
       receiptSigner,
       tx,
       requirements.network,
@@ -483,17 +484,32 @@ export async function settleDeposit(
             // Keep optimistic channel state when post-deposit reads fail.
           }
 
-          if (unconfirmedBundleHash && balanceReadWithoutConfirmation) {
-            return {
-              success: false,
-              errorReason: Errors.ErrDepositTransactionFailed,
-              errorMessage:
-                "extension signer returned a single transaction hash for the erc20 approval + " +
-                "deposit bundle, but the resulting channel balance does not reflect the deposit",
-              transaction: tx,
-              network: requirements.network,
-              payer,
-            };
+          if (unconfirmedBundleHash && !balanceConfirmed) {
+            // A single-hash bundle's receipt only proves some tx didn't revert, not that the
+            // deposit landed. A definitive read (balanceReadWithoutConfirmation) showing the
+            // deposit missing is terminal; a failed read leaves it unconfirmed, so report
+            // settlement_pending with the broadcast hash for the caller to reconcile.
+            return balanceReadWithoutConfirmation
+              ? {
+                  success: false,
+                  errorReason: Errors.ErrDepositTransactionFailed,
+                  errorMessage:
+                    "extension signer returned a single transaction hash for the erc20 approval + " +
+                    "deposit bundle, but the resulting channel balance does not reflect the deposit",
+                  transaction: tx,
+                  network: requirements.network,
+                  payer,
+                }
+              : {
+                  success: false,
+                  errorReason: ErrSettlementPending,
+                  errorMessage:
+                    "extension signer returned a single transaction hash for the erc20 approval + " +
+                    "deposit bundle and the post-deposit balance read failed, so the deposit could not be confirmed",
+                  transaction: tx,
+                  network: requirements.network,
+                  payer,
+                };
           }
 
           return {

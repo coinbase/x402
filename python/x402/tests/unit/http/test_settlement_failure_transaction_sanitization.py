@@ -8,12 +8,21 @@ from __future__ import annotations
 
 from x402.http.types import PaymentOption, RouteConfig
 from x402.http.x402_http_server_base import (
+    _SETTLEMENT_PENDING_REASON,
     _sanitized_failure_transaction,
     x402HTTPServerBase,
 )
 from x402.http.utils import decode_payment_response_header
+from x402.mechanisms.evm.constants import ERR_SETTLEMENT_PENDING
 from x402.schemas import PaymentRequirements, SettleResponse
 from x402.schemas.errors import SettleError
+
+
+def test_http_settlement_pending_reason_matches_mechanism_constant():
+    # The http layer mirrors the literal to avoid an http -> mechanisms import; pin it to
+    # the canonical mechanisms/evm constant so the sanitizer can never drift out of sync
+    # with the reason the mechanism actually emits for an unconfirmed broadcast.
+    assert _SETTLEMENT_PENDING_REASON == ERR_SETTLEMENT_PENDING
 
 
 class _FakeResourceServer:

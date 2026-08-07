@@ -242,7 +242,14 @@ func (f *ExactEvmScheme) settleEIP3009(
 			Value: parsedAuthorization.Value,
 		})
 		if err != nil {
-			return nil, x402.NewSettleError(ErrTransferEventMismatch, verifyResp.Payer, network, txHash, err.Error())
+			// The transfer confirmed on-chain (receipt status succeeded) but its logs could
+			// not be processed to verify the Transfer event. The effect is unknown, so this is
+			// non-terminal: keep the hash under settlement_pending for the caller to reconcile
+			// rather than reporting a terminal failure that could prompt a double-spend retry.
+			// A parsed-but-absent event (transferMatched == false) is an explicit terminal
+			// failure below.
+			return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash,
+				evm.TruncateErrorMessage(err.Error()))
 		}
 		if !transferMatched {
 			return nil, x402.NewSettleError(ErrTransferEventMismatch, verifyResp.Payer, network, txHash, "")

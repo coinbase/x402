@@ -347,7 +347,7 @@ export async function executeRefundWithSignature(
       });
     }
 
-    return waitAndReturnSettleResponse(signer, tx, network, payload.channelConfig.payer, {
+    return await waitAndReturnSettleResponse(signer, tx, network, payload.channelConfig.payer, {
       failedStatusReason: Errors.ErrRefundTransactionFailed,
       onSuccess: async () => {
         const postState =

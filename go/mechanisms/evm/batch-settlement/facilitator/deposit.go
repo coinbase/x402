@@ -309,7 +309,7 @@ func SettleDeposit(
 
 	depositAmount, ok := new(big.Int).SetString(payload.Deposit.Amount, 10)
 	if !ok {
-		return nil, x402.NewSettleError(ErrInvalidDepositPayload, "", network, config.Payer,
+		return nil, x402.NewSettleError(ErrInvalidDepositPayload, config.Payer, network, "",
 			fmt.Sprintf("invalid deposit amount: %s", payload.Deposit.Amount))
 	}
 
@@ -323,7 +323,7 @@ func SettleDeposit(
 	if transferMethod == batchsettlement.AssetTransferMethodPermit2 {
 		auth := payload.Deposit.Authorization.Permit2Authorization
 		if auth == nil {
-			return nil, x402.NewSettleError(ErrPermit2AuthorizationRequired, "", network, config.Payer,
+			return nil, x402.NewSettleError(ErrPermit2AuthorizationRequired, config.Payer, network, "",
 				"permit2 authorization required for assetTransferMethod=permit2")
 		}
 		branch, reason, branchErr := resolvePermit2DepositBranch(
@@ -332,11 +332,11 @@ func SettleDeposit(
 			extensions, fctx, string(requirements.Network),
 		)
 		if branchErr != nil {
-			return nil, x402.NewSettleError(ErrInvalidDepositPayload, "", network, config.Payer,
+			return nil, x402.NewSettleError(ErrInvalidDepositPayload, config.Payer, network, "",
 				fmt.Sprintf("failed to resolve permit2 deposit branch: %s", branchErr))
 		}
 		if reason != "" {
-			return nil, x402.NewSettleError(reason, "", network, config.Payer,
+			return nil, x402.NewSettleError(reason, config.Payer, network, "",
 				"Permit2 deposit extension invalid at settle")
 		}
 		permit2Branch = branch
@@ -344,7 +344,7 @@ func SettleDeposit(
 
 	collectorAddr, collectorData, err := buildDepositCollectorCall(payload, transferMethod, permit2Branch)
 	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidDepositPayload, "", network, config.Payer,
+		return nil, x402.NewSettleError(ErrInvalidDepositPayload, config.Payer, network, "",
 			fmt.Sprintf("failed to build collector data: %s", err))
 	}
 
@@ -416,12 +416,12 @@ func SettleDeposit(
 			{Call: &settleCall},
 		})
 		if sendErr != nil {
-			return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, "", network, config.Payer,
+			return nil, x402.NewSettleError(ErrErc20ApprovalBroadcastFailed, config.Payer, network, "",
 				fmt.Sprintf("erc20 approval + deposit send failed: %s", sendErr))
 		}
 		var ok bool
 		if txHash, ok = evm.FinalHashFromTwoRequestSend(txHashes); !ok {
-			return nil, x402.NewSettleError(ErrDepositTransactionFailed, "", network, config.Payer,
+			return nil, x402.NewSettleError(ErrDepositTransactionFailed, config.Payer, network, "",
 				fmt.Sprintf("expected 1 (atomic bundle) or 2 (sequential) tx hashes from extension signer, got %d", len(txHashes)))
 		}
 		unconfirmedBundleHash = len(txHashes) == 1
@@ -439,7 +439,7 @@ func SettleDeposit(
 			collectorData,
 		)
 		if err != nil {
-			return nil, x402.NewSettleError(ErrDepositTransactionFailed, "", network, config.Payer,
+			return nil, x402.NewSettleError(ErrDepositTransactionFailed, config.Payer, network, "",
 				fmt.Sprintf("deposit transaction failed: %s", err))
 		}
 	}
@@ -477,14 +477,22 @@ func SettleDeposit(
 	}
 
 	balanceConfirmed := postState != nil && postState.Balance != nil && postState.Balance.Cmp(expectedMinBalance) >= 0
-	// A definitive (non-error) read that still shows the deposit missing is a real
-	// signal the bundle only broadcast the approve, distinct from an RPC read error
-	// (which we tolerate below via the optimistic fallback, since the deposit's own
-	// receipt already confirmed success in that case).
-	if unconfirmedBundleHash && !balanceConfirmed && readErr == nil {
-		return nil, x402.NewSettleError(ErrDepositTransactionFailed, txHash, network, config.Payer,
+	// A single-hash bundle's receipt only proves some transaction didn't revert, not that
+	// the deposit call ran, so it must be balance-confirmed. A definitive read (readErr == nil)
+	// showing the deposit missing is terminal; if the confirming read itself failed the deposit
+	// is unconfirmed, so report settlement_pending with the broadcast hash for the caller to
+	// reconcile rather than asserting success. Sequential/base-signer paths leave
+	// unconfirmedBundleHash false: their own receipt confirms the deposit, so a read failure
+	// falls through to the optimistic state below.
+	if unconfirmedBundleHash && !balanceConfirmed {
+		if readErr == nil {
+			return nil, x402.NewSettleError(ErrDepositTransactionFailed, config.Payer, network, txHash,
+				"extension signer returned a single transaction hash for the erc20 approval + deposit "+
+					"bundle, but the resulting channel balance does not reflect the deposit")
+		}
+		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
 			"extension signer returned a single transaction hash for the erc20 approval + deposit "+
-				"bundle, but the resulting channel balance does not reflect the deposit")
+				"bundle and the post-deposit balance read failed, so the deposit could not be confirmed")
 	}
 
 	finalState := optimisticState
@@ -733,12 +741,12 @@ func deployErc3009CounterfactualIfNeeded(
 	}
 	sigBytes, err := evm.HexToBytes(auth.Signature)
 	if err != nil {
-		return x402.NewSettleError(ErrErc3009SignatureInvalid, "", network, config.Payer,
+		return x402.NewSettleError(ErrErc3009SignatureInvalid, config.Payer, network, "",
 			fmt.Sprintf("invalid erc3009 signature: %s", err))
 	}
 	sigData, err := evm.ParseERC6492Signature(sigBytes)
 	if err != nil {
-		return x402.NewSettleError(ErrErc3009SignatureInvalid, "", network, config.Payer,
+		return x402.NewSettleError(ErrErc3009SignatureInvalid, config.Payer, network, "",
 			fmt.Sprintf("failed to parse signature: %s", err))
 	}
 	if !evm.HasEIP6492Deployment(sigData) {
@@ -747,7 +755,7 @@ func deployErc3009CounterfactualIfNeeded(
 
 	code, err := signer.GetCode(ctx, config.Payer)
 	if err != nil {
-		return x402.NewSettleError(ErrChannelStateReadFailed, "", network, config.Payer,
+		return x402.NewSettleError(ErrChannelStateReadFailed, config.Payer, network, "",
 			fmt.Sprintf("failed to read payer code: %s", err))
 	}
 	if len(code) != 0 {
@@ -756,12 +764,12 @@ func deployErc3009CounterfactualIfNeeded(
 	}
 
 	if !evm.IsFactoryAllowed(sigData.Factory, allowedFactories) {
-		return x402.NewSettleError(ErrFactoryNotAllowed, "", network, config.Payer,
+		return x402.NewSettleError(ErrFactoryNotAllowed, config.Payer, network, "",
 			"factory not in EIP6492AllowedFactories allowlist")
 	}
 
 	if err := evm.SendFactoryDeployTransaction(ctx, signer, sigData); err != nil {
-		return x402.NewSettleError(ErrSmartWalletDeploymentFailed, "", network, config.Payer, err.Error())
+		return x402.NewSettleError(ErrSmartWalletDeploymentFailed, config.Payer, network, "", err.Error())
 	}
 
 	// Do NOT re-simulate the deposit here. The single authoritative pre-check is the

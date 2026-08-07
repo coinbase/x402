@@ -623,12 +623,13 @@ func TestSettleDeposit_Erc20ApprovalSingleHashWithoutBalanceIncreaseFails(t *tes
 	}
 }
 
-// TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorKeepsOptimisticSuccess pins
-// that a single extension-signer hash is only rejected when the post-deposit balance
-// read *succeeds* and definitively shows the deposit missing. A read error (e.g. RPC
-// flake) after a receipt that already confirmed success must not be treated the same
-// as evidence the deposit failed — this mirrors the base-signer optimistic fallback.
-func TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorKeepsOptimisticSuccess(t *testing.T) {
+// TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorReturnsSettlementPending pins
+// that a single extension-signer hash whose deposit cannot be confirmed is not reported
+// as success. The bundle receipt only proves some transaction did not revert, not that
+// the deposit landed; when the post-deposit balance read fails we cannot distinguish a
+// landed deposit from a non-conforming approve-only broadcast, so settlement is pending
+// (with the broadcast hash) for the caller to reconcile rather than an optimistic success.
+func TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorReturnsSettlementPending(t *testing.T) {
 	const txHash = "0x" + "abababababababababababababababababababababababababababababababab"
 	extensionSigner := &singleHashExtensionSigner{
 		fakeFacilitatorSigner: &fakeFacilitatorSigner{
@@ -668,15 +669,19 @@ func TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorKeepsOptimisticSucces
 		},
 	}
 
-	resp, err := SettleDeposit(
+	_, err := SettleDeposit(
 		context.Background(), signer, payload, reqsFor(testNetwork),
 		extensionsWithErc20Approval(goodErc20ApprovalInfo()), fctx, nil, nil,
 	)
-	if err != nil {
-		t.Fatalf("SettleDeposit: %v", err)
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrSettlementPending {
+		t.Fatalf("got err = %v, want ErrSettlementPending", err)
 	}
-	if resp.Transaction != txHash {
-		t.Fatalf("transaction = %q, want %q", resp.Transaction, txHash)
+	if se.Transaction != txHash {
+		t.Fatalf("transaction = %q, want %q", se.Transaction, txHash)
+	}
+	if se.Payer != testPermit2Payer {
+		t.Fatalf("payer = %q, want %q", se.Payer, testPermit2Payer)
 	}
 }
 

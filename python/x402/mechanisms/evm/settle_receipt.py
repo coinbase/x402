@@ -47,10 +47,16 @@ def wait_for_receipt_and_build_response(
     validate_receipt: Callable[[TransactionReceipt], SettleResponse | None] | None = None,
     on_success: Callable[[TransactionReceipt], SettleResponse] | None = None,
 ) -> SettleResponse:
-    """Wait for receipt; on wait failure return settlement_pending with the broadcast hash.
+    """Wait for a broadcast receipt and build the settlement response.
+
+    A receipt-wait failure, and any unexpected error while processing a confirmed receipt
+    (malformed receipt, event parsing, amount decoding), are non-terminal: the broadcast is
+    on-chain with an unknown effect, so they return settlement_pending with the hash for the
+    caller to reconcile. A reverted receipt and an explicit validation failure are terminal.
 
     validate_receipt runs after a successful receipt (e.g. Transfer event check). Return a
-    SettleResponse to fail settlement; return None to accept success.
+    SettleResponse to fail settlement (terminal); return None to accept success. Raising from
+    it is treated as an unexpected processing error (settlement_pending), not a clean failure.
 
     on_success, when set, builds the success response from the receipt (e.g. event parsing).
     """
@@ -60,36 +66,49 @@ def wait_for_receipt_and_build_response(
     try:
         receipt = signer.wait_for_transaction_receipt(tx_hash)
     except Exception as e:
+        return _settlement_pending_response(tx_hash, network, payer, e)
+
+    try:
+        if receipt.status != TX_STATUS_SUCCESS:
+            return SettleResponse(
+                success=False,
+                error_reason=failed_reason,
+                transaction=tx_hash,
+                network=network,
+                payer=payer,
+            )
+
+        if validate_receipt is not None:
+            validation_failure = validate_receipt(receipt)
+            if validation_failure is not None:
+                return validation_failure
+
+        if on_success is not None:
+            return on_success(receipt)
+
         return SettleResponse(
-            success=False,
-            error_reason=ERR_SETTLEMENT_PENDING,
-            error_message=truncate_error_message(str(e)),
+            success=True,
             transaction=tx_hash,
             network=network,
             payer=payer,
+            amount=amount,
         )
+    except Exception as e:
+        return _settlement_pending_response(tx_hash, network, payer, e)
 
-    if receipt.status != TX_STATUS_SUCCESS:
-        return SettleResponse(
-            success=False,
-            error_reason=failed_reason,
-            transaction=tx_hash,
-            network=network,
-            payer=payer,
-        )
 
-    if validate_receipt is not None:
-        validation_failure = validate_receipt(receipt)
-        if validation_failure is not None:
-            return validation_failure
-
-    if on_success is not None:
-        return on_success(receipt)
-
+def _settlement_pending_response(
+    tx_hash: str,
+    network: str,
+    payer: str | None,
+    error: Exception,
+) -> SettleResponse:
+    """Non-terminal failure: broadcast confirmed on-chain, effect unconfirmed."""
     return SettleResponse(
-        success=True,
+        success=False,
+        error_reason=ERR_SETTLEMENT_PENDING,
+        error_message=truncate_error_message(str(error)),
         transaction=tx_hash,
         network=network,
         payer=payer,
-        amount=amount,
     )

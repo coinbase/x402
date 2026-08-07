@@ -503,7 +503,7 @@ async function settleUptoWithEIP2612(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+    return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
     });
@@ -561,7 +561,7 @@ async function settleUptoWithERC20Approval(
       );
     }
 
-    return waitAndReturnSettleResponse(
+    return await waitAndReturnSettleResponse(
       extensionSigner,
       settleTxHash,
       payload.accepted.network,
@@ -605,7 +605,7 @@ async function settleUptoDirect(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+    return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
     });

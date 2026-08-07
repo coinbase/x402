@@ -1,5 +1,5 @@
 import type { Network, SettleResponse } from "@x402/core/types";
-import { toHex } from "viem";
+import { isHash, toHex } from "viem";
 
 /**
  * Extract chain ID from a CAIP-2 network identifier (eip155:CHAIN_ID).
@@ -87,6 +87,20 @@ export function finalHashFromTwoRequestSend(txHashes: readonly string[]): string
     return undefined;
   }
   return txHashes[txHashes.length - 1];
+}
+
+/**
+ * Validates an external-signer transaction hash before a receipt wait: 32-byte hex,
+ * 0x-prefixed, and non-zero. The all-zero hash is rejected so a signer that reports
+ * success with a placeholder hash fails terminally rather than surfacing
+ * settlement_pending with a hash that reconciles to nothing. Matches the Go and
+ * Python SDKs.
+ *
+ * @param hash - Transaction hash returned by the signer
+ * @returns True if the hash is a well-formed, non-zero 32-byte hash
+ */
+export function isValidTxHash(hash: string): boolean {
+  return isHash(hash) && !/^0x0+$/.test(hash);
 }
 
 /**

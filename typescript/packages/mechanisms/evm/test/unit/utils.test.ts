@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getEvmChainId,
   createNonce,
+  isValidTxHash,
   truncateErrorMessage,
   MAX_ERROR_MESSAGE_LENGTH,
 } from "../../src/utils";
@@ -124,6 +125,23 @@ describe("EVM Utils", () => {
     it("should leave a message exactly at the max length unchanged", () => {
       const message = "x".repeat(MAX_ERROR_MESSAGE_LENGTH);
       expect(truncateErrorMessage(message)).toBe(message);
+    });
+  });
+
+  describe("isValidTxHash", () => {
+    it("accepts a well-formed 32-byte hash", () => {
+      expect(isValidTxHash("0x" + "ab".repeat(32))).toBe(true);
+    });
+
+    it("rejects the all-zero hash so a placeholder cannot surface as settlement_pending", () => {
+      expect(isValidTxHash("0x" + "00".repeat(32))).toBe(false);
+    });
+
+    it("rejects malformed hashes (wrong length, missing prefix, non-hex)", () => {
+      expect(isValidTxHash("0x" + "ab".repeat(31))).toBe(false);
+      expect(isValidTxHash("ab".repeat(32))).toBe(false);
+      expect(isValidTxHash("0x" + "zz".repeat(32))).toBe(false);
+      expect(isValidTxHash("")).toBe(false);
     });
   });
 });

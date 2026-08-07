@@ -107,7 +107,7 @@ export async function executeClaimWithSignature(
       dataSuffix,
     });
 
-    return waitAndReturnSettleResponse(signer, tx, network, undefined, {
+    return await waitAndReturnSettleResponse(signer, tx, network, undefined, {
       failedStatusReason: Errors.ErrClaimTransactionFailed,
     });
   } catch (e) {

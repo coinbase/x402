@@ -316,69 +316,6 @@ class _MalformedReceiptSigner:
 
 
 class TestSettleReceiptWait:
-    def test_deposit_post_receipt_read_failure_uses_optimistic_state(self, monkeypatch):
-        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
-
-        class BaseSigner:
-            def wait_for_transaction_receipt(self, tx_hash):
-                raise AssertionError("base signer must not wait for extension transaction")
-
-        class ExtensionSigner:
-            def send_transactions(self, transactions):
-                return [_SUCCESSFUL_TX_HASH]
-
-            def wait_for_transaction_receipt(self, tx_hash):
-                return _FakeReceipt()
-
-        payload = SimpleNamespace(
-            channel_config=SimpleNamespace(payer="0xpayer"),
-            voucher=SimpleNamespace(channel_id="0x" + "11" * 32),
-            deposit=SimpleNamespace(amount="100"),
-        )
-        execution = deposit_mod._DepositExecution(
-            kind="erc20Approval",
-            collector="",
-            collector_data=b"",
-            signed_transaction="0xsigned",
-            extension_signer=ExtensionSigner(),
-        )
-        monkeypatch.setattr(
-            deposit_mod,
-            "verify_deposit",
-            lambda *args: VerifyResponse(is_valid=True, extra={"balance": "0"}),
-        )
-        monkeypatch.setattr(deposit_mod, "_resolve_deposit_execution", lambda *args: execution)
-        monkeypatch.setattr(
-            deposit_mod, "_resolve_deposit_transfer_method", lambda *args: "permit2"
-        )
-        monkeypatch.setattr(
-            deposit_mod, "_build_deposit_write_call", lambda *args, **kwargs: object()
-        )
-        monkeypatch.setattr(
-            deposit_mod,
-            "read_channel_state",
-            lambda *args: (_ for _ in ()).throw(RuntimeError("rpc read failed")),
-        )
-
-        out = deposit_mod.settle_deposit(
-            BaseSigner(),
-            SimpleNamespace(),
-            payload,
-            _requirements(),  # type: ignore[arg-type]
-        )
-
-        assert out.success is True
-        assert out.transaction == _SUCCESSFUL_TX_HASH
-        assert out.extra == {
-            "channelState": {
-                "channelId": "0x" + "11" * 32,
-                "balance": "100",
-                "totalClaimed": "0",
-                "withdrawRequestedAt": 0,
-                "refundNonce": "0",
-            }
-        }
-
     def test_deposit_single_hash_without_balance_increase_fails(self, monkeypatch):
         """A single extension-signer hash is not blindly trusted as an atomic bundle.
 
@@ -444,11 +381,12 @@ class TestSettleReceiptWait:
         assert out.success is False
         assert out.error_reason == ERR_DEPOSIT_TRANSACTION_FAILED
 
-    def test_deposit_single_hash_with_read_error_keeps_optimistic_success(self, monkeypatch):
-        """A single extension-signer hash is only rejected when the post-deposit
-        balance read *succeeds* and definitively shows the deposit missing. A read
-        error (e.g. RPC flake) after a receipt that already confirmed success must
-        not be treated the same as evidence the deposit failed.
+    def test_deposit_single_hash_with_read_error_returns_settlement_pending(self, monkeypatch):
+        """A single extension-signer hash whose deposit cannot be confirmed is not
+        reported as success. The bundle receipt only proves some transaction did not
+        revert, not that the deposit landed; when the confirming balance read fails we
+        cannot distinguish a landed deposit from a non-conforming approve-only broadcast,
+        so settlement is pending with the broadcast hash for the caller to reconcile.
         """
         from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
 
@@ -500,7 +438,8 @@ class TestSettleReceiptWait:
             _requirements(),  # type: ignore[arg-type]
         )
 
-        assert out.success is True
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
         assert out.transaction == _SUCCESSFUL_TX_HASH
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
@@ -551,10 +490,11 @@ class TestSettleReceiptWait:
         assert out.error_reason == ERR_SETTLE_TRANSACTION_FAILED
         assert out.transaction == ""
 
-    def test_malformed_receipt_returns_settlement_pending_not_an_exception(self):
-        """A receipt missing `.status` must not escape as an unhandled exception —
-        the broadcast already succeeded, so this reports settlement_pending with the
-        tx hash rather than propagating (and surfacing as a 500) up the call stack."""
+    def test_malformed_receipt_is_settlement_pending(self):
+        """A receipt missing `.status` must not escape as an unhandled exception. The
+        broadcast confirmed but the receipt could not be processed, so the effect is
+        unknown: non-terminal settlement_pending keeps the hash for reconciliation, matching
+        the Go/TS SDKs. Only a reverted receipt or an absent transfer event is terminal."""
         payload = SettlePayload(
             receiver="0x3333333333333333333333333333333333333333",
             token="0x5555555555555555555555555555555555555555",
@@ -606,10 +546,11 @@ class TestClaimReceiptWait:
         assert out.error_reason == ERR_CLAIM_TRANSACTION_FAILED
         assert out.transaction == ""
 
-    def test_malformed_receipt_returns_settlement_pending_not_an_exception(self):
-        """A receipt missing `.status` must not escape as an unhandled exception —
-        the broadcast already succeeded, so this reports settlement_pending with the
-        tx hash rather than propagating (and surfacing as a 500) up the call stack."""
+    def test_malformed_receipt_is_settlement_pending(self):
+        """A receipt missing `.status` must not escape as an unhandled exception. The
+        broadcast confirmed but the receipt could not be processed, so the effect is
+        unknown: non-terminal settlement_pending keeps the hash for reconciliation, matching
+        the Go/TS SDKs. Only a reverted receipt or an absent transfer event is terminal."""
         payload = ClaimPayload(
             claims=[_voucher_claim()],
             claim_authorizer_signature="0x" + "11" * 65,

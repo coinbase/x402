@@ -1,6 +1,5 @@
 import { Network, SettleResponse } from "@x402/core/types";
-import { isHash } from "viem";
-import { invalidBroadcastHashResponse, truncateErrorMessage } from "../utils";
+import { invalidBroadcastHashResponse, isValidTxHash, truncateErrorMessage } from "../utils";
 import { ErrInvalidTransactionState, ErrSettlementPending } from "../exact/facilitator/errors";
 import { FacilitatorEvmSigner } from "../signer";
 
@@ -51,7 +50,7 @@ export async function waitAndReturnSettleResponse(
     onSuccess,
   } = options;
 
-  if (!isHash(tx)) {
+  if (!isValidTxHash(tx)) {
     return invalidBroadcastHashResponse(tx, failedStatusReason, network, payer);
   }
 
@@ -59,40 +58,64 @@ export async function waitAndReturnSettleResponse(
   try {
     receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
+    return settlementPendingResponse(tx, network, payer, error);
+  }
+
+  try {
+    if (receipt.status !== "success") {
+      return {
+        success: false,
+        errorReason: failedStatusReason,
+        transaction: tx,
+        network,
+        payer,
+      };
+    }
+
+    const validationFailure = validateReceipt?.(receipt);
+    if (validationFailure) {
+      return validationFailure;
+    }
+
+    if (onSuccess) {
+      return await onSuccess(receipt);
+    }
+
     return {
-      success: false,
-      errorReason: ErrSettlementPending,
-      errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
+      success: true,
       transaction: tx,
       network,
       payer,
+      ...(amount !== undefined ? { amount } : {}),
     };
+  } catch (error) {
+    // The broadcast confirmed but the receipt could not be processed (event parsing,
+    // amount decoding, or a malformed receipt threw). The transaction is on-chain with an
+    // unknown effect, so this is non-terminal: keep the hash under settlement_pending for
+    // the caller to reconcile rather than reporting a terminal failure that could prompt a
+    // double-spend retry. A reverted receipt and an explicit validation failure return
+    // above and remain terminal.
+    return settlementPendingResponse(tx, network, payer, error);
   }
+}
 
-  if (receipt.status !== "success") {
-    return {
-      success: false,
-      errorReason: failedStatusReason,
-      transaction: tx,
-      network,
-      payer,
-    };
-  }
-
-  const validationFailure = validateReceipt?.(receipt);
-  if (validationFailure) {
-    return validationFailure;
-  }
-
-  if (onSuccess) {
-    return onSuccess(receipt);
-  }
-
+/**
+ * Non-terminal settlement failure: the broadcast confirmed on-chain but its effect could
+ * not be established (receipt-wait failure or an error while processing the receipt). The
+ * broadcast hash is preserved for the caller to reconcile against.
+ */
+function settlementPendingResponse(
+  tx: `0x${string}`,
+  network: Network,
+  payer: string | undefined,
+  error: unknown,
+): SettleResponse {
   return {
-    success: true,
+    success: false,
+    errorReason: ErrSettlementPending,
+    errorMessage: truncateErrorMessage(error instanceof Error ? error.message : String(error)),
     transaction: tx,
     network,
     payer,
-    ...(amount !== undefined ? { amount } : {}),
   };
 }

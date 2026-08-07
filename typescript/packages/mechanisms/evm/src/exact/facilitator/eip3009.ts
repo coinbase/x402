@@ -376,7 +376,7 @@ export async function settleEIP3009(
     // Receipt status only proves the tx did not revert.
     // When logs are present, require the expected ERC-20 Transfer event.
     const auth = eip3009Payload.authorization;
-    return waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
+    return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: Errors.ErrTransactionFailed,
       validateReceipt: receipt => {
         if (

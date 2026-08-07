@@ -10,8 +10,20 @@ import (
 	"testing"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	"github.com/x402-foundation/x402/go/v2/types"
 )
+
+// TestSettlementPendingReasonMatchesMechanismConstant pins that the http-layer literal,
+// which is mirrored to avoid an http→mechanisms import, stays in lockstep with the
+// canonical mechanisms/evm constant. If the mechanism ever renames the reason, this
+// fails rather than silently letting the sanitizer strip the hash off a pending settle.
+func TestSettlementPendingReasonMatchesMechanismConstant(t *testing.T) {
+	if settlementPendingReason != evm.ErrSettlementPending {
+		t.Errorf("settlementPendingReason = %q, want %q (mechanisms/evm.ErrSettlementPending)",
+			settlementPendingReason, evm.ErrSettlementPending)
+	}
+}
 
 // Mock HTTP adapter for testing
 type mockHTTPAdapter struct {

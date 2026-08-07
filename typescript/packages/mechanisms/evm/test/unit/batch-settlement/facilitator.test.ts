@@ -1080,7 +1080,7 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
     expect(result.errorReason).toBe(Errors.ErrDepositTransactionFailed);
   }, 10_000);
 
-  it("keeps optimistic success for a single-hash erc20-approval bundle when the balance read errors", async () => {
+  it("returns settlement_pending for a single-hash erc20-approval bundle when the balance read errors", async () => {
     const signer = buildSigner();
     const bundleTxHash = ("0x" + "ab".repeat(32)) as `0x${string}`;
     mockErc20ApprovalBranch(async () => [bundleTxHash]);
@@ -1097,7 +1097,11 @@ describe("BatchSettlementEvmScheme (Facilitator) — settle routing", () => {
 
     const result = await scheme.settle(envelopeDeposit(dp), reqs);
 
-    expect(result.success).toBe(true);
+    // The bundle receipt only proves some tx did not revert, not that the deposit
+    // landed. With the confirming read failing, the outcome is unconfirmed rather than
+    // a success, so settlement is pending with the broadcast hash for reconciliation.
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe("settlement_pending");
     expect(result.transaction).toBe(bundleTxHash);
   }, 10_000);
 

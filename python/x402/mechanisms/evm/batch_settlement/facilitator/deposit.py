@@ -20,7 +20,7 @@ from .....schemas import (
     SettleResponse,
     VerifyResponse,
 )
-from ...constants import TX_STATUS_SUCCESS
+from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
 from ...settle_receipt import wait_for_receipt_and_build_response
@@ -290,6 +290,7 @@ def settle_deposit(
             # missing — distinct from a read error (e.g. RPC flake), which is
             # tolerated below via the optimistic fallback since the bundle's own
             # receipt already confirmed success.
+            balance_confirmed = False
             balance_read_without_confirmation = False
             try:
                 post_state = read_channel_state(signer, voucher.channel_id)
@@ -298,6 +299,7 @@ def settle_deposit(
                     post_state = read_channel_state(signer, voucher.channel_id)
 
                 if post_state.balance >= expected_min_balance:
+                    balance_confirmed = True
                     extra = {
                         "channelState": {
                             "channelId": voucher.channel_id,
@@ -313,14 +315,31 @@ def settle_deposit(
             except Exception:
                 extra = optimistic
 
-            if unconfirmed_bundle_hash and balance_read_without_confirmation:
+            if unconfirmed_bundle_hash and not balance_confirmed:
+                # A single-hash bundle's receipt only proves some tx didn't revert, not
+                # that the deposit landed. A definitive read (balance_read_without_confirmation)
+                # showing the deposit missing is terminal; a failed read leaves it unconfirmed,
+                # so report settlement_pending with the broadcast hash for the caller to reconcile.
+                if balance_read_without_confirmation:
+                    return SettleResponse(
+                        success=False,
+                        error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+                        error_message=(
+                            "extension signer returned a single transaction hash for the "
+                            "erc20 approval + deposit bundle, but the resulting channel "
+                            "balance does not reflect the deposit"
+                        ),
+                        transaction=tx,
+                        network=network,
+                        payer=payer,
+                    )
                 return SettleResponse(
                     success=False,
-                    error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+                    error_reason=ERR_SETTLEMENT_PENDING,
                     error_message=(
                         "extension signer returned a single transaction hash for the "
-                        "erc20 approval + deposit bundle, but the resulting channel "
-                        "balance does not reflect the deposit"
+                        "erc20 approval + deposit bundle and the post-deposit balance read "
+                        "failed, so the deposit could not be confirmed"
                     ),
                     transaction=tx,
                     network=network,
