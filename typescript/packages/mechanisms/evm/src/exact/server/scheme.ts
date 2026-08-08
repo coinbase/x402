@@ -1,6 +1,7 @@
 import {
   AssetAmount,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
@@ -8,12 +9,18 @@ import {
 } from "@x402/core/types";
 import { convertToTokenAmount, numberToDecimalString, parseMoneyString } from "@x402/core/utils";
 import { getDefaultAsset, type ExactDefaultAssetInfo } from "../../shared/defaultAssets";
+import type { AssetTransferMethod } from "../../types";
 
 /**
  * EVM server implementation for the Exact payment scheme.
  */
 export class ExactEvmScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
+  readonly defaultAssetTransferMethod: AssetTransferMethod = "eip3009";
+  readonly paymentFlows = {
+    eip3009: { supported: ["authorization"], default: "authorization" },
+    permit2: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<AssetTransferMethod, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 
   /**

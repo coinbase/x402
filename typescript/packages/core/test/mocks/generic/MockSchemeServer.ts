@@ -1,4 +1,8 @@
-import { SchemeNetworkServer, SchemeServerHooks } from "../../../src/types/mechanisms";
+import {
+  PaymentFlowConfig,
+  SchemeNetworkServer,
+  SchemeServerHooks,
+} from "../../../src/types/mechanisms";
 import { AssetAmount, Network, Price } from "../../../src/types";
 import { PaymentRequirements } from "../../../src/types/payments";
 import type { SupportedKind } from "../../../src/types/facilitator";
@@ -8,6 +12,10 @@ import type { SupportedKind } from "../../../src/types/facilitator";
  */
 export class MockSchemeNetworkServer implements SchemeNetworkServer {
   public readonly scheme: string;
+  public readonly defaultAssetTransferMethod = "default";
+  public readonly paymentFlows: Readonly<Record<string, PaymentFlowConfig>> = {
+    default: { supported: ["authorization"], default: "authorization" },
+  };
   public readonly schemeHooks?: SchemeServerHooks;
   private parsePriceResult: AssetAmount | Error;
   private enhanceResult: PaymentRequirements | Error | null = null;

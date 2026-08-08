@@ -2,6 +2,7 @@ import type {
   AssetAmount,
   MoneyParser,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
@@ -14,6 +15,10 @@ import { getUsdcAddress, validateTokenAsset } from "../../utils";
  */
 export class ExactKeetaScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
+  readonly defaultAssetTransferMethod = "default";
+  readonly paymentFlows = {
+    default: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<string, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
   private usdcAddressCache: Map<Network, string> = new Map();
 

@@ -3,12 +3,14 @@ import type {
   Money,
   MoneyParser,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
   SupportedKind,
 } from "@x402/core/types";
 import { parseMoneyString } from "@x402/core/utils";
+import type { XrplAssetTransferMethod } from "../../types";
 import {
   isDecimalString,
   isIntegerString,
@@ -22,6 +24,11 @@ import {
  */
 export class ExactXrplScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
+  readonly defaultAssetTransferMethod: XrplAssetTransferMethod = "sequence";
+  readonly paymentFlows = {
+    sequence: { supported: ["authorization"], default: "authorization" },
+    ticketSequence: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<XrplAssetTransferMethod, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 
   /**

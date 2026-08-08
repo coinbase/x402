@@ -11,7 +11,10 @@ amount of funds they need to be transferred.
 - Purchasing digital credits
 - An LLM paying to use a tool
 
-## Appendix
+## Payment Flow
+
+By default, `exact` uses the `authorization` payment flow (verify → resource → settle): the payment is verified before the resource executes and settled afterward. See [Payment Flow Models](../../x402-specification-v2.md) (section 6.1) in the core specification.
+
 
 ## Critical Validation Requirements
 

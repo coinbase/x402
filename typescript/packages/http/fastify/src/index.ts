@@ -13,6 +13,7 @@ import {
   SettlementOverrides,
   checkIfBazaarNeeded,
   PaymentCancellationDispatcher,
+  CompletedSettlement,
   withPrivateCacheControl,
 } from "@x402/core/server";
 import {
@@ -37,6 +38,7 @@ export function setSettlementOverrides(reply: FastifyReply, overrides: Settlemen
 
 interface X402PaymentContext {
   cancellationDispatcher: PaymentCancellationDispatcher;
+  beforeHandlerSettlement?: CompletedSettlement;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
   declaredExtensions?: Record<string, unknown>;
@@ -216,6 +218,17 @@ function sendFacilitatorError(reply: FastifyReply, error: FacilitatorResponseErr
 }
 
 /**
+ * Logs an unexpected error and sends a generic 500 without leaking internals.
+ *
+ * @param reply - The Fastify reply to write to
+ * @param error - The unexpected error
+ */
+function sendInternalError(reply: FastifyReply, error: unknown): void {
+  console.error(error);
+  reply.status(500).send({ error: "Internal Server Error" });
+}
+
+/**
  * Configuration for registering a payment scheme with a specific network.
  */
 export interface SchemeRegistration {
@@ -340,7 +353,7 @@ export function paymentMiddlewareFromHTTPServer(
         if (facilitatorError) {
           return sendFacilitatorError(reply, facilitatorError);
         }
-        throw error;
+        return sendInternalError(reply, error);
       }
     }
 
@@ -356,7 +369,7 @@ export function paymentMiddlewareFromHTTPServer(
       if (error instanceof FacilitatorResponseError) {
         return sendFacilitatorError(reply, error);
       }
-      throw error;
+      return sendInternalError(reply, error);
     }
 
     switch (result.type) {
@@ -378,6 +391,7 @@ export function paymentMiddlewareFromHTTPServer(
       case "payment-verified": {
         request.x402Context = {
           cancellationDispatcher: result.cancellationDispatcher,
+          beforeHandlerSettlement: result.beforeHandlerSettlement,
           paymentPayload: result.paymentPayload,
           paymentRequirements: result.paymentRequirements,
           declaredExtensions: result.declaredExtensions,
@@ -433,6 +447,21 @@ export function paymentMiddlewareFromHTTPServer(
         responseStatus: reply.statusCode,
       });
       reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
+      // Echo before-handler receipt (e.g. upfront) so the payer still gets the tx hash
+      if (x402Context.beforeHandlerSettlement) {
+        const existingCacheControl =
+          reply.getHeader("Cache-Control") != null
+            ? String(reply.getHeader("Cache-Control"))
+            : null;
+        for (const [key, value] of Object.entries(
+          httpServer.createCompletedSettlementHeaders(
+            x402Context.beforeHandlerSettlement,
+            existingCacheControl,
+          ),
+        )) {
+          reply.header(key, value);
+        }
+      }
       return effectivePayload;
     }
 
@@ -451,6 +480,8 @@ export function paymentMiddlewareFromHTTPServer(
         x402Context.paymentRequirements,
         x402Context.declaredExtensions,
         { request: x402Context.requestContext, responseBody, responseHeaders },
+        undefined,
+        x402Context.beforeHandlerSettlement,
       );
 
       if (!settleResult.success) {

@@ -612,8 +612,10 @@ export class x402Client {
    *
    * Selection process:
    * 1. Filter by registered schemes (network + scheme support)
-   * 2. Apply all registered policies in order
-   * 3. Use selector to choose final requirement
+   * 2. Drop accepts with unrecognized `extra.paymentFlow`
+   * 3. Apply all registered policies in order
+   * 4. Prefer authorization (omit or explicit) over upfront/escrow when both remain
+   * 5. Use selector to choose final requirement
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - Array of available payment requirements
@@ -645,8 +647,24 @@ export class x402Client {
       })}`);
     }
 
-    // Step 2: Apply all policies in order
-    let filteredRequirements = supportedPaymentRequirements;
+    // Step 2: Drop unrecognized paymentFlow values
+    const recognizedFlowRequirements = supportedPaymentRequirements.filter(requirement => {
+      const flow = requirement.extra?.paymentFlow;
+      return (
+        flow == null ||
+        flow === "authorization" ||
+        flow === "upfront" ||
+        flow === "escrow"
+      );
+    });
+    if (recognizedFlowRequirements.length === 0) {
+      throw new Error(
+        `No payment requirements with a recognized paymentFlow for x402 version: ${x402Version}`,
+      );
+    }
+
+    // Step 3: Apply all policies in order
+    let filteredRequirements = recognizedFlowRequirements;
     for (const policy of this.policies) {
       filteredRequirements = policy(x402Version, filteredRequirements);
 
@@ -655,7 +673,17 @@ export class x402Client {
       }
     }
 
-    // Step 3: Use selector to choose final requirement
+    // Step 4: Prefer authorization when both post- and pre-handler flows remain
+    const authorizationAccepts = filteredRequirements.filter(
+      requirement =>
+        requirement.extra?.paymentFlow == null ||
+        requirement.extra?.paymentFlow === "authorization",
+    );
+    if (authorizationAccepts.length > 0) {
+      filteredRequirements = authorizationAccepts;
+    }
+
+    // Step 5: Use selector to choose final requirement
     return this.paymentRequirementsSelector(x402Version, filteredRequirements);
   }
 

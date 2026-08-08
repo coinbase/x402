@@ -1,6 +1,7 @@
 import type {
   AssetAmount,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
@@ -21,6 +22,10 @@ import { parseMoneyString } from "@x402/core/utils";
  */
 export class ExactConcordiumScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
+  readonly defaultAssetTransferMethod = "default";
+  readonly paymentFlows = {
+    default: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<string, PaymentFlowConfig>;
 
   /** Custom money parser chain — tried in registration order */
   private moneyParsers: MoneyParser[] = [];

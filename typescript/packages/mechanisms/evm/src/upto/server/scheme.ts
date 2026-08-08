@@ -1,6 +1,7 @@
 import {
   AssetAmount,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
@@ -9,6 +10,7 @@ import {
 import { convertToTokenAmount, numberToDecimalString, parseMoneyString } from "@x402/core/utils";
 import { getAddress } from "viem";
 import { getDefaultAsset } from "../../shared/defaultAssets";
+import type { AssetTransferMethod } from "../../types";
 
 /**
  * EVM server implementation for the Upto payment scheme.
@@ -16,6 +18,10 @@ import { getDefaultAsset } from "../../shared/defaultAssets";
  */
 export class UptoEvmScheme implements SchemeNetworkServer {
   readonly scheme = "upto";
+  readonly defaultAssetTransferMethod: AssetTransferMethod = "permit2";
+  readonly paymentFlows = {
+    permit2: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<"permit2", PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 
   /**

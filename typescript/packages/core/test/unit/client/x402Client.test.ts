@@ -877,6 +877,159 @@ describe("x402Client", () => {
         expect(mockClient.createPaymentPayloadCalls[0].requirements.amount).toBe("100000");
       });
     });
+
+    describe("Payment flow selection", () => {
+      it("should drop accepts with unrecognized paymentFlow", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const knownReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "100",
+        });
+        const unknownReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "200",
+          extra: { paymentFlow: "future-flow" },
+        });
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [unknownReq, knownReq],
+        });
+
+        await client.createPaymentPayload(paymentRequired);
+
+        expect(mockClient.createPaymentPayloadCalls[0].requirements).toEqual(knownReq);
+      });
+
+      it("should throw when every accept has unrecognized paymentFlow", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [
+            buildPaymentRequirements({
+              scheme: "exact",
+              network: "eip155:8453" as Network,
+              extra: { paymentFlow: "future-flow" },
+            }),
+          ],
+        });
+
+        await expect(client.createPaymentPayload(paymentRequired)).rejects.toThrow(
+          "No payment requirements with a recognized paymentFlow",
+        );
+      });
+
+      it("should prefer authorization over upfront when both are offered", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const upfrontReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "100",
+          extra: { paymentFlow: "upfront" },
+        });
+        const authReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "200",
+        });
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [upfrontReq, authReq],
+        });
+
+        await client.createPaymentPayload(paymentRequired);
+
+        expect(mockClient.createPaymentPayloadCalls[0].requirements).toEqual(authReq);
+      });
+
+      it("should prefer explicit authorization over escrow when both are offered", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const escrowReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "100",
+          extra: { paymentFlow: "escrow" },
+        });
+        const authReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "200",
+          extra: { paymentFlow: "authorization" },
+        });
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [escrowReq, authReq],
+        });
+
+        await client.createPaymentPayload(paymentRequired);
+
+        expect(mockClient.createPaymentPayloadCalls[0].requirements).toEqual(authReq);
+      });
+
+      it("should still select upfront when it is the only remaining accept", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const upfrontReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "100",
+          extra: { paymentFlow: "upfront" },
+        });
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [upfrontReq],
+        });
+
+        await client.createPaymentPayload(paymentRequired);
+
+        expect(mockClient.createPaymentPayloadCalls[0].requirements).toEqual(upfrontReq);
+      });
+
+      it("should let custom policies override authorization preference", async () => {
+        const client = new x402Client();
+        const mockClient = new MockSchemeNetworkClient("exact");
+        client.register("eip155:8453" as Network, mockClient);
+
+        const upfrontReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "100",
+          extra: { paymentFlow: "upfront" },
+        });
+        const authReq = buildPaymentRequirements({
+          scheme: "exact",
+          network: "eip155:8453" as Network,
+          amount: "200",
+        });
+
+        const upfrontOnlyPolicy: PaymentPolicy = (_version, reqs) =>
+          reqs.filter(r => r.extra?.paymentFlow === "upfront");
+
+        client.registerPolicy(upfrontOnlyPolicy);
+
+        const paymentRequired = buildPaymentRequired({
+          accepts: [authReq, upfrontReq],
+        });
+
+        await client.createPaymentPayload(paymentRequired);
+
+        expect(mockClient.createPaymentPayloadCalls[0].requirements).toEqual(upfrontReq);
+      });
+    });
   });
 
   describe("Extension Hooks", () => {

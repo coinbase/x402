@@ -11,7 +11,11 @@ import {
   PaymentRequired,
   ResourceInfo,
 } from "../types/payments";
-import { SchemeNetworkServer, SchemePaymentRequiredContext } from "../types/mechanisms";
+import {
+  PaymentFlowName,
+  SchemeNetworkServer,
+  SchemePaymentRequiredContext,
+} from "../types/mechanisms";
 import { Price, Network, ResourceServerExtension, ResourceServerExtensionHooks } from "../types";
 import type { DeepReadonly } from "../types/readonly";
 import {
@@ -31,8 +35,27 @@ import {
   snapshotPaymentRequirementsList,
   snapshotSettleResponseCore,
 } from "./hookPolicy";
+import {
+  applyPaymentFlowWireExtra,
+  resolvePaymentFlow,
+  resolvePaymentFlowPhases,
+} from "./paymentFlow";
 import { FacilitatorClient, HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 import { x402Version } from "..";
+
+/**
+ * Which settle invocation is running for a payment.
+ *
+ * - `before-handler` — settle before the resource handler (e.g. escrow deposit)
+ * - `after-handler` — settle after the resource handler (authorization charge, escrow charge)
+ * - `cancel` — refund/close settle from verified-payment cancellation
+ *
+ * Settle lifecycle hooks (`beforeSettle`, `afterSettle`, `onSettleFailure`,
+ * `enrichSettlementPayload`, `enrichSettlementResponse`) fire once per settle.
+ * Multi-settle flows (`escrow`) therefore invoke them more than once; branch on
+ * this field when a hook has side effects that must not double-run.
+ */
+export type SettlePhase = "before-handler" | "after-handler" | "cancel";
 
 /**
  * Configuration for a protected resource
@@ -58,6 +81,8 @@ export interface ResourceConfig {
  * (see {@link assertAcceptsAllowlistedAfterExtensionEnrich}): `scheme`, `network`, and
  * `maxTimeoutSeconds` are immutable; `payTo`, `amount`, and `asset` may change only when the
  * baseline value was vacant; `extra` may add keys but must not change or remove baseline keys.
+ * `extra.paymentFlow` and `extra.assetTransferMethod` are protocol-reserved and immutable
+ * during enrichment (enrichment must not add or rewrite them).
  */
 export interface PaymentRequiredContext {
   requirements: PaymentRequirements[];
@@ -104,6 +129,7 @@ export interface SettleContext {
   paymentPayload: DeepReadonly<PaymentPayload>;
   requirements: DeepReadonly<PaymentRequirements>;
   declaredExtensions: DeepReadonly<Record<string, unknown>>;
+  phase: SettlePhase;
   transportContext?: unknown;
 }
 
@@ -124,6 +150,7 @@ export interface VerifiedPaymentCanceledContext extends SettleContext {
   reason: VerifiedPaymentCancellationReason;
   error?: unknown;
   responseStatus?: number;
+  readonly settledPhases: readonly SettlePhase[];
 }
 
 export interface VerifiedPaymentCancelOptions {
@@ -132,6 +159,19 @@ export interface VerifiedPaymentCancelOptions {
   responseStatus?: number;
 }
 
+export interface CompletedSettlement {
+  phase: SettlePhase;
+  flow: PaymentFlowName;
+  result: SettleResponse;
+  requirements: PaymentRequirements;
+}
+
+/**
+ * Failure-path cancel hook for a payment that already passed pre-handler gates.
+ * Created by {@link x402ResourceServer.createPaymentCancellationDispatcher}.
+ * Success-path settle results are not stored here — callers pass
+ * `beforeHandlerSettlement` into settlement separately when echoing PAYMENT-RESPONSE.
+ */
 export interface PaymentCancellationDispatcher {
   cancel(options: VerifiedPaymentCancelOptions): Promise<void>;
 }
@@ -358,6 +398,17 @@ export class x402ResourceServer {
    */
   hasRegisteredScheme(network: Network, scheme: string): boolean {
     return !!findByNetworkAndScheme(this.registeredServerSchemes, scheme, network);
+  }
+
+  /**
+   * Get the registered scheme implementation for a network and scheme name.
+   *
+   * @param network - The network identifier
+   * @param scheme - The payment scheme name
+   * @returns The registered scheme, or undefined if none is registered
+   */
+  getRegisteredScheme(network: Network, scheme: string): SchemeNetworkServer | undefined {
+    return findByNetworkAndScheme(this.registeredServerSchemes, scheme, network);
   }
 
   /**
@@ -754,6 +805,9 @@ export class x402ResourceServer {
       facilitatorExtensions,
     );
 
+    const resolved = resolvePaymentFlow(SchemeNetworkServer, requirement);
+    requirement.extra = applyPaymentFlowWireExtra(requirement.extra ?? {}, resolved);
+
     requirements.push(requirement);
     return requirements;
   }
@@ -913,6 +967,12 @@ export class x402ResourceServer {
   /**
    * Verifies a payment against requirements, running manual and in-use extension hooks.
    *
+   * Resource-server `beforeVerify` hooks always run. Facilitator `/verify` runs only when
+   * the scheme's payment flow has `verifyBeforeHandler` (the `authorization` flow). For
+   * `upfront` / `escrow`, payment validity is established by settle; `afterVerify` /
+   * `onVerifyFailure` still run when a `VerifyResponse` exists (facilitator result or a
+   * beforeVerify skip).
+   *
    * @param paymentPayload - Signed payment payload from the client
    * @param requirements - Requirements matched to the payload
    * @param declaredExtensions - Optional per-extension declarations for the request
@@ -965,6 +1025,13 @@ export class x402ResourceServer {
       } catch (error) {
         this.warnResourceServerHookFailure("beforeVerify", label, error);
       }
+    }
+
+    const { verifyBeforeHandler } = resolvePaymentFlowPhases(
+      this.getPaymentFlow(paymentPayload, requirements),
+    );
+    if (!verifyBeforeHandler) {
+      return { isValid: true };
     }
 
     try {
@@ -1035,21 +1102,49 @@ export class x402ResourceServer {
   }
 
   /**
-   * Create cancellation controls for a verified payment attempt.
+   * Resolve the payment flow name for a payload/requirements pair from the
+   * scheme's ATM-keyed {@link SchemeNetworkServer.paymentFlows} table.
+   *
+   * @param _payload - Client payment payload (unused; flow is requirements-driven)
+   * @param requirements - Matched payment requirements
+   * @returns Resolved payment flow name
+   */
+  getPaymentFlow(
+    _payload: DeepReadonly<PaymentPayload>,
+    requirements: DeepReadonly<PaymentRequirements>,
+  ): PaymentFlowName {
+    const scheme = findByNetworkAndScheme(
+      this.registeredServerSchemes,
+      requirements.scheme,
+      requirements.network as Network,
+    );
+    if (!scheme) {
+      throw new Error(
+        `[x402] No server implementation registered for scheme: ${requirements.scheme}, network: ${requirements.network}`,
+      );
+    }
+    return resolvePaymentFlow(scheme, requirements).paymentFlow;
+  }
+
+  /**
+   * Create a failure-path cancel hook for a payment that passed pre-handler gates.
    *
    * @param paymentPayload - Signed payment payload from the client
    * @param requirements - Requirements matched to the payload
    * @param declaredExtensions - Optional per-extension declarations for the request
    * @param transportContext - Optional transport-specific context
-   * @returns Cancellation controls for the verified payment attempt
+   * @param settledPhases - Settle phases already completed before the handler (for settleOnCancel)
+   * @returns Dispatcher with cancel only
    */
   createPaymentCancellationDispatcher(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
     declaredExtensions?: Record<string, unknown>,
     transportContext?: unknown,
+    settledPhases: readonly SettlePhase[] = [],
   ): PaymentCancellationDispatcher {
     const resolvedDeclaredExtensions = declaredExtensions ?? {};
+    const resolvedSettledPhases = settledPhases;
     let cancelPromise: Promise<void> | undefined;
 
     return {
@@ -1061,6 +1156,7 @@ export class x402ResourceServer {
             resolvedDeclaredExtensions,
             options,
             transportContext,
+            resolvedSettledPhases,
           );
         }
         return cancelPromise;
@@ -1076,6 +1172,7 @@ export class x402ResourceServer {
    * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @param transportContext - Optional transport-specific context (e.g., HTTP request/response, MCP tool context)
    * @param settlementOverrides - Optional overrides for settlement parameters (e.g., partial settlement amount)
+   * @param phase - Which settle invocation this is (defaults to `after-handler`)
    * @returns Settlement response
    */
   async settlePayment(
@@ -1084,6 +1181,7 @@ export class x402ResourceServer {
     declaredExtensions?: Record<string, unknown>,
     transportContext?: unknown,
     settlementOverrides?: SettlementOverrides,
+    phase: SettlePhase = "after-handler",
   ): Promise<SettleResponse> {
     const resolvedDeclaredExtensions = declaredExtensions ?? {};
     const extensionKeysInUse = Object.keys(resolvedDeclaredExtensions);
@@ -1108,6 +1206,7 @@ export class x402ResourceServer {
       paymentPayload,
       requirements: effectiveRequirements,
       declaredExtensions: resolvedDeclaredExtensions,
+      phase,
       transportContext,
     };
     const matchedScheme = {
@@ -1171,19 +1270,26 @@ export class x402ResourceServer {
         matchedScheme.scheme,
         matchedScheme.network,
       );
+      // Settle-local payload copy so a second settle can enrich the same keys
+      // without mutating the caller's object (assertAdditivePayloadEnrichment
+      // still runs against the original client payload).
+      let settlePayload: PaymentPayload = paymentPayload;
       const payloadEnrichmentHook = scheme?.enrichSettlementPayload;
       if (payloadEnrichmentHook) {
         const label = `scheme "${matchedScheme.scheme}" enrichSettlementPayload`;
         const enrichment = await payloadEnrichmentHook(context);
         if (enrichment !== undefined) {
           assertAdditivePayloadEnrichment(paymentPayload.payload, enrichment, label);
-          paymentPayload.payload = { ...paymentPayload.payload, ...enrichment };
+          settlePayload = {
+            ...paymentPayload,
+            payload: { ...paymentPayload.payload, ...enrichment },
+          };
         }
       }
 
       // Find the facilitator that supports this payment type
       const facilitatorClient = this.getFacilitatorClient(
-        paymentPayload.x402Version,
+        settlePayload.x402Version,
         effectiveRequirements.network,
         effectiveRequirements.scheme,
       );
@@ -1196,7 +1302,7 @@ export class x402ResourceServer {
 
         for (const client of this.facilitatorClients) {
           try {
-            settleResult = await client.settle(paymentPayload, effectiveRequirements);
+            settleResult = await client.settle(settlePayload, effectiveRequirements);
             break;
           } catch (error) {
             lastError = error as Error;
@@ -1207,13 +1313,13 @@ export class x402ResourceServer {
           throw (
             lastError ||
             new Error(
-              `No facilitator supports ${effectiveRequirements.scheme} on ${effectiveRequirements.network} for v${paymentPayload.x402Version}`,
+              `No facilitator supports ${effectiveRequirements.scheme} on ${effectiveRequirements.network} for v${settlePayload.x402Version}`,
             )
           );
         }
       } else {
         // Use the specific facilitator that supports this payment
-        settleResult = await facilitatorClient.settle(paymentPayload, effectiveRequirements);
+        settleResult = await facilitatorClient.settle(settlePayload, effectiveRequirements);
       }
 
       // Execute afterSettle hooks
@@ -1459,6 +1565,7 @@ export class x402ResourceServer {
             context.declaredExtensions,
             { reason: "after_verify_aborted" },
             context.transportContext,
+            [],
           );
           return {
             isValid: false,
@@ -1542,6 +1649,7 @@ export class x402ResourceServer {
    * @param declaredExtensions - Optional per-extension declarations for the request
    * @param options - Cancellation reason and optional diagnostics
    * @param fallbackTransportContext - Optional transport-specific context
+   * @param settledPhases - Settle phases that already completed for this payment
    */
   private async dispatchVerifiedPaymentCanceled(
     paymentPayload: DeepReadonly<PaymentPayload>,
@@ -1549,6 +1657,7 @@ export class x402ResourceServer {
     declaredExtensions: DeepReadonly<Record<string, unknown>>,
     options: VerifiedPaymentCancelOptions,
     fallbackTransportContext?: unknown,
+    settledPhases: readonly SettlePhase[] = [],
   ): Promise<void> {
     const extensionKeysInUse = Object.keys(declaredExtensions);
     const matchedScheme = {
@@ -1559,10 +1668,12 @@ export class x402ResourceServer {
       paymentPayload,
       requirements,
       declaredExtensions,
+      phase: "cancel",
       transportContext: fallbackTransportContext,
       reason: options.reason,
       error: options.error,
       responseStatus: options.responseStatus,
+      settledPhases,
     };
 
     for (const { label, hook } of this.getLabeledHooks(

@@ -1,6 +1,7 @@
 import {
   AssetAmount,
   Network,
+  PaymentFlowConfig,
   PaymentPayload,
   PaymentRequirements,
   Price,
@@ -16,7 +17,7 @@ import type { FacilitatorClient } from "@x402/core/server";
 import { getAddress } from "viem";
 import { BatchSettlementChannelManager } from "./channelManager";
 import { getDefaultAsset } from "../../shared/defaultAssets";
-import type { AuthorizerSigner } from "../types";
+import type { AuthorizerSigner, BatchSettlementAssetTransferMethod } from "../types";
 import { BATCH_SETTLEMENT_SCHEME, MIN_WITHDRAW_DELAY } from "../constants";
 import { InMemoryChannelStorage, ChannelStorage, type Channel } from "./storage";
 import {
@@ -54,6 +55,11 @@ export interface BatchSettlementRequestContext {
  */
 export class BatchSettlementEvmScheme implements SchemeNetworkServer {
   readonly scheme = BATCH_SETTLEMENT_SCHEME;
+  readonly defaultAssetTransferMethod: BatchSettlementAssetTransferMethod = "eip3009";
+  readonly paymentFlows = {
+    eip3009: { supported: ["authorization"], default: "authorization" },
+    permit2: { supported: ["authorization"], default: "authorization" },
+  } as const satisfies Record<BatchSettlementAssetTransferMethod, PaymentFlowConfig>;
   readonly schemeHooks: SchemeServerHooks;
 
   private readonly requestContexts = new WeakMap<

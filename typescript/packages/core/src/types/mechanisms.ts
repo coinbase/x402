@@ -184,8 +184,46 @@ export type SchemeEnrichPaymentRequiredResponseHook = (
   ctx: SchemePaymentRequiredContext,
 ) => Promise<PaymentRequirements[] | void>;
 
+/**
+ * Named payment flow declared by a scheme. Controls whether core verifies and/or
+ * settles before the resource handler, and whether it settles after.
+ *
+ * Multi-settle flows (`escrow`) fire settle lifecycle hooks once per settle.
+ * Side-effecting hooks should branch on {@link SettleContext.phase}.
+ */
+export type PaymentFlowName = "authorization" | "upfront" | "escrow";
+
+/**
+ * Phase flags for a {@link PaymentFlowName}.
+ */
+export interface PaymentFlowPhases {
+  verifyBeforeHandler: boolean;
+  settleBeforeHandler: boolean;
+  settleAfterHandler: boolean;
+}
+
+/**
+ * Supported payment flows for one assetTransferMethod, plus the default when
+ * `extra.paymentFlow` is omitted.
+ */
+export interface PaymentFlowConfig {
+  readonly supported: readonly PaymentFlowName[];
+  /** Must be a member of {@link PaymentFlowConfig.supported}. */
+  readonly default: PaymentFlowName;
+}
+
 export interface SchemeNetworkServer {
   readonly scheme: string;
+  /**
+   * ATM used when `requirements.extra.assetTransferMethod` is absent.
+   * Use `"default"` only as SDK plumbing when the scheme has no on-wire ATM.
+   */
+  readonly defaultAssetTransferMethod: string;
+  /**
+   * Payment flows supported per assetTransferMethod.
+   * Every ATM the scheme accepts must appear here.
+   */
+  readonly paymentFlows: Readonly<Record<string, PaymentFlowConfig>>;
   readonly schemeHooks?: SchemeServerHooks;
   enrichPaymentRequiredResponse?: SchemeEnrichPaymentRequiredResponseHook;
   enrichSettlementPayload?: SchemeEnrichSettlementPayloadHook;
