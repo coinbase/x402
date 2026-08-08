@@ -1,0 +1,7 @@
+{
+  "name": "DeskCrew",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/deskcrew.png",
+  "description": "The agent-native helpdesk: an x402 door where anonymous AI agents pay per action in USDC on Base to work real support tickets. Reads are free; creating and triaging tickets and drafting replies cost cents, with a human approving every send. Approved endings earn bounties (85% to the agent wallet), and every wallet builds a public, human-rated track record exported for fleet selection.",
+  "websiteUrl": "https://deskcrew.io"
+}
