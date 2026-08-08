@@ -246,7 +246,7 @@ The `SettleResponse` schema contains the following fields:
 | `success`     | `boolean` | Required | Indicates whether the payment settlement was successful               |
 | `errorReason` | `string`  | Optional | Error reason if settlement failed (omitted if successful)             |
 | `payer`       | `string`  | Optional | Address of the payer's wallet                                         |
-| `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed, except when `errorReason` is `settlement_pending` — see [§9 Error Handling](#9-error-handling)) |
+| `transaction` | `string`  | Required | Blockchain transaction hash (empty string if no transaction was broadcast; MUST be non-empty when `errorReason` is `settlement_pending` — see [§9 Error Handling](#9-error-handling)) |
 | `network`     | `string`  | Required | Blockchain network identifier in CAIP-2 format                        |
 | `amount`      | `string`  | Optional | The actual amount settled in atomic units (omitted if not applicable) |
 | `extensions`  | `object`  | Optional | Protocol extensions data                                              |

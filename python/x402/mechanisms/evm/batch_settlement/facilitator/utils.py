@@ -41,16 +41,6 @@ from ..utils import coerce_bytes32, compute_channel_id, get_batch_settlement_eip
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
-__all__ = [
-    "ZERO_ADDRESS",
-    "to_contract_channel_config",
-    "channel_ids_equal",
-    "erc3009_authorization_time_invalid_reason",
-    "verify_batch_settlement_voucher_typed_data",
-    "validate_channel_config",
-    "read_channel_state",
-]
-
 
 def to_contract_channel_config(config: ChannelConfig) -> tuple:
     """Normalize a ChannelConfig into the checksummed-address tuple expected by the contract."""
@@ -234,3 +224,14 @@ def _unpack_pair(value: Any) -> tuple[int, int]:
     if isinstance(value, list | tuple) and len(value) >= 2:
         return int(value[0]), int(value[1])
     raise ValueError(f"expected (uint, uint) pair, got {value!r}")
+
+
+__all__ = [
+    "ZERO_ADDRESS",
+    "to_contract_channel_config",
+    "channel_ids_equal",
+    "erc3009_authorization_time_invalid_reason",
+    "verify_batch_settlement_voucher_typed_data",
+    "validate_channel_config",
+    "read_channel_state",
+]

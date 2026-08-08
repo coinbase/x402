@@ -15,6 +15,7 @@ except ImportError as e:
 from .....schemas import PaymentRequirements, SettleResponse
 from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
+from ...types import TransactionReceipt
 from ...utils import truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
 from ..authorizer_signer import sign_claim_batch, sign_refund
@@ -264,7 +265,7 @@ def execute_refund_with_signature(
                 data_suffix=data_suffix,
             )
 
-        def _build_refund_success(_receipt):
+        def _build_refund_success(_receipt: TransactionReceipt) -> SettleResponse:
             post_state = (
                 _read_post_refund_state(signer, channel_id, payload.refund_nonce)
                 if pre_state and pre_state.withdraw_requested_at != 0

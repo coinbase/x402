@@ -16,7 +16,6 @@ const TX = `0x${"ab".repeat(32)}` as `0x${string}`;
 const FAILED = "invalid_exact_evm_transaction_failed";
 const NETWORK = "eip155:8453" as never;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const signerWith = (receipt: unknown, error?: Error): any => ({
   waitForTransactionReceipt: async () => {
     if (error) throw error;

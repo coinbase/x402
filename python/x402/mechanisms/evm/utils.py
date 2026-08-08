@@ -162,10 +162,11 @@ def normalize_address(address: str) -> str:
 
 
 def is_valid_tx_hash(tx_hash: object) -> bool:
-    """True if 0x + 64 hex digits and non-zero; for external signer hashes before
-    receipt wait. The all-zero hash is rejected so a signer that reports success with
-    a placeholder hash fails terminally rather than surfacing settlement_pending with
-    a hash that reconciles to nothing. Matches the Go and TypeScript SDKs."""
+    """Check a signer-supplied hash is usable for a receipt wait: 0x + 64 hex, non-zero.
+
+    The all-zero hash reconciles to nothing, so a signer reporting success with a
+    placeholder fails terminally instead of as settlement_pending.
+    """
     if not isinstance(tx_hash, str):
         return False
     if re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is None:
@@ -184,9 +185,7 @@ def final_hash_from_two_request_send(tx_hashes: list[str]) -> str | None:
     return tx_hashes[-1]
 
 
-# Bounds error text sourced from RPC/transport failures (e.g. a wait_for_transaction_receipt
-# error) before it is placed in a settle/verify error message. Matches the truncation length
-# used by the Go and TypeScript SDKs so wire behavior is consistent across languages.
+# Matches the truncation length used by the Go and TypeScript SDKs.
 MAX_ERROR_MESSAGE_LENGTH = 500
 
 

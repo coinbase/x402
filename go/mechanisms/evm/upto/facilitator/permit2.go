@@ -314,16 +314,12 @@ func SettleUptoPermit2(
 				{Serialized: erc20Info.SignedTransaction},
 				{Call: &settle},
 			})
-			switch {
-			case sendErr != nil:
+			if sendErr != nil {
 				err = sendErr
-			default:
-				finalHash, hashOk := evm.FinalHashFromTwoRequestSend(txHashes)
-				if !hashOk || !evm.IsValidTxHash(finalHash) {
-					err = fmt.Errorf("%s: extension signer returned no valid settlement transaction hash", ErrErc20ApprovalTxFailed)
-				} else {
-					txHash = finalHash
-				}
+			} else if finalHash, hashOk := evm.FinalHashFromTwoRequestSend(txHashes); !hashOk || !evm.IsValidTxHash(finalHash) {
+				err = fmt.Errorf("%s: extension signer returned no valid settlement transaction hash", ErrErc20ApprovalTxFailed)
+			} else {
+				txHash = finalHash
 			}
 		} else {
 			txHash, err = signer.WriteContract(

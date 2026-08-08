@@ -49,16 +49,13 @@ def wait_for_receipt_and_build_response(
 ) -> SettleResponse:
     """Wait for a broadcast receipt and build the settlement response.
 
-    A receipt-wait failure, and any unexpected error while processing a confirmed receipt
-    (malformed receipt, event parsing, amount decoding), are non-terminal: the broadcast is
-    on-chain with an unknown effect, so they return settlement_pending with the hash for the
-    caller to reconcile. A reverted receipt and an explicit validation failure are terminal.
+    A reverted receipt and an explicit validation failure are terminal. A receipt-wait
+    failure, or an error raised while processing a confirmed receipt, leaves the broadcast
+    onchain with an unknown effect and returns settlement_pending with the hash.
 
-    validate_receipt runs after a successful receipt (e.g. Transfer event check). Return a
-    SettleResponse to fail settlement (terminal); return None to accept success. Raising from
-    it is treated as an unexpected processing error (settlement_pending), not a clean failure.
-
-    on_success, when set, builds the success response from the receipt (e.g. event parsing).
+    validate_receipt runs after a successful receipt (e.g. a Transfer event check): return a
+    SettleResponse to fail settlement, or None to accept success. on_success, when set,
+    builds the success response from the receipt.
     """
     if not is_valid_tx_hash(tx_hash):
         return invalid_broadcast_hash_response(tx_hash, failed_reason, network, payer)
@@ -103,7 +100,7 @@ def _settlement_pending_response(
     payer: str | None,
     error: Exception,
 ) -> SettleResponse:
-    """Non-terminal failure: broadcast confirmed on-chain, effect unconfirmed."""
+    """Build the non-terminal failure for a broadcast whose effect is unconfirmed."""
     return SettleResponse(
         success=False,
         error_reason=ERR_SETTLEMENT_PENDING,

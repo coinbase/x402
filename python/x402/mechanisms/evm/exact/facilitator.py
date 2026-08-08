@@ -47,7 +47,12 @@ from ..exact.eip3009_utils import (
 from ..exact.permit2_utils import settle_permit2, verify_permit2
 from ..settle_receipt import wait_for_receipt_and_build_response
 from ..signer import FacilitatorEvmSigner
-from ..types import ERC6492SignatureData, ExactEIP3009Payload, is_permit2_payload
+from ..types import (
+    ERC6492SignatureData,
+    ExactEIP3009Payload,
+    TransactionReceipt,
+    is_permit2_payload,
+)
 from ..utils import (
     bytes_to_hex,
     get_evm_chain_id,
@@ -441,7 +446,7 @@ class ExactEvmScheme:
                 data_suffix=data_suffix,
             )
 
-            def _validate_transfer(receipt):
+            def _validate_transfer(receipt: TransactionReceipt) -> SettleResponse | None:
                 if receipt.logs is not None and not verify_eip3009_transfer_event(
                     receipt.logs,
                     token_address,

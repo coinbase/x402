@@ -393,14 +393,11 @@ func SettleDeposit(
 	var (
 		txHash            string
 		receiptWaitSigner = signer
-		// unconfirmedBundleHash is set when the extension signer returned a single
-		// hash for the two-request (approve + deposit) send. A single hash is
-		// documented to mean the signer executed both atomically as a bundle, but a
-		// non-conforming signer could return one hash after only broadcasting the
-		// approve. A successful receipt for that hash only proves *some*
-		// transaction didn't revert, not that the deposit call ran — so this case
-		// must not report success without confirming the deposit landed onchain
-		// (see the balance check below).
+		// A single hash from the two-request (approve + deposit) send means the signer
+		// bundled them atomically, but a non-conforming signer could return one hash
+		// after broadcasting only the approve. Its receipt then proves some transaction
+		// didn't revert, not that the deposit ran, so success requires the balance
+		// check below.
 		unconfirmedBundleHash bool
 	)
 	if permit2Branch != nil && permit2Branch.kind == permit2BranchErc20Approval {
@@ -477,13 +474,10 @@ func SettleDeposit(
 	}
 
 	balanceConfirmed := postState != nil && postState.Balance != nil && postState.Balance.Cmp(expectedMinBalance) >= 0
-	// A single-hash bundle's receipt only proves some transaction didn't revert, not that
-	// the deposit call ran, so it must be balance-confirmed. A definitive read (readErr == nil)
-	// showing the deposit missing is terminal; if the confirming read itself failed the deposit
-	// is unconfirmed, so report settlement_pending with the broadcast hash for the caller to
-	// reconcile rather than asserting success. Sequential/base-signer paths leave
-	// unconfirmedBundleHash false: their own receipt confirms the deposit, so a read failure
-	// falls through to the optimistic state below.
+	// A read showing the deposit missing (readErr == nil) is terminal; a failed read leaves
+	// it unconfirmed, so report settlement_pending for the caller to reconcile. Sequential
+	// and base-signer paths leave unconfirmedBundleHash false, so a read failure there falls
+	// through to the optimistic state below.
 	if unconfirmedBundleHash && !balanceConfirmed {
 		if readErr == nil {
 			return nil, x402.NewSettleError(ErrDepositTransactionFailed, config.Payer, network, txHash,

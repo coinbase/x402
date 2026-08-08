@@ -25,7 +25,7 @@ from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
 from ...settle_receipt import wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
-from ...types import ERC6492SignatureData
+from ...types import ERC6492SignatureData, TransactionReceipt
 from ...utils import (
     bytes_to_hex,
     final_hash_from_two_request_send,
@@ -235,13 +235,11 @@ def settle_deposit(
             if deploy_err is not None:
                 return deploy_err
 
-        # Set when the extension signer returned a single hash for the two-request
-        # (approve + deposit) send. A single hash is documented to mean the signer
-        # executed both atomically as a bundle, but a non-conforming signer could
-        # return one hash after only broadcasting the approve. A successful receipt
-        # for that hash only proves *some* transaction didn't revert, not that the
-        # deposit call ran, so this case must confirm the deposit landed onchain
-        # (via the balance check in _build_deposit_success) before reporting success.
+        # A single hash from the two-request (approve + deposit) send means the signer
+        # bundled them atomically, but a non-conforming signer could return one hash
+        # after broadcasting only the approve. Its receipt then proves some transaction
+        # didn't revert, not that the deposit ran, so success requires the balance check
+        # in _build_deposit_success.
         unconfirmed_bundle_hash = False
         if execution.kind == "erc20Approval":
             assert execution.extension_signer is not None
@@ -270,7 +268,7 @@ def settle_deposit(
                 data_suffix=data_suffix,
             )
 
-        def _build_deposit_success(_receipt):
+        def _build_deposit_success(_receipt: TransactionReceipt) -> SettleResponse:
             verified_extra = verified.extra or {}
             optimistic = {
                 "channelState": {
@@ -286,11 +284,9 @@ def settle_deposit(
 
             expected_min_balance = int(optimistic["channelState"]["balance"])
             deadline = time.time() + 2.0
-            # True only when a read *succeeds* and definitively shows the deposit
-            # missing — distinct from a read error (e.g. RPC flake), which is
-            # tolerated below via the optimistic fallback since the bundle's own
-            # receipt already confirmed success.
             balance_confirmed = False
+            # Set only when a read succeeds and shows the deposit missing, as opposed
+            # to a read that failed outright and leaves the balance unknown.
             balance_read_without_confirmation = False
             try:
                 post_state = read_channel_state(signer, voucher.channel_id)
@@ -316,10 +312,8 @@ def settle_deposit(
                 extra = optimistic
 
             if unconfirmed_bundle_hash and not balance_confirmed:
-                # A single-hash bundle's receipt only proves some tx didn't revert, not
-                # that the deposit landed. A definitive read (balance_read_without_confirmation)
-                # showing the deposit missing is terminal; a failed read leaves it unconfirmed,
-                # so report settlement_pending with the broadcast hash for the caller to reconcile.
+                # A read showing the deposit missing is terminal; a failed read leaves it
+                # unconfirmed, so report settlement_pending for the caller to reconcile.
                 if balance_read_without_confirmation:
                     return SettleResponse(
                         success=False,

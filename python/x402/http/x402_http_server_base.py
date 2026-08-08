@@ -62,21 +62,6 @@ logger = logging.getLogger("x402")
 
 PAYMENT_REQUIRED_CACHE_CONTROL = "no-store"
 
-# Wire value for a broadcast settle whose receipt could not be confirmed. Mirrored
-# from mechanisms/evm to avoid an http -> mechanisms import.
-_SETTLEMENT_PENDING_REASON = "settlement_pending"
-
-
-def _sanitized_failure_transaction(error_reason: str | None, transaction: str) -> str:
-    """Returns the broadcast transaction hash for a failed settlement only when the
-    failure is settlement_pending. Every other terminal reason must not surface a
-    transaction value, regardless of whether the failure arrived as a `SettleError`
-    or a direct `SettleResponse` (e.g. from a remote facilitator client).
-    """
-    if error_reason == _SETTLEMENT_PENDING_REASON:
-        return transaction
-    return ""
-
 
 def with_private_cache_control(value: str | None) -> str:
     """Append the ``private`` directive to an existing Cache-Control header value."""
@@ -763,20 +748,11 @@ class x402HTTPServerBase:
             )
 
             if not settle_response.success:
-                error_reason = settle_response.error_reason or "Settlement failed"
-                sanitized_transaction = _sanitized_failure_transaction(
-                    error_reason, settle_response.transaction
-                )
-                # Sanitize before header encoding — the PAYMENT-RESPONSE header is
-                # built from this response, so the stripped hash must land there too.
-                sanitized_response = settle_response.model_copy(
-                    update={"transaction": sanitized_transaction}
-                )
                 failure = ProcessSettleResult(
                     success=False,
-                    error_reason=error_reason,
-                    headers=self._create_settlement_headers(sanitized_response, requirements),
-                    transaction=sanitized_transaction,
+                    error_reason=settle_response.error_reason or "Settlement failed",
+                    headers=self._create_settlement_headers(settle_response, requirements),
+                    transaction=settle_response.transaction,
                     network=settle_response.network,
                     payer=settle_response.payer,
                 )
@@ -792,14 +768,11 @@ class x402HTTPServerBase:
             )
 
         except SettleError as e:
-            sanitized_transaction = _sanitized_failure_transaction(
-                e.error_reason, e.transaction or ""
-            )
             settle_response = SettleResponse(
                 success=False,
                 error_reason=e.error_reason,
                 error_message=e.error_message or e.error_reason,
-                transaction=sanitized_transaction,
+                transaction=e.transaction or "",
                 network=requirements.network,
                 payer=e.payer,
             )

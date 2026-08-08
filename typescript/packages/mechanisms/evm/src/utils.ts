@@ -55,11 +55,7 @@ export function createPermit2Nonce(): string {
   return BigInt(toHex(randomBytes)).toString();
 }
 
-/**
- * Bounds error text sourced from RPC/transport failures (e.g. a waitForTransactionReceipt
- * error) before it is placed in a settle/verify error message. Matches the truncation length
- * used by the Go and Python SDKs so wire behavior is consistent across languages.
- */
+/** Matches the truncation length used by the Go and Python SDKs. */
 export const MAX_ERROR_MESSAGE_LENGTH = 500;
 
 /**
@@ -82,7 +78,9 @@ export function truncateErrorMessage(message: string): string {
  * @param txHashes - Hashes returned by the signer for the two-request broadcast
  * @returns The final transaction hash, or undefined if the hash count is invalid
  */
-export function finalHashFromTwoRequestSend(txHashes: readonly string[]): string | undefined {
+export function finalHashFromTwoRequestSend<T extends string>(
+  txHashes: readonly T[],
+): T | undefined {
   if (txHashes.length !== 1 && txHashes.length !== 2) {
     return undefined;
   }
@@ -90,11 +88,9 @@ export function finalHashFromTwoRequestSend(txHashes: readonly string[]): string
 }
 
 /**
- * Validates an external-signer transaction hash before a receipt wait: 32-byte hex,
- * 0x-prefixed, and non-zero. The all-zero hash is rejected so a signer that reports
- * success with a placeholder hash fails terminally rather than surfacing
- * settlement_pending with a hash that reconciles to nothing. Matches the Go and
- * Python SDKs.
+ * Checks that a signer-supplied transaction hash is usable for a receipt wait. The all-zero
+ * hash is rejected because it reconciles to nothing, so a signer reporting success with a
+ * placeholder fails terminally instead of as settlement_pending.
  *
  * @param hash - Transaction hash returned by the signer
  * @returns True if the hash is a well-formed, non-zero 32-byte hash

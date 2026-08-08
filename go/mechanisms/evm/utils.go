@@ -12,7 +12,9 @@ import (
 	x402 "github.com/x402-foundation/x402/go/v2"
 )
 
-// IsValidTxHash validates external-signer hashes before a receipt wait.
+// IsValidTxHash reports whether a signer-supplied hash is usable for a receipt wait: 0x
+// followed by 64 hex digits, and non-zero. The all-zero hash reconciles to nothing, so a
+// signer reporting success with a placeholder fails terminally instead of as pending.
 func IsValidTxHash(hash string) bool {
 	if len(hash) != 66 || !strings.HasPrefix(hash, "0x") {
 		return false
@@ -40,18 +42,13 @@ func FinalHashFromTwoRequestSend(txHashes []string) (string, bool) {
 	return txHashes[len(txHashes)-1], true
 }
 
-// MaxErrorMessageLength bounds error text sourced from RPC/transport failures (e.g. a
-// waitForTransactionReceipt error) before it is placed in a settle/verify error message.
-// Matches the truncation length used by the Python and TypeScript SDKs so wire behavior
-// is consistent across languages.
+// MaxErrorMessageLength matches the truncation length used by the Python and TypeScript SDKs.
 const MaxErrorMessageLength = 500
 
 // TruncateErrorMessage bounds raw error text (e.g. from an RPC client) before it is placed
 // in a settle/verify ErrorMessage. RPC/transport errors can carry node URLs, request bodies,
-// or other verbose data that should not be echoed to callers unbounded.
-//
-// Truncation counts runes, not bytes, matching the character-based truncation in the
-// Python and TypeScript SDKs and avoiding a cut in the middle of a multi-byte UTF-8 rune.
+// or other verbose data that should not be echoed to callers unbounded. Truncation counts
+// runes so a multi-byte UTF-8 rune is never cut in half.
 func TruncateErrorMessage(msg string) string {
 	runes := []rune(msg)
 	if len(runes) <= MaxErrorMessageLength {

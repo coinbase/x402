@@ -89,20 +89,22 @@ export async function waitAndReturnSettleResponse(
       ...(amount !== undefined ? { amount } : {}),
     };
   } catch (error) {
-    // The broadcast confirmed but the receipt could not be processed (event parsing,
-    // amount decoding, or a malformed receipt threw). The transaction is on-chain with an
-    // unknown effect, so this is non-terminal: keep the hash under settlement_pending for
-    // the caller to reconcile rather than reporting a terminal failure that could prompt a
-    // double-spend retry. A reverted receipt and an explicit validation failure return
-    // above and remain terminal.
+    // Processing a confirmed receipt threw, leaving the transaction onchain with an unknown
+    // effect. A reverted receipt and an explicit validation failure return above and stay
+    // terminal; this does not.
     return settlementPendingResponse(tx, network, payer, error);
   }
 }
 
 /**
- * Non-terminal settlement failure: the broadcast confirmed on-chain but its effect could
- * not be established (receipt-wait failure or an error while processing the receipt). The
- * broadcast hash is preserved for the caller to reconcile against.
+ * Builds the non-terminal failure for a broadcast whose effect could not be established,
+ * preserving the hash for the caller to reconcile against.
+ *
+ * @param tx - The broadcast transaction hash
+ * @param network - Network the transaction was broadcast to
+ * @param payer - The payer address
+ * @param error - The receipt-wait or receipt-processing error
+ * @returns Failed settle response with reason `settlement_pending`
  */
 function settlementPendingResponse(
   tx: `0x${string}`,

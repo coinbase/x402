@@ -13,7 +13,7 @@ import {
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../../exact/extensions";
-import { getAddress, encodeFunctionData, isHash } from "viem";
+import { getAddress, encodeFunctionData } from "viem";
 import { appendDataSuffix, resolveDataSuffix } from "../../shared/extensions";
 import {
   PERMIT2_ADDRESS,
@@ -33,7 +33,7 @@ import {
 } from "./errors";
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload } from "../../types";
-import { finalHashFromTwoRequestSend, getEvmChainId } from "../../utils";
+import { finalHashFromTwoRequestSend, getEvmChainId, isValidTxHash } from "../../utils";
 import { validateErc20ApprovalForPayment } from "../../shared/erc20approval";
 import { verifyTypedDataSignature } from "../../shared/verifySignature";
 import {
@@ -555,7 +555,7 @@ async function settleUptoWithERC20Approval(
     ]);
 
     const settleTxHash = finalHashFromTwoRequestSend(txHashes);
-    if (!settleTxHash || !isHash(settleTxHash)) {
+    if (!settleTxHash || !isValidTxHash(settleTxHash)) {
       throw new Error(
         `${ErrErc20ApprovalTxFailed}: extension signer returned no valid settlement transaction hash`,
       );
