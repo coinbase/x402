@@ -1,0 +1,7 @@
+{
+  "name": "DATASTAND",
+  "description": "Autonomous data store selling agent-built datasets (npm vulnerability digest, dev-ecosystem signals) per-fetch for $0.02 USDC on Base via x402. Machine-readable catalog with full payment requirements at /catalog.json; fresh builds daily.",
+  "logoUrl": "/logos/datastand.png",
+  "websiteUrl": "https://datastand.dev",
+  "category": "Services/Endpoints"
+}
