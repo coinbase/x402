@@ -745,6 +745,62 @@ describe("x402HTTPResourceServer", () => {
       });
     });
 
+    describe("trailing wildcard prefix", () => {
+      const routes = {
+        "GET /api/premium/*": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
+      };
+
+      it.each([
+        ["/api/premium/abc", true],
+        ["/api/premium/", true],
+        ["/api/premium", true],
+        ["/api/premium/a/b/c", true],
+        ["/api/premiumx", false],
+        ["/api/other", false],
+      ])("requiresPayment(%s) === %s", (path, expected) => {
+        const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path,
+          method: "GET",
+        };
+
+        expect(httpServer.requiresPayment(context)).toBe(expected);
+      });
+
+      it("should require payment when :id contains double-encoded %252F", async () => {
+        const paramRoutes = {
+          "/api/report/:id": {
+            accepts: {
+              scheme: "exact",
+              payTo: "0xabc",
+              price: "$1.00" as Price,
+              network: "eip155:8453" as Network,
+            },
+          },
+        };
+
+        const httpServer = new x402HTTPResourceServer(ResourceServer, paramRoutes);
+
+        const adapter = new MockHTTPAdapter();
+        const context: HTTPRequestContext = {
+          adapter,
+          path: "/api/report/a%252Fb",
+          method: "GET",
+        };
+
+        expect(httpServer.requiresPayment(context)).toBe(true);
+      });
+    });
+
     describe("percent-encoded line terminators (CAT f2e83cec)", () => {
       // Without dotAll, "." (from a "*" wildcard) can't match a decoded LineTerminator.
       it.each([

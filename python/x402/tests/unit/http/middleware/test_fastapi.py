@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from starlette.datastructures import Headers, QueryParams
 
+from x402 import x402Facilitator, x402ResourceServer
 from x402.http.facilitator_client_base import FacilitatorResponseError
 from x402.http.middleware.fastapi import (
     FastAPIAdapter,
@@ -30,6 +31,12 @@ from x402.http.types import (
 )
 from x402.schemas import PaymentPayload, PaymentRequirements
 from x402.schemas.hooks import PaymentCancellationDispatcher, VerifiedPaymentCancelOptions
+
+from ....mocks import (
+    CashFacilitatorClient,
+    CashSchemeNetworkFacilitator,
+    CashSchemeNetworkServer,
+)
 
 # =============================================================================
 # Helpers
@@ -72,6 +79,7 @@ def make_mock_fastapi_request(
     mock_request.url.path = path
     mock_request.url.__str__ = lambda self: f"https://example.com{path}"
     mock_request.state = MagicMock()
+    mock_request.scope = {"raw_path": path.encode("ascii")}
     return mock_request
 
 
@@ -921,3 +929,64 @@ class TestPaymentMiddlewareASGI:
 
         assert hasattr(middleware, "_middleware")
         assert callable(middleware._middleware)
+
+
+class TestEncodedPathBypass:
+    @staticmethod
+    def _bypass_routes() -> dict[str, RouteConfig]:
+        option = PaymentOption(
+            scheme="cash",
+            pay_to="Alice",
+            price="$0.01",
+            network="x402:cash",
+        )
+        return {
+            "GET /api/report/:id": RouteConfig(accepts=option),
+            "GET /api/premium/*": RouteConfig(accepts=option),
+        }
+
+    @staticmethod
+    def _cash_server() -> x402ResourceServer:
+        facilitator = x402Facilitator().register(
+            ["x402:cash"],
+            CashSchemeNetworkFacilitator(),
+        )
+        server = x402ResourceServer(CashFacilitatorClient(facilitator))
+        server.register("x402:cash", CashSchemeNetworkServer())
+        server.initialize()
+        return server
+
+    @pytest.fixture()
+    def client(self):
+        app = FastAPI()
+
+        @app.middleware("http")
+        async def x402_middleware(request: Request, call_next):
+            return await payment_middleware(
+                self._bypass_routes(),
+                self._cash_server(),
+                sync_facilitator_on_start=False,
+            )(request, call_next)
+
+        @app.api_route("/{path:path}", methods=["GET"])
+        async def catch_all(path: str) -> dict[str, str]:
+            return {"status": "ok"}
+
+        return TestClient(app)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/report/baseline",
+            "/api/report/a%2Fb",
+            "/api/report/a%252Fb",
+            "/api/report/a%5Cb",
+            "/api/premium/",
+            "/api/premium",
+        ],
+    )
+    def test_protected_paths_return_402(self, client, path: str) -> None:
+        assert client.get(path).status_code == 402
+
+    def test_unrelated_path_is_not_gated(self, client) -> None:
+        assert client.get("/health").status_code == 200

@@ -1,7 +1,7 @@
 """Route matching tests for the shared HTTP server base.
 
-Regression coverage for wildcard (`*`) route patterns and a payment-gate
-bypass via a line feed, which a naive `.` wildcard cannot cross.
+Regression coverage for wildcard (`*`) route patterns, path normalization
+bypasses (CWE-436), and a payment-gate bypass via a line feed.
 """
 
 from __future__ import annotations
@@ -58,3 +58,74 @@ class TestWildcardLineFeedBypass:
     )
     def test_line_feed_in_wildcard_tail_still_requires_payment(self, path: str) -> None:
         assert self._server().requires_payment(_context(path)) is True
+
+
+class TestNormalizePath:
+    @pytest.mark.parametrize(
+        ("input_path", "expected"),
+        [
+            ("/api", "/api"),
+            ("/api/", "/api"),
+            ("/api//users", "/api/users"),
+            ("/api?query=1", "/api"),
+            ("/api#fragment", "/api"),
+            ("/api%20space", "/api space"),
+            ("", "/"),
+            ("/api/users/x%2Fy", "/api/users/x%2Fy"),
+            ("/api/users/x%2fy", "/api/users/x%2Fy"),
+            ("/api/users/x%5Cy", "/api/users/x%5Cy"),
+            ("/api/users/x%252Fy", "/api/users/x%2Fy"),
+            ("/api/users/x%zzy", "/api/users/x%zzy"),
+        ],
+    )
+    def test_normalize_path(self, input_path: str, expected: str) -> None:
+        assert x402HTTPServerBase._normalize_path(input_path) == expected
+
+
+class TestRouteMatchingPathNormalizationBypass:
+    @pytest.mark.parametrize(
+        ("pattern", "escaped_path", "should_match"),
+        [
+            ("GET /api/users/:id", "/api/users/1", True),
+            ("GET /api/users/:id", "/api/users/x%2Fy", True),
+            ("GET /api/users/:id", "/api/users/x%2fy", True),
+            ("GET /api/users/:id", "/api/users/x%252Fy", True),
+            ("GET /api/users/:id", "/api/users/x%5Cy", True),
+            ("GET /api/users/:id", "/api/users/x%25y", True),
+            ("GET /api/users/[id]", "/api/users/x%2Fy", True),
+            ("GET /api/users/:id", "/api/users/x/y", False),
+            ("GET /api/premium/*", "/api/premium/abc", True),
+            ("GET /api/premium/*", "/api/premium/", True),
+            ("GET /api/premium/*", "/api/premium", True),
+            ("GET /api/premium/*", "/api/premium/a/b/c", True),
+            ("GET /api/premium/*", "/api/premiumx", False),
+            ("GET /api/premium/*", "/api/other", False),
+            ("GET /api/compute", "/api/compute", True),
+            ("GET /api/compute", "/api/compute/", True),
+            ("GET /api/compute", "/api/computex", False),
+        ],
+        ids=[
+            "param-baseline",
+            "param-encoded-slash",
+            "param-lowercase-encoded-slash",
+            "param-double-encoded-slash",
+            "param-encoded-backslash",
+            "param-encoded-percent",
+            "bracket-param-encoded-slash",
+            "param-real-extra-segment",
+            "wildcard-baseline",
+            "wildcard-trailing-slash",
+            "wildcard-bare-prefix",
+            "wildcard-deep-path",
+            "wildcard-sibling-prefix",
+            "wildcard-unrelated",
+            "static-baseline",
+            "static-trailing-slash",
+            "static-unrelated",
+        ],
+    )
+    def test_route_regex_matches_normalized_path(
+        self, pattern: str, escaped_path: str, should_match: bool
+    ) -> None:
+        server = x402HTTPServerBase(MagicMock(), {pattern: RouteConfig(accepts=[])})
+        assert server.requires_payment(_context(escaped_path)) is should_match

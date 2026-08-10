@@ -15,6 +15,7 @@ pytest.importorskip("flask")
 from flask import Flask, redirect
 from werkzeug.datastructures import Headers, ImmutableMultiDict
 
+from x402 import x402FacilitatorSync, x402ResourceServerSync
 from x402.http.facilitator_client_base import FacilitatorResponseError
 from x402.http.middleware.flask import (
     FlaskAdapter,
@@ -32,6 +33,12 @@ from x402.http.types import (
 )
 from x402.schemas import PaymentPayload, PaymentRequirements
 from x402.schemas.hooks import PaymentCancellationDispatcher, VerifiedPaymentCancelOptions
+
+from ....mocks import (
+    CashFacilitatorClientSync,
+    CashSchemeNetworkFacilitator,
+    CashSchemeNetworkServer,
+)
 
 # =============================================================================
 # Helpers
@@ -1035,3 +1042,63 @@ def test_payment_middleware_from_config_builds_with_sync_server():
     )
 
     assert middleware is not None
+
+
+class TestEncodedPathBypass:
+    @staticmethod
+    def _bypass_routes() -> dict[str, RouteConfig]:
+        option = PaymentOption(
+            scheme="cash",
+            pay_to="Alice",
+            price="$0.01",
+            network="x402:cash",
+        )
+        return {
+            "GET /api/report/:id": RouteConfig(accepts=option),
+            "GET /api/premium/*": RouteConfig(accepts=option),
+        }
+
+    @staticmethod
+    def _cash_server() -> x402ResourceServerSync:
+        facilitator = x402FacilitatorSync().register(
+            ["x402:cash"],
+            CashSchemeNetworkFacilitator(),
+        )
+        server = x402ResourceServerSync(CashFacilitatorClientSync(facilitator))
+        server.register("x402:cash", CashSchemeNetworkServer())
+        server.initialize()
+        return server
+
+    @pytest.fixture()
+    def client(self):
+        app = Flask(__name__)
+        payment_middleware(
+            app,
+            self._bypass_routes(),
+            self._cash_server(),
+            sync_facilitator_on_start=False,
+        )
+
+        @app.route("/", defaults={"path": ""})
+        @app.route("/<path:path>")
+        def catch_all(path: str) -> tuple[str, int]:
+            return "ok", 200
+
+        return app.test_client()
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/report/baseline",
+            "/api/report/a%2Fb",
+            "/api/report/a%252Fb",
+            "/api/report/a%5Cb",
+            "/api/premium/",
+            "/api/premium",
+        ],
+    )
+    def test_protected_paths_return_402(self, client, path: str) -> None:
+        assert client.get(path).status_code == 402
+
+    def test_unrelated_path_is_not_gated(self, client) -> None:
+        assert client.get("/health").status_code == 200

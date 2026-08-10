@@ -11,7 +11,6 @@ import logging
 import re
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, Literal, Protocol
-from urllib.parse import unquote
 
 from ..schemas import (
     PaymentPayload,
@@ -74,6 +73,25 @@ def with_private_cache_control(value: str | None) -> str:
         return value
 
     return f"{value}, private"
+
+
+def _path_unescape(segment: str) -> str | None:
+    """Decode one path segment; return None if any escape is malformed."""
+    out: list[str] = []
+    i = 0
+    while i < len(segment):
+        if segment[i] != "%":
+            out.append(segment[i])
+            i += 1
+            continue
+        if i + 2 >= len(segment):
+            return None
+        hex_digits = segment[i + 1 : i + 3]
+        if not re.fullmatch(r"[0-9A-Fa-f]{2}", hex_digits):
+            return None
+        out.append(chr(int(hex_digits, 16)))
+        i += 3
+    return "".join(out)
 
 
 # ============================================================================
@@ -968,11 +986,20 @@ class x402HTTPServerBase:
             verb = "*"
             path = pattern
 
+        # A trailing "/*" must also match the bare prefix. _normalize_path strips
+        # the trailing slash, so a request for "/api/premium/" arrives as
+        # "/api/premium", which a literal "/.*?" suffix would not match even
+        # though routers dispatch it to the protected handler.
+        trailing_wildcard = path.endswith("/*")
+        path_for_regex = path[:-2] if trailing_wildcard else path
+
         # Convert to regex
-        regex_pattern = "^" + re.escape(path)
+        regex_pattern = "^" + re.escape(path_for_regex)
         regex_pattern = regex_pattern.replace(r"\*", ".*?")  # Wildcards
         regex_pattern = re.sub(r"\\\[([^\]]+)\\\]", r"[^/]+", regex_pattern)  # [param]
         regex_pattern = re.sub(r":([a-zA-Z_]\w*)", r"[^/]+", regex_pattern)  # :param
+        if trailing_wildcard:
+            regex_pattern += r"(?:/.*?)?"
         regex_pattern += "$"
 
         # re.DOTALL: without it, "." (from a "*" wildcard) does not match a line
@@ -982,17 +1009,29 @@ class x402HTTPServerBase:
 
     @staticmethod
     def _normalize_path(path: str) -> str:
-        """Normalize path for matching."""
-        # Remove query string and fragment
+        """Normalize path for matching.
+
+        The input is expected to be the *escaped* request path, which is the
+        same view HTTP routers use to split a request into segments.
+        Percent-escapes are decoded one segment at a time and any separator they
+        yield is re-escaped, so a decoded byte can never create a segment
+        boundary that the router did not see.
+        """
         path = path.split("?")[0].split("#")[0]
 
-        # Decode URL encoding
-        try:
-            path = unquote(path)
-        except Exception:
-            pass
+        segments = path.split("/")
+        normalized_segments: list[str] = []
+        for segment in segments:
+            decoded = _path_unescape(segment)
+            if decoded is None:
+                # Malformed escape sequence: match on the raw segment rather than
+                # silently widening it.
+                normalized_segments.append(segment)
+                continue
+            decoded = decoded.replace("/", "%2F").replace("\\", "%5C")
+            normalized_segments.append(decoded)
+        path = "/".join(normalized_segments)
 
-        # Normalize slashes
         path = re.sub(r"/+", "/", path)
         path = path.rstrip("/")
 

@@ -238,9 +238,12 @@ def payment_middleware(
 
         # Create adapter and context
         adapter = FastAPIAdapter(request)
+        # Routers dispatch on the escaped path, so route matching must use the
+        # raw request path rather than the decoded URL path.
+        raw_path = request.scope["raw_path"].decode("ascii").split("?")[0]
         context = HTTPRequestContext(
             adapter=adapter,
-            path=request.url.path,
+            path=raw_path,
             method=request.method,
             payment_header=(
                 adapter.get_header("payment-signature") or adapter.get_header("x-payment")

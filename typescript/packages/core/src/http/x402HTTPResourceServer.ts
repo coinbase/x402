@@ -1325,16 +1325,27 @@ export class x402HTTPResourceServer {
   private parseRoutePattern(pattern: string): { verb: string; regex: RegExp; path: string } {
     const [verb, path] = pattern.includes(" ") ? pattern.split(/\s+/) : ["*", pattern];
 
+    // A trailing "/*" must also match the bare prefix. normalizePath strips the
+    // trailing slash, so a request for "/api/premium/" arrives as "/api/premium",
+    // which a literal "/.*?" suffix would not match even though routers dispatch
+    // it to the protected handler.
+    const trailingWildcard = path.endsWith("/*");
+    const pathForRegex = trailingWildcard ? path.slice(0, -2) : path;
+
+    let regexBody = pathForRegex
+      .replace(/\\/g, "\\\\") // Escape backslashes first
+      .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
+      .replace(/\*/g, ".*?") // Wildcards
+      .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters (Next.js style [param])
+      .replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "[^/]+") // Parameters (Express style :param)
+      .replace(/\//g, "\\/"); // Escape slashes
+
+    if (trailingWildcard) {
+      regexBody += "(?:/.*?)?";
+    }
+
     const regex = new RegExp(
-      `^${
-        path
-          .replace(/\\/g, "\\\\") // Escape backslashes first
-          .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
-          .replace(/\*/g, ".*?") // Wildcards
-          .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters (Next.js style [param])
-          .replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "[^/]+") // Parameters (Express style :param)
-          .replace(/\//g, "\\/") // Escape slashes
-      }$`,
+      `^${regexBody}$`,
       // "s" (dotAll): without it, "." can't match LF/CR/U+2028/U+2029, so a wildcard segment containing one fails to match.
       "is",
     );

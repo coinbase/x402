@@ -52,6 +52,15 @@ from ._bazaar_utils import (
 
 logger = logging.getLogger(__name__)
 
+
+def _route_matching_path(environ: dict[str, Any]) -> str:
+    """Return the escaped request path used for route matching."""
+    raw = environ.get("RAW_URI") or environ.get("REQUEST_URI")
+    if raw:
+        return str(raw).split("?")[0]
+    return str(environ.get("PATH_INFO", "/"))
+
+
 # ============================================================================
 # Flask Adapter
 # ============================================================================
@@ -331,7 +340,7 @@ class PaymentMiddleware:
             adapter = FlaskAdapter(request)
             context = HTTPRequestContext(
                 adapter=adapter,
-                path=request.path,
+                path=_route_matching_path(environ),
                 method=request.method,
                 payment_header=(
                     adapter.get_header("payment-signature") or adapter.get_header("x-payment")
