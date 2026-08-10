@@ -248,7 +248,7 @@ After spec approval, implement in a **single SDK** (TypeScript, Python OR Go).
 |------|---------|-----------|
 | Unit | Isolated component tests | [`typescript/packages/mechanisms/evm/test/unit/`](typescript/packages/mechanisms/evm/test/unit/) |
 | Integration | Client/server/facilitator flow | [`typescript/packages/mechanisms/evm/test/integrations/`](typescript/packages/mechanisms/evm/test/integrations/) |
-| E2E | Full stack across SDKs | [`e2e/`](e2e/) |
+| E2E | Full stack across SDKs | [`e2e/`](e2e/) — see [Add a network](e2e/README.md#add-a-network): `config/mechanisms_<id>.json` + scheme registration in each language’s shared server/client/facilitator module (HTTP/MCP routes come from the catalog) |
 
 **Examples:**
 - Keep existing user-facing examples minimal

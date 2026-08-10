@@ -54,9 +54,10 @@ uv run pytest tests/integrations/
 
 ### E2E tests
 
-- The `e2e/` harness runs every client × server × facilitator combination. Requires funded testnet accounts.
-- Register the network signer in the facilitator and all client frameworks. 
-- Add protected routes for all server frameworks. 
+- The `e2e/` harness runs client × server × facilitator combinations from the mechanisms catalog. Requires funded testnet accounts.
+- Add `e2e/config/mechanisms_<id>.json` (`env`, `testnet`/`mainnet`, `routes` with `sdks`). Do **not** edit per-framework route lists or CAIP-2 pattern tables — HTTP/MCP endpoints are derived from the catalog.
+- Register the scheme once per language in the shared modules only: `e2e/servers/<lang>/`, `e2e/clients/<lang>/`, `e2e/facilitators/<lang>/`.
+- Add wallet/payee placeholders to `e2e/.env-local`.
 - Run them and confirm all pass.
 
 ```bash
