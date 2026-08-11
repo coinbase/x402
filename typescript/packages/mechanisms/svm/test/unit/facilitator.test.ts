@@ -22,6 +22,15 @@ function makeComputePriceData(microLamports: bigint): Uint8Array {
   return new Uint8Array(buf);
 }
 
+// Encodes a SetComputeUnitLimit instruction: discriminator(2) + units as u32 LE
+function makeComputeLimitData(units: number): Uint8Array {
+  const buf = new ArrayBuffer(5);
+  const view = new DataView(buf);
+  view.setUint8(0, 2);
+  view.setUint32(1, units, true);
+  return new Uint8Array(buf);
+}
+
 describe("ExactSvmScheme", () => {
   let mockSigner: FacilitatorSvmSigner;
 
@@ -285,6 +294,88 @@ describe("ExactSvmScheme", () => {
         (
           facilitator as unknown as { verifyComputePriceInstruction: (i: unknown) => void }
         ).verifyComputePriceInstruction(instruction),
+      ).not.toThrow();
+    });
+  });
+
+  describe("operator-configurable limits", () => {
+    const priceInstruction = (microLamports: bigint) => ({
+      programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      data: makeComputePriceData(microLamports),
+    });
+    const limitInstruction = (units: number) => ({
+      programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      data: makeComputeLimitData(units),
+    });
+    const callPrice = (f: ExactSvmScheme, i: unknown) =>
+      (
+        f as unknown as { verifyComputePriceInstruction: (i: unknown) => void }
+      ).verifyComputePriceInstruction(i);
+    const callLimit = (f: ExactSvmScheme, i: unknown) =>
+      (
+        f as unknown as { verifyComputeLimitInstruction: (i: unknown) => void }
+      ).verifyComputeLimitInstruction(i);
+
+    it("should enforce a lowered maxPriorityFeeMicroLamports", () => {
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        maxPriorityFeeMicroLamports: 5,
+      });
+      expect(() => callPrice(facilitator, priceInstruction(6n))).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high",
+      );
+      expect(() => callPrice(facilitator, priceInstruction(5n))).not.toThrow();
+    });
+
+    it("should keep the default price cap when maxPriorityFeeMicroLamports is unset", () => {
+      const facilitator = new ExactSvmScheme(mockSigner);
+      expect(() =>
+        callPrice(facilitator, priceInstruction(BigInt(MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS))),
+      ).not.toThrow();
+    });
+
+    it("should enforce maxComputeUnits when configured", () => {
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, { maxComputeUnits: 60_000 });
+      expect(() => callLimit(facilitator, limitInstruction(60_001))).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction_too_high",
+      );
+      expect(() => callLimit(facilitator, limitInstruction(60_000))).not.toThrow();
+    });
+
+    it("should not cap compute units when maxComputeUnits is unset", () => {
+      const facilitator = new ExactSvmScheme(mockSigner);
+      expect(() => callLimit(facilitator, limitInstruction(1_400_000))).not.toThrow();
+    });
+
+    // NaN/Infinity reach these options easily via parseInt on an unset env var,
+    // and each degrades differently: a NaN compute-unit or signature ceiling
+    // makes every comparison false (no limit), while a NaN priority fee makes
+    // BigInt() throw and rejects every payment under a misleading reason code.
+    it.each([
+      ["maxPriorityFeeMicroLamports", NaN],
+      ["maxPriorityFeeMicroLamports", Infinity],
+      ["maxPriorityFeeMicroLamports", 1.5],
+      ["maxPriorityFeeMicroLamports", -1],
+      ["maxComputeUnits", NaN],
+      ["maxComputeUnits", Infinity],
+      ["maxComputeUnits", -1],
+      ["maxComputeUnits", 0],
+      ["maxRequiredSignatures", NaN],
+      ["maxRequiredSignatures", Infinity],
+      ["maxRequiredSignatures", 0],
+    ])("should reject %s = %s at construction", (option, value) => {
+      expect(
+        () => new ExactSvmScheme(mockSigner, undefined, { [option]: value as number }),
+      ).toThrow(option);
+    });
+
+    it("should accept the boundary values of each limit", () => {
+      expect(
+        () =>
+          new ExactSvmScheme(mockSigner, undefined, {
+            maxPriorityFeeMicroLamports: 0,
+            maxComputeUnits: 1,
+            maxRequiredSignatures: 1,
+          }),
       ).not.toThrow();
     });
   });
