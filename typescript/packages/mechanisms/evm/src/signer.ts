@@ -92,10 +92,7 @@ export type FacilitatorEvmSigner = {
   sendTransaction(args: { to: `0x${string}`; data: `0x${string}` }): Promise<`0x${string}`>;
   waitForTransactionReceipt(args: {
     hash: `0x${string}`;
-    /**
-     * Milliseconds to wait before giving up. Omitted, the underlying client's own default
-     * applies (180_000 for viem). See {@link FacilitatorEvmSignerOptions.confirmationTimeoutMs}.
-     */
+    /** Milliseconds to wait before giving up; set by {@link toFacilitatorEvmSigner}. */
     timeout?: number;
   }): Promise<{
     status: string;
@@ -178,62 +175,33 @@ export function toClientEvmSigner(
   return result;
 }
 
-/**
- * Default receipt-wait bound in milliseconds, matching viem's `waitForTransactionReceipt`
- * default so wrapping a client stays behavior-preserving when no bound is configured.
- */
-export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 180_000;
-
-/**
- * Optional behavior for {@link toFacilitatorEvmSigner}.
- */
-export type FacilitatorEvmSignerOptions = {
-  /**
-   * Milliseconds to wait for a transaction receipt before giving up.
-   *
-   * Facilitators running under a platform request deadline (serverless functions, gateway
-   * timeouts) should set this a few seconds below that deadline. Otherwise the default wait
-   * outlives the platform limit, the process is killed mid-wait, and the caller receives a
-   * 5xx with no transaction hash instead of `settlement_pending` with a hash to reconcile
-   * against.
-   *
-   * @default 180_000 (viem's `waitForTransactionReceipt` default)
-   */
-  confirmationTimeoutMs?: number;
-};
+/** viem's own `waitForTransactionReceipt` default, so wrapping is behavior-preserving. */
+const DEFAULT_CONFIRMATION_TIMEOUT_MS = 180_000;
 
 /**
  * Converts a viem client with single address to a FacilitatorEvmSigner
  * Wraps the single address in a getAddresses() function for compatibility
  *
- * The returned signer bounds every receipt wait at `confirmationTimeoutMs`, so all settle
- * paths (exact, upto, batch-settlement, and the deploy/approval waits) share one deadline
- * without each scheme configuring its own.
+ * Every receipt wait the returned signer performs is bounded by `confirmationTimeoutMs`.
+ * Facilitators behind a platform request deadline (serverless functions, gateway timeouts)
+ * should set it below that deadline, so settlement reports `settlement_pending` with the
+ * broadcast hash instead of the process being killed mid-wait.
  *
  * @param client - The client to convert (must have 'address' property)
- * @param options - Optional signer behavior; see {@link FacilitatorEvmSignerOptions}
+ * @param options - Optional signer behavior
+ * @param options.confirmationTimeoutMs - Receipt-wait bound in milliseconds. Defaults to 180_000.
  * @returns FacilitatorEvmSigner with getAddresses() support
- *
- * @example
- * ```typescript
- * // Serverless function with a 30s request deadline
- * const signer = toFacilitatorEvmSigner(client, { confirmationTimeoutMs: 25_000 });
- * ```
  */
 export function toFacilitatorEvmSigner(
   client: Omit<FacilitatorEvmSigner, "getAddresses"> & { address: `0x${string}` },
-  options: FacilitatorEvmSignerOptions = {},
+  {
+    confirmationTimeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
+  }: { confirmationTimeoutMs?: number } = {},
 ): FacilitatorEvmSigner {
-  const { confirmationTimeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS } = options;
-
   return {
     ...client,
     getAddresses: () => [client.address],
-    // Callers that pass an explicit timeout keep it; everything else inherits the bound.
     waitForTransactionReceipt: args =>
-      client.waitForTransactionReceipt({
-        ...args,
-        timeout: args.timeout ?? confirmationTimeoutMs,
-      }),
+      client.waitForTransactionReceipt({ ...args, timeout: confirmationTimeoutMs }),
   };
 }

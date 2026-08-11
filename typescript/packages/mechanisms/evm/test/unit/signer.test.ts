@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  DEFAULT_CONFIRMATION_TIMEOUT_MS,
-  toClientEvmSigner,
-  toFacilitatorEvmSigner,
-} from "../../src/signer";
+import { toClientEvmSigner, toFacilitatorEvmSigner } from "../../src/signer";
 import type { ClientEvmSigner } from "../../src/signer";
 
 describe("EVM Signer Converters", () => {
@@ -71,58 +67,32 @@ describe("EVM Signer Converters", () => {
       expect(result.getCode).toBe(mockClient.getCode);
     });
 
-    // viem's default receipt wait is 3 minutes, which outlives the request deadline on most
-    // serverless platforms: the process is killed mid-wait and the caller gets a 5xx with no
-    // hash instead of settlement_pending with a hash to reconcile against. Bounding the wait
-    // on the signer covers every settle path at once, matching the Go (ctx) and Python
-    // (FacilitatorWeb3Signer) SDKs.
+    // The bound is what makes settlement_pending reachable: viem's 3 minute default outlives
+    // the request deadline on most serverless platforms, so the process is killed mid-wait.
     describe("receipt wait bound", () => {
-      const baseClient = {
-        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
-        readContract: async () => BigInt(0),
-        verifyTypedData: async () => true,
-        writeContract: async () => "0xtxhash" as `0x${string}`,
-        getCode: async () => "0x" as `0x${string}`,
-      };
       const hash = `0x${"ab".repeat(32)}` as `0x${string}`;
-
-      it("bounds the wait at viem's default when no timeout is configured", async () => {
-        const waitForTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
-
-        const signer = toFacilitatorEvmSigner({
-          ...baseClient,
+      const clientWith = (waitForTransactionReceipt: unknown) =>
+        ({
+          address: "0x1234567890123456789012345678901234567890",
           waitForTransactionReceipt,
-        } as never);
-        await signer.waitForTransactionReceipt({ hash });
+        }) as never;
 
-        expect(waitForTransactionReceipt).toHaveBeenCalledWith({
-          hash,
-          timeout: DEFAULT_CONFIRMATION_TIMEOUT_MS,
-        });
+      it("defaults to viem's 180s bound", async () => {
+        const wait = vi.fn().mockResolvedValue({ status: "success" });
+
+        await toFacilitatorEvmSigner(clientWith(wait)).waitForTransactionReceipt({ hash });
+
+        expect(wait).toHaveBeenCalledWith({ hash, timeout: 180_000 });
       });
 
-      it("applies the configured confirmationTimeoutMs to every receipt wait", async () => {
-        const waitForTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
+      it("applies a configured confirmationTimeoutMs", async () => {
+        const wait = vi.fn().mockResolvedValue({ status: "success" });
 
-        const signer = toFacilitatorEvmSigner(
-          { ...baseClient, waitForTransactionReceipt } as never,
-          { confirmationTimeoutMs: 25_000 },
-        );
-        await signer.waitForTransactionReceipt({ hash });
+        await toFacilitatorEvmSigner(clientWith(wait), {
+          confirmationTimeoutMs: 25_000,
+        }).waitForTransactionReceipt({ hash });
 
-        expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash, timeout: 25_000 });
-      });
-
-      it("lets an explicit per-call timeout win over the configured bound", async () => {
-        const waitForTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
-
-        const signer = toFacilitatorEvmSigner(
-          { ...baseClient, waitForTransactionReceipt } as never,
-          { confirmationTimeoutMs: 25_000 },
-        );
-        await signer.waitForTransactionReceipt({ hash, timeout: 5_000 });
-
-        expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash, timeout: 5_000 });
+        expect(wait).toHaveBeenCalledWith({ hash, timeout: 25_000 });
       });
     });
   });

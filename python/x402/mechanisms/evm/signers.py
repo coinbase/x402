@@ -33,10 +33,8 @@ from .types import TransactionReceipt, TypedDataDomain, TypedDataField  # noqa: 
 # out-of-gas. 500k covers known smart-account factories with headroom.
 _DEFAULT_TX_GAS_LIMIT = 500_000
 
-# Seconds to wait for a settlement receipt before giving up. Facilitators deployed behind a
-# platform request deadline (serverless functions, gateway timeouts) should pass a value a few
-# seconds below that deadline via `confirmation_timeout_seconds`, so the wait raises and settle
-# can report `settlement_pending` with the broadcast hash instead of the process being killed.
+# Seconds to wait for a settlement receipt before raising. Unchanged from the previous
+# hardcoded bound; override it below a platform request deadline.
 _DEFAULT_CONFIRMATION_TIMEOUT_SECONDS = 120
 
 # ERC20 ABI for balance checks
@@ -284,9 +282,8 @@ class FacilitatorWeb3Signer:
             private_key: Hex private key with or without 0x prefix.
             rpc_url: Ethereum RPC endpoint URL.
             confirmation_timeout_seconds: Seconds to wait for a settlement receipt before
-                raising. Set below your platform's request deadline so the wait raises and
-                settle returns `settlement_pending` with the broadcast hash, rather than the
-                process being killed mid-wait. Defaults to 120.
+                raising. Set below your platform's request deadline so settle returns
+                `settlement_pending` instead of the process being killed mid-wait.
 
         """
         # Normalize private key format
@@ -566,8 +563,7 @@ class FacilitatorWeb3Signer:
             Transaction receipt.
 
         Raises:
-            web3.exceptions.TimeExhausted: The receipt did not arrive within the
-                configured timeout. Callers treat this as `settlement_pending`.
+            web3.exceptions.TimeExhausted: The receipt did not arrive in time.
         """
         if not tx_hash.startswith("0x"):
             tx_hash = "0x" + tx_hash

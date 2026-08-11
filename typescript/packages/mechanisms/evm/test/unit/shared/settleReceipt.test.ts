@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { waitAndReturnSettleResponse } from "../../../src/shared/settleReceipt";
 import { ErrSettlementPending } from "../../../src/exact/facilitator/errors";
-import { toFacilitatorEvmSigner } from "../../../src/signer";
 
 // waitAndReturnSettleResponse is the single place every EVM scheme (exact, upto, batch)
 // decides terminal vs settlement_pending after a broadcast. The boundary:
@@ -99,28 +98,6 @@ describe("waitAndReturnSettleResponse terminal/pending boundary", () => {
         throw new Error("amount parse failed");
       },
     });
-    expect(out.success).toBe(false);
-    expect(out.errorReason).toBe(ErrSettlementPending);
-    expect(out.transaction).toBe(TX);
-  });
-
-  // A signer from toFacilitatorEvmSigner bounds its own receipt wait, so an expired bound
-  // arrives here as an ordinary wait failure: non-terminal, hash preserved.
-  it("returns settlement_pending when a signer-configured bound expires", async () => {
-    const signer = toFacilitatorEvmSigner(
-      {
-        address: "0x1234567890123456789012345678901234567890",
-        waitForTransactionReceipt: async () => {
-          throw new Error("Timed out while waiting for transaction to be confirmed");
-        },
-      } as never,
-      { confirmationTimeoutMs: 25_000 },
-    );
-
-    const out = await waitAndReturnSettleResponse(signer, TX, NETWORK, undefined, {
-      failedStatusReason: FAILED,
-    });
-
     expect(out.success).toBe(false);
     expect(out.errorReason).toBe(ErrSettlementPending);
     expect(out.transaction).toBe(TX);

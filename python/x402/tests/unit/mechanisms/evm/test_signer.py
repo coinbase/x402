@@ -212,12 +212,7 @@ class TestSignerProtocols:
         assert signer._w3.eth.timeout == 120
 
     def test_receipt_wait_honors_configured_timeout(self):
-        """A configured timeout should bound the receipt wait.
-
-        Facilitators behind a platform request deadline set this below that deadline so the
-        wait raises and settle reports settlement_pending with the broadcast hash, instead of
-        the process being killed mid-wait.
-        """
+        """A configured timeout should bound the receipt wait."""
         account = Account.create()
         signer = FacilitatorWeb3Signer(
             private_key=account.key.hex(),
