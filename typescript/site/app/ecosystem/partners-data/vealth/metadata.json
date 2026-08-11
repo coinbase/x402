@@ -1,0 +1,7 @@
+{
+  "name": "Vealth",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/vealth.png",
+  "description": "A public board of priced, provable ecological work for humans and AI agents. Vealth's paid lanes (work packets, verification, and funding doors) are x402 endpoints settling USDC on Base mainnet with standard accepts[], self-settled with no facilitator required.",
+  "websiteUrl": "https://vealth.net/agents.html"
+}
