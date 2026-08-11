@@ -1362,27 +1362,27 @@ export class x402HTTPResourceServer {
   private normalizePath(path: string): string {
     const pathWithoutQuery = path.split(/[?#]/)[0];
 
-    // Decode percent-escapes per segment, preserving encoded path separators
-    // (%2F, %5C) as their literal escaped form. Otherwise an attacker could
-    // hide a "/" inside a single segment (e.g. /api/report/a%2Fb), bypassing
-    // a :param route whose regex compiles to [^/]+ while the framework still
-    // dispatches the request as a single-segment match.
-    const parts = pathWithoutQuery.split(/(%2[fF]|%5[cC])/);
-    const decoded = parts
-      .map((part, i) => {
-        if (i % 2 === 1) return part;
+    // Decode percent-escapes per segment and re-escape any separator the decode
+    // yields, so a decoded byte can never create a segment boundary the router
+    // did not see. "\" is escaped rather than folded into "/" because routers
+    // treat it as an ordinary in-segment character; folding it would split the
+    // path into more segments than the router saw and fail open on a :param
+    // route whose regex compiles to [^/]+.
+    const normalized = pathWithoutQuery
+      .split("/")
+      .map(segment => {
+        let decoded: string;
         try {
-          return decodeURIComponent(part);
+          decoded = decodeURIComponent(segment);
         } catch {
-          return part;
+          // Malformed escape: match the raw segment rather than widening it.
+          return segment;
         }
+        return decoded.replace(/\//g, "%2F").replace(/\\/g, "%5C");
       })
-      .join("");
+      .join("/");
 
-    return decoded
-      .replace(/\\/g, "/")
-      .replace(/\/+/g, "/")
-      .replace(/(.+?)\/+$/, "$1");
+    return normalized.replace(/\/+/g, "/").replace(/(.+?)\/+$/, "$1");
   }
 
   /**
