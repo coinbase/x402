@@ -805,43 +805,6 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.errorReason).toBe(Errors.ErrSettlementPending);
       expect(result.transaction).toBe(MOCK_BROADCAST_TX_HASH);
     });
-
-    // Without a bound below the platform's request deadline, viem's 3-minute default
-    // outlives the process and the settlement_pending path above is never reached.
-    it("should bound the receipt wait with the configured confirmationTimeoutMs", async () => {
-      const requirements: PaymentRequirements = {
-        scheme: "exact",
-        network: "eip155:84532",
-        amount: "1000000",
-        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        payTo: "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0",
-        maxTimeoutSeconds: 300,
-        extra: { name: "USDC", version: "2" },
-      };
-
-      const paymentPayload = await client.createPaymentPayload(2, requirements);
-      const fullPayload: PaymentPayload = {
-        ...paymentPayload,
-        accepted: requirements,
-        resource: { url: "", description: "", mimeType: "" },
-      };
-
-      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue(MOCK_BROADCAST_TX_HASH);
-      mockFacilitatorSigner.waitForTransactionReceipt = vi
-        .fn()
-        .mockResolvedValue({ status: "success" });
-
-      const boundedFacilitator = new ExactEvmScheme(mockFacilitatorSigner, {
-        confirmationTimeoutMs: 25_000,
-      });
-      const result = await boundedFacilitator.settle(fullPayload, requirements);
-
-      expect(result.success).toBe(true);
-      expect(mockFacilitatorSigner.waitForTransactionReceipt).toHaveBeenCalledWith({
-        hash: MOCK_BROADCAST_TX_HASH,
-        timeout: 25_000,
-      });
-    });
   });
 
   describe("Error cases", () => {

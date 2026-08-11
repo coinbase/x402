@@ -10,7 +10,6 @@ import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEvmPayloadV2, ExactEIP3009Payload, isPermit2Payload } from "../../types";
 import { verifyEIP3009, settleEIP3009 } from "./eip3009";
 import { verifyPermit2, settlePermit2 } from "./permit2";
-import { DEFAULT_CONFIRMATION_TIMEOUT_MS } from "../../shared/settleReceipt";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -29,14 +28,6 @@ export interface ExactEvmSchemeConfig {
    * @default false
    */
   simulateInSettle?: boolean;
-  /**
-   * Milliseconds to wait for a settlement receipt before returning `settlement_pending`.
-   * Set below your platform's request deadline so the wait rejects before the process is
-   * killed, letting the facilitator return the broadcast hash instead of a 5xx.
-   *
-   * @default 180_000
-   */
-  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -63,7 +54,6 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     this.config = {
       eip6492AllowedFactories: config?.eip6492AllowedFactories ?? [],
       simulateInSettle: config?.simulateInSettle ?? false,
-      confirmationTimeoutMs: config?.confirmationTimeoutMs ?? DEFAULT_CONFIRMATION_TIMEOUT_MS,
     };
   }
 
@@ -139,7 +129,6 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     if (isPermit2) {
       return settlePermit2(this.signer, payload, requirements, rawPayload, context, {
         simulateInSettle: this.config.simulateInSettle,
-        confirmationTimeoutMs: this.config.confirmationTimeoutMs,
       });
     }
 

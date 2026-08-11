@@ -6,12 +6,6 @@ import { FacilitatorEvmSigner } from "../signer";
 type SettleReceipt = Awaited<ReturnType<FacilitatorEvmSigner["waitForTransactionReceipt"]>>;
 
 /**
- * Default receipt-wait bound in milliseconds, matching viem's `waitForTransactionReceipt`
- * default so this change is behavior-preserving for callers that don't configure one.
- */
-export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 180_000;
-
-/**
  * Optional behavior for {@link waitAndReturnSettleResponse}.
  */
 export interface WaitForSettleReceiptOptions {
@@ -30,17 +24,6 @@ export interface WaitForSettleReceiptOptions {
   amount?: string;
   /** Builds the success response from the receipt when set. */
   onSuccess?: (receipt: SettleReceipt) => SettleResponse | Promise<SettleResponse>;
-  /**
-   * Milliseconds to wait for the receipt before giving up and returning `settlement_pending`.
-   *
-   * Facilitators running under a platform request deadline (serverless functions, gateway
-   * timeouts) should set this a few seconds below that deadline. Otherwise the default wait
-   * outlives the platform limit, the process is killed mid-wait, and the caller gets a 5xx
-   * with no transaction hash instead of `settlement_pending` with a hash to reconcile against.
-   *
-   * @default 180_000 (viem's `waitForTransactionReceipt` default)
-   */
-  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -65,7 +48,6 @@ export async function waitAndReturnSettleResponse(
     validateReceipt,
     amount,
     onSuccess,
-    confirmationTimeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
   } = options;
 
   if (!isValidTxHash(tx)) {
@@ -74,7 +56,7 @@ export async function waitAndReturnSettleResponse(
 
   let receipt;
   try {
-    receipt = await signer.waitForTransactionReceipt({ hash: tx, timeout: confirmationTimeoutMs });
+    receipt = await signer.waitForTransactionReceipt({ hash: tx });
   } catch (error) {
     return settlementPendingResponse(tx, network, payer, error);
   }

@@ -14,8 +14,12 @@ export {
 } from "./exact/client";
 
 // Signers
-export { toClientEvmSigner, toFacilitatorEvmSigner } from "./signer";
-export type { ClientEvmSigner, FacilitatorEvmSigner } from "./signer";
+export {
+  toClientEvmSigner,
+  toFacilitatorEvmSigner,
+  DEFAULT_CONFIRMATION_TIMEOUT_MS,
+} from "./signer";
+export type { ClientEvmSigner, FacilitatorEvmSigner, FacilitatorEvmSignerOptions } from "./signer";
 
 // Types
 export type {

@@ -22,7 +22,6 @@ import {
   simulateEip3009Transfer,
   verifyEip3009TransferEvent,
 } from "../../facilitator/eip3009-utils";
-import { DEFAULT_CONFIRMATION_TIMEOUT_MS } from "../../../shared/settleReceipt";
 
 export interface VerifyV1Options {
   /** Run onchain simulation. Defaults to true. */
@@ -48,13 +47,6 @@ export interface ExactEvmSchemeV1Config {
    * @default false
    */
   simulateInSettle?: boolean;
-  /**
-   * Milliseconds to wait for a settlement receipt. Set below your platform's request deadline
-   * so the wait rejects and settle returns a response, rather than the process being killed.
-   *
-   * @default 180_000
-   */
-  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -78,7 +70,6 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     this.config = {
       eip6492AllowedFactories: config?.eip6492AllowedFactories ?? [],
       simulateInSettle: config?.simulateInSettle ?? false,
-      confirmationTimeoutMs: config?.confirmationTimeoutMs ?? DEFAULT_CONFIRMATION_TIMEOUT_MS,
     };
   }
 
@@ -187,10 +178,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
           });
 
           // Wait for deployment and verify it actually succeeded.
-          const deployReceipt = await this.signer.waitForTransactionReceipt({
-            hash: deployTx,
-            timeout: this.config.confirmationTimeoutMs,
-          });
+          const deployReceipt = await this.signer.waitForTransactionReceipt({ hash: deployTx });
           if (deployReceipt.status !== "success") {
             return {
               success: false,
@@ -226,10 +214,7 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
       );
 
       // Wait for transaction confirmation
-      const receipt = await this.signer.waitForTransactionReceipt({
-        hash: tx,
-        timeout: this.config.confirmationTimeoutMs,
-      });
+      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
 
       if (receipt.status !== "success") {
         return {

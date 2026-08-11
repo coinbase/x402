@@ -24,7 +24,6 @@ import { executeSettle } from "./settle";
 import { executeRefundWithSignature } from "./refund";
 import { resolveDataSuffix } from "../../shared/extensions";
 import * as Errors from "../errors";
-import { DEFAULT_CONFIRMATION_TIMEOUT_MS } from "../../shared/settleReceipt";
 
 export interface BatchSettlementEvmSchemeConfig {
   /**
@@ -36,17 +35,6 @@ export interface BatchSettlementEvmSchemeConfig {
    * @default []
    */
   eip6492AllowedFactories?: string[];
-  /**
-   * Milliseconds to wait for a settlement receipt before returning `settlement_pending`
-   * with the broadcast transaction hash.
-   *
-   * Facilitators behind a platform request deadline (serverless functions, gateway timeouts)
-   * should set this a few seconds below that deadline, so the wait rejects before the process
-   * is killed and the caller receives a hash to reconcile against instead of a 5xx.
-   *
-   * @default 180_000
-   */
-  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -80,7 +68,6 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
   ) {
     this.config = {
       eip6492AllowedFactories: config?.eip6492AllowedFactories ?? [],
-      confirmationTimeoutMs: config?.confirmationTimeoutMs ?? DEFAULT_CONFIRMATION_TIMEOUT_MS,
     };
   }
 
@@ -196,7 +183,6 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
         context,
         dataSuffix,
         this.config.eip6492AllowedFactories,
-        this.config.confirmationTimeoutMs,
       );
     }
 
@@ -207,7 +193,6 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
         requirements,
         this.authorizerSigner,
         dataSuffix,
-        this.config.confirmationTimeoutMs,
       );
     }
 
@@ -218,18 +203,11 @@ export class BatchSettlementEvmScheme implements SchemeNetworkFacilitator {
         requirements,
         this.authorizerSigner,
         dataSuffix,
-        this.config.confirmationTimeoutMs,
       );
     }
 
     if (isBatchSettlementSettlePayload(rawPayload)) {
-      return executeSettle(
-        this.signer,
-        rawPayload,
-        requirements,
-        dataSuffix,
-        this.config.confirmationTimeoutMs,
-      );
+      return executeSettle(this.signer, rawPayload, requirements, dataSuffix);
     }
 
     return {

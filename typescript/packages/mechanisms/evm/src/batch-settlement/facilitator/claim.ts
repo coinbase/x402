@@ -42,7 +42,6 @@ export function buildVoucherClaimArgs(claims: BatchSettlementClaimPayload["claim
  * @param authorizerSigner - Optional dedicated key for producing `ClaimBatch` EIP-712 signatures.
  *   When omitted, the payload must already carry a `claimAuthorizerSignature`.
  * @param dataSuffix - Optional hex suffix appended to the claim transaction.
- * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeClaimWithSignature(
@@ -51,7 +50,6 @@ export async function executeClaimWithSignature(
   requirements: PaymentRequirements,
   authorizerSigner: AuthorizerSigner | undefined,
   dataSuffix?: `0x${string}`,
-  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const network = requirements.network;
   const claimArgs = buildVoucherClaimArgs(payload.claims);
@@ -111,7 +109,6 @@ export async function executeClaimWithSignature(
 
     return await waitAndReturnSettleResponse(signer, tx, network, undefined, {
       failedStatusReason: Errors.ErrClaimTransactionFailed,
-      confirmationTimeoutMs,
     });
   } catch (e) {
     return {

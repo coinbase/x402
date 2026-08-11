@@ -37,19 +37,6 @@ export interface EvmFacilitatorConfig {
    * @default false
    */
   simulateInSettle?: boolean;
-
-  /**
-   * Milliseconds to wait for a settlement receipt before giving up and reporting
-   * `settlement_pending` with the broadcast transaction hash.
-   *
-   * Facilitators deployed behind a request deadline (serverless functions, gateway timeouts)
-   * should set this a few seconds below that deadline. With the default the platform kills the
-   * process mid-wait, so the caller gets a 5xx with no hash instead of `settlement_pending`
-   * with a hash to reconcile against.
-   *
-   * @default 180_000
-   */
-  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -94,7 +81,6 @@ export function registerExactEvmScheme(
     new ExactEvmScheme(config.signer, {
       eip6492AllowedFactories: config.eip6492AllowedFactories,
       simulateInSettle: config.simulateInSettle,
-      confirmationTimeoutMs: config.confirmationTimeoutMs,
     }),
   );
 
@@ -104,7 +90,6 @@ export function registerExactEvmScheme(
     new ExactEvmSchemeV1(config.signer, {
       eip6492AllowedFactories: config.eip6492AllowedFactories,
       simulateInSettle: config.simulateInSettle,
-      confirmationTimeoutMs: config.confirmationTimeoutMs,
     }),
   );
 

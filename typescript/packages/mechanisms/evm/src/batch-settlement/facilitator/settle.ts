@@ -36,7 +36,6 @@ const SETTLE_GAS_LIMIT = 120_000n;
  * @param payload - Settle payload containing the receiver address and token address.
  * @param requirements - Payment requirements for network identification.
  * @param dataSuffix - Optional hex suffix appended to the settlement transaction.
- * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeSettle(
@@ -44,7 +43,6 @@ export async function executeSettle(
   payload: BatchSettlementSettlePayload,
   requirements: PaymentRequirements,
   dataSuffix?: `0x${string}`,
-  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const network = requirements.network;
   const contractAddr = getAddress(BATCH_SETTLEMENT_ADDRESS);
@@ -109,7 +107,6 @@ export async function executeSettle(
 
     return await waitAndReturnSettleResponse(signer, tx, network, undefined, {
       failedStatusReason: Errors.ErrSettleTransactionFailed,
-      confirmationTimeoutMs,
       onSuccess: receipt => {
         let amount = "";
         if (receipt.logs) {

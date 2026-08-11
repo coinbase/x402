@@ -8,7 +8,7 @@ import {
 } from "@x402/core/types";
 import { FacilitatorEvmSigner } from "../../signer";
 import { UptoPermit2Payload, isUptoPermit2Payload } from "../../types";
-import { verifyUptoPermit2, settleUptoPermit2, UptoPermit2FacilitatorConfig } from "./permit2";
+import { verifyUptoPermit2, settleUptoPermit2 } from "./permit2";
 
 /**
  * EVM facilitator implementation for the Upto payment scheme.
@@ -22,12 +22,8 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
    * Creates a new UptoEvmScheme facilitator instance.
    *
    * @param signer - The EVM signer for facilitator operations
-   * @param config - Optional configuration (e.g. receipt-wait bound)
    */
-  constructor(
-    private readonly signer: FacilitatorEvmSigner,
-    private readonly config?: UptoPermit2FacilitatorConfig,
-  ) {}
+  constructor(private readonly signer: FacilitatorEvmSigner) {}
 
   /**
    * Returns extra metadata required by the upto scheme, including the facilitator address.
@@ -110,7 +106,6 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
       requirements,
       rawPayload as UptoPermit2Payload,
       context,
-      this.config,
     );
   }
 }
