@@ -62,6 +62,14 @@ export interface VerifyUptoPermit2Options {
 
 export interface UptoPermit2FacilitatorConfig {
   simulateInSettle?: boolean;
+  /**
+   * Milliseconds to wait for the settlement receipt before returning `settlement_pending`.
+   * Set below your platform's request deadline so the wait rejects before the process is
+   * killed, letting the facilitator return the broadcast hash instead of a 5xx.
+   *
+   * @default 180_000
+   */
+  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -423,6 +431,7 @@ export async function settleUptoPermit2(
       settlementAmount,
       facilitatorAddress,
       dataSuffix,
+      config?.confirmationTimeoutMs,
     );
   }
 
@@ -446,6 +455,7 @@ export async function settleUptoPermit2(
         settlementAmount,
         facilitatorAddress,
         dataSuffix,
+        config?.confirmationTimeoutMs,
       );
     }
   }
@@ -458,6 +468,7 @@ export async function settleUptoPermit2(
     settlementAmount,
     facilitatorAddress,
     dataSuffix,
+    config?.confirmationTimeoutMs,
   );
 }
 
@@ -471,6 +482,7 @@ export async function settleUptoPermit2(
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
  * @param dataSuffix - Optional hex suffix appended to the settlement transaction
+ * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoWithEIP2612(
@@ -481,6 +493,7 @@ async function settleUptoWithEIP2612(
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
   dataSuffix?: `0x${string}`,
+  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
@@ -506,6 +519,7 @@ async function settleUptoWithEIP2612(
     return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
+      confirmationTimeoutMs,
     });
   } catch (error) {
     return mapSettleError(error, payload, payer);
@@ -526,6 +540,7 @@ async function settleUptoWithEIP2612(
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
  * @param dataSuffix - Optional hex suffix appended to the settlement transaction
+ * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoWithERC20Approval(
@@ -536,6 +551,7 @@ async function settleUptoWithERC20Approval(
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
   dataSuffix?: `0x${string}`,
+  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
 
@@ -569,6 +585,7 @@ async function settleUptoWithERC20Approval(
       {
         failedStatusReason: ErrUptoTransactionFailed,
         amount: settlementAmount.toString(),
+        confirmationTimeoutMs,
       },
     );
   } catch (error) {
@@ -585,6 +602,7 @@ async function settleUptoWithERC20Approval(
  * @param settlementAmount - The amount to settle on-chain
  * @param facilitatorAddress - The facilitator address authorized in the witness
  * @param dataSuffix - Optional hex suffix appended to the settlement transaction
+ * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds
  * @returns Promise resolving to a settlement response
  */
 async function settleUptoDirect(
@@ -594,6 +612,7 @@ async function settleUptoDirect(
   settlementAmount: bigint,
   facilitatorAddress: `0x${string}`,
   dataSuffix?: `0x${string}`,
+  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   try {
@@ -608,6 +627,7 @@ async function settleUptoDirect(
     return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: ErrUptoTransactionFailed,
       amount: settlementAmount.toString(),
+      confirmationTimeoutMs,
     });
   } catch (error) {
     return mapSettleError(error, payload, payer);

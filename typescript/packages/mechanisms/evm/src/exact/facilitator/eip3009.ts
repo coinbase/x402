@@ -46,6 +46,12 @@ export interface EIP3009FacilitatorConfig {
    * @default false
    */
   simulateInSettle?: boolean;
+  /**
+   * Milliseconds to wait for the settlement receipt before returning `settlement_pending`.
+   *
+   * @default 180_000
+   */
+  confirmationTimeoutMs?: number;
 }
 
 /**
@@ -378,6 +384,7 @@ export async function settleEIP3009(
     const auth = eip3009Payload.authorization;
     return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: Errors.ErrTransactionFailed,
+      confirmationTimeoutMs: config.confirmationTimeoutMs,
       validateReceipt: receipt => {
         if (
           receipt.logs != null &&

@@ -192,6 +192,7 @@ function buildRefundExtraFromPostState(
  * @param authorizerSigner - Optional dedicated key for producing EIP-712 signatures.
  *   When omitted, the payload must already carry the required authorizer signatures.
  * @param dataSuffix - Optional hex suffix appended to the refund transaction.
+ * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds.
  * @returns A {@link SettleResponse} with the transaction hash on success.
  */
 export async function executeRefundWithSignature(
@@ -200,6 +201,7 @@ export async function executeRefundWithSignature(
   requirements: PaymentRequirements,
   authorizerSigner: AuthorizerSigner | undefined,
   dataSuffix?: `0x${string}`,
+  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const network = requirements.network;
 
@@ -349,6 +351,7 @@ export async function executeRefundWithSignature(
 
     return await waitAndReturnSettleResponse(signer, tx, network, payload.channelConfig.payer, {
       failedStatusReason: Errors.ErrRefundTransactionFailed,
+      confirmationTimeoutMs,
       onSuccess: async () => {
         const postState =
           preState && preState.withdrawRequestedAt !== 0

@@ -321,6 +321,7 @@ async function verifySharedDepositState(
  * @param context - Optional facilitator extension context.
  * @param dataSuffix - Optional hex suffix appended to the deposit transaction.
  * @param allowedFactories - Allowlisted ERC-6492 factory addresses for counterfactual deposits.
+ * @param confirmationTimeoutMs - Optional receipt-wait bound in milliseconds.
  * @returns A {@link SettleResponse} with the transaction hash and updated channel state in `extra`.
  */
 export async function settleDeposit(
@@ -331,6 +332,7 @@ export async function settleDeposit(
   context?: FacilitatorContext,
   dataSuffix?: `0x${string}`,
   allowedFactories: string[] = [],
+  confirmationTimeoutMs?: number,
 ): Promise<SettleResponse> {
   const { deposit, voucher } = payload;
   const config = payload.channelConfig;
@@ -432,6 +434,7 @@ export async function settleDeposit(
 
     return await waitAndReturnSettleResponse(receiptSigner, tx, requirements.network, payer, {
       failedStatusReason: Errors.ErrDepositTransactionFailed,
+      confirmationTimeoutMs,
       onSuccess: async () => {
         const optimisticExtra = {
           channelState: {

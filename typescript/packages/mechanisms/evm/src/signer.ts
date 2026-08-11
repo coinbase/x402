@@ -90,7 +90,15 @@ export type FacilitatorEvmSigner = {
     dataSuffix?: `0x${string}`;
   }): Promise<`0x${string}`>;
   sendTransaction(args: { to: `0x${string}`; data: `0x${string}` }): Promise<`0x${string}`>;
-  waitForTransactionReceipt(args: { hash: `0x${string}` }): Promise<{
+  /**
+   * Waits for a broadcast transaction to be confirmed.
+   *
+   * `timeout` bounds the wait in milliseconds (viem's `waitForTransactionReceipt` default is
+   * 180_000). Facilitators on platforms with a request deadline should set it below that
+   * deadline so the wait rejects — and settlement reports `settlement_pending` with the
+   * broadcast hash — instead of the process being killed mid-wait.
+   */
+  waitForTransactionReceipt(args: { hash: `0x${string}`; timeout?: number }): Promise<{
     status: string;
     logs?: readonly Log[];
   }>;
