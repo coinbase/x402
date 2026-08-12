@@ -8,6 +8,7 @@
  */
 
 import Ajv from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
 import type { DiscoveryExtension, DiscoveryInfo } from "./types";
 import type { McpDiscoveryInfo } from "./mcp/types";
@@ -99,6 +100,7 @@ export interface ValidationResult {
 export function validateDiscoveryExtension(extension: DiscoveryExtension): ValidationResult {
   try {
     const ajv = new Ajv({ strict: false, allErrors: true });
+    addFormats(ajv);
     const validate = ajv.compile(extension.schema);
 
     // The schema describes the structure of info directly
