@@ -253,6 +253,56 @@ describe("Bazaar Discovery Extension", () => {
       expect(result.errors).toBeDefined();
       expect(result.errors!.length).toBeGreaterThan(0);
     });
+
+    it("should reject invalid URI and date-time formats", () => {
+      const declared = declareDiscoveryExtension({
+        method: "GET",
+        input: { source: "not a uri" },
+        inputSchema: {
+          properties: {
+            source: { type: "string", format: "uri" },
+          },
+          required: ["source"],
+        },
+        output: {
+          example: { updatedAt: "not a date" },
+          schema: {
+            properties: {
+              updatedAt: { type: "string", format: "date-time" },
+            },
+            required: ["updatedAt"],
+          },
+        },
+      });
+
+      const result = validateDiscoveryExtension(declared.bazaar);
+      expect(result.valid).toBe(false);
+      expect(result.errors?.some(error => error.includes("format"))).toBe(true);
+    });
+
+    it("should accept valid URI and date-time formats", () => {
+      const declared = declareDiscoveryExtension({
+        method: "GET",
+        input: { source: "https://example.com/data" },
+        inputSchema: {
+          properties: {
+            source: { type: "string", format: "uri" },
+          },
+          required: ["source"],
+        },
+        output: {
+          example: { updatedAt: "2026-08-12T22:00:00Z" },
+          schema: {
+            properties: {
+              updatedAt: { type: "string", format: "date-time" },
+            },
+            required: ["updatedAt"],
+          },
+        },
+      });
+
+      expect(validateDiscoveryExtension(declared.bazaar)).toEqual({ valid: true });
+    });
   });
 
   describe("extractDiscoveryInfoFromExtension", () => {
