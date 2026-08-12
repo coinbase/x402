@@ -445,6 +445,8 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
         payer: valid.payer,
       };
     } catch (error) {
+      // Allow retry before TTL; blockhash may still be valid.
+      this.settlementCache.delete(txKey);
       console.error("Failed to settle transaction:", error);
       return {
         success: false,

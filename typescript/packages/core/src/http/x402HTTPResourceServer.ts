@@ -7,6 +7,7 @@ import {
   SettlePhase,
   resolvePaymentFlow,
   resolvePaymentFlowPhases,
+  resolveFailurePathSettlement,
 } from "../server";
 import {
   decodePaymentSignatureHeader,
@@ -916,6 +917,17 @@ export class x402HTTPResourceServer {
   }
 
   /**
+   * Create settlement response headers
+   *
+   * @param settleResponse - Settlement response
+   * @returns Headers to add to response
+   */
+  createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
+    const encoded = encodePaymentResponseHeader(settleResponse);
+    return { "PAYMENT-RESPONSE": encoded };
+  }
+
+  /**
    * Headers for echoing a completed before-handler settle onto a response.
    * Merges `private` into Cache-Control so shared caches do not store settlement metadata.
    *
@@ -931,6 +943,36 @@ export class x402HTTPResourceServer {
   ): Record<string, string> {
     return {
       ...this.createSettlementHeaders(settlement.result),
+      "Cache-Control": withPrivateCacheControl(existingCacheControl ?? null),
+    };
+  }
+
+  /**
+   * PAYMENT-RESPONSE headers when the resource handler fails after before-handler settle.
+   * Prefers cancel/refund settle when present; otherwise echoes the upfront deposit receipt.
+   *
+   * @param cancelSettlement - Result from {@link PaymentCancellationDispatcher.cancel}, if any
+   * @param beforeHandlerSettlement - Completed before-handler settle, when present
+   * @param paymentPayload - Client payment payload (for escrow deposit recovery fields)
+   * @param existingCacheControl - Existing Cache-Control value, if any
+   * @returns PAYMENT-RESPONSE and Cache-Control headers, or undefined when neither receipt applies
+   */
+  createFailurePathSettlementHeaders(
+    cancelSettlement: SettleResponse | void | undefined,
+    beforeHandlerSettlement?: CompletedSettlement,
+    paymentPayload?: PaymentPayload,
+    existingCacheControl?: string | null,
+  ): Record<string, string> | undefined {
+    const receipt = resolveFailurePathSettlement(
+      cancelSettlement,
+      beforeHandlerSettlement,
+      paymentPayload,
+    );
+    if (!receipt) {
+      return undefined;
+    }
+    return {
+      ...this.createSettlementHeaders(receipt),
       "Cache-Control": withPrivateCacheControl(existingCacheControl ?? null),
     };
   }
@@ -1303,17 +1345,6 @@ export class x402HTTPResourceServer {
         "Cache-Control": PAYMENT_REQUIRED_CACHE_CONTROL,
       },
     };
-  }
-
-  /**
-   * Create settlement response headers
-   *
-   * @param settleResponse - Settlement response
-   * @returns Headers to add to response
-   */
-  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
-    const encoded = encodePaymentResponseHeader(settleResponse);
-    return { "PAYMENT-RESPONSE": encoded };
   }
 
   /**

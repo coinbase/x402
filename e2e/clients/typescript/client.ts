@@ -10,6 +10,7 @@ import { BatchSettlementEvmScheme } from "@x402/evm/batch-settlement/client";
 import { ExactEvmSchemeV1 } from "@x402/evm/v1";
 import { toClientEvmSigner } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { UptoSvmScheme } from "@x402/svm/upto/client";
 import { ExactSvmSchemeV1 } from "@x402/svm/v1";
 import { ExactAptosScheme } from "@x402/aptos/exact/client";
 import { Account, Ed25519PrivateKey, PrivateKey, PrivateKeyVariants } from "@aptos-labs/ts-sdk";
@@ -201,6 +202,10 @@ export async function createE2EClient(): Promise<E2EClientContext> {
     {
       network: networkCaip2Pattern("svm"),
       client: new ExactSvmScheme(svmSigner, svmSchemeOptions),
+    },
+    {
+      network: networkCaip2Pattern("svm"),
+      client: new UptoSvmScheme(svmSigner, svmSchemeOptions),
     },
     {
       network: "solana-devnet",

@@ -17,6 +17,7 @@ export class MockSchemeNetworkServer implements SchemeNetworkServer {
     default: { supported: ["authorization"], default: "authorization" },
   };
   public readonly schemeHooks?: SchemeServerHooks;
+  public settleOnCancel?: SchemeNetworkServer["settleOnCancel"];
   private parsePriceResult: AssetAmount | Error;
   private enhanceResult: PaymentRequirements | Error | null = null;
   private assetDecimalsResult: number | null = null;

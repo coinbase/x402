@@ -206,6 +206,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -281,6 +282,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -360,6 +362,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -448,6 +451,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -526,6 +530,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -592,6 +597,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -670,6 +676,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -748,6 +755,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -826,6 +834,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -969,6 +978,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -1033,6 +1043,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),
@@ -1117,6 +1128,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
 
     const mockSigner = {
       getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
       signTransaction: vi.fn().mockResolvedValue(txBase64),
       simulateTransaction: vi.fn().mockResolvedValue(undefined),
       sendTransaction: vi.fn(),

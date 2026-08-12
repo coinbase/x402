@@ -43,6 +43,7 @@ describe("ExactSvmScheme", () => {
           "FeePayer1111111111111111111111111111",
           "FacilitatorAddress1111111111111111111",
         ]) as never,
+      getSigner: vi.fn() as never,
       signTransactions: vi.fn() as never,
       signMessages: vi.fn().mockResolvedValue([
         {
@@ -506,6 +507,23 @@ describe("ExactSvmScheme", () => {
       expect(result2.errorReason).toBe("duplicate_settlement");
     });
 
+    it("should release the settlement cache when send/confirm fails so a retry can proceed", async () => {
+      const facilitator = new ExactSvmScheme(mockSigner);
+      setupSettleMocks(facilitator);
+      (mockSigner as Record<string, unknown>).sendTransaction = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("rpc send failed"))
+        .mockResolvedValueOnce("txSignature123");
+
+      const payload = makePayload("retryAfterTransientFailure==");
+      const result1 = await facilitator.settle(payload, requirements);
+      expect(result1.success).toBe(false);
+      expect(result1.errorReason).toBe("transaction_failed");
+
+      const result2 = await facilitator.settle(payload, requirements);
+      expect(result2.success).toBe(true);
+    });
+
     it("should allow settlement of distinct transactions", async () => {
       const facilitator = new ExactSvmScheme(mockSigner);
       setupSettleMocks(facilitator);
@@ -592,6 +610,16 @@ describe("ExactSvmScheme", () => {
       expect(v1Result.success).toBe(false);
       expect(v1Result.errorReason).toBe("duplicate_settlement");
     });
+  });
+});
+
+describe("SettlementCache", () => {
+  it("delete releases a key so isDuplicate can accept it again", () => {
+    const cache = new SettlementCache();
+    expect(cache.isDuplicate("pending-tx")).toBe(false);
+    expect(cache.isDuplicate("pending-tx")).toBe(true);
+    cache.delete("pending-tx");
+    expect(cache.isDuplicate("pending-tx")).toBe(false);
   });
 });
 

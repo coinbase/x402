@@ -13,6 +13,7 @@ import type {
   OnVerifiedPaymentCanceledHook,
   SettleContext,
   SettleResultContext,
+  VerifiedPaymentCanceledContext,
 } from "../server/x402ResourceServer";
 import type {
   BeforePaymentCreationHook,
@@ -225,9 +226,22 @@ export interface SchemeNetworkServer {
    */
   readonly paymentFlows: Readonly<Record<string, PaymentFlowConfig>>;
   readonly schemeHooks?: SchemeServerHooks;
+  readonly dynamicExtraFields?: string[];
   enrichPaymentRequiredResponse?: SchemeEnrichPaymentRequiredResponseHook;
   enrichSettlementPayload?: SchemeEnrichSettlementPayloadHook;
   enrichSettlementResponse?: SchemeEnrichSettlementResponseHook;
+
+  /**
+   * Optional: return payment requirements to settle when a verified payment is
+   * canceled (handler failure/throw or post-verify abort). Core calls
+   * `settlePayment` with the returned requirements; return void to skip settle.
+   *
+   * @param context - Cancellation context for the verified payment
+   * @returns Requirements to settle, or void to leave the payment unsettled
+   */
+  settleOnCancel?(
+    context: VerifiedPaymentCanceledContext,
+  ): PaymentRequirements | void | Promise<PaymentRequirements | void>;
 
   /**
    * Convert a user-friendly price to the scheme's specific amount and asset format
