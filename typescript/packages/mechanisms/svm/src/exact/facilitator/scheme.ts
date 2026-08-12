@@ -54,6 +54,8 @@ const DEFAULT_SMART_WALLET_ALLOWED_PROGRAMS = [
   LIGHTHOUSE_PROGRAM_ADDRESS, // Phantom's wallet-protection assertions (see #2097)
 ];
 
+const IX_TOKEN_TRANSFER_CHECKED = 12;
+
 /**
  * Which verification path produced a successful result.
  * Returned by the internal _verify so settle() knows whether post-settlement
@@ -678,6 +680,16 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
       programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
     ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
+        payer,
+      };
+    }
+
+    // parseTransferCheckedInstruction does not assert discriminator 12.
+    const ixData = transferIx.data;
+    if (!ixData || ixData.length < 10 || ixData[0] !== IX_TOKEN_TRANSFER_CHECKED) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
