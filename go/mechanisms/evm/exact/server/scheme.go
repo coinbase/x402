@@ -30,6 +30,23 @@ func (s *ExactEvmScheme) Scheme() string {
 	return evm.SchemeExact
 }
 
+// DefaultAssetTransferMethod returns the ATM used when extra.assetTransferMethod is absent.
+func (s *ExactEvmScheme) DefaultAssetTransferMethod() string {
+	return string(evm.AssetTransferMethodEIP3009)
+}
+
+// PaymentFlows returns ATM-keyed payment flow support for exact EVM.
+func (s *ExactEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
+	auth := x402.PaymentFlowConfig{
+		Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+		Default:   x402.PaymentFlowAuthorization,
+	}
+	return map[string]x402.PaymentFlowConfig{
+		string(evm.AssetTransferMethodEIP3009): auth,
+		string(evm.AssetTransferMethodPermit2): auth,
+	}
+}
+
 // GetAssetDecimals implements AssetDecimalsProvider. Returns the decimal precision for the
 // given asset on the given network, falling back to 6 if the asset is not recognized.
 func (s *ExactEvmScheme) GetAssetDecimals(asset string, network x402.Network) int {

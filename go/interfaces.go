@@ -189,9 +189,43 @@ func (c *FacilitatorContext) GetExtension(key string) FacilitatorExtension {
 	return c.extensions[key]
 }
 
+// PaymentFlowName is a closed set of payment-flow orchestration modes.
+//
+// Multi-settle flows (escrow) fire settle lifecycle hooks once per settle.
+// Side-effecting hooks should branch on SettleContext.Phase.
+type PaymentFlowName string
+
+const (
+	PaymentFlowAuthorization PaymentFlowName = "authorization"
+	PaymentFlowUpfront       PaymentFlowName = "upfront"
+	PaymentFlowEscrow        PaymentFlowName = "escrow"
+)
+
+// PaymentFlowPhases are the verify/settle phase flags for a PaymentFlowName.
+type PaymentFlowPhases struct {
+	VerifyBeforeHandler bool
+	SettleBeforeHandler bool
+	SettleAfterHandler  bool
+}
+
+// PaymentFlowConfig lists supported payment flows for one assetTransferMethod,
+// plus the default when extra.paymentFlow is omitted.
+type PaymentFlowConfig struct {
+	Supported []PaymentFlowName
+	// Default must be a member of Supported.
+	Default PaymentFlowName
+}
+
 // SchemeNetworkServer is implemented by server-side payment mechanisms (V2)
 type SchemeNetworkServer interface {
 	Scheme() string
+	// DefaultAssetTransferMethod is used when requirements.extra.assetTransferMethod
+	// is absent. Use SDKDefaultAssetTransferMethod only as SDK plumbing when the
+	// scheme has no on-wire ATM.
+	DefaultAssetTransferMethod() string
+	// PaymentFlows returns payment flows supported per assetTransferMethod.
+	// Every ATM the scheme accepts must appear here.
+	PaymentFlows() map[string]PaymentFlowConfig
 	ParsePrice(price Price, network Network) (AssetAmount, error)
 	EnhancePaymentRequirements(
 		ctx context.Context,
@@ -207,6 +241,21 @@ type SchemeNetworkServer interface {
 // Falls back to 6 decimals when the scheme does not implement this interface.
 type AssetDecimalsProvider interface {
 	GetAssetDecimals(asset string, network Network) int
+}
+
+// SettleOnCancelProvider is an optional interface for schemes that settle once when a
+// verified payment is canceled (handler failure/throw or post-verify abort).
+// Core calls SettlePayment with the returned requirements and SettlePhaseCancel.
+// Return nil, nil to skip cancel settle.
+type SettleOnCancelProvider interface {
+	SettleOnCancel(ctx VerifiedPaymentCanceledContext) (*types.PaymentRequirements, error)
+}
+
+// DynamicExtraFieldsProvider is an optional interface for schemes that regenerate
+// per-response keys under PaymentRequirements.Extra (e.g. recentBlockhash).
+// FindMatchingRequirements omits these fields from the v2 extra comparison.
+type DynamicExtraFieldsProvider interface {
+	DynamicExtraFields() []string
 }
 
 // PaymentRequiredContext is passed to PaymentRequiredEnricher.EnrichPaymentRequiredResponse.

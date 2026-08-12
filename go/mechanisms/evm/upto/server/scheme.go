@@ -29,6 +29,21 @@ func (s *UptoEvmScheme) Scheme() string {
 	return evm.SchemeUpto
 }
 
+// DefaultAssetTransferMethod returns the ATM used when extra.assetTransferMethod is absent.
+func (s *UptoEvmScheme) DefaultAssetTransferMethod() string {
+	return string(evm.AssetTransferMethodPermit2)
+}
+
+// PaymentFlows returns ATM-keyed payment flow support for upto EVM.
+func (s *UptoEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
+	return map[string]x402.PaymentFlowConfig{
+		string(evm.AssetTransferMethodPermit2): {
+			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+			Default:   x402.PaymentFlowAuthorization,
+		},
+	}
+}
+
 // GetAssetDecimals implements AssetDecimalsProvider. Returns the decimal precision for the
 // given asset on the given network, falling back to 6 if the asset is not recognized.
 func (s *UptoEvmScheme) GetAssetDecimals(asset string, network x402.Network) int {

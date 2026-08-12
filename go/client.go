@@ -246,12 +246,19 @@ func (c *x402Client) SelectPaymentRequirementsV1(requirements []types.PaymentReq
 	return fromView[types.PaymentRequirementsV1](selected), nil
 }
 
-// SelectPaymentRequirements selects a payment requirement (V2, default)
+// SelectPaymentRequirements selects a payment requirement (V2, default).
+//
+// Selection process:
+//  1. Filter by registered schemes (network + scheme support)
+//  2. Drop accepts with unrecognized extra.paymentFlow
+//  3. Apply all registered policies in order
+//  4. Prefer authorization (omit or explicit) over upfront/escrow when both remain
+//  5. Use selector to choose final requirement
 func (c *x402Client) SelectPaymentRequirements(requirements []types.PaymentRequirements) (types.PaymentRequirements, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Filter to supported (use wildcard matching helper)
+	// Step 1: Filter to supported (use wildcard matching helper)
 	var supported []types.PaymentRequirements
 	for _, req := range requirements {
 		network := Network(req.Network)
@@ -270,10 +277,28 @@ func (c *x402Client) SelectPaymentRequirements(requirements []types.PaymentRequi
 		}
 	}
 
-	// Convert to views for selector/policies
-	views := toViews(supported)
+	// Step 2: Drop unrecognized paymentFlow values
+	var recognized []types.PaymentRequirements
+	for _, req := range supported {
+		var flow interface{}
+		if req.Extra != nil {
+			flow = req.Extra["paymentFlow"]
+		}
+		if IsRecognizedPaymentFlow(flow) {
+			recognized = append(recognized, req)
+		}
+	}
+	if len(recognized) == 0 {
+		return types.PaymentRequirements{}, &PaymentError{
+			Code:    ErrCodeUnsupportedScheme,
+			Message: "no payment requirements with a recognized paymentFlow",
+		}
+	}
 
-	// Apply policies
+	// Convert to views for selector/policies
+	views := toViews(recognized)
+
+	// Step 3: Apply policies
 	filtered := views
 	for _, policy := range c.policies {
 		filtered = policy(filtered)
@@ -285,7 +310,23 @@ func (c *x402Client) SelectPaymentRequirements(requirements []types.PaymentRequi
 		}
 	}
 
-	// Select final and convert back
+	// Step 4: Prefer authorization when both post- and pre-handler flows remain
+	var authorizationViews []PaymentRequirementsView
+	for _, req := range filtered {
+		extra := req.GetExtra()
+		var flow interface{}
+		if extra != nil {
+			flow = extra["paymentFlow"]
+		}
+		if flow == nil || flow == string(PaymentFlowAuthorization) {
+			authorizationViews = append(authorizationViews, req)
+		}
+	}
+	if len(authorizationViews) > 0 {
+		filtered = authorizationViews
+	}
+
+	// Step 5: Select final and convert back
 	selected := c.requirementsSelector(filtered)
 	return fromView[types.PaymentRequirements](selected), nil
 }

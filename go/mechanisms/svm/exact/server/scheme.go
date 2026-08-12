@@ -36,6 +36,26 @@ func (s *ExactSvmScheme) Scheme() string {
 	return svm.SchemeExact
 }
 
+// DefaultAssetTransferMethod returns the SDK ATM sentinel (no on-wire ATM).
+func (s *ExactSvmScheme) DefaultAssetTransferMethod() string {
+	return x402.SDKDefaultAssetTransferMethod
+}
+
+// DynamicExtraFields returns extra keys regenerated on each PaymentRequired response.
+func (s *ExactSvmScheme) DynamicExtraFields() []string {
+	return []string{"recentBlockhash", "lastValidBlockHeight"}
+}
+
+// PaymentFlows returns ATM-keyed payment flow support for exact SVM.
+func (s *ExactSvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
+	return map[string]x402.PaymentFlowConfig{
+		x402.SDKDefaultAssetTransferMethod: {
+			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+			Default:   x402.PaymentFlowAuthorization,
+		},
+	}
+}
+
 // RegisterMoneyParser registers a custom money parser in the parser chain.
 // Multiple parsers can be registered - they will be tried in registration order.
 // Each parser receives a decimal amount (e.g., 1.50 for $1.50).
