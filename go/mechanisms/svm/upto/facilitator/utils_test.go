@@ -141,6 +141,9 @@ type stubRPC struct {
 
 	url      string
 	accounts map[string][]byte
+	// missingReads counts down transient missing-account responses before the
+	// stored account becomes visible.
+	missingReads map[string]int
 	// reads counts down the remaining lookups before an account disappears,
 	// so a test can model a channel closing mid-pass.
 	reads map[string]int
@@ -160,10 +163,11 @@ type stubRPC struct {
 func newStubRPC(t *testing.T) *stubRPC {
 	t.Helper()
 	stub := &stubRPC{
-		accounts:    map[string][]byte{},
-		reads:       map[string]int{},
-		slot:        testSlot,
-		commitments: map[string][]string{},
+		accounts:     map[string][]byte{},
+		missingReads: map[string]int{},
+		reads:        map[string]int{},
+		slot:         testSlot,
+		commitments:  map[string][]string{},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +233,10 @@ func (s *stubRPC) handle(method string, params []interface{}) (interface{}, erro
 	case "getAccountInfo":
 		address, _ := params[0].(string)
 		data, ok := s.accounts[address]
+		if remaining := s.missingReads[address]; ok && remaining > 0 {
+			s.missingReads[address] = remaining - 1
+			ok = false
+		}
 		if ok {
 			if remaining, scheduled := s.reads[address]; scheduled {
 				if remaining <= 0 {
@@ -288,6 +296,12 @@ func (s *stubRPC) setAccount(address string, data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.accounts[address] = data
+}
+
+func (s *stubRPC) hideAccountForReads(address string, reads int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.missingReads[address] = reads
 }
 
 func (s *stubRPC) deleteAccount(address string) {

@@ -1,9 +1,12 @@
 package facilitator
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +25,41 @@ func expectedFrom(fixture *paymentFixture) expectedOpenChannel {
 		GracePeriod:      fixture.graceSeconds,
 		Splits:           fixture.splits(),
 	}
+}
+
+func TestFetchAndVerifyOpenChannelRetriesMissingAccount(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	fixture := newPaymentFixture(t, signer)
+	rpcStub := newStubRPC(t)
+	rpcStub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
+	rpcStub.hideAccountForReads(fixture.channelID.String(), 1)
+
+	verified, err := fetchAndVerifyOpenChannel(
+		context.Background(),
+		rpc.New(rpcStub.url),
+		fixture.channelID,
+		expectedFrom(fixture),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, fixture.channelID, verified.ChannelID)
+	assert.Len(t, rpcStub.commitments["getAccountInfo"], 2)
+}
+
+func TestFetchAndVerifyOpenChannelStopsRetryingWhenContextEnds(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	fixture := newPaymentFixture(t, signer)
+	rpcStub := newStubRPC(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := fetchAndVerifyOpenChannel(
+		ctx,
+		rpc.New(rpcStub.url),
+		fixture.channelID,
+		expectedFrom(fixture),
+	)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, rpcStub.commitments["getAccountInfo"], 1)
 }
 
 func TestVerifyOpenChannelAccountBindsTheOnchainState(t *testing.T) {

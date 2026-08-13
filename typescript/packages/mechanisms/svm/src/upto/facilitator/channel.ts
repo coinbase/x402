@@ -42,7 +42,7 @@ import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
 } from "../../constants";
-import { fetchChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
+import { fetchMaybeChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
 import {
   buildDistributeInstruction,
   buildSettleAndSealInstructions,
@@ -62,6 +62,8 @@ const MAX_TRANSACTION_COMPUTE_UNITS = 1_400_000;
  *  per-transaction max because the composite (open + settle + distribute) can
  *  exceed the client open's 400k ceiling. */
 const SIM_COMPUTE_UNIT_LIMIT = MAX_TRANSACTION_COMPUTE_UNITS;
+const CHANNEL_READ_MAX_ATTEMPTS = 5;
+const CHANNEL_READ_INITIAL_BACKOFF_MS = 200;
 
 /**
  * Default `SetComputeUnitLimit` for facilitator-submitted settlement
@@ -158,10 +160,24 @@ export async function fetchAndVerifyOpenChannel(
   channelId: string,
   expected: ExpectedOpenChannel,
 ): Promise<VerifiedOpenChannel> {
-  const account = await fetchChannel(rpc, address(channelId), {
-    commitment: STATE_COMMITMENT,
-  });
-  return verifyOpenChannelAccount(channelId, account.data, expected);
+  for (let attempt = 1; attempt <= CHANNEL_READ_MAX_ATTEMPTS; attempt++) {
+    const account = await fetchMaybeChannel(rpc, address(channelId), {
+      commitment: STATE_COMMITMENT,
+    });
+    if (account.exists) {
+      // Existing but invalid state is terminal: only account absence can be
+      // caused by replica visibility lag.
+      return verifyOpenChannelAccount(channelId, account.data, expected);
+    }
+    if (attempt === CHANNEL_READ_MAX_ATTEMPTS) {
+      break;
+    }
+
+    const delayMs = CHANNEL_READ_INITIAL_BACKOFF_MS * 2 ** (attempt - 1);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+
+  throw new Error(`channel ${channelId} does not exist`);
 }
 
 /**

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	solana "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
@@ -17,7 +18,14 @@ import (
 // simComputeUnitLimit is the Solana per-transaction compute maximum. Only used
 // for facilitator-built simulations: the composite open + settle + distribute
 // exceeds the 400,000 CU ceiling the client open is capped at.
-const simComputeUnitLimit = 1_400_000
+const (
+	simComputeUnitLimit = 1_400_000
+
+	// Channel reads can briefly lag a confirmed open when an RPC provider
+	// serves transaction status and account state from different replicas.
+	channelReadMaxAttempts    = 5
+	channelReadInitialBackoff = 200 * time.Millisecond
+)
 
 // expectedOpenChannel are the challenge-bound terms a confirmed channel account
 // must match before the facilitator settles against it. They arrive as strings
@@ -124,14 +132,31 @@ func fetchAndVerifyOpenChannel(
 	channelID solana.PublicKey,
 	expected expectedOpenChannel,
 ) (*verifiedOpenChannel, error) {
-	channel, exists, err := fetchChannelAccount(ctx, rpcClient, channelID)
-	if err != nil {
-		return nil, err
+	for attempt := 1; attempt <= channelReadMaxAttempts; attempt++ {
+		channel, exists, err := fetchChannelAccount(ctx, rpcClient, channelID)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			// Existing but invalid state is terminal: only account absence can
+			// be caused by replica visibility lag.
+			return verifyOpenChannelAccount(channelID, channel, expected)
+		}
+		if attempt == channelReadMaxAttempts {
+			break
+		}
+
+		delay := channelReadInitialBackoff << (attempt - 1)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
 	}
-	if !exists {
-		return nil, fmt.Errorf("channel %s does not exist", channelID)
-	}
-	return verifyOpenChannelAccount(channelID, channel, expected)
+
+	return nil, fmt.Errorf("channel %s does not exist", channelID)
 }
 
 // verifyOpenChannelAccount binds a decoded channel account to the terms the
