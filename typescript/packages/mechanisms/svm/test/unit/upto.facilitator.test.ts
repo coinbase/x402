@@ -44,6 +44,7 @@ import { toFacilitatorSvmSigner } from "../../src/signer";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import {
   ERR_CHANNEL_ALREADY_OPEN,
+  ERR_CHANNEL_BROADCAST,
   ERR_EXPIRES_AT_MISMATCH,
   ERR_CHANNEL_LIFETIME_EXCEEDED,
   ERR_UNEXPECTED_VOUCHER,
@@ -854,7 +855,7 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
       expect(channelMocks.submitSettle).toHaveBeenCalledTimes(2);
     });
 
-    it("returns success when channel storage upsert fails after deposit settle", async () => {
+    it("fails closed when channel storage upsert fails before deposit broadcast", async () => {
       const onStorageError = vi.fn();
       const failingStorage: UptoChannelStorage = {
         upsert: vi.fn().mockRejectedValue(new Error("storage unavailable")),
@@ -930,13 +931,97 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
           requirements,
         ),
       ).resolves.toMatchObject({
-        success: true,
+        success: false,
+        errorReason: ERR_CHANNEL_BROADCAST,
       });
       expect(failingStorage.upsert).toHaveBeenCalled();
+      expect(channelMocks.broadcastOpen).not.toHaveBeenCalled();
       expect(onStorageError).toHaveBeenCalledWith(
         expect.any(Error),
         expect.objectContaining({ channelId: uptoPayload.channelId, phase: "settle" }),
       );
+    });
+
+    it("succeeds on retry once channel storage recovers from a prior deposit failure", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const open = await buildOpenPaymentChannelTransaction({
+        authorizedSigner: receiverAuthorizer.address,
+        blockhash: { blockhash: USDC_MAINNET_ADDRESS, lastValidBlockHeight: 0n },
+        deposit: 1_000_000n,
+        feePayer: feePayer.address,
+        gracePeriod: WITHDRAW_DELAY,
+        mint: USDC_DEVNET_ADDRESS,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer,
+        recipients: [{ bps: 10_000, recipient: receiverAuthorizer.address }],
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      });
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: USDC_DEVNET_ADDRESS,
+        amount: "1000000",
+        payTo: receiverAuthorizer.address,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+      const uptoPayload: UptoSvmPayloadV2 = {
+        authorizedSigner: receiverAuthorizer.address,
+        channelId: open.channelId,
+        deposit: "1000000",
+        expiresAt: challengeExpiresAt(),
+        from: payer.address,
+        maxAmount: "1000000",
+        nonce: open.salt.toString(),
+        openSlot: OPEN_SLOT.toString(),
+        openTransaction: open.transaction,
+        validAfter: 0,
+      };
+      channelMocks.fetchAndVerifyOpenChannel.mockResolvedValue({
+        authorizedSigner: receiverAuthorizer.address,
+        channelId: open.channelId,
+        deposit: 1_000_000n,
+        mint: requirements.asset,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer: payer.address,
+        rentPayer: feePayer.address,
+        splits: [{ bps: 10_000, recipient: receiverAuthorizer.address }],
+      });
+      const toggleableStorage: UptoChannelStorage = {
+        upsert: vi
+          .fn()
+          .mockRejectedValueOnce(new Error("storage unavailable"))
+          .mockResolvedValueOnce(undefined),
+        get: vi.fn(),
+        list: vi.fn().mockResolvedValue([]),
+        delete: vi.fn(),
+      };
+      const scheme = new UptoSvmScheme(toFacilitatorSvmSigner(feePayer), {
+        channelStorage: toggleableStorage,
+      });
+      const payload = {
+        x402Version: 2,
+        accepted: requirements,
+        payload: uptoPayload as unknown as Record<string, unknown>,
+      };
+
+      await expect(scheme.settle(payload, requirements)).resolves.toMatchObject({
+        success: false,
+        errorReason: ERR_CHANNEL_BROADCAST,
+      });
+      await expect(scheme.settle(payload, requirements)).resolves.toMatchObject({
+        success: true,
+      });
     });
 
     it("throws when UptoSvmScheme is constructed with a signer lacking getSigner", () => {

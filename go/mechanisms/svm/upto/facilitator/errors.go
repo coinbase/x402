@@ -56,7 +56,9 @@ const (
 	ErrChannelAlreadyOpen = "invalid_upto_svm_channel_already_open"
 	// ErrChannelState is returned when the onchain channel does not match the challenge.
 	ErrChannelState = "invalid_upto_svm_channel_state"
-	// ErrChannelBroadcast is returned when broadcasting the open fails.
+	// ErrChannelBroadcast is returned when the open transaction fails to
+	// broadcast, or when the pre-broadcast durable channel index fails: in
+	// both cases nothing has reached the chain and the deposit is safe to retry.
 	ErrChannelBroadcast = "invalid_upto_svm_channel_broadcast"
 	// ErrSettlementSimulation is returned when the pre-broadcast settlement
 	// simulation fails, so the deposit is never escrowed.

@@ -51,6 +51,13 @@ export const ERR_UNEXPECTED_VOUCHER = "invalid_upto_svm_payload_unexpected_vouch
 /** Deposit settle when the channel PDA already exists (one request, one open). */
 export const ERR_CHANNEL_ALREADY_OPEN = "invalid_upto_svm_channel_already_open";
 
+/**
+ * Returned when the open transaction fails to broadcast, or when the
+ * pre-broadcast durable channel index fails: in both cases nothing has
+ * reached the chain and the deposit is safe to retry.
+ */
+export const ERR_CHANNEL_BROADCAST = "invalid_upto_svm_channel_broadcast";
+
 /** `maxTimeoutSeconds` or `expiresAt` exceeds facilitator `maxChannelLifetimeSecs`. */
 export const ERR_CHANNEL_LIFETIME_EXCEEDED = "invalid_upto_svm_payload_channel_lifetime_exceeded";
 
@@ -433,14 +440,31 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Before broadcast so confirm timeout / rebind failure still indexes the PDA.
-    await this.upsertChannelStorage("settle", {
-      channelId: p.channelId,
-      network: requirements.network,
-      payTo: requirements.payTo,
-      tokenProgram,
-      expiresAt: p.expiresAt,
-    });
+    // Indexed before broadcast, and the index must succeed before broadcast:
+    // an open that reaches the chain without a durable record can never be
+    // found by rent cleanup, permanently stranding the facilitator's rent.
+    // Nothing has been broadcast yet, so failing here is safe to retry.
+    try {
+      await this.upsertChannelStorageOrFail({
+        channelId: p.channelId,
+        network: requirements.network,
+        payTo: requirements.payTo,
+        tokenProgram,
+        expiresAt: p.expiresAt,
+      });
+    } catch (error) {
+      this.settlementCache.delete(depositKey);
+      return {
+        success: false,
+        network: payload.accepted.network,
+        transaction: "",
+        errorReason: ERR_CHANNEL_BROADCAST,
+        errorMessage: `failed to durably index the channel before broadcast: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        payer: p.from,
+      };
+    }
 
     let openSignature: string;
     try {
@@ -456,7 +480,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         success: false,
         network: payload.accepted.network,
         transaction: "",
-        errorReason: "invalid_upto_svm_channel_broadcast",
+        errorReason: ERR_CHANNEL_BROADCAST,
         errorMessage: error instanceof Error ? error.message : String(error),
         payer: p.from,
       };
@@ -1007,8 +1031,10 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Upsert a channel into rent-cleanup storage. Failures go to
-   * {@link UptoSvmFacilitatorConfig.onStorageError} and never propagate.
+   * Upsert a channel into rent-cleanup storage after settlement is already
+   * confirmed onchain. Failures go to
+   * {@link UptoSvmFacilitatorConfig.onStorageError} and never propagate: a
+   * charged payment must never turn into a failure over bookkeeping.
    *
    * @param phase - Whether verify or settle succeeded before the upsert
    * @param fields - Channel facts retained for cleanup (payTo included)
@@ -1032,6 +1058,27 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
           error,
         });
       }
+    }
+  }
+
+  /**
+   * Upsert a channel and rethrow on storage failure. Used only for the
+   * pre-broadcast deposit index, where nothing has reached the chain yet and
+   * a durable record is the only way rent cleanup can ever find the channel.
+   *
+   * @param fields - Channel facts retained for cleanup (payTo included)
+   */
+  private async upsertChannelStorageOrFail(
+    fields: Omit<UptoChannelRecord, "firstSeenAt">,
+  ): Promise<void> {
+    try {
+      await this.channelStorage.upsert({
+        ...fields,
+        firstSeenAt: Date.now(),
+      });
+    } catch (error) {
+      this.config.onStorageError?.(error, { channelId: fields.channelId, phase: "settle" });
+      throw error;
     }
   }
 }

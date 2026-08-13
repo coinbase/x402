@@ -763,7 +763,10 @@ func TestClaimSettleIndexesTheChannelForCleanup(t *testing.T) {
 	assert.Equal(t, testNetwork, record.Network)
 }
 
-func TestDepositSettleSucceedsWhenChannelStorageFails(t *testing.T) {
+// A deposit must never broadcast without a durable index: an open that
+// reaches the chain unindexed can never be found by rent cleanup, so the
+// facilitator refuses to broadcast rather than risk stranding its rent.
+func TestDepositSettleFailsClosedWhenChannelStorageFails(t *testing.T) {
 	signer := newMockSigner(t, 1)
 	stub := newStubRPC(t)
 	fixture := newPaymentFixture(t, signer)
@@ -774,15 +777,34 @@ func TestDepositSettleSucceedsWhenChannelStorageFails(t *testing.T) {
 			reported = append(reported, phase)
 		},
 	})
+
+	_, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
+
+	assert.Equal(t, ErrChannelBroadcast, settleErrorReason(t, err))
+	assert.Equal(t, []StoragePhase{StoragePhaseSettle}, reported)
+	assert.Empty(t, signer.sentTransactions(), "nothing may reach the chain without a durable index")
+}
+
+// A retry after a transient storage failure must succeed once storage
+// recovers: the deposit-scoped dedup key must not have been left in flight.
+func TestDepositSettleSucceedsOnRetryAfterAStorageFailure(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	stub := newStubRPC(t)
+	fixture := newPaymentFixture(t, signer)
+	storage := &toggleableStorage{failing: true, inner: NewInMemoryChannelStorage()}
+	scheme := newScheme(signer, stub, &Config{ChannelStorage: storage})
 	signer.onSend = func(*solana.Transaction) {
 		stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
 	}
 
+	_, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
+	require.Error(t, err)
+
+	storage.failing = false
 	response, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
 
-	require.NoError(t, err, "cleanup bookkeeping never blocks escrowing the deposit")
+	require.NoError(t, err)
 	assert.True(t, response.Success)
-	assert.Equal(t, []StoragePhase{StoragePhaseSettle}, reported)
 }
 
 func TestClaimSettleRejectsAForgedVoucher(t *testing.T) {
@@ -1187,6 +1209,32 @@ func (failingStorage) Upsert(context.Context, ChannelRecord) error {
 
 func (failingStorage) Delete(context.Context, string) error {
 	return errors.New("storage unavailable")
+}
+
+// toggleableStorage lets a test flip storage from failing to healthy between
+// two settle calls, to prove a retry is not left permanently blocked.
+type toggleableStorage struct {
+	failing bool
+	inner   *InMemoryChannelStorage
+}
+
+func (s *toggleableStorage) Get(ctx context.Context, channelID string) (*ChannelRecord, error) {
+	return s.inner.Get(ctx, channelID)
+}
+
+func (s *toggleableStorage) List(ctx context.Context) ([]ChannelRecord, error) {
+	return s.inner.List(ctx)
+}
+
+func (s *toggleableStorage) Upsert(ctx context.Context, record ChannelRecord) error {
+	if s.failing {
+		return errors.New("storage unavailable")
+	}
+	return s.inner.Upsert(ctx, record)
+}
+
+func (s *toggleableStorage) Delete(ctx context.Context, channelID string) error {
+	return s.inner.Delete(ctx, channelID)
 }
 
 // instructionPrograms lists the program invoked by each top-level instruction.

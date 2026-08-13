@@ -314,15 +314,22 @@ func (f *UptoSvmScheme) settleDeposit(
 		return nil, x402.NewSettleError(ErrSettlementSimulation, uptoPayload.From, network, "", err.Error())
 	}
 
-	// Indexed before broadcast so a confirm timeout or a failed rebind still
-	// leaves the PDA discoverable by rent cleanup.
-	f.upsertChannelStorage(ctx, StoragePhaseSettle, ChannelRecord{
+	// Indexed before broadcast, and the index must succeed before broadcast:
+	// an open that reaches the chain without a durable record can never be
+	// found by rent cleanup, permanently stranding the facilitator's rent.
+	// Nothing has been broadcast yet, so failing here is safe for the client
+	// to retry.
+	if err := f.upsertChannelStorageOrFail(ctx, ChannelRecord{
 		ChannelID:    uptoPayload.ChannelId,
 		PayTo:        requirements.PayTo,
 		TokenProgram: auth.tokenProgram.String(),
 		ExpiresAt:    uptoPayload.ExpiresAt,
 		Network:      string(requirements.Network),
-	})
+	}); err != nil {
+		f.settlementCache.Delete(depositKey)
+		return nil, x402.NewSettleError(ErrChannelBroadcast, uptoPayload.From, network, "",
+			fmt.Sprintf("failed to durably index the channel before broadcast: %s", err.Error()))
+	}
 
 	openSignature, err := broadcastOpen(
 		ctx, f.signer, auth.feePayer, string(requirements.Network), uptoPayload.OpenTransaction,
@@ -771,7 +778,9 @@ func (f *UptoSvmScheme) resolveFeePayer(
 }
 
 // upsertChannelStorage indexes a channel for rent cleanup. Storage failures are
-// reported and swallowed: they never change the payment outcome.
+// reported and swallowed: this is only used once a settlement is already
+// confirmed onchain, so bookkeeping must never turn a charged payment into a
+// failure.
 func (f *UptoSvmScheme) upsertChannelStorage(ctx context.Context, phase StoragePhase, record ChannelRecord) {
 	record.FirstSeenAt = time.Now()
 	if err := f.channelStorage.Upsert(ctx, record); err != nil {
@@ -784,4 +793,19 @@ func (f *UptoSvmScheme) upsertChannelStorage(ctx context.Context, phase StorageP
 			phase, record.ChannelID, err,
 		)
 	}
+}
+
+// upsertChannelStorageOrFail indexes a channel and returns the storage error
+// instead of swallowing it. Used only for the pre-broadcast deposit index,
+// where nothing has reached the chain yet and a durable record is the only
+// way rent cleanup can ever find the channel.
+func (f *UptoSvmScheme) upsertChannelStorageOrFail(ctx context.Context, record ChannelRecord) error {
+	record.FirstSeenAt = time.Now()
+	if err := f.channelStorage.Upsert(ctx, record); err != nil {
+		if f.config.OnStorageError != nil {
+			f.config.OnStorageError(err, record.ChannelID, StoragePhaseSettle)
+		}
+		return err
+	}
+	return nil
 }
