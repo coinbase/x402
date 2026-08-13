@@ -7,7 +7,7 @@ import { buildOpenPaymentChannelTransaction } from "../../payment-channels/open"
 import type { ClientSvmConfig, ClientSvmSigner } from "../../signer";
 import { type UptoSvmPayloadV2 } from "../../types";
 import { createRpcClient, resolveBlockhash, resolveOpenSlot } from "../../utils";
-import { resolveUptoSvmPaymentChannelConfig } from "../shared";
+import { resolveUptoSvmMemo, resolveUptoSvmPaymentChannelConfig } from "../shared";
 
 /** Configuration for the upto SVM client. */
 export type UptoClientSvmConfig = ClientSvmConfig & {
@@ -92,7 +92,7 @@ export class UptoSvmScheme implements SchemeNetworkClient {
       deposit: maxAmount,
       feePayer: channelConfig.feePayer,
       gracePeriod: channelConfig.withdrawDelay,
-      memo: paymentRequirements.extra?.memo as string | undefined,
+      memo: resolveUptoSvmMemo(paymentRequirements.extra),
       mint: paymentRequirements.asset,
       openSlot,
       payee: channelConfig.feePayer,

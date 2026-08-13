@@ -28,6 +28,7 @@ import {
 import { OPEN_SLOT_WINDOW } from "../../payment-channels/open";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { createRpcClient } from "../../utils";
+import { SLOT_COMMITMENT, STATE_COMMITMENT } from "../shared";
 import type { ChannelRpc, UptoSvmSigner } from "./channel";
 import { reclaimComputeUnitLimit, submitSettle } from "./channel";
 import type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";
@@ -129,6 +130,13 @@ export class UptoSvmRentCleanupManager {
   private startConfig: RentCleanupStartConfig | undefined;
 
   /**
+   * Tail of the queued pass chain. Passes run one at a time so an operator's
+   * cron calling {@link cleanup} cannot race the interval loop into submitting
+   * the same close or reclaim twice.
+   */
+  private passQueue: Promise<void> = Promise.resolve();
+
+  /**
    * Create a rent cleanup manager for one network.
    *
    * @param config - Signer pool, channel storage, and network/RPC
@@ -156,8 +164,49 @@ export class UptoSvmRentCleanupManager {
    * open-slot gate. Defers Closing / too-early / still-active Open.
    *
    * @param opts - Work caps and callbacks
+   * @returns A promise that resolves when this pass completes
    */
   async cleanup(opts: RentCleanupOptions = {}): Promise<void> {
+    const pass = this.passQueue.then(() => this.runPass(opts));
+    // Swallow on the queue tail only: the caller still sees its own rejection.
+    this.passQueue = pass.catch(() => undefined);
+    return pass;
+  }
+
+  /**
+   * Start an interval loop that calls {@link cleanup}.
+   *
+   * @param config - Interval and cleanup policy
+   */
+  start(config: RentCleanupStartConfig): void {
+    if (this.running) return;
+    this.running = true;
+    this.startConfig = config;
+    const intervalMs = config.intervalSecs * 1_000;
+    this.timer = setInterval(() => {
+      void this.tick();
+    }, intervalMs);
+  }
+
+  /**
+   * Stop the interval loop.
+   */
+  stop(): void {
+    this.running = false;
+    if (this.timer !== undefined) {
+      clearInterval(this.timer);
+      this.timer = undefined;
+    }
+    this.startConfig = undefined;
+  }
+
+  /**
+   * Run one cleanup pass. Callers go through {@link cleanup}, which serializes
+   * passes.
+   *
+   * @param opts - Work caps and callbacks
+   */
+  private async runPass(opts: RentCleanupOptions): Promise<void> {
     const abandonGraceSecs = opts.abandonGraceSecs ?? DEFAULT_ABANDON_GRACE_SECS;
     const maxReclaimsPerTx = opts.maxReclaimsPerTx ?? DEFAULT_MAX_RECLAIMS_PER_TX;
     const maxTxsPerRun = opts.maxTxsPerRun ?? DEFAULT_MAX_TXS_PER_RUN;
@@ -176,7 +225,9 @@ export class UptoSvmRentCleanupManager {
       if (record.network !== this.network) continue;
 
       try {
-        const maybe = await fetchMaybeChannel(rpc, address(record.channelId));
+        const maybe = await fetchMaybeChannel(rpc, address(record.channelId), {
+          commitment: STATE_COMMITMENT,
+        });
         if (!maybe.exists) {
           await this.storage.delete(record.channelId);
           continue;
@@ -194,7 +245,9 @@ export class UptoSvmRentCleanupManager {
             const readyAt = record.expiresAt + abandonGraceSecs;
             if (nowSecs < readyAt) continue;
           }
-          if (closesUsed >= maxClosesPerRun || txsUsed >= maxTxsPerRun) break;
+          // Skip, not stop: later records may be reclaimable, and reclaims are
+          // budgeted separately from closes.
+          if (closesUsed >= maxClosesPerRun) continue;
 
           if (!record.payTo) {
             opts.onError?.(new Error(`channel ${record.channelId} missing payTo; skipping`), {
@@ -234,14 +287,22 @@ export class UptoSvmRentCleanupManager {
         }
 
         if (status === ChannelStatus.Distributed) {
-          currentSlot ??= await rpc.getSlot().send();
+          currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
           if (currentSlot > live.openSlot + OPEN_SLOT_WINDOW) {
             reclaimCandidates.push({
               channelId: record.channelId,
               rentPayer: live.rentPayer,
             });
           }
+          continue;
         }
+
+        // An unrecognized status has no cleanup path, and the record would
+        // otherwise sit in storage forever without the operator knowing.
+        opts.onError?.(
+          new Error(`channel ${record.channelId} has unrecognized status ${String(status)}`),
+          { channelId: record.channelId },
+        );
       } catch (error) {
         opts.onError?.(error, { channelId: record.channelId });
       }
@@ -258,34 +319,8 @@ export class UptoSvmRentCleanupManager {
   }
 
   /**
-   * Start an interval loop that calls {@link cleanup}.
-   *
-   * @param config - Interval and cleanup policy
-   */
-  start(config: RentCleanupStartConfig): void {
-    if (this.running) return;
-    this.running = true;
-    this.startConfig = config;
-    const intervalMs = config.intervalSecs * 1_000;
-    this.timer = setInterval(() => {
-      void this.tick();
-    }, intervalMs);
-  }
-
-  /**
-   * Stop the interval loop.
-   */
-  stop(): void {
-    this.running = false;
-    if (this.timer !== undefined) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-    this.startConfig = undefined;
-  }
-
-  /**
-   * Interval tick: skip if a previous tick is still in flight.
+   * Interval tick. Skips while a tick is outstanding so a pass slower than the
+   * interval cannot pile up queued passes.
    */
   private async tick(): Promise<void> {
     if (!this.running || this.tickInFlight || !this.startConfig) return;
@@ -353,7 +388,9 @@ export class UptoSvmRentCleanupManager {
    * @param channelId - Channel PDA
    */
   private async syncStorageAfterAction(rpc: ChannelRpc, channelId: string): Promise<void> {
-    const maybe = await fetchMaybeChannel(rpc, address(channelId));
+    const maybe = await fetchMaybeChannel(rpc, address(channelId), {
+      commitment: STATE_COMMITMENT,
+    });
     if (!maybe.exists) {
       await this.storage.delete(channelId);
     }
@@ -412,7 +449,9 @@ export class UptoSvmRentCleanupManager {
           // Refetch each account immediately before acting (stale → skip).
           const liveBatch: ReclaimCandidate[] = [];
           for (const candidate of batch) {
-            const maybe = await fetchMaybeChannel(rpc, address(candidate.channelId));
+            const maybe = await fetchMaybeChannel(rpc, address(candidate.channelId), {
+              commitment: STATE_COMMITMENT,
+            });
             if (!maybe.exists) {
               await this.storage.delete(candidate.channelId);
               continue;

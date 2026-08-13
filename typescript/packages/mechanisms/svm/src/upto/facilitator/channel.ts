@@ -51,6 +51,7 @@ import {
 import type { ChannelSplit } from "../../payment-channels/open";
 import type { FacilitatorSvmSigner } from "../../signer";
 import { createRpcClient } from "../../utils";
+import { BLOCKHASH_COMMITMENT, STATE_COMMITMENT } from "../shared";
 
 /** Payment-channels `AccountDiscriminator::Channel` (byte 0 is reserved for uninitialized accounts). */
 const CHANNEL_ACCOUNT_DISCRIMINATOR = 1;
@@ -113,7 +114,9 @@ export type ChannelRpc = ReturnType<typeof createRpcClient>;
  * @returns Whether the account exists
  */
 export async function channelExists(rpc: ChannelRpc, channelId: string): Promise<boolean> {
-  const info = await rpc.getAccountInfo(address(channelId), { encoding: "base64" }).send();
+  const info = await rpc
+    .getAccountInfo(address(channelId), { commitment: STATE_COMMITMENT, encoding: "base64" })
+    .send();
   return info.value !== null;
 }
 
@@ -155,7 +158,9 @@ export async function fetchAndVerifyOpenChannel(
   channelId: string,
   expected: ExpectedOpenChannel,
 ): Promise<VerifiedOpenChannel> {
-  const account = await fetchChannel(rpc, address(channelId));
+  const account = await fetchChannel(rpc, address(channelId), {
+    commitment: STATE_COMMITMENT,
+  });
   return verifyOpenChannelAccount(channelId, account.data, expected);
 }
 
@@ -414,7 +419,9 @@ export async function submitSettle(
       : []),
   ];
 
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
+    .send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -520,7 +527,9 @@ async function simulateInstructions(
   rpc: ChannelRpc,
   instructions: readonly Instruction[],
 ): Promise<void> {
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
+    .send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -538,7 +547,7 @@ async function simulateInstructions(
   const wire = getBase64EncodedWireTransaction(signed);
   const result = await rpc
     .simulateTransaction(wire, {
-      commitment: "confirmed",
+      commitment: STATE_COMMITMENT,
       encoding: "base64",
       replaceRecentBlockhash: true,
       sigVerify: false,

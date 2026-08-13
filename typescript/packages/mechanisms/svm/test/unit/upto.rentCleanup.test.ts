@@ -356,6 +356,72 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     );
   });
 
+  // The close cap must not end the record scan: reclaims are budgeted separately,
+  // so a backlog of closable channels would otherwise strand rent forever.
+  it("still reclaims when the close budget is spent", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    const closable = await seed({ expiresAt: nowSecs - 200 });
+    const distributed = await seed({ expiresAt: nowSecs - 200 });
+    fetchMaybeChannelMock.mockImplementation((_rpc: unknown, channelId: string) => {
+      if (channelId === closable.channelId) {
+        return Promise.resolve(channelAccount({ status: ChannelStatus.Open }));
+      }
+      if (channelId === distributed.channelId) {
+        return Promise.resolve(channelAccount({ status: ChannelStatus.Distributed }));
+      }
+      return Promise.resolve({ exists: false });
+    });
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+
+    const onReclaim = vi.fn();
+    await manager.cleanup({ abandonGraceSecs: 120, maxClosesPerRun: 0, onReclaim });
+
+    expect(onReclaim).toHaveBeenCalledTimes(1);
+    expect(onReclaim.mock.calls[0]![0].channelIds).toEqual([distributed.channelId]);
+  });
+
+  // An unrecognized status has no cleanup path, so the record would sit in storage
+  // forever without the operator ever hearing about it.
+  it("reports an unrecognized channel status", async () => {
+    const record = await seed();
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: 99 as ChannelStatus }));
+
+    const onError = vi.fn();
+    const onClose = vi.fn();
+    const onReclaim = vi.fn();
+    await manager.cleanup({ onClose, onError, onReclaim });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("unrecognized status") }),
+      expect.objectContaining({ channelId: record.channelId }),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onReclaim).not.toHaveBeenCalled();
+    expect(await storage.get(record.channelId)).toBeDefined();
+  });
+
+  // An operator cron calling cleanup() must not race the interval loop into
+  // submitting the same close twice.
+  it("runs overlapping passes serially", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    await seed({ expiresAt: nowSecs - 200 });
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Sealed }));
+
+    let inFlight = 0;
+    let overlapped = false;
+    submitSettleMock.mockImplementation(async () => {
+      inFlight += 1;
+      if (inFlight > 1) overlapped = true;
+      await new Promise(resolve => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return "Sig11111111111111111111111111111111111111111";
+    });
+
+    await Promise.all([manager.cleanup({}), manager.cleanup({}), manager.cleanup({})]);
+
+    expect(overlapped).toBe(false);
+  });
+
   it("skips channels whose feePayer is not in the signer set", async () => {
     const nowSecs = Math.floor(Date.now() / 1_000);
     const other = await generateKeyPairSigner();

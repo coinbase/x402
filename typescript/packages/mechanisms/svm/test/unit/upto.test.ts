@@ -2051,6 +2051,59 @@ describe("upto SVM scheme", () => {
       expect(result.invalidReason).toBe("invalid_upto_svm_payload_receiver_authorizer");
     });
 
+    // The mismatch above is the more specific answer, so a malformed
+    // receiverAuthorizer only surfaces once the payload agrees with it.
+    it("rejects a malformed receiver authorizer the payload agrees with", async () => {
+      const bad = "OtherReceiver111111111111111111111111";
+      const req = requirements({
+        extra: {
+          feePayer: feePayerAddress,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: bad,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      });
+      const result = await facilitator.verify(
+        wrap({ ...basePayload, authorizedSigner: bad }, req),
+        req,
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
+    it("rejects a malformed asset", async () => {
+      const req = requirements({ asset: "NotAMint11111111111111111111111111111" });
+      const result = await facilitator.verify(wrap(basePayload, req), req);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
+    it("rejects a malformed payer", async () => {
+      const req = requirements();
+      const result = await facilitator.verify(
+        wrap({ ...basePayload, from: "NotAPayer11111111111111111111111111111" }, req),
+        req,
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payload_payer_mismatch");
+    });
+
+    it("rejects a token program that is not an SPL token program", async () => {
+      const req = requirements({
+        extra: {
+          feePayer: feePayerAddress,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizerAddress,
+          tokenProgram: "SysvarC1ock11111111111111111111111111111111",
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      });
+      const result = await facilitator.verify(wrap(basePayload, req), req);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
     it("rejects a missing receiverAuthorizer", async () => {
       const req = requirements({
         extra: {

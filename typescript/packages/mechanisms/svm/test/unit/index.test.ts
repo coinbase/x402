@@ -44,6 +44,13 @@ describe("@x402/svm", () => {
       expect(validateSvmAddress("too-short")).toBe(false);
     });
 
+    it("should reject base58 that does not decode to 32 bytes", () => {
+      // Passes the charset/length regex but decodes short, so no Solana runtime
+      // (nor the Go SDK's decoder) would accept it as a public key.
+      expect(validateSvmAddress("NotAMint11111111111111111111111111111")).toBe(false);
+      expect(validateSvmAddress("OtherReceiver111111111111111111111111")).toBe(false);
+    });
+
     it("should reject addresses with invalid characters", () => {
       expect(validateSvmAddress("0000000000000000000000000000000O")).toBe(false); // 'O' not allowed
       expect(validateSvmAddress("0000000000000000000000000000000I")).toBe(false); // 'I' not allowed

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  isAddress,
   getBase58Encoder,
   getBase64Encoder,
   getTransactionDecoder,
@@ -38,11 +39,15 @@ export { normalizeNetwork } from "./constants";
 /**
  * Validate Solana address format
  *
+ * The regex gates the charset and length; `isAddress` additionally requires the
+ * base58 to decode to 32 bytes, which the regex alone allows through. Anything
+ * looser accepts strings no Solana runtime (or the Go SDK's decoder) would.
+ *
  * @param address - Base58 encoded address string
  * @returns true if address is valid, false otherwise
  */
 export function validateSvmAddress(address: string): boolean {
-  return SVM_ADDRESS_REGEX.test(address);
+  return SVM_ADDRESS_REGEX.test(address) && isAddress(address);
 }
 
 /**
