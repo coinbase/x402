@@ -33,7 +33,11 @@ from ...utils import (
     truncate_error_message,
 )
 from ..abi import BATCH_SETTLEMENT_ABI, ERC20_BALANCE_OF_ABI
-from ..constants import BATCH_SETTLEMENT_ADDRESS
+from ..constants import (
+    BATCH_SETTLEMENT_ADDRESS,
+    CHANNEL_STATE_POLL_INTERVAL_S,
+    CHANNEL_STATE_POLL_S,
+)
 from ..errors import (
     ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED,
     ERR_CUMULATIVE_EXCEEDS_BALANCE,
@@ -283,7 +287,7 @@ def settle_deposit(
             }
 
             expected_min_balance = int(optimistic["channelState"]["balance"])
-            deadline = time.time() + 2.0
+            deadline = time.time() + CHANNEL_STATE_POLL_S
             balance_confirmed = False
             # Set only when a read succeeds and shows the deposit missing, as opposed
             # to a read that failed outright and leaves the balance unknown.
@@ -291,7 +295,7 @@ def settle_deposit(
             try:
                 post_state = read_channel_state(signer, voucher.channel_id)
                 while post_state.balance < expected_min_balance and time.time() < deadline:
-                    time.sleep(0.15)
+                    time.sleep(CHANNEL_STATE_POLL_INTERVAL_S)
                     post_state = read_channel_state(signer, voucher.channel_id)
 
                 if post_state.balance >= expected_min_balance:

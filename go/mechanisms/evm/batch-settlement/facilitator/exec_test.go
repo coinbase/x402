@@ -194,6 +194,30 @@ func TestExecuteRefundWithSignature_AuthorizerAddressMismatch(t *testing.T) {
 	}
 }
 
+func TestExecuteRefundWithSignature_BadChannelConfig_PreservesPayer(t *testing.T) {
+	scheme := newScheme()
+	cfg := validConfig()
+	cfg.Salt = "0x" + strings.Repeat("0", 65)
+	payload := &batchsettlement.BatchSettlementEnrichedRefundPayload{
+		Type:                      "refund",
+		ChannelConfig:             cfg,
+		Amount:                    "100",
+		RefundNonce:               "1",
+		RefundAuthorizerSignature: "0xdead",
+	}
+	_, err := ExecuteRefundWithSignature(context.Background(), scheme.signer, payload, reqsFor(testNetwork), scheme.authorizerSigner, nil)
+	var se *x402.SettleError
+	if !errors.As(err, &se) || se.ErrorReason != ErrInvalidRefundPayload {
+		t.Fatalf("got err = %v", err)
+	}
+	if se.Payer != cfg.Payer {
+		t.Fatalf("payer = %q, want %q", se.Payer, cfg.Payer)
+	}
+	if se.Transaction != "" {
+		t.Fatalf("transaction = %q, want empty", se.Transaction)
+	}
+}
+
 func TestExecuteRefundWithSignature_SimulationFailed_DirectPath(t *testing.T) {
 	scheme := newScheme()
 	cfg := validConfig()

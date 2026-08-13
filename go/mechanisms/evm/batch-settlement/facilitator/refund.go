@@ -15,15 +15,6 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// The post-refund state is only polled when the channel was in
-// pending-withdrawal at refund time, since withdraw cancellation makes a simple
-// `preBalance - actualRefund` formula inaccurate; otherwise the formula is
-// exact and a re-read is unnecessary.
-const (
-	refundStatePollDeadline = 2 * time.Second
-	refundStatePollInterval = 150 * time.Millisecond
-)
-
 func getRefundableAmount(
 	payload *batchsettlement.BatchSettlementEnrichedRefundPayload,
 	preState *batchsettlement.ChannelState,
@@ -127,7 +118,7 @@ func ExecuteRefundWithSignature(
 	// pre/post-state reads, and the response Extra.channelState.
 	channelId, err := batchsettlement.ComputeChannelId(payload.ChannelConfig, string(network))
 	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidRefundPayload, "", network, payload.ChannelConfig.Payer,
+		return nil, x402.NewSettleError(ErrInvalidRefundPayload, payload.ChannelConfig.Payer, network, "",
 			fmt.Sprintf("failed to compute channel id: %s", err))
 	}
 
@@ -337,7 +328,7 @@ func computeRefundSettlementDetails(
 	if preState != nil && preWithdrawRequestedAt != 0 {
 		expectedNonce := new(big.Int).Add(preRefundNonce, big.NewInt(1))
 		var postState *batchsettlement.ChannelState
-		deadline := time.Now().Add(refundStatePollDeadline)
+		deadline := time.Now().Add(channelStatePollDeadline)
 		for {
 			s, err := ReadChannelState(ctx, signer, channelId)
 			if err == nil && s != nil && s.RefundNonce != nil && s.RefundNonce.Cmp(expectedNonce) >= 0 {
@@ -347,7 +338,7 @@ func computeRefundSettlementDetails(
 			if !time.Now().Before(deadline) {
 				break
 			}
-			time.Sleep(refundStatePollInterval)
+			time.Sleep(channelStatePollInterval)
 		}
 		if postState != nil {
 			actualRefund := big.NewInt(0)

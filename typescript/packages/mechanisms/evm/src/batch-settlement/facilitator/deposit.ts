@@ -10,7 +10,11 @@ import { FacilitatorEvmSigner } from "../../signer";
 import type { Erc20ApprovalGasSponsoringSigner } from "../../exact/extensions";
 import { BatchSettlementAssetTransferMethod, BatchSettlementDepositPayload } from "../types";
 import { batchSettlementABI, erc20BalanceOfABI } from "../abi";
-import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
+import {
+  BATCH_SETTLEMENT_ADDRESS,
+  CHANNEL_STATE_POLL_MS,
+  CHANNEL_STATE_POLL_INTERVAL_MS,
+} from "../constants";
 import { finalHashFromTwoRequestSend, getEvmChainId, truncateErrorMessage } from "../../utils";
 import { multicall } from "../../multicall";
 import * as Errors from "../errors";
@@ -447,7 +451,7 @@ export async function settleDeposit(
 
         // Poll until RPC reflects the confirmed deposit so later verify reads see this balance.
         const expectedMinBalance = BigInt(optimisticExtra.channelState.balance);
-        const rpcDeadline = Date.now() + 2_000;
+        const rpcDeadline = Date.now() + CHANNEL_STATE_POLL_MS;
         let balanceConfirmed = false;
         // Set only when a read succeeds and shows the deposit missing, as opposed to a read
         // that failed outright and leaves the balance unknown.
@@ -455,7 +459,7 @@ export async function settleDeposit(
         try {
           let postState = await readChannelState(signer, voucher.channelId);
           while (postState.balance < expectedMinBalance && Date.now() < rpcDeadline) {
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise(resolve => setTimeout(resolve, CHANNEL_STATE_POLL_INTERVAL_MS));
             postState = await readChannelState(signer, voucher.channelId);
           }
 

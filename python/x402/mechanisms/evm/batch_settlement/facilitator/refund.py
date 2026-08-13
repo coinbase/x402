@@ -19,7 +19,11 @@ from ...types import TransactionReceipt
 from ...utils import truncate_error_message
 from ..abi import BATCH_SETTLEMENT_ABI
 from ..authorizer_signer import sign_claim_batch, sign_refund
-from ..constants import BATCH_SETTLEMENT_ADDRESS
+from ..constants import (
+    BATCH_SETTLEMENT_ADDRESS,
+    CHANNEL_STATE_POLL_INTERVAL_S,
+    CHANNEL_STATE_POLL_S,
+)
 from ..errors import (
     ERR_AUTHORIZER_ADDRESS_MISMATCH,
     ERR_AUTHORIZER_NOT_CONFIGURED,
@@ -35,9 +39,6 @@ from ..types import (
 from ..utils import compute_channel_id
 from .claim import build_voucher_claim_args
 from .utils import read_channel_state, to_contract_channel_config
-
-_REFUND_STATE_POLL_S = 2.0
-_REFUND_STATE_POLL_INTERVAL_S = 0.15
 
 
 def _get_refundable_amount(
@@ -115,7 +116,7 @@ def _read_post_refund_state(
     signer: FacilitatorEvmSigner, channel_id: str, submitted_nonce: str
 ) -> ChannelState | None:
     expected = int(submitted_nonce) + 1
-    deadline = time.time() + _REFUND_STATE_POLL_S
+    deadline = time.time() + CHANNEL_STATE_POLL_S
     while True:
         try:
             state = read_channel_state(signer, channel_id)
@@ -125,7 +126,7 @@ def _read_post_refund_state(
             return state
         if time.time() >= deadline:
             return None
-        time.sleep(_REFUND_STATE_POLL_INTERVAL_S)
+        time.sleep(CHANNEL_STATE_POLL_INTERVAL_S)
 
 
 def _encode_calldata(function_name: str, args: list) -> bytes:

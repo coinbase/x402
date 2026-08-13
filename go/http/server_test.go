@@ -10,8 +10,20 @@ import (
 	"testing"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	"github.com/x402-foundation/x402/go/v2/types"
 )
+
+// TestSettlementPendingReasonMatchesMechanismConstant pins that the http-layer literal,
+// which is mirrored to avoid an http→mechanisms import, stays in lockstep with the
+// canonical mechanisms/evm constant. If the mechanism ever renames the reason, this
+// fails rather than silently letting the sanitizer strip the hash off a pending settle.
+func TestSettlementPendingReasonMatchesMechanismConstant(t *testing.T) {
+	if settlementPendingReason != evm.ErrSettlementPending {
+		t.Errorf("settlementPendingReason = %q, want %q (mechanisms/evm.ErrSettlementPending)",
+			settlementPendingReason, evm.ErrSettlementPending)
+	}
+}
 
 // Mock HTTP adapter for testing
 type mockHTTPAdapter struct {
@@ -769,6 +781,49 @@ func TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction(t *testin
 	}
 	if result.Response.Headers["Cache-Control"] != "no-store" {
 		t.Errorf("Expected Cache-Control no-store, got %q", result.Response.Headers["Cache-Control"])
+	}
+}
+
+// TestProcessSettlement_TerminalMechanismErrorDiscardsTransaction pins that a terminal
+// (non-settlement_pending) SettleError never surfaces a transaction value, even if a
+// misbehaving mechanism populated one — sanitizedFailureTransaction must strip it.
+func TestProcessSettlement_TerminalMechanismErrorDiscardsTransaction(t *testing.T) {
+	ctx := context.Background()
+	payer := "0xpayer"
+	mockClient := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return nil, x402.NewSettleError("invalid_payment", payer, "eip155:1", payer, "payment rejected")
+		},
+	}
+	server := Newx402HTTPResourceServer(
+		RoutesConfig{},
+		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:1", &mockSchemeServer{scheme: "exact"}),
+	)
+	_ = server.Initialize(ctx)
+	requirements := types.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xtest",
+	}
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	result := server.ProcessSettlement(ctx, payload, requirements, nil, nil, nil, nil, "")
+	if result.Transaction != "" {
+		t.Errorf("expected empty transaction, got %q", result.Transaction)
+	}
+	decoded, err := decodePaymentResponseHeader(result.Headers["PAYMENT-RESPONSE"])
+	if err != nil {
+		t.Fatalf("failed to decode PAYMENT-RESPONSE header: %v", err)
+	}
+	if decoded.Transaction != "" {
+		t.Errorf("expected empty header transaction, got %q", decoded.Transaction)
 	}
 }
 

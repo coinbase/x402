@@ -7,7 +7,7 @@ import type {
   ChannelState,
 } from "../types";
 import { batchSettlementABI } from "../abi";
-import { BATCH_SETTLEMENT_ADDRESS } from "../constants";
+import { BATCH_SETTLEMENT_ADDRESS, CHANNEL_STATE_POLL_MS, CHANNEL_STATE_POLL_INTERVAL_MS } from "../constants";
 import { computeChannelId } from "../utils";
 import { signClaimBatch, signRefund } from "../authorizerSigner";
 import * as Errors from "../errors";
@@ -30,9 +30,6 @@ type RefundSettlementDetails = {
   amount: string;
   extra: RefundSettlementExtra;
 };
-
-const REFUND_STATE_POLL_MS = 2_000;
-const REFUND_STATE_POLL_INTERVAL_MS = 150;
 
 /**
  * Computes the token amount that `refundWithSignature` would transfer after any
@@ -127,7 +124,7 @@ async function readPostRefundState(
   submittedNonce: string,
 ): Promise<ChannelState | null> {
   const expectedNonce = BigInt(submittedNonce) + 1n;
-  const deadline = Date.now() + REFUND_STATE_POLL_MS;
+  const deadline = Date.now() + CHANNEL_STATE_POLL_MS;
 
   do {
     let state: ChannelState;
@@ -139,7 +136,7 @@ async function readPostRefundState(
     if (state.refundNonce >= expectedNonce) {
       return state;
     }
-    await new Promise(resolve => setTimeout(resolve, REFUND_STATE_POLL_INTERVAL_MS));
+    await new Promise(resolve => setTimeout(resolve, CHANNEL_STATE_POLL_INTERVAL_MS));
   } while (Date.now() < deadline);
 
   return null;

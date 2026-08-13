@@ -27,6 +27,10 @@ var (
 	colonParamRegex = exttypes.ColonParamRegex
 )
 
+// Wire value for a broadcast settle whose receipt could not be confirmed.
+// Mirrored from mechanisms/evm to avoid an http→mechanisms import.
+const settlementPendingReason = "settlement_pending"
+
 // ============================================================================
 // HTTP Adapter Interface
 // ============================================================================
@@ -1097,6 +1101,17 @@ func (s *x402HTTPResourceServer) CreateFailurePathSettlementHeaders(
 	return nil
 }
 
+// sanitizedFailureTransaction returns the broadcast transaction hash for a failed
+// settlement only when the failure is settlement_pending. Every other terminal reason
+// must not surface a transaction value, regardless of whether the failure arrived as
+// an error or as a direct SettleResponse (e.g. from a remote facilitator client).
+func sanitizedFailureTransaction(errorReason, transaction string) string {
+	if errorReason == settlementPendingReason {
+		return transaction
+	}
+	return ""
+}
+
 // buildSettlementFailureResultFromError converts a Settle error into a
 // ProcessSettleResult. Preserves SettleError metadata (including the broadcast
 // hash for settlement_pending) in PAYMENT-RESPONSE.
@@ -1133,7 +1148,7 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResult(errorReason string
 		failureResponse.Network = settleResult.Network
 		failureResponse.Payer = settleResult.Payer
 		failureResponse.ErrorMessage = settleResult.ErrorMessage
-		failureResponse.Transaction = settleResult.Transaction
+		failureResponse.Transaction = sanitizedFailureTransaction(errorReason, settleResult.Transaction)
 	}
 
 	headers, err := s.CreateSettlementHeaders(&failureResponse)

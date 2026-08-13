@@ -463,13 +463,13 @@ func SettleDeposit(
 	// Poll the RPC until it reflects the just-confirmed deposit, so subsequent
 	// verify reads are guaranteed to see this balance.
 	expectedMinBalance := new(big.Int).Set(optimisticBalance)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(channelStatePollDeadline)
 	postState, readErr := ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
 	for postState == nil || postState.Balance == nil || postState.Balance.Cmp(expectedMinBalance) < 0 {
 		if time.Now().After(deadline) {
 			break
 		}
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(channelStatePollInterval)
 		postState, readErr = ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
 	}
 
