@@ -7,7 +7,11 @@ import type {
   ChannelState,
 } from "../types";
 import { batchSettlementABI } from "../abi";
-import { BATCH_SETTLEMENT_ADDRESS, CHANNEL_STATE_POLL_MS, CHANNEL_STATE_POLL_INTERVAL_MS } from "../constants";
+import {
+  BATCH_SETTLEMENT_ADDRESS,
+  CHANNEL_STATE_POLL_MS,
+  CHANNEL_STATE_POLL_INTERVAL_MS,
+} from "../constants";
 import { computeChannelId } from "../utils";
 import { signClaimBatch, signRefund } from "../authorizerSigner";
 import * as Errors from "../errors";
