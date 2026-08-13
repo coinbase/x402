@@ -1,6 +1,7 @@
 package facilitator
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
@@ -266,6 +268,32 @@ func (s *stubRPC) handle(method string, params []interface{}) (interface{}, erro
 			},
 		}, nil
 
+	case "getProgramAccounts":
+		var opts rpc.GetProgramAccountsOpts
+		if len(params) > 1 {
+			if raw, err := json.Marshal(params[1]); err == nil {
+				_ = json.Unmarshal(raw, &opts)
+			}
+		}
+		results := make([]map[string]interface{}, 0)
+		for address, data := range s.accounts {
+			if !matchesGetProgramAccountsFilters(data, opts.Filters) {
+				continue
+			}
+			results = append(results, map[string]interface{}{
+				"pubkey": address,
+				"account": map[string]interface{}{
+					"data":       []interface{}{base64.StdEncoding.EncodeToString(data), "base64"},
+					"executable": false,
+					"lamports":   2_000_000,
+					"owner":      paymentchannels.ProgramID.String(),
+					"rentEpoch":  0,
+					"space":      len(data),
+				},
+			})
+		}
+		return results, nil
+
 	case "simulateTransaction":
 		s.simulateCalls++
 		if s.simulateGate != nil {
@@ -290,6 +318,28 @@ func (s *stubRPC) handle(method string, params []interface{}) (interface{}, erro
 	default:
 		return nil, errors.New("unexpected RPC method " + method)
 	}
+}
+
+// matchesGetProgramAccountsFilters replicates the RPC provider's server-side
+// filtering so the stub only returns accounts a real getProgramAccounts call
+// with these filters would return.
+func matchesGetProgramAccountsFilters(data []byte, filters []rpc.RPCFilter) bool {
+	for _, filter := range filters {
+		if filter.DataSize != 0 && uint64(len(data)) != filter.DataSize {
+			return false
+		}
+		if filter.Memcmp != nil {
+			want := []byte(filter.Memcmp.Bytes)
+			offset := filter.Memcmp.Offset
+			if offset+uint64(len(want)) > uint64(len(data)) {
+				return false
+			}
+			if !bytes.Equal(data[offset:offset+uint64(len(want))], want) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *stubRPC) setAccount(address string, data []byte) {

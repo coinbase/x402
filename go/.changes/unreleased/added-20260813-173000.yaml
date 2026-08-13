@@ -1,0 +1,3 @@
+kind: Added
+body: Add spec §6 onchain discovery (`paymentchannels.DiscoverChannelsByRentPayer`) so SVM `upto` rent cleanup can reclaim Distributed channels missing from offchain storage, and run each managed rent-payer signer's reclaim batches concurrently instead of one queue for the whole facilitator
+time: 2026-08-13T17:30:00.000000-04:00
