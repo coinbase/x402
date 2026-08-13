@@ -113,7 +113,14 @@ client.Register("eip155:*", evm.NewExactEvmScheme(evmSigner, nil))
 
 // All Solana networks
 client.Register("solana:*", svm.NewExactSvmScheme(svmSigner))
+
+// Usage-based Solana services, alongside the fixed-price ones above
+client.Register("solana:*", uptosvm.NewUptoSvmScheme(svmSigner, nil))
 ```
+
+Registering more than one scheme for the same network is how a client supports
+both fixed-price (`exact`) and usage-based (`upto`) services. See the
+[upto SVM README](mechanisms/svm/upto/README.md) for details on the channel flow.
 
 #### Specific Network Registration
 
