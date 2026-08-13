@@ -20,8 +20,6 @@ const url = `${baseURL}${endpointPath}`;
 /**
  * Example demonstrating how to use @x402/fetch to make requests to x402-protected endpoints.
  *
- * Uses the builder pattern to register payment schemes directly.
- *
  * Required environment variables (at least one):
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
@@ -36,6 +34,9 @@ async function main(): Promise<void> {
   }
 
   const client = new x402Client();
+  client.setSpendControls({
+    maxAmountPerPayment: "$1",
+  });
   if (evmPrivateKey) {
     const evmSigner = privateKeyToAccount(evmPrivateKey);
     const rpcOptions = evmRpcUrl ? { rpcUrl: evmRpcUrl } : undefined;

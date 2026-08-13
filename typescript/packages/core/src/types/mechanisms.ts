@@ -60,9 +60,36 @@ export interface SchemeClientHooks {
   onPaymentResponse?: OnPaymentResponseHook;
 }
 
+/** USD-pegged asset for money strings and client spend caps. See DEFAULT_ASSETS.md. */
+export interface DefaultAsset {
+  /** Asset id as advertised in payment requirements. */
+  asset: string;
+  decimals: number;
+  /** Ticker for suffixed prices (e.g. `"0.10 USDC"`). */
+  symbol: string;
+}
+
+/** Per-network default assets; index 0 is the bare `"$0.10"` default. */
+export type DefaultAssetTable<T extends DefaultAsset = DefaultAsset> = Record<string, readonly T[]>;
+
+/** `(network, symbol?) => entry`; throws when unknown. */
+export type GetDefaultAsset<T extends DefaultAsset = DefaultAsset> = (
+  network: Network,
+  symbol?: string,
+) => T;
+
+/** `(asset, network) => entry | undefined`. */
+export type FindDefaultAsset<T extends DefaultAsset = DefaultAsset> = (
+  asset: string,
+  network: Network,
+) => T | undefined;
+
 export interface SchemeNetworkClient {
   readonly scheme: string;
   readonly schemeHooks?: SchemeClientHooks;
+
+  /** Optional reverse lookup for USD spend caps. Not the same as `getAssetDecimals`. */
+  findDefaultAsset?: FindDefaultAsset;
 
   createPaymentPayload(
     x402Version: number,
@@ -261,15 +288,14 @@ export interface SchemeNetworkServer {
   parsePrice(price: Price, network: Network): Promise<AssetAmount>;
 
   /**
-   * Optional: Return the decimal precision of the asset for a given network.
-   * Used by `resolveSettlementOverrideAmount` to convert dollar-format overrides to atomic units.
-   * Defaults to 6 when not implemented.
+   * Optional asset decimals for `$…` settlement overrides. Core throws when
+   * this is missing or returns undefined
    *
-   * @param asset - The asset address or symbol
-   * @param network - The network identifier
-   * @returns Number of decimal places for the asset
+   * @param asset - Asset address or symbol
+   * @param network - Network identifier
+   * @returns Decimal places, or undefined when unknown
    */
-  getAssetDecimals?(asset: string, network: Network): number;
+  getAssetDecimals?(asset: string, network: Network): number | undefined;
 
   /**
    * Build payment requirements for this scheme/network combination

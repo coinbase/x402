@@ -1,7 +1,7 @@
 import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
-import { ExactEvmScheme, type ExactEvmSchemeOptions } from "@x402/evm/exact/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 import {
   UptoEvmScheme as UptoEvmClientScheme,
   type UptoEvmSchemeOptions,
@@ -103,7 +103,7 @@ export async function createE2EClient(): Promise<E2EClientContext> {
 
   const evmSigner = toClientEvmSigner(evmAccount, publicClient);
 
-  const evmSchemeOptions: ExactEvmSchemeOptions | undefined = process.env.EVM_RPC_URL
+  const evmSchemeOptions = process.env.EVM_RPC_URL
     ? { rpcUrl: process.env.EVM_RPC_URL }
     : undefined;
 
@@ -285,7 +285,12 @@ export async function createE2EClient(): Promise<E2EClientContext> {
     });
   }
 
-  const client = x402Client.fromConfig({ schemes });
+  // E2e exercises custom assets and amounts above the default $1 USD cap.
+  const client = x402Client.fromConfig({
+    schemes,
+    spendControls: false,
+  });
+
   const batchSettlementPhase = process.env.EVM_BATCH_SETTLEMENT_PHASE as BatchSettlementPhase | undefined;
 
   return { url, client, schemes, batchSettlementScheme, batchSettlementPhase };

@@ -14,7 +14,8 @@ import {
   type IInstruction,
 } from "@solana/kit";
 import { ExactSvmScheme } from "../../src/exact/facilitator/scheme";
-import { SOLANA_DEVNET_CAIP2, USDC_DEVNET_ADDRESS } from "../../src/constants";
+import { SOLANA_DEVNET_CAIP2 } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 
 const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111" as Address;

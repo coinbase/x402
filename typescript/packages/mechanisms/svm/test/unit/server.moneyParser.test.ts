@@ -521,19 +521,18 @@ describe("ExactSvmScheme - registerMoneyParser", () => {
       ).rejects.toThrow("too small");
     });
 
-    it("should handle negative amounts (parser can validate)", async () => {
+    it("should reject negative amounts before custom parsers run", async () => {
       const server = new ExactSvmScheme();
-
-      server.registerMoneyParser(async amount => {
-        if (amount < 0) {
-          throw new Error("Negative amounts not supported");
-        }
+      let parserCalled = false;
+      server.registerMoneyParser(async () => {
+        parserCalled = true;
         return null;
       });
 
       await expect(
-        async () => await server.parsePrice(-10, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
-      ).rejects.toThrow("Negative amounts not supported");
+        server.parsePrice(-10, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
+      ).rejects.toThrow("Invalid money format: -10");
+      expect(parserCalled).toBe(false);
     });
   });
 

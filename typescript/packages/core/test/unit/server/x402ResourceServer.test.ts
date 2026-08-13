@@ -1659,7 +1659,7 @@ describe("x402ResourceServer", () => {
       expect(mockClient.settleCalls[0].requirements.amount).toBe("1000");
     });
 
-    it("should resolve dollar override through settlePayment with default decimals", async () => {
+    it("should throw on dollar override when asset decimals are unknown", async () => {
       const mockClient = new MockFacilitatorClient(
         buildSupportedResponse({
           kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
@@ -1676,9 +1676,35 @@ describe("x402ResourceServer", () => {
         amount: "1000000",
       });
 
-      await server.settlePayment(payload, requirements, undefined, undefined, { amount: "$0.001" });
+      await expect(
+        server.settlePayment(payload, requirements, undefined, undefined, { amount: "$0.001" }),
+      ).rejects.toThrow(/asset decimals are unknown/);
+    });
 
-      expect(mockClient.settleCalls[0].requirements.amount).toBe("1000");
+    it("should throw on dollar override when getAssetDecimals returns undefined", async () => {
+      const mockClient = new MockFacilitatorClient(
+        buildSupportedResponse({
+          kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:8453" as Network }],
+        }),
+        undefined,
+        buildSettleResponse({ success: true }),
+      );
+
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("exact");
+      mockScheme.setAssetDecimalsResult(undefined);
+      server.register("eip155:8453" as Network, mockScheme);
+
+      const payload = buildPaymentPayload();
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+        amount: "1000000",
+      });
+
+      await expect(
+        server.settlePayment(payload, requirements, undefined, undefined, { amount: "$0.05" }),
+      ).rejects.toThrow(/asset decimals are unknown/);
     });
 
     it("should resolve dollar override using scheme getAssetDecimals", async () => {
@@ -1717,6 +1743,9 @@ describe("x402ResourceServer", () => {
       );
 
       const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("exact");
+      server.register("eip155:8453" as Network, mockScheme);
+
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
         scheme: "exact",
@@ -3248,24 +3277,30 @@ describe("resolveSettlementOverrideAmount", () => {
   });
 
   describe("dollar price format", () => {
-    it("converts '$1.00' using default 6 decimals", () => {
-      expect(resolveSettlementOverrideAmount("$1.00", baseRequirements)).toBe("1000000");
+    it("converts '$1.00' using provided 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$1.00", baseRequirements, 6)).toBe("1000000");
     });
 
-    it("converts '$0.05' using default 6 decimals", () => {
-      expect(resolveSettlementOverrideAmount("$0.05", baseRequirements)).toBe("50000");
+    it("converts '$0.05' using provided 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$0.05", baseRequirements, 6)).toBe("50000");
     });
 
     it("converts '$0.05' using 8 decimals when provided", () => {
       expect(resolveSettlementOverrideAmount("$0.05", baseRequirements, 8)).toBe("5000000");
     });
 
-    it("converts '$0.001' using default 6 decimals", () => {
-      expect(resolveSettlementOverrideAmount("$0.001", baseRequirements)).toBe("1000");
+    it("converts '$0.001' using provided 6 decimals", () => {
+      expect(resolveSettlementOverrideAmount("$0.001", baseRequirements, 6)).toBe("1000");
     });
 
     it("converts '$0' to '0'", () => {
-      expect(resolveSettlementOverrideAmount("$0", baseRequirements)).toBe("0");
+      expect(resolveSettlementOverrideAmount("$0", baseRequirements, 6)).toBe("0");
+    });
+
+    it("throws when decimals are unknown", () => {
+      expect(() => resolveSettlementOverrideAmount("$1.00", baseRequirements)).toThrow(
+        /asset decimals are unknown/,
+      );
     });
   });
 });

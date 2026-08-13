@@ -8,6 +8,8 @@ import {
   safeBase64Decode,
   numberToDecimalString,
   convertToTokenAmount,
+  parseMoney,
+  parseMoneyString,
 } from "../../../src/utils";
 import { Network } from "../../../src/types";
 
@@ -536,6 +538,38 @@ describe("Utils", () => {
         expect(safeBase64Decode("YWI=")).toBe("ab");
         expect(safeBase64Decode("YWJj")).toBe("abc");
       });
+    });
+  });
+
+  describe("parseMoney", () => {
+    it("parses dollar and plain amounts without a symbol", () => {
+      expect(parseMoney("$1.50")).toEqual({ amount: 1.5 });
+      expect(parseMoney("1.50")).toEqual({ amount: 1.5 });
+      expect(parseMoney(1.5)).toEqual({ amount: 1.5 });
+    });
+
+    it("parses a ticker suffix and upper-cases it", () => {
+      expect(parseMoney("1.50 USDT")).toEqual({ amount: 1.5, symbol: "USDT" });
+      expect(parseMoney("1.50 usdt")).toEqual({ amount: 1.5, symbol: "USDT" });
+    });
+
+    it("treats USD as the network default (no symbol)", () => {
+      expect(parseMoney("1.50 USD")).toEqual({ amount: 1.5 });
+    });
+
+    it("rejects a ticker glued to the amount without a space", () => {
+      expect(() => parseMoney("1.50USDT")).toThrow(/Invalid money format/);
+    });
+
+    it("rejects negative amounts", () => {
+      expect(() => parseMoney(-5)).toThrow("Invalid money format: -5");
+      expect(() => parseMoney("-1.50")).toThrow(/Invalid money format/);
+      expect(() => parseMoney("-$1.50")).toThrow(/Invalid money format/);
+      expect(() => parseMoneyString("-1.50")).toThrow(/Invalid money format/);
+    });
+
+    it("keeps parseMoneyString rejecting suffixes", () => {
+      expect(() => parseMoneyString("1.50 USDT")).toThrow(/Invalid money format/);
     });
   });
 });

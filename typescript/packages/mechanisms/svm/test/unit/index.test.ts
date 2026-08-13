@@ -13,14 +13,9 @@ import {
   SOLANA_TESTNET_CAIP2,
   TOKEN_2022_PROGRAM_ADDRESS,
   TOKEN_PROGRAM_ADDRESS,
-  CASH_MAINNET_ADDRESS,
-  PYUSD_DEVNET_ADDRESS,
-  PYUSD_MAINNET_ADDRESS,
   USDC_MAINNET_ADDRESS,
   USDC_DEVNET_ADDRESS,
-  USDG_DEVNET_ADDRESS,
-  USDG_MAINNET_ADDRESS,
-  USDT_MAINNET_ADDRESS,
+  getDefaultAsset,
 } from "../../src/index";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import { UptoSvmScheme } from "../../src/upto/facilitator/scheme";
@@ -96,17 +91,32 @@ describe("@x402/svm", () => {
 
   describe("stablecoin helpers", () => {
     it("should return stablecoin addresses by network", () => {
-      expect(getStablecoinAddress("USDT", SOLANA_MAINNET_CAIP2)).toBe(USDT_MAINNET_ADDRESS);
-      expect(getStablecoinAddress("USDG", SOLANA_MAINNET_CAIP2)).toBe(USDG_MAINNET_ADDRESS);
-      expect(getStablecoinAddress("USDG", SOLANA_DEVNET_CAIP2)).toBe(USDG_DEVNET_ADDRESS);
-      expect(getStablecoinAddress("PYUSD", SOLANA_MAINNET_CAIP2)).toBe(PYUSD_MAINNET_ADDRESS);
-      expect(getStablecoinAddress("PYUSD", SOLANA_DEVNET_CAIP2)).toBe(PYUSD_DEVNET_ADDRESS);
-      expect(getStablecoinAddress("CASH", SOLANA_DEVNET_CAIP2)).toBe(CASH_MAINNET_ADDRESS);
+      expect(getStablecoinAddress("USDT", SOLANA_MAINNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_MAINNET_CAIP2, "USDT").asset,
+      );
+      expect(getStablecoinAddress("USDG", SOLANA_MAINNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_MAINNET_CAIP2, "USDG").asset,
+      );
+      expect(getStablecoinAddress("USDG", SOLANA_DEVNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_DEVNET_CAIP2, "USDG").asset,
+      );
+      expect(getStablecoinAddress("PYUSD", SOLANA_MAINNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_MAINNET_CAIP2, "PYUSD").asset,
+      );
+      expect(getStablecoinAddress("PYUSD", SOLANA_DEVNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_DEVNET_CAIP2, "PYUSD").asset,
+      );
+      expect(getStablecoinAddress("CASH", SOLANA_MAINNET_CAIP2)).toBe(
+        getDefaultAsset(SOLANA_MAINNET_CAIP2, "CASH").asset,
+      );
+      expect(() => getStablecoinAddress("CASH", SOLANA_DEVNET_CAIP2)).toThrow(
+        /No CASH default asset configured for network/,
+      );
     });
 
     it("should identify stablecoin symbols from symbols and known mints", () => {
       expect(getStablecoinSymbol("USDG")).toBe("USDG");
-      expect(getStablecoinSymbol(USDG_MAINNET_ADDRESS)).toBe("USDG");
+      expect(getStablecoinSymbol(getDefaultAsset(SOLANA_MAINNET_CAIP2, "USDG").asset)).toBe("USDG");
       expect(getStablecoinSymbol("CustomMint111111111111111111111111111111")).toBeUndefined();
     });
 
@@ -204,19 +214,19 @@ describe("@x402/svm", () => {
         const network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
         await expect(server.parsePrice("0.10 USDT", network)).resolves.toMatchObject({
           amount: "100000",
-          asset: USDT_MAINNET_ADDRESS,
+          asset: getDefaultAsset(network, "USDT").asset,
         });
         await expect(server.parsePrice("0.10 USDG", network)).resolves.toMatchObject({
           amount: "100000",
-          asset: USDG_MAINNET_ADDRESS,
+          asset: getDefaultAsset(network, "USDG").asset,
         });
         await expect(server.parsePrice("0.10 PYUSD", network)).resolves.toMatchObject({
           amount: "100000",
-          asset: PYUSD_MAINNET_ADDRESS,
+          asset: getDefaultAsset(network, "PYUSD").asset,
         });
         await expect(server.parsePrice("0.10 CASH", network)).resolves.toMatchObject({
           amount: "100000",
-          asset: CASH_MAINNET_ADDRESS,
+          asset: getDefaultAsset(network, "CASH").asset,
         });
       });
 

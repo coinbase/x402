@@ -16,8 +16,8 @@ import {
   LIGHTHOUSE_PROGRAM_ADDRESS,
   MEMO_PROGRAM_ADDRESS,
   SOLANA_DEVNET_CAIP2,
-  USDC_DEVNET_ADDRESS,
 } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 
 const COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111" as Address;
 const SWIG_PROGRAM = "swigypWHEksbC64pWKwah1WTeh9JXwx8H1rJHLdbQMB" as Address;

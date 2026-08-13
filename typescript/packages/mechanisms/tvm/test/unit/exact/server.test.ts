@@ -56,7 +56,7 @@ describe("ExactTvmScheme (Server)", () => {
 
     it("should throw on unknown network", async () => {
       await expect(server.parsePrice("$1.00", "tvm:999" as any)).rejects.toThrow(
-        "No default stablecoin configured",
+        "No default asset configured for network tvm:999",
       );
     });
 

@@ -23,9 +23,8 @@ import {
   SOLANA_DEVNET_CAIP2,
   SOLANA_MAINNET_CAIP2,
   TOKEN_PROGRAM_ADDRESS,
-  USDC_DEVNET_ADDRESS,
-  USDC_MAINNET_ADDRESS,
 } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS, USDC_MAINNET_ADDRESS } from "../../src/defaultAssets";
 import { getPaymentChannelsTreasuryOwner } from "../../src/payment-channels/onchain";
 import {
   buildOpenPaymentChannelTransaction,

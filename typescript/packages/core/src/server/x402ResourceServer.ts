@@ -254,13 +254,13 @@ export interface SettlementOverrides {
  *
  * @param rawAmount - The override amount string (e.g., `"1000"`, `"50%"`, `"$0.05"`)
  * @param requirements - The payment requirements containing the base amount
- * @param decimals - Decimal precision to use for dollar-format conversion (default 6)
+ * @param decimals - Decimal precision for dollar-format conversion. Required for `$…` amounts.
  * @returns The resolved amount as an atomic-unit string
  */
 export function resolveSettlementOverrideAmount(
   rawAmount: string,
   requirements: PaymentRequirements,
-  decimals: number = 6,
+  decimals?: number,
 ): string {
   // Percent format: "50%" or "33.33%"
   const percentMatch = rawAmount.match(/^(\d+(?:\.\d{0,2})?)%$/);
@@ -274,6 +274,12 @@ export function resolveSettlementOverrideAmount(
   // Dollar price format: "$0.05"
   const dollarMatch = rawAmount.match(/^\$(\d+(?:\.\d+)?)$/);
   if (dollarMatch) {
+    if (decimals === undefined) {
+      throw new Error(
+        `Cannot convert dollar settlement override "${rawAmount}" to atomic units: ` +
+          `asset decimals are unknown. Pass an atomic amount or register the asset.`,
+      );
+    }
     const dollars = parseFloat(dollarMatch[1]);
     return Math.round(dollars * 10 ** decimals).toString();
   }
@@ -412,10 +418,10 @@ export class x402ResourceServer {
   }
 
   /**
-   * Returns the decimal precision for the asset specified in the given payment requirements.
-   * Looks up the registered scheme for the network and delegates to its getAssetDecimals
-   * method if available. Falls back to 6 (standard for USDC stablecoins) when the scheme
-   * does not implement getAssetDecimals or is not registered.
+   * Returns the decimal precision for display of the asset in the given payment
+   * requirements. Looks up the registered scheme and delegates to getAssetDecimals
+   * when available. Falls back to 6 for display-only callers. Settlement `$…`
+   * overrides must not use this fallback — they throw when decimals are unknown.
    *
    * @param requirements - The payment requirements containing scheme, network, and asset
    * @returns The number of decimal places for the asset
@@ -1191,16 +1197,17 @@ export class x402ResourceServer {
     if (settlementOverrides?.amount !== undefined) {
       // Only `$…` overrides need asset decimals. Atomic and percent formats must
       // not force a decimals lookup (unknown custom mints would otherwise fail).
-      let decimals = 6;
+      let decimals: number | undefined;
       if (/^\$\d+(?:\.\d+)?$/.test(settlementOverrides.amount)) {
         const scheme = findByNetworkAndScheme(
           this.registeredServerSchemes,
           requirements.scheme,
           requirements.network as Network,
         );
-        decimals =
-          scheme?.getAssetDecimals?.(requirements.asset ?? "", requirements.network as Network) ??
-          6;
+        decimals = scheme?.getAssetDecimals?.(
+          requirements.asset ?? "",
+          requirements.network as Network,
+        );
       }
       effectiveRequirements = {
         ...requirements,

@@ -1,4 +1,4 @@
-import { Network } from "../types";
+import { Money, Network } from "../types";
 
 /**
  * Converts a JavaScript number to a plain decimal string, expanding scientific notation
@@ -35,6 +35,7 @@ export function numberToDecimalString(n: number): string {
 /**
  * Parses a money string into a finite, non-negative decimal number.
  * Accepts plain decimal strings with an optional leading dollar sign.
+ * Rejects ticker suffixes — use {@link parseMoney} when a symbol may be present.
  *
  * @param money - The money string to parse
  * @returns Decimal number
@@ -50,6 +51,35 @@ export function parseMoneyString(money: string): number {
     throw new Error(`Invalid money format: ${money}`);
   }
   return amount;
+}
+
+/**
+ * Parse money into `{ amount, symbol? }`. `"1.50 USDT"` → symbol; `"1.50 USD"`
+ * and bare amounts have none. Glued tickers (`"1.50USDT"`) are rejected.
+ *
+ * @param money - Money value (string or number)
+ * @returns Parsed amount and optional uppercase ticker
+ */
+export function parseMoney(money: Money): { amount: number; symbol?: string } {
+  if (typeof money === "number") {
+    if (!Number.isFinite(money) || money < 0) {
+      throw new Error(`Invalid money format: ${money}`);
+    }
+    return { amount: money };
+  }
+
+  const trimmed = money.trim();
+  const match = trimmed.match(/^\$?\s*(-?\d+(?:\.\d+)?)(?:\s+([A-Za-z][A-Za-z0-9.]*))?$/);
+  if (!match) {
+    throw new Error(`Invalid money format: ${money}`);
+  }
+
+  const amount = parseMoneyString(match[1]);
+  const rawSymbol = match[2];
+  if (!rawSymbol || rawSymbol.toUpperCase() === "USD") {
+    return { amount };
+  }
+  return { amount, symbol: rawSymbol.toUpperCase() };
 }
 
 /**

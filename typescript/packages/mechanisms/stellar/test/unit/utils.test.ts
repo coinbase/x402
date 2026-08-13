@@ -305,7 +305,7 @@ describe("Stellar RPC Helper Functions", () => {
 
     it("should throw error for unknown network", () => {
       expect(() => getUsdcAddress("invalid-network" as any)).toThrow(
-        "No USDC address configured for network: invalid-network",
+        "No default asset configured for network invalid-network",
       );
     });
   });

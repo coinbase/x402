@@ -16,7 +16,7 @@ import type {
   VerifyResponse,
 } from "@x402/core/types";
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_ASSET_BY_NETWORK } from "../../src/constants";
+import { getDefaultAsset } from "../../src";
 import { ExactNearScheme as ExactNearClient } from "../../src/exact/client";
 import { ExactNearScheme as ExactNearFacilitator } from "../../src/exact/facilitator";
 import { ExactNearScheme as ExactNearServer } from "../../src/exact/server";
@@ -257,7 +257,7 @@ describe("NEAR Integration Tests", () => {
 
         expect(requirements).toHaveLength(1);
         expect(requirements[0].amount).toBe(testCase.expectedAmount);
-        expect(requirements[0].asset).toBe(DEFAULT_ASSET_BY_NETWORK[FIXTURE.network]);
+        expect(requirements[0].asset).toBe(getDefaultAsset(FIXTURE.network).asset);
       }
     });
 
@@ -310,7 +310,7 @@ describe("NEAR Integration Tests", () => {
         network: FIXTURE.network as Network,
       });
       expect(smallRequirements[0].amount).toBe("50000000");
-      expect(smallRequirements[0].asset).toBe(DEFAULT_ASSET_BY_NETWORK[FIXTURE.network]);
+      expect(smallRequirements[0].asset).toBe(getDefaultAsset(FIXTURE.network).asset);
     });
   });
 });

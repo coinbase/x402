@@ -278,6 +278,23 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       );
     });
 
+    it("should reject negative amounts before custom parsers run", async () => {
+      const server = new ExactEvmScheme();
+      let parserCalled = false;
+      server.registerMoneyParser(async () => {
+        parserCalled = true;
+        return null;
+      });
+
+      await expect(server.parsePrice(-5, "eip155:8453")).rejects.toThrow(
+        "Invalid money format: -5",
+      );
+      await expect(server.parsePrice("-1.50", "eip155:8453")).rejects.toThrow(
+        "Invalid money format",
+      );
+      expect(parserCalled).toBe(false);
+    });
+
     it("should throw from second parser if first returns null", async () => {
       const server = new ExactEvmScheme();
 
@@ -296,14 +313,14 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async amount => {
-        if (amount < 0) {
-          throw new Error("Negative amounts not allowed");
+        if (amount > 100) {
+          throw new Error("Amount too large for custom parser");
         }
         return { amount: "1", asset: "0xTest", extra: {} };
       });
 
-      await expect(async () => await server.parsePrice(-5, "eip155:8453")).rejects.toThrow(
-        "Negative amounts not allowed",
+      await expect(async () => await server.parsePrice(150, "eip155:8453")).rejects.toThrow(
+        "Amount too large for custom parser",
       );
     });
   });

@@ -7,8 +7,8 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoneyString } from "@x402/core/utils";
-import { getDefaultAsset, type ExactDefaultAssetInfo } from "../../shared/defaultAssets";
+import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { findDefaultAsset, getDefaultAsset, type ExactDefaultAssetInfo } from "../../defaultAssets";
 import type { AssetTransferMethod } from "../../types";
 
 /**
@@ -49,19 +49,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Returns the decimal precision of the default stablecoin for the given network.
-   * Implements the optional AssetDecimalsProvider interface used by resolveSettlementOverrideAmount.
+   * Decimals for a known default asset, or undefined.
    *
-   * @param _asset - The asset symbol (unused; defaults to the network's default stablecoin)
-   * @param network - The network to look up the default asset for
-   * @returns The number of decimal places for the asset
+   * @param asset - Asset address or symbol
+   * @param network - Target network
+   * @returns Decimals when the asset is a known default; otherwise undefined
    */
-  getAssetDecimals(_asset: string, network: Network): number {
-    try {
-      return getDefaultAsset(network).decimals;
-    } catch {
-      return 6;
-    }
+  getAssetDecimals(asset: string, network: Network): number | undefined {
+    return findDefaultAsset(asset, network)?.decimals;
   }
 
   /**
@@ -87,8 +82,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
       };
     }
 
-    // Parse Money to decimal number
-    const amount = this.parseMoneyToDecimal(price);
+    const { amount, symbol } = parseMoney(price);
 
     // Try each custom money parser in order
     for (const parser of this.moneyParsers) {
@@ -99,7 +93,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     }
 
     // All custom parsers returned null, use default conversion
-    return this.defaultMoneyConversion(amount, network);
+    return this.defaultMoneyConversion(amount, network, symbol);
   }
 
   /**
@@ -131,29 +125,15 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Parse Money (string | number) to a decimal number.
-   * Handles formats like "$1.50", "1.50", 1.50, etc.
-   *
-   * @param money - The money value to parse
-   * @returns Decimal number
-   */
-  private parseMoneyToDecimal(money: string | number): number {
-    if (typeof money === "number") {
-      return money;
-    }
-
-    return parseMoneyString(money);
-  }
-
-  /**
    * Converts a numeric dollar amount to an AssetAmount using the default token for the network.
    *
    * @param amount - The dollar amount as a number
    * @param network - The target network
+   * @param symbol - Optional ticker from a suffixed price
    * @returns The converted asset amount with token metadata
    */
-  private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network);
+  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+    const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network, symbol);
     const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
@@ -164,7 +144,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
 
     return {
       amount: tokenAmount,
-      asset: assetInfo.address,
+      asset: assetInfo.asset,
       extra: {
         ...(includeEip712Domain && {
           name: assetInfo.name,

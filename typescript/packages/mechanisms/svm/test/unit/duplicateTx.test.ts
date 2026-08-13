@@ -9,11 +9,8 @@ import {
   getTransactionDecoder,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import {
-  MEMO_PROGRAM_ADDRESS,
-  SOLANA_DEVNET_CAIP2,
-  USDC_DEVNET_ADDRESS,
-} from "../../src/constants";
+import { MEMO_PROGRAM_ADDRESS, SOLANA_DEVNET_CAIP2 } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import { transactionMessageHash } from "../../src/utils";
 
 const FIXED_BLOCKHASH = "5Tx8F3jgSHx21CbtjwmdaKPLM5tWmreWAnPrbqHomSJF";

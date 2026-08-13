@@ -2,11 +2,8 @@ import { AccountRole, generateKeyPairSigner } from "@solana/kit";
 import type { Network } from "@x402/core/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  SOLANA_DEVNET_CAIP2,
-  TOKEN_PROGRAM_ADDRESS,
-  USDC_DEVNET_ADDRESS,
-} from "../../src/constants";
+import { SOLANA_DEVNET_CAIP2, TOKEN_PROGRAM_ADDRESS } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import {
   buildReclaimInstruction,
   ChannelStatus,

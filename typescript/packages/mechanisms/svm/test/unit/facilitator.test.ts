@@ -6,11 +6,8 @@ import { SettlementCache } from "../../src/settlement-cache";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import type { PaymentRequirements, PaymentPayload } from "@x402/core/types";
 import type { PaymentPayloadV1, PaymentRequirementsV1 } from "@x402/core/types/v1";
-import {
-  USDC_DEVNET_ADDRESS,
-  SOLANA_DEVNET_CAIP2,
-  MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
-} from "../../src/constants";
+import { SOLANA_DEVNET_CAIP2, MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import * as svmUtils from "../../src/utils";
 
 // Encodes a SetComputeUnitPrice instruction: discriminator(3) + microLamports as u64 LE

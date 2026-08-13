@@ -22,8 +22,9 @@ import { ExactKeetaScheme as ExactKeetaFacilitator } from "../../src/exact/facil
 import { ExactKeetaScheme as ExactKeetaServer } from "../../src/exact/server/scheme";
 import { toClientKeetaSigner, toFacilitatorKeetaSigner } from "../../src/signer";
 import type { ExactKeetaPayload } from "../../src/types";
-import { KEETA_MAINNET_CAIP2, KEETA_TESTNET_CAIP2 } from "../../src/constants";
-import { getUsdcAddress, KTA_TESTNET_ADDRESS } from "../../src/utils";
+import { KEETA_TESTNET_CAIP2 } from "../../src/constants";
+import { USDC_MAINNET_ADDRESS, USDC_TESTNET_ADDRESS } from "../../src/defaultAssets";
+import { KTA_TESTNET_ADDRESS } from "../../src/utils";
 
 // Load mnemonics from environment (all optional, ephemeral accounts are generated if absent)
 const CLIENT_MNEMONIC = process.env.KEETA_CLIENT_MNEMONIC;
@@ -177,10 +178,7 @@ describe("Keeta Integration Tests", () => {
       ensureAccountFunded(facilitatorAccount.publicKeyString.toString()),
     ]);
 
-    [usdcTestnetAddress, usdcMainnetAddress] = await Promise.all([
-      await getUsdcAddress(KEETA_TESTNET_CAIP2),
-      await getUsdcAddress(KEETA_MAINNET_CAIP2),
-    ]);
+    [usdcTestnetAddress, usdcMainnetAddress] = [USDC_TESTNET_ADDRESS, USDC_MAINNET_ADDRESS];
   }, 60000); // Allow up to 60s for faucet funding to confirm
 
   describe("x402Client / x402ResourceServer / x402Facilitator - Keeta Flow", () => {

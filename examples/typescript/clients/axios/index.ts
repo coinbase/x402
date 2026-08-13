@@ -21,8 +21,6 @@ const url = `${baseURL}${endpointPath}`;
 /**
  * Example demonstrating how to use @x402/axios to make requests to x402-protected endpoints.
  *
- * Uses the builder pattern to register payment schemes directly.
- *
  * Required environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
@@ -35,11 +33,14 @@ async function main(): Promise<void> {
   const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
   const rpcOptions = evmRpcUrl ? { rpcUrl: evmRpcUrl } : undefined;
 
-  const client = new x402Client();
-  client.register("eip155:*", new ExactEvmScheme(evmSigner, rpcOptions));
-  client.register("eip155:*", new UptoEvmScheme(evmSigner, rpcOptions));
-  client.register("solana:*", new ExactSvmScheme(svmSigner));
-  client.register("solana:*", new UptoSvmScheme(svmSigner));
+  const client = new x402Client()
+    .register("eip155:*", new ExactEvmScheme(evmSigner, rpcOptions))
+    .register("eip155:*", new UptoEvmScheme(evmSigner, rpcOptions))
+    .register("solana:*", new ExactSvmScheme(svmSigner))
+    .register("solana:*", new UptoSvmScheme(svmSigner))
+    .setSpendControls({
+      maxAmountPerPayment: "$1",
+    });
 
   const api = wrapAxiosWithPayment(axios.create(), client);
   const httpClient = new x402HTTPClient(client);

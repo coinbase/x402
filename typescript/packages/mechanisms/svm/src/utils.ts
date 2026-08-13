@@ -25,40 +25,15 @@ import {
   DEVNET_RPC_URL,
   TESTNET_RPC_URL,
   MAINNET_RPC_URL,
-  SVM_STABLECOIN_MINTS,
-  SVM_STABLECOIN_TOKEN_PROGRAMS,
   SOLANA_MAINNET_CAIP2,
   SOLANA_DEVNET_CAIP2,
   SOLANA_TESTNET_CAIP2,
-  V1_TO_V2_NETWORK_MAP,
+  normalizeNetwork,
 } from "./constants";
-import type { SvmStablecoinSymbol } from "./constants";
+import { DEFAULT_ASSETS, findDefaultAsset, getDefaultAsset } from "./defaultAssets";
 import type { ExactSvmPayloadV1 } from "./types";
 
-/**
- * Normalize network identifier to CAIP-2 format
- * Handles both V1 names (solana, solana-devnet) and V2 CAIP-2 format
- *
- * @param network - Network identifier (V1 or V2 format)
- * @returns CAIP-2 network identifier
- */
-export function normalizeNetwork(network: Network): string {
-  // If it's already CAIP-2 format (contains ":"), validate it's supported
-  if (network.includes(":")) {
-    const supported = [SOLANA_MAINNET_CAIP2, SOLANA_DEVNET_CAIP2, SOLANA_TESTNET_CAIP2];
-    if (!supported.includes(network)) {
-      throw new Error(`Unsupported SVM network: ${network}`);
-    }
-    return network;
-  }
-
-  // Otherwise, it's a V1 network name, convert to CAIP-2
-  const caip2Network = V1_TO_V2_NETWORK_MAP[network];
-  if (!caip2Network) {
-    throw new Error(`Unsupported SVM network: ${network}`);
-  }
-  return caip2Network;
-}
+export { normalizeNetwork } from "./constants";
 
 /**
  * Validate Solana address format
@@ -264,48 +239,18 @@ export async function resolveOpenSlot(
  * @returns USDC mint address for the network
  */
 export function getUsdcAddress(network: Network): string {
-  const address = getStablecoinAddress("USDC", network);
-  if (!address) throw new Error(`No USDC address configured for network: ${network}`);
-  return address;
-}
-
-type StablecoinNetworkKey = "mainnet" | "devnet" | "testnet";
-
-/**
- * Map a network identifier to its stablecoin-mint lookup key.
- *
- * @param network - Network identifier (CAIP-2 or V1 format)
- * @returns The "mainnet" | "devnet" | "testnet" key
- */
-function stablecoinNetworkKey(network: Network): StablecoinNetworkKey {
-  const caip2Network = normalizeNetwork(network);
-
-  switch (caip2Network) {
-    case SOLANA_MAINNET_CAIP2:
-      return "mainnet";
-    case SOLANA_DEVNET_CAIP2:
-      return "devnet";
-    case SOLANA_TESTNET_CAIP2:
-      return "testnet";
-    default:
-      throw new Error(`Unsupported network: ${network}`);
-  }
+  return getDefaultAsset(network).asset;
 }
 
 /**
- * Get the default mint address for a supported stablecoin on a network.
- * Stablecoins without a devnet/testnet mint fall back to their mainnet mint.
+ * Get the mint address for a supported stablecoin on a network.
  *
  * @param symbol - Stablecoin symbol
  * @param network - Network identifier (CAIP-2 or V1 format)
  * @returns Mint address for the symbol and network
  */
-export function getStablecoinAddress(symbol: SvmStablecoinSymbol, network: Network): string {
-  const key = stablecoinNetworkKey(network);
-  const mints = SVM_STABLECOIN_MINTS[symbol] as Partial<Record<StablecoinNetworkKey, string>>;
-  const address = mints[key] ?? mints.mainnet;
-  if (!address) throw new Error(`No ${symbol} address configured for network: ${network}`);
-  return address;
+export function getStablecoinAddress(symbol: string, network: Network): string {
+  return getDefaultAsset(network, symbol).asset;
 }
 
 /**
@@ -318,10 +263,11 @@ export function getStablecoinAddress(symbol: SvmStablecoinSymbol, network: Netwo
 export function resolveStablecoinMint(currency: string, network: Network): string | undefined {
   const normalized = currency.toUpperCase();
   if (normalized === "SOL") return undefined;
-  if (normalized in SVM_STABLECOIN_MINTS) {
-    return getStablecoinAddress(normalized as SvmStablecoinSymbol, network);
+  try {
+    return getDefaultAsset(network, currency).asset;
+  } catch {
+    return currency;
   }
-  return currency;
 }
 
 /**
@@ -330,14 +276,14 @@ export function resolveStablecoinMint(currency: string, network: Network): strin
  * @param currency - Stablecoin symbol or raw mint address
  * @returns Supported stablecoin symbol if recognized
  */
-export function getStablecoinSymbol(currency: string): SvmStablecoinSymbol | undefined {
+export function getStablecoinSymbol(currency: string): string | undefined {
   const normalized = currency.toUpperCase();
-  if (normalized in SVM_STABLECOIN_MINTS) return normalized as SvmStablecoinSymbol;
-
-  for (const [symbol, mints] of Object.entries(SVM_STABLECOIN_MINTS)) {
-    if ((Object.values(mints) as string[]).includes(currency)) {
-      return symbol as SvmStablecoinSymbol;
-    }
+  for (const assets of Object.values(DEFAULT_ASSETS)) {
+    if (!assets) continue;
+    const match = assets.find(
+      entry => entry.symbol.toUpperCase() === normalized || entry.asset === currency,
+    );
+    if (match) return match.symbol;
   }
 }
 
@@ -351,8 +297,14 @@ export function getStablecoinSymbol(currency: string): SvmStablecoinSymbol | und
  */
 export function getStablecoinTokenProgram(currency: string, network: Network): string {
   const resolvedMint = resolveStablecoinMint(currency, network);
-  const symbol = getStablecoinSymbol(resolvedMint ?? currency);
-  return symbol ? SVM_STABLECOIN_TOKEN_PROGRAMS[symbol] : TOKEN_PROGRAM_ADDRESS.toString();
+  if (!resolvedMint) return TOKEN_PROGRAM_ADDRESS.toString();
+  const byMint = findDefaultAsset(resolvedMint, network);
+  if (byMint) return byMint.tokenProgram;
+  try {
+    return getDefaultAsset(network, currency).tokenProgram;
+  } catch {
+    return TOKEN_PROGRAM_ADDRESS.toString();
+  }
 }
 
 // Re-export from core for backward compatibility

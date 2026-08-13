@@ -13,9 +13,8 @@ import type {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoneyString } from "@x402/core/utils";
-import { USDC_CONFIG } from "../../constants";
-import { normalizeAlgorandNetwork } from "../../utils";
+import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 
 /**
  * AVM server implementation for the Exact payment scheme.
@@ -57,6 +56,17 @@ export class ExactAvmScheme implements SchemeNetworkServer {
   }
 
   /**
+   * Decimals for a known default asset, or undefined.
+   *
+   * @param asset - ASA id or symbol
+   * @param network - Target network
+   * @returns Decimals when the asset is a known default; otherwise undefined
+   */
+  getAssetDecimals(asset: string, network: Network): number | undefined {
+    return findDefaultAsset(asset, network)?.decimals;
+  }
+
+  /**
    * Parses a price into an asset amount.
    * If price is already an AssetAmount, returns it directly.
    * If price is Money (string | number), parses to decimal and tries custom parsers.
@@ -79,8 +89,7 @@ export class ExactAvmScheme implements SchemeNetworkServer {
       };
     }
 
-    // Parse Money to decimal number
-    const amount = this.parseMoneyToDecimal(price);
+    const { amount, symbol } = parseMoney(price);
 
     // Try each custom money parser in order
     for (const parser of this.moneyParsers) {
@@ -91,7 +100,7 @@ export class ExactAvmScheme implements SchemeNetworkServer {
     }
 
     // All custom parsers returned null, use default conversion
-    return this.defaultMoneyConversion(amount, network);
+    return this.defaultMoneyConversion(amount, network, symbol);
   }
 
   /**
@@ -134,54 +143,21 @@ export class ExactAvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Parse Money (string | number) to a decimal number.
-   * Handles formats like "$1.50", "1.50", 1.50, etc.
-   *
-   * @param money - The money value to parse
-   * @returns Decimal number
-   */
-  private parseMoneyToDecimal(money: string | number): number {
-    if (typeof money === "number") {
-      return money;
-    }
-
-    return parseMoneyString(money);
-  }
-
-  /**
    * Default money conversion implementation.
    * Converts decimal amount to the default stablecoin (USDC) on the specified network.
    *
    * @param amount - The decimal amount (e.g., 1.50)
    * @param network - The network to use
+   * @param symbol - Optional ticker from a suffixed price
    * @returns The parsed asset amount in USDC
    */
-  private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    const assetInfo = this.getDefaultAsset(network);
+  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+    const assetInfo = getDefaultAsset(network, symbol);
     const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
 
     return {
       amount: tokenAmount,
-      asset: assetInfo.asaId,
+      asset: assetInfo.asset,
     };
-  }
-
-  /**
-   * Get the default asset info for a network (USDC)
-   *
-   * @param network - The network to get asset info for
-   * @returns The asset information including ASA ID, name, and decimals
-   */
-  private getDefaultAsset(network: Network): {
-    asaId: string;
-    name: string;
-    decimals: number;
-  } {
-    const assetInfo = USDC_CONFIG[normalizeAlgorandNetwork(network)];
-    if (!assetInfo) {
-      throw new Error(`No default asset configured for network ${network}`);
-    }
-
-    return assetInfo;
   }
 }
