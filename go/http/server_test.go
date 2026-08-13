@@ -717,6 +717,7 @@ func TestProcessSettlement_MechanismErrorPreservesReasonAndTransaction(t *testin
 	server := Newx402HTTPResourceServer(
 		RoutesConfig{},
 		x402.WithFacilitatorClient(mockClient),
+		x402.WithSchemeServer("eip155:1", &mockSchemeServer{scheme: "exact"}),
 	)
 	_ = server.Initialize(ctx)
 
