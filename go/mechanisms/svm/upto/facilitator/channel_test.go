@@ -1,0 +1,220 @@
+package facilitator
+
+import (
+	"testing"
+
+	solana "github.com/gagliardetto/solana-go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/paymentchannels"
+)
+
+// expectedFrom derives the binding the facilitator checks for a fixture channel.
+func expectedFrom(fixture *paymentFixture) ExpectedOpenChannel {
+	return ExpectedOpenChannel{
+		AuthorizedSigner: fixture.authorizer.PublicKey().String(),
+		Mint:             fixture.mint.String(),
+		Payee:            fixture.feePayer.String(),
+		Payer:            fixture.payerKey.PublicKey().String(),
+		RentPayer:        fixture.feePayer.String(),
+		Deposit:          fixture.deposit,
+		GracePeriod:      fixture.graceSeconds,
+		Splits:           fixture.splits(),
+	}
+}
+
+func TestVerifyOpenChannelAccountBindsTheOnchainState(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	fixture := newPaymentFixture(t, signer)
+	channel, err := paymentchannels.DecodeChannel(fixture.openChannel().encode(t))
+	require.NoError(t, err)
+
+	verified, err := verifyOpenChannelAccount(fixture.channelID, channel, expectedFrom(fixture))
+	require.NoError(t, err)
+
+	assert.Equal(t, fixture.channelID.String(), verified.ChannelID)
+	assert.Equal(t, fixture.payerKey.PublicKey().String(), verified.Payer)
+	assert.Equal(t, fixture.deposit, verified.Deposit)
+	assert.Equal(t, testSlot, verified.OpenSlot)
+	assert.Equal(t, fixture.channelID, verified.Keys.ChannelID,
+		"the parsed keys are what settlement signs against")
+	assert.Equal(t, fixture.authorizer.PublicKey(), verified.Keys.AuthorizedSigner)
+}
+
+// The onchain account, not the client payload, is the source of truth, so every
+// term the facilitator verified in the open must still match at settle time.
+func TestVerifyOpenChannelAccountRejectsEveryUnboundTerm(t *testing.T) {
+	stranger, err := solana.NewRandomPrivateKey()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		mutate    func(account *channelAccount, expected *ExpectedOpenChannel)
+		wantError string
+	}{
+		{
+			name: "channel already sealed",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Status = paymentchannels.StatusSealed
+			},
+			wantError: "is not open",
+		},
+		{
+			name: "channel closing",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Status = paymentchannels.StatusClosing
+			},
+			wantError: "is not open",
+		},
+		{
+			name: "mint rotated",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Mint = stranger.PublicKey()
+			},
+			wantError: "mint",
+		},
+		{
+			name: "payee rotated",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Payee = stranger.PublicKey()
+			},
+			wantError: "payee",
+		},
+		{
+			name: "authorized signer rotated",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.AuthorizedSigner = stranger.PublicKey()
+			},
+			wantError: "authorized signer",
+		},
+		{
+			name: "rent payer rotated",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.RentPayer = stranger.PublicKey()
+			},
+			wantError: "rent payer",
+		},
+		{
+			name: "payer is not the payload sender",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Payer = stranger.PublicKey()
+			},
+			wantError: "payer",
+		},
+		{
+			name: "grace period shortened",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.GracePeriod = 60
+			},
+			wantError: "grace period",
+		},
+		{
+			name: "deposit below the authorized ceiling",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Deposit = 1
+			},
+			wantError: "deposit",
+		},
+		{
+			name: "distribution pays a different recipient",
+			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+				account.Splits = []paymentchannels.Split{
+					{Recipient: stranger.PublicKey().String(), BPS: paymentchannels.BasisPointsDenominator},
+				}
+			},
+			wantError: "distribution does not match",
+		},
+		{
+			name: "distribution splits the payout",
+			mutate: func(_ *channelAccount, expected *ExpectedOpenChannel) {
+				expected.Splits = append(expected.Splits,
+					paymentchannels.Split{Recipient: stranger.PublicKey().String(), BPS: 1})
+			},
+			wantError: "distribution does not match",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			signer := newMockSigner(t, 1)
+			fixture := newPaymentFixture(t, signer)
+			account, expected := fixture.openChannel(), expectedFrom(fixture)
+			test.mutate(&account, &expected)
+
+			channel, err := paymentchannels.DecodeChannel(account.encode(t))
+			require.NoError(t, err)
+
+			_, err = verifyOpenChannelAccount(fixture.channelID, channel, expected)
+
+			require.ErrorContains(t, err, test.wantError)
+		})
+	}
+}
+
+func TestBuildSettleAndDistributeCarriesTheVoucherPrecompile(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	fixture := newPaymentFixture(t, signer)
+	channel := SettlementSimChannel{
+		ChannelID:    fixture.channelID,
+		Mint:         fixture.mint,
+		Payee:        fixture.feePayer,
+		Payer:        fixture.payerKey.PublicKey(),
+		RentPayer:    fixture.feePayer,
+		TokenProgram: solana.TokenProgramID,
+		Network:      testNetwork,
+		Splits:       fixture.splits(),
+	}
+	voucher := &voucherArgs{
+		AuthorizedSigner: fixture.authorizer.PublicKey(),
+		SignatureBase58:  fixture.voucher(t, 1858),
+		CumulativeAmount: 1858,
+		ExpiresAt:        fixture.expiresAt,
+	}
+
+	t.Run("metered charge", func(t *testing.T) {
+		instructions, err := buildSettleAndDistribute(channel, voucher)
+		require.NoError(t, err)
+		require.Len(t, instructions, 3)
+
+		assert.Equal(t, paymentchannels.Ed25519ProgramID, instructions[0].ProgramID())
+		precompile, err := instructions[0].Data()
+		require.NoError(t, err)
+		signature, err := solana.SignatureFromBase58(voucher.SignatureBase58)
+		require.NoError(t, err)
+		expected, err := paymentchannels.BuildEd25519VerifyInstruction(
+			paymentchannels.EncodeVoucherMessage(fixture.channelID, 1858, fixture.expiresAt),
+			signature[:],
+			fixture.authorizer.PublicKey(),
+		)
+		require.NoError(t, err)
+		expectedData, err := expected.Data()
+		require.NoError(t, err)
+		assert.Equal(t, expectedData, precompile,
+			"the precompile must commit to the same amount and deadline the facilitator settles")
+
+		seal, err := instructions[1].Data()
+		require.NoError(t, err)
+		assert.Equal(t, []byte{paymentchannels.SettleAndSealDiscriminator, 1}, seal,
+			"settle_and_seal must read the voucher from the preceding instruction")
+	})
+
+	t.Run("zero charge", func(t *testing.T) {
+		instructions, err := buildSettleAndDistribute(channel, nil)
+		require.NoError(t, err)
+		require.Len(t, instructions, 2, "sealing at the watermark needs no precompile")
+
+		seal, err := instructions[0].Data()
+		require.NoError(t, err)
+		assert.Equal(t, []byte{paymentchannels.SettleAndSealDiscriminator, 0}, seal)
+	})
+
+	t.Run("malformed voucher signature", func(t *testing.T) {
+		malformed := *voucher
+		malformed.SignatureBase58 = "not-a-signature!!"
+
+		_, err := buildSettleAndDistribute(channel, &malformed)
+
+		require.ErrorContains(t, err, "not valid base58")
+	})
+}
