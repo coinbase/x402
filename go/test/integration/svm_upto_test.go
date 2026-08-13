@@ -536,7 +536,7 @@ func TestSVMIntegrationV2Upto(t *testing.T) {
 		stack.assertSettled(t, ctx, requirements, before, 0)
 	})
 
-	t.Run("SVM V2 Upto Flow - rent cleanup reclaims distributed channels", func(t *testing.T) {
+	t.Run("SVM V2 Upto Flow - rent cleanup defers a channel inside the reclaim gate", func(t *testing.T) {
 		stack := newUptoSvmStack(t, ctx)
 		payload, requirements, _ := stack.openChannel(t, ctx, "$0.001")
 
@@ -554,16 +554,27 @@ func TestSVMIntegrationV2Upto(t *testing.T) {
 			t.Fatal("Expected the settled channel to be tracked for rent cleanup")
 		}
 
-		// The reclaim gate needs 1500 slots past the open, so this pass is
-		// expected to be a no-op; it asserts cleanup runs cleanly against
-		// live state rather than that rent comes back immediately.
+		// The reclaim gate needs 1500 slots past the open, so this pass must
+		// leave the channel alone. It exercises cleanup against live state and
+		// pins the deferral; reclaiming for real would mean waiting out the gate.
 		manager := stack.facilitator.NewRentCleanupManager(svm.SolanaDevnetCAIP2)
 		if err := manager.Cleanup(ctx, uptosvmfacilitator.CleanupOptions{
 			OnError: func(err error, channelID string) {
 				t.Errorf("Rent cleanup reported an error for %s: %v", channelID, err)
 			},
+			OnReclaim: func(result uptosvmfacilitator.ReclaimResult) {
+				t.Errorf("Rent cleanup reclaimed %v before the open-slot gate elapsed", result.ChannelIDs)
+			},
 		}); err != nil {
 			t.Fatalf("Rent cleanup failed: %v", err)
+		}
+
+		after, err := stack.facilitator.ChannelStorage().List(ctx)
+		if err != nil {
+			t.Fatalf("Failed to list stored channels: %v", err)
+		}
+		if len(after) != len(records) {
+			t.Fatalf("Expected %d tracked channels after cleanup, got %d", len(records), len(after))
 		}
 	})
 }

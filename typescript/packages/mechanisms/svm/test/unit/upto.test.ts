@@ -1846,6 +1846,35 @@ describe("upto SVM scheme", () => {
       expect(readComputePriceData(instructions[1]!.data)).toBe(3n);
     });
 
+    // The facilitator rejects an unsupported token program too, but the client
+    // is where the error can still name the field that is wrong.
+    it("rejects an extra.tokenProgram that is not a supported SPL token program", async () => {
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: MINT,
+        amount: "1000000",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          recentBlockhash: DUMMY_BLOCKHASH,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: PAY_TO,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+
+      await expect(client.createPaymentPayload(2, requirements)).rejects.toThrow(
+        "is not a supported SPL token program",
+      );
+    });
+
     it("resolveOpenSlot falls back to rpc.getSlot when extra.recentSlot is omitted", async () => {
       const getSlotSend = vi.fn().mockResolvedValue(OPEN_SLOT);
       const rpc = { getSlot: () => ({ send: getSlotSend }) } as never;

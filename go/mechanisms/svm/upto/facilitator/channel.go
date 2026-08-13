@@ -19,9 +19,10 @@ import (
 // exceeds the 400,000 CU ceiling the client open is capped at.
 const simComputeUnitLimit = 1_400_000
 
-// ExpectedOpenChannel are the challenge-bound terms a confirmed channel account
-// must match before the facilitator settles against it.
-type ExpectedOpenChannel struct {
+// expectedOpenChannel are the challenge-bound terms a confirmed channel account
+// must match before the facilitator settles against it. They arrive as strings
+// because that is how the challenge and payload carry them.
+type expectedOpenChannel struct {
 	AuthorizedSigner string
 	Mint             string
 	Payee            string
@@ -32,31 +33,36 @@ type ExpectedOpenChannel struct {
 	Splits           []paymentchannels.Split
 }
 
-// VerifiedOpenChannel are the onchain channel facts retained from verification
-// through settlement.
-type VerifiedOpenChannel struct {
-	ChannelID        string
-	AuthorizedSigner string
-	Mint             string
-	Payee            string
-	Payer            string
-	RentPayer        string
-	Deposit          uint64
-	OpenSlot         uint64
-	Splits           []paymentchannels.Split
-	// Keys are the same addresses as decoded from the account, so settlement
-	// builds instructions without parsing them back out of strings.
-	Keys ChannelKeys
-}
-
-// ChannelKeys are a channel's onchain addresses in public-key form.
-type ChannelKeys struct {
+// channelKeys are a channel's onchain addresses as decoded from the account, so
+// settlement builds instructions without parsing them back out of strings.
+type channelKeys struct {
 	ChannelID        solana.PublicKey
 	AuthorizedSigner solana.PublicKey
 	Mint             solana.PublicKey
 	Payee            solana.PublicKey
 	Payer            solana.PublicKey
 	RentPayer        solana.PublicKey
+}
+
+// verifiedOpenChannel are the onchain channel facts retained from verification
+// through settlement.
+type verifiedOpenChannel struct {
+	channelKeys
+	Splits []paymentchannels.Split
+}
+
+// settlement projects a verified channel onto the settle+distribute inputs.
+func (c *verifiedOpenChannel) settlement(tokenProgram solana.PublicKey, network string) settlementChannel {
+	return settlementChannel{
+		ChannelID:    c.ChannelID,
+		Mint:         c.Mint,
+		Payee:        c.Payee,
+		Payer:        c.Payer,
+		RentPayer:    c.RentPayer,
+		TokenProgram: tokenProgram,
+		Network:      network,
+		Splits:       c.Splits,
+	}
 }
 
 // fetchChannelAccount reads and decodes a channel account. The second return
@@ -116,8 +122,8 @@ func fetchAndVerifyOpenChannel(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	channelID solana.PublicKey,
-	expected ExpectedOpenChannel,
-) (*VerifiedOpenChannel, error) {
+	expected expectedOpenChannel,
+) (*verifiedOpenChannel, error) {
 	channel, exists, err := fetchChannelAccount(ctx, rpcClient, channelID)
 	if err != nil {
 		return nil, err
@@ -134,8 +140,8 @@ func fetchAndVerifyOpenChannel(
 func verifyOpenChannelAccount(
 	channelID solana.PublicKey,
 	channel *paymentchannels.Channel,
-	expected ExpectedOpenChannel,
-) (*VerifiedOpenChannel, error) {
+	expected expectedOpenChannel,
+) (*verifiedOpenChannel, error) {
 	if channel.Status != paymentchannels.StatusOpen {
 		return nil, fmt.Errorf("channel %s is not open (status %s)", channelID, channel.Status)
 	}
@@ -172,17 +178,8 @@ func verifyOpenChannelAccount(
 		return nil, fmt.Errorf("channel distribution does not match the expected recipient split")
 	}
 
-	return &VerifiedOpenChannel{
-		ChannelID:        channelID.String(),
-		AuthorizedSigner: expected.AuthorizedSigner,
-		Mint:             channel.Mint.String(),
-		Payee:            channel.Payee.String(),
-		Payer:            channel.Payer.String(),
-		RentPayer:        channel.RentPayer.String(),
-		Deposit:          channel.Deposit,
-		OpenSlot:         channel.OpenSlot,
-		Splits:           expected.Splits,
-		Keys: ChannelKeys{
+	return &verifiedOpenChannel{
+		channelKeys: channelKeys{
 			ChannelID:        channelID,
 			AuthorizedSigner: channel.AuthorizedSigner,
 			Mint:             channel.Mint,
@@ -190,6 +187,7 @@ func verifyOpenChannelAccount(
 			Payer:            channel.Payer,
 			RentPayer:        channel.RentPayer,
 		},
+		Splits: expected.Splits,
 	}, nil
 }
 
@@ -219,9 +217,11 @@ func broadcastOpen(
 	return signature.String(), nil
 }
 
-// SettlementSimChannel are the channel fields needed to build settle+distribute
-// for a readiness simulation.
-type SettlementSimChannel struct {
+// settlementChannel are the channel facts needed to build settle+distribute,
+// for both the pre-broadcast simulation and the real claim. The authorized
+// signer is absent because it travels with the voucher, which the simulation
+// does not carry.
+type settlementChannel struct {
 	ChannelID    solana.PublicKey
 	Mint         solana.PublicKey
 	Payee        solana.PublicKey
@@ -246,7 +246,7 @@ func simulateOpenSettleDistribute(
 	signer svm.FacilitatorSvmSigner,
 	feePayer solana.PublicKey,
 	openTransactionBase64 string,
-	channel SettlementSimChannel,
+	channel settlementChannel,
 ) error {
 	openTx, err := svm.DecodeTransaction(openTransactionBase64)
 	if err != nil {
@@ -266,9 +266,9 @@ func simulateOpenSettleDistribute(
 		if err != nil {
 			return fmt.Errorf("failed to resolve open instruction program: %w", err)
 		}
-		isComputeBudget := program.Equals(solana.ComputeBudget)
 		// Keep the client's priority fee; its compute-unit limit is replaced above.
-		if isComputeBudget && (len(compiled.Data) == 0 || compiled.Data[0] != 3) {
+		isPriorityFee := len(compiled.Data) > 0 && compiled.Data[0] == paymentchannels.ComputeBudgetSetUnitPrice
+		if program.Equals(solana.ComputeBudget) && !isPriorityFee {
 			continue
 		}
 		accounts, err := compiled.ResolveInstructionAccounts(&openTx.Message)
@@ -301,7 +301,7 @@ type voucherArgs struct {
 // distribute. The precompile must immediately precede settle_and_seal because
 // the program reads the voucher from the instruction at index -1.
 func buildSettleAndDistribute(
-	channel SettlementSimChannel,
+	channel settlementChannel,
 	voucher *voucherArgs,
 ) ([]solana.Instruction, error) {
 	var instructions []solana.Instruction

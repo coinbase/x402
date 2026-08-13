@@ -26,9 +26,10 @@ type cleanupHarness struct {
 	payer solana.PublicKey
 	payTo solana.PublicKey
 
-	closes   []CloseResult
-	reclaims []ReclaimResult
-	errors   []error
+	closes          []CloseResult
+	reclaims        []ReclaimResult
+	errors          []error
+	errorChannelIDs []string
 }
 
 func newCleanupHarness(t *testing.T) *cleanupHarness {
@@ -61,7 +62,10 @@ func newCleanupHarness(t *testing.T) *cleanupHarness {
 func (h *cleanupHarness) options(opts CleanupOptions) CleanupOptions {
 	opts.OnClose = func(result CloseResult) { h.closes = append(h.closes, result) }
 	opts.OnReclaim = func(result ReclaimResult) { h.reclaims = append(h.reclaims, result) }
-	opts.OnError = func(err error, _ string) { h.errors = append(h.errors, err) }
+	opts.OnError = func(err error, channelID string) {
+		h.errors = append(h.errors, err)
+		h.errorChannelIDs = append(h.errorChannelIDs, channelID)
+	}
 	return opts
 }
 
@@ -582,6 +586,47 @@ func TestCleanupRetriesAReclaimThatFailedToBroadcast(t *testing.T) {
 	require.Len(t, harness.reclaims, 1)
 	assert.Equal(t, []string{record.ChannelID}, harness.reclaims[0].ChannelIDs)
 	assert.False(t, harness.exists(record.ChannelID))
+}
+
+// A failed batch strands every channel in it, so reporting only the first would
+// hide the rest from the operator watching OnError.
+func TestCleanupReportsEveryChannelInAFailedReclaimBatch(t *testing.T) {
+	harness := newCleanupHarness(t)
+	harness.signer.sendErr = assert.AnError
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	var seeded []string
+	for i := 0; i < 3; i++ {
+		record := harness.seedRecord(
+			ChannelRecord{PayTo: harness.payTo.String()},
+			harness.channel(paymentchannels.StatusDistributed, openSlot),
+		)
+		seeded = append(seeded, record.ChannelID)
+	}
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+
+	assert.Empty(t, harness.reclaims)
+	assert.ElementsMatch(t, seeded, harness.errorChannelIDs)
+}
+
+// Stop cancels the pass context, and a pass that ignored it would keep fetching
+// every remaining record over a dead connection before shutdown completes.
+func TestCleanupStopsOnACanceledContext(t *testing.T) {
+	harness := newCleanupHarness(t)
+	for i := 0; i < 3; i++ {
+		harness.seedRecord(
+			ChannelRecord{PayTo: harness.payTo.String(), ExpiresAt: time.Now().Unix() - 3600},
+			harness.channel(paymentchannels.StatusSealed, testSlot),
+		)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := harness.manager.Cleanup(ctx, harness.options(CleanupOptions{}))
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, harness.signer.sentTransactions())
+	assert.Empty(t, harness.errors, "a canceled pass is not an operator-visible failure")
 }
 
 // An unrecognized status has no cleanup path, so the operator has to hear about

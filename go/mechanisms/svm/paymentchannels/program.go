@@ -23,6 +23,10 @@ const (
 	DistributeDiscriminator    uint8 = 7
 	ReclaimDiscriminator       uint8 = 9
 
+	// Instruction discriminators (first data byte) of the ComputeBudget program.
+	ComputeBudgetSetUnitLimit uint8 = 2
+	ComputeBudgetSetUnitPrice uint8 = 3
+
 	// OpenSlotWindow is the slot freshness / reclaim gate window for channel PDAs.
 	// `open` must land within this many slots of `open_slot`, and `reclaim`
 	// requires clock.slot > open_slot + OpenSlotWindow.

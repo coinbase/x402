@@ -104,24 +104,39 @@ func NewRPCClient(network, rpcURL string) (*rpc.Client, error) {
 	return rpc.New(config.RPCURL), nil
 }
 
-// ResolveTokenProgram resolves the SPL token program owning the requirement's
-// mint. The challenge hint wins; otherwise the registry answers, so a Token-2022
-// stablecoin is not mistaken for a legacy SPL Token one.
-func ResolveTokenProgram(requirements types.PaymentRequirements) (solana.PublicKey, error) {
-	hint, ok := requirements.Extra[ExtraTokenProgram].(string)
+// ParseTokenProgramHint reads and validates `extra.tokenProgram`. The second
+// return value reports whether the challenge carried a hint at all, letting
+// callers pick their own fallback.
+func ParseTokenProgramHint(extra map[string]interface{}) (solana.PublicKey, bool, error) {
+	hint, ok := extra[ExtraTokenProgram].(string)
 	if !ok || hint == "" {
-		registered := svm.GetStablecoinTokenProgram(requirements.Asset, string(requirements.Network))
-		return solana.MustPublicKeyFromBase58(registered), nil
+		return solana.PublicKey{}, false, nil
 	}
 
 	tokenProgram, err := solana.PublicKeyFromBase58(hint)
 	if err != nil {
-		return solana.PublicKey{}, fmt.Errorf("tokenProgram is not a valid base58 address: %w", err)
+		return solana.PublicKey{}, true, fmt.Errorf("tokenProgram is not a valid base58 address: %w", err)
 	}
 	if tokenProgram != solana.TokenProgramID && tokenProgram != solana.Token2022ProgramID {
-		return solana.PublicKey{}, fmt.Errorf("tokenProgram %s is not a supported SPL token program", tokenProgram)
+		return solana.PublicKey{}, true, fmt.Errorf("tokenProgram %s is not a supported SPL token program", tokenProgram)
 	}
-	return tokenProgram, nil
+	return tokenProgram, true, nil
+}
+
+// ResolveTokenProgram resolves the SPL token program owning the requirement's
+// mint. The challenge hint wins; otherwise the registry answers, so a Token-2022
+// stablecoin is not mistaken for a legacy SPL Token one.
+func ResolveTokenProgram(requirements types.PaymentRequirements) (solana.PublicKey, error) {
+	tokenProgram, hinted, err := ParseTokenProgramHint(requirements.Extra)
+	if err != nil {
+		return solana.PublicKey{}, err
+	}
+	if hinted {
+		return tokenProgram, nil
+	}
+
+	registered := svm.GetStablecoinTokenProgram(requirements.Asset, string(requirements.Network))
+	return solana.PublicKeyFromBase58(registered)
 }
 
 // ParseWithdrawDelay reads the grace period from an extra value. JSON numbers

@@ -212,8 +212,13 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 	var reclaimCandidates []reclaimCandidate
 
 	for _, record := range records {
+		// Stop, not skip: the budget is spent, so nothing further in this pass
+		// can act on a record, and each one costs an account fetch to classify.
 		if txsUsed >= opts.MaxTxsPerRun {
 			break
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if record.Network != m.network {
 			continue
@@ -302,9 +307,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		}
 	}
 
-	if txsUsed < opts.MaxTxsPerRun {
-		m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts, opts.MaxTxsPerRun-txsUsed)
-	}
+	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts, opts.MaxTxsPerRun-txsUsed)
 	return nil
 }
 
@@ -418,7 +421,10 @@ func (m *RentCleanupManager) submitReclaimBatches(
 
 			signature, err := submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
 			if err != nil {
-				opts.reportError(err, channelIDs[0])
+				// Every channel in the batch is stuck, not just the first.
+				for _, channelID := range channelIDs {
+					opts.reportError(err, channelID)
+				}
 				continue
 			}
 			txsUsed++

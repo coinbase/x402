@@ -30,20 +30,20 @@ export const SLOT_COMMITMENT = "finalized" as const;
 export const BLOCKHASH_COMMITMENT = "finalized" as const;
 
 /**
- * Resolve the SPL token program owning the requirement's mint.
+ * Read and validate `extra.tokenProgram`.
  *
- * The challenge hint wins; otherwise the registry answers, so a Token-2022
- * stablecoin is not mistaken for a legacy SPL Token one. A hint that is not one
- * of the two supported programs is a broken challenge and throws, rather than
- * failing later as an opaque open-transaction mismatch.
+ * A hint that is not one of the two supported programs is a broken challenge and
+ * throws, rather than failing later as an opaque open-transaction mismatch.
+ * Returning `undefined` for an absent hint lets callers pick their own fallback:
+ * the registry for the facilitator, a mint read for the client.
  *
- * @param requirements - The payment requirements being paid
- * @returns The token program address
+ * @param extra - The `extra` block of the payment requirements
+ * @returns The hinted token program address, or undefined when unset
  */
-export function resolveTokenProgram(requirements: PaymentRequirements): string {
-  const hint = requirements.extra?.tokenProgram;
+export function parseTokenProgramHint(extra: PaymentRequirements["extra"]): string | undefined {
+  const hint = extra?.tokenProgram;
   if (hint === undefined || hint === null || hint === "") {
-    return getStablecoinTokenProgram(requirements.asset, requirements.network);
+    return undefined;
   }
   if (typeof hint !== "string" || !validateSvmAddress(hint)) {
     throw new Error(`extra.tokenProgram ${String(hint)} is not a valid base58 address`);
@@ -52,6 +52,22 @@ export function resolveTokenProgram(requirements: PaymentRequirements): string {
     throw new Error(`extra.tokenProgram ${hint} is not a supported SPL token program`);
   }
   return hint;
+}
+
+/**
+ * Resolve the SPL token program owning the requirement's mint.
+ *
+ * The challenge hint wins; otherwise the registry answers, so a Token-2022
+ * stablecoin is not mistaken for a legacy SPL Token one.
+ *
+ * @param requirements - The payment requirements being paid
+ * @returns The token program address
+ */
+export function resolveTokenProgram(requirements: PaymentRequirements): string {
+  return (
+    parseTokenProgramHint(requirements.extra) ??
+    getStablecoinTokenProgram(requirements.asset, requirements.network)
+  );
 }
 
 /**

@@ -83,6 +83,17 @@ func TestGetStablecoinTokenProgram(t *testing.T) {
 	}
 }
 
+// A symbol added to one registry map but not the other must still resolve to a
+// real program: callers parse this return value, and an empty string is not an
+// address. TestStablecoinRegistryIsInternallyConsistent keeps the maps in step;
+// this pins the behavior if one ever drifts.
+func TestGetStablecoinTokenProgramFallsBackOnAnIncompleteRegistry(t *testing.T) {
+	StablecoinMints["TESTUSD"] = map[string]string{networkKeyMainnet: USDCMainnetAddress}
+	t.Cleanup(func() { delete(StablecoinMints, "TESTUSD") })
+
+	assert.Equal(t, TokenProgramAddress, GetStablecoinTokenProgram("TESTUSD", SolanaDevnetCAIP2))
+}
+
 // Every registry mint shares one precision; GetAssetDecimals depends on it.
 func TestStablecoinRegistryIsInternallyConsistent(t *testing.T) {
 	for symbol, mints := range StablecoinMints {

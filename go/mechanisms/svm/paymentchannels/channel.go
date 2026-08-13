@@ -17,11 +17,14 @@ const (
 	// reserved for uninitialized accounts.
 	ChannelAccountDiscriminator uint8 = 1
 
-	// Public-key field offsets used for getProgramAccounts memcmp discovery.
+	// Field offsets into the account layout, past the fixed-width scalar
+	// prefix. Also usable as getProgramAccounts memcmp offsets.
 	ChannelPayerOffset            = 88
 	ChannelPayeeOffset            = 120
 	ChannelAuthorizedSignerOffset = 152
+	ChannelMintOffset             = 184
 	ChannelRentPayerOffset        = 216
+	ChannelOpenSlotOffset         = 248
 )
 
 // Channel is the decoded onchain channel account.
@@ -68,9 +71,9 @@ func DecodeChannel(data []byte) (*Channel, error) {
 		Payer:            solana.PublicKeyFromBytes(data[ChannelPayerOffset : ChannelPayerOffset+32]),
 		Payee:            solana.PublicKeyFromBytes(data[ChannelPayeeOffset : ChannelPayeeOffset+32]),
 		AuthorizedSigner: solana.PublicKeyFromBytes(data[ChannelAuthorizedSignerOffset : ChannelAuthorizedSignerOffset+32]),
-		Mint:             solana.PublicKeyFromBytes(data[184:216]),
+		Mint:             solana.PublicKeyFromBytes(data[ChannelMintOffset : ChannelMintOffset+32]),
 		RentPayer:        solana.PublicKeyFromBytes(data[ChannelRentPayerOffset : ChannelRentPayerOffset+32]),
-		OpenSlot:         binary.LittleEndian.Uint64(data[248:256]),
+		OpenSlot:         binary.LittleEndian.Uint64(data[ChannelOpenSlotOffset : ChannelOpenSlotOffset+8]),
 	}
 	copy(channel.DistributionHash[:], data[56:88])
 
@@ -78,12 +81,6 @@ func DecodeChannel(data []byte) (*Channel, error) {
 		return nil, fmt.Errorf("account discriminator %d is not a payment channel", channel.Discriminator)
 	}
 	return channel, nil
-}
-
-// DerivePDA rederives the channel PDA from the decoded account fields, so a
-// discovered account can be bound to the program's seed derivation.
-func (c *Channel) DerivePDA() (solana.PublicKey, error) {
-	return FindChannelPDA(c.Payer, c.Payee, c.Mint, c.AuthorizedSigner, c.Salt, c.OpenSlot)
 }
 
 // DistributionHash computes the distribution commitment the program stores at

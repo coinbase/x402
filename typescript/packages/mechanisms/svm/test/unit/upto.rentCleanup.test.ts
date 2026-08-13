@@ -312,6 +312,25 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     expect(await storage.get(b.channelId)).toBeUndefined();
   });
 
+  // A failed batch strands every channel in it, so reporting only the first
+  // would hide the rest from the operator watching onError.
+  it("reports every channel in a reclaim batch that failed to broadcast", async () => {
+    const a = await seed();
+    const b = await seed();
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Distributed }));
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+    submitSettleMock.mockRejectedValue(new Error("broadcast failed"));
+
+    const onError = vi.fn();
+    const onReclaim = vi.fn();
+    await manager.cleanup({ maxReclaimsPerTx: 8, onError, onReclaim });
+
+    expect(onReclaim).not.toHaveBeenCalled();
+    expect(onError.mock.calls.map(call => call[1]?.channelId)).toEqual(
+      expect.arrayContaining([a.channelId, b.channelId]),
+    );
+  });
+
   it("respects maxReclaimsPerTx and maxTxsPerRun for reclaim batching", async () => {
     await seed();
     await seed();

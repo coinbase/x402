@@ -7,7 +7,11 @@ import { buildOpenPaymentChannelTransaction } from "../../payment-channels/open"
 import type { ClientSvmConfig, ClientSvmSigner } from "../../signer";
 import { type UptoSvmPayloadV2 } from "../../types";
 import { createRpcClient, resolveBlockhash, resolveOpenSlot } from "../../utils";
-import { resolveUptoSvmMemo, resolveUptoSvmPaymentChannelConfig } from "../shared";
+import {
+  parseTokenProgramHint,
+  resolveUptoSvmMemo,
+  resolveUptoSvmPaymentChannelConfig,
+} from "../shared";
 
 /** Configuration for the upto SVM client. */
 export type UptoClientSvmConfig = ClientSvmConfig & {
@@ -64,7 +68,7 @@ export class UptoSvmScheme implements SchemeNetworkClient {
     const rpc = createRpcClient(paymentRequirements.network, this.config?.rpcUrl);
 
     // Resolve the token program: prefer the requirement's hint, else read the mint.
-    let tokenProgram = paymentRequirements.extra?.tokenProgram as string | undefined;
+    let tokenProgram = parseTokenProgramHint(paymentRequirements.extra);
     if (!tokenProgram) {
       const mint = await fetchMint(rpc, paymentRequirements.asset as Address);
       const programAddress = mint.programAddress.toString();

@@ -76,6 +76,15 @@ func TestVerifyOpenTransactionRejectsDisallowedInstructions(t *testing.T) {
 			wantError: "only Lighthouse or Memo are allowed after open",
 		},
 		{
+			// A second open would escrow a second deposit and bill the
+			// facilitator for a second channel's rent on one authorization.
+			name: "a second payment-channels open",
+			suffix: func(t *testing.T, f *openFixture) []solana.Instruction {
+				return []solana.Instruction{f.openInstruction(t)}
+			},
+			wantError: "only Lighthouse or Memo are allowed after open",
+		},
+		{
 			name: "fourth lighthouse assertion",
 			suffix: func(_ *testing.T, f *openFixture) []solana.Instruction {
 				return []solana.Instruction{

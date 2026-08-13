@@ -169,11 +169,11 @@ func (c *UptoSvmScheme) resolveTokenProgram(
 	mint solana.PublicKey,
 	requirements types.PaymentRequirements,
 ) (solana.PublicKey, error) {
-	if hint, ok := requirements.Extra[upto.ExtraTokenProgram].(string); ok && hint != "" {
-		tokenProgram, err := upto.ResolveTokenProgram(requirements)
-		if err != nil {
-			return solana.PublicKey{}, fmt.Errorf(ErrUnknownTokenProgram+": %w", err)
-		}
+	tokenProgram, hinted, err := upto.ParseTokenProgramHint(requirements.Extra)
+	if err != nil {
+		return solana.PublicKey{}, fmt.Errorf(ErrUnknownTokenProgram+": %w", err)
+	}
+	if hinted {
 		return tokenProgram, nil
 	}
 

@@ -297,7 +297,7 @@ func (f *UptoSvmScheme) settleDeposit(
 			"a deposit settlement for this channel is already in flight")
 	}
 
-	simChannel := SettlementSimChannel{
+	simChannel := settlementChannel{
 		ChannelID:    auth.channelID,
 		Mint:         auth.mint,
 		Payee:        auth.feePayer,
@@ -332,7 +332,7 @@ func (f *UptoSvmScheme) settleDeposit(
 		return nil, x402.NewSettleError(ErrChannelBroadcast, uptoPayload.From, network, "", err.Error())
 	}
 
-	if _, err := fetchAndVerifyOpenChannel(ctx, rpcClient, auth.channelID, ExpectedOpenChannel{
+	if _, err := fetchAndVerifyOpenChannel(ctx, rpcClient, auth.channelID, expectedOpenChannel{
 		AuthorizedSigner: auth.channelConfig.ReceiverAuthorizer,
 		Mint:             requirements.Asset,
 		Payee:            auth.channelConfig.FeePayer,
@@ -417,7 +417,7 @@ func (f *UptoSvmScheme) settleClaim(
 		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
 	}
 
-	channel, err := fetchAndVerifyOpenChannel(ctx, rpcClient, channelID, ExpectedOpenChannel{
+	channel, err := fetchAndVerifyOpenChannel(ctx, rpcClient, channelID, expectedOpenChannel{
 		AuthorizedSigner: channelConfig.ReceiverAuthorizer,
 		Mint:             requirements.Asset,
 		Payee:            channelConfig.FeePayer,
@@ -455,7 +455,7 @@ func (f *UptoSvmScheme) settleClaim(
 	// Settlement is confirmed onchain past this point, so storage bookkeeping
 	// must never turn a charged payment into a failure.
 	f.upsertChannelStorage(ctx, StoragePhaseSettle, ChannelRecord{
-		ChannelID:    channel.ChannelID,
+		ChannelID:    channel.ChannelID.String(),
 		PayTo:        requirements.PayTo,
 		TokenProgram: tokenProgram.String(),
 		ExpiresAt:    uptoPayload.ExpiresAt,
@@ -467,7 +467,7 @@ func (f *UptoSvmScheme) settleClaim(
 		Transaction: signature,
 		Network:     x402.Network(requirements.Network),
 		Amount:      strconv.FormatUint(actual, 10),
-		Payer:       channel.Payer,
+		Payer:       channel.Payer.String(),
 	}, nil
 }
 
@@ -484,7 +484,7 @@ func (f *UptoSvmScheme) submitClaim(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	feePayer solana.PublicKey,
-	channel *VerifiedOpenChannel,
+	channel *verifiedOpenChannel,
 	args claimArgs,
 ) (string, error) {
 	// The program requires settled < cumulative_amount, so a zero charge seals
@@ -493,23 +493,16 @@ func (f *UptoSvmScheme) submitClaim(
 	var voucher *voucherArgs
 	if args.Actual > 0 {
 		voucher = &voucherArgs{
-			AuthorizedSigner: channel.Keys.AuthorizedSigner,
+			AuthorizedSigner: channel.AuthorizedSigner,
 			SignatureBase58:  args.VoucherSignature,
 			CumulativeAmount: args.Actual,
 			ExpiresAt:        args.ExpiresAt,
 		}
 	}
 
-	instructions, err := buildSettleAndDistribute(SettlementSimChannel{
-		ChannelID:    channel.Keys.ChannelID,
-		Mint:         channel.Keys.Mint,
-		Payee:        channel.Keys.Payee,
-		Payer:        channel.Keys.Payer,
-		RentPayer:    channel.Keys.RentPayer,
-		TokenProgram: args.TokenProgram,
-		Network:      args.Network,
-		Splits:       channel.Splits,
-	}, voucher)
+	instructions, err := buildSettleAndDistribute(
+		channel.settlement(args.TokenProgram, args.Network), voucher,
+	)
 	if err != nil {
 		return "", err
 	}

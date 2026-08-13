@@ -525,8 +525,8 @@ func verifyOptionalSuffix(message *solana.Message, start int, expected VerifyOpe
 	return nil
 }
 
-// verifyComputeBudgetInstruction allows only SetComputeUnitLimit (2) and
-// SetComputeUnitPrice (3), in that order, within the spec ceilings.
+// verifyComputeBudgetInstruction allows only SetComputeUnitLimit and
+// SetComputeUnitPrice, in that order, within the spec ceilings.
 func verifyComputeBudgetInstruction(
 	data []byte,
 	maxComputeUnits uint32,
@@ -537,7 +537,7 @@ func verifyComputeBudgetInstruction(
 		return fmt.Errorf("verifyOpenTransaction: malformed ComputeBudget instruction")
 	}
 	switch data[0] {
-	case 2:
+	case ComputeBudgetSetUnitLimit:
 		if *seenLimit {
 			return fmt.Errorf("verifyOpenTransaction: duplicate SetComputeUnitLimit instruction")
 		}
@@ -552,7 +552,7 @@ func verifyComputeBudgetInstruction(
 			return fmt.Errorf("verifyOpenTransaction: SetComputeUnitLimit %d exceeds %d", units, maxComputeUnits)
 		}
 		*seenLimit = true
-	case 3:
+	case ComputeBudgetSetUnitPrice:
 		if *seenPrice {
 			return fmt.Errorf("verifyOpenTransaction: duplicate SetComputeUnitPrice instruction")
 		}

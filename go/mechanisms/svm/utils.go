@@ -167,7 +167,10 @@ func GetStablecoinTokenProgram(currency string, network string) string {
 	if !ok {
 		return TokenProgramAddress
 	}
-	return StablecoinTokenPrograms[symbol]
+	if program, ok := StablecoinTokenPrograms[symbol]; ok {
+		return program
+	}
+	return TokenProgramAddress
 }
 
 // ValidateSolanaAddress checks if a string is a valid Solana address

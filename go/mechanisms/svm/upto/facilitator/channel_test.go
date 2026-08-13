@@ -11,8 +11,8 @@ import (
 )
 
 // expectedFrom derives the binding the facilitator checks for a fixture channel.
-func expectedFrom(fixture *paymentFixture) ExpectedOpenChannel {
-	return ExpectedOpenChannel{
+func expectedFrom(fixture *paymentFixture) expectedOpenChannel {
+	return expectedOpenChannel{
 		AuthorizedSigner: fixture.authorizer.PublicKey().String(),
 		Mint:             fixture.mint.String(),
 		Payee:            fixture.feePayer.String(),
@@ -33,13 +33,14 @@ func TestVerifyOpenChannelAccountBindsTheOnchainState(t *testing.T) {
 	verified, err := verifyOpenChannelAccount(fixture.channelID, channel, expectedFrom(fixture))
 	require.NoError(t, err)
 
-	assert.Equal(t, fixture.channelID.String(), verified.ChannelID)
-	assert.Equal(t, fixture.payerKey.PublicKey().String(), verified.Payer)
-	assert.Equal(t, fixture.deposit, verified.Deposit)
-	assert.Equal(t, testSlot, verified.OpenSlot)
-	assert.Equal(t, fixture.channelID, verified.Keys.ChannelID,
-		"the parsed keys are what settlement signs against")
-	assert.Equal(t, fixture.authorizer.PublicKey(), verified.Keys.AuthorizedSigner)
+	// The parsed keys are what settlement signs against.
+	assert.Equal(t, fixture.channelID, verified.ChannelID)
+	assert.Equal(t, fixture.payerKey.PublicKey(), verified.Payer)
+	assert.Equal(t, fixture.authorizer.PublicKey(), verified.AuthorizedSigner)
+	assert.Equal(t, fixture.mint, verified.Mint)
+	assert.Equal(t, fixture.feePayer, verified.Payee)
+	assert.Equal(t, fixture.feePayer, verified.RentPayer)
+	assert.Equal(t, fixture.splits(), verified.Splits)
 }
 
 // The onchain account, not the client payload, is the source of truth, so every
@@ -50,75 +51,75 @@ func TestVerifyOpenChannelAccountRejectsEveryUnboundTerm(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		mutate    func(account *channelAccount, expected *ExpectedOpenChannel)
+		mutate    func(account *channelAccount, expected *expectedOpenChannel)
 		wantError string
 	}{
 		{
 			name: "channel already sealed",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Status = paymentchannels.StatusSealed
 			},
 			wantError: "is not open",
 		},
 		{
 			name: "channel closing",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Status = paymentchannels.StatusClosing
 			},
 			wantError: "is not open",
 		},
 		{
 			name: "mint rotated",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Mint = stranger.PublicKey()
 			},
 			wantError: "mint",
 		},
 		{
 			name: "payee rotated",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Payee = stranger.PublicKey()
 			},
 			wantError: "payee",
 		},
 		{
 			name: "authorized signer rotated",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.AuthorizedSigner = stranger.PublicKey()
 			},
 			wantError: "authorized signer",
 		},
 		{
 			name: "rent payer rotated",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.RentPayer = stranger.PublicKey()
 			},
 			wantError: "rent payer",
 		},
 		{
 			name: "payer is not the payload sender",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Payer = stranger.PublicKey()
 			},
 			wantError: "payer",
 		},
 		{
 			name: "grace period shortened",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.GracePeriod = 60
 			},
 			wantError: "grace period",
 		},
 		{
 			name: "deposit below the authorized ceiling",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Deposit = 1
 			},
 			wantError: "deposit",
 		},
 		{
 			name: "distribution pays a different recipient",
-			mutate: func(account *channelAccount, _ *ExpectedOpenChannel) {
+			mutate: func(account *channelAccount, _ *expectedOpenChannel) {
 				account.Splits = []paymentchannels.Split{
 					{Recipient: stranger.PublicKey().String(), BPS: paymentchannels.BasisPointsDenominator},
 				}
@@ -127,7 +128,7 @@ func TestVerifyOpenChannelAccountRejectsEveryUnboundTerm(t *testing.T) {
 		},
 		{
 			name: "distribution splits the payout",
-			mutate: func(_ *channelAccount, expected *ExpectedOpenChannel) {
+			mutate: func(_ *channelAccount, expected *expectedOpenChannel) {
 				expected.Splits = append(expected.Splits,
 					paymentchannels.Split{Recipient: stranger.PublicKey().String(), BPS: 1})
 			},
@@ -155,7 +156,7 @@ func TestVerifyOpenChannelAccountRejectsEveryUnboundTerm(t *testing.T) {
 func TestBuildSettleAndDistributeCarriesTheVoucherPrecompile(t *testing.T) {
 	signer := newMockSigner(t, 1)
 	fixture := newPaymentFixture(t, signer)
-	channel := SettlementSimChannel{
+	channel := settlementChannel{
 		ChannelID:    fixture.channelID,
 		Mint:         fixture.mint,
 		Payee:        fixture.feePayer,
