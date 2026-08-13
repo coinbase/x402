@@ -17,6 +17,7 @@
 import { address, type Address, type Signature } from "@solana/kit";
 import type { Network } from "@x402/core/types";
 
+import { discoverChannelsByRentPayer } from "../../payment-channels/discovery";
 import { fetchMaybeChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
 import {
   buildDistributeInstruction,
@@ -37,6 +38,22 @@ import type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";
 interface ReclaimCandidate {
   channelId: string;
   rentPayer: string;
+}
+
+/**
+ * Reorders records to start right after the channel id a prior pass stopped
+ * at, wrapping around. An unknown or empty cursor (a closed channel, or the
+ * first pass) scans from the beginning.
+ *
+ * @param records - Stored channel records in storage order
+ * @param cursor - Channel id to resume from, or "" to scan from the start
+ * @returns Records rotated so `cursor` (if present) comes first
+ */
+function rotateFromCursor(records: UptoChannelRecord[], cursor: string): UptoChannelRecord[] {
+  if (!cursor) return records;
+  const index = records.findIndex(record => record.channelId === cursor);
+  if (index === -1) return records;
+  return [...records.slice(index), ...records.slice(0, index)];
 }
 
 /** Default grace after voucher expiry before abandon-closing an Open channel. */
@@ -106,6 +123,13 @@ export interface UptoSvmRentCleanupManagerConfig {
   settleComputeUnitLimit?: number;
   /** Injected RPC client used instead of building one from `rpcUrl`. */
   rpc?: ChannelRpc;
+  /**
+   * Add a spec §6 getProgramAccounts sweep, per managed signer key, for
+   * Distributed channels missing from storage. Discovery finds only
+   * chain-verifiable reclaim candidates; it never substitutes for the
+   * payTo/tokenProgram metadata Open/Sealed actions require.
+   */
+  enableDiscovery?: boolean;
 }
 
 /**
@@ -123,6 +147,7 @@ export class UptoSvmRentCleanupManager {
   private readonly computeUnitPriceMicroLamports: number | undefined;
   private readonly settleComputeUnitLimit: number | undefined;
   private readonly rpc: ChannelRpc | undefined;
+  private readonly enableDiscovery: boolean;
 
   private timer: ReturnType<typeof setInterval> | undefined;
   private running = false;
@@ -135,6 +160,14 @@ export class UptoSvmRentCleanupManager {
    * the same close or reclaim twice.
    */
   private passQueue: Promise<void> = Promise.resolve();
+
+  /**
+   * Resumes scanning where the previous pass's budget ran out, so a
+   * persistent close/reclaim backlog larger than maxTxsPerRun cannot starve
+   * records ordered later in storage.list() forever. Empty string starts
+   * from the beginning. Only ever read/written inside a queued pass.
+   */
+  private scanCursor = "";
 
   /**
    * Create a rent cleanup manager for one network.
@@ -156,6 +189,7 @@ export class UptoSvmRentCleanupManager {
     this.computeUnitPriceMicroLamports = config.computeUnitPriceMicroLamports;
     this.settleComputeUnitLimit = config.settleComputeUnitLimit;
     this.rpc = config.rpc;
+    this.enableDiscovery = config.enableDiscovery ?? false;
   }
 
   /**
@@ -213,16 +247,29 @@ export class UptoSvmRentCleanupManager {
     const maxClosesPerRun = opts.maxClosesPerRun ?? DEFAULT_MAX_CLOSES_PER_RUN;
 
     const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
-    const records = await this.storage.list();
+    const records = rotateFromCursor(await this.storage.list(), this.scanCursor);
+    this.scanCursor = "";
     const nowSecs = Math.floor(Date.now() / 1_000);
     let currentSlot: bigint | undefined;
     let txsUsed = 0;
     let closesUsed = 0;
     const reclaimCandidates: ReclaimCandidate[] = [];
+    const seen = new Set<string>();
+    const getCurrentSlot = async (): Promise<bigint> => {
+      currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
+      return currentSlot;
+    };
 
     for (const record of records) {
-      if (txsUsed >= maxTxsPerRun) break;
+      // Stop, not skip: the budget is spent, so nothing further in this pass
+      // can act on a record. Resume here next pass instead of always
+      // rescanning from the start.
+      if (txsUsed >= maxTxsPerRun) {
+        this.scanCursor = record.channelId;
+        break;
+      }
       if (record.network !== this.network) continue;
+      seen.add(record.channelId);
 
       try {
         const maybe = await fetchMaybeChannel(rpc, address(record.channelId), {
@@ -287,8 +334,8 @@ export class UptoSvmRentCleanupManager {
         }
 
         if (status === ChannelStatus.Distributed) {
-          currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
-          if (currentSlot > live.openSlot + OPEN_SLOT_WINDOW) {
+          const slot = await getCurrentSlot();
+          if (slot > live.openSlot + OPEN_SLOT_WINDOW) {
             reclaimCandidates.push({
               channelId: record.channelId,
               rentPayer: live.rentPayer,
@@ -308,14 +355,56 @@ export class UptoSvmRentCleanupManager {
       }
     }
 
-    if (txsUsed < maxTxsPerRun) {
-      await this.submitReclaimBatches(rpc, reclaimCandidates, {
-        maxReclaimsPerTx,
-        maxTxs: maxTxsPerRun - txsUsed,
-        onReclaim: opts.onReclaim,
-        onError: opts.onError,
-      });
+    if (this.enableDiscovery) {
+      const discovered = await this.discoverReclaimCandidates(rpc, getCurrentSlot, seen, opts);
+      reclaimCandidates.push(...discovered);
     }
+
+    await this.submitReclaimBatches(rpc, reclaimCandidates, {
+      maxReclaimsPerTx,
+      maxTxsPerRun,
+      onReclaim: opts.onReclaim,
+      onError: opts.onError,
+    });
+  }
+
+  /**
+   * Run the spec §6 onchain sweep for every managed signer key and return
+   * Distributed, slot-gated channels absent from storage. Recovery path for
+   * a lost or incomplete work index; only ever proposes the reclaim action,
+   * which needs no offchain metadata.
+   *
+   * @param rpc - RPC client
+   * @param getCurrentSlot - Lazily-fetched, cached current slot
+   * @param seen - Channel ids already classified from stored records
+   * @param opts - Callbacks for reporting discovery failures
+   * @returns Discovered Distributed channels past the open-slot gate
+   */
+  private async discoverReclaimCandidates(
+    rpc: ChannelRpc,
+    getCurrentSlot: () => Promise<bigint>,
+    seen: Set<string>,
+    opts: RentCleanupOptions,
+  ): Promise<ReclaimCandidate[]> {
+    const candidates: ReclaimCandidate[] = [];
+    for (const managed of this.signer.getAddresses()) {
+      let found;
+      try {
+        found = await discoverChannelsByRentPayer(rpc, managed);
+      } catch (error) {
+        opts.onError?.(error);
+        continue;
+      }
+      const slot = await getCurrentSlot();
+      for (const { channelId, channel } of found) {
+        if (seen.has(channelId)) continue;
+        seen.add(channelId);
+        if (channel.status !== ChannelStatus.Distributed) continue;
+        if (slot <= channel.openSlot + OPEN_SLOT_WINDOW) continue;
+        candidates.push({ channelId, rentPayer: channel.rentPayer });
+      }
+    }
+    return candidates;
   }
 
   /**
@@ -397,13 +486,22 @@ export class UptoSvmRentCleanupManager {
   }
 
   /**
-   * Group reclaim candidates by rent_payer and submit batched reclaim txs.
+   * Group reclaim candidates by rent_payer and run each group's batched
+   * reclaim transactions concurrently, each against its own maxTxsPerRun
+   * budget.
+   *
+   * Submissions within a group stay sequential (each batch refetches live
+   * state, so a group depends on its own prior submissions to avoid
+   * double-reclaiming), but independent rent-payer groups do not share a
+   * budget or depend on one another: adding managed signer keys adds
+   * maxTxsPerRun more reclaim throughput per pass, not a share of a fixed
+   * pool.
    *
    * @param rpc - RPC client
    * @param candidates - Distributed channels ready to reclaim
    * @param opts - Batch size, tx budget, callbacks
    * @param opts.maxReclaimsPerTx - Max reclaim instructions per transaction
-   * @param opts.maxTxs - Max reclaim transactions to submit
+   * @param opts.maxTxsPerRun - Max reclaim transactions per rent-payer group
    * @param opts.onReclaim - Optional success callback per reclaim batch
    * @param opts.onError - Optional error callback
    */
@@ -412,12 +510,12 @@ export class UptoSvmRentCleanupManager {
     candidates: ReclaimCandidate[],
     opts: {
       maxReclaimsPerTx: number;
-      maxTxs: number;
+      maxTxsPerRun: number;
       onReclaim?: ((result: RentCleanupReclaimResult) => void) | undefined;
       onError?: ((error: unknown, context?: { channelId?: string }) => void) | undefined;
     },
   ): Promise<void> {
-    if (opts.maxTxs <= 0 || candidates.length === 0) return;
+    if (opts.maxTxsPerRun <= 0 || candidates.length === 0) return;
 
     const byRentPayer = new Map<string, ReclaimCandidate[]>();
     for (const candidate of candidates) {
@@ -426,67 +524,96 @@ export class UptoSvmRentCleanupManager {
       byRentPayer.set(candidate.rentPayer, group);
     }
 
-    let txsUsed = 0;
-    for (const [rentPayer, group] of byRentPayer) {
-      if (txsUsed >= opts.maxTxs) break;
+    await Promise.all(
+      Array.from(byRentPayer.entries()).map(([rentPayer, group]) =>
+        this.submitReclaimGroup(rpc, rentPayer, group, opts, { remaining: opts.maxTxsPerRun }),
+      ),
+    );
+  }
 
-      const feePayerSigner = this.resolveFeePayer(rentPayer);
-      if (!feePayerSigner) {
-        for (const candidate of group) {
-          opts.onError?.(
-            new Error(
-              `channel ${candidate.channelId} feePayer ${rentPayer} not in facilitator signer set`,
-            ),
-            { channelId: candidate.channelId },
-          );
-        }
-        continue;
+  /**
+   * Submit one rent payer's reclaim batches sequentially, claiming a slot
+   * from the shared budget before each attempt.
+   *
+   * @param rpc - RPC client
+   * @param rentPayer - Rent payer this group's channels share
+   * @param group - This rent payer's reclaim candidates
+   * @param opts - Batch size and callbacks
+   * @param opts.maxReclaimsPerTx - Max reclaim instructions per transaction
+   * @param opts.onReclaim - Optional success callback per reclaim batch
+   * @param opts.onError - Optional error callback
+   * @param budget - Shared remaining-transaction counter across all groups
+   * @param budget.remaining - Transactions left to submit across all groups
+   */
+  private async submitReclaimGroup(
+    rpc: ChannelRpc,
+    rentPayer: string,
+    group: ReclaimCandidate[],
+    opts: {
+      maxReclaimsPerTx: number;
+      onReclaim?: ((result: RentCleanupReclaimResult) => void) | undefined;
+      onError?: ((error: unknown, context?: { channelId?: string }) => void) | undefined;
+    },
+    budget: { remaining: number },
+  ): Promise<void> {
+    const feePayerSigner = this.resolveFeePayer(rentPayer);
+    if (!feePayerSigner) {
+      for (const candidate of group) {
+        opts.onError?.(
+          new Error(
+            `channel ${candidate.channelId} feePayer ${rentPayer} not in facilitator signer set`,
+          ),
+          { channelId: candidate.channelId },
+        );
       }
+      return;
+    }
 
-      for (let i = 0; i < group.length && txsUsed < opts.maxTxs; i += opts.maxReclaimsPerTx) {
-        const batch = group.slice(i, i + opts.maxReclaimsPerTx);
-        try {
-          // Refetch each account immediately before acting (stale → skip).
-          const liveBatch: ReclaimCandidate[] = [];
-          for (const candidate of batch) {
-            const maybe = await fetchMaybeChannel(rpc, address(candidate.channelId), {
-              commitment: STATE_COMMITMENT,
-            });
-            if (!maybe.exists) {
-              await this.storage.delete(candidate.channelId);
-              continue;
-            }
-            if (maybe.data.status !== ChannelStatus.Distributed) continue;
-            liveBatch.push({
-              channelId: candidate.channelId,
-              rentPayer: maybe.data.rentPayer,
-            });
-          }
-          if (liveBatch.length === 0) continue;
+    for (let i = 0; i < group.length; i += opts.maxReclaimsPerTx) {
+      if (budget.remaining <= 0) return;
+      budget.remaining -= 1;
 
-          const instructions = liveBatch.map(candidate =>
-            buildReclaimInstruction({
-              channelId: candidate.channelId,
-              rentPayer: candidate.rentPayer,
-            }),
-          );
-          const signature = await submitSettle(feePayerSigner, rpc, instructions, {
-            computeUnitLimit: reclaimComputeUnitLimit(liveBatch.length),
-            computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
+      const batch = group.slice(i, i + opts.maxReclaimsPerTx);
+      try {
+        // Refetch each account immediately before acting (stale → skip).
+        const liveBatch: ReclaimCandidate[] = [];
+        for (const candidate of batch) {
+          const maybe = await fetchMaybeChannel(rpc, address(candidate.channelId), {
+            commitment: STATE_COMMITMENT,
           });
-          txsUsed += 1;
-          opts.onReclaim?.({
-            channelIds: liveBatch.map(c => c.channelId),
-            transaction: signature,
-          });
-          for (const candidate of liveBatch) {
+          if (!maybe.exists) {
             await this.storage.delete(candidate.channelId);
+            continue;
           }
-        } catch (error) {
-          // Every channel in the batch is stuck, not just the first.
-          for (const candidate of batch) {
-            opts.onError?.(error, { channelId: candidate.channelId });
-          }
+          if (maybe.data.status !== ChannelStatus.Distributed) continue;
+          liveBatch.push({
+            channelId: candidate.channelId,
+            rentPayer: maybe.data.rentPayer,
+          });
+        }
+        if (liveBatch.length === 0) continue;
+
+        const instructions = liveBatch.map(candidate =>
+          buildReclaimInstruction({
+            channelId: candidate.channelId,
+            rentPayer: candidate.rentPayer,
+          }),
+        );
+        const signature = await submitSettle(feePayerSigner, rpc, instructions, {
+          computeUnitLimit: reclaimComputeUnitLimit(liveBatch.length),
+          computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
+        });
+        opts.onReclaim?.({
+          channelIds: liveBatch.map(c => c.channelId),
+          transaction: signature,
+        });
+        for (const candidate of liveBatch) {
+          await this.storage.delete(candidate.channelId);
+        }
+      } catch (error) {
+        // Every channel in the batch is stuck, not just the first.
+        for (const candidate of batch) {
+          opts.onError?.(error, { channelId: candidate.channelId });
         }
       }
     }

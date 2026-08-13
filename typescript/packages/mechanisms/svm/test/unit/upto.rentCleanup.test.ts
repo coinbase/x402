@@ -1,4 +1,5 @@
 import { AccountRole, generateKeyPairSigner } from "@solana/kit";
+import type { Address, TransactionSigner } from "@solana/kit";
 import type { Network } from "@x402/core/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +11,7 @@ import {
   RECLAIM_DISCRIMINATOR,
 } from "../../src/payment-channels/onchain";
 import { OPEN_SLOT_WINDOW } from "../../src/payment-channels/open";
+import type { FacilitatorSvmSigner } from "../../src/signer";
 import { toFacilitatorSvmSigner } from "../../src/signer";
 import { InMemoryUptoChannelStorage } from "../../src/upto/facilitator/channelStorage";
 import type { UptoChannelRecord } from "../../src/upto/facilitator/channelStorage";
@@ -26,6 +28,17 @@ const fetchMaybeChannelMock = vi.hoisted(() => vi.fn());
 const submitSettleMock = vi.hoisted(() => vi.fn());
 const buildDistributeMock = vi.hoisted(() => vi.fn());
 const getSlotMock = vi.hoisted(() => vi.fn());
+const discoverChannelsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("../../src/payment-channels/discovery", async () => {
+  const actual = await vi.importActual<typeof import("../../src/payment-channels/discovery")>(
+    "../../src/payment-channels/discovery",
+  );
+  return {
+    ...actual,
+    discoverChannelsByRentPayer: discoverChannelsMock,
+  };
+});
 
 vi.mock("../../src/payment-channels/generated/accounts/channel", async () => {
   const actual = await vi.importActual<
@@ -399,6 +412,29 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     expect(onReclaim.mock.calls[0]![0].channelIds).toEqual([distributed.channelId]);
   });
 
+  // A backlog bigger than maxTxsPerRun must eventually reach every record
+  // instead of only ever reprocessing whatever storage.list() returns first.
+  it("resumes scanning from the cursor after the budget runs out", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    const first = await seed({ expiresAt: nowSecs - 200 });
+    const second = await seed({ expiresAt: nowSecs - 200 });
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Sealed }));
+    submitSettleMock.mockResolvedValue("Sig11111111111111111111111111111111111111111");
+
+    const firstPassCloses = vi.fn();
+    await manager.cleanup({ maxTxsPerRun: 1, onClose: firstPassCloses });
+    expect(firstPassCloses).toHaveBeenCalledTimes(1);
+    const closedFirst = firstPassCloses.mock.calls[0]![0].channelId as string;
+    expect([first.channelId, second.channelId]).toContain(closedFirst);
+    const cursor = (manager as unknown as { scanCursor: string }).scanCursor;
+    expect(cursor).not.toBe(closedFirst);
+
+    const secondPassCloses = vi.fn();
+    await manager.cleanup({ onClose: secondPassCloses });
+    expect(secondPassCloses.mock.calls[0]![0].channelId).toBe(cursor);
+    expect((manager as unknown as { scanCursor: string }).scanCursor).toBe("");
+  });
+
   // An unrecognized status has no cleanup path, so the record would sit in storage
   // forever without the operator ever hearing about it.
   it("reports an unrecognized channel status", async () => {
@@ -462,5 +498,268 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
       expect.any(Object),
     );
     expect(submitSettleMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Build a facilitator signer over more than one key. `submitSettle` is
+ * mocked in these tests, so `getSigner` need only return a value tied to
+ * its `feePayer`, not a real kit signer.
+ *
+ * @param signers - Underlying kit signers this facilitator manages
+ */
+function multiKeySigner(
+  signers: Awaited<ReturnType<typeof generateKeyPairSigner>>[],
+): FacilitatorSvmSigner {
+  const byAddress = new Map(signers.map(signer => [signer.address, signer]));
+  return {
+    getAddresses: () => signers.map(signer => signer.address),
+    getSigner: (feePayer: Address) => {
+      const signer = byAddress.get(feePayer);
+      if (!signer) throw new Error(`no signer for feePayer ${feePayer}`);
+      return signer as unknown as TransactionSigner & { signMessages: never };
+    },
+  } as FacilitatorSvmSigner;
+}
+
+describe("UptoSvmRentCleanupManager — onchain discovery", () => {
+  let feePayer: Awaited<ReturnType<typeof generateKeyPairSigner>>;
+  let payer: Awaited<ReturnType<typeof generateKeyPairSigner>>;
+  let storage: InMemoryUptoChannelStorage;
+  let manager: UptoSvmRentCleanupManager;
+  let discoveredChannelId: Address;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    feePayer = await generateKeyPairSigner();
+    payer = await generateKeyPairSigner();
+    discoveredChannelId = (await generateKeyPairSigner()).address;
+    storage = new InMemoryUptoChannelStorage();
+    manager = new UptoSvmRentCleanupManager({
+      enableDiscovery: true,
+      network: NETWORK,
+      signer: toFacilitatorSvmSigner(feePayer),
+      storage,
+    });
+    submitSettleMock.mockResolvedValue("Sig11111111111111111111111111111111111111111");
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+    discoverChannelsMock.mockResolvedValue([]);
+  });
+
+  /**
+   * @param status - Live channel status discovery should report
+   */
+  function discovered(status: ChannelStatus) {
+    return {
+      channel: {
+        mint: USDC_DEVNET_ADDRESS,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer: payer.address,
+        rentPayer: feePayer.address,
+        status,
+      },
+      channelId: discoveredChannelId,
+    };
+  }
+
+  it("reclaims an undiscovered Distributed channel found onchain", async () => {
+    discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
+    fetchMaybeChannelMock.mockResolvedValue({
+      data: {
+        mint: USDC_DEVNET_ADDRESS,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer: payer.address,
+        rentPayer: feePayer.address,
+        status: ChannelStatus.Distributed,
+      },
+      exists: true,
+    });
+
+    const onReclaim = vi.fn();
+    await manager.cleanup({ onReclaim });
+
+    expect(discoverChannelsMock).toHaveBeenCalledWith(expect.anything(), feePayer.address);
+    expect(onReclaim).toHaveBeenCalledWith(
+      expect.objectContaining({ channelIds: [discoveredChannelId] }),
+    );
+  });
+
+  it("ignores discovered channels that are not Distributed", async () => {
+    discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Open)]);
+
+    const onReclaim = vi.fn();
+    const onClose = vi.fn();
+    await manager.cleanup({ onClose, onReclaim });
+
+    expect(onReclaim).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(submitSettleMock).not.toHaveBeenCalled();
+  });
+
+  it("does not duplicate a channel already tracked in storage", async () => {
+    await storage.upsert({
+      channelId: discoveredChannelId,
+      expiresAt: FAR_FUTURE,
+      firstSeenAt: Date.now(),
+      network: NETWORK,
+      payTo: payer.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    } as UptoChannelRecord);
+    fetchMaybeChannelMock.mockResolvedValue({
+      data: {
+        mint: USDC_DEVNET_ADDRESS,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer: payer.address,
+        rentPayer: feePayer.address,
+        status: ChannelStatus.Distributed,
+      },
+      exists: true,
+    });
+    discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
+
+    const onReclaim = vi.fn();
+    await manager.cleanup({ onReclaim });
+
+    expect(onReclaim).toHaveBeenCalledTimes(1);
+    expect(onReclaim.mock.calls[0]![0].channelIds).toEqual([discoveredChannelId]);
+  });
+});
+
+describe("UptoSvmRentCleanupManager — concurrent signer groups", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("submits independent rent-payer groups concurrently", async () => {
+    const feePayerA = await generateKeyPairSigner();
+    const feePayerB = await generateKeyPairSigner();
+    const payer = await generateKeyPairSigner();
+    const payTo = await generateKeyPairSigner();
+    const storage = new InMemoryUptoChannelStorage();
+    const manager = new UptoSvmRentCleanupManager({
+      network: NETWORK,
+      signer: multiKeySigner([feePayerA, feePayerB]),
+      storage,
+    });
+
+    const recordA = (await generateKeyPairSigner()).address;
+    const recordB = (await generateKeyPairSigner()).address;
+    await storage.upsert({
+      channelId: recordA,
+      expiresAt: FAR_FUTURE,
+      firstSeenAt: Date.now(),
+      network: NETWORK,
+      payTo: payTo.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    } as UptoChannelRecord);
+    await storage.upsert({
+      channelId: recordB,
+      expiresAt: FAR_FUTURE,
+      firstSeenAt: Date.now(),
+      network: NETWORK,
+      payTo: payTo.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    } as UptoChannelRecord);
+
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+    fetchMaybeChannelMock.mockImplementation((_rpc: unknown, channelId: string) => {
+      const rentPayer = channelId === recordA ? feePayerA.address : feePayerB.address;
+      return Promise.resolve({
+        data: {
+          mint: USDC_DEVNET_ADDRESS,
+          openSlot: OPEN_SLOT,
+          payee: rentPayer,
+          payer: payer.address,
+          rentPayer,
+          status: ChannelStatus.Distributed,
+        },
+        exists: true,
+      });
+    });
+
+    let entered = 0;
+    let sawConcurrentEntry = false;
+    const releasers: (() => void)[] = [];
+    submitSettleMock.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          entered += 1;
+          if (entered > 1) sawConcurrentEntry = true;
+          releasers.push(() => resolve("Sig11111111111111111111111111111111111111111"));
+        }),
+    );
+
+    const pass = manager.cleanup({});
+    // Let both groups reach submitSettle before releasing either.
+    await vi.waitFor(() => expect(releasers).toHaveLength(2));
+    releasers.forEach(release => release());
+    await pass;
+
+    expect(sawConcurrentEntry).toBe(true);
+    expect(submitSettleMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("budgets each rent-payer group independently instead of sharing a pool", async () => {
+    const feePayerA = await generateKeyPairSigner();
+    const feePayerB = await generateKeyPairSigner();
+    const payer = await generateKeyPairSigner();
+    const payTo = await generateKeyPairSigner();
+    const storage = new InMemoryUptoChannelStorage();
+    const manager = new UptoSvmRentCleanupManager({
+      network: NETWORK,
+      signer: multiKeySigner([feePayerA, feePayerB]),
+      storage,
+    });
+
+    const channelIds: string[] = [];
+    for (let group = 0; group < 2; group++) {
+      for (let i = 0; i < 3; i++) {
+        const channel = await generateKeyPairSigner();
+        await storage.upsert({
+          channelId: channel.address,
+          expiresAt: FAR_FUTURE,
+          firstSeenAt: Date.now(),
+          network: NETWORK,
+          payTo: payTo.address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+        } as UptoChannelRecord);
+        channelIds.push(channel.address);
+      }
+    }
+    const rentPayerFor = new Map<string, string>([
+      [channelIds[0]!, feePayerA.address],
+      [channelIds[1]!, feePayerA.address],
+      [channelIds[2]!, feePayerA.address],
+      [channelIds[3]!, feePayerB.address],
+      [channelIds[4]!, feePayerB.address],
+      [channelIds[5]!, feePayerB.address],
+    ]);
+
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+    fetchMaybeChannelMock.mockImplementation((_rpc: unknown, channelId: string) => {
+      const rentPayer = rentPayerFor.get(channelId)!;
+      return Promise.resolve({
+        data: {
+          mint: USDC_DEVNET_ADDRESS,
+          openSlot: OPEN_SLOT,
+          payee: rentPayer,
+          payer: payer.address,
+          rentPayer,
+          status: ChannelStatus.Distributed,
+        },
+        exists: true,
+      });
+    });
+    submitSettleMock.mockResolvedValue("Sig11111111111111111111111111111111111111111");
+
+    const onReclaim = vi.fn();
+    await manager.cleanup({ maxReclaimsPerTx: 1, maxTxsPerRun: 2, onReclaim });
+
+    // Each of the two rent-payer groups gets its own budget of 2, not a
+    // shared pool of 2 total.
+    expect(onReclaim).toHaveBeenCalledTimes(4);
   });
 });

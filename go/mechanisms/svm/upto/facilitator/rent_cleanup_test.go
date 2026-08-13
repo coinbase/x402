@@ -26,6 +26,9 @@ type cleanupHarness struct {
 	payer solana.PublicKey
 	payTo solana.PublicKey
 
+	// mu guards the recorders below: reclaim batches for independent rent
+	// payers now run concurrently, so their callbacks can fire in parallel.
+	mu              sync.Mutex
 	closes          []CloseResult
 	reclaims        []ReclaimResult
 	errors          []error
@@ -60,9 +63,19 @@ func newCleanupHarness(t *testing.T) *cleanupHarness {
 
 // options wires the harness recorders into a bounded cleanup pass.
 func (h *cleanupHarness) options(opts CleanupOptions) CleanupOptions {
-	opts.OnClose = func(result CloseResult) { h.closes = append(h.closes, result) }
-	opts.OnReclaim = func(result ReclaimResult) { h.reclaims = append(h.reclaims, result) }
+	opts.OnClose = func(result CloseResult) {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.closes = append(h.closes, result)
+	}
+	opts.OnReclaim = func(result ReclaimResult) {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.reclaims = append(h.reclaims, result)
+	}
 	opts.OnError = func(err error, channelID string) {
+		h.mu.Lock()
+		defer h.mu.Unlock()
 		h.errors = append(h.errors, err)
 		h.errorChannelIDs = append(h.errorChannelIDs, channelID)
 	}
@@ -312,6 +325,55 @@ func TestCleanupRespectsReclaimBatchCaps(t *testing.T) {
 	require.Len(t, harness.reclaims, 1)
 	assert.Len(t, harness.reclaims[0].ChannelIDs, 2)
 	assert.Len(t, harness.signer.sentTransactions(), 1)
+}
+
+// rotateFromCursor resumes a stable-ordered backlog (e.g. Mongo-backed
+// storage) from where the previous pass's budget ran out, so a backlog
+// bigger than MaxTxsPerRun eventually reaches every record instead of only
+// ever reprocessing the same earliest ones.
+func TestRotateFromCursor(t *testing.T) {
+	records := []ChannelRecord{{ChannelID: "a"}, {ChannelID: "b"}, {ChannelID: "c"}}
+
+	assert.Equal(t, records, rotateFromCursor(records, ""), "no cursor scans from the start")
+	assert.Equal(t,
+		[]ChannelRecord{{ChannelID: "b"}, {ChannelID: "c"}, {ChannelID: "a"}},
+		rotateFromCursor(records, "b"),
+	)
+	assert.Equal(t,
+		[]ChannelRecord{{ChannelID: "c"}, {ChannelID: "a"}, {ChannelID: "b"}},
+		rotateFromCursor(records, "c"),
+	)
+	assert.Equal(t, records, rotateFromCursor(records, "gone"), "a cursor no longer present scans from the start")
+}
+
+// TestCleanupResumesScanningFromTheCursorAfterTheBudgetRunsOut proves the
+// manager records where a budget-limited pass stopped and clears it once a
+// pass scans everything, rather than always restarting from the beginning.
+func TestCleanupResumesScanningFromTheCursorAfterTheBudgetRunsOut(t *testing.T) {
+	harness := newCleanupHarness(t)
+	first := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String(), ExpiresAt: time.Now().Unix() - 3600},
+		harness.channel(paymentchannels.StatusSealed, testSlot),
+	)
+	second := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String(), ExpiresAt: time.Now().Unix() - 3600},
+		harness.channel(paymentchannels.StatusSealed, testSlot),
+	)
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
+		MaxTxsPerRun: 1,
+	})))
+	require.Len(t, harness.closes, 1)
+	assert.Contains(t, []string{first.ChannelID, second.ChannelID}, harness.manager.scanCursor)
+	assert.NotEqual(t, harness.closes[0].ChannelID, harness.manager.scanCursor,
+		"the cursor points at the unprocessed record, not the one just closed")
+	cursorAfterFirstPass := harness.manager.scanCursor
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+	require.True(t, len(harness.closes) >= 2)
+	assert.Equal(t, cursorAfterFirstPass, harness.closes[1].ChannelID,
+		"the second pass acts on the record the cursor pointed at first")
+	assert.Empty(t, harness.manager.scanCursor, "a pass that scans every remaining record clears the cursor")
 }
 
 func TestCleanupCapsClosesPerRun(t *testing.T) {
@@ -745,4 +807,205 @@ func TestStartIgnoresANonPositiveInterval(t *testing.T) {
 	harness.manager.Stop()
 
 	assert.Empty(t, harness.signer.sentTransactions())
+}
+
+// channelFor builds a live account owned by an arbitrary fee payer, so tests
+// can seed channels across more than one managed signer key.
+func (h *cleanupHarness) channelFor(
+	status paymentchannels.ChannelStatus, openSlot uint64, feePayer solana.PublicKey,
+) channelAccount {
+	return channelAccount{
+		Status:      status,
+		Deposit:     10_000,
+		GracePeriod: 3600,
+		Payer:       h.payer,
+		Payee:       feePayer,
+		RentPayer:   feePayer,
+		Mint:        solana.MustPublicKeyFromBase58(svm.USDCDevnetAddress),
+		OpenSlot:    openSlot,
+		Splits: []paymentchannels.Split{
+			{Recipient: h.payTo.String(), BPS: paymentchannels.BasisPointsDenominator},
+		},
+	}
+}
+
+// discoveredChannel publishes a live, PDA-valid channel account directly on
+// the stub without a stored record: the shape discovery must find on its own.
+func (h *cleanupHarness) discoveredChannel(
+	status paymentchannels.ChannelStatus, openSlot uint64, rentPayer solana.PublicKey,
+) solana.PublicKey {
+	h.t.Helper()
+
+	mint := solana.MustPublicKeyFromBase58(svm.USDCDevnetAddress)
+	authorizedSigner, err := solana.NewRandomPrivateKey()
+	require.NoError(h.t, err)
+	salt := uint64(time.Now().UnixNano())
+
+	pda, err := paymentchannels.FindChannelPDA(h.payer, rentPayer, mint, authorizedSigner.PublicKey(), salt, openSlot)
+	require.NoError(h.t, err)
+
+	account := channelAccount{
+		Status:           status,
+		Salt:             salt,
+		Deposit:          10_000,
+		GracePeriod:      3600,
+		Payer:            h.payer,
+		Payee:            rentPayer,
+		AuthorizedSigner: authorizedSigner.PublicKey(),
+		Mint:             mint,
+		RentPayer:        rentPayer,
+		OpenSlot:         openSlot,
+		Splits: []paymentchannels.Split{
+			{Recipient: h.payTo.String(), BPS: paymentchannels.BasisPointsDenominator},
+		},
+	}
+	h.stub.setAccount(pda.String(), account.encode(h.t))
+	return pda
+}
+
+// newDiscoveryCleanupHarness reuses a plain harness's signer/storage/stub but
+// enables the onchain discovery sweep on the manager under test.
+func newDiscoveryCleanupHarness(t *testing.T) *cleanupHarness {
+	t.Helper()
+	harness := newCleanupHarness(t)
+	harness.manager = NewRentCleanupManager(RentCleanupConfig{
+		Signer:          harness.signer,
+		Storage:         harness.storage,
+		Network:         testNetwork,
+		RPCURL:          harness.stub.url,
+		EnableDiscovery: true,
+	})
+	return harness
+}
+
+func TestCleanupDiscoversAndReclaimsUntrackedDistributedChannels(t *testing.T) {
+	harness := newDiscoveryCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	pda := harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+
+	require.Len(t, harness.reclaims, 1)
+	assert.Equal(t, []string{pda.String()}, harness.reclaims[0].ChannelIDs)
+}
+
+func TestCleanupDiscoveryIgnoresNonDistributedChannels(t *testing.T) {
+	harness := newDiscoveryCleanupHarness(t)
+	// An Open or Sealed channel discovered onchain carries no stored payTo,
+	// so discovery must never propose closing or distributing it.
+	harness.discoveredChannel(paymentchannels.StatusOpen, testSlot, harness.signer.feePayer())
+	harness.discoveredChannel(paymentchannels.StatusSealed, testSlot, harness.signer.feePayer())
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+
+	assert.Empty(t, harness.reclaims)
+	assert.Empty(t, harness.closes)
+	assert.Empty(t, harness.signer.sentTransactions())
+}
+
+func TestCleanupDiscoveryDoesNotDuplicateStoredChannels(t *testing.T) {
+	harness := newDiscoveryCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	record := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String()},
+		harness.channel(paymentchannels.StatusDistributed, openSlot),
+	)
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+
+	require.Len(t, harness.reclaims, 1, "the stored record must not also be reclaimed via discovery")
+	assert.Equal(t, []string{record.ChannelID}, harness.reclaims[0].ChannelIDs)
+}
+
+// TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently proves that adding a
+// second managed signer key adds parallel reclaim capacity instead of only
+// extending one sequential queue: both groups must be in flight at once.
+func TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently(t *testing.T) {
+	harness := newCleanupHarness(t)
+	signer := newMockSigner(t, 2)
+	harness.signer = signer
+	harness.manager = NewRentCleanupManager(RentCleanupConfig{
+		Signer:  signer,
+		Storage: harness.storage,
+		Network: testNetwork,
+		RPCURL:  harness.stub.url,
+	})
+
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	first := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String()},
+		harness.channelFor(paymentchannels.StatusDistributed, openSlot, signer.keys[0].PublicKey()),
+	)
+	second := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String()},
+		harness.channelFor(paymentchannels.StatusDistributed, openSlot, signer.keys[1].PublicKey()),
+	)
+
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	signer.onSend = func(*solana.Transaction) {
+		entered <- struct{}{}
+		<-release
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{}))
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("both rent-payer groups did not submit concurrently")
+		}
+	}
+	close(release)
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("cleanup pass did not finish after release")
+	}
+
+	require.Len(t, harness.reclaims, 2)
+	var reclaimedIDs []string
+	for _, result := range harness.reclaims {
+		reclaimedIDs = append(reclaimedIDs, result.ChannelIDs...)
+	}
+	assert.ElementsMatch(t, []string{first.ChannelID, second.ChannelID}, reclaimedIDs)
+}
+
+// TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently confirms
+// MaxTxsPerRun applies per rent-payer group rather than as a shared pool:
+// adding a managed signer key adds reclaim throughput instead of splitting a
+// fixed budget with the other keys.
+func TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently(t *testing.T) {
+	harness := newCleanupHarness(t)
+	signer := newMockSigner(t, 2)
+	harness.signer = signer
+	harness.manager = NewRentCleanupManager(RentCleanupConfig{
+		Signer:  signer,
+		Storage: harness.storage,
+		Network: testNetwork,
+		RPCURL:  harness.stub.url,
+	})
+
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	for _, key := range signer.keys {
+		for i := 0; i < 3; i++ {
+			harness.seedRecord(
+				ChannelRecord{PayTo: harness.payTo.String()},
+				harness.channelFor(paymentchannels.StatusDistributed, openSlot, key.PublicKey()),
+			)
+		}
+	}
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
+		MaxReclaimsPerTx: 1,
+		MaxTxsPerRun:     2,
+	})))
+
+	assert.Len(t, harness.reclaims, 4, "each of the two rent-payer groups gets its own budget of 2")
 }

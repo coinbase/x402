@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -103,6 +104,12 @@ type RentCleanupConfig struct {
 	Storage ChannelStorage
 	Network string
 	RPCURL  string
+
+	// EnableDiscovery adds a spec §6 getProgramAccounts sweep, per managed
+	// signer key, for Distributed channels missing from Storage. Discovery
+	// finds only chain-verifiable reclaim candidates: it never substitutes
+	// for the payTo/tokenProgram metadata Open/Sealed actions require.
+	EnableDiscovery bool
 }
 
 // RentCleanupManager recovers the rent a facilitator fronts for payment
@@ -113,28 +120,37 @@ type RentCleanupConfig struct {
 // refunds the unsettled remainder to the client, so cleanup only kicks in
 // after the voucher deadline plus a grace period.
 type RentCleanupManager struct {
-	signer  svm.FacilitatorSvmSigner
-	storage ChannelStorage
-	network string
-	rpcURL  string
+	signer          svm.FacilitatorSvmSigner
+	storage         ChannelStorage
+	network         string
+	rpcURL          string
+	enableDiscovery bool
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 
 	// passMu serializes passes so a manual Cleanup cannot race the interval
-	// loop into submitting the same close or reclaim twice.
+	// loop into submitting the same close or reclaim twice. It also guards
+	// scanCursor, since only one pass ever reads or writes it.
 	passMu sync.Mutex
+
+	// scanCursor resumes scanning where the previous pass's budget ran out,
+	// so a persistent close/reclaim backlog larger than MaxTxsPerRun cannot
+	// starve records ordered later in storage.List forever. Empty means
+	// start from the beginning of the list.
+	scanCursor string
 }
 
 // NewRentCleanupManager creates a rent cleanup manager. It does not start
 // automatically; the facilitator scheme never runs cleanup on its own.
 func NewRentCleanupManager(config RentCleanupConfig) *RentCleanupManager {
 	return &RentCleanupManager{
-		signer:  config.Signer,
-		storage: config.Storage,
-		network: config.Network,
-		rpcURL:  config.RPCURL,
+		signer:          config.Signer,
+		storage:         config.Storage,
+		network:         config.Network,
+		rpcURL:          config.RPCURL,
+		enableDiscovery: config.EnableDiscovery,
 	}
 }
 
@@ -205,16 +221,21 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 	if err != nil {
 		return fmt.Errorf("failed to list stored channels: %w", err)
 	}
+	records = rotateFromCursor(records, m.scanCursor)
+	m.scanCursor = ""
 
 	now := time.Now().Unix()
 	var currentSlot *uint64
 	txsUsed, closesUsed := 0, 0
 	var reclaimCandidates []reclaimCandidate
+	seen := make(map[string]struct{}, len(records))
 
 	for _, record := range records {
 		// Stop, not skip: the budget is spent, so nothing further in this pass
 		// can act on a record, and each one costs an account fetch to classify.
+		// Resume here next pass instead of always rescanning from the start.
 		if txsUsed >= opts.MaxTxsPerRun {
+			m.scanCursor = record.ChannelID
 			break
 		}
 		if ctx.Err() != nil {
@@ -223,6 +244,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		if record.Network != m.network {
 			continue
 		}
+		seen[record.ChannelID] = struct{}{}
 
 		channelID, err := solana.PublicKeyFromBase58(record.ChannelID)
 		if err != nil {
@@ -282,15 +304,12 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 			m.deleteIfGone(ctx, rpcClient, channelID, record.ChannelID, opts)
 
 		case paymentchannels.StatusDistributed:
-			if currentSlot == nil {
-				slot, err := rpcClient.GetSlot(ctx, upto.SlotCommitment)
-				if err != nil {
-					opts.reportError(fmt.Errorf("failed to fetch the current slot: %w", err), record.ChannelID)
-					continue
-				}
-				currentSlot = &slot
+			slot, err := m.currentSlot(ctx, rpcClient, &currentSlot)
+			if err != nil {
+				opts.reportError(err, record.ChannelID)
+				continue
 			}
-			if *currentSlot > channel.OpenSlot+paymentchannels.OpenSlotWindow {
+			if slot > channel.OpenSlot+paymentchannels.OpenSlotWindow {
 				reclaimCandidates = append(reclaimCandidates, reclaimCandidate{
 					channelID: channelID,
 					rentPayer: channel.RentPayer,
@@ -307,14 +326,101 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		}
 	}
 
-	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts, opts.MaxTxsPerRun-txsUsed)
+	if m.enableDiscovery {
+		discovered, err := m.discoverReclaimCandidates(ctx, rpcClient, &currentSlot, seen, opts)
+		if err != nil {
+			opts.reportError(err, "")
+		} else {
+			reclaimCandidates = append(reclaimCandidates, discovered...)
+		}
+	}
+
+	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts)
 	return nil
+}
+
+// currentSlot lazily fetches and caches the slot used to gate reclaims, so a
+// pass with no Distributed records never pays for the RPC round trip.
+func (m *RentCleanupManager) currentSlot(ctx context.Context, rpcClient *rpc.Client, cache **uint64) (uint64, error) {
+	if *cache != nil {
+		return **cache, nil
+	}
+	slot, err := rpcClient.GetSlot(ctx, upto.SlotCommitment)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch the current slot: %w", err)
+	}
+	*cache = &slot
+	return slot, nil
+}
+
+// discoverReclaimCandidates runs the spec §6 onchain sweep for every managed
+// signer key and returns Distributed, slot-gated channels absent from
+// Storage. It is the recovery path for a lost or incomplete work index and
+// only ever proposes the reclaim action, which needs no offchain metadata.
+func (m *RentCleanupManager) discoverReclaimCandidates(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	currentSlotCache **uint64,
+	seen map[string]struct{},
+	opts CleanupOptions,
+) ([]reclaimCandidate, error) {
+	var candidates []reclaimCandidate
+	for _, managed := range m.signer.GetAddresses(ctx, m.network) {
+		if ctx.Err() != nil {
+			return candidates, ctx.Err()
+		}
+		found, err := paymentchannels.DiscoverChannelsByRentPayer(ctx, rpcClient, managed)
+		if err != nil {
+			opts.reportError(fmt.Errorf("discovery failed for rent payer %s: %w", managed, err), "")
+			continue
+		}
+		slot, err := m.currentSlot(ctx, rpcClient, currentSlotCache)
+		if err != nil {
+			return candidates, err
+		}
+		for _, channel := range found {
+			id := channel.ChannelID.String()
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			if channel.Channel.Status != paymentchannels.StatusDistributed {
+				continue
+			}
+			if slot <= channel.Channel.OpenSlot+paymentchannels.OpenSlotWindow {
+				continue
+			}
+			candidates = append(candidates, reclaimCandidate{
+				channelID: channel.ChannelID,
+				rentPayer: channel.Channel.RentPayer,
+			})
+		}
+	}
+	return candidates, nil
 }
 
 // reclaimCandidate is a Distributed channel ready to have its rent reclaimed.
 type reclaimCandidate struct {
 	channelID solana.PublicKey
 	rentPayer solana.PublicKey
+}
+
+// rotateFromCursor reorders records to start right after the channel ID a
+// prior pass stopped at, wrapping around. An unknown or empty cursor (a
+// closed channel, or the first pass) scans from the beginning.
+func rotateFromCursor(records []ChannelRecord, cursor string) []ChannelRecord {
+	if cursor == "" {
+		return records
+	}
+	for i, record := range records {
+		if record.ChannelID == cursor {
+			rotated := make([]ChannelRecord, 0, len(records))
+			rotated = append(rotated, records[i:]...)
+			rotated = append(rotated, records[:i]...)
+			return rotated
+		}
+	}
+	return records
 }
 
 // submitCloseOrDistribute seals and distributes an abandoned Open channel, or
@@ -364,16 +470,20 @@ func (m *RentCleanupManager) submitCloseOrDistribute(
 	return submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
 }
 
-// submitReclaimBatches groups candidates by rent payer and submits batched
-// reclaim transactions within the remaining transaction budget.
+// submitReclaimBatches groups candidates by rent payer and runs each group's
+// batched reclaim transactions concurrently, each against its own
+// MaxTxsPerRun budget. Submissions within a group stay sequential (each batch
+// refetches live state, so a group depends on its own prior submissions to
+// avoid double-reclaiming), but independent rent-payer groups do not share a
+// budget or depend on one another: adding managed signer keys adds
+// MaxTxsPerRun more reclaim throughput per pass, not a share of a fixed pool.
 func (m *RentCleanupManager) submitReclaimBatches(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	candidates []reclaimCandidate,
 	opts CleanupOptions,
-	maxTxs int,
 ) {
-	if maxTxs <= 0 || len(candidates) == 0 {
+	if opts.MaxTxsPerRun <= 0 || len(candidates) == 0 {
 		return
 	}
 
@@ -386,55 +496,78 @@ func (m *RentCleanupManager) submitReclaimBatches(
 		byRentPayer[candidate.rentPayer] = append(byRentPayer[candidate.rentPayer], candidate)
 	}
 
-	txsUsed := 0
+	var wg sync.WaitGroup
 	for _, rentPayer := range order {
-		if txsUsed >= maxTxs {
+		group := byRentPayer[rentPayer]
+		wg.Add(1)
+		go func(rentPayer solana.PublicKey, group []reclaimCandidate) {
+			defer wg.Done()
+			budget := int64(opts.MaxTxsPerRun)
+			m.submitReclaimGroup(ctx, rpcClient, rentPayer, group, opts, &budget)
+		}(rentPayer, group)
+	}
+	wg.Wait()
+}
+
+// submitReclaimGroup submits one rent payer's batches sequentially, claiming
+// a slot from the shared budget before each attempt so concurrent groups
+// cannot overrun maxTxs.
+func (m *RentCleanupManager) submitReclaimGroup(
+	ctx context.Context,
+	rpcClient *rpc.Client,
+	rentPayer solana.PublicKey,
+	group []reclaimCandidate,
+	opts CleanupOptions,
+	budget *int64,
+) {
+	feePayer, err := m.resolveFeePayer(ctx, rentPayer)
+	if err != nil {
+		for _, candidate := range group {
+			opts.reportError(err, candidate.channelID.String())
+		}
+		return
+	}
+
+	for start := 0; start < len(group); start += opts.MaxReclaimsPerTx {
+		if atomic.AddInt64(budget, -1) < 0 {
+			atomic.AddInt64(budget, 1)
 			return
 		}
-		group := byRentPayer[rentPayer]
+		if ctx.Err() != nil {
+			return
+		}
 
-		feePayer, err := m.resolveFeePayer(ctx, rentPayer)
-		if err != nil {
-			for _, candidate := range group {
-				opts.reportError(err, candidate.channelID.String())
-			}
+		end := start + opts.MaxReclaimsPerTx
+		if end > len(group) {
+			end = len(group)
+		}
+		batch := m.refreshReclaimBatch(ctx, rpcClient, group[start:end], opts)
+		if len(batch) == 0 {
 			continue
 		}
 
-		for start := 0; start < len(group) && txsUsed < maxTxs; start += opts.MaxReclaimsPerTx {
-			end := start + opts.MaxReclaimsPerTx
-			if end > len(group) {
-				end = len(group)
-			}
-			batch := m.refreshReclaimBatch(ctx, rpcClient, group[start:end], opts)
-			if len(batch) == 0 {
-				continue
-			}
+		instructions := make([]solana.Instruction, 0, len(batch))
+		channelIDs := make([]string, 0, len(batch))
+		for _, candidate := range batch {
+			instructions = append(instructions,
+				paymentchannels.BuildReclaimInstruction(candidate.channelID, candidate.rentPayer))
+			channelIDs = append(channelIDs, candidate.channelID.String())
+		}
 
-			instructions := make([]solana.Instruction, 0, len(batch))
-			channelIDs := make([]string, 0, len(batch))
-			for _, candidate := range batch {
-				instructions = append(instructions,
-					paymentchannels.BuildReclaimInstruction(candidate.channelID, candidate.rentPayer))
-				channelIDs = append(channelIDs, candidate.channelID.String())
-			}
-
-			signature, err := submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
-			if err != nil {
-				// Every channel in the batch is stuck, not just the first.
-				for _, channelID := range channelIDs {
-					opts.reportError(err, channelID)
-				}
-				continue
-			}
-			txsUsed++
-			if opts.OnReclaim != nil {
-				opts.OnReclaim(ReclaimResult{ChannelIDs: channelIDs, Transaction: signature})
-			}
+		signature, err := submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
+		if err != nil {
+			// Every channel in the batch is stuck, not just the first.
 			for _, channelID := range channelIDs {
-				if err := m.storage.Delete(ctx, channelID); err != nil {
-					opts.reportError(err, channelID)
-				}
+				opts.reportError(err, channelID)
+			}
+			continue
+		}
+		if opts.OnReclaim != nil {
+			opts.OnReclaim(ReclaimResult{ChannelIDs: channelIDs, Transaction: signature})
+		}
+		for _, channelID := range channelIDs {
+			if err := m.storage.Delete(ctx, channelID); err != nil {
+				opts.reportError(err, channelID)
 			}
 		}
 	}
